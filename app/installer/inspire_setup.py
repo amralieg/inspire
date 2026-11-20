@@ -1217,6 +1217,139 @@ def step_run_as_jobs(ctx):
     print(RUN_AS_TAG_NOTE.format(name=RUN_AS_JOBS[1][1]))
 
 
+# REQ-423/REQ-424: the installer's model-access plan, the same decision the notebook roster and the App's pre-launch check make.
+MODEL_PROBE = {"messages": [{"role": "user", "content": "Reply with the single word OK."}], "max_tokens": 4, "temperature": 0}
+UNITY_GATEWAY_CHAT = "/ai-gateway/mlflow/v1/chat/completions"
+UNITY_GATEWAY_MODELS = "/ai-gateway/codex/v1/models"
+MODEL_CANDIDATE_LIMIT = 6
+# The admin steps a stop prints. tests/test_model_access_worlds.py checks these against app/backend/test/support/modelAccessWorlds.json.
+MODEL_STOP_STEPS = {
+    "none": ["Serve a chat model the App can use: a Databricks-hosted model, a provisioned throughput endpoint, or a Unity Gateway route.",
+             "Then grant <principal> CAN_QUERY on that endpoint, or EXECUTE on its system.ai model service with USE CATALOG on system and USE SCHEMA on system.ai."],
+    "denied": ["Grant <principal> CAN_QUERY on the chat model endpoints in Serving, or EXECUTE on their system.ai model services with USE CATALOG on system and USE SCHEMA on system.ai."],
+}
+ENFORCEMENT_REFUSAL = ("is disabled for this workspace", "unity gateway")
+
+
+def _as_endpoint(row):
+    from types import SimpleNamespace
+    state = row.get("state")
+    ready = state.get("ready") if isinstance(state, dict) else state
+    return SimpleNamespace(name=row.get("name"), id=row.get("id"), task=row.get("task"),
+                           state=SimpleNamespace(ready=ready) if ready else None, config=None)
+
+
+def _plan(blocked, callable_name, setup, principal=None):
+    steps = [step.replace("<principal>", principal or "<principal>") for step in MODEL_STOP_STEPS.get(setup, [])] if blocked else []
+    return {"blocked": blocked, "callable": callable_name, "setup": setup, "steps": steps}
+
+
+def _confirm_model(call, name):
+    """One candidate, in the notebook's order: a databricks- name is tried as its system.ai model service first, then as itself.
+    Returns (callable, setup, refusal), where refusal is (status, enforcement text?) when nothing answered."""
+    if not name.startswith("databricks-"):
+        status, _data = call("POST", UNITY_GATEWAY_CHAT, dict(MODEL_PROBE, model=name))
+        return (name, "gateway-only", None) if status == 200 else (None, None, (status, False))
+    service = system_model_service(name)
+    status, _data = call("POST", UNITY_GATEWAY_CHAT, dict(MODEL_PROBE, model=service))
+    if status == 200:
+        return service, "enforced", None
+    status, data = call("POST", f"/serving-endpoints/{name}/invocations", MODEL_PROBE)
+    if status == 200:
+        return name, "legacy", None
+    message = str((data or {}).get("message") or "").lower()
+    return None, None, (status, all(part in message for part in ENFORCEMENT_REFUSAL))
+
+
+def model_access_plan(call, notebook_text, principal=None):
+    """REQ-423/REQ-424: what the run would call and whether it is blocked, over call(method, path, body) -> (status, data).
+    setup is the label the install prints: enforced, legacy, gateway-only, none, denied, or rate limit."""
+    matching = agent_model_matching(notebook_text)
+    status, listed = call("GET", "/api/2.0/serving-endpoints", None)
+    if status not in (200, 403):
+        return _plan(False, None, "rate limit" if status == 429 else "unknown", principal)
+    listing_denied = status == 403
+    endpoints = [_as_endpoint(row) for row in ((listed or {}).get("endpoints") or [])] if status == 200 else []
+    gateway_status, gateway = call("GET", UNITY_GATEWAY_MODELS, None)
+    if gateway_status == 429:
+        return _plan(False, None, "rate limit", principal)
+    routes = [_as_endpoint({"name": row.get("slug"), "task": "llm/v1/chat"}) for row in ((gateway or {}).get("models") or [])
+              if row.get("slug")] if gateway_status == 200 else []
+    picks = model_endpoints_to_grant(endpoints + routes, matching)[:MODEL_CANDIDATE_LIMIT]
+    refusals = []
+    for name in picks:
+        found, setup, refusal = _confirm_model(call, name)
+        if found:
+            return _plan(False, found, setup, principal)
+        refusals.append(refusal)
+    if any(code == 429 for code, _enforced in refusals):
+        return _plan(False, None, "rate limit", principal)
+    if not picks:
+        return _plan(True, None, "denied" if (listing_denied or gateway_status == 403) else "none", principal)
+    return _plan(True, None, "denied" if any(code == 403 for code, _enforced in refusals) else "none", principal)
+
+
+def _app_sp_call(ctx):
+    """REQ-424: a call(method, path, body) that acts as the App's service principal, or None. The installer holds no credential for
+    that identity: it never creates or stores an OAuth secret for the App's service principal, because minting one is an admin
+    decision. So production passes None and the gate falls back to the permissions check; a test supplies a call."""
+    return ctx.get("APP_SP_CALL")
+
+
+def _sp_privileges(api, path, principal):
+    """The privileges a principal holds directly on one securable (direct grants only), or None when the grant read fails."""
+    resp = api("GET", path, None)
+    if resp.status_code != 200:
+        return None
+    try:
+        rows = json.loads(resp.text or "{}").get("privilege_assignments") or []
+    except ValueError:
+        return None
+    return {p for row in rows if row.get("principal") == principal for p in (row.get("privileges") or [])}
+
+
+def model_permission_fallback(ctx, principal, notebook_text):
+    """REQ-424 fallback when no live call is possible: the installer's own permission read on the system.ai services the agent
+    would use, plus USE CATALOG and USE SCHEMA. It reports what it could read and never stops the install."""
+    if not principal:
+        return ["Live model check not possible: the App has no service principal yet, so there is no identity to call a chat model as. "
+                "The check runs once the App exists."]
+    lines = ["Live model check not possible: the installer holds no credential for the App's service principal, so it cannot make the "
+             "chat call as that identity. Permissions read instead (direct grants only; the default EXECUTE that account users hold "
+             "is not visible here):"]
+    api = ctx["api"]
+    try:
+        endpoints = [_as_endpoint({"name": e.name, "id": getattr(e, "id", None), "task": getattr(e, "task", None)})
+                     for e in ctx["w"].serving_endpoints.list()]
+        services = [system_model_service(n) for n in model_endpoints_to_grant(endpoints, agent_model_matching(notebook_text))]
+    except Exception as exc:
+        return lines + [f"  not read: {_error_words(exc)}"]
+    for service in [s for s in services if s][:MODEL_CANDIDATE_LIMIT]:
+        got = _sp_privileges(api, f"/api/2.1/unity-catalog/permissions/model_service/{service}", principal)
+        lines.append(f"  {service}: EXECUTE {'yes' if got is not None and 'EXECUTE' in got else 'no or unreadable'}")
+    for securable, full_name, privilege in (("catalog", "system", "USE_CATALOG"), ("schema", "system.ai", "USE_SCHEMA")):
+        got = _sp_privileges(api, f"/api/2.1/unity-catalog/permissions/{securable}/{full_name}", principal)
+        lines.append(f"  {securable} {full_name}: {privilege} {'yes' if got is not None and privilege in got else 'no or unreadable'}")
+    return lines
+
+
+def model_access_gate(ctx, principal, notebook_text):
+    """REQ-424 gate, run before the App is replaced. With a credential for the App's service principal it makes the live chat call
+    by the run's route and name and stops the install when the setup blocks the run. Without one it prints the permissions fallback
+    and continues. Returns the lines to print; raises RuntimeError only on a stop."""
+    sp_call = _app_sp_call(ctx)
+    if sp_call is None:
+        return model_permission_fallback(ctx, principal, notebook_text)
+    plan = model_access_plan(sp_call, notebook_text, principal)
+    if plan["blocked"]:
+        steps = "\n".join(f"  {i}. {step}" for i, step in enumerate(plan["steps"], 1))
+        raise RuntimeError(f"Live model check as the App's service principal {principal}: setup {plan['setup']}. No chat model answered, "
+                           f"so the App cannot call one. The install stopped before the App was replaced. Admin steps:\n{steps}")
+    if plan["setup"] == "rate limit":
+        return ["Live model check: a rate limit answered every call, so nothing could be confirmed. The install continues and the run retries."]
+    return [f"Live model check: setup {plan['setup']}; the run calls {plan['callable']}."]
+
+
 def step_create_app_and_find_sp(ctx):
     api = ctx["api"]
     api_get = ctx["api_get"]
@@ -1227,6 +1360,19 @@ def step_create_app_and_find_sp(ctx):
     sp_name = ctx["SP_NAME"]
     app_name = ctx["APP_NAME"]
     catalog = ctx["CATALOG"]
+
+    # REQ-424: the live model check runs before the App is replaced, as the App's current service principal when one exists.
+    existing_sp = None
+    try:
+        existing_sp = next((app.get("service_principal_client_id") for app in _list_apps(api_get) if app.get("name") == app_name), None)
+    except Exception:
+        existing_sp = None
+    notebook_text = ctx.get("AGENT_NOTEBOOK_TEXT") or ""
+    if notebook_text:
+        for line in model_access_gate(ctx, existing_sp, notebook_text):
+            print(f"  {line}")
+    else:
+        print("  Live model check not run: the bundled agent notebook is not loaded in this install.")
 
     sp_before = set()
     try:

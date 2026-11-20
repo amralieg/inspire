@@ -1,0 +1,150 @@
+{
+  "rule": "Outcome vocabulary: answer, enforced, denied, ratelimit, missing. A name not listed in outcomes is 'missing'. expected.callable is the first name a chat call confirmed, in roster order with system.ai first; null when none was confirmed. expected.blocked is true only when the run cannot start: no confirmed name and a refusal, not a rate limit. expected.steps are the admin steps a stop prints, with <principal> for the App's service principal.",
+  "texts": {
+    "enforced": "[INTERNAL_ERROR] Remote session creation failed: PERMISSION_DENIED: PERMISSION_DENIED: Querying pay-per-token foundation model endpoint '{name}' is disabled for this workspace. Please use Unity Gateway.",
+    "denied": "[INTERNAL_ERROR] PERMISSION_DENIED: User does not have CAN_QUERY on serving endpoint '{name}'.",
+    "ratelimit": "[REQUEST_LIMIT_EXCEEDED] Too many requests: rate limit exceeded on '{name}' (429).",
+    "missing": "[RESOURCE_DOES_NOT_EXIST] Serving endpoint '{name}' does not exist."
+  },
+  "worlds": [
+    {
+      "id": "legacy",
+      "setup": "legacy",
+      "description": "Databricks-hosted endpoints answer; no Unity Gateway model services; no gateway route.",
+      "listing": "answer",
+      "endpoints": [
+        {
+          "name": "databricks-claude-sonnet-4-6",
+          "id": null,
+          "task": "llm/v1/chat"
+        },
+        {
+          "name": "databricks-gpt-oss-120b",
+          "id": null,
+          "task": "llm/v1/chat"
+        }
+      ],
+      "gateway": "missing",
+      "gateway_models": [],
+      "outcomes": {
+        "databricks-claude-sonnet-4-6": "answer",
+        "databricks-gpt-oss-120b": "answer"
+      },
+      "expected": {
+        "blocked": false,
+        "callable": "databricks-claude-sonnet-4-6",
+        "steps": []
+      }
+    },
+    {
+      "id": "enforced",
+      "setup": "enforced",
+      "description": "Enforce Unity Gateway: pay-per-token names refused with the enforcement text; system.ai model services answer on ai_query and the Unity Gateway chat route.",
+      "listing": "answer",
+      "endpoints": [
+        {
+          "name": "databricks-claude-sonnet-4-6",
+          "id": null,
+          "task": "llm/v1/chat"
+        },
+        {
+          "name": "databricks-gpt-oss-120b",
+          "id": null,
+          "task": "llm/v1/chat"
+        }
+      ],
+      "gateway": "missing",
+      "gateway_models": [],
+      "outcomes": {
+        "databricks-claude-sonnet-4-6": "enforced",
+        "databricks-gpt-oss-120b": "enforced",
+        "system.ai.claude-sonnet-4-6": "answer",
+        "system.ai.gpt-oss-120b": "answer"
+      },
+      "expected": {
+        "blocked": false,
+        "callable": "system.ai.claude-sonnet-4-6",
+        "steps": []
+      }
+    },
+    {
+      "id": "gateway-only",
+      "setup": "gateway-only",
+      "description": "No serving endpoints; the Unity Gateway Codex route lists one chat model.",
+      "listing": "answer",
+      "endpoints": [],
+      "gateway": "answer",
+      "gateway_models": [
+        "claude-sonnet-4-6"
+      ],
+      "outcomes": {
+        "claude-sonnet-4-6": "answer"
+      },
+      "expected": {
+        "blocked": false,
+        "callable": "claude-sonnet-4-6",
+        "steps": []
+      }
+    },
+    {
+      "id": "none",
+      "setup": "none",
+      "description": "No chat model anywhere: no serving endpoint and no gateway model.",
+      "listing": "answer",
+      "endpoints": [],
+      "gateway": "answer",
+      "gateway_models": [],
+      "outcomes": {},
+      "expected": {
+        "blocked": true,
+        "callable": null,
+        "steps": [
+          "Serve a chat model the App can use: a Databricks-hosted model, a provisioned throughput endpoint, or a Unity Gateway route.",
+          "Then grant <principal> CAN_QUERY on that endpoint, or EXECUTE on its system.ai model service with USE CATALOG on system and USE SCHEMA on system.ai."
+        ]
+      }
+    },
+    {
+      "id": "sp-denied",
+      "setup": "denied",
+      "description": "Every call refused with PERMISSION_DENIED for the run identity (not the enforcement text).",
+      "listing": "denied",
+      "endpoints": [],
+      "gateway": "denied",
+      "gateway_models": [],
+      "outcomes": {
+        "databricks-claude-sonnet-4-6": "denied",
+        "databricks-gpt-oss-120b": "denied",
+        "system.ai.claude-sonnet-4-6": "denied",
+        "system.ai.gpt-oss-120b": "denied"
+      },
+      "expected": {
+        "blocked": true,
+        "callable": null,
+        "steps": [
+          "Grant <principal> CAN_QUERY on the chat model endpoints in Serving, or EXECUTE on their system.ai model services with USE CATALOG on system and USE SCHEMA on system.ai."
+        ]
+      }
+    },
+    {
+      "id": "rate-limit-0",
+      "setup": "rate limit",
+      "description": "Every call answers 429 RESOURCE_EXHAUSTED (rate limit 0). Nothing can be confirmed, nothing is refused.",
+      "listing": "ratelimit",
+      "endpoints": [],
+      "gateway": "ratelimit",
+      "gateway_models": [],
+      "outcomes": {
+        "databricks-claude-sonnet-4-6": "ratelimit",
+        "databricks-gpt-oss-120b": "ratelimit",
+        "system.ai.claude-sonnet-4-6": "ratelimit",
+        "system.ai.gpt-oss-120b": "ratelimit"
+      },
+      "expected": {
+        "blocked": false,
+        "callable": null,
+        "steps": []
+      }
+    }
+  ]
+}

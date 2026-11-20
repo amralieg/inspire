@@ -84,23 +84,29 @@ function permissionFor(principal, denied, enforced) {
 // The Unity Gateway serves models the agent can also pick (the roster includes its routes). A gateway that lists a model means the
 // run is not blocked by the serving endpoints alone.
 const GATEWAY_MODELS = '/ai-gateway/codex/v1/models';
-async function gatewayServes(call) {
+// The first model the Unity Gateway lists (Codex route: models[].slug; Anthropic route: data[].id), or '' when it lists none.
+async function gatewaySlug(call) {
   const listed = await call('GET', GATEWAY_MODELS);
-  return listed.ok && ((listed.data.models || []).length + (listed.data.data || []).length) > 0;
+  if (!listed.ok) return '';
+  const rows = [...(listed.data.models || []), ...(listed.data.data || [])];
+  const first = rows.find((m) => m && (m.slug || m.id));
+  return first ? String(first.slug || first.id) : '';
 }
 
 // `call(method, path, body)` resolves to { ok, status, data }, the shape jsonOf gives. Returns null when the run may start.
-// One candidate: a usable answer, a refusal (denied, and whether it was the enforcement refusal), or an inconclusive error.
+// One candidate: confirmed (with the name the run would call), a refusal (denied, and whether it was the enforcement refusal), or inconclusive.
 async function probeCandidate(call, endpoint) {
   const { response, enforced } = await viaModelService(call, endpoint.name, PROBE);
-  if (response.ok) return { usable: true };
+  if (response.ok) return { usable: true, callable: enforced ? systemModelService(endpoint.name) : endpoint.name };
   if (response.status !== 403) return { inconclusive: true };
   return { denied: true, enforced };
 }
 
-async function modelAccessPermission({ call, principal }) {
+// What the run would call and whether the run is blocked. The name is the first confirmed one, in roster order (system.ai first).
+async function planModelAccess({ call, principal }) {
+  const none = { blocked: false, callable: null, permission: null };
   const listed = await call('GET', '/api/2.0/serving-endpoints');
-  if (!listed.ok && listed.status !== 403) return null;
+  if (!listed.ok && listed.status !== 403) return none;
   const endpoints = listed.ok ? listed.data.endpoints || [] : [];
   const byName = new Map(endpoints.filter((e) => e && e.name).map((e) => [e.name, e]));
   const candidates = rosterOrder(endpoints).slice(0, CANDIDATE_LIMIT).map((name) => byName.get(name));
@@ -109,15 +115,20 @@ async function modelAccessPermission({ call, principal }) {
   let inconclusive = false;
   for (const endpoint of candidates) {
     const result = await probeCandidate(call, endpoint);
-    if (result.usable) return null;
+    if (result.usable) return { blocked: false, callable: result.callable, permission: null };
     if (result.denied) {
       denied.push(endpoint);
       if (result.enforced) enforced.push(endpoint);
     } else inconclusive = true;
   }
-  if (inconclusive) return null;
-  if (await gatewayServes(call)) return null;
-  return permissionFor(principal, denied, enforced);
+  if (inconclusive) return none;
+  const slug = await gatewaySlug(call);
+  if (slug) return { blocked: false, callable: slug, permission: null };
+  return { blocked: true, callable: null, permission: permissionFor(principal, denied, enforced) };
 }
 
-module.exports = { modelAccessPermission, invokeChatModel, systemModelService, CANDIDATE_LIMIT, GATEWAY_CHAT };
+async function modelAccessPermission(args) {
+  return (await planModelAccess(args)).permission;
+}
+
+module.exports = { modelAccessPermission, planModelAccess, invokeChatModel, systemModelService, CANDIDATE_LIMIT, GATEWAY_CHAT };
