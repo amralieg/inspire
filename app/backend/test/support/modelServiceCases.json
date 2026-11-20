@@ -1,0 +1,13 @@
+{
+  "rule": "databricks-<model> is served by the Unity Gateway model service system.ai.<model>; any other name maps to nothing",
+  "cases": [
+    {"endpoint": "databricks-claude-sonnet-4-6", "service": "system.ai.claude-sonnet-4-6"},
+    {"endpoint": "databricks-gpt-oss-120b", "service": "system.ai.gpt-oss-120b"},
+    {"endpoint": "databricks-claude-opus-4-8", "service": "system.ai.claude-opus-4-8"},
+    {"endpoint": "databricks-", "service": ""},
+    {"endpoint": "system.ai.claude-sonnet-4-6", "service": ""},
+    {"endpoint": "Databricks-claude-sonnet-4-6", "service": ""},
+    {"endpoint": "my-team-sonnet-proxy", "service": ""},
+    {"endpoint": "", "service": ""}
+  ]
+}

@@ -1884,6 +1884,27 @@ def system_model_service(endpoint_name):
     return f"system.ai.{endpoint_name[len(prefix):]}"
 
 
+# REQ-422: a model service is queried by EXECUTE on it, plus USE CATALOG on system and USE SCHEMA on system.ai
+# (Unity Gateway migration docs, AWS). Each usage grant is sent with the EXECUTE grant.
+UNITY_USAGE_GRANTS = (
+    ("catalog", "system", "USE_CATALOG", "GRANT USE CATALOG ON CATALOG system TO"),
+    ("schema", "system.ai", "USE_SCHEMA", "GRANT USE SCHEMA ON SCHEMA system.ai TO"),
+)
+
+
+def _grant_usage_on_system_ai(api, sp, name):
+    """The USE grants after EXECUTE: granted when this identity can, otherwise the exact GRANT SQL is the admin's Permission Required step."""
+    refused = []
+    for securable, full_name, privilege, sql in UNITY_USAGE_GRANTS:
+        resp = api("PATCH", f"/api/2.1/unity-catalog/permissions/{securable}/{full_name}", {"changes": [{"principal": sp, "add": [privilege]}]})
+        if resp.status_code != 200:
+            refused.append(f"{sql} `{sp}`;")
+    if refused:
+        return (f" (the usage grants were not all granted; Permission Required: a metastore admin runs {' '.join(refused)} "
+                "Account users hold EXECUTE on system.ai models by default, so check the App first)")
+    return ", USE CATALOG on system and USE SCHEMA on system.ai ✅"
+
+
 def _grant_system_model(api, sp, name):
     service = system_model_service(name)
     if not service:
@@ -1891,7 +1912,7 @@ def _grant_system_model(api, sp, name):
                 "a workspace admin grants CAN_QUERY on it, or the App shows Permission Required")
     resp = api("PATCH", f"/api/2.1/unity-catalog/permissions/model_service/{service}", {"changes": [{"principal": sp, "add": ["EXECUTE"]}]})
     if resp.status_code == 200:
-        return f"  {name}: EXECUTE on {service} for the App's service principal ✅"
+        return f"  {name}: EXECUTE on {service} for the App's service principal ✅" + _grant_usage_on_system_ai(api, sp, name)
     command = f"databricks grants update model_service {service} --json '{{\"changes\": [{{\"principal\": \"{sp}\", \"add\": [\"EXECUTE\"]}}]}}'"
     return (f"  ⚠️ {name}: EXECUTE on {service} not granted ({resp.status_code} {resp.text[:100]}); "
             f"Permission Required: a metastore admin runs `{command}`. Account users already hold EXECUTE on system.ai models by default, "

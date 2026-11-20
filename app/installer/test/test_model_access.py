@@ -87,8 +87,12 @@ class ModelAccessTest(unittest.TestCase):
         api, calls = recording()
         only = [endpoint("databricks-claude-sonnet-4-6", None)]
         lines = setup.grant_model_access(api, workspace(only), SP, self.notebook)
-        self.assertEqual(calls, [("PATCH", "/api/2.1/unity-catalog/permissions/model_service/system.ai.claude-sonnet-4-6",
-                                  {"changes": [{"principal": SP, "add": ["EXECUTE"]}]})])
+        self.assertEqual(calls, [
+            ("PATCH", "/api/2.1/unity-catalog/permissions/model_service/system.ai.claude-sonnet-4-6",
+             {"changes": [{"principal": SP, "add": ["EXECUTE"]}]}),
+            ("PATCH", "/api/2.1/unity-catalog/permissions/catalog/system", {"changes": [{"principal": SP, "add": ["USE_CATALOG"]}]}),
+            ("PATCH", "/api/2.1/unity-catalog/permissions/schema/system.ai", {"changes": [{"principal": SP, "add": ["USE_SCHEMA"]}]}),
+        ])
         self.assertTrue(any("EXECUTE on system.ai.claude-sonnet-4-6 for the App's service principal" in line for line in lines), lines)
         self.assertFalse(any("has no id" in line for line in lines), "no endpoint is reported as ungrantable when a system model service exists")
 
@@ -119,3 +123,41 @@ class ModelAccessTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UsageGrantTest(unittest.TestCase):
+    """REQ-422: a model service is queried by EXECUTE on it plus USE CATALOG on system and USE SCHEMA on system.ai (docs:
+    Unity Gateway migration docs, AWS). The installer grants both usage privileges with the
+    EXECUTE grant, or prints the exact GRANT SQL as an admin step when the usage grant is refused."""
+
+    def setUp(self):
+        self.notebook = NOTEBOOK.read_text(encoding="utf-8")
+
+    @staticmethod
+    def by_path(status_by_path):
+        calls = []
+
+        def api(method, path, body=None):
+            calls.append((method, path, body))
+            return resp(status_by_path.get(path, 200))
+        return api, calls
+
+    def test_a_granted_system_model_also_gets_usage_on_system_and_system_ai(self):
+        # Fail-pre: only the EXECUTE grant was sent, so the usage privileges were never granted.
+        api, calls = recording()
+        lines = setup.grant_model_access(api, workspace([endpoint("databricks-claude-sonnet-4-6", None)]), SP, self.notebook)
+        paths = [path for _, path, _ in calls]
+        self.assertIn("/api/2.1/unity-catalog/permissions/catalog/system", paths)
+        self.assertIn("/api/2.1/unity-catalog/permissions/schema/system.ai", paths)
+        self.assertIn(("PATCH", "/api/2.1/unity-catalog/permissions/schema/system.ai",
+                       {"changes": [{"principal": SP, "add": ["USE_SCHEMA"]}]}), calls)
+        self.assertTrue(any("USE CATALOG on system and USE SCHEMA on system.ai" in line for line in lines), lines)
+
+    def test_a_refused_usage_grant_prints_the_exact_grant_sql_as_a_permission_required_admin_step(self):
+        # Fail-pre: a refused usage grant printed nothing and the admin had no SQL to run.
+        api, _calls = self.by_path({"/api/2.1/unity-catalog/permissions/catalog/system": 403})
+        lines = setup.grant_model_access(api, workspace([endpoint("databricks-claude-sonnet-4-6", None)]), SP, self.notebook)
+        joined = "\n".join(lines)
+        self.assertIn(f"GRANT USE CATALOG ON CATALOG system TO `{SP}`;", joined, joined)
+        self.assertIn("Permission Required", joined, joined)
+        self.assertTrue(lines[-1].startswith("⚠️ admin action:"), lines)
