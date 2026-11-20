@@ -328,7 +328,10 @@ def _previous_granted_catalogs(api, current):
     source = (deployed.get("deployment_artifacts") or {}).get("source_code_path") or deployed.get("source_code_path")
     if not source:
         return []
-    text, _error = _workspace_file_text(api, f"{source}/app.yaml")
+    try:
+        text, _error = _workspace_file_text(api, f"{source}/app.yaml")
+    except Exception:
+        return []
     return catalogs_recorded_in_app_yaml(text) if text else []
 
 

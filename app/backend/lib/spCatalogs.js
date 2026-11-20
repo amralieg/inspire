@@ -2,6 +2,7 @@
 // never from the installer's pick (INSPIRE_DATA_CATALOGS only seeds the grants). A catalog the principal can see but cannot fully read
 // (for example USE CATALOG without SELECT) is listed with the exact GRANT lines it is missing, for the Permission Required dialog.
 const { listCatalogs } = require('./ucReads');
+const { parseExactJson } = require('./exactJson');
 const { permissionRequired, readStatements } = require('./permissions');
 
 const UC = '/api/2.1/unity-catalog';
@@ -16,7 +17,7 @@ async function heldOn(dbFetch, host, token, catalog, principal) {
   try {
     const resp = await dbFetch(host, token, `${UC}/effective-permissions/catalog/${encodeURIComponent(catalog)}?principal=${encodeURIComponent(principal)}`);
     if (!resp.ok) return null;
-    const data = JSON.parse((await resp.text()) || '{}');
+    const data = parseExactJson((await resp.text()) || '{}');
     const held = new Set();
     for (const entry of Array.isArray(data.privilege_assignments) ? data.privilege_assignments : []) {
       for (const item of Array.isArray(entry.privileges) ? entry.privileges : []) held.add(String(item.privilege || item).toUpperCase().replace(/\s+/g, '_'));
