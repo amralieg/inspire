@@ -16,6 +16,7 @@ export function dbuCell(read, useCaseId) {
   const total = read.use_cases ? read.use_cases[useCaseId] : null;
   if (read.state === 'denied') return { text: 'DBUs: the App cannot read billing', permissions: Array.isArray(read.permissions) ? read.permissions : [] };
   if (read.state === 'error') return { text: 'DBUs unavailable', permissions: [] };
+  if (read.state === 'unscoped') return { text: 'DBUs unavailable: workspace unknown', permissions: [] };
   if (typeof total !== 'number' || !Number.isFinite(total)) return { text: 'DBUs: none billed yet', permissions: [] };
   return { text: `${DBU_FORMAT.format(total)} DBUs`, permissions: [] };
 }

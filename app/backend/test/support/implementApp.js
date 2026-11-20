@@ -128,7 +128,7 @@ function makeApp(overrides = {}, { mount } = {}) {
           return json(data, status);
         }
         // REQ-418: the App's own token answers as the App's service principal; a person's token answers as the person.
-        if (path.includes('/scim/v2/Me')) return json(token === (state.dbToken || 'tok') ? (state.appMe || { applicationId: state.builtAppSp || 'app-sp-id', displayName: 'inspire-manual' }) : state.me);
+        if (path.includes('/scim/v2/Me')) return json(token === (state.dbToken || 'tok') ? (state.appMe || { applicationId: state.builtAppSp || 'app-sp-id', displayName: 'inspire-manual' }) : state.me, 200, state.orgId === undefined ? ORG_ID : state.orgId);
         if (path.startsWith('/api/2.0/permissions/sql/warehouses/')) {
           return json(state.warehousePermissions, state.warehousePermissionsStatus || 200);
         }
@@ -478,10 +478,14 @@ function profileSummaryOf(row) {
   return { profile_id: row.profile_id, name: row.name, business_name: row.business_name, updated_by: row.updated_by, updated_at: row.updated_at };
 }
 
-function json(data, status = 200) {
+// The workspace id every Databricks response carries in x-databricks-org-id (REQ-427 scopes the billing read with it).
+const ORG_ID = '7301458822196643';
+
+function json(data, status = 200, orgId = ORG_ID) {
   return {
     ok: status >= 200 && status < 300,
     status,
+    headers: { get: (name) => (String(name).toLowerCase() === 'x-databricks-org-id' && orgId ? orgId : null) },
     text: async () => (typeof data === 'string' ? data : JSON.stringify(data)),
   };
 }
@@ -497,4 +501,4 @@ async function listen(app) {
   };
 }
 
-module.exports = { makeApp, json, listen, sqlResultToObjects };
+module.exports = { makeApp, json, listen, sqlResultToObjects, ORG_ID };

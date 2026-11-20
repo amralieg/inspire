@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { makeApp, listen } = require('./support/implementApp');
+const { makeApp, listen, ORG_ID } = require('./support/implementApp');
 
 const OWNER = ['owner', 'example.com'].join('@');
 const APP_ID = '5d1e7c3a-9b2f-4e6a-8c4d-1f2e3a4b5c6d';
@@ -28,7 +28,7 @@ const BILLING = [
 ];
 
 async function withApp(overrides, run) {
-  const made = makeApp({ history: HISTORY, me: SP, tokenKind: 'app', forwardedEmail: OWNER, ...overrides });
+  const made = makeApp({ history: HISTORY, me: SP, appMe: SP, tokenKind: 'app', forwardedEmail: OWNER, ...overrides });
   const srv = await listen(made.app);
   try {
     await run(srv.url, made);
@@ -62,6 +62,10 @@ test('REQ-427: a deleted asset is not counted as built', async () => {
 test('REQ-427: total DBUs per use case sum the recorded ids and the name tag, once each, and a shared warehouse is nobody’s', async () => {
   await withApp({ statements: { 'system.billing.usage': (sql, parameters) => {
     assert.match(sql, /usage_unit = 'DBU'/);
+    // system.billing.usage is account-wide: a job id or a name tag of another workspace must never count here.
+    const ws = parameters.find((p) => p.value === ORG_ID);
+    assert.ok(ws, 'the workspace id is a parameter');
+    assert.match(sql, new RegExp(`workspace_id = :${ws.name} AND \\(`));
     const values = parameters.map((p) => p.value);
     for (const id of ['111', '222', '333', 'app-1', 'lb1', 'predict_customer_churn', 'flag_late_suppliers']) assert.ok(values.includes(id), id);
     assert.ok(!values.includes('wh9'), 'a warehouse two use cases name is not looked up');
@@ -93,6 +97,16 @@ test('REQ-427: with no billing id recorded the DBU read says so and makes no bil
   await withApp({ history: [row('N01-U01')] }, async (url, made) => {
     const got = await get(url, '/api/inspire/implement/usecase-dbus');
     assert.deepEqual([got.data.state, got.data.use_cases], ['none', { 'N01-U01': null }]);
+    assert.equal(made.sqlCalls.filter((c) => /system\.billing/.test(c.sql)).length, 0);
+  });
+});
+
+test('REQ-427: when the workspace id is unknown the DBU read shows no total rather than an account-wide one', async () => {
+  await withApp({ orgId: null }, async (url, made) => {
+    const got = await get(url, '/api/inspire/implement/usecase-dbus');
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(got.data.state, 'unscoped');
+    assert.deepEqual(Object.values(got.data.use_cases), [null, null, null]);
     assert.equal(made.sqlCalls.filter((c) => /system\.billing/.test(c.sql)).length, 0);
   });
 });

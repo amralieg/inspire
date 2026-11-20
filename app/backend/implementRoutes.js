@@ -2032,10 +2032,13 @@ function registerImplementRoutes(app, deps) {
   app.get('/api/inspire/implement/usecase-dbus', requireToken, async (req, res) => {
     try {
       const { rows, warehouseId } = await usecaseRows(req);
-      const statement = UA.dbuStatement(rows);
-      const none = (extra) => res.set('Cache-Control', 'no-store').json({ state: 'none', use_cases: UA.dbuView(rows, []), ...extra });
-      if (!statement) return none({ message: 'No billing id is recorded for these use cases yet.' });
       const token = await appTokenOf(req);
+      const workspaceId = await UA.workspaceIdOf(dbFetch, req.dbHost, token);
+      const statement = UA.dbuStatement(rows, workspaceId);
+      const none = (state, extra) => res.set('Cache-Control', 'no-store').json({ state, use_cases: UA.dbuView(rows, []), ...extra });
+      if (!statement) return none('none', { message: 'No billing id is recorded for these use cases yet.' });
+      // Never an account-wide total: without this workspace's id the read could count another workspace's jobs.
+      if (!workspaceId) return none('unscoped', { message: 'Inspire cannot tell which workspace this is, so it shows no DBUs.' });
       let billing;
       try {
         billing = await sqlRows(req.dbHost, token, warehouseId, statement);

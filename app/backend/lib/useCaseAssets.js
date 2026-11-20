@@ -74,11 +74,13 @@ function billingOwners(history) {
   return { owners, names, useCases: Object.keys(by).filter(Boolean) };
 }
 
-// null when nothing is recorded to look up: the cell then says so instead of a 0.
-function dbuStatement(history) {
+// null when nothing is recorded to look up: the cell then says so instead of a 0. system.billing.usage holds the whole account, and a job
+// id or a name tag is unique only inside one workspace, so every read is scoped to this workspace (docs/usecase_billing_tags.md).
+function dbuStatement(history, workspaceId) {
   const { owners, names } = billingOwners(history);
   const parameters = [];
   const bind = (value) => { const name = `p${parameters.length}`; parameters.push({ name, value, type: 'STRING' }); return `:${name}`; };
+  const workspace = bind(text(workspaceId));
   const clauses = [];
   for (const kind of Object.keys(ID_COLUMNS)) {
     const ids = Object.keys(owners[kind]).slice(0, DBU_ID_LIMIT);
@@ -91,7 +93,7 @@ function dbuStatement(history) {
     sql: `SELECT custom_tags['${NAME_TAG}'] AS use_case_name, CAST(usage_metadata.job_id AS STRING) AS job_id, `
       + 'CAST(usage_metadata.app_id AS STRING) AS app_id, CAST(usage_metadata.warehouse_id AS STRING) AS warehouse_id, '
       + 'CAST(usage_metadata.database_instance_id AS STRING) AS lakebase_id, CAST(SUM(usage_quantity) AS DOUBLE) AS dbus '
-      + `FROM ${BILLING_TABLE} WHERE usage_unit = 'DBU' AND (${clauses.join(' OR ')}) GROUP BY 1, 2, 3, 4, 5`,
+      + `FROM ${BILLING_TABLE} WHERE usage_unit = 'DBU' AND workspace_id = ${workspace} AND (${clauses.join(' OR ')}) GROUP BY 1, 2, 3, 4, 5`,
     parameters,
   };
 }
@@ -110,6 +112,16 @@ function dbuView(history, billingRows) {
   return totals;
 }
 
+// The workspace id: Databricks names it on every REST response (x-databricks-org-id). Empty when absent.
+async function workspaceIdOf(dbFetch, host, token) {
+  try {
+    const resp = await dbFetch(host, token, '/api/2.0/preview/scim/v2/Me');
+    return text(resp && resp.headers && typeof resp.headers.get === 'function' ? resp.headers.get('x-databricks-org-id') : '');
+  } catch {
+    return '';
+  }
+}
+
 function billingGrants(principal) {
   const who = text(principal);
   if (!who) return [];
@@ -120,4 +132,4 @@ function billingGrants(principal) {
   ];
 }
 
-module.exports = { assetFlagsOf, assetFlagsView, billingGrants, billingOwners, dbuStatement, dbuView, BILLING_TABLE };
+module.exports = { assetFlagsOf, assetFlagsView, billingGrants, billingOwners, dbuStatement, dbuView, workspaceIdOf, BILLING_TABLE };

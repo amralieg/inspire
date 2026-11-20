@@ -18,4 +18,5 @@ test('REQ-427: the DBU cell shows the total, says why it has none, and never sho
   const denied = dbuCell({ state: 'denied', use_cases: { A: null }, permissions }, 'A');
   assert.deepEqual([denied.text, denied.permissions], ['DBUs: the App cannot read billing', permissions]);
   assert.equal(dbuCell({ state: 'error', use_cases: {} }, 'A').text, 'DBUs unavailable');
+  assert.equal(dbuCell({ state: 'unscoped', use_cases: { A: null } }, 'A').text, 'DBUs unavailable: workspace unknown');
 });
