@@ -38,7 +38,7 @@ function reset(overrides = {}) {
   Object.assign(state, {
     managers: [], managerGroups: [], personGroups: [], aclStatus: 200, personAppsScope: true, launchers: {}, sessionLaunchers: {}, history: [], calls: [],
     launches: [], profiles: [], profileLinks: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, holdFetch: null, createFailure: '', sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null, ucSchemas: null, ucTables: null,
-    createdJob: null, profileTablesMissing: false, presentPaths: [], statusErrors: {}, catalogPaths: {}, catalogReasons: {}, catalogColumnMissing: false, catalogQueryError: '', runJobs: {}, runStates: null, runViewDenied: null, exportDenied: false, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, tableColumns: {}, files: {}, sessionBusiness: {},
+    createdJob: null, modelRateLimited: false, profileTablesMissing: false, presentPaths: [], statusErrors: {}, catalogPaths: {}, catalogReasons: {}, catalogColumnMissing: false, catalogQueryError: '', runJobs: {}, runStates: null, runViewDenied: null, exportDenied: false, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, tableColumns: {}, files: {}, sessionBusiness: {},
     ...folderModel({ folders: { '/Shared/demos': { id: 7, writers: '*' } } }),
   }, overrides);
 }
@@ -311,6 +311,7 @@ async function stubFetch(url, opts = {}) {
   }
   if (u.pathname === '/api/2.0/sql/statements') return json(answerSql(body));
   // REQ-405: the launch check probes a chat model the App can query; state.modelDenied refuses every probe, as a workspace does when the App lacks CAN_QUERY.
+  if (state.modelRateLimited && (u.pathname === '/api/2.0/serving-endpoints' || /^\/serving-endpoints\/[^/]+\/invocations$/.test(u.pathname))) return json({ error_code: 'REQUEST_LIMIT_EXCEEDED', message: 'rate limit exceeded' }, 429);
   if (u.pathname === '/api/2.0/serving-endpoints') return json({ endpoints: [{ name: 'databricks-claude-sonnet-4-6', id: 'ep-claude-46', task: 'llm/v1/chat', state: { ready: 'READY' } }] });
   if (/^\/serving-endpoints\/[^/]+\/invocations$/.test(u.pathname)) return state.modelDenied ? json({ error_code: 'PERMISSION_DENIED', message: 'the App cannot query this endpoint' }, 403) : json({ choices: [{ message: { content: 'OK' } }] });
   if (u.pathname === '/api/2.0/workspace/import') return json({ message: 'stubbed import refused' }, 400);
