@@ -17,19 +17,61 @@ const FOUNDATION_PREFIX = 'databricks-';
 const systemModelService = (name) => (name.startsWith(FOUNDATION_PREFIX) && name.length > FOUNDATION_PREFIX.length ? `system.ai.${name.slice(FOUNDATION_PREFIX.length)}` : '');
 const serviceGrantCommand = (service, principal) => `databricks grants update model_service ${service} --json '{"changes":[{"principal":"${principal}","add":["EXECUTE"]}]}'`;
 
+// REQ-422: a model service is queried by EXECUTE on it plus USE CATALOG on system and USE SCHEMA on system.ai (docs: migrate-to-unity-gateway).
+const usageGrants = (principal) => [
+  `GRANT USE CATALOG ON CATALOG system TO \`${principal}\`;`,
+  `GRANT USE SCHEMA ON SCHEMA system.ai TO \`${principal}\`;`,
+];
+
 function denialSteps(endpoint, principal) {
   if (endpoint.id) {
     return [`In Databricks, open serving endpoint ${endpoint.name} > Permissions, and add ${principal} with Can query`, grantCommand(endpoint.id, principal)];
   }
   const service = systemModelService(endpoint.name);
   if (!service) return [`In Databricks, ask a workspace admin to give ${principal} Can query on ${endpoint.name}`];
-  return [`In AI Gateway, open model service ${service} > Permissions, and add ${principal} with Can execute`, serviceGrantCommand(service, principal)];
+  return [
+    `In AI Gateway, open model service ${service} > Permissions, and add ${principal} with Can execute`,
+    serviceGrantCommand(service, principal),
+    ...usageGrants(principal),
+  ];
 }
 
-function permissionFor(principal, denied) {
+// The Unity Gateway chat route answers a model service by its three-level name (docs: migrate-to-unity-gateway).
+const GATEWAY_CHAT = '/ai-gateway/mlflow/v1/chat/completions';
+// The refusal Unity Gateway enforcement gives a pay-per-token endpoint. Matched on both phrases, never on PERMISSION_DENIED alone.
+const enforcementRefusal = (data) => {
+  const text = `${(data && (data.message || data.error)) || ''}`;
+  return /is disabled for this workspace/i.test(text) && /unity gateway/i.test(text);
+};
+
+// One chat call to a Databricks-hosted model. Under enforcement the databricks- name is refused, so the call is retried on its
+// model service through the Unity Gateway chat route. Any other answer is returned as it is.
+// Returns the response and whether the direct call was the enforcement refusal (the route that works is then the model service).
+async function viaModelService(call, name, body) {
+  const direct = await call('POST', `/serving-endpoints/${encodeURIComponent(name)}/invocations`, body);
+  const service = systemModelService(name);
+  const enforced = direct.status === 403 && Boolean(service) && enforcementRefusal(direct.data);
+  if (!enforced) return { response: direct, enforced: false };
+  return { response: await call('POST', GATEWAY_CHAT, { ...body, model: service }), enforced: true };
+}
+
+async function invokeChatModel(call, name, body) {
+  return (await viaModelService(call, name, body)).response;
+}
+
+function permissionFor(principal, denied, enforced) {
   if (denied.length) {
     const names = denied.map((e) => e.name).join(', ');
     const steps = denied.flatMap((e) => denialSteps(e, principal));
+    if (enforced.length) {
+      const services = enforced.map((e) => systemModelService(e.name)).join(', ');
+      return permissionRequired({
+        steps,
+        principal,
+        why: `Unity Gateway is enforced on this workspace, so the pay-per-token endpoint ${names} is disabled and cannot be called. `
+          + `Inspire calls the model service ${services} instead, and ${principal} needs EXECUTE on it, plus USE CATALOG on system and USE SCHEMA on system.ai.`,
+      });
+    }
     return permissionRequired({ steps, principal, why: `Inspire runs the chat model ${names} as ${principal}, and that identity cannot query it yet.` });
   }
   return permissionRequired({
@@ -48,6 +90,14 @@ async function gatewayServes(call) {
 }
 
 // `call(method, path, body)` resolves to { ok, status, data }, the shape jsonOf gives. Returns null when the run may start.
+// One candidate: a usable answer, a refusal (denied, and whether it was the enforcement refusal), or an inconclusive error.
+async function probeCandidate(call, endpoint) {
+  const { response, enforced } = await viaModelService(call, endpoint.name, PROBE);
+  if (response.ok) return { usable: true };
+  if (response.status !== 403) return { inconclusive: true };
+  return { denied: true, enforced };
+}
+
 async function modelAccessPermission({ call, principal }) {
   const listed = await call('GET', '/api/2.0/serving-endpoints');
   if (!listed.ok && listed.status !== 403) return null;
@@ -55,16 +105,19 @@ async function modelAccessPermission({ call, principal }) {
   const byName = new Map(endpoints.filter((e) => e && e.name).map((e) => [e.name, e]));
   const candidates = rosterOrder(endpoints).slice(0, CANDIDATE_LIMIT).map((name) => byName.get(name));
   const denied = [];
+  const enforced = [];
   let inconclusive = false;
   for (const endpoint of candidates) {
-    const probe = await call('POST', `/serving-endpoints/${encodeURIComponent(endpoint.name)}/invocations`, PROBE);
-    if (probe.ok) return null;
-    if (probe.status === 403) denied.push(endpoint);
-    else inconclusive = true;
+    const result = await probeCandidate(call, endpoint);
+    if (result.usable) return null;
+    if (result.denied) {
+      denied.push(endpoint);
+      if (result.enforced) enforced.push(endpoint);
+    } else inconclusive = true;
   }
   if (inconclusive) return null;
   if (await gatewayServes(call)) return null;
-  return permissionFor(principal, denied);
+  return permissionFor(principal, denied, enforced);
 }
 
-module.exports = { modelAccessPermission, systemModelService, CANDIDATE_LIMIT };
+module.exports = { modelAccessPermission, invokeChatModel, systemModelService, CANDIDATE_LIMIT, GATEWAY_CHAT };

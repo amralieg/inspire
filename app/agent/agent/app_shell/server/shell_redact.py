@@ -252,6 +252,17 @@ def inspire_raised_by(error, files, modules=()) -> bool:
                for step in _redact_dis.get_instructions(trace.tb_frame.f_code))
 
 
+_REDACT_MODEL_NAME_RE = _redact_re.compile(r"(?:databricks-|system\.ai\.)[\w.-]{1,120}")
+_REDACT_MODEL_CONTEXT_RE = _redact_re.compile(r"(?i)\b(?:endpoint|model|model service)\b[^'\"\n]{0,40}$")
+
+
+def _redact_model_name(inner: str, match) -> bool:
+    """REQ-422: a model or endpoint name in an error is not a data value. It stays visible only when it is a databricks- or
+    system.ai name and the words just before it name an endpoint or a model, so a quoted data value is still hidden."""
+    return bool(_REDACT_MODEL_NAME_RE.fullmatch(inner.strip())) and bool(
+        _REDACT_MODEL_CONTEXT_RE.search(match.string[max(0, match.start() - 60):match.start()]))
+
+
 def inspire_redact_text(text, seen, known: str, secrets=()) -> str:
     text = str(text or "")
     named = [found.group(name) for found in _REDACT_DENIAL_RE.finditer(text) for name in ("who", "quoted") if found.group(name)]
@@ -286,7 +297,7 @@ def inspire_redact_text(text, seen, known: str, secrets=()) -> str:
         mark, inner = match.group(0)[0], match.group(1)
         if mark == '"' and _REDACT_SINGLE_QUOTED_RE.search(inner) and _REDACT_EXCEPTION_LEAD_RE.search(match.string[max(0, match.start() - 80):match.start()]):
             return match.group(0)
-        if not inner.strip() or _redact_known(inner, known, segments) or (mark == '"' and (
+        if not inner.strip() or _redact_known(inner, known, segments) or _redact_model_name(inner, match) or (mark == '"' and (
                 _REDACT_SQL_TYPE_RE.fullmatch(inner.strip()) or _REDACT_SPARK_SETTING_RE.fullmatch(inner.strip())
                 or any(start <= match.start() < end for start, end in messages))) or _redact_code_value(inner):
             return match.group(0)

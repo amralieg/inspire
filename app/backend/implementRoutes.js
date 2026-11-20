@@ -3,6 +3,7 @@ const { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, noSessionText, stepsStatement } = r
 const I = require('./lib/inspireImplement');
 const RL = require('./lib/relationships');
 const { createGenieJobGuard } = require('./lib/genieJobGuard');
+const { invokeChatModel } = require('./lib/modelAccess');
 const { mapLimit } = require('./lib/mapLimit');
 
 // REQ-323: how many history rows are enriched at once.
@@ -2107,6 +2108,11 @@ function registerImplementRoutes(app, deps) {
     }
   }
 
+  // REQ-422: (method, path, body) over the user's token, for invokeChatModel (it retries a refused databricks- name on its model service).
+  const chatCall = (req, token) => (method, path, body) => jsonOf(dbFetch, req.dbHost, token, path, {
+    method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+
   app.post('/api/inspire/implement/feedback/vibe', requireToken, async (req, res) => {
     try {
       const id = FB.feedbackId(req.body?.feedback_id);
@@ -2125,9 +2131,7 @@ function registerImplementRoutes(app, deps) {
       ]);
       const statuses = Object.fromEntries(Object.entries(ctx.before.asset_status || {}).map(([k, v]) => [k, v && typeof v === 'object' ? v.state || v.status || '' : v]));
       const messages = FB.vibePrompt({ useCaseId: ctx.useCaseId, useCase, page, vibes: specVibeAsks(spec), statuses, feedback });
-      const got = await jsonOf(dbFetch, req.dbHost, token, `/serving-endpoints/${encodeURIComponent(endpoint)}/invocations`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages, max_tokens: FB.VIBE_MAX_TOKENS, temperature: 0 }),
-      });
+      const got = await invokeChatModel(chatCall(req, token), endpoint, { messages, max_tokens: FB.VIBE_MAX_TOKENS, temperature: 0 });
       if (!got.ok) throw I.badRequest(`the model ${endpoint} did not answer: ${got.data.message || got.data.error || `HTTP ${got.status}`}`, 502);
       return res.json({ ...FB.vibeDraftOf(got.data), feedback_id: id, model: endpoint });
     } catch (err) {
@@ -2381,9 +2385,7 @@ function registerImplementRoutes(app, deps) {
       const endpoint = FB.chatEndpoint({}, (listed.data.endpoints || []).map((e) => ({ name: e.name, state: e.state, task: e.task })));
       if (!endpoint) throw I.badRequest('no chat model you can use is ready on this workspace, so Inspire cannot turn the description into a value; choose the value yourself', 409);
       const messages = MD.describeMessages({ text, columns, currencyColumn: String(req.body?.currency_column ?? '') });
-      const got = await jsonOf(dbFetch, req.dbHost, token, `/serving-endpoints/${encodeURIComponent(endpoint)}/invocations`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages, max_tokens: 400, temperature: 0 }),
-      });
+      const got = await invokeChatModel(chatCall(req, token), endpoint, { messages, max_tokens: 400, temperature: 0 });
       if (!got.ok) throw I.badRequest(`the model ${endpoint} did not answer: ${got.data.message || got.data.error || `HTTP ${got.status}`}`, 502);
       const described = MD.parseDescription(got.data, columns);
       if (described.problems.length) return res.status(422).json({ error: joinSentences(...described.problems), problems: described.problems, model: endpoint });

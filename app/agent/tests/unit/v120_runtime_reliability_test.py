@@ -150,6 +150,15 @@ def run_concurrently(fn, n):
     return results, errors
 
 
+def without_model_services(responder):
+    """REQ-422: a workspace without Unity Gateway. No system.ai model service answers, so the databricks- names are the ones called."""
+    def answer(op):
+        if op["endpoint"].startswith("system.ai."):
+            raise RuntimeError(f"[TABLE_OR_VIEW_NOT_FOUND] The table or view '{op['endpoint']}' cannot be found.")
+        return responder(op)
+    return answer
+
+
 def batch_rejecting(op):
     if op["endpoint"] == BAD:
         raise RuntimeError(BATCH_REJECTION.format(ep=BAD))
@@ -164,7 +173,7 @@ def listing(*names):
 
 
 def test_L1_startup_probe_keeps_batch_incapable_endpoint_out_and_spends_one_attempt_per_run(fresh_ns):
-    spark, log = FakeConnectSpark(batch_rejecting), RecordingLogger()
+    spark, log = FakeConnectSpark(without_model_services(batch_rejecting)), RecordingLogger()
     with patch("databricks.sdk.WorkspaceClient", listing(BAD, GOOD, OTHER)):
         assert fresh_ns["_apply_auto_detected_endpoints"](log, spark_session=spark) is True
     assert [m["llm_endpoint_name"] for m in fresh_ns["TECHNICAL_CONTEXT"]["models"]] == [GOOD, OTHER]
@@ -607,7 +616,7 @@ def temperature_rejecting(no_temperature):
 
 def test_L5_probe_records_temperature_support_and_calls_never_rediscover_it(fresh_ns):
     temp_ok = "databricks-claude-opus-4-6"
-    spark, log = FakeConnectSpark(temperature_rejecting({GOOD})), RecordingLogger()
+    spark, log = FakeConnectSpark(without_model_services(temperature_rejecting({GOOD}))), RecordingLogger()
     with patch("databricks.sdk.WorkspaceClient", listing(GOOD, temp_ok)):
         assert fresh_ns["_apply_auto_detected_endpoints"](log, spark_session=spark) is True
     assert fresh_ns["LLM_ENDPOINT_HEALTH"].accepts_temperature(GOOD) is False
