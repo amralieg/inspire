@@ -12,10 +12,10 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REGISTRY = JSON.parse(readFileSync(join(HERE, '..', '..', 'kinds.json'), 'utf8'));
 const LAYOUTS = Object.fromEntries(REGISTRY.layouts.map((l) => [l.id, { id: l.id, contract: l.contract || '' }]));
 const kindMode = (kind) => layoutMode(LAYOUTS[kind.layout]);
-const EXPECTED = { queue: 25, plan: 5, forecast: 2, scenarios: 2, explore: 5, ask: 1 };
+const EXPECTED = { queue: 33, plan: 5, forecast: 2, scenarios: 2, explore: 6, ask: 3 };
 
-test('every one of the 40 kinds maps to exactly one known mode', () => {
-  assert.equal(REGISTRY.kinds.length, 40);
+test('every one of the 51 kinds maps to exactly one known mode', () => {
+  assert.equal(REGISTRY.kinds.length, 51);
   for (const kind of REGISTRY.kinds) {
     assert.ok(LAYOUTS[kind.layout], `${kind.id} names a layout the registry has`);
     const mode = kindMode(kind);
@@ -24,11 +24,11 @@ test('every one of the 40 kinds maps to exactly one known mode', () => {
   }
 });
 
-test('the kinds per mode match the plan: 25 queue, 5 plan, 2 forecast, 2 scenarios, 5 explore, 1 ask', () => {
+test('the kinds per mode match the plan: 33 queue, 5 plan, 2 forecast, 2 scenarios, 6 explore, 3 ask', () => {
   const counts = Object.fromEntries(Object.keys(MODES).map((m) => [m, 0]));
   for (const kind of REGISTRY.kinds) counts[kindMode(kind)] += 1;
   assert.deepEqual(counts, EXPECTED);
-  assert.equal(Object.values(counts).reduce((a, b) => a + b, 0), 40);
+  assert.equal(Object.values(counts).reduce((a, b) => a + b, 0), 51);
 });
 
 test('each mode names its work section and its performance section', () => {
