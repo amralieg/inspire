@@ -69,12 +69,14 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
   const setCredit = (v) => edit((a) => ({ ...a, attribution_pct: v }));
   const chooseGrouping = (column) => { setGroupBy(column); setSavedKey(''); };
 
-  const save = async () => {
+  // One save for both buttons: Save confirms (calculated true); Calculate now keeps the numbers as estimated (calculated false) and jumps to the Save step.
+  const save = async (calculated = true) => {
     setBusy(true); setError('');
     try {
-      const sent = bodyOf(plan, answers, true).answers;
+      const sent = bodyOf(plan, answers, calculated).answers;
       await values.run(useCaseId, table, { ...sent, plan: bodyOf(plan, answers).plan });
-      setSavedKey(answersKey(answers));
+      if (calculated) setSavedKey(answersKey(answers));
+      else setPageIdx(pages.length - 1);
       loadHistory();
     } catch (err) {
       setError(messageOf(err));
@@ -134,10 +136,13 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
           {last ? (
             <>
               <button type="button" onClick={onClose} className={btn}>Close</button>
-              <button type="button" disabled={busy || preview.status !== 'ready'} onClick={save} className={primary}>Save</button>
+              <button type="button" disabled={busy || preview.status !== 'ready'} onClick={() => save(true)} className={primary}>Save</button>
             </>
           ) : (
-            <button type="button" disabled={!plan || !answers || (page === 'kinds' && !anyOn)} onClick={() => setPageIdx((i) => Math.min(pages.length - 1, i + 1))} className={primary}>Next</button>
+            <>
+              <button type="button" disabled={busy || !plan || !answers || (page === 'kinds' && !anyOn)} onClick={() => save(false)} className={btn}>Calculate now</button>
+              <button type="button" disabled={!plan || !answers || (page === 'kinds' && !anyOn)} onClick={() => setPageIdx((i) => Math.min(pages.length - 1, i + 1))} className={primary}>Next</button>
+            </>
           )}
         </>
       )}>
