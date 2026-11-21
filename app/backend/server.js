@@ -40,6 +40,8 @@ const { notebookParamsFromSessionForGenerateRun } = require('./lib/inspireSessio
 const { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, splitInspireDatabase, isTimestampText, stepsStatement } = require('./lib/sqlInputs');
 const { valueLedgerTable, inspireSessionTable, valueSessionSql, valueRunsSql, valueOverallSql, sessionCountsSql, valueOfSession, valueOfRuns, overallValue, qualified: qualifiedInspireTable } = require('./lib/inspireValue');
 const VE = require('./lib/valueEstimate');
+const VT = require('./lib/valueTotals');
+const VA_ANSWERS = require('./lib/valueAnswers');
 const { normalizeUseCaseName, renameStatement } = require('./lib/useCaseName');
 const { createExecuteSql, lookupWithRetry, runWithRequestDeadline } = require('./lib/sqlStatements');
 const { raceLaunchCheck } = require('./lib/launchDeadline');
@@ -2834,9 +2836,9 @@ app.get('/api/inspire/session', requireToken, async (req, res) => {
   }
 });
 
-async function readValueRows(req, warehouse_id, sql) {
+async function readValueRows(req, warehouse_id, sql, parameters) {
   try {
-    return sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouse_id, sql));
+    return sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouse_id, sql, parameters));
   } catch (err) {
     if (isMissingTableError(err)) return [];
     throw err;
@@ -2902,6 +2904,41 @@ app.get('/api/inspire/value', requireToken, async (req, res) => {
     res.json({ ...valueOfSession(await readValueRows(req, warehouse_id, valueSessionSql(valueLedgerTable(parsedDb), String(session_id).trim()))), disclaimer: VALUE_DISCLAIMER.full });
   } catch (err) {
     PM_ERROR.sendFailure(res, 500, err.message);
+  }
+});
+
+// REQ-439: run and all-runs totals that include the values saved through Calculate (see lib/valueTotals.js).
+async function totalsOfSession(req, warehouse_id, parsedDb, sid) {
+  const latest = VT.answersSql(qualifiedInspireTable(parsedDb, '__inspire_value_answers'), sid);
+  const answerRows = await readValueRows(req, warehouse_id, latest.sql, latest.parameters);
+  const saved = new Map(answerRows.map((row) => [String(row.use_case_id), VA_ANSWERS.versionOf(row)]));
+  const tables = await readValueRows(req, warehouse_id, VT.tablesSql(qualifiedInspireTable(parsedDb, '__inspire_usecases'), sid));
+  const noTable = new Set(tables.filter((row) => !String(row.primary_table || '').trim()).map((row) => String(row.id)));
+  const estimates = (await estimatesOfSession(req, warehouse_id, parsedDb, sid)).use_cases;
+  return VT.runOf({ ids: tables.map((row) => String(row.id)), saved, estimates, noTable });
+}
+
+app.get('/api/inspire/value/totals', requireToken, async (req, res) => {
+  try {
+    const { inspire_database, warehouse_id, session_id } = req.query;
+    if (!inspire_database || !warehouse_id) {
+      return res.status(400).json({ error: 'inspire_database and warehouse_id required.' });
+    }
+    const parsedDb = splitInspireDatabase(inspire_database);
+    if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
+    if (session_id === undefined || session_id === '') {
+      const rows = await readValueRows(req, warehouse_id, VT.sessionsSql(qualifiedInspireTable(parsedDb, '__inspire_session'), SESSION_LIST_CAP));
+      const truncated = rows.length > SESSION_LIST_CAP;
+      const sessions = rows.slice(0, SESSION_LIST_CAP).filter((row) => !invalidSessionId(row.session_id));
+      const answers = await Promise.all(sessions.map((row) => totalsOfSession(req, warehouse_id, parsedDb, String(row.session_id))));
+      const runs = sessions.map((row, i) => ({ session_id: String(row.session_id), name: row.business_name || '', created_at: row.create_at ?? null,
+        n: answers[i].run.n, n_calculated: answers[i].run.n_calculated, n_estimated: answers[i].run.n_estimated, n_none: answers[i].run.n_none, totals: answers[i].run.totals }));
+      return res.json({ runs, all: VT.mergeRuns(runs), truncated, cap: SESSION_LIST_CAP, disclaimer: VALUE_DISCLAIMER.full });
+    }
+    if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
+    res.json({ ...(await totalsOfSession(req, warehouse_id, parsedDb, String(session_id).trim())), disclaimer: VALUE_DISCLAIMER.full });
+  } catch (err) {
+    PM_ERROR.sendFailure(res, PM_ERROR.failureStatus(err), err.message);
   }
 });
 
