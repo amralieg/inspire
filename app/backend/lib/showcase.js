@@ -26,12 +26,25 @@ const SHOWCASE_READS = new Set([
 ]);
 // REQ-431: routes every shell page asks that the recorded demos hold no (or a recorded 404) answer for; the demo answers them itself.
 const SHOWCASE_PLAN_WHY = 'This is the demo: lines you decide are kept in this browser, and plan versions are not kept.';
+const SHOWCASE_NO_TRENDS = 'The demo keeps no action history, so it has no trends to show.';
+const SHOWCASE_NO_SCENARIOS = 'The demo saves no scenarios; the ones you try are not kept.';
+const SHOWCASE_NO_REVIEW = 'The demo keeps no forecast review cycles, so there are no series to review here.';
+const SHOWCASE_NO_ACCURACY = 'The demo keeps no overrides or past actuals, so it cannot measure the forecast.';
 const SHOWCASE_BUILTIN = {
   'GET /api/agent/status': { status: 200, body: { mode: 'genie', note: '' } },
   'GET /api/plans': { status: 200, body: { can_decide: false, can_approve: false, why: SHOWCASE_PLAN_WHY, approve_why: SHOWCASE_PLAN_WHY, contract: 'plan',
     states: ['Draft', 'In review', 'Approved', 'Published'], missing: '', constraints: [], constraints_error: '',
     versions: [{ plan_id: 'demo', number: 1, label: 'Version 1', status: 'Draft', editable: true, overrides: [], changed_by: '' }] } },
   'GET /api/plans/performance': { status: 200, body: { version: null, missing: '', empty: 'The demo keeps no plan versions, so there is nothing to compare with the actuals.' } },
+  // The empty or explained state of each page, in the shape the live server answers when it has nothing to show. No data is invented.
+  'GET /api/records/history': { status: 200, body: { record_key: '', fields: [], versions: [], current: null, deleted: false, truncated: false } },
+  'GET /api/feedback': { status: 200, body: { items: [], everyone: false, missing: false, limit: 2000 } },
+  'GET /api/trends': { status: 200, body: { visible: true, tracked: true, actions: false, note: SHOWCASE_NO_TRENDS } },
+  'GET /api/scenario/saved': { status: 200, body: { scenarios: [], decisions: [], mine: 0, note: SHOWCASE_NO_SCENARIOS } },
+  'GET /api/forecast/review': { status: 200, body: { can_decide: false, can_approve: false, why: SHOWCASE_PLAN_WHY, approve_why: SHOWCASE_PLAN_WHY, cycle: null, cycles: 0,
+    series: [], at_risk: 0, missing: SHOWCASE_NO_REVIEW, states: ['Draft', 'In review', 'Approved', 'Published'] } },
+  'GET /api/forecast/accuracy': { status: 200, body: { points: 0, series: 0, error: null, bias: null, mase: null, overrides: 0, helped: 0, hurt: 0, lift: null,
+    lift_note: SHOWCASE_NO_ACCURACY } },
 };
 const SHELL_PATH_RE = /^[A-Za-z0-9_-][A-Za-z0-9._-]*(\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/;
 const SHOWCASE_MVP_API_RE = /^\/showcase\/[^/]+\/mvp\/[^/]+\/api\/(.+)$/;
