@@ -14,6 +14,7 @@ const NOT_WALKED = {
   'GET /api/inspire/profiles/:profileId': 'reads one business profile the App shares; businessProfileRoutes.test.js proves the 400 and 404 refusals and the stored settings',
   'POST /api/inspire/profiles': 'saves a business profile the App shares; the Launch save dialog UI tests drive it through the mock App, and businessProfileRoutes.test.js proves the 409 and 400 refusals',
   'POST /api/run/check': 'the Launch pre-check that reads the grants a run needs and starts nothing; the Permission Required UI tests walk it through Launch',
+  'GET /api/inspire/value/totals': 'reads the saved Calculate answers, use cases and estimates of a run or of every run with the person\u2019s own sign-in and changes nothing; valueTotals.test.js drives it through the fake warehouse, including the 400 refusal',
   'GET /api/inspire/value/estimates': 'reads the session with the person\u2019s own sign-in and the Measure rules and KPI baselines; inspireValueRoutes.test.js drives it through the fake warehouse, including the sibling, no-number and own-baseline cases',
   'GET /api/inspire/implement/table-lookup': 'reads one table with the person\u2019s own sign-in and its column match; no non-owner harness row walks it yet, and implementTableReads.test.js proves the sign-in refusal and the must-exclude',
   'GET /api-docs': 'the static page that renders the API description, with no workspace data',

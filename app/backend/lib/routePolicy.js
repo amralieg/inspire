@@ -163,6 +163,7 @@ const ROUTE_POLICY = {
   'GET /api/inspire/session': tracked('read a session'),
   'GET /api/inspire/value': tracked('read the value at stake and saved of a run'),
   'GET /api/inspire/value/estimates': tracked('read the estimated value of the use cases with no measured value, from their money rules'),
+  'GET /api/inspire/value/totals': tracked('read the value per year of every use case of a run, or of every run, including the values saved through Calculate'),
   'GET /api/inspire/value/overall': tracked('read the value at stake and saved across the runs of a database'),
   'GET /api/inspire/value/runs': tracked('read the value at stake and saved of each run in a database'),
   'GET /api/inspire/value/yearly': tracked('read the measured value of each built use case, scaled to every eligible record and to a year'),
