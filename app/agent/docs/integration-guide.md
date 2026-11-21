@@ -1932,16 +1932,16 @@ The user copies cell 2 into Genie Code. Genie Code reads only the instruction, a
 
 | Family | Pattern | Techniques |
 |---|---|---|
-| A | Supervised scoring: trains on closed outcome windows, registers the accepted model as `champion`, scores the open cases | Classification, Predictive Modeling, Survival Analysis |
-| B | Anomaly scoring: fits on a reference window, registers the accepted detector, scores the current window | Anomaly Detection |
-| C | Segmentation: an assignable model, registered when accepted | Clustering, Segmentation |
-| D | Recommendation: checked against popularity on a time-based holdout, registered when accepted | Recommendation |
+| A | Supervised scoring: trains on closed outcome windows, registers the accepted model as `champion`, scores the open cases | Classification, Predictive Modeling, Survival Analysis, Root-Cause Agent |
+| B | Anomaly scoring: fits on a reference window, registers the accepted detector, scores the current window | Anomaly Detection, Watch and Act |
+| C | Segmentation: an assignable model, registered when accepted | Clustering, Segmentation, Lookalike Matching |
+| D | Recommendation: checked against popularity on a time-based holdout, registered when accepted | Recommendation, AI Next Best Action, Outreach Agent |
 | E | Forecasting: single run, backtested against the seasonal naive forecast, nothing registered | Forecasting, Lifetime Value |
-| F | Analytical refresh: effect sizes with corrected significance | Trend Analysis, Correlation Analysis, Pareto Analysis, Cohort Analysis, Funnel Analysis, Regression Analysis, Geospatial Analysis, Network Analysis, AI Analysis, Decomposition, Peer Benchmarking |
-| G | AI text processing: the newest rows up to the as-of date, rewritten on every run, Databricks AI functions | Sentiment Analysis, Document Processing, Extraction |
+| F | Analytical refresh: effect sizes with corrected significance | Trend Analysis, Correlation Analysis, Pareto Analysis, Cohort Analysis, Funnel Analysis, Regression Analysis, Geospatial Analysis, Network Analysis, AI Analysis, Decomposition, Peer Benchmarking, AI Data Agent, AI Entity Matching, Cross-Domain Assistant, Written Commentary |
+| G | AI text processing: the newest rows up to the as-of date, rewritten on every run, Databricks AI functions | Sentiment Analysis, Document Processing, Extraction, Taxonomy Mapping |
 | H | Optimization and simulation | Optimization, Simulation, Threshold Optimization |
 | I | Impact measurement: effects with confidence intervals and corrected significance against a control or pre-period, nothing registered | Causal Impact, Uplift Modeling, Marketing Mix Modeling |
-| J | Process and sequence analysis: paths, transitions and waits from event rows, nothing registered | Process Mining, Sequence Analysis, Queueing |
+| J | Process and sequence analysis: paths, transitions and waits from event rows, nothing registered | Process Mining, Sequence Analysis, Queueing, Exception Workflow |
 | K | Rules and controls testing: every tested row is scored against its rule or control limit, nothing registered | Controls Testing, Statistical Process Control, Entity Matching |
 | L | Data agent: a Genie room and ai_query over the business tables, checked with sample questions, nothing registered | Data Agent |
 

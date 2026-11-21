@@ -1990,7 +1990,18 @@
   "key_measure_note": "Misura chiave",
   "doc_data_filters": "Filtri Dati",
   "doc_filter_all_except": "tutti tranne {values}",
-  "doc_filter_and_more": "e {count} altri"
+  "doc_filter_and_more": "e {count} altri",
+  "value_watch_and_act": "Monitora e Agisci",
+  "value_exception_workflow": "Flusso delle Eccezioni",
+  "value_outreach_agent": "Agente di Contatto",
+  "value_root_cause_agent": "Agente delle Cause Profonde",
+  "value_written_commentary": "Commento Scritto",
+  "value_taxonomy_mapping": "Mappatura della Tassonomia",
+  "value_lookalike_matching": "Abbinamento di Profili Simili",
+  "value_cross_domain_assistant": "Assistente Interdominio",
+  "value_ai_entity_matching": "Abbinamento di Entità con IA",
+  "value_ai_next_best_action": "Migliore Azione Successiva con IA",
+  "value_ai_data_agent": "Agente Dati IA"
  },
  "Chinese (Mandarin)": {
   "main_title": "由 达塔布里克斯 吉尼 科德 驱动的用例生成器",
@@ -2313,7 +2324,18 @@
   "key_measure_note": "关键指标",
   "doc_data_filters": "数据筛选器",
   "doc_filter_all_except": "除{values}外的所有",
-  "doc_filter_and_more": "以及{count}个更多"
+  "doc_filter_and_more": "以及{count}个更多",
+  "value_watch_and_act": "监控与行动",
+  "value_exception_workflow": "异常处理工作流",
+  "value_outreach_agent": "触达智能体",
+  "value_root_cause_agent": "根因智能体",
+  "value_written_commentary": "书面解读",
+  "value_taxonomy_mapping": "分类体系映射",
+  "value_lookalike_matching": "相似对象匹配",
+  "value_cross_domain_assistant": "跨领域助手",
+  "value_ai_entity_matching": "AI实体匹配",
+  "value_ai_next_best_action": "AI下一步最佳行动",
+  "value_ai_data_agent": "AI数据智能体"
  },
  "Japanese": {
   "main_title": "データブリックス ジーニー コード を活用したユースケースジェネレーター",
@@ -2636,7 +2658,18 @@
   "key_measure_note": "主要指標",
   "doc_data_filters": "データフィルター",
   "doc_filter_all_except": "{values} 以外のすべて",
-  "doc_filter_and_more": "他 {count} 件"
+  "doc_filter_and_more": "他 {count} 件",
+  "value_watch_and_act": "監視と対応",
+  "value_exception_workflow": "例外ワークフロー",
+  "value_outreach_agent": "アウトリーチエージェント",
+  "value_root_cause_agent": "根本原因エージェント",
+  "value_written_commentary": "文章による解説",
+  "value_taxonomy_mapping": "分類体系マッピング",
+  "value_lookalike_matching": "類似対象マッチング",
+  "value_cross_domain_assistant": "クロスドメインアシスタント",
+  "value_ai_entity_matching": "AIエンティティ照合",
+  "value_ai_next_best_action": "AIネクストベストアクション",
+  "value_ai_data_agent": "AIデータエージェント"
  },
  "Korean": {
   "main_title": "데이터브릭스 지니 코드 기반의 유스케이스 생성기",
@@ -2959,7 +2992,18 @@
   "key_measure_note": "핵심 지표",
   "doc_data_filters": "데이터 필터",
   "doc_filter_all_except": "{values}을(를) 제외한 전체",
-  "doc_filter_and_more": "및 {count}개 더"
+  "doc_filter_and_more": "및 {count}개 더",
+  "value_watch_and_act": "감시 및 조치",
+  "value_exception_workflow": "예외 워크플로",
+  "value_outreach_agent": "아웃리치 에이전트",
+  "value_root_cause_agent": "근본 원인 에이전트",
+  "value_written_commentary": "서술형 해설",
+  "value_taxonomy_mapping": "분류 체계 매핑",
+  "value_lookalike_matching": "유사 대상 매칭",
+  "value_cross_domain_assistant": "교차 도메인 어시스턴트",
+  "value_ai_entity_matching": "AI 엔터티 매칭",
+  "value_ai_next_best_action": "AI 다음 최선 행동",
+  "value_ai_data_agent": "AI 데이터 에이전트"
  },
  "Hindi": {
   "main_title": "डेटाब्रिक्स जीनी कोड द्वारा संचालित उपयोग केस जनरेटर",
@@ -3282,7 +3326,18 @@
   "key_measure_note": "मुख्य मापदंड",
   "doc_data_filters": "डेटा फ़िल्टर",
   "doc_filter_all_except": "{values} को छोड़कर सभी",
-  "doc_filter_and_more": "और {count} अधिक"
+  "doc_filter_and_more": "और {count} अधिक",
+  "value_watch_and_act": "निगरानी और कार्रवाई",
+  "value_exception_workflow": "अपवाद कार्यप्रवाह",
+  "value_outreach_agent": "आउटरीच एजेंट",
+  "value_root_cause_agent": "मूल कारण एजेंट",
+  "value_written_commentary": "लिखित टिप्पणी",
+  "value_taxonomy_mapping": "वर्गीकरण मैपिंग",
+  "value_lookalike_matching": "समान प्रोफ़ाइल मिलान",
+  "value_cross_domain_assistant": "क्रॉस-डोमेन सहायक",
+  "value_ai_entity_matching": "AI इकाई मिलान",
+  "value_ai_next_best_action": "AI अगली सर्वोत्तम कार्रवाई",
+  "value_ai_data_agent": "AI डेटा एजेंट"
  },
  "Russian": {
   "main_title": "Генератор бизнес-кейсов на базе Датабрикс Джини Код",
@@ -3605,7 +3660,18 @@
   "key_measure_note": "Ключевой показатель",
   "doc_data_filters": "Фильтры данных",
   "doc_filter_all_except": "все, кроме {values}",
-  "doc_filter_and_more": "и ещё {count}"
+  "doc_filter_and_more": "и ещё {count}",
+  "value_watch_and_act": "Наблюдение и Действие",
+  "value_exception_workflow": "Процесс Обработки Исключений",
+  "value_outreach_agent": "Агент Взаимодействия с Клиентами",
+  "value_root_cause_agent": "Агент Анализа Первопричин",
+  "value_written_commentary": "Письменный Комментарий",
+  "value_taxonomy_mapping": "Сопоставление с Таксономией",
+  "value_lookalike_matching": "Поиск Похожих Объектов",
+  "value_cross_domain_assistant": "Междоменный Ассистент",
+  "value_ai_entity_matching": "Сопоставление Сущностей с ИИ",
+  "value_ai_next_best_action": "Следующее Лучшее Действие с ИИ",
+  "value_ai_data_agent": "ИИ-Агент Данных"
  },
  "Swedish": {
   "main_title": "Användningsfallsgenerator Driven av Databricks Genie Code",
@@ -3928,7 +3994,18 @@
   "key_measure_note": "Nyckelmått",
   "doc_data_filters": "Datafilter",
   "doc_filter_all_except": "alla utom {values}",
-  "doc_filter_and_more": "och {count} till"
+  "doc_filter_and_more": "och {count} till",
+  "value_watch_and_act": "Bevaka och agera",
+  "value_exception_workflow": "Undantagsflöde",
+  "value_outreach_agent": "Kontaktagent",
+  "value_root_cause_agent": "Rotorsaksagent",
+  "value_written_commentary": "Skriftlig kommentar",
+  "value_taxonomy_mapping": "Taxonomikartläggning",
+  "value_lookalike_matching": "Matchning av liknande profiler",
+  "value_cross_domain_assistant": "Tvärdomänassistent",
+  "value_ai_entity_matching": "AI-entitetsmatchning",
+  "value_ai_next_best_action": "Nästa bästa åtgärd med AI",
+  "value_ai_data_agent": "AI-dataagent"
  },
  "Danish": {
   "main_title": "Anvendelsescase-generator drevet af Databricks Genie Code",
@@ -4251,7 +4328,18 @@
   "key_measure_note": "Nøgletal",
   "doc_data_filters": "Datafiltre",
   "doc_filter_all_except": "alle undtagen {values}",
-  "doc_filter_and_more": "og {count} flere"
+  "doc_filter_and_more": "og {count} flere",
+  "value_watch_and_act": "Overvåg og handl",
+  "value_exception_workflow": "Undtagelsesforløb",
+  "value_outreach_agent": "Kontaktagent",
+  "value_root_cause_agent": "Rodårsagsagent",
+  "value_written_commentary": "Skriftlig kommentar",
+  "value_taxonomy_mapping": "Taksonomikortlægning",
+  "value_lookalike_matching": "Matchning af lignende profiler",
+  "value_cross_domain_assistant": "Tværdomæne-assistent",
+  "value_ai_entity_matching": "AI-enhedsmatchning",
+  "value_ai_next_best_action": "Næstbedste handling med AI",
+  "value_ai_data_agent": "AI-dataagent"
  },
  "Norwegian": {
   "main_title": "Brukscasegenerator drevet av Databricks Genie Code",
@@ -4574,7 +4662,18 @@
   "key_measure_note": "Nøkkeltall",
   "doc_data_filters": "Datafiltre",
   "doc_filter_all_except": "alle unntatt {values}",
-  "doc_filter_and_more": "og {count} til"
+  "doc_filter_and_more": "og {count} til",
+  "value_watch_and_act": "Overvåk og handle",
+  "value_exception_workflow": "Unntaksflyt",
+  "value_outreach_agent": "Kontaktagent",
+  "value_root_cause_agent": "Rotårsaksagent",
+  "value_written_commentary": "Skriftlig kommentar",
+  "value_taxonomy_mapping": "Taksonomikartlegging",
+  "value_lookalike_matching": "Matching av lignende profiler",
+  "value_cross_domain_assistant": "Tverrdomeneassistent",
+  "value_ai_entity_matching": "KI-enhetsmatching",
+  "value_ai_next_best_action": "Neste beste handling med KI",
+  "value_ai_data_agent": "KI-dataagent"
  },
  "Finnish": {
   "main_title": "Käyttötapausgeneraattori Databricks Genie Coden avulla",
@@ -4897,7 +4996,18 @@
   "key_measure_note": "Avainmittari",
   "doc_data_filters": "Tietosuodattimet",
   "doc_filter_all_except": "kaikki paitsi {values}",
-  "doc_filter_and_more": "ja {count} lisää"
+  "doc_filter_and_more": "ja {count} lisää",
+  "value_watch_and_act": "Seuraa ja toimi",
+  "value_exception_workflow": "Poikkeusten työnkulku",
+  "value_outreach_agent": "Tavoittelun agentti",
+  "value_root_cause_agent": "Juurisyyagentti",
+  "value_written_commentary": "Kirjallinen kommentti",
+  "value_taxonomy_mapping": "Taksonomian kartoitus",
+  "value_lookalike_matching": "Samankaltaisten profiilien yhdistäminen",
+  "value_cross_domain_assistant": "Toimialarajat ylittävä avustaja",
+  "value_ai_entity_matching": "Tekoälyn entiteettien yhdistäminen",
+  "value_ai_next_best_action": "Tekoälyn seuraava paras toimenpide",
+  "value_ai_data_agent": "Tekoälyn data-agentti"
  },
  "Polish": {
   "main_title": "Generator przypadków użycia oparty na Databricks Genie Code",
@@ -5220,7 +5330,18 @@
   "key_measure_note": "Kluczowy miernik",
   "doc_data_filters": "Filtry danych",
   "doc_filter_all_except": "wszystkie oprócz {values}",
-  "doc_filter_and_more": "i {count} więcej"
+  "doc_filter_and_more": "i {count} więcej",
+  "value_watch_and_act": "Obserwuj i działaj",
+  "value_exception_workflow": "Przepływ pracy dla wyjątków",
+  "value_outreach_agent": "Agent kontaktu",
+  "value_root_cause_agent": "Agent przyczyn źródłowych",
+  "value_written_commentary": "Komentarz pisemny",
+  "value_taxonomy_mapping": "Mapowanie taksonomii",
+  "value_lookalike_matching": "Dopasowanie podobnych profili",
+  "value_cross_domain_assistant": "Asystent międzydomenowy",
+  "value_ai_entity_matching": "Dopasowanie encji z AI",
+  "value_ai_next_best_action": "Następne najlepsze działanie z AI",
+  "value_ai_data_agent": "Agent danych AI"
  },
  "Romanian": {
   "main_title": "Generator de cazuri de utilizare alimentat de Databricks Genie Code",
@@ -5543,7 +5664,18 @@
   "key_measure_note": "Măsura cheie",
   "doc_data_filters": "Filtre de Date",
   "doc_filter_all_except": "toate cu excepția {values}",
-  "doc_filter_and_more": "și {count} mai multe"
+  "doc_filter_and_more": "și {count} mai multe",
+  "value_watch_and_act": "Monitorizează și acționează",
+  "value_exception_workflow": "Flux de lucru pentru excepții",
+  "value_outreach_agent": "Agent de contactare",
+  "value_root_cause_agent": "Agent pentru cauze profunde",
+  "value_written_commentary": "Comentariu scris",
+  "value_taxonomy_mapping": "Maparea taxonomiei",
+  "value_lookalike_matching": "Potrivirea profilurilor similare",
+  "value_cross_domain_assistant": "Asistent inter-domenii",
+  "value_ai_entity_matching": "Potrivirea entităților cu IA",
+  "value_ai_next_best_action": "Următoarea cea mai bună acțiune cu IA",
+  "value_ai_data_agent": "Agent de date IA"
  },
  "Ukrainian": {
   "main_title": "Генератор бізнес-кейсів на базі Датабрікс Джіні Код",
@@ -5866,7 +5998,18 @@
   "key_measure_note": "Ключовий показник",
   "doc_data_filters": "Фільтри даних",
   "doc_filter_all_except": "усі, крім {values}",
-  "doc_filter_and_more": "і ще {count}"
+  "doc_filter_and_more": "і ще {count}",
+  "value_watch_and_act": "Спостерігай і дій",
+  "value_exception_workflow": "Робочий процес для винятків",
+  "value_outreach_agent": "Агент взаємодії",
+  "value_root_cause_agent": "Агент першопричин",
+  "value_written_commentary": "Письмовий коментар",
+  "value_taxonomy_mapping": "Зіставлення з таксономією",
+  "value_lookalike_matching": "Пошук подібних об'єктів",
+  "value_cross_domain_assistant": "Міждоменний асистент",
+  "value_ai_entity_matching": "Зіставлення сутностей за допомогою ШІ",
+  "value_ai_next_best_action": "Наступна найкраща дія за допомогою ШІ",
+  "value_ai_data_agent": "ШІ-агент даних"
  },
  "Dutch": {
   "main_title": "Gebruikscasegenerator aangedreven door Databricks Genie Code",
@@ -6189,7 +6332,18 @@
   "key_measure_note": "Kernmaatstaf",
   "doc_data_filters": "Gegevensfilters",
   "doc_filter_all_except": "alles behalve {values}",
-  "doc_filter_and_more": "en {count} meer"
+  "doc_filter_and_more": "en {count} meer",
+  "value_watch_and_act": "Bewaken en handelen",
+  "value_exception_workflow": "Uitzonderingsworkflow",
+  "value_outreach_agent": "Outreach-agent",
+  "value_root_cause_agent": "Grondoorzaak-agent",
+  "value_written_commentary": "Schriftelijke toelichting",
+  "value_taxonomy_mapping": "Taxonomiemapping",
+  "value_lookalike_matching": "Matching van gelijkende profielen",
+  "value_cross_domain_assistant": "Domeinoverstijgende assistent",
+  "value_ai_entity_matching": "AI-entiteitmatching",
+  "value_ai_next_best_action": "Volgende beste actie met AI",
+  "value_ai_data_agent": "AI-data-agent"
  },
  "Indonesian": {
   "main_title": "Generator Kasus Penggunaan Didukung oleh Databricks Genie Code",
@@ -6512,7 +6666,18 @@
   "key_measure_note": "Ukuran kunci",
   "doc_data_filters": "Filter Data",
   "doc_filter_all_except": "semua kecuali {values}",
-  "doc_filter_and_more": "dan {count} lainnya"
+  "doc_filter_and_more": "dan {count} lainnya",
+  "value_watch_and_act": "Pantau dan Bertindak",
+  "value_exception_workflow": "Alur Kerja Pengecualian",
+  "value_outreach_agent": "Agen Penjangkauan",
+  "value_root_cause_agent": "Agen Akar Masalah",
+  "value_written_commentary": "Komentar Tertulis",
+  "value_taxonomy_mapping": "Pemetaan Taksonomi",
+  "value_lookalike_matching": "Pencocokan Profil Serupa",
+  "value_cross_domain_assistant": "Asisten Lintas Domain",
+  "value_ai_entity_matching": "Pencocokan Entitas AI",
+  "value_ai_next_best_action": "Tindakan Terbaik Berikutnya AI",
+  "value_ai_data_agent": "Agen Data AI"
  },
  "Malay": {
   "main_title": "Penjana Kes Penggunaan Dikuasakan oleh Databricks Genie Code",
@@ -6835,7 +7000,18 @@
   "key_measure_note": "Ukuran utama",
   "doc_data_filters": "Penapis Data",
   "doc_filter_all_except": "semua kecuali {values}",
-  "doc_filter_and_more": "dan {count} lagi"
+  "doc_filter_and_more": "dan {count} lagi",
+  "value_watch_and_act": "Pantau dan Bertindak",
+  "value_exception_workflow": "Aliran Kerja Pengecualian",
+  "value_outreach_agent": "Ejen Jangkauan",
+  "value_root_cause_agent": "Ejen Punca Masalah",
+  "value_written_commentary": "Ulasan Bertulis",
+  "value_taxonomy_mapping": "Pemetaan Taksonomi",
+  "value_lookalike_matching": "Pemadanan Profil Serupa",
+  "value_cross_domain_assistant": "Pembantu Merentas Domain",
+  "value_ai_entity_matching": "Pemadanan Entiti AI",
+  "value_ai_next_best_action": "Tindakan Terbaik Seterusnya AI",
+  "value_ai_data_agent": "Ejen Data AI"
  },
  "Tamil": {
   "main_title": "Databricks Genie Code மூலம் இயக்கப்படும் பயன்பாட்டு வழக்கு உருவாக்கி",
@@ -7158,6 +7334,17 @@
   "key_measure_note": "முக்கிய அளவீடு",
   "doc_data_filters": "தரவு வடிகட்டிகள்",
   "doc_filter_all_except": "{values} தவிர அனைத்தும்",
-  "doc_filter_and_more": "மற்றும் {count} மேலும்"
+  "doc_filter_and_more": "மற்றும் {count} மேலும்",
+  "value_watch_and_act": "கண்காணித்து செயல்படு",
+  "value_exception_workflow": "விதிவிலக்கு பணிப்பாய்வு",
+  "value_outreach_agent": "தொடர்பு முகவர்",
+  "value_root_cause_agent": "மூல காரண முகவர்",
+  "value_written_commentary": "எழுத்து வடிவ விளக்கம்",
+  "value_taxonomy_mapping": "வகைப்பாட்டியல் வரைபடம்",
+  "value_lookalike_matching": "ஒத்த சுயவிவர பொருத்தம்",
+  "value_cross_domain_assistant": "டொமைன் கடந்த உதவியாளர்",
+  "value_ai_entity_matching": "AI நிறுவன பொருத்தம்",
+  "value_ai_next_best_action": "AI அடுத்த சிறந்த செயல்",
+  "value_ai_data_agent": "AI தரவு முகவர்"
  }
 }
