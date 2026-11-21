@@ -21,6 +21,13 @@ const UNKNOWN_BUILD = { version: '', shell: '' };
 
 export const PREBUNDLED_ENV = 'INSPIRE_UI_PREBUNDLED';
 
+// GET /api/inspire/value/totals needs the Inspire Database and warehouse, like server.js; a stub that skips this check hid a live 400.
+export function totalsQueryMissing(req, res) {
+  if (req.query.inspire_database && req.query.warehouse_id) return false;
+  res.status(400).json({ error: 'inspire_database and warehouse_id required.' });
+  return true;
+}
+
 export function viteOptions(cacheDir) {
   return { root: frontend, configFile: path.join(frontend, 'vite.config.js'), cacheDir, logLevel: 'error', clearScreen: false };
 }
@@ -196,7 +203,7 @@ export async function openUi(open, overrides = {}, query = '', { mount, init } =
     app.post('/api/inspire/value/case-plan', (req, res) => res.json({ plan: { ...VCP.fallbackPlan([{ column_name: 'region', data_type: 'string' }]),
       table: String(req.body?.table || ''), date_column: 'created_at', days: 365,
       groups: [{ g: 'North', records_per_year: 1200, metrics: {} }, { g: 'South', records_per_year: 800, metrics: {} }] } }));
-    app.get('/api/inspire/value/totals', (req, res) => res.json(req.query.session_id
+    app.get('/api/inspire/value/totals', (req, res) => totalsQueryMissing(req, res) || res.json(req.query.session_id
       ? { run: { totals: [], n: 0, n_calculated: 0, n_estimated: 0, n_none: 0, by_verb: [] }, use_cases: {} }
       : { runs: [], all: { totals: [], n_calculated: 0, n_estimated: 0 } }));
   };

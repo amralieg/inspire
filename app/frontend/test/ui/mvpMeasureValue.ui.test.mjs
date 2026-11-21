@@ -2,7 +2,7 @@
 // HTTP-level stubs of GET /api/inspire/value/totals (C6 + measured), GET and PUT /api/inspire/value/answers (C3/C4), case-plan and preview.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, goToStep, openUi, wizardInScreen } from './uiSupport.mjs';
+import { closeBrowser, goToStep, openUi, totalsQueryMissing, wizardInScreen } from './uiSupport.mjs';
 import { PLAN, fakeYearly, goTo } from './valueWizardSupport.mjs';
 
 test.after(closeBrowser);
@@ -22,7 +22,7 @@ const totalsOf = (e) => ({ run: { totals: [], n: 1, n_calculated: 0, n_estimated
 // state: { answers, totals, puts }
 function mountWith(state) {
   return (app) => {
-    app.get('/api/inspire/value/totals', (_req, res) => res.json(state.totals));
+    app.get('/api/inspire/value/totals', (req, res) => totalsQueryMissing(req, res) || res.json(state.totals));
     app.get('/api/inspire/value/answers', (_req, res) => res.json({ answers: state.answers || {} }));
     app.post('/api/inspire/value/case-plan', (_req, res) => res.json({ plan: PLAN }));
     app.post('/api/inspire/value/preview', (req, res) => res.json({ yearly: fakeYearly(req.body) }));

@@ -3,7 +3,7 @@
 // GET /api/inspire/value/answers (C5), PUT answers (C3/C4) and GET /api/inspire/value/totals (C6).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, openUi } from './uiSupport.mjs';
+import { closeBrowser, openUi, totalsQueryMissing } from './uiSupport.mjs';
 import { goTo } from './valueWizardSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
 
@@ -46,7 +46,7 @@ function mountWith(state) {
     app.get('/api/inspire/value/runs', (_req, res) => res.json({ runs: {} }));
     app.get('/api/inspire/value/estimates', (_req, res) => res.json({ use_cases: {}, totals: null }));
     app.get('/api/inspire/value/yearly', (_req, res) => res.json({ use_cases: {} }));
-    app.get('/api/inspire/value/totals', (_req, res) => (state.totals ? res.json(state.totals) : res.status(404).json({ error: 'none' })));
+    app.get('/api/inspire/value/totals', (req, res) => totalsQueryMissing(req, res) || (state.totals ? res.json(state.totals) : res.status(404).json({ error: 'none' })));
     app.get('/api/inspire/value/answers', (_req, res) => res.json({ answers: state.answers || {} }));
     app.get('/api/inspire/value/answers/history', (_req, res) => res.json({ history: [] }));
     app.put('/api/inspire/value/answers', (req, res) => {
@@ -189,7 +189,7 @@ async function openRuns(allReply) {
   const state = { answers: {}, totals: null };
   const mount = mountWith(state);
   const ui = await openUi('app', { ...REVIEW_STATE }, '', { mount: (app) => {
-    app.get('/api/inspire/value/totals', (req, res) => (req.query.session_id ? res.json(RUN_TOTALS) : res.json(allReply)));
+    app.get('/api/inspire/value/totals', (req, res) => totalsQueryMissing(req, res) || (req.query.session_id ? res.json(RUN_TOTALS) : res.json(allReply)));
     mount(app);
   } });
   await ui.page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
