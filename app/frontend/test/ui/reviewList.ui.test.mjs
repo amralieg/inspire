@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, idle, openUi } from './uiSupport.mjs';
+import { closeBrowser, idle, openUi, toView } from './uiSupport.mjs';
 import { REVIEW_STATE } from './reviewFixtures.js';
 
 test.after(closeBrowser);
@@ -40,6 +40,7 @@ test('the Review list sorts, searches, clears and expands the way its labels say
     await cards(page).first().waitFor();
     await idle(page);
 
+    await toView(page, 'Business');
     assert.equal((await page.locator('[data-stat="Domains"] [data-stat-value]').innerText()).trim(), '3', 'a domain with no use case is not counted');
 
     const order = page.locator('[data-insight="Suggested build order"]');
@@ -47,6 +48,7 @@ test('the Review list sorts, searches, clears and expands the way its labels say
     assert.doesNotMatch(text, /N09-U09/, 'an id the run does not hold never shows');
     assert.match(text, /1 use case\b/);
 
+    await toView(page, 'Use cases');
     const sort = page.locator('select').filter({ has: page.locator('option', { hasText: 'Sort: Name' }) });
     await sort.selectOption({ label: 'Sort: Name' });
     assert.deepEqual(await shownNames(page), ['Alpha basket', 'Middle stock', 'Twin one', 'Twin two', 'Zeta churn'], 'Sort: Name sorts by name, Best of Best included');
@@ -97,6 +99,7 @@ test('Review files offer Open only where a browser can show the file, give small
   const { page } = ui;
   try {
     await cards(page).first().waitFor();
+    await toView(page, 'Assets');
     await page.getByRole('heading', { name: /^Quick access: documents/i }).waitFor();
     await idle(page);
     assert.ok(await page.getByRole('button', { name: 'Open Acme-dbx_inspire.pdf' }).count() > 0, 'a PDF opens in a tab');
@@ -143,7 +146,9 @@ test('Review names every document a language did not get, counts High priority b
   try {
     const { page } = warned;
     await cards(page).first().waitFor();
+    await toView(page, 'Business');
     assert.equal((await page.locator('[data-stat="High Priority"] [data-stat-value]').innerText()).trim(), '2', 'two Ultra High pills, never 0');
+    await toView(page, 'Assets');
     const done = page.locator('[data-testid="execution-complete"]');
     assert.equal(await done.getAttribute('data-status'), 'warning');
     const missing = page.getByRole('list', { name: 'Documents the run did not write' });
@@ -160,6 +165,7 @@ test('Review names every document a language did not get, counts High priority b
   const clean = await openUi('results', { ...REVIEW_STATE, results: { ...LIST_RESULTS, run_status: 'success' } });
   try {
     await cards(clean.page).first().waitFor();
+    await toView(clean.page, 'Assets');
     assert.equal(await clean.page.getByText('Every step of the run finished.').count(), 1);
     assert.equal(await clean.page.getByRole('list', { name: 'Documents the run did not write' }).count(), 0, 'a clean run lists nothing (must-exclude)');
   } finally {
@@ -188,7 +194,9 @@ test('on a run whose priority is a number, the priority pills, the priority filt
       assert.match((await pill(name).innerText()).replace(/\s+/g, ' '), new RegExp(`${count}$`), `${name} pill counts ${count}`);
     }
     assert.equal(await pill('Low').count(), 0, 'no pill for a tier no use case has');
+    await toView(page, 'Business');
     assert.equal((await page.locator('[data-stat="High Priority"] [data-stat-value]').innerText()).trim(), '3', 'High, Very High and Ultra High, not the 6.0');
+    await toView(page, 'Use cases');
     await pill('High').click();
     assert.deepEqual(await shownNames(page), ['Alpha basket'], 'the High filter shows the High use case and not the 6.0 (must-exclude)');
     await pill('High').click();

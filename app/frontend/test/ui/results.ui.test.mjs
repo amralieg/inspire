@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { FAKE_CLOCK, closeBrowser, lowContrast, lowContrastThroughAnimations, openUi, setDark, settled, until, watchAsks } from './uiSupport.mjs';
+import { FAKE_CLOCK, closeBrowser, lowContrast, lowContrastThroughAnimations, openUi, setDark, settled, toView, until, watchAsks } from './uiSupport.mjs';
 import { RESULTS } from './implementFixtures.js';
 
 const { SLOW_WAREHOUSE_MESSAGE } = createRequire(import.meta.url)('../../../backend/lib/sqlStatements.js');
@@ -53,7 +53,7 @@ test('the Results page is the list it was before the grid: the sidebar and the f
     assert.equal(await cards(page).count(), 6);
     assert.match(await cards(page).first().innerText(), /Predict churn/, 'best of best rank 1 leads');
     assert.match(await cards(page).nth(1).innerText(), /Forecast stock/, 'best of best rank 2 follows');
-    await panel(page, 'Domains').click();
+    if ((await panel(page, 'Domains').getAttribute('aria-expanded')) === 'false') await panel(page, 'Domains').click();
     await page.getByRole('button', { name: /^Supply\b/ }).click();
     assert.equal(await cards(page).count(), 2);
     assert.match(await page.getByText(/use cases$/).filter({ hasText: ' of ' }).first().innerText(), /2\s+of\s+6 use cases/);
@@ -189,6 +189,7 @@ test('the whole Results page, its open sidebar panels and every kind of open car
   try {
     await ready(page);
     for (const title of ['Domains', 'Strategy', 'Beneficiaries', 'Sponsors']) {
+      if (title === 'Domains' && (await panel(page, title).getAttribute('aria-expanded')) !== 'false') continue;
       if (await panel(page, title).count()) await panel(page, title).click();
     }
     await page.getByRole('button', { name: /^Customer\b/ }).click();
@@ -224,6 +225,7 @@ test('the MVP tiles count the use cases by their MVP, a tile or the MVP filter n
     .find((name) => text.includes(name))).sort();
   try {
     await ready(page);
+    await toView(page, 'Business');
     const tiles = page.getByRole('group', { name: 'MVPs' });
     await tiles.getByRole('button', { name: 'MVPs started: 4' }).waitFor();
     for (const name of ['MVPs live: 2', 'Building: 1', 'Failed: 1', 'No MVP yet: 2']) {
@@ -233,6 +235,7 @@ test('the MVP tiles count the use cases by their MVP, a tile or the MVP filter n
     await live.click();
     await card(page, 'Forecast stock').waitFor({ state: 'detached' });
     assert.deepEqual(await names(), ['Predict churn', 'Score upsell']);
+    await toView(page, 'Business');
     assert.equal(await live.getAttribute('aria-pressed'), 'true');
     for (const dark of [false, true]) {
       await setDark(page, dark);
@@ -247,7 +250,9 @@ test('the MVP tiles count the use cases by their MVP, a tile or the MVP filter n
     await filter.selectOption('none');
     await card(page, 'Predict churn').waitFor({ state: 'detached' });
     assert.deepEqual(await names(), ['Price elasticity', 'Segment shoppers'], 'an uninstalled MVP counts as no MVP');
+    await toView(page, 'Business');
     assert.equal(await tiles.getByRole('button', { name: 'No MVP yet: 2' }).getAttribute('aria-pressed'), 'true', 'the dropdown and the tiles agree');
+    await toView(page, 'Use cases');
     await page.getByRole('button', { name: 'Clear the MVP filter' }).click();
     await card(page, 'Predict churn').waitFor();
     assert.equal(await cards(page).count(), 6);
@@ -304,6 +309,7 @@ test('value tracking shows a KPI the agent did not measure as Not measured with 
   const { page } = ui;
   try {
     await ready(page);
+    await toView(page, 'Business');
     const lost = page.locator('[data-insight="Feedback and value"] [data-tracking-status="not_measured"]');
     await lost.waitFor();
     assert.equal(await lost.locator('[data-tracking-note]').textContent(), `Not measured: ${mismatch.problem}`);

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { MVP_JOB, RESULTS, STUDIO_STATE, built, builtSpec } from './implementFixtures.js';
 import { REVIEW_PORTFOLIO, REVIEW_SESSIONS, REVIEW_STATE } from './reviewFixtures.js';
-import { closeAsset, closeBrowser, expandBuild, openAsset, openUi, until } from './uiSupport.mjs';
+import { closeAsset, closeBrowser, expandBuild, openAsset, openUi, toView, until } from './uiSupport.mjs';
 import { READ_QUIET_MS, apiWatch, keepToOrigins, openShowcase, readOnlyInspire, recordMvpApp, routeInspireDemo, tabButton, walkInspireDemo, walkMvpViews, watchOffline } from '../../../scripts/showcaseRecorder.mjs';
 import { DEMO_READS, DEMO_READS_WHEN, routeOf, unrecorded } from '../../../scripts/showcaseRoutes.mjs';
 import { SHOWCASE_ALERT_NOTE, SHOWCASE_BUTTON, SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOWCASE_NOTE, SHOWCASE_OPEN_APP, SHOWCASE_PAGES } from '../../src/lib/showcase.js';
@@ -263,7 +263,9 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     const cards = list(page).locator('[aria-expanded]');
     await cards.first().waitFor();
     assert.equal(await cards.count(), 6);
+    await toView(page, 'Business');
     await page.getByRole('group', { name: 'MVPs' }).getByRole('button', { name: 'MVPs started: 1' }).waitFor();
+    await toView(page, 'Use cases');
     assert.equal(await page.locator('[data-portfolio], [data-portfolio-card]').count(), 0, 'the demo Review shows this run only, with no totals across runs');
     assert.equal(await page.getByRole('combobox', { name: 'MVP', exact: true }).locator('option[value="has"]').count(), 1, 'the demo filters by Has an MVP too');
     assert.equal(await page.getByRole('button', { name: START_MVP_LABEL }).count(), 0, 'the demo offers no new build');

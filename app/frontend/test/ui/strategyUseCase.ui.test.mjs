@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, openUi } from './uiSupport.mjs';
+import { closeBrowser, openUi, toView } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
 import * as V from '../../src/lib/v130UseCase.js';
 
@@ -50,9 +50,11 @@ test('the Strategy coverage card is gone; each use case names the goal and prior
   const { page } = ui;
   try {
     await ready(page);
+    await toView(page, 'Business');
     await page.locator('[data-insights-grid]').waitFor();
     assert.equal(await page.locator('[data-insight="Strategy coverage"]').count(), 0, 'no Strategy coverage card');
     assert.equal(await page.getByText('use cases not aligned to any entry').count(), 0);
+    await toView(page, 'Use cases');
 
     assert.equal((await card(page, 'Predict churn').locator('[data-strategy-chip]').innerText()).trim(), 'Keep customers');
     assert.equal((await card(page, 'Score upsell').locator('[data-strategy-chip]').innerText()).trim(), 'Sell more');

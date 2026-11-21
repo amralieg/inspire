@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, openUi } from './uiSupport.mjs';
+import { closeBrowser, openUi, toView } from './uiSupport.mjs';
 import { RESULTS } from './implementFixtures.js';
 import { NO_USE_CASES_MESSAGE, RUN_FAILED_MESSAGE, runOutcomeOf } from '../../src/lib/runOutcome.js';
 
@@ -40,6 +40,7 @@ test('runOutcomeOf: real outcomes stay what they are', () => {
 });
 
 async function banner(page) {
+  await toView(page, 'Assets');
   const done = page.locator('[data-testid="execution-complete"]');
   await done.waitFor({ timeout: 15000 });
   return done;

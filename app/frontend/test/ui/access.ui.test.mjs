@@ -253,7 +253,7 @@ test('under right to left the arrows and chevrons point the reading way, an open
     const { page } = review;
     const read = () => page.evaluate(() => [...document.querySelectorAll('.lucide-chevron-right, .lucide-arrow-right')].filter((el) => el.getClientRects().length)
       .map((el) => `${el.classList.contains('rotate-90') ? 'open' : 'shut'} ${getComputedStyle(el).scale} ${getComputedStyle(el).rotate}`));
-    await page.getByRole('button', { name: /^Domains/ }).click();
+    if ((await page.getByRole('button', { name: /^Domains/ }).getAttribute('aria-expanded')) === 'false') await page.getByRole('button', { name: /^Domains/ }).click();
     const ltr = await read();
     assert.ok(ltr.some((s) => s.startsWith('open')) && ltr.some((s) => s.startsWith('shut')), `Review draws open and shut chevrons: ${ltr}`);
     assert.ok(ltr.every((s) => s.includes(' none ')), `left to right nothing mirrors: ${ltr}`);

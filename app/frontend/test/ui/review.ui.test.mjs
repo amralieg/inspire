@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { closeBrowser, idle, lowContrast, openUi, setDark, settled, steadyBox, until } from './uiSupport.mjs';
+import { closeBrowser, idle, lowContrast, openUi, setDark, settled, steadyBox, toView, until } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_SESSIONS, REVIEW_STATE, RUN_SUMMARY } from './reviewFixtures.js';
 import { LATEST_RUN_LABEL } from '../../src/lib/reviewFigures.js';
 import * as V from '../../src/lib/v130UseCase.js';
@@ -46,6 +46,7 @@ test('Review lists the documents of an absolute output folder, and never asks fo
     });
     try {
       await ready(ui.page);
+      await toView(ui.page, 'Business');
       await settled(ui.page, '[aria-label="Figures of this run"]');
       await idle(ui.page);
       assert.deepEqual(ui.pageErrors, []);
@@ -65,6 +66,7 @@ test('on a small screen the figures of the run below the fold already read their
   const { page } = ui;
   try {
     await ready(page);
+    await toView(page, 'Business');
     const tile = (label) => page.locator(`[aria-label="Figures of this run"] [data-stat="${label}"]`);
     const below = await tile('Live assets').evaluate((el) => el.getBoundingClientRect().top >= window.innerHeight);
     assert.equal(below, true, 'the last figure starts below the fold, so the check covers a tile nobody has scrolled to');
@@ -86,6 +88,7 @@ test('Review heads the open run with its catalog, business and date, shows each 
   const outside = outsideHosts(page);
   try {
     await ready(page);
+    await toView(page, 'Business');
     assert.equal((await page.locator('h1').innerText()).trim(), 'Review', 'the page title is the tab');
     const head = heading(page);
     assert.equal(await head.getByRole('heading', { level: 2 }).innerText(), 'Acme Use Cases Catalog', 'a run with no catalog title reads Use Cases');
@@ -117,7 +120,9 @@ test('Review heads the open run with its catalog, business and date, shows each 
     });
     assert.deepEqual(runScope, { 'Use Cases': 1, Domains: 1, 'High Priority': 1 },
       'above the use case browser, the Run finished strip no longer repeats the run cards');
+    await toView(page, 'Assets');
     assert.equal(await page.getByText('Every step of the run finished.').count(), 1);
+    await toView(page, 'Business');
     const summary = page.locator('[data-executive-summary]');
     assert.deepEqual(await summary.locator('p').allInnerTexts(), RUN_SUMMARY.paragraphs, 'the summary results_json holds, in its paragraphs');
     assert.equal(await page.locator('canvas').count(), 0, 'opening a finished run fires no confetti');
@@ -141,7 +146,9 @@ test('Review heads the open run with its catalog, business and date, shows each 
       assert.deepEqual(measured.low, [], `${dark ? 'dark' : 'light'} run list`);
     }
     await row('41').click();
+    await toView(page, 'Use cases');
     await ready(page);
+    await toView(page, 'Business');
     assert.equal(await heading(page).locator('[data-latest-run]').count(), 0, 'an older run of a business has no label');
     for (const dark of [false, true]) {
       await setDark(page, dark);
@@ -162,6 +169,7 @@ test('a run whose results_json holds no summary string shows no summary panel', 
     const { page } = ui;
     try {
       await ready(page);
+      await toView(page, 'Business');
       await page.locator('[data-stat="Use Cases"]').waitFor();
       assert.equal(await page.locator('#executive-summary').count(), 0, label);
       assert.equal(await page.getByText('Executive summary', { exact: true }).count(), 0, label);
@@ -189,6 +197,7 @@ test('a run that is still going shows the summary its results_json already holds
       await page.getByText('Live Preview').waitFor();
       assert.match(await page.locator('[data-testid="live-use-case-count"]').innerText(), /^\d+ use cases? so far$/, label);
       assert.doesNotMatch(await page.locator('body').innerText(), /completed steps/, label);
+      await toView(page, 'Business');
       assert.deepEqual(await page.locator('[data-executive-summary] p').allInnerTexts(), shown, label);
       assert.deepEqual(ui.pageErrors, [], label);
     } finally {
@@ -249,6 +258,7 @@ test('the insight cards stack at full width with no Strategy coverage card and n
   const { page } = ui;
   try {
     await ready(page);
+    await toView(page, 'Business');
     const grid = page.locator('[data-insights-grid]');
     await grid.waitFor();
     assert.ok(REVIEW_STATE.results.foundations.length > 0, 'the results still carry shared foundations');
@@ -276,12 +286,14 @@ test('the insight cards stack at full width with no Strategy coverage card and n
     assert.equal(await steps.count(), 5, 'five steps before Show all');
     assert.deepEqual((await steps.first().innerText()).split('\n').map((t) => t.trim()).filter(Boolean), ['1.', 'Predict churn', 'Customer', '7.4']);
     assert.deepEqual((await steps.nth(1).innerText()).split('\n').map((t) => t.trim()).filter(Boolean), ['2.', 'Forecast stock', 'Supply'], 'a use case without a quality score shows no Inspire Score, not its priority (must-exclude)');
+    await toView(page, 'Use cases');
     await page.getByPlaceholder('Search use cases...').fill('no use case matches this');
     await page.getByText('No use cases match your filters.').waitFor();
+    await toView(page, 'Business');
     await insight(page, 'Suggested build order').getByRole('button', { name: 'Score upsell' }).click();
     await until(async () => (await card(page, 'Score upsell').getAttribute('aria-expanded')) === 'true', 'the use case opens');
     assert.equal(await page.getByPlaceholder('Search use cases...').inputValue(), '', 'the filters that hid it are cleared');
-
+    await toView(page, 'Business');
     for (const dark of [false, true]) {
       await setDark(page, dark);
       const measured = await lowContrast(page, ['[data-insights-grid]']);
@@ -301,6 +313,7 @@ test('with feedback on and none given yet, the feedback note says how to give it
   const { page } = ui;
   try {
     await ready(page);
+    await toView(page, 'Business');
     const grid = page.locator('[data-insights-grid="2"]');
     await grid.waitFor();
     assert.equal(await grid.getAttribute('data-insights-columns'), '1');
@@ -350,6 +363,7 @@ test('an Excel catalog previews from the code Inspire ships, with no script from
   const outside = outsideHosts(page);
   try {
     await ready(page);
+    await toView(page, 'Assets');
     const quick = page.locator('div', { has: page.getByRole('heading', { name: /^Quick access/i }) })
       .filter({ has: page.getByRole('button', { name: /Preview/ }) }).last();
     await quick.waitFor();
@@ -407,6 +421,7 @@ test('a 300-row CSV preview and its 300-value column filter take the mouse wheel
   const { page } = ui;
   try {
     await ready(page);
+    await toView(page, 'Assets');
     const quick = page.locator('div', { has: page.getByRole('heading', { name: /^Quick access/i }) })
       .filter({ has: page.getByRole('button', { name: /Preview/ }) }).last();
     await quick.waitFor();
@@ -439,6 +454,7 @@ test('a file both in Quick access and in the file list previews once, under the 
   const { page } = ui;
   try {
     await ready(page);
+    await toView(page, 'Assets');
     const quick = page.getByRole('heading', { name: /^Quick access/i }).locator('xpath=ancestor::div[.//button[normalize-space()="Preview" or normalize-space()="Hide"]][1]');
     await quick.waitFor();
     const quickButton = quick.locator('div', { hasText: 'catalog.csv' }).filter({ has: page.getByRole('button', { name: /Preview|Hide/ }) }).last()
@@ -487,6 +503,7 @@ test('the Markdown catalog and the JSON catalog preview in the file list: headin
   const outside = outsideHosts(page);
   try {
     await ready(page);
+    await toView(page, 'Assets');
     const row = (name) => page.locator('div', { hasText: name }).filter({ has: page.getByRole('button', { name: `Download ${name}` }) }).last();
     await row('Acme-dbx_inspire.md').waitFor({ timeout: 15000 });
     await row('Acme-dbx_inspire.md').getByRole('button', { name: 'Preview' }).click();

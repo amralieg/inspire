@@ -2,7 +2,7 @@
 // Fail-pre: before the fix the bar was a fixed list of seven stages, so a labelled run showed no label step at all.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, openUi } from './uiSupport.mjs';
+import { closeBrowser, openUi, toView } from './uiSupport.mjs';
 import { REVIEW_STATE } from './reviewFixtures.js';
 
 test.after(closeBrowser);
@@ -21,6 +21,7 @@ async function barStages(steps) {
   const ui = await openUi('results', { ...REVIEW_STATE, results: { ...REVIEW_STATE.results, run_status: 'success' } }, '', { mount: withSteps(steps) });
   try {
     const { page } = ui;
+    await toView(page, 'Assets');
     await page.getByText('Every step of the run finished.').waitFor({ timeout: 15000 });
     return {
       label: await page.getByText('Data Filter Label', { exact: true }).count(),

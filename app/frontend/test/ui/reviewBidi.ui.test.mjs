@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { closeBrowser, openUi } from './uiSupport.mjs';
+import { closeBrowser, openUi, toView } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
 
 test.after(closeBrowser);
@@ -134,6 +134,7 @@ test('every Arabic value on the Review page sits in an element that sets or isol
   const ui = await openArabic();
   try {
     const order = ui.page.getByRole('list', { name: 'Suggested build order' });
+    await toView(ui.page, 'Business');
     await order.waitFor();
     assert.match(await order.innerText(), new RegExp(AR.name), 'the build order lists the Arabic use case, so the check covers it');
     const { unisolated } = await ui.page.locator('body').evaluate(layout);

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, openUi } from './uiSupport.mjs';
+import { closeBrowser, openUi, toView } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE, REVIEW_SESSIONS } from './reviewFixtures.js';
 
 test.after(closeBrowser);
@@ -12,6 +12,7 @@ test('the three document buttons are live on a finished run, even when its artif
   const ui = await openUi('results', { ...REVIEW_STATE, sessions: SESSIONS, results: REVIEW_RESULTS });
   const { page } = ui;
   try {
+    await toView(page, 'Assets');
     await page.locator('[data-document-actions]').waitFor();
     assert.equal((await page.locator('[data-doc-action="strategy-document"]').innerText()).trim(), 'Create strategy document');
     assert.equal((await page.locator('[data-doc-action="use-case-catalog"]').innerText()).trim(), 'Create use case catalog');
@@ -51,6 +52,7 @@ test('a strategy document shows its progress while the job runs, then the refres
   const ui = await openUi('results', { ...REVIEW_STATE, sessions: BIG, results: REVIEW_RESULTS }, '', { mount: backend.mount });
   const { page } = ui;
   try {
+    await toView(page, 'Assets');
     await page.locator('[data-document-actions]').waitFor();
     await page.waitForResponse((r) => r.url().includes('/api/workspace/list'), { timeout: 20000 }).catch(() => null);
     await page.locator('[data-doc-action="strategy-document"]').waitFor();
@@ -90,6 +92,7 @@ test('a finished run whose catalog file is missing says so in plain words, with 
   const ui = await openUi('results', { ...REVIEW_STATE, sessions: SESSIONS, results: REVIEW_RESULTS }, '', { mount });
   const { page } = ui;
   try {
+    await toView(page, 'Assets');
     await page.locator('[data-doc-action="use-case-catalog"]').waitFor();
     await page.locator('[data-doc-action="use-case-catalog"]').click();
     await page.getByText(MISSING).first().waitFor({ timeout: 20000 });
@@ -111,6 +114,7 @@ test('a run that could not save its catalog file says so in that exact plain sen
   const ui = await openUi('results', { ...REVIEW_STATE, sessions: SESSIONS, results: REVIEW_RESULTS }, '', { mount });
   const { page } = ui;
   try {
+    await toView(page, 'Assets');
     await page.locator('[data-doc-action="use-case-catalog"]').waitFor();
     await page.locator('[data-doc-action="use-case-catalog"]').click();
     await page.getByText(UNSAVED, { exact: true }).first().waitFor({ timeout: 20000 });
@@ -134,6 +138,7 @@ test('a PDF already in the run folder leaves Create strategy document and Create
   const ui = await openUi('results', { ...REVIEW_STATE, sessions: SESSIONS, results: REVIEW_RESULTS }, '', { mount });
   const { page } = ui;
   try {
+    await toView(page, 'Assets');
     await page.locator('[data-document-actions]').waitFor();
     await page.waitForResponse((r) => r.url().includes('/api/workspace/list'), { timeout: 20000 }).catch(() => null);
     for (const kind of ['strategy-document', 'use-case-catalog', 'excel-workbook']) {

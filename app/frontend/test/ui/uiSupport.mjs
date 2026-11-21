@@ -135,6 +135,9 @@ function sharedServers() {
 // REQ-150 / R27: innerText of a closed disclosure is '', and the SQL sits under Advanced, so a dialog's statements are read with textContent and split on the ';' that ends each one.
 export const sqlStatementsOf = (text) => String(text ?? '').split(';').map((s) => s.trim()).filter(Boolean);
 
+// REQ-444: the Results page shows one of three views (Use cases, Business, Assets); a test opens the view that holds the block it reads.
+export const toView = (page, name) => page.locator('nav[aria-label="Results sections"] [data-results-nav-item]').filter({ hasText: new RegExp(`^${name}`) }).click();
+
 export async function closeBrowser() {
   const started = servers;
   servers = null;
