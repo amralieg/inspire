@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { figureText, isBad, sliderRange } from '../../lib/valueWizard.js';
+import { figureText, isBad, sliderRange, unitOf } from '../../lib/valueWizard.js';
 
 // REQ-436: a slider and a number box of one width, synced both ways. A typed value above the range grows the slider.
 const WIDTH = 'w-28';
 
-export function Controls({ ask, value, onChange, range }) {
+export function Controls({ ask, value, onChange, range, currency }) {
   const [draft, setDraft] = useState(String(value));
   useEffect(() => { setDraft((d) => (Number(d) === Number(value) && d !== '' ? d : String(value))); }, [value]);
   const r = range || sliderRange(ask.kind, ask.default, value);
@@ -15,6 +15,8 @@ export function Controls({ ask, value, onChange, range }) {
   };
   return (
     <div className="flex flex-col items-end gap-1">
+      {/* REQ-450/451: the number follows the slider on every input, with its unit; the server amount follows after the debounce. */}
+      <span data-live-value="" data-unit="" aria-live="off" className="text-sm font-semibold tabular-nums text-text-primary">{`${Number(value) || 0} ${unitOf(ask, currency)}`}</span>
       <input type="range" aria-label={`${ask.label} slider`} min={r.min} max={Math.max(r.max, Number(value) || 0)} step={r.step} value={Number(value) || 0}
         onChange={(e) => type(e.target.value)} className={`${WIDTH} m-0 accent-[var(--color-db-red-solid,#c4161c)]`} />
       <input type="number" aria-label={ask.label} min={0} step="any" value={draft} aria-invalid={bad} onChange={(e) => type(e.target.value)}
@@ -33,9 +35,9 @@ export default function Ask({ ask, value, onChange, dataValue, currency, compact
         <p className="text-[12px] text-text-secondary">{fromData ? 'Read from your data.' : ask.why}</p>
       </div>
       {fromData ? (
-        <span data-from-data="" className="rounded-md border border-ok/30 bg-ok-bg px-2 py-1 text-sm font-semibold tabular-nums text-ok-fg">{figureText(ask.kind, dataValue, currency) || '...'}</span>
+        <span data-from-data="" className="rounded-md border border-ok/30 bg-ok-bg px-2 py-1 text-sm font-semibold tabular-nums text-ok-fg">{figureText(ask.kind, dataValue, currency) || '...'}{ask.kind === 'money' ? '' : ` ${unitOf(ask, currency)}`}</span>
       ) : (
-        <span data-estimate="" className="rounded-md"><Controls ask={ask} value={value} onChange={onChange} /></span>
+        <span data-estimate="" className="rounded-md"><Controls ask={ask} value={value} onChange={onChange} currency={currency} /></span>
       )}
     </div>
   );

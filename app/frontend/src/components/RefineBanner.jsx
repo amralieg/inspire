@@ -1,5 +1,6 @@
 import { valueChips } from '../lib/valueLedger';
-import { ratioText, scoreText } from '../lib/scoreRefine';
+import { useState } from 'react';
+import { ratioText, scoreText, summarizePairs } from '../lib/scoreRefine';
 import ValueDisclaimer from './ValueDisclaimer';
 import { PlainMessage } from './TechnicalDetails';
 
@@ -8,25 +9,37 @@ const money = (pair, amount) => valueChips([{ kind: pair.kind, unit: pair.unit, 
 const btn = 'rounded-lg border px-3 py-1 text-xs font-semibold disabled:opacity-60';
 
 export default function RefineBanner({ view, busy, error, onApply, onUndo, onKeep }) {
+  const [open, setOpen] = useState(false);
   if (!view) return null;
   const { applied, pairs, changes, names } = view;
+  const { shown, more } = summarizePairs(pairs);
+  const toOf = (pair) => changes.find((c) => c.id === pair.lower.id)?.to;
   return (
     <section aria-label="Score refinement" data-score-refine="" className="mb-3 rounded-xl border border-warning-fg/40 bg-surface px-4 py-3">
       {applied ? (
         <p className="text-sm text-text-primary">{`Refined ${changes.length === 1 ? '1 score' : `${changes.length} scores`} so the order follows the value.`}</p>
       ) : (
         <ul className="space-y-1.5 text-sm text-text-primary">
-          {pairs.map((pair) => {
-            const to = changes.find((c) => c.id === pair.lower.id)?.to;
-            return (
-              <li key={pair.lower.id}>
-                {`${pair.lower.name} (${scoreText(pair.lower.start)}, ${money(pair, pair.lowerAmount)}) is worth ${ratioText(pair.ratio)} ${pair.higher.name} (${scoreText(pair.higher.start)}, ${money(pair, pair.higherAmount)}). `}
-                {`Refine ${pair.lower.name}'s score to ${scoreText(to)} so the order follows the value?`}
-                <span data-refine-preview="" className="ms-2 tabular-nums text-text-secondary">{`${scoreText(pair.lower.start)} → ${scoreText(to)}`}</span>
-              </li>
-            );
-          })}
+          {shown.map((pair) => (
+            <li key={pair.lower.id}>
+              {`${pair.lower.name} (${scoreText(pair.lower.start)}, ${money(pair, pair.lowerAmount)}) is worth ${ratioText(pair.ratio)} ${pair.higher.name} (${scoreText(pair.higher.start)}, ${money(pair, pair.higherAmount)}). `}
+              {`Refine its score to ${scoreText(toOf(pair))} so the order follows the value?`}
+              <span data-refine-preview="" className="ms-2 tabular-nums text-text-secondary">{`${scoreText(pair.lower.start)} → ${scoreText(toOf(pair))}`}</span>
+            </li>
+          ))}
         </ul>
+      )}
+      {!applied && more.length > 0 && (
+        <div className="mt-1.5">
+          <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="text-xs font-semibold text-db-red-fg">
+            {open ? 'Show fewer' : `and ${more.length} more`}
+          </button>
+          {open && (
+            <ul className="mt-1 space-y-0.5 text-xs text-text-secondary">
+              {more.map((pair) => <li key={pair.lower.id} className="tabular-nums">{`${pair.lower.name}: ${scoreText(pair.lower.start)} → ${scoreText(toOf(pair))}`}</li>)}
+            </ul>
+          )}
+        </div>
       )}
       {applied && (
         <ul className="mt-1 space-y-0.5 text-xs text-text-secondary">

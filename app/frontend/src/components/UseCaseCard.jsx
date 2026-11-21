@@ -18,7 +18,7 @@ import ValueEstimateLine from './ValueEstimateLine';
 import ValueBadge from './ValueBadge';
 import CardValueLine from './CardValueLine';
 import ValueHow from './ValueHow';
-import { UseCaseNameNotes, UseCaseNameTitle, UseCaseRenameButton } from './UseCaseNameEditor';
+import { UseCaseNameNotes, UseCaseNameTitle } from './UseCaseNameEditor';
 import { useUseCaseRename } from '../lib/useCaseRename';
 
 const s = (v) => (v == null ? '' : String(v));
@@ -189,7 +189,6 @@ function UseCaseCardBody({
             </div>
           </div>
         </div>
-        <UseCaseRenameButton text={titlePlain} rename={rename} />
         {typeof onToggleArchive === 'function' && (
           <button
             type="button"

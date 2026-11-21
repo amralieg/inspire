@@ -75,8 +75,9 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
     try {
       const sent = bodyOf(plan, answers, calculated).answers;
       await values.run(useCaseId, table, { ...sent, plan: bodyOf(plan, answers).plan });
-      if (calculated) setSavedKey(answersKey(answers));
-      else { setSavedKey(''); setPageIdx(pages.length - 1); }
+      // REQ-449: a confirmed save closes the dialog (the card shows the new value); Calculate now stays on the Save step.
+      if (calculated) { onClose?.(); return; }
+      setSavedKey(''); setPageIdx(pages.length - 1);
       loadHistory();
     } catch (err) {
       setError(messageOf(err));

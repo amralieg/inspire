@@ -47,6 +47,23 @@ export function refineScores(items) {
   return { changes, pairs: pairs.filter((p) => p.lower.now !== p.lower.start) };
 }
 
+// REQ-452: the banner shows a short summary. The biggest gaps come first; a use case is on one line only (as the lower or the higher one),
+// and pairs that share an amount collapse into the first of them. Every other pair is in `more`, behind one control.
+export const REFINE_SHOWN = 3;
+export function summarizePairs(pairs, limit = REFINE_SHOWN) {
+  const list = [...(Array.isArray(pairs) ? pairs : [])].sort((a, b) => b.ratio - a.ratio);
+  const used = new Set();
+  const amounts = new Set();
+  const shown = [];
+  for (const p of list) {
+    if (shown.length >= limit) break;
+    if (used.has(p.lower.id) || used.has(p.higher.id) || amounts.has(`${p.kind}|${p.unit}|${p.lowerAmount}`)) continue;
+    used.add(p.lower.id); used.add(p.higher.id); amounts.add(`${p.kind}|${p.unit}|${p.lowerAmount}`);
+    shown.push(p);
+  }
+  return { shown, more: list.filter((p) => !shown.includes(p)) };
+}
+
 // REQ-433: the scores shown for the cards: a refined score replaces the first one and remembers it for the tooltip.
 export function withRefinedScores(useCases, refined, idOf) {
   const keys = Object.keys(refined || {});

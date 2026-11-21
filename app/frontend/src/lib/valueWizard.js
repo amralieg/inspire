@@ -28,6 +28,16 @@ export function sliderRange(kind, def, typed = 0) {
   return Number.isFinite(t) && t > range.max ? { ...range, max: t } : range;
 }
 
+// REQ-451: the unit of one ask, from the plan's own `unit` when it names one, else from its kind and id.
+export function unitOf(ask, currency) {
+  if (typeof ask?.unit === 'string' && ask.unit) return ask.unit;
+  const id = String(ask?.id || '');
+  if (ask?.kind === 'pct') return '%';
+  if (ask?.kind === 'hours') return 'hours';
+  if (ask?.kind === 'money') return `${currency || DEFAULT_CURRENCY}${/hour/.test(id) ? ' per hour' : /year/.test(id) ? ' per year' : ''}`;
+  return /people|headcount|analyst/.test(id) ? 'people' : /year/.test(id) ? 'per year' : 'records';
+}
+
 export const estimateAsks = (driver) => (driver?.asks || []).filter((a) => a.source === 'estimate');
 export const isBad = (ask, value) => !Number.isFinite(Number(value)) || value === '' || Number(value) < 0 || (ask.kind === 'pct' && Number(value) > 100);
 

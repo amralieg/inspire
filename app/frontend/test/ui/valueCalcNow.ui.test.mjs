@@ -53,7 +53,7 @@ test('C3: the Save page has no Calculate now button, and Save there sends calcul
     assert.equal(await calcNow(dialog).count(), 0);
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
-    await dialog.locator('[data-save-total]').getByText('(calculated)').waitFor({ timeout: 15000 });
+    await dialog.waitFor({ state: 'hidden', timeout: 5000 }); // REQ-449: Save closes the dialog
     assert.equal(puts.length, 1);
     assert.equal(puts[0].answers.calculated, true);
   } finally { await ui.close(); }
@@ -80,12 +80,14 @@ test('C5: after Save confirms the numbers, Back and Calculate now with no change
     const dialog = await openWizard(page, card);
     await goTo(dialog, 'save');
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
-    await dialog.locator('[data-save-total]').filter({ hasText: '(calculated)' }).waitFor({ timeout: 15000 });
-    await dialog.getByRole('button', { name: 'Back', exact: true }).click();
-    await calcNow(dialog).click();
-    await dialog.locator('[data-wizard-page="save"]').waitFor({ timeout: 15000 });
+    await dialog.waitFor({ state: 'hidden', timeout: 5000 }); // REQ-449: Save closes the dialog; reopen it and keep the numbers as estimated
+    await card.getByRole('button', { name: 'Edit value' }).click();
+    const again = page.getByRole('dialog', { name: 'Calculate value at stake' });
+    await again.locator('[data-wizard-page="data"]').waitFor({ timeout: 15000 });
+    await calcNow(again).click();
+    await again.locator('[data-wizard-page="save"]').waitFor({ timeout: 15000 });
     assert.equal(puts.length, 2);
     assert.equal(puts[1].answers.calculated, false);
-    await dialog.locator('[data-save-total]').filter({ hasText: '(estimated)' }).waitFor({ timeout: 15000 });
+    await again.locator('[data-save-total]').filter({ hasText: '(estimated)' }).waitFor({ timeout: 15000 });
   } finally { await ui.close(); }
 });

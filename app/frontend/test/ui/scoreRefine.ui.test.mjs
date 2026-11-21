@@ -56,7 +56,7 @@ test('the banner names the pair, previews old to new, and carries the full discl
     await banner.waitFor({ timeout: 15000 });
     const text = (await banner.innerText()).replace(/\s+/g, ' ');
     assert.match(text, /Score upsell \(8\.5, \$3M\) is worth 3x Predict churn \(9\.0, \$1M\)/);
-    assert.match(text, /Refine Score upsell's score to 9\.05 so the order follows the value\?/);
+    assert.match(text, /Refine its score to 9\.05 so the order follows the value\?/);
     assert.match(text, /8\.5\s*(→|->)\s*9\.05/);
     assert.ok(text.includes(VALUE_DISCLAIMER), 'the refine banner carries the full disclaimer');
     for (const name of ['Apply', 'Keep']) assert.equal(await banner.getByRole('button', { name, exact: true }).count(), 1);

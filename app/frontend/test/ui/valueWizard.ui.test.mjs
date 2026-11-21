@@ -102,7 +102,8 @@ test('W4: Save sends PUT shape 2 with calculated true and the box label changes 
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     assert.match(await text(dialog.locator('[data-save-total]')), /\(estimated\)/);
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
-    await dialog.locator('[data-save-total]').getByText('(calculated)').waitFor({ timeout: 15000 });
+    await dialog.waitFor({ state: 'hidden', timeout: 5000 }); // REQ-449: a confirmed save closes the dialog
+    await card.locator('[data-value-qualifier]').getByText('(calculated)').waitFor({ timeout: 15000 });
     assert.equal(puts.length, 1);
     assert.equal(puts[0].use_case_id, 'N01-U01');
     assert.equal(puts[0].answers.shape, 2);

@@ -30,7 +30,7 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
                 <span aria-hidden="true">{DRIVER_ICONS[d.id] || ''}</span>
                 <span className="min-w-0 flex-1 text-[12px] font-semibold leading-tight">{d.label}</span>
               </div>
-              <p className="mt-auto text-base font-extrabold tabular-nums">{on ? (part ? moneyText(unit, part.amount) : '...') : 'off'}</p>
+              <p className="mt-auto text-base font-extrabold tabular-nums">{on ? (part ? <>{moneyText(unit, part.amount)}<span className="text-[10px] font-normal text-text-secondary"> a year</span></> : '...') : 'off'}</p>
               <button type="button" disabled={!on} onClick={() => setOpen(open === d.id ? null : d.id)} aria-expanded={open === d.id}
                 className="text-start text-[12px] font-semibold text-db-red-solid disabled:opacity-40">Edit numbers</button>
             </div>
@@ -42,7 +42,7 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
           <p className="text-[13px] font-semibold text-text-primary">{opened.label}</p>
           <div className="grid grid-cols-2 gap-1.5">
             {opened.asks.map((a) => (
-              <Ask key={a.id} ask={a} compact value={answers.drivers[opened.id].inputs[a.id]} currency={yearly?.currency}
+              <Ask key={a.id} ask={a} compact value={answers.drivers[opened.id].inputs[a.id]} currency={answers.currency || yearly?.currency}
                 dataValue={partOf(yearly, opened.id)?.inputs?.find((i) => i.id === a.id)?.value} onChange={(v) => onInput(opened.id, a.id, v)} />
             ))}
           </div>
@@ -61,7 +61,7 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
         </div>
         <div className="flex items-center gap-3">
           <p className="min-w-0 flex-1 text-[13px] font-semibold text-text-primary">{ATTRIBUTION.label}</p>
-          <Controls ask={CREDIT} value={answers.attribution_pct} onChange={onCredit} />
+          <Controls ask={CREDIT} value={answers.attribution_pct} onChange={onCredit} currency={answers.currency} />
         </div>
       </div>
       <ValueDisclaimer />

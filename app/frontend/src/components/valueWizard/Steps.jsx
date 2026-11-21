@@ -76,13 +76,13 @@ export function StepKind({ plan, driver, answers, yearly, onInput, status, error
       <div className="flex flex-wrap items-center gap-3">
         <span aria-hidden="true" className="text-2xl">{DRIVER_ICONS[driver.id] || ''}</span>
         <div className="min-w-0 flex-1"><h3 className="text-sm font-bold text-text-primary">{driver.label}</h3><p className="text-[12px] text-text-secondary">{driver.why}</p></div>
-        <div className="rounded-lg border border-border px-3 py-1 text-end"><p className="text-[10px] uppercase tracking-wide text-text-secondary">{driver.label}</p><p data-kind-amount="" className="text-lg font-extrabold tabular-nums text-text-primary">{part ? moneyText(unit, part.amount) : '...'}</p></div>
-        <div className="rounded-lg border border-border bg-bg-subtle px-3 py-1 text-end"><p className="text-[10px] uppercase tracking-wide text-text-secondary">Running total</p><p data-run-total="" className="text-lg font-extrabold tabular-nums text-text-primary">{totalText(yearly) || '...'}</p></div>
+        <div className="rounded-lg border border-border px-3 py-1 text-end"><p className="text-[10px] uppercase tracking-wide text-text-secondary">{driver.label}</p><p data-kind-amount="" className="text-lg font-extrabold tabular-nums text-text-primary">{part ? moneyText(unit, part.amount) : '...'}{part && <span className="text-[11px] font-normal text-text-secondary"> per year</span>}</p></div>
+        <div className="rounded-lg border border-border bg-bg-subtle px-3 py-1 text-end"><p className="text-[10px] uppercase tracking-wide text-text-secondary">Running total</p><p data-run-total="" className="text-lg font-extrabold tabular-nums text-text-primary">{totalText(yearly) || '...'}{yearly?.total && <span className="text-[11px] font-normal text-text-secondary"> per year</span>}</p></div>
       </div>
       {status === 'error' && <PlainMessage text={error} role="alert" dir="auto" className="rounded-md border border-error/30 bg-error-bg px-3 py-1.5 text-[12px] text-error-fg" />}
       <div className="grid grid-cols-2 gap-2">
         {driver.asks.map((a) => (
-          <Ask key={a.id} ask={a} value={answers.drivers[driver.id]?.inputs[a.id]} dataValue={dataValueOf(yearly, driver.id, a)} currency={yearly?.currency}
+          <Ask key={a.id} ask={a} value={answers.drivers[driver.id]?.inputs[a.id]} dataValue={dataValueOf(yearly, driver.id, a)} currency={answers.currency || yearly?.currency}
             onChange={(v) => onInput(driver.id, a.id, v)} />
         ))}
       </div>
