@@ -36,12 +36,12 @@ def is_queue_kind(kind):
     return kind["contract"] in QUEUE_CONTRACTS and not LAYOUTS[kind["layout"]].get("informational")
 
 
-def test_25_of_the_40_kinds_are_queues_by_the_plan_contracts():
+def test_33_of_the_51_kinds_are_queues_by_the_plan_contracts():
     queues = [k for k in KINDS["kinds"] if is_queue_kind(k)]
-    assert len(KINDS["kinds"]) == 40
-    assert len(queues) == 25
-    assert collections.Counter(k["contract"] for k in queues) == {"decision_queue": 5, "monitor": 5, "explainer": 2, "recommendations": 2,
-                                                                 "location": 1, "impact": 3, "network": 3, "segments": 3, "process": 1}
+    assert len(KINDS["kinds"]) == 51
+    assert len(queues) == 33
+    assert collections.Counter(k["contract"] for k in queues) == {"decision_queue": 6, "monitor": 6, "explainer": 3, "recommendations": 4,
+                                                                 "location": 1, "impact": 3, "network": 4, "segments": 5, "process": 1}
 
 
 @pytest.mark.parametrize("kind", KINDS["kinds"], ids=lambda k: k["id"])

@@ -18,6 +18,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import _agentload  # noqa: E402
+from kinds_registry_stub_support import with_technique_tables  # noqa: E402
 from v120_artifacts_support import make_inspire  # noqa: E402
 
 REGISTRY = {
@@ -52,7 +53,7 @@ TECHNIQUE_OF = {"driver_breakdown": "Decomposition", "risk_propensity": "Classif
 @pytest.fixture(scope="module")
 def ns():
     namespace = _agentload.fresh_agent_namespace()
-    namespace["_inspire_kinds"] = lambda: REGISTRY
+    namespace["_inspire_kinds"] = lambda: with_technique_tables(REGISTRY)
     return namespace
 
 

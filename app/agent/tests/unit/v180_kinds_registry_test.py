@@ -19,12 +19,12 @@ AGENT_NB = os.path.join(ROOT, "agent", "dbx_inspire_ai_agent.ipynb")
 BUNDLED_NB = os.path.join(REPO, "app", "dbx_inspire_ai_agent.ipynb")
 
 FAMILIES = ["measure_explain", "predict", "decide_optimize", "simulate_plan", "measure_impact", "detect_protect", "know_entities",
-            "run_processes", "place_relationships", "text_agents"]
+            "run_processes", "place_relationships", "text_agents", "ai_native"]
 LAYOUTS = ["decision_queue", "monitor_triage", "forecast_cockpit", "scenario_lab", "planner", "segment_explorer", "recommendation_desk",
            "performance_explainer", "lift_readout", "process_flow", "location_view", "network_explorer", "agent_chat", "dashboard"]
 ROLES = ["money", "quantity", "price", "cost", "budget_target", "capacity_limit", "rate_probability", "event_time", "status_activity",
          "case_id", "latitude", "longitude", "region_code", "edge_pair", "treatment", "spec_limit", "approver_creator", "score_limit",
-         "free_text"]
+         "free_text", "action_target", "label_column", "entity_name"]
 CONTRACTS = {
     "forecast": {"__series": ["series_id", "period", "actual", "forecast", "lower", "upper", "is_future", "method", "backtest_mase"]},
     "scenario": {"__scenarios": ["scenario_id", "lever_values", "outcome", "p10", "p50", "p90", "prob_target"],
@@ -46,20 +46,22 @@ CONTRACTS = {
     "decision_queue": {"__score_bins": ["bin", "count", "cutoff"], "__lift": ["decile", "captured_share", "cost_at_cutoff"]},
 }
 INFORMATIONAL = {2: "performance_explainer", 4: "forecast_cockpit", 33: "process_flow", 37: "location_view", 39: "performance_explainer",
-                 40: None}
+                 40: None, 45: "performance_explainer", 48: None, 51: None}
 PLAN_LAYOUT = {1: "performance_explainer", 3: "performance_explainer", 5: "forecast_cockpit", 6: "decision_queue", 7: "decision_queue",
                8: "recommendation_desk", 9: "planner", 10: "planner", 11: "planner", 12: "planner", 13: "location_view", 14: "decision_queue",
                15: "planner", 16: "scenario_lab", 17: "scenario_lab", 18: "forecast_cockpit", 19: "lift_readout", 20: "lift_readout",
                21: "lift_readout", 22: "decision_queue", 23: "monitor_triage", 24: "monitor_triage", 25: "monitor_triage",
                26: "monitor_triage", 27: "network_explorer", 28: "segment_explorer", 29: "segment_explorer", 30: "segment_explorer",
                31: "recommendation_desk", 32: "network_explorer", 34: "process_flow", 35: "monitor_triage", 36: "decision_queue",
-               38: "network_explorer"}
+               38: "network_explorer", 41: "monitor_triage", 42: "decision_queue", 43: "recommendation_desk", 44: "performance_explainer",
+               46: "segment_explorer", 47: "segment_explorer", 49: "network_explorer", 50: "recommendation_desk"}
 NEW_TECHNIQUES = ["Decomposition", "Peer Benchmarking", "Process Mining", "Sequence Analysis", "Causal Impact", "Uplift Modeling",
                   "Marketing Mix Modeling", "Threshold Optimization", "Queueing", "Controls Testing", "Statistical Process Control",
                   "Entity Matching", "Lifetime Value", "Data Agent"]
 PLACEHOLDER = re.compile(r"\{([a-z_]+)\}")
 SUFFIX = re.compile(r"__[a-z_]+")
-COPY_MARKERS = 10
+# 15, not 10: the REQ-414 gate test names the 11 AI-native kinds and their 3 base kinds (14 ids, one family, not the registry); a pasted list is 15 or more.
+COPY_MARKERS = 15
 SKIPPED_PARTS = {"node_modules", "dist", ".git", "__pycache__"}
 
 
@@ -97,8 +99,8 @@ def registry_problems(doc: dict) -> list:
     ids = [k.get("id") for k in kinds]
     if len(set(ids)) != len(ids):
         out.append("kind ids are not unique")
-    if sorted(k.get("num") for k in kinds) != list(range(1, 41)):
-        out.append("kind nums are not 1..40")
+    if sorted(k.get("num") for k in kinds) != list(range(1, 52)):
+        out.append("kind nums are not 1..51")
     for layout in layouts.values():
         if layout["contract"] is not None and layout["contract"] not in contracts:
             out.append(f"layout {layout['id']} names a missing contract {layout['contract']}")
@@ -182,7 +184,7 @@ def _repo_files():
             yield relative
 
 
-def test_the_registry_holds_the_40_kinds_14_layouts_and_the_plan_contracts():
+def test_the_registry_holds_the_51_kinds_14_layouts_and_the_plan_contracts():
     doc = _registry()
     assert doc["version"] == 1
     assert [f["id"] for f in doc["families"]] == FAMILIES
@@ -198,7 +200,7 @@ def test_the_registry_holds_the_40_kinds_14_layouts_and_the_plan_contracts():
     nums = {k["num"]: k for k in doc["kinds"]}
     assert {n: k["decision_layout"] for n, k in nums.items() if k["informational"]} == INFORMATIONAL
     assert {n: k["layout"] for n, k in nums.items() if not k["informational"]} == PLAN_LAYOUT
-    assert [k["id"] for k in doc["kinds"] if k["contract"] is None] == ["data_agent"]
+    assert [k["id"] for k in doc["kinds"] if k["contract"] is None] == ["data_agent", "cross_domain_assistant", "data_agent_ai"]
     assert set(NEW_TECHNIQUES) <= {t for k in doc["kinds"] for t in k["techniques"]}
     assert registry_problems(doc) == []
 
@@ -216,7 +218,7 @@ def test_the_registry_holds_the_40_kinds_14_layouts_and_the_plan_contracts():
     (lambda d: d["kinds"][0].update(alerts=[]), "needs 5 Genie questions"),
     (lambda d: d["kinds"][0]["dashboard"].update(widgets=[]), "needs 5 Genie questions"),
     (lambda d: d["kinds"][1].update(id=d["kinds"][0]["id"]), "not unique"),
-    (lambda d: d["kinds"][1].update(num=1), "not 1..40"),
+    (lambda d: d["kinds"][1].update(num=1), "not 1..51"),
     (lambda d: d["kinds"][0]["signature"].update(roles_all=["shoe_size"]), "signature roles"),
     (lambda d: d["kinds"][0].update(value_formula="saved {dollars}"), "unknown placeholders"),
     (lambda d: d["kinds"][0]["dashboard"]["widgets"].append({"widget": "table", "source": "__series", "title": "x"}), "dashboard reads"),
@@ -307,7 +309,7 @@ def test_inspire_kinds_refuses_a_missing_or_foreign_registry_with_a_plain_error(
     with pytest.raises(RuntimeError, match="no usable kind registry"):
         fresh_ns["_inspire_kinds"]()
     held["kinds"] = json.dumps(_registry())
-    assert len(fresh_ns["_inspire_kinds"]()["kinds"]) == 40
+    assert len(fresh_ns["_inspire_kinds"]()["kinds"]) == 51
 
 
 def test_every_technique_the_notebook_knows_today_derives_a_kind_for_old_rows(agent_ns):
@@ -325,7 +327,7 @@ def test_every_technique_the_notebook_knows_today_derives_a_kind_for_old_rows(ag
 
 def test_the_run_banner_logs_the_registry(agent_ns, capsys):
     agent_ns["print_ascii_banner"]()
-    assert "[KINDS FIRED] registry v1: 40 kinds, 14 layouts" in capsys.readouterr().out
+    assert "[KINDS FIRED] registry v1: 51 kinds, 14 layouts" in capsys.readouterr().out
 
 
 def test_the_shell_web_and_the_frontend_import_kinds_json_by_path():
@@ -345,5 +347,5 @@ def test_the_shell_web_kind_helpers_read_the_same_registry():
               "fam: familyOf('predict').label, t: kindForTechnique('  CLASSIFICATION ').id, none: kindForTechnique('nope'), miss: kindOf('nope'),"
               "same: (await import('../../../../frontend/src/lib/kinds.js')).kindOf === kindOf}));")
     out = subprocess.run(["node", "--input-type=module", "-e", script], cwd=os.path.join(SHELL, "web"), capture_output=True, text=True, check=True)
-    assert json.loads(out.stdout) == {"n": 40, "f": "forecast_cockpit", "l": "plan", "fam": "Predict", "t": "risk_propensity", "none": None,
+    assert json.loads(out.stdout) == {"n": 51, "f": "forecast_cockpit", "l": "plan", "fam": "Predict", "t": "risk_propensity", "none": None,
                                       "miss": None, "same": True}

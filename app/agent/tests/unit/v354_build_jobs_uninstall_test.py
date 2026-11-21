@@ -179,7 +179,7 @@ def test_runs_without_a_launch_record_are_counted_in_the_done_note_and_their_job
     inst._implement_build_run_jobs = lambda key: ({}, {3})
     warnings, notes = inst._implement_delete_build_jobs((SESSION, UC, 4))
     assert warnings == [] and jobs.deleted == [11]
-    assert notes == ["1 build run of this use case (v3) started before Inspire recorded their launches, so their jobs could not be found "
+    assert notes == ["1 build run of this use case (v3) started before Inspire recorded launches, so the jobs could not be found "
                      "and stay in Jobs."]
 
 

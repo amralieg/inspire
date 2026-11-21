@@ -62,7 +62,7 @@ def test_a_written_kind_wins_over_the_technique(agent_ns):
 
 @pytest.mark.parametrize("value,technique", [
     (None, None), ("", None), ("   ", None), ("not a kind at all", None), ("not a kind at all", "Crystal Ball Gazing"),
-    (float("nan"), None), (0, None), (41, None), ("41. Forecasting", None), ("forecasting", None),
+    (float("nan"), None), (0, None), (52, None), ("41. Forecasting", None), ("forecasting", None),
     ("forecast cockpit", None), ("_", ""),
 ])
 def test_a_value_that_names_no_kind_resolves_to_none(agent_ns, value, technique):

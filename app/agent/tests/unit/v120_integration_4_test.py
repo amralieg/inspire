@@ -501,14 +501,14 @@ def _keys_whose_label(ns, predicate):
 def test_gate_and_elite_family_sets_are_derived_from_the_registry(ns):
     cls, registry = ns["DatabricksInspire"], ns["TECHNIQUE_EXECUTION_FAMILY"]
     assert cls._SUPERVISED_FAMILIES == _keys_whose_label(ns, lambda l: registry[l] == "A")
-    assert cls._SUPERVISED_FAMILIES == {"classification", "predictive", "survival", "text_classification"}
+    assert cls._SUPERVISED_FAMILIES == {"classification", "predictive", "survival", "text_classification", "ai_root_cause"}
     assert "regression" not in cls._SUPERVISED_FAMILIES
     assert cls._MODEL_FAMILIES == _keys_whose_label(ns, lambda l: l in ns["TRAIN_INFER_TECHNIQUES"])
     assert {"anomaly", "clustering", "recommendation", "association"} <= cls._MODEL_FAMILIES
     assert "regression" not in cls._MODEL_FAMILIES and "forecasting" not in cls._MODEL_FAMILIES
     assert cls._TEXT_FAMILIES == _keys_whose_label(ns, lambda l: registry[l] == "G") | {"text_topic", "text_classification"}
     assert cls._TEXT_FAMILIES == {"text_sentiment", "text_topic", "text_summarization", "text_extraction",
-                                  "text_classification", "text_analytics"}
+                                  "text_classification", "text_analytics", "ai_taxonomy"}
     assert cls._TEMPORAL_FAMILIES == _keys_whose_label(ns, lambda l: l in ns["TEMPORAL_TECHNIQUES"])
     assert cls._TEMPORAL_FAMILIES == {"forecasting", "trend", "cohort", "survival", "causal_impact", "spc", "process_mining", "sequence"}
     assert ns["TEMPORAL_TECHNIQUES"] <= set(registry)
@@ -521,7 +521,7 @@ def test_a_family_label_outside_the_registry_fails_at_import(fresh_ns):
     with pytest.raises(ValueError, match="not_a_family"):
         fresh_ns["_gate_family_sets"](fresh_ns["DatabricksInspire"]._TECHNIQUE_FAMILIES, ("not_a_family",))
     from _agentload import agent_source
-    assert re.search(r"(?m)^    _GATE_FAMILY_SETS = _gate_family_sets\(_TECHNIQUE_FAMILIES, _FREE_TEXT_DETECTIONS\)$", agent_source())
+    assert re.search(r"(?m)^    _GATE_FAMILY_SETS = _RegistryTable\(lambda owner: _gate_family_sets\(owner\._TECHNIQUE_FAMILIES, owner\._FREE_TEXT_DETECTIONS\)\)$", agent_source())
 
 
 def test_temporal_techniques_outside_the_registry_fail_the_import_check(fresh_ns):

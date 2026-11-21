@@ -1,6 +1,6 @@
 """v1.4.0 use-case kinds: column roles.
 
-`_column_signals` assigns each column one of the 19 roles from its name, type, comment and foreign keys, and lists
+`_column_signals` assigns each column one of the 22 roles from its name, type, comment and foreign keys, and lists
 the columns the rules leave ambiguous for the one batched labeling call. Every role has a must-keep and a
 must-exclude case (CLAUDE.md 8.3).
 """
@@ -75,9 +75,9 @@ def test_each_role_keeps_its_column_and_excludes_the_lookalike(agent_ns, role, k
     assert exclude[0] not in roles[role], (role, roles)
 
 
-def test_all_nineteen_roles_are_always_present(agent_ns):
+def test_all_twenty_two_roles_are_always_present(agent_ns):
     roles = roles_of(agent_ns, {"a": "INT"})
-    assert len(roles) == 19
+    assert len(roles) == 22
     assert set(roles) == set(agent_ns["DatabricksInspire"]._ROLE_IDS)
 
 

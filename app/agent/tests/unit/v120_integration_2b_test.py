@@ -567,7 +567,7 @@ def test_finalize_pipeline_emits_the_final_status_and_message(ns, tmp_path, monk
 from v120_gate_recalibration_test import U, reasons  # noqa: E402
 from v120_integration_2a_test import TEXT_SCHEMA, text_gates  # noqa: E402
 
-TEXT_REGISTRY_LABELS = {"Sentiment Analysis", "Document Processing", "Extraction"}
+TEXT_REGISTRY_LABELS = {"Sentiment Analysis", "Document Processing", "Extraction", "Taxonomy Mapping"}
 
 
 def test_every_text_registry_label_resolves_to_a_text_family(ns):
