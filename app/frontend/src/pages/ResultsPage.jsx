@@ -1580,7 +1580,7 @@ export default function ResultsPage({
                               <Building2 size={10} className={active ? 'text-db-red-fg' : 'text-text-tertiary'} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <span className={`text-[11px] font-semibold block truncate ${
+                              <span dir="auto" className={`text-[11px] font-semibold block truncate ${
                                 active ? 'text-db-red-fg' : 'text-text-primary'
                               }`}>
                                 {d}
@@ -1612,7 +1612,7 @@ export default function ResultsPage({
                                       : 'text-text-secondary hover:bg-bg-subtle'
                                   }`}
                                 >
-                                  <span className={`text-[10px] font-medium truncate flex-1 ${sdActive ? 'text-db-red-fg' : ''}`}>{sd}</span>
+                                  <span dir="auto" className={`text-[10px] font-medium truncate flex-1 ${sdActive ? 'text-db-red-fg' : ''}`}>{sd}</span>
                                   <span className={`text-[9px] font-mono ${sdActive ? 'text-db-red-fg' : 'text-text-tertiary'}`}>{sdCount}</span>
                                 </button>
                               );
