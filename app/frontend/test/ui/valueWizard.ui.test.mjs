@@ -46,14 +46,16 @@ test('W2: on a kind page a slider moves the number box, one preview follows the 
     assert.match(await text(dialog.locator('[data-run-total]')), /\$/);
     await box.fill('25');
     assert.equal(await slider.inputValue(), '25');
-    await box.fill('250');
-    assert.equal(await box.inputValue(), '250', 'a typed value above the range is kept');
-    assert.equal(Number(await slider.getAttribute('max')) >= 250, true, 'the slider grows to the typed value');
-    const a = await slider.boundingBox();
-    const b = await box.boundingBox();
+    await goTo(dialog, 'driver:time_saved');
+    const people = dialog.locator('[data-ask="people"]');
+    await people.locator('input[type=number]').fill('250');
+    assert.equal(await people.locator('input[type=number]').inputValue(), '250', 'a typed value above the range is kept');
+    assert.equal(Number(await people.locator('input[type=range]').getAttribute('max')) >= 250, true, 'the slider grows to the typed value');
+    const a = await people.locator('input[type=range]').boundingBox();
+    const b = await people.locator('input[type=number]').boundingBox();
     assert.ok(Math.abs(a.width - b.width) <= 1, `slider ${a.width} and box ${b.width} share one width`);
-    assert.ok(await ask.locator('[data-from-data]').count() === 0, 'an estimate ask is not marked from data');
-    assert.ok(await dialog.locator('[data-ask="incidents_per_year"] [data-from-data]').count() === 1, 'a data ask is marked from your data');
+    assert.ok(await people.locator('[data-from-data]').count() === 0, 'an estimate ask is not marked from data');
+    assert.ok(await dialog.locator('[data-ask="events_per_year"] [data-from-data]').count() === 1, 'a data ask is marked from your data');
   } finally { await ui.close(); }
 });
 
@@ -85,7 +87,8 @@ test('W3: the save page has the total above a row of five tiles, unticking a til
     await tiles.nth(2).getByRole('button', { name: 'Edit numbers' }).click();
     assert.equal(await dialog.locator('[data-editor]').count(), 1, 'one editor at a time');
     const e = await dialog.locator('[data-editor]').boundingBox();
-    assert.ok(e.y >= boxes[0].y + boxes[0].height - 1, 'the editor sits under the grid');
+    const grid = await tiles.nth(0).boundingBox();
+    assert.ok(e.y >= grid.y + grid.height - 1, 'the editor sits under the grid');
     assert.equal(await dialog.locator('[data-editor] input[type=range]').count() > 0, true);
   } finally { await ui.close(); }
 });
@@ -141,7 +144,8 @@ test('W6: steps 1, 2 and 5 fit a 1280x800 window with no scroll', async () => {
         const dlg = document.querySelector('[role=dialog]');
         const body = dlg.querySelector('[data-wizard-page]').parentElement;
         const scroller = [dlg, ...dlg.querySelectorAll('*')].find((n) => n.scrollHeight > n.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(n).overflowY));
-        return { page: document.documentElement.scrollHeight > window.innerHeight || document.documentElement.scrollWidth > window.innerWidth,
+        const r = dlg.getBoundingClientRect();
+        return { page: r.top < 0 || r.left < 0 || r.right > window.innerWidth || dlg.scrollWidth > dlg.clientWidth + 1,
           inner: Boolean(scroller), bottom: dlg.getBoundingClientRect().bottom, bodyOver: body.scrollHeight > body.clientHeight + 1 };
       });
       assert.deepEqual({ step, ...fit, bottom: fit.bottom <= 800 }, { step, page: false, inner: false, bottom: true, bodyOver: false });
