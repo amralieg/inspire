@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PlainMessage } from './TechnicalDetails';
 import ModalDialog from './ModalDialog';
 import ValueHistory from './ValueHistory';
+import MeasureSettings from './valueWizard/MeasureSettings.jsx';
 import StepSave from './valueWizard/StepSave.jsx';
 import { StepData, StepGroups, StepKind, StepKinds } from './valueWizard/Steps.jsx';
 import usePreview from './valueWizard/usePreview.js';
 import { trackingIdOf } from '../lib/useCaseFields';
+import { measureOfSaved } from '../lib/measureSettings.js';
 import { VALUE_LABELS } from '../lib/valueLabels';
 import { CASE_PLAN_ROUTE, FALLBACK_NOTICE, noModelNotice, answersKey, bodyOf, carryAnswers, driversOn, initialAnswers } from '../lib/valueWizard.js';
 
@@ -16,7 +18,7 @@ const primary = 'rounded-md bg-db-red-solid hover:bg-db-red-solid-hover px-3 py-
 
 // REQ-436/437: the Calculate value wizard. The AI reads the data into a case plan (POST case-plan); every amount on screen is the server's
 // reply to POST preview; Save sends the answers (shape 2, calculated true) with the plan. `values` saves, reads history and undoes.
-export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDatabase, warehouseId, sessionId, saved = null, version = null, values, onClose }) {
+export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDatabase, warehouseId, sessionId, saved = null, version = null, values, measure = null, onClose }) {
   const useCaseId = trackingIdOf(uc);
   const [planState, setPlanState] = useState({ status: 'loading', plan: null, error: '' });
   const [groupBy, setGroupBy] = useState('');
@@ -74,7 +76,8 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
     setBusy(true); setError('');
     try {
       const sent = bodyOf(plan, answers, calculated).answers;
-      await values.run(useCaseId, table, { ...sent, plan: bodyOf(plan, answers).plan });
+      // REQ-457: the measure settings ride along: the wizard's live ones, else the saved ones (initialAnswers drops unknown fields).
+      await values.run(useCaseId, table, { ...sent, ...(measure ? measure.values : measureOfSaved(saved)), plan: bodyOf(plan, answers).plan });
       // REQ-449: a confirmed save closes the dialog (the card shows the new value); Calculate now stays on the Save step.
       if (calculated) { onClose?.(); return; }
       setSavedKey(''); setPageIdx(pages.length - 1);
@@ -154,6 +157,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
           </li>
         ))}
       </ol>
+      {measure && <div hidden={page !== 'data'}><MeasureSettings measure={measure} /></div>}
       {body()}
     </ModalDialog>
   );
