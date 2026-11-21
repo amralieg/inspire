@@ -41,7 +41,7 @@ export function useCalculatedValues({ apiFetch, apiPostJson, apiPutJson, inspire
     let live = true;
     fetchSavedAnswers(api.current.apiFetch, { inspireDatabase, warehouseId, sessionId }).then((answers) => {
       if (!live) return;
-      setById(Object.fromEntries(Object.entries(answers).filter(([, a]) => a?.yearly).map(([id, a]) => [id, { status: 'ready', yearly: a.yearly, version: a.version, answers: a.answers }])));
+      setById(Object.fromEntries(Object.entries(answers).filter(([, a]) => a?.yearly).map(([id, a]) => [id, { status: 'ready', yearly: a.stale ? { ...a.yearly, stale: true } : a.yearly, version: a.version, answers: a.answers }])));
     });
     return () => { live = false; };
   }, [inspireDatabase, warehouseId, sessionId]);

@@ -7,6 +7,7 @@ import LatestRunBadge from '../components/LatestRunBadge';
 import PortfolioCards, { usePortfolio } from '../components/PortfolioCards';
 import ValueBadge, { OverallValue } from '../components/ValueBadge';
 import { EstimateTotals } from '../components/ValueEstimateLine';
+import { AllRunsValuePanel } from '../components/ValueTotalsPanel';
 import { valueChips, valueQuery } from '../lib/valueLedger';
 import { useValueRead } from '../lib/useValueLedger';
 import { makeApiFetch, requestHeaders, responseError } from '../lib/apiClient';
@@ -191,6 +192,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   const runsValue = useValueRead(apiFetch, valueReady ? `/api/inspire/value/runs?${valueQuery(inspireDatabase, warehouseId)}` : '');
   // REQ-078: one read for every run's estimate (the cards and the banner), kept apart from the measured totals.
   const estimates = useValueRead(apiFetch, valueReady ? `/api/inspire/value/estimates?${valueQuery(inspireDatabase, warehouseId)}` : '');
+  const allTotals = useValueRead(apiFetch, valueReady ? '/api/inspire/value/totals' : '');
   const runValues = runsValue?.runs || {};
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(null);
@@ -365,6 +367,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
 
         <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
 
+        {allTotals?.all && <AllRunsValuePanel reply={allTotals} />}
         {valueReady && <OverallValue value={overallValue} estimated={estimates?.totals} estimateCap={estimates?.truncated ? estimates.cap : null} />}
         {inspireDatabase && warehouseId && (
           <PortfolioCards portfolio={portfolio} error={portfolioError} sessions={sessions} active={runFilter} onCard={openCard} />

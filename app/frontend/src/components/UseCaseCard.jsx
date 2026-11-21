@@ -17,6 +17,7 @@ import {
 import ValueEstimateLine from './ValueEstimateLine';
 import ValueBadge from './ValueBadge';
 import CardValueLine from './CardValueLine';
+import ValueHow from './ValueHow';
 import { UseCaseNameNotes, UseCaseNameTitle, UseCaseRenameButton } from './UseCaseNameEditor';
 import { useUseCaseRename } from '../lib/useCaseRename';
 
@@ -54,6 +55,7 @@ function UseCaseCardBody({
   onSetRule = null,
   onUndoRefine = null,
   yearly = null,
+  valueSummary = null,
   canCalculate = false,
   onCalculate = null,
   onEdit = null,
@@ -120,13 +122,14 @@ function UseCaseCardBody({
                 )}
                 <QualityBarReason uc={u} className="mt-1" />
                 <ValueEstimateLine uc={u} estimate={estimate} onSetRule={onSetRule} className="mt-1" />
+                <ValueHow yearly={yearly} onOpen={onEdit} />
                 {useCaseValue && (
                   <ValueBadge atStake={useCaseValue.at_stake} saved={useCaseValue.saved} measured={useCaseValue.measured} className="mt-2" compact />
                 )}
               </div>
-              <div className="flex shrink-0 flex-col items-end">
+              <div className="flex shrink-0 items-start gap-3 pb-3">
                 <InspireScoreBadge score={inspireScoreNum} refinedFrom={u.refined_from} onUndo={onUndoRefine} />
-                <CardValueLine yearly={yearly} canCalculate={canCalculate} onCalculate={onCalculate} onEdit={onEdit} />
+                <CardValueLine yearly={yearly} summary={valueSummary} canCalculate={canCalculate} onCalculate={onCalculate} onEdit={onEdit} />
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-2">

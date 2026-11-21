@@ -1,24 +1,25 @@
+import { BOX } from './ValueBox';
+
+// REQ-438: the score box, solid red with white text, the same size as the value box beside it. Undo of a refined score sits under it.
 export default function InspireScoreBadge({ score, refinedFrom = null, onUndo = null }) {
   if (score == null) return null;
   const from = refinedFrom == null || refinedFrom === '' ? null : Number(refinedFrom);
   const refined = Number.isFinite(from) && from !== score;
   return (
-    <div className="shrink-0 flex flex-col items-end gap-1">
-    <div
-      className="shrink-0 flex flex-col items-center justify-center rounded-2xl px-3.5 py-2 min-w-[4.25rem] bg-db-red-50 border border-db-red/20 shadow-sm"
-      title={refined ? `Inspire composite score. Refined from ${from}` : 'Inspire composite score'}
-    >
-      <span className="text-[8px] font-semibold text-db-red-fg uppercase tracking-[0.18em] leading-none">
-        Inspire
-      </span>
-      <span className="text-2xl font-extrabold text-db-red-fg tabular-nums tracking-tight leading-none mt-1.5">
-        {refined ? score.toFixed(2) : score.toFixed(1)}
-      </span>
-    </div>
-    {refined && onUndo && (
-      <button type="button" aria-label="Undo refined score" title={`Restore the first score, ${from}`} className="text-[10px] font-semibold text-db-red-fg underline"
-        onClick={(e) => { e.stopPropagation(); onUndo(); }}>Undo</button>
-    )}
+    <div className="shrink-0 flex flex-col items-center gap-1">
+      <div
+        data-score-box=""
+        className={`${BOX} border-db-red-solid bg-db-red-solid text-white shadow-sm`}
+        title={refined ? `Inspire composite score. Refined from ${from}` : 'Inspire composite score'}
+      >
+        <span className="text-[10px] font-bold uppercase tracking-[0.12em] leading-none">Inspire</span>
+        <span className="mt-1 text-3xl font-extrabold tabular-nums leading-none">{refined ? score.toFixed(2) : score.toFixed(1)}</span>
+        <span className="mt-1 text-[10px] opacity-90">score</span>
+      </div>
+      {refined && onUndo && (
+        <button type="button" aria-label="Undo refined score" title={`Restore the first score, ${from}`} className="text-[10px] font-semibold text-db-red-fg underline"
+          onClick={(e) => { e.stopPropagation(); onUndo(); }}>Undo</button>
+      )}
     </div>
   );
 }

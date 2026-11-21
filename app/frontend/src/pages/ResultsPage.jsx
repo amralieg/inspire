@@ -46,6 +46,7 @@ import { usePortfolio } from '../components/PortfolioCards';
 import UseCaseCard from '../components/UseCaseCard';
 import ValueBadge from '../components/ValueBadge';
 import { EstimateTotals } from '../components/ValueEstimateLine';
+import { RunValuePanel } from '../components/ValueTotalsPanel';
 import { valueQuery } from '../lib/valueLedger';
 import { useValueRead } from '../lib/useValueLedger';
 import LatestRunBadge from '../components/LatestRunBadge';
@@ -282,6 +283,10 @@ export default function ResultsPage({
   const estimates = useValueRead(apiFetch, estimateUrl, implementRefresh);
   const yearlyUrl = runValueUrl ? runValueUrl.replace('/api/inspire/value?', '/api/inspire/value/yearly?') : '';
   const measuredYearly = useValueRead(apiFetch, yearlyUrl, implementRefresh);
+  // REQ-438/439: one read for the card statuses and the run panel; a saved value bumps valueTick so both refresh.
+  const [valueTick, setValueTick] = useState(0);
+  const totalsUrl = runValueUrl ? `/api/inspire/value/totals?session_id=${encodeURIComponent(String(selectedSessionId))}` : '';
+  const valueTotals = useValueRead(apiFetch, totalsUrl, implementRefresh * 1000 + valueTick);
 
   const resultsDiscoveryType = results?.discovery_type || '';
   const feedbackBusiness = useMemo(() => {
@@ -588,7 +593,24 @@ export default function ResultsPage({
   const builtUseCases = useMemo(() => buildUseCaseList(results, usecases), [results, usecases]);
   const [calcFor, setCalcFor] = useState(null);
   const calculated = useCalculatedValues({ apiFetch: showcase ? null : apiFetch, apiPostJson, apiPutJson, inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId });
-  const yearlyOf = useCallback((id) => calculated.byId[id]?.yearly || measuredYearly?.use_cases?.[id] || null, [calculated.byId, measuredYearly]);
+  const valuesForDialog = useMemo(() => ({
+    ...calculated,
+    run: async (...a) => { const got = await calculated.run(...a); setValueTick((n) => n + 1); return got; },
+    undo: async (...a) => { const got = await calculated.undo(...a); setValueTick((n) => n + 1); return got; },
+  }), [calculated]);
+  const scrollToCard = useCallback((id) => {
+    const el = document.querySelector(`[data-use-case-no="${String(id).replace(/"/g, '')}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' });
+    el.setAttribute('data-value-pulse', 'on');
+    el.animate?.([{ boxShadow: '0 0 0 0 rgba(217,46,27,.5)' }, { boxShadow: '0 0 0 16px rgba(217,46,27,0)' }], { duration: 1400 });
+    setTimeout(() => el.removeAttribute('data-value-pulse'), 1400);
+  }, []);
+  const yearlyOf = useCallback((id) => {
+    const y = calculated.byId[id]?.yearly || measuredYearly?.use_cases?.[id] || null;
+    // A shape-2 value carries its total, not entries; the score refine reads entries.
+    return y && !y.entries && y.total ? { ...y, entries: [{ kind: 'money', unit: y.total.unit, amount: y.total.amount }] } : y;
+  }, [calculated.byId, measuredYearly]);
   const { list: allUseCases, banner: refineBanner, undoCard: undoRefinedCard } = useScoreRefine({ useCases: builtUseCases, yearlyOf, apiPostJson, host: settings?.databricksHost,
     inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId });
   const qualityBarCounts = useMemo(() => qualityBarCountsOf(allUseCases), [allUseCases]);
@@ -1139,7 +1161,7 @@ export default function ResultsPage({
                 className="mt-2"
               />
             )}
-            {estimates?.totals && <EstimateTotals totals={estimates.totals} className="mt-1" />}
+            {!valueTotals?.run && estimates?.totals && <EstimateTotals totals={estimates.totals} className="mt-1" />}
           </div>
           <button
             type="button"
@@ -1158,6 +1180,10 @@ export default function ResultsPage({
             Change run
           </button>
         </section>
+      )}
+      {!embedded && results && valueTotals?.run && (
+        <RunValuePanel run={valueTotals.run} useCases={valueTotals.use_cases}
+          nameOf={(id) => { const u = allUseCases.find((x) => trackingIdOf(x) === id); return u ? nameOfUseCase(u) : id; }} onRow={scrollToCard} />
       )}
       {!embedded && results && selectedSessionId && inspireDb && warehouseId && (
         <div className="mb-3">
@@ -2482,6 +2508,7 @@ export default function ResultsPage({
                         useCaseValue={runValue?.use_cases?.[trackingIdOf(uc)] ?? null}
                         estimate={estimates?.use_cases?.[trackingIdOf(uc)] ?? null}
                         yearly={calculated.byId[tid]?.yearly || measuredYearly?.use_cases?.[tid] || null}
+                        valueSummary={valueTotals?.use_cases?.[tid] ?? null}
                         canCalculate={Boolean(runValueUrl && tid)}
                         onCalculate={() => setCalcFor(uc)}
                         onEdit={runValueUrl && tid ? () => setCalcFor(uc) : undefined}
@@ -2543,7 +2570,7 @@ export default function ResultsPage({
         {calcFor && (
           <CalculateValueDialog key={trackingIdOf(calcFor)} uc={calcFor} table={tableOfUseCase(calcFor)} apiPostJson={apiPostJson} inspireDatabase={inspireDb} warehouseId={warehouseId}
             sessionId={selectedSessionId} saved={calculated.byId[trackingIdOf(calcFor)]?.answers || null} version={calculated.byId[trackingIdOf(calcFor)]?.version || null}
-            values={calculated} onClose={() => setCalcFor(null)} />
+            values={valuesForDialog} onClose={() => setCalcFor(null)} />
         )}
       {implementUc && selectedSessionId && inspireDb && warehouseId && (
         <ImplementWizard
