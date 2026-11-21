@@ -63,4 +63,4 @@ function undoStatements(usecases, history, sessionId, ids) {
   return { update, record };
 }
 
-module.exports = { CHANGES_MAX, COLUMNS, parseChanges, parseIds, historyCreateSql, applyStatements, undoStatements };
+module.exports = { binder, CHANGES_MAX, COLUMNS, parseChanges, parseIds, historyCreateSql, applyStatements, undoStatements };

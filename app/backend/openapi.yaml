@@ -416,6 +416,25 @@ components:
             sampled_records: { type: integer }
             eligible_records: { type: integer }
             days: { type: integer }
+          nullable: true
+        parts:
+          type: array
+          description: Where the value comes from. The data part (if any) and each filled driver; present when drivers or an attribution below 100 apply.
+          items:
+            type: object
+            properties:
+              source: { type: string, enum: [data, assumption] }
+              id: { type: string, description: '"data" or the driver id' }
+              label: { type: string }
+              amount: { type: number }
+              unit: { type: string }
+        attribution_pct: { type: number }
+        total:
+          type: object
+          description: (data amount + driver amounts) * attribution_pct / 100
+          properties:
+            unit: { type: string }
+            amount: { type: number }
     ValueEntry:
       type: object
       required: [kind, unit, amount]
@@ -1496,8 +1515,11 @@ paths:
                 answers:
                   type: object
                   properties:
-                    money: { type: object }
+                    money: { type: object, description: The from-data part; optional when drivers are given }
                     kpi: { type: object }
+                    currency: { type: string, description: Required when a driver is filled; must equal the currency of the data part }
+                    drivers: { type: object, description: 'Filled value drivers by id (inputs defined in valueDrivers.json); each input a number >= 0, percentages 0-100' }
+                    attribution_pct: { type: number, description: Share of the whole total the use case earns, 0-100, default 100 }
       responses:
         '200':
           description: The estimate
@@ -1513,6 +1535,141 @@ paths:
           description: No answers, or a parameter is missing or malformed
         '422':
           description: The sample gave no value to show; the error says why
+  /api/inspire/value/answers:
+    get:
+      tags: [Monitor]
+      summary: The saved Calculate value answers of a session
+      description: The latest version of the answers of each use case, kept in the Inspire database. No table yet means no answers.
+      parameters:
+        - $ref: '#/components/parameters/DatabricksHost'
+        - $ref: '#/components/parameters/InspireDatabase'
+        - $ref: '#/components/parameters/WarehouseId'
+        - { name: session_id, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Latest saved answers by use case id
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  answers:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        version: { type: integer }
+                        answers: { type: object }
+                        yearly: { $ref: '#/components/schemas/YearlyValue' }
+                        saved_at: { type: string }
+                        saved_by: { type: string }
+        '400':
+          description: A parameter is missing or malformed
+        '401':
+          $ref: '#/components/responses/PersonSignInRequired'
+    put:
+      tags: [Monitor]
+      summary: Save the Calculate value answers of one use case
+      description: Runs the estimate with the answers and appends them as the next version. Earlier versions are kept.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inspire_database, warehouse_id, session_id, use_case_id, answers]
+              properties:
+                inspire_database: { type: string }
+                warehouse_id: { type: string }
+                session_id: { type: string }
+                use_case_id: { type: string }
+                table: { type: string }
+                table_scope: { type: object }
+                answers: { type: object, description: Same shape as the estimate answers }
+      responses:
+        '200':
+          description: The saved version and its estimate
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version: { type: integer }
+                  yearly: { $ref: '#/components/schemas/YearlyValue' }
+                  disclaimer: { type: string }
+        '400':
+          description: The answers are not valid; the error says which field
+        '401':
+          $ref: '#/components/responses/PersonSignInRequired'
+        '422':
+          description: The sample gave no value to show; the error says why
+  /api/inspire/value/answers/history:
+    get:
+      tags: [Monitor]
+      summary: The saved versions of the Calculate value answers of one use case
+      parameters:
+        - $ref: '#/components/parameters/DatabricksHost'
+        - $ref: '#/components/parameters/InspireDatabase'
+        - $ref: '#/components/parameters/WarehouseId'
+        - { name: session_id, in: query, required: true, schema: { type: string } }
+        - { name: use_case_id, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Versions, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  history:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        version: { type: integer }
+                        answers: { type: object }
+                        yearly: { $ref: '#/components/schemas/YearlyValue' }
+                        saved_at: { type: string }
+                        saved_by: { type: string }
+                        note: { type: string }
+        '400':
+          description: A parameter is missing or malformed
+        '401':
+          $ref: '#/components/responses/PersonSignInRequired'
+  /api/inspire/value/answers/undo:
+    post:
+      tags: [Monitor]
+      summary: Go back to the previous version of the Calculate value answers
+      description: Appends a copy of the previous version as the newest one, with the note "undo of v<N>". 409 when there is no earlier version.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inspire_database, warehouse_id, session_id, use_case_id]
+              properties:
+                inspire_database: { type: string }
+                warehouse_id: { type: string }
+                session_id: { type: string }
+                use_case_id: { type: string }
+      responses:
+        '200':
+          description: The new version, a copy of the previous one
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version: { type: integer }
+                  answers: { type: object }
+                  yearly: { $ref: '#/components/schemas/YearlyValue' }
+        '400':
+          description: A parameter is missing or malformed
+        '401':
+          $ref: '#/components/responses/PersonSignInRequired'
+        '409':
+          description: There is no earlier version to go back to
   /api/inspire/score-refine:
     post:
       tags: [Monitor]

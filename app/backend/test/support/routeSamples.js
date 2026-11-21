@@ -85,6 +85,8 @@ const SAMPLES = [
   { key: 'POST /api/inspire/score-refine', rule: 'any', method: 'POST', path: '/api/inspire/score-refine', body: { inspire_database: DB, warehouse_id: WH, session_id: '1001', changes: [{ use_case_id: 'N01-U01', score: 9.05, from: 8.5, reason: 'Order follows value' }] } },
   { key: 'POST /api/inspire/score-refine/undo', rule: 'any', method: 'POST', path: '/api/inspire/score-refine/undo', body: { inspire_database: DB, warehouse_id: WH, session_id: '1001', use_case_ids: ['N01-U01'] } },
   { key: 'POST /api/inspire/value/estimate', rule: 'any', method: 'POST', path: '/api/inspire/value/estimate', body: { ...UC, table: 'main.s.orders', answers: { money: { currency: 'per_currency', value: { method: 'fixed', amount: 1, currency: 'USD' } } } } },
+  { key: 'PUT /api/inspire/value/answers', rule: 'any', method: 'PUT', path: '/api/inspire/value/answers', body: { ...UC, answers: { drivers: { cost_cut: { spend_per_year: 1000, cut_pct: 10 } }, currency: 'USD' } } },
+  { key: 'POST /api/inspire/value/answers/undo', rule: 'any', method: 'POST', path: '/api/inspire/value/answers/undo', body: { ...UC } },
   { key: 'POST /api/money/rate-sample', rule: 'any', method: 'POST', path: '/api/money/rate-sample', body: { ...UC, base: 'USD' } },
   { key: 'ALL /run/:id/{*rest}', rule: 'delegated', method: 'POST', path: '/run/missing-page/api/refresh', body: {} },
   { key: 'ALL /showcase/:id/mvp/:mvp/api/*rest', rule: 'any', method: 'POST', path: '/showcase/missing/mvp/missing/api/page', body: {} },

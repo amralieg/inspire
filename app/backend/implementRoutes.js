@@ -57,6 +57,8 @@ const { joinSentences } = require('./lib/sentences');
 const AR = require('./lib/accessRequest');
 const VY = require('./lib/valueYearly');
 const VE = require('./lib/valueEstimate');
+const VDC = require('./lib/valueDriversCalc');
+const VA = require('./lib/valueAnswers');
 const IV = require('./lib/inspireValue');
 
 function sendError(res, err) {
@@ -2409,31 +2411,145 @@ function registerImplementRoutes(app, deps) {
 
   // REQ-432: the Calculate estimate. ONE statement reads a sample of the use case table; the amount counted per sampled record is scaled
   // to every eligible record and to a year (VY.extrapolate). It starts no Build and no job, and it never answers 0 for a value it could not read.
+  // REQ-435: typed drivers (value that is not in the data) are added to that part, and attribution scales the total; drivers alone run no SQL.
+  async function estimateYearly(req, warehouseId, table, answers) {
+    const money = answers.money && typeof answers.money === 'object' ? answers.money : {};
+    const hasData = !!money.value && typeof money.value === 'object';
+    const driven = VDC.validate(answers, I.badRequest);
+    if (!hasData && !driven) throw I.badRequest('Answer the Value at stake questions first: how much each record is worth, and in which currency.');
+    const attribution = driven ? driven.attribution_pct : VDC.attributionOf(answers, I.badRequest);
+    I.validateUseCaseId(q(req, 'use_case_id'));
+    const withParts = (yearly, currency, data) => {
+      const made = VDC.combine({ drivers: driven ? driven.drivers : {}, attribution_pct: attribution, currency, data });
+      return { ...yearly, entries: [{ kind: 'money', unit: currency, amount: made.total.amount }], ...made };
+    };
+    if (!hasData) {
+      const head = { verb: 'VALUE AT STAKE', period: VY.PERIOD, estimated: true, basis: null };
+      return withParts(head, driven.currency, null);
+    }
+    if (!table) throw I.badRequest('Name the use case table to estimate the value on.');
+    const asked = String(money.value.currency || '').trim().toUpperCase();
+    if (driven && asked && asked !== driven.currency) throw I.badRequest(`The value from the data is in ${asked} but the answer currency is ${driven.currency}; use one currency for both.`);
+    const scopes = await launchScopesOf(req, warehouseId, req.body?.table_scope);
+    await refuseMetricView(req, warehouseId, table);
+    const columns = GP.scopedColumns(await I.readPickedTable(table, () => sqlRows(req.dbHost, req.dbToken, warehouseId, I.columnsStatement(table))), scopes, table);
+    const dateColumn = VY.dateColumnOf(columns);
+    if (!dateColumn) throw I.badRequest('The table has no date column to scale the sample to a year, so Inspire cannot estimate a value per year.', 422);
+    const made = GP.moneyYearlySampleSql(table, money.value, dateColumn, scopes, answers.lost_filter ?? null);
+    if (!made) throw I.badRequest('Name the value: a fixed amount, one column, or an equation over the table columns, with one currency.');
+    const found = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters, { rowLimit: 100, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }));
+    const entries = found.map((r) => ({ kind: 'money', unit: String(r.currency ?? ''), amount: Number(r.stake) })).filter((e) => e.unit && e.amount > 0);
+    const basis = found[0] || {};
+    const yearly = VY.yearlyOf({ entries, sampled: basis.sampled, eligible: basis.eligible, days: basis.days, kpi: answers.kpi, rule: money.rule });
+    if (!yearly) throw I.badRequest(`Inspire read a sample of ${table} and found no record that counts toward the value, so it shows no number.`, 422);
+    const units = [...new Set(yearly.entries.map((e) => e.unit))];
+    if (driven) {
+      const other = units.find((u) => u !== driven.currency);
+      if (other) throw I.badRequest(`The value from the data is in ${other} but the answer currency is ${driven.currency}; use one currency for both.`);
+    } else if (attribution === 100) {
+      return yearly;
+    } else if (units.length !== 1) {
+      throw I.badRequest('The share of this value the use case earns needs the value in one currency; the data gives more than one.');
+    }
+    const currency = driven ? driven.currency : units[0];
+    return withParts(yearly, currency, { amount: yearly.entries.reduce((sum, e) => sum + e.amount, 0) });
+  }
+
+  const estimateFailure = (err, table) => sqlFailure(err, profileFailures(table || 'the use case table'));
+  const answersOf = (req) => (req.body?.answers && typeof req.body.answers === 'object' ? req.body.answers : {});
+
   app.post('/api/inspire/value/estimate', requireToken, async (req, res) => {
     const table = String(req.body?.table || '').trim();
     try {
       const warehouseId = warehouseOf(req);
-      const answers = req.body?.answers && typeof req.body.answers === 'object' ? req.body.answers : {};
-      const money = answers.money && typeof answers.money === 'object' ? answers.money : {};
-      if (!table) throw I.badRequest('Name the use case table to estimate the value on.');
-      if (!money.value || typeof money.value !== 'object') throw I.badRequest('Answer the Value at stake questions first: how much each record is worth, and in which currency.');
-      I.validateUseCaseId(q(req, 'use_case_id'));
-      const scopes = await launchScopesOf(req, warehouseId, req.body?.table_scope);
-      await refuseMetricView(req, warehouseId, table);
-      const asked = I.columnsStatement(table);
-      const columns = GP.scopedColumns(await I.readPickedTable(table, () => sqlRows(req.dbHost, req.dbToken, warehouseId, asked)), scopes, table);
-      const dateColumn = VY.dateColumnOf(columns);
-      if (!dateColumn) throw I.badRequest('The table has no date column to scale the sample to a year, so Inspire cannot estimate a value per year.', 422);
-      const made = GP.moneyYearlySampleSql(table, money.value, dateColumn, scopes, answers.lost_filter ?? null);
-      if (!made) throw I.badRequest('Name the value: a fixed amount, one column, or an equation over the table columns, with one currency.');
-      const found = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters, { rowLimit: 100, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }));
-      const entries = found.map((r) => ({ kind: 'money', unit: String(r.currency ?? ''), amount: Number(r.stake) })).filter((e) => e.unit && e.amount > 0);
-      const basis = found[0] || {};
-      const yearly = VY.yearlyOf({ entries, sampled: basis.sampled, eligible: basis.eligible, days: basis.days, kpi: answers.kpi, rule: money.rule });
-      if (!yearly) throw I.badRequest(`Inspire read a sample of ${table} and found no record that counts toward the value, so it shows no number.`, 422);
+      const yearly = await estimateYearly(req, warehouseId, table, answersOf(req));
       return res.json({ yearly, disclaimer: VALUE_DISCLAIMER.full });
     } catch (err) {
-      return sendError(res, sqlFailure(err, profileFailures(table || 'the use case table')));
+      return sendError(res, estimateFailure(err, table));
+    }
+  });
+
+  // REQ-435: the saved Calculate answers, one append-only version row per save in __inspire_value_answers (see lib/valueAnswers.js).
+  const answersTable = (req) => {
+    const { catalog, schema } = dbOf(req, splitInspireDatabase);
+    return `\`${catalog}\`.\`${schema}\`.\`__inspire_value_answers\``;
+  };
+  const savedBy = (req) => String(req.headers['x-forwarded-email'] || req.headers['x-forwarded-preferred-username'] || '').trim();
+  const readAnswers = async (req, warehouseId, made) => {
+    try {
+      return sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters));
+    } catch (err) {
+      if (isMissingTableError(err)) return [];
+      throw err;
+    }
+  };
+  const appendAnswers = async (req, warehouseId, table, row) => {
+    const made = VA.insertSql(table, row);
+    await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters);
+  };
+  const nextVersion = async (req, warehouseId, table, sid, useCaseId) => {
+    const made = VA.latestVersionSql(table, sid, useCaseId);
+    const row = (await readAnswers(req, warehouseId, made))[0];
+    return (row && row.latest !== null && row.latest !== undefined ? Number(row.latest) : 0) + 1;
+  };
+
+  app.get('/api/inspire/value/answers', requireToken, async (req, res) => {
+    try {
+      const warehouseId = warehouseOf(req);
+      const sid = String(sessionIdOf(req));
+      const table = answersTable(req);
+      const rows = await readAnswers(req, warehouseId, VA.latestSql(table, sid));
+      return res.json({ answers: Object.fromEntries(rows.map((r) => [String(r.use_case_id), VA.versionOf(r)])) });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.put('/api/inspire/value/answers', requireToken, async (req, res) => {
+    const asked = String(req.body?.table || '').trim();
+    try {
+      const warehouseId = warehouseOf(req);
+      const sid = String(sessionIdOf(req));
+      const table = answersTable(req);
+      const useCaseId = q(req, 'use_case_id');
+      const answers = answersOf(req);
+      const yearly = await estimateYearly(req, warehouseId, asked, answers).catch((err) => { throw estimateFailure(err, asked); });
+      await executeSql(req.dbHost, req.dbToken, warehouseId, VA.createSql(table));
+      const version = await nextVersion(req, warehouseId, table, sid, useCaseId);
+      await appendAnswers(req, warehouseId, table, { sessionId: sid, useCaseId, version, answers, yearly, savedBy: savedBy(req), note: '' });
+      return res.json({ version, yearly, disclaimer: VALUE_DISCLAIMER.full });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.get('/api/inspire/value/answers/history', requireToken, async (req, res) => {
+    try {
+      const warehouseId = warehouseOf(req);
+      const sid = String(sessionIdOf(req));
+      const useCaseId = q(req, 'use_case_id');
+      I.validateUseCaseId(useCaseId);
+      const rows = await readAnswers(req, warehouseId, VA.historySql(answersTable(req), sid, useCaseId));
+      return res.json({ history: rows.map((r) => ({ ...VA.versionOf(r), note: r.note ?? '' })) });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/inspire/value/answers/undo', requireToken, async (req, res) => {
+    try {
+      const warehouseId = warehouseOf(req);
+      const sid = String(sessionIdOf(req));
+      const table = answersTable(req);
+      const useCaseId = q(req, 'use_case_id');
+      I.validateUseCaseId(useCaseId);
+      const [latest, previous] = (await readAnswers(req, warehouseId, VA.historySql(table, sid, useCaseId, 2))).map(VA.versionOf);
+      if (!previous) throw I.badRequest('There is no earlier version of these answers to go back to.', 409);
+      const version = latest.version + 1;
+      await appendAnswers(req, warehouseId, table, { sessionId: sid, useCaseId, version, answers: previous.answers, yearly: previous.yearly, savedBy: savedBy(req), note: `undo of v${latest.version}` });
+      return res.json({ version, answers: previous.answers, yearly: previous.yearly });
+    } catch (err) {
+      return sendError(res, err);
     }
   });
 
