@@ -4,6 +4,7 @@ import ValueBox from './ValueBox';
 import { tableOfUseCase, useCalculatedValues } from '../lib/calculatedValue';
 import { trackingIdOf } from '../lib/useCaseFields';
 import { useValueRead } from '../lib/useValueLedger';
+import { valueQuery } from '../lib/valueLedger';
 import { makeApiPutJson } from '../lib/apiClient';
 
 // REQ-440: the use case value inside the Build MVP Measure step. One saved value per use case, shared with the card and the run totals:
@@ -24,7 +25,7 @@ export default function MvpValuePanel({ uc, sessionId, settings, apiFetch, apiPo
     run: async (...a) => { const got = await calculated.run(...a); setTick((n) => n + 1); return got; },
     undo: async (...a) => { const got = await calculated.undo(...a); setTick((n) => n + 1); return got; },
   }), [calculated]);
-  const totals = useValueRead(apiFetch, `/api/inspire/value/totals?session_id=${encodeURIComponent(String(sessionId))}`, tick);
+  const totals = useValueRead(apiFetch, `/api/inspire/value/totals?${valueQuery(inspireDatabase, warehouseId, { session_id: String(sessionId) })}`, tick);
   const summary = totals?.use_cases?.[id] || null;
   if (!totals) return null;
   const saved = calculated.byId[id] || null;

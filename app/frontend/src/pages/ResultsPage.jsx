@@ -285,7 +285,7 @@ export default function ResultsPage({
   const measuredYearly = useValueRead(apiFetch, yearlyUrl, implementRefresh);
   // REQ-438/439: one read for the card statuses and the run panel; a saved value bumps valueTick so both refresh.
   const [valueTick, setValueTick] = useState(0);
-  const totalsUrl = runValueUrl ? `/api/inspire/value/totals?session_id=${encodeURIComponent(String(selectedSessionId))}` : '';
+  const totalsUrl = runValueUrl ? runValueUrl.replace('/api/inspire/value?', '/api/inspire/value/totals?') : '';
   const valueTotals = useValueRead(apiFetch, totalsUrl, implementRefresh * 1000 + valueTick);
 
   const resultsDiscoveryType = results?.discovery_type || '';

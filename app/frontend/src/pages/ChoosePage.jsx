@@ -192,7 +192,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   const runsValue = useValueRead(apiFetch, valueReady ? `/api/inspire/value/runs?${valueQuery(inspireDatabase, warehouseId)}` : '');
   // REQ-078: one read for every run's estimate (the cards and the banner), kept apart from the measured totals.
   const estimates = useValueRead(apiFetch, valueReady ? `/api/inspire/value/estimates?${valueQuery(inspireDatabase, warehouseId)}` : '');
-  const allTotals = useValueRead(apiFetch, valueReady ? '/api/inspire/value/totals' : '');
+  const allTotals = useValueRead(apiFetch, valueReady ? `/api/inspire/value/totals?${valueQuery(inspireDatabase, warehouseId)}` : '');
   const runValues = runsValue?.runs || {};
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(null);
