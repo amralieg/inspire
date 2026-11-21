@@ -219,7 +219,7 @@ def test_a_privilege_the_build_lacks_on_its_own_data_stops_the_output_at_once_an
         "to grant it: the exact command is in Permission Required, then build again")
     # REQ-131, REQ-260: the statement is the Permission Required entry on the build, never in the sentence
     assert "GRANT" not in str(stopped.value)
-    assert context["permissions"][0]["statements"] == ["GRANT SELECT ON TABLE `main`.`s`.`customers` TO `inspire-sp`"]
+    assert context["permissions"][0]["statements"] == ["GRANT SELECT ON SCHEMA `main`.`s` TO `inspire-sp`"]
     assert inst.looked == ["main.s.customers"]
     assert inst.logger.matching("[IMPLEMENT-DENIED FIRED] N01-U01: the Dashboard is not sent back to Genie")
 
@@ -236,7 +236,7 @@ def test_a_denial_with_no_owner_found_asks_the_owner_or_a_metastore_admin(agent_
     assert "ask your data owner of table main.s.customers or a metastore admin to grant it: the exact command is in Permission Required" \
            in str(stopped.value)
     assert "GRANT" not in str(stopped.value)
-    assert context["permissions"][0]["statements"] == ["GRANT SELECT ON TABLE `main`.`s`.`customers` TO `inspire-sp`"]
+    assert context["permissions"][0]["statements"] == ["GRANT SELECT ON SCHEMA `main`.`s` TO `inspire-sp`"]
 
 
 def test_a_denial_keeps_the_owner_and_the_denied_user_and_masks_any_other_email_in_the_error(agent_ns, tmp_path):
@@ -256,7 +256,7 @@ def test_a_denial_keeps_the_owner_and_the_denied_user_and_masks_any_other_email_
         "then build again")
     assert "other.three" not in str(stopped.value)
     assert "GRANT" not in str(stopped.value)
-    assert context["permissions"][0]["statements"] == ["GRANT SELECT ON TABLE `main`.`s`.`customers` TO `builder.two@example.com`"]
+    assert context["permissions"][0]["statements"] == ["GRANT SELECT ON SCHEMA `main`.`s` TO `builder.two@example.com`"]
 
 
 @pytest.mark.parametrize("failure", [
