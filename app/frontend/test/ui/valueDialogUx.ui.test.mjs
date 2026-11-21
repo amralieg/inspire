@@ -55,6 +55,26 @@ test('U2 (REQ-450): the number follows the slider on input, before any change ev
   } finally { await ui.close(); }
 });
 
+test('U2b (REQ-450): the amount refreshes while the slider is still moving, not only after it stops', async () => {
+  const previews = [];
+  const { ui, card, page } = await openCard(mountWizard({ previews }));
+  try {
+    const dialog = await openWizard(page, card);
+    await goTo(dialog, 'driver:risk_avoided');
+    await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
+    const before = previews.length;
+    const slider = dialog.locator('[data-ask="reduction_pct"] input[type=range]');
+    // A drag: one input event every 50 ms for 1 s, no change event. A debounce sends nothing until it stops.
+    const during = await slider.evaluate(async (el) => {
+      const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      for (let v = 10; v < 30; v += 1) { set.call(el, String(v)); el.dispatchEvent(new Event('input', { bubbles: true })); await new Promise((r) => setTimeout(r, 50)); }
+      return true;
+    });
+    assert.ok(during);
+    assert.ok(previews.length - before >= 3, `at least 3 preview requests during a 1 s drag, got ${previews.length - before}`);
+  } finally { await ui.close(); }
+});
+
 test('U3 (REQ-451): every ask and the result lines show their unit', async () => {
   const { ui, card, page } = await openCard(mountWizard());
   try {
