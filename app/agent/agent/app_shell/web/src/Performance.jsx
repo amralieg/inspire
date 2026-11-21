@@ -135,15 +135,15 @@ function Activity({ app, data, onMore, onRecord }) {
   return (
     <section className="card card--table" aria-label="What you did">
       <header className="card-h">
-        <div><h2>What you did</h2><p>{`Every change you made, newest first: ${grouped(data.activity.length)} of ${plural(data.total, 'change')}`}</p></div>
+        <div><h2>What you did</h2><p>{`Every change you made, newest first: ${grouped((data.activity || []).length)} of ${plural(data.total, 'change')}`}</p></div>
         <SectionHelp title={'What you did'} steps={[{ title: 'What you did', text: "Every change you made to a record, newest first. Use it to see what you have already handled." }]} /><AskGenie kind="table" title="What you did" context={tableContext('Every change you made, newest first.', data.activity, activityFields, data.total)} />
       </header>
-      {data.activity.length === 0 ? <div className="nomatch">You changed no records in this period.</div> : (
+      {!(data.activity || []).length ? <div className="nomatch">You changed no records in this period.</div> : (
         <div className="tbl-wrap">
           <table className="tbl tbl--work" data-activity>
             <thead><tr><th>When</th><th>Record</th><th>What you did</th><th className="c-status">Status</th><th className="ask-c"><span className="sr">Ask Genie</span></th></tr></thead>
             <tbody>
-              {data.activity.map((a, i) => {
+              {(data.activity || []).map((a, i) => {
                 const open = () => onRecord(a.page, a.key);
                 return (
                   <tr key={`${a.key}:${a.at}:${i}`} className="is-click" tabIndex={0} onClick={open} onKeyDown={(e) => { if (e.key === 'Enter') open(); }}
@@ -161,7 +161,7 @@ function Activity({ app, data, onMore, onRecord }) {
           </table>
         </div>
       )}
-      {data.activity.length < data.total && (
+      {(data.activity || []).length < data.total && (
         <p className="more">{data.more ? 'Loading more…' : <button className="lnk" onClick={onMore} data-my-work-more>{`Show ${grouped(Math.min(PAGE_ROWS, data.total - data.activity.length))} more`}</button>}</p>
       )}
     </section>
@@ -344,7 +344,7 @@ export default function Performance({ app, page, summary, onRecord, onExplain, g
   const more = () => {
     const mine = seq.current;
     setData((d) => ({ ...d, more: true }));
-    getMyWork({ ...JSON.parse(asked), offset: data.activity.length })
+    getMyWork({ ...JSON.parse(asked), offset: (data.activity || []).length })
       .then((d) => { if (mine === seq.current) setData((x) => ({ ...x, more: false, activity: [...x.activity, ...d.activity] })); })
       .catch((e) => { if (mine === seq.current) { setData((x) => ({ ...x, more: false })); setFailure(failureOf(e)); } });
   };

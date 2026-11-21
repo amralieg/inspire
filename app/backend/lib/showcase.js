@@ -24,6 +24,15 @@ const SHOWCASE_READS = new Set([
   'POST /api/page', 'POST /api/records', 'POST /api/overview', 'POST /api/genie/explain', 'POST /api/alerts/preview', 'POST /api/scenario/evaluate', 'POST /api/my_work',
   'POST /api/inspire/implement/readiness', 'POST /api/inspire/implement/plan', 'POST /api/inspire/implement/swaps',
 ]);
+// REQ-431: routes every shell page asks that the recorded demos hold no (or a recorded 404) answer for; the demo answers them itself.
+const SHOWCASE_PLAN_WHY = 'This is the demo: lines you decide are kept in this browser, and plan versions are not kept.';
+const SHOWCASE_BUILTIN = {
+  'GET /api/agent/status': { status: 200, body: { mode: 'genie', note: '' } },
+  'GET /api/plans': { status: 200, body: { can_decide: false, can_approve: false, why: SHOWCASE_PLAN_WHY, approve_why: SHOWCASE_PLAN_WHY, contract: 'plan',
+    states: ['Draft', 'In review', 'Approved', 'Published'], missing: '', constraints: [], constraints_error: '',
+    versions: [{ plan_id: 'demo', number: 1, label: 'Version 1', status: 'Draft', editable: true, overrides: [], changed_by: '' }] } },
+  'GET /api/plans/performance': { status: 200, body: { version: null, missing: '', empty: 'The demo keeps no plan versions, so there is nothing to compare with the actuals.' } },
+};
 const SHELL_PATH_RE = /^[A-Za-z0-9_-][A-Za-z0-9._-]*(\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/;
 const SHOWCASE_MVP_API_RE = /^\/showcase\/[^/]+\/mvp\/[^/]+\/api\/(.+)$/;
 
@@ -160,7 +169,9 @@ function gatedApp(app, answers) {
 
 function replay(res, answers, method, pathname, query, body) {
   const key = showcaseKey(method, pathname, query, body);
-  const found = answers[key];
+  const recorded = answers[key];
+  const builtin = SHOWCASE_BUILTIN[`${String(method).toUpperCase()} ${pathname}`];
+  const found = builtin && (!recorded || recorded.status === 404) ? builtin : recorded;
   const answer = found && key === 'GET /api/app' && isObject(found.body) ? { ...found, body: gatedApp(found.body, answers) } : found;
   res.set('Cache-Control', 'no-store');
   if (answer && answer.text) return res.status(answer.status).set('X-Content-Type-Options', 'nosniff').type('text/plain; charset=utf-8').send(answer.body);

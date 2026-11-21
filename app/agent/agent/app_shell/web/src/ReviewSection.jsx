@@ -92,7 +92,7 @@ export default function ReviewSection({ page }) {
       {d && (
         <section className="card card--table" aria-label="Series to review" data-series-queue>
           <header className="card-h"><div><h2>Series to review</h2>
-            <p>{`${integer(d.at_risk)} of ${integer(d.series.length)} series forecast worse than a simple naive guess. Check them first, and override where you know better.`}</p>
+            <p>{`${integer(d.at_risk)} of ${integer((d.series || []).length)} series forecast worse than a simple naive guess. Check them first, and override where you know better.`}</p>
             {lockedText && <p className="muted" data-plan-locked>{lockedText}</p>}
           </div>
           <div className="wchips" role="group" aria-label="Which series">

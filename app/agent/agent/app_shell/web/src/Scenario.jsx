@@ -12,6 +12,9 @@ import { AskGenie } from './AskGenie.jsx';
 import { SectionHelp } from './SectionHelp.jsx';
 
 const STEPS = 100;
+const NO_OUTCOME = 'The scenario came back without a result, so there is nothing to show yet.';
+// REQ-431: an answer that is not a scenario result (no outcome with its quantiles) is explained, never read.
+export const hasOutcome = (r) => r != null && typeof r === 'object' && r.outcome != null && typeof r.outcome === 'object' && r.outcome.p50 != null && Number.isFinite(Number(r.outcome.p50));
 
 export function distributionOption(result, outcome, P) {
   const fmt = (v) => formatValue(v, outcome.format, outcome.currency);
@@ -106,7 +109,12 @@ export default function ScenarioPanel({ page, app, ready, order, onSaved, saver 
     if (!ready) return undefined;
     let live = true;
     evaluateScenario({ page: page.id, values: asked })
-      .then((r) => { if (live) { setResult(r); setError(''); } })
+      .then((r) => {
+        if (!live) return;
+        if (!hasOutcome(r)) { setResult(null); setError(NO_OUTCOME); return; }
+        setResult(r);
+        setError('');
+      })
       .catch((e) => live && setError(e.message));
     return () => { live = false; };
   }, [page.id, ready, JSON.stringify(asked), again]);

@@ -1556,15 +1556,15 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
-/** Quick workspace reachability check (uses server .env token). */
+/** Quick workspace reachability check (runs as the App's own identity: the static token or the service principal). */
 app.get('/api/connection-test', async (req, res) => {
   let host = String(DATABRICKS_HOST || '').replace(/\/+$/, '');
   if (host && !host.startsWith('http')) host = `https://${host}`;
-  const token = SERVICE_TOKEN;
+  const token = await appOwnToken();
   if (!host || !token) {
     return res.json({
       ok: false,
-      error: 'Set DATABRICKS_HOST and DATABRICKS_TOKEN in .env',
+      error: 'Set DATABRICKS_HOST and either DATABRICKS_TOKEN or the service principal (SP_CLIENT_ID and SP_CLIENT_SECRET) in .env',
     });
   }
   try {

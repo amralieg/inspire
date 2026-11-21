@@ -45,6 +45,7 @@ export function MoneyRule({ pageId }) {
     setError('');
     try {
       const data = await saveMoneyRule({ page: pageId, rule });
+      if (!data?.money) throw new Error('The App did not send back the saved rule, so it is not shown here. Reload to check it.');
       setView(data.money);
       setDraft(draftOf(data.money.rule));
     } catch (err) {

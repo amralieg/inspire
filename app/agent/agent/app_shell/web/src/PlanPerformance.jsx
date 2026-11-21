@@ -48,10 +48,10 @@ export default function PlanPerformance({ page }) {
           </div>
           <section className="card card--table" aria-label="Plan against actuals by line">
             <header className="card-h"><div><h2>Plan against actuals</h2><p>Each line of {d.version.label} next to its value in the latest run. Lines off plan come first.</p></div><SectionHelp title={'Plan against actuals'} steps={[{ title: 'Plan against actuals', text: "Each line of the plan next to its value in the latest run. Lines that are off plan come first." }]} /></header>
-            {d.lines.length ? (
+            {d.lines?.length ? (
               <div className="tw"><table className="plan-t">
                 <thead><tr><th scope="col">Line</th><th scope="col">{plannedHead(d)}</th><th scope="col">Now</th><th scope="col">Gap</th><th scope="col">State</th><th scope="col">Override reason</th></tr></thead>
-                <tbody>{d.lines.map((l) => (
+                <tbody>{(d.lines || []).map((l) => (
                   <tr key={l.line_key} data-perf-line={l.line_key} data-state={l.state}>
                     <th scope="row"><bdi>{l.label}</bdi></th>
                     <td className="num">{fmt(l.planned)}</td><td className="num">{fmt(l.actual)}</td>

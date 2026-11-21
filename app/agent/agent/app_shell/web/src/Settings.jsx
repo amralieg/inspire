@@ -132,7 +132,7 @@ export default function SettingsPanel({ pageId, data, error = '', onData, onChan
   const writing = useWrite().busy;
   const owned = ownerSettings(data);
   const saved = (next, value) => {
-    const setting = data.settings.find((s) => s.name === editing);
+    const setting = (data.settings || []).find((s) => s.name === editing);
     onData(next);
     setEditing('');
     toast(savedText(setting, value));
