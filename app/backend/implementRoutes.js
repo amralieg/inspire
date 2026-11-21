@@ -2305,8 +2305,7 @@ function registerImplementRoutes(app, deps) {
 
   // The Data Filters of the session the preview names: the money previews and the profile read their tables through them.
   // REQ-389: the Table Scope a wizard preview reads through. The Data step names its choice (asked); with none, the Discover run's scope.
-  async function launchScopesOf(req, warehouseId, asked) {
-    const sid = sessionIdOf(req);
+  async function launchScopesOf(req, warehouseId, asked, sid = sessionIdOf(req)) {
     const { catalog, schema } = dbOf(req, splitInspireDatabase);
     const session = await fetchInspireSessionWidgetRow(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid);
     if (!session) throw I.badRequest(`No Inspire session ${sid} is in this Inspire database, so Inspire cannot read its Data Filters.`, 404);
@@ -2695,55 +2694,61 @@ function registerImplementRoutes(app, deps) {
 
   // REQ-432: the value each built use case measured, scaled the same way: its stake per scored record, to every eligible record of its
   // source table, to a year. A use case with no measured value, or no readable basis, is absent (never 0).
+  // REQ-440: the measured per-year value of each use case of a run whose MVP measured money: {id: yearly}. One builder for
+  // GET /api/inspire/value/yearly and the "measured" status of GET /api/inspire/value/totals.
+  async function measuredYearlyOf(req, warehouseId, sid, parsedDb) {
+    const readOrEmpty = async (sql, parameters) => {
+      try {
+        return sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, sql, parameters));
+      } catch (err) {
+        if (isMissingTableError(err)) return [];
+        throw err;
+      }
+    };
+    const measured = IV.valueOfSession(await readOrEmpty(IV.valueSessionSql(IV.valueLedgerTable(parsedDb), String(sid)))).use_cases;
+    const ids = Object.keys(measured).filter((id) => measured[id].measured && (measured[id].at_stake || []).length);
+    if (!ids.length) return {};
+    const [specRows, tableRows] = await Promise.all([
+      readOrEmpty(VE.latestSpecsSql(I.implementTableName(parsedDb.catalog, parsedDb.schema), sid)),
+      readOrEmpty(`SELECT id, primary_table FROM ${IV.qualified(parsedDb, '__inspire_usecases')} WHERE session_id = ${sid}`),
+    ]);
+    const specs = new Map(specRows.map((r) => [String(r.use_case_id), VE.parseSpec(r.spec)]));
+    const tables = new Map(tableRows.map((r) => [String(r.id), I.primaryTableOf({ primary_table: r.primary_table })]));
+    const scopes = await launchScopesOf(req, warehouseId, undefined, sid);
+    const basisOf = new Map();
+    const eligibleOf = (table) => {
+      if (!basisOf.has(table)) {
+        basisOf.set(table, (async () => {
+          const asked = I.columnsStatement(table);
+          const dateColumn = VY.dateColumnOf(GP.scopedColumns(await sqlRows(req.dbHost, req.dbToken, warehouseId, asked), scopes, table));
+          const made = dateColumn ? GP.eligibleSql(table, dateColumn, scopes) : null;
+          return made ? (await readOrEmpty(made.sql, made.parameters))[0] || null : null;
+        })().catch(() => null));
+      }
+      return basisOf.get(table);
+    };
+    const oneOf = async (id) => {
+      const spec = specs.get(id);
+      const resultTable = spec && spec.config && spec.config.result_table;
+      const table = tables.get(id);
+      if (!resultTable || I.resultTableNameError(resultTable) || !table) return null;
+      const summary = (await readOrEmpty(`SELECT records, kpi_name, kpi_direction FROM ${I.quoteTable(`${resultTable}_summary`)} WHERE use_case_id = :uc `
+        + 'ORDER BY updated_at DESC NULLS LAST LIMIT 1', [{ name: 'uc', value: id, type: 'STRING' }]).catch(() => []))[0];
+      const eligible = summary ? await eligibleOf(table) : null;
+      if (!summary || !eligible) return null;
+      return VY.yearlyOf({ entries: measured[id].at_stake, sampled: summary.records, eligible: eligible.eligible, days: eligible.days,
+        kpi: { name: summary.kpi_name, direction: summary.kpi_direction }, rule: spec.money && spec.money.rule });
+    };
+    const got = await mapLimit(ids, 4, oneOf);
+    return Object.fromEntries(ids.map((id, i) => [id, got[i]]).filter(([, v]) => v));
+  }
+
   app.get('/api/inspire/value/yearly', requireToken, async (req, res) => {
     try {
       const warehouseId = warehouseOf(req);
       const sid = sessionIdOf(req);
       const parsedDb = dbOf(req, splitInspireDatabase);
-      const readOrEmpty = async (sql, parameters) => {
-        try {
-          return sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, sql, parameters));
-        } catch (err) {
-          if (isMissingTableError(err)) return [];
-          throw err;
-        }
-      };
-      const measured = IV.valueOfSession(await readOrEmpty(IV.valueSessionSql(IV.valueLedgerTable(parsedDb), String(sid)))).use_cases;
-      const ids = Object.keys(measured).filter((id) => measured[id].measured && (measured[id].at_stake || []).length);
-      if (!ids.length) return res.json({ use_cases: {}, disclaimer: VALUE_DISCLAIMER.full });
-      const [specRows, tableRows] = await Promise.all([
-        readOrEmpty(VE.latestSpecsSql(I.implementTableName(parsedDb.catalog, parsedDb.schema), sid)),
-        readOrEmpty(`SELECT id, primary_table FROM ${IV.qualified(parsedDb, '__inspire_usecases')} WHERE session_id = ${sid}`),
-      ]);
-      const specs = new Map(specRows.map((r) => [String(r.use_case_id), VE.parseSpec(r.spec)]));
-      const tables = new Map(tableRows.map((r) => [String(r.id), I.primaryTableOf({ primary_table: r.primary_table })]));
-      const scopes = await launchScopesOf(req, warehouseId, undefined);
-      const basisOf = new Map();
-      const eligibleOf = (table) => {
-        if (!basisOf.has(table)) {
-          basisOf.set(table, (async () => {
-            const asked = I.columnsStatement(table);
-            const dateColumn = VY.dateColumnOf(GP.scopedColumns(await sqlRows(req.dbHost, req.dbToken, warehouseId, asked), scopes, table));
-            const made = dateColumn ? GP.eligibleSql(table, dateColumn, scopes) : null;
-            return made ? (await readOrEmpty(made.sql, made.parameters))[0] || null : null;
-          })().catch(() => null));
-        }
-        return basisOf.get(table);
-      };
-      const oneOf = async (id) => {
-        const spec = specs.get(id);
-        const resultTable = spec && spec.config && spec.config.result_table;
-        const table = tables.get(id);
-        if (!resultTable || I.resultTableNameError(resultTable) || !table) return null;
-        const summary = (await readOrEmpty(`SELECT records, kpi_name, kpi_direction FROM ${I.quoteTable(`${resultTable}_summary`)} WHERE use_case_id = :uc `
-          + 'ORDER BY updated_at DESC NULLS LAST LIMIT 1', [{ name: 'uc', value: id, type: 'STRING' }]).catch(() => []))[0];
-        const eligible = summary ? await eligibleOf(table) : null;
-        if (!summary || !eligible) return null;
-        return VY.yearlyOf({ entries: measured[id].at_stake, sampled: summary.records, eligible: eligible.eligible, days: eligible.days,
-          kpi: { name: summary.kpi_name, direction: summary.kpi_direction }, rule: spec.money && spec.money.rule });
-      };
-      const got = await mapLimit(ids, 4, oneOf);
-      return res.json({ use_cases: Object.fromEntries(ids.map((id, i) => [id, got[i]]).filter(([, v]) => v)), disclaimer: VALUE_DISCLAIMER.full });
+      return res.json({ use_cases: await measuredYearlyOf(req, warehouseId, sid, parsedDb), disclaimer: VALUE_DISCLAIMER.full });
     } catch (err) {
       return sendError(res, err);
     }
@@ -3189,7 +3194,7 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
-  return { loadHistory };
+  return { loadHistory, measuredYearlyOf };
 }
 
 module.exports = { jsonOf, registerImplementRoutes };

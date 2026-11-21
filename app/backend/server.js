@@ -2915,7 +2915,8 @@ async function totalsOfSession(req, warehouse_id, parsedDb, sid) {
   const tables = await readValueRows(req, warehouse_id, VT.tablesSql(qualifiedInspireTable(parsedDb, '__inspire_usecases'), sid));
   const noTable = new Set(tables.filter((row) => !String(row.primary_table || '').trim()).map((row) => String(row.id)));
   const estimates = (await estimatesOfSession(req, warehouse_id, parsedDb, sid)).use_cases;
-  return VT.runOf({ ids: tables.map((row) => String(row.id)), saved, estimates, noTable });
+  const measured = await implementApi.measuredYearlyOf(req, warehouse_id, sid, parsedDb);
+  return VT.runOf({ ids: tables.map((row) => String(row.id)), saved, estimates, measured, noTable });
 }
 
 app.get('/api/inspire/value/totals', requireToken, async (req, res) => {
@@ -2932,7 +2933,7 @@ app.get('/api/inspire/value/totals', requireToken, async (req, res) => {
       const sessions = rows.slice(0, SESSION_LIST_CAP).filter((row) => !invalidSessionId(row.session_id));
       const answers = await Promise.all(sessions.map((row) => totalsOfSession(req, warehouse_id, parsedDb, String(row.session_id))));
       const runs = sessions.map((row, i) => ({ session_id: String(row.session_id), name: row.business_name || '', created_at: row.create_at ?? null,
-        n: answers[i].run.n, n_calculated: answers[i].run.n_calculated, n_estimated: answers[i].run.n_estimated, n_none: answers[i].run.n_none, totals: answers[i].run.totals }));
+        n: answers[i].run.n, n_calculated: answers[i].run.n_calculated, n_estimated: answers[i].run.n_estimated, n_measured: answers[i].run.n_measured, n_none: answers[i].run.n_none, totals: answers[i].run.totals }));
       return res.json({ runs, all: VT.mergeRuns(runs), truncated, cap: SESSION_LIST_CAP, disclaimer: VALUE_DISCLAIMER.full });
     }
     if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
