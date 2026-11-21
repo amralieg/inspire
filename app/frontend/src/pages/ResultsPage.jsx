@@ -104,9 +104,10 @@ import { documentBasePath } from '../lib/documentActions';
 import { generationFolder, workspaceNotebookUrl, workspaceWebUiHashPath } from '../lib/workspaceLinks';
 import ImplementWizard from './ImplementWizard';
 import CalculateValueDialog from '../components/CalculateValueDialog';
-import ValueBulkPanel, { ValueBulkBar } from '../components/ValueBulkPanel';
+import ValueBulkPanel, { ValueBulkBar, ValueBulkProgress } from '../components/ValueBulkPanel';
+import { useValueBulkRun } from '../lib/valueBulkRun';
 import { SKIP_HAS_VALUE, SKIP_NO_TABLE, valueWorker } from '../lib/valueBulk';
-import { tableOfUseCase, useCalculatedValues } from '../lib/calculatedValue';
+import { saveAnswers, tableOfUseCase, useCalculatedValues } from '../lib/calculatedValue';
 import { kindFilterLabel, kindFilterOptions, matchesKindFilter } from '../lib/useCaseKind';
 import { MVP_FILTERS, START_MVP_LABEL, implementState, mvpCounts, mvpFilterMatches, notebookRunEnded, notebookStatus, versionActive } from '../lib/implementWizard';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -595,13 +596,27 @@ export default function ResultsPage({
   const builtUseCases = useMemo(() => buildUseCaseList(results, usecases), [results, usecases]);
   const [calcFor, setCalcFor] = useState(null);
   const [bulkPicked, setBulkPicked] = useState(() => new Set());
-  const [bulk, setBulk] = useState(null);
+  const bulkRun = useValueBulkRun();
   const calculated = useCalculatedValues({ apiFetch: showcase ? null : apiFetch, apiPostJson, apiPutJson, inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId });
   const valuesForDialog = useMemo(() => ({
     ...calculated,
     run: async (...a) => { const got = await calculated.run(...a); setValueTick((n) => n + 1); return got; },
     undo: async (...a) => { const got = await calculated.undo(...a); setValueTick((n) => n + 1); return got; },
   }), [calculated]);
+  // REQ-443: a row of the run for this session that turns done puts its reply into the cards, once per reply; on remount the replies are put in again.
+  const absorbed = useRef(new WeakSet());
+  const bulkHere = bulkRun.run && bulkRun.run.sessionId === String(selectedSessionId ?? '') ? bulkRun.run : null;
+  useEffect(() => {
+    if (!bulkHere) return;
+    let any = false;
+    for (const r of bulkHere.rows) {
+      const got = r.state === 'done' ? bulkHere.gots[r.id] : null;
+      if (got && !absorbed.current.has(got)) { absorbed.current.add(got); calculated.absorb(r.id, got); any = true; }
+    }
+    if (any) setValueTick((n) => n + 1);
+  }, [bulkHere, calculated.absorb]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { hide: hideBulk } = bulkRun;
+  useEffect(() => () => hideBulk(), [hideBulk]);
   const scrollToCard = useCallback((id) => {
     const el = document.querySelector(`[data-use-case-no="${String(id).replace(/"/g, '')}"]`);
     if (!el) return;
@@ -712,7 +727,8 @@ export default function ResultsPage({
       const table = tableOfUseCase(uc);
       return { id, name: nameOfUseCase(uc), table, skip: calculated.byId[id] ? SKIP_HAS_VALUE : !table ? SKIP_NO_TABLE : '' };
     });
-    setBulk({ items, worker: valueWorker({ apiPostJson, inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId, values: valuesForDialog }) });
+    const where = { inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId };
+    bulkRun.start({ sessionId: selectedSessionId, items, worker: valueWorker({ apiPostJson, ...where, save: (id, table, answers) => saveAnswers(apiPutJson, where, id, table, answers) }) });
   };
   const cardKeys = new Map();
   const usedCardKeys = new Set();
@@ -2492,8 +2508,9 @@ export default function ResultsPage({
               </div>
 
               <RefineBanner {...refineBanner} />
+              {bulkOn && bulkHere && <ValueBulkProgress />}
               {bulkOn && filteredUseCases.length > 0 && (
-                <ValueBulkBar shown={filteredUseCases.filter((uc) => trackingIdOf(uc)).length} selected={bulkIds.length} onCalculate={startBulk}
+                <ValueBulkBar shown={filteredUseCases.filter((uc) => trackingIdOf(uc)).length} selected={bulkIds.length} onCalculate={startBulk} busy={Boolean(bulkRun.run?.running)}
                   onSelectAll={(on) => setBulkPicked(on ? new Set(filteredUseCases.map((uc) => trackingIdOf(uc)).filter(Boolean)) : new Set())} />
               )}
 
@@ -2594,7 +2611,7 @@ export default function ResultsPage({
             sessionId={selectedSessionId} saved={calculated.byId[trackingIdOf(calcFor)]?.answers || null} version={calculated.byId[trackingIdOf(calcFor)]?.version || null}
             values={valuesForDialog} onClose={() => setCalcFor(null)} />
         )}
-      {bulk && <ValueBulkPanel items={bulk.items} worker={bulk.worker} onClose={() => setBulk(null)} />}
+      {bulkHere?.open && <ValueBulkPanel />}
       {implementUc && selectedSessionId && inspireDb && warehouseId && (
         <ImplementWizard
           uc={implementUc}

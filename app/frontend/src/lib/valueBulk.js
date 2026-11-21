@@ -38,11 +38,14 @@ export function runBulk({ items, worker, concurrency = VALUE_BULK_WORKERS, onUpd
 }
 
 // The worker for one use case: the case plan, its defaults, then the same save the wizard makes, with calculated false (an estimate).
-export const valueWorker = ({ apiPostJson, inspireDatabase, warehouseId, sessionId, values }) => async (item) => {
+// save(id, table, answers) is the plain save (saveAnswers), so the worker needs no mounted page.
+export const valueWorker = ({ apiPostJson, inspireDatabase, warehouseId, sessionId, save }) => async (item) => {
   const got = await apiPostJson(CASE_PLAN_ROUTE, { inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId),
     use_case_id: item.id, table: item.table });
   if (!got?.plan) throw new Error('Inspire got no plan back for this use case.');
   const plan = got.plan;
   const answers = initialAnswers(plan);
-  return values.run(item.id, item.table, { ...bodyOf(plan, answers, false).answers, plan: bodyOf(plan, answers).plan });
+  const sent = { ...bodyOf(plan, answers, false).answers, plan: bodyOf(plan, answers).plan };
+  const saved = await save(item.id, item.table, sent);
+  return { ...saved, answers: saved.answers || sent };
 };

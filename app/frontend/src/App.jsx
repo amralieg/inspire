@@ -15,6 +15,7 @@ import { BOOT_TIMEOUT_TEXT, bootRead } from './lib/apiClient';
 import { PlainMessage } from './components/TechnicalDetails';
 import { showcaseSettings, showcasesFrom, staysInShowcase } from './lib/showcase';
 import PermissionHost from './components/PermissionHost';
+import { ValueBulkRunProvider } from './lib/valueBulkRun';
 
 const noop = () => {};
 
@@ -503,6 +504,7 @@ export default function App() {
 
   return (
     <ThemeProvider>
+    <ValueBulkRunProvider>
     <div className="min-h-screen bg-bg text-text-primary relative">
       {!bare && <ParticleField count={40} />}
       <PermissionHost />
@@ -664,6 +666,7 @@ export default function App() {
 
       {!bare && page !== 'landing' && page !== 'setup' && <ScrollProgressRing />}
     </div>
+    </ValueBulkRunProvider>
     </ThemeProvider>
   );
 }

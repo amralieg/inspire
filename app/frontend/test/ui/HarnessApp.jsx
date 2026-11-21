@@ -16,6 +16,7 @@ import App from '../../src/App';
 import DataGrid from '../../src/components/DataGrid';
 import { RESULTS_FRAME } from '../../src/lib/layout';
 import { ThemeProvider } from '../../src/ThemeContext';
+import { ValueBulkRunProvider } from '../../src/lib/valueBulkRun';
 import { makeApiFetch, makeApiPostJson } from '../../src/lib/apiClient';
 import { caseIdOf, implementState, notebookStatus } from '../../src/lib/implementWizard';
 import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
@@ -228,15 +229,17 @@ function SetupHarness({ blank }) {
 function ResultsHarness() {
   const [opened, setOpened] = useState('');
   return (
-    <div className={RESULTS_FRAME}>
-      <ResultsPage
-        settings={SETTINGS}
-        update={() => {}}
-        sessionId={HARNESS_SESSION_ID}
-        onOpenImplement={(sid, id) => setOpened(`${sid}:${id}`)}
-      />
-      <output aria-label="Opened in Implement">{opened}</output>
-    </div>
+    <ValueBulkRunProvider>
+      <div className={RESULTS_FRAME}>
+        <ResultsPage
+          settings={SETTINGS}
+          update={() => {}}
+          sessionId={HARNESS_SESSION_ID}
+          onOpenImplement={(sid, id) => setOpened(`${sid}:${id}`)}
+        />
+        <output aria-label="Opened in Implement">{opened}</output>
+      </div>
+    </ValueBulkRunProvider>
   );
 }
 
