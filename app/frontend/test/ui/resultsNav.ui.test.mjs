@@ -151,7 +151,8 @@ test('at 390 px the nav is a row of 3 tabs above the content and no view scrolls
     assert.ok(tabs.every((b) => b.y + b.height <= cardTop), 'tabs sit above the cards');
     const sideways = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
     assert.equal(await sideways(), true, 'Use cases');
-    await nav(page).getByRole('button', { name: /^Domains\b/ }).click();
+    const fold = nav(page).getByRole('button', { name: /^Domains\b/ });
+    if ((await fold.getAttribute('aria-expanded')) !== 'true') await fold.click();
     assert.equal(await sideways(), true, 'Use cases with the Domains fold open');
     await item(page, 'Business').click();
     await summary(page).waitFor();
@@ -159,6 +160,21 @@ test('at 390 px the nav is a row of 3 tabs above the content and no view scrolls
     await item(page, 'Assets').click();
     await download(page, 'Acme-catalog.pdf').first().waitFor({ timeout: 15000 });
     assert.equal(await sideways(), true, 'Assets');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('REQ-444: at 390 px the Domains fold starts open (aria-expanded true) and folds on a click', async () => {
+  const ui = await open({ init: (page) => page.setViewportSize({ width: 390, height: 800 }) });
+  const { page } = ui;
+  try {
+    await nav(page).waitFor();
+    const fold = nav(page).getByRole('button', { name: /^Domains\b/ });
+    assert.equal(await fold.getAttribute('aria-expanded'), 'true');
+    await fold.click();
+    assert.equal(await fold.getAttribute('aria-expanded'), 'false');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
