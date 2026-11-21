@@ -21,7 +21,7 @@ function fakeWarehouse(state) {
   const sidsOf = (sql) => { const m = /session_id IN \(([^)]*)\)/.exec(sql); return m ? m[1].split(',').map((x) => x.replace(/['\s]/g, '')) : null; };
   const answer = (sql, parameters) => {
     const bound = Object.fromEntries((parameters || []).map((p) => [p.name, p.value]));
-    const listed = sql.includes('session_id IN (') ? (sidsOf(sql) || Object.values(bound).map(String)) : null;
+    const listed = sql.includes('session_id IN (') ? (sql.includes('__inspire_value_answers') ? Object.values(bound).map(String) : sidsOf(sql)) : null;
     if (listed && !sql.includes('ORDER BY create_at DESC')) {
       const per = (rowsOf) => listed.flatMap((sid) => rowsOf(sid).map((row) => [sid, ...row]));
       if (sql.includes('__inspire_value_answers')) {
@@ -162,11 +162,12 @@ const sentFor = async (route) => {
   return { reply, sent: state.sent.map((s) => s.sql) };
 };
 
-test('the all-runs read sends the same few statements for 2 runs and for 10 runs', async () => {
+test('the all-runs read sends the same few statements for 2 runs and for 10 runs', async (t) => {
   withRuns(2);
   const two = await sentFor(`/api/inspire/value/totals?${QUERY}`);
   withRuns(10);
   const ten = await sentFor(`/api/inspire/value/totals?${QUERY}`);
+  t.diagnostic(`statements: 2 runs ${two.sent.length}, 10 runs ${ten.sent.length}`);
   assert.equal(two.reply.status, 200);
   assert.equal(ten.reply.body.runs.length, 10);
   assert.equal(two.sent.length, ten.sent.length, `2 runs sent ${two.sent.length}, 10 runs sent ${ten.sent.length}`);

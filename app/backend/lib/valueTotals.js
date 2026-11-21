@@ -1,6 +1,7 @@
 // REQ-439 (C6): run and all-runs value totals that include the values saved through Calculate. Per use case: the latest saved answers
 // (shape 2 calculated or estimated, an older shape estimated), else the rule estimate, else none. Amounts add only inside one currency.
 const VA = require('./valueAnswers');
+const { idList } = require('./inspireValue');
 
 const round2 = (n) => Math.round(n * 100) / 100;
 const finite = (v) => v !== null && v !== undefined && v !== '' && typeof v !== 'boolean' && Number.isFinite(Number(v));
@@ -12,7 +13,10 @@ const answersSql = (table, sessionId) => VA.latestSql(table, sessionId);
 // The run list for the all-runs read: newest first, one row past the cap so the caller can tell the list was cut.
 const sessionsSql = (sessionTable, cap) => `SELECT CAST(session_id AS STRING) AS session_id, business_name, CAST(create_at AS STRING) AS create_at FROM ${sessionTable} ORDER BY create_at DESC LIMIT ${Number(cap) + 1}`;
 
-const tablesSql = (usecasesTable, sid) => `SELECT id, primary_table FROM ${usecasesTable} WHERE session_id = ${sid}`;
+// sid is one run id, or a list of run ids (rows then carry session_id).
+const tablesSql = (usecasesTable, sid) => (Array.isArray(sid)
+  ? `SELECT CAST(session_id AS STRING) AS session_id, id, primary_table FROM ${usecasesTable} WHERE session_id IN (${idList(sid)})`
+  : `SELECT id, primary_table FROM ${usecasesTable} WHERE session_id = ${sid}`);
 
 // REQ-440: the money of a measured yearly ({verb, entries: [{kind, unit, amount}]}): its first money entry, or null when it has none.
 function measuredOf(yearly) {

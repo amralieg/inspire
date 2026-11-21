@@ -1,4 +1,5 @@
 const { parseExactJson } = require('./exactJson');
+const { idList } = require('./inspireValue');
 // REQ-078: a use case with no measured value shows an estimate from a Measure rule, never a number invented without one.
 // The estimate is the KPI baseline times the per-record amount of a fixed-amount rule. Column and equation rules, and no rule
 // at all, give no number: the App says what to do instead.
@@ -43,15 +44,20 @@ function totalsOf(estimates) {
 }
 
 // The rows the estimate route reads. Each takes already-qualified table names; ids are validated by the caller.
+// sid is one run id, or a list of run ids: the list form reads every run in one statement and each row carries its session_id.
+const listed = (sid) => Array.isArray(sid);
 function useCasesSql(table, sid) {
-  return `SELECT id, business_domain, CAST(value_estimate AS STRING) AS value_estimate FROM ${table} WHERE session_id = ${sid}`;
+  return listed(sid)
+    ? `SELECT CAST(session_id AS STRING) AS session_id, id, business_domain, CAST(value_estimate AS STRING) AS value_estimate FROM ${table} WHERE session_id IN (${idList(sid)})`
+    : `SELECT id, business_domain, CAST(value_estimate AS STRING) AS value_estimate FROM ${table} WHERE session_id = ${sid}`;
 }
 
 // The latest spec of every use case in the session, which carries its Measure rule (money) and its result table (config).
 function latestSpecsSql(table, sid) {
-  return 'WITH named AS (SELECT use_case_id, CAST(spec_json AS STRING) AS spec, '
-    + `ROW_NUMBER() OVER (PARTITION BY use_case_id ORDER BY spec_version DESC) AS latest FROM ${table} WHERE session_id = ${sid}) `
-    + 'SELECT use_case_id, spec FROM named WHERE latest = 1';
+  const many = listed(sid);
+  return `WITH named AS (SELECT ${many ? 'CAST(session_id AS STRING) AS session_id, ' : ''}use_case_id, CAST(spec_json AS STRING) AS spec, `
+    + `ROW_NUMBER() OVER (PARTITION BY ${many ? 'session_id, ' : ''}use_case_id ORDER BY spec_version DESC) AS latest FROM ${table} WHERE session_id ${many ? `IN (${idList(sid)})` : `= ${sid}`}) `
+    + `SELECT ${many ? 'session_id, ' : ''}use_case_id, spec FROM named WHERE latest = 1`;
 }
 
 // The KPI baseline a use case was measured at, in its own result table's summary (written when its App measures the KPI).

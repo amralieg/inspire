@@ -20,6 +20,17 @@ const stake = (id, amount) => [id, 'money', 'USD', null, String(amount), '1'];
 function fakeWarehouse(state) {
   const answer = (sql, parameters) => {
     const bound = Object.fromEntries((parameters || []).map((p) => [p.name, p.value]));
+    // The list form (`session_id IN (...)`) answers every listed session, each row led by its session_id.
+    const m = /session_id IN \(([^)]*)\)/.exec(sql);
+    if (m) {
+      const listed = sql.includes('__inspire_value_answers') ? Object.values(bound).map(String) : m[1].split(',').map((x) => x.replace(/['\s]/g, ''));
+      const per = (rowsOf) => listed.flatMap((sid) => rowsOf(sid).map((row) => [sid, ...row]));
+      if (sql.includes('__inspire_value_ledger')) return { columns: ['session_id', 'part', 'use_case_id', 'kind', 'currency', 'unit', 'amount', 'measured'], rows: per((sid) => (state.ledgerBySession[sid] || []).map((r) => ['stake', ...r])) };
+      if (sql.includes('__inspire_value_answers')) return { columns: ['session_id', ...ANSWER_COLUMNS], rows: per((sid) => state.answersBySession[sid] || []) };
+      if (sql.includes('primary_table FROM')) return { columns: ['session_id', 'id', 'primary_table'], rows: per(() => state.useCases.map((id) => [id, 'c.s.orders'])) };
+      if (sql.includes('business_domain')) return { columns: ['session_id', 'id', 'business_domain', 'value_estimate'], rows: per(() => state.useCases.map((id) => [id, 'D', null])) };
+      if (sql.includes('ORDER BY spec_version')) return { columns: ['session_id', 'use_case_id', 'spec'], rows: per(() => state.useCases.map((id) => [id, SPEC])) };
+    }
     if (sql.includes('__inspire_value_ledger')) {
       const sid = (/session_id = '(\d+)'/.exec(sql) || [])[1];
       return { columns: ['part', 'use_case_id', 'kind', 'currency', 'unit', 'amount', 'measured'], rows: (state.ledgerBySession[sid] || []).map((r) => ['stake', ...r]) };

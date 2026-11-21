@@ -2847,11 +2847,12 @@ async function readValueRows(req, warehouse_id, sql, parameters) {
 
 // REQ-078: the estimate for each use case that has no measured value, and the totals kept apart from measured money.
 // With a session_id it answers that run; without one it answers every run (runs by session id) and the total over them.
-async function estimatesOfSession(req, warehouse_id, parsedDb, sid) {
-  const useCases = await readValueRows(req, warehouse_id, VE.useCasesSql(qualifiedInspireTable(parsedDb, '__inspire_usecases'), sid));
-  const specRows = await readValueRows(req, warehouse_id, VE.latestSpecsSql(implementTableName(parsedDb.catalog, parsedDb.schema), sid));
+// `read` holds rows already read for this run ({useCases, specRows, ledgerRows}); without it the run reads its own.
+async function estimatesOfSession(req, warehouse_id, parsedDb, sid, read = null) {
+  const useCases = read ? read.useCases : await readValueRows(req, warehouse_id, VE.useCasesSql(qualifiedInspireTable(parsedDb, '__inspire_usecases'), sid));
+  const specRows = read ? read.specRows : await readValueRows(req, warehouse_id, VE.latestSpecsSql(implementTableName(parsedDb.catalog, parsedDb.schema), sid));
   const specs = new Map(specRows.map((row) => [String(row.use_case_id), VE.parseSpec(row.spec)]));
-  const measured = valueOfSession(await readValueRows(req, warehouse_id, valueSessionSql(valueLedgerTable(parsedDb), sid))).use_cases;
+  const measured = valueOfSession(read ? read.ledgerRows : await readValueRows(req, warehouse_id, valueSessionSql(valueLedgerTable(parsedDb), sid))).use_cases;
   const baselineOf = async (resultTable, useCaseId) => {
     if (resultTableNameError(resultTable)) return null;
     try {
@@ -2908,15 +2909,28 @@ app.get('/api/inspire/value', requireToken, async (req, res) => {
 });
 
 // REQ-439: run and all-runs totals that include the values saved through Calculate (see lib/valueTotals.js).
-async function totalsOfSession(req, warehouse_id, parsedDb, sid) {
-  const latest = VT.answersSql(qualifiedInspireTable(parsedDb, '__inspire_value_answers'), sid);
-  const answerRows = await readValueRows(req, warehouse_id, latest.sql, latest.parameters);
-  const saved = new Map(answerRows.map((row) => [String(row.use_case_id), VA_ANSWERS.versionOf(row)]));
-  const tables = await readValueRows(req, warehouse_id, VT.tablesSql(qualifiedInspireTable(parsedDb, '__inspire_usecases'), sid));
-  const noTable = new Set(tables.filter((row) => !String(row.primary_table || '').trim()).map((row) => String(row.id)));
-  const estimates = (await estimatesOfSession(req, warehouse_id, parsedDb, sid)).use_cases;
-  const measured = await implementApi.measuredYearlyOf(req, warehouse_id, sid, parsedDb);
-  return VT.runOf({ ids: tables.map((row) => String(row.id)), saved, estimates, measured, noTable });
+// Every per-session statement is sent once. ids is one run id, or the list of runs of the all-runs read: the list form reads every run
+// in one statement and the rows carry session_id, which splitBySession uses to hand each run its own rows.
+async function valueRowsOf(req, warehouse_id, parsedDb, ids) {
+  const latest = VT.answersSql(qualifiedInspireTable(parsedDb, '__inspire_value_answers'), ids);
+  const [answerRows, tables, useCases, specRows, ledgerRows] = await Promise.all([
+    readValueRows(req, warehouse_id, latest.sql, latest.parameters),
+    readValueRows(req, warehouse_id, VT.tablesSql(qualifiedInspireTable(parsedDb, '__inspire_usecases'), ids)),
+    readValueRows(req, warehouse_id, VE.useCasesSql(qualifiedInspireTable(parsedDb, '__inspire_usecases'), ids)),
+    readValueRows(req, warehouse_id, VE.latestSpecsSql(implementTableName(parsedDb.catalog, parsedDb.schema), ids)),
+    readValueRows(req, warehouse_id, valueSessionSql(valueLedgerTable(parsedDb), ids)),
+  ]);
+  return { answerRows, tables, useCases, specRows, ledgerRows };
+}
+const splitBySession = (rows, sid) => Object.fromEntries(Object.entries(rows).map(([kind, list]) => [kind, list.filter((row) => String(row.session_id) === sid)]));
+
+async function totalsOfSession(req, warehouse_id, parsedDb, sid, rows = null) {
+  const read = rows || await valueRowsOf(req, warehouse_id, parsedDb, sid);
+  const saved = new Map(read.answerRows.map((row) => [String(row.use_case_id), VA_ANSWERS.versionOf(row)]));
+  const noTable = new Set(read.tables.filter((row) => !String(row.primary_table || '').trim()).map((row) => String(row.id)));
+  const estimates = (await estimatesOfSession(req, warehouse_id, parsedDb, sid, read)).use_cases;
+  const measured = await implementApi.measuredYearlyOf(req, warehouse_id, sid, parsedDb, { ledgerRows: read.ledgerRows, specRows: read.specRows, tableRows: read.tables });
+  return VT.runOf({ ids: read.tables.map((row) => String(row.id)), saved, estimates, measured, noTable });
 }
 
 app.get('/api/inspire/value/totals', requireToken, async (req, res) => {
@@ -2931,7 +2945,9 @@ app.get('/api/inspire/value/totals', requireToken, async (req, res) => {
       const rows = await readValueRows(req, warehouse_id, VT.sessionsSql(qualifiedInspireTable(parsedDb, '__inspire_session'), SESSION_LIST_CAP));
       const truncated = rows.length > SESSION_LIST_CAP;
       const sessions = rows.slice(0, SESSION_LIST_CAP).filter((row) => !invalidSessionId(row.session_id));
-      const answers = await Promise.all(sessions.map((row) => totalsOfSession(req, warehouse_id, parsedDb, String(row.session_id))));
+      const sids = sessions.map((row) => String(row.session_id));
+      const all = sids.length ? await valueRowsOf(req, warehouse_id, parsedDb, sids) : null;
+      const answers = await Promise.all(sids.map((sid) => totalsOfSession(req, warehouse_id, parsedDb, sid, splitBySession(all, sid))));
       const runs = sessions.map((row, i) => ({ session_id: String(row.session_id), name: row.business_name || '', created_at: row.create_at ?? null,
         n: answers[i].run.n, n_calculated: answers[i].run.n_calculated, n_estimated: answers[i].run.n_estimated, n_measured: answers[i].run.n_measured, n_none: answers[i].run.n_none, totals: answers[i].run.totals }));
       return res.json({ runs, all: VT.mergeRuns(runs), truncated, cap: SESSION_LIST_CAP, disclaimer: VALUE_DISCLAIMER.full });

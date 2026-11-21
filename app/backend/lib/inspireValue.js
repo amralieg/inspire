@@ -10,16 +10,26 @@ const inspireSessionTable = (parsedDb) => qualified(parsedDb, INSPIRE_SESSION_TA
 
 const ledgerRows = (table, where) => `ledger_rows AS (SELECT ${LEDGER_COLUMNS} FROM ${table}${where ? ` WHERE ${where}` : ''})`;
 
+// A list of run ids (numeric only, validated by the caller) reads every run in one statement: the rows carry session_id and the
+// latest-row ranking is per run. A single id keeps the single-run statement.
+const idList = (ids, quote) => ids.map((id) => {
+  if (!/^\d+$/.test(String(id))) throw new Error('session ids must be numeric');
+  return quote ? `'${id}'` : String(id);
+}).join(', ');
+
 function valueSessionSql(table, sessionId) {
-  return `WITH ${ledgerRows(table, `session_id = '${sessionId}'`)}, `
-    + 'stake AS (SELECT use_case_id, kind, currency, unit, at_stake, ROW_NUMBER() OVER (PARTITION BY result_table, use_case_id '
+  const many = Array.isArray(sessionId);
+  const sid = many ? 'session_id, ' : '';
+  const part = many ? 'session_id, ' : '';
+  return `WITH ${ledgerRows(table, many ? `session_id IN (${idList(sessionId, true)})` : `session_id = '${sessionId}'`)}, `
+    + `stake AS (SELECT ${sid}use_case_id, kind, currency, unit, at_stake, ROW_NUMBER() OVER (PARTITION BY ${part}result_table, use_case_id `
     + 'ORDER BY recorded_at DESC, run_id DESC) AS rn FROM ledger_rows WHERE record_key IS NULL), '
-    + 'saved AS (SELECT use_case_id, kind, currency, unit, saved, ROW_NUMBER() OVER (PARTITION BY result_table, use_case_id, record_key '
+    + `saved AS (SELECT ${sid}use_case_id, kind, currency, unit, saved, ROW_NUMBER() OVER (PARTITION BY ${part}result_table, use_case_id, record_key `
     + 'ORDER BY recorded_at DESC, run_id DESC) AS rn FROM ledger_rows WHERE record_key IS NOT NULL) '
-    + "SELECT 'stake' AS part, use_case_id, kind, currency, unit, SUM(at_stake) AS amount, "
-    + 'MAX(CASE WHEN at_stake IS NOT NULL THEN 1 ELSE 0 END) AS measured FROM stake WHERE rn = 1 GROUP BY use_case_id, kind, currency, unit '
-    + "UNION ALL SELECT 'saved' AS part, use_case_id, kind, currency, unit, SUM(saved) AS amount, 0 AS measured "
-    + 'FROM saved WHERE rn = 1 AND saved IS NOT NULL GROUP BY use_case_id, kind, currency, unit';
+    + `SELECT 'stake' AS part, ${sid}use_case_id, kind, currency, unit, SUM(at_stake) AS amount, `
+    + `MAX(CASE WHEN at_stake IS NOT NULL THEN 1 ELSE 0 END) AS measured FROM stake WHERE rn = 1 GROUP BY ${sid}use_case_id, kind, currency, unit `
+    + `UNION ALL SELECT 'saved' AS part, ${sid}use_case_id, kind, currency, unit, SUM(saved) AS amount, 0 AS measured `
+    + `FROM saved WHERE rn = 1 AND saved IS NOT NULL GROUP BY ${sid}use_case_id, kind, currency, unit`;
 }
 
 function valueRunsSql(table) {
@@ -168,6 +178,6 @@ function overallValue(rows, counts) {
 }
 
 module.exports = {
-  valueLedgerTable, inspireSessionTable, valueSessionSql, valueRunsSql, valueOverallSql, sessionCountsSql,
+  valueLedgerTable, inspireSessionTable, idList, valueSessionSql, valueRunsSql, valueOverallSql, sessionCountsSql,
   valueOfSession, valueOfRuns, overallValue, totalOf, qualified,
 };

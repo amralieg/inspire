@@ -2696,7 +2696,8 @@ function registerImplementRoutes(app, deps) {
   // source table, to a year. A use case with no measured value, or no readable basis, is absent (never 0).
   // REQ-440: the measured per-year value of each use case of a run whose MVP measured money: {id: yearly}. One builder for
   // GET /api/inspire/value/yearly and the "measured" status of GET /api/inspire/value/totals.
-  async function measuredYearlyOf(req, warehouseId, sid, parsedDb) {
+  // `read` holds rows the caller already read for this run ({ledgerRows, specRows, tableRows}); the same statement is not sent again.
+  async function measuredYearlyOf(req, warehouseId, sid, parsedDb, read = null) {
     const readOrEmpty = async (sql, parameters) => {
       try {
         return sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, sql, parameters));
@@ -2705,12 +2706,12 @@ function registerImplementRoutes(app, deps) {
         throw err;
       }
     };
-    const measured = IV.valueOfSession(await readOrEmpty(IV.valueSessionSql(IV.valueLedgerTable(parsedDb), String(sid)))).use_cases;
+    const measured = IV.valueOfSession(read ? read.ledgerRows : await readOrEmpty(IV.valueSessionSql(IV.valueLedgerTable(parsedDb), String(sid)))).use_cases;
     const ids = Object.keys(measured).filter((id) => measured[id].measured && (measured[id].at_stake || []).length);
     if (!ids.length) return {};
     const [specRows, tableRows] = await Promise.all([
-      readOrEmpty(VE.latestSpecsSql(I.implementTableName(parsedDb.catalog, parsedDb.schema), sid)),
-      readOrEmpty(`SELECT id, primary_table FROM ${IV.qualified(parsedDb, '__inspire_usecases')} WHERE session_id = ${sid}`),
+      read ? read.specRows : readOrEmpty(VE.latestSpecsSql(I.implementTableName(parsedDb.catalog, parsedDb.schema), sid)),
+      read ? read.tableRows : readOrEmpty(`SELECT id, primary_table FROM ${IV.qualified(parsedDb, '__inspire_usecases')} WHERE session_id = ${sid}`),
     ]);
     const specs = new Map(specRows.map((r) => [String(r.use_case_id), VE.parseSpec(r.spec)]));
     const tables = new Map(tableRows.map((r) => [String(r.id), I.primaryTableOf({ primary_table: r.primary_table })]));

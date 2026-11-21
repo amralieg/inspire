@@ -8,8 +8,15 @@ const READ = 'use_case_id, CAST(version AS INT) AS version, answers, yearly, CAS
 
 const createSql = (table) => `CREATE TABLE IF NOT EXISTS ${table} (${COLUMNS})`;
 
+// sessionId is one run id, or a list of run ids: the list form reads every run in one statement, rows led by their session_id,
+// and still keeps the latest version per (run, use case).
 function latestSql(table, sessionId) {
   const b = binder();
+  if (Array.isArray(sessionId)) {
+    const marks = sessionId.map((sid) => b.bind(sid)).join(', ');
+    return { sql: `SELECT CAST(session_id AS STRING) AS session_id, ${READ} FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY session_id, use_case_id ORDER BY version DESC) AS rn FROM ${table} WHERE session_id IN (${marks})) WHERE rn = 1`,
+      parameters: b.parameters };
+  }
   return { sql: `SELECT ${READ} FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY use_case_id ORDER BY version DESC) AS rn FROM ${table} WHERE session_id = ${b.bind(sessionId)}) WHERE rn = 1`,
     parameters: b.parameters };
 }
