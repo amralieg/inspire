@@ -82,6 +82,7 @@ const SAMPLES = [
   { key: 'POST /api/money/currency-rates', rule: 'any', method: 'POST', path: '/api/money/currency-rates', body: { ...UC, base: 'USD' } },
   { key: 'POST /api/money/describe-value', rule: 'any', method: 'POST', path: '/api/money/describe-value', body: { ...UC, text: 'x', columns: ['a'] } },
   { key: 'POST /api/money/value-preview', rule: 'any', method: 'POST', path: '/api/money/value-preview', body: { ...UC, value: { method: 'fixed', amount: 120, currency: 'USD' } } },
+  { key: 'POST /api/inspire/value/estimate', rule: 'any', method: 'POST', path: '/api/inspire/value/estimate', body: { ...UC, table: 'main.s.orders', answers: { money: { currency: 'per_currency', value: { method: 'fixed', amount: 1, currency: 'USD' } } } } },
   { key: 'POST /api/money/rate-sample', rule: 'any', method: 'POST', path: '/api/money/rate-sample', body: { ...UC, base: 'USD' } },
   { key: 'ALL /run/:id/{*rest}', rule: 'delegated', method: 'POST', path: '/run/missing-page/api/refresh', body: {} },
   { key: 'ALL /showcase/:id/mvp/:mvp/api/*rest', rule: 'any', method: 'POST', path: '/showcase/missing/mvp/missing/api/page', body: {} },

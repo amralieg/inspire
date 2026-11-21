@@ -852,6 +852,7 @@ const NO_STEPS = [];
 function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson, databricksHost, notebookRunError, refreshKey, collectedKey, valueEstimate = null, onSetRule = null,
   onEdit, onOpenRun = null, onBuildQueued = null, onOpenDemoMvp = null, onProgress = null, readOnly = false }) {
   const useCaseId = item.id;
+  const yearlyRead = useValueRead(apiFetch, readOnly ? '' : `/api/inspire/value/yearly?${qBase}`, refreshKey);
   const hasMvp = Boolean(item.latest);
   const viewId = useId();
   const logRef = useRef(null);
@@ -1947,7 +1948,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         )}
       </header>
       {detailsOpen && row && (
-        <UseCaseDrawer row={row} onClose={() => setDetailsOpen(false)}>
+        <UseCaseDrawer row={row} yearly={yearlyRead?.use_cases?.[useCaseId] || null} onClose={() => setDetailsOpen(false)}>
           <UseCaseDetailBody uc={item.uc} v130={item.uc._v130 || null} valueEstimate={valueEstimate} databricksHost={databricksHost} />
         </UseCaseDrawer>
       )}

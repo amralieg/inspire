@@ -16,6 +16,7 @@ import {
 } from '../lib/useCaseFields';
 import ValueEstimateLine from './ValueEstimateLine';
 import ValueBadge from './ValueBadge';
+import CardValueLine from './CardValueLine';
 import { UseCaseNameNotes, UseCaseNameTitle, UseCaseRenameButton } from './UseCaseNameEditor';
 import { useUseCaseRename } from '../lib/useCaseRename';
 
@@ -51,6 +52,11 @@ function UseCaseCardBody({
   useCaseValue = null,
   estimate = null,
   onSetRule = null,
+  yearly = null,
+  calc = null,
+  canCalculate = false,
+  onCalculate = null,
+  onRetry = null,
   ...detailProps
 }) {
   const u = uc;
@@ -118,7 +124,10 @@ function UseCaseCardBody({
                   <ValueBadge atStake={useCaseValue.at_stake} saved={useCaseValue.saved} measured={useCaseValue.measured} className="mt-2" />
                 )}
               </div>
-              <InspireScoreBadge score={inspireScoreNum} />
+              <div className="flex shrink-0 flex-col items-end">
+                <InspireScoreBadge score={inspireScoreNum} />
+                <CardValueLine yearly={yearly} calc={calc} canCalculate={canCalculate} onCalculate={onCalculate} onRetry={onRetry} />
+              </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-2">
               {kind && (

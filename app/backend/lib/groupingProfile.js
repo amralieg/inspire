@@ -230,8 +230,10 @@ function currencySpreadSql(table, currencyColumn, scopes) {
 // Three rows of the use case table through a value definition: the amount each row is worth, and its currency.
 // A status filter (the statuses that mean lost) limits the example rows to the rows the rule counts.
 const STATUS_WORD = /^[A-Za-z0-9_ -]{1,40}$/;
-function moneyValueSampleSql(table, value, scopes, filter = null) {
-  if (!RATE_TABLE_PATTERN.test(String(table || '')) || !value || typeof value !== 'object') return null;
+// The SQL pieces of one value definition: the amount each record is worth, its currency, the status test that counts it, and the
+// columns they read. Null when the definition is not one the SQL can express.
+function valueParts(value, filter) {
+  if (!value || typeof value !== 'object') return null;
   let amount = null;
   if (value.method === 'fixed' && Number.isFinite(Number(value.amount)) && Number(value.amount) > 0) amount = String(Number(value.amount));
   else if (value.method === 'column' && RATE_COLUMN_PATTERN.test(String(value.column || ''))) amount = q(value.column);
@@ -249,13 +251,45 @@ function moneyValueSampleSql(table, value, scopes, filter = null) {
   if (filter && Array.isArray(filter.statuses) && filter.statuses.length) {
     if (!filter.statuses.every((word) => typeof word === 'string' && STATUS_WORD.test(word))) return null;
     if (!RATE_COLUMN_PATTERN.test(String(filter.status_column || ''))) return null;
-    counted = `${q(filter.status_column)} IN (${filter.statuses.map((word) => `'${word}'`).join(', ')}) AND `;
+    counted = `${q(filter.status_column)} IN (${filter.statuses.map((word) => `'${word}'`).join(', ')})`;
     filterColumns.push(filter.status_column);
   }
+  return { amount, currency, counted, filterColumns };
+}
+
+function moneyValueSampleSql(table, value, scopes, filter = null) {
+  if (!RATE_TABLE_PATTERN.test(String(table || ''))) return null;
+  const parts = valueParts(value, filter);
+  if (!parts) return null;
+  const { amount, currency, counted, filterColumns } = parts;
   return statement(scopes, (ctx) => {
     const from = previewFrom(table, ctx, [...columnsIn(amount, currency), ...filterColumns]);
-    return `SELECT CAST(${amount} AS DOUBLE) AS stake, ${currency} AS currency FROM ${from} WHERE ${counted}${amount} IS NOT NULL LIMIT ${MONEY_VALUE_ROWS}`;
+    return `SELECT CAST(${amount} AS DOUBLE) AS stake, ${currency} AS currency FROM ${from} WHERE ${counted ? `${counted} AND ` : ''}${amount} IS NOT NULL LIMIT ${MONEY_VALUE_ROWS}`;
   });
+}
+
+// REQ-432: ONE statement for the Calculate estimate. A sample of the table's first records gives the amount counted per currency and
+// how many records were sampled; the whole table gives the eligible record count and the days its date column covers.
+const YEARLY_SAMPLE_ROWS = 10000;
+function moneyYearlySampleSql(table, value, dateColumn, scopes, filter = null) {
+  if (!RATE_TABLE_PATTERN.test(String(table || '')) || !RATE_COLUMN_PATTERN.test(String(dateColumn || ''))) return null;
+  const parts = valueParts(value, filter);
+  if (!parts) return null;
+  const { amount, currency, counted, filterColumns } = parts;
+  return statement(scopes, (ctx) => {
+    const from = previewFrom(table, ctx, [...columnsIn(amount, currency), ...filterColumns, dateColumn]);
+    return `WITH base AS (SELECT CAST(${amount} AS DOUBLE) AS amt, ${currency} AS currency, ${counted || 'TRUE'} AS counted, ${q(dateColumn)} AS d FROM ${from}), `
+      + `smp AS (SELECT amt, currency, counted FROM base LIMIT ${YEARLY_SAMPLE_ROWS}), `
+      + 'span AS (SELECT COUNT(*) AS n, DATEDIFF(MAX(d), MIN(d)) + 1 AS span_days FROM base) '
+      + 'SELECT currency, SUM(CASE WHEN counted AND amt IS NOT NULL THEN amt ELSE 0 END) AS stake, (SELECT COUNT(*) FROM smp) AS sampled, '
+      + '(SELECT n FROM span) AS eligible, (SELECT span_days FROM span) AS days FROM smp WHERE currency IS NOT NULL GROUP BY currency';
+  });
+}
+
+// REQ-432: the records of a built use case's source table and the days its date column covers, to scale its measured value.
+function eligibleSql(table, dateColumn, scopes) {
+  if (!RATE_TABLE_PATTERN.test(String(table || '')) || !RATE_COLUMN_PATTERN.test(String(dateColumn || ''))) return null;
+  return statement(scopes, (ctx) => `SELECT COUNT(*) AS eligible, DATEDIFF(MAX(${q(dateColumn)}), MIN(${q(dateColumn)})) + 1 AS days FROM ${previewFrom(table, ctx, [dateColumn])}`);
 }
 
 // The latest rate loaded for up to three currencies, into the base currency: the example reads real numbers from the rate table.
@@ -587,6 +621,8 @@ module.exports = {
   statementContext,
   currencySpreadSql,
   moneyValueSampleSql,
+  moneyYearlySampleSql,
+  eligibleSql,
   CURRENCY_SPREAD_ROWS,
   MONEY_VALUE_ROWS,
   rateColumnSampleSql,

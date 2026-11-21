@@ -53,6 +53,9 @@ const MV = require('./lib/metricViews');
 const DM = require('./lib/dataManagement');
 const { joinSentences } = require('./lib/sentences');
 const AR = require('./lib/accessRequest');
+const VY = require('./lib/valueYearly');
+const VE = require('./lib/valueEstimate');
+const IV = require('./lib/inspireValue');
 
 function sendError(res, err) {
   return PM_ERROR.sendFailure(res, PM_ERROR.failureStatus(err), (err && err.message) || String(err), err && err.details, err && err.denial);
@@ -2399,6 +2402,92 @@ function registerImplementRoutes(app, deps) {
       return res.json({ rows: sqlResultToObjects(found).map((r) => ({ stake: Number(r.stake), currency: String(r.currency ?? '') })) });
     } catch (err) {
       return sendError(res, sqlFailure(err, profileFailures(String(req.body?.table || 'the use case table'))));
+    }
+  });
+
+  // REQ-432: the Calculate estimate. ONE statement reads a sample of the use case table; the amount counted per sampled record is scaled
+  // to every eligible record and to a year (VY.extrapolate). It starts no Build and no job, and it never answers 0 for a value it could not read.
+  app.post('/api/inspire/value/estimate', requireToken, async (req, res) => {
+    const table = String(req.body?.table || '').trim();
+    try {
+      const warehouseId = warehouseOf(req);
+      const answers = req.body?.answers && typeof req.body.answers === 'object' ? req.body.answers : {};
+      const money = answers.money && typeof answers.money === 'object' ? answers.money : {};
+      if (!table) throw I.badRequest('Name the use case table to estimate the value on.');
+      if (!money.value || typeof money.value !== 'object') throw I.badRequest('Answer the Value at stake questions first: how much each record is worth, and in which currency.');
+      I.validateUseCaseId(q(req, 'use_case_id'));
+      const scopes = await launchScopesOf(req, warehouseId, req.body?.table_scope);
+      await refuseMetricView(req, warehouseId, table);
+      const asked = I.columnsStatement(table);
+      const columns = GP.scopedColumns(await I.readPickedTable(table, () => sqlRows(req.dbHost, req.dbToken, warehouseId, asked)), scopes, table);
+      const dateColumn = VY.dateColumnOf(columns);
+      if (!dateColumn) throw I.badRequest('The table has no date column to scale the sample to a year, so Inspire cannot estimate a value per year.', 422);
+      const made = GP.moneyYearlySampleSql(table, money.value, dateColumn, scopes, answers.lost_filter ?? null);
+      if (!made) throw I.badRequest('Name the value: a fixed amount, one column, or an equation over the table columns, with one currency.');
+      const found = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters, { rowLimit: 100, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }));
+      const entries = found.map((r) => ({ kind: 'money', unit: String(r.currency ?? ''), amount: Number(r.stake) })).filter((e) => e.unit && e.amount > 0);
+      const basis = found[0] || {};
+      const yearly = VY.yearlyOf({ entries, sampled: basis.sampled, eligible: basis.eligible, days: basis.days, kpi: answers.kpi, rule: money.rule });
+      if (!yearly) throw I.badRequest(`Inspire read a sample of ${table} and found no record that counts toward the value, so it shows no number.`, 422);
+      return res.json({ yearly });
+    } catch (err) {
+      return sendError(res, sqlFailure(err, profileFailures(table || 'the use case table')));
+    }
+  });
+
+  // REQ-432: the value each built use case measured, scaled the same way: its stake per scored record, to every eligible record of its
+  // source table, to a year. A use case with no measured value, or no readable basis, is absent (never 0).
+  app.get('/api/inspire/value/yearly', requireToken, async (req, res) => {
+    try {
+      const warehouseId = warehouseOf(req);
+      const sid = sessionIdOf(req);
+      const parsedDb = dbOf(req, splitInspireDatabase);
+      const readOrEmpty = async (sql, parameters) => {
+        try {
+          return sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, sql, parameters));
+        } catch (err) {
+          if (isMissingTableError(err)) return [];
+          throw err;
+        }
+      };
+      const measured = IV.valueOfSession(await readOrEmpty(IV.valueSessionSql(IV.valueLedgerTable(parsedDb), String(sid)))).use_cases;
+      const ids = Object.keys(measured).filter((id) => measured[id].measured && (measured[id].at_stake || []).length);
+      if (!ids.length) return res.json({ use_cases: {} });
+      const [specRows, tableRows] = await Promise.all([
+        readOrEmpty(VE.latestSpecsSql(I.implementTableName(parsedDb.catalog, parsedDb.schema), sid)),
+        readOrEmpty(`SELECT id, primary_table FROM ${IV.qualified(parsedDb, '__inspire_usecases')} WHERE session_id = ${sid}`),
+      ]);
+      const specs = new Map(specRows.map((r) => [String(r.use_case_id), VE.parseSpec(r.spec)]));
+      const tables = new Map(tableRows.map((r) => [String(r.id), I.primaryTableOf({ primary_table: r.primary_table })]));
+      const scopes = await launchScopesOf(req, warehouseId, undefined);
+      const basisOf = new Map();
+      const eligibleOf = (table) => {
+        if (!basisOf.has(table)) {
+          basisOf.set(table, (async () => {
+            const asked = I.columnsStatement(table);
+            const dateColumn = VY.dateColumnOf(GP.scopedColumns(await sqlRows(req.dbHost, req.dbToken, warehouseId, asked), scopes, table));
+            const made = dateColumn ? GP.eligibleSql(table, dateColumn, scopes) : null;
+            return made ? (await readOrEmpty(made.sql, made.parameters))[0] || null : null;
+          })().catch(() => null));
+        }
+        return basisOf.get(table);
+      };
+      const oneOf = async (id) => {
+        const spec = specs.get(id);
+        const resultTable = spec && spec.config && spec.config.result_table;
+        const table = tables.get(id);
+        if (!resultTable || I.resultTableNameError(resultTable) || !table) return null;
+        const summary = (await readOrEmpty(`SELECT records, kpi_name, kpi_direction FROM ${I.quoteTable(`${resultTable}_summary`)} WHERE use_case_id = :uc `
+          + 'ORDER BY updated_at DESC NULLS LAST LIMIT 1', [{ name: 'uc', value: id, type: 'STRING' }]).catch(() => []))[0];
+        const eligible = summary ? await eligibleOf(table) : null;
+        if (!summary || !eligible) return null;
+        return VY.yearlyOf({ entries: measured[id].at_stake, sampled: summary.records, eligible: eligible.eligible, days: eligible.days,
+          kpi: { name: summary.kpi_name, direction: summary.kpi_direction }, rule: spec.money && spec.money.rule });
+      };
+      const got = await mapLimit(ids, 4, oneOf);
+      return res.json({ use_cases: Object.fromEntries(ids.map((id, i) => [id, got[i]]).filter(([, v]) => v)) });
+    } catch (err) {
+      return sendError(res, err);
     }
   });
 

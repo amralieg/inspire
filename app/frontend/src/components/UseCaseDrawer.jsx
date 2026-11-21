@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { YearlyValueLine } from './CardValueLine';
 import { ChevronDown, ChevronUp, ExternalLink, Heart, Star } from 'lucide-react';
 import DrawerShell from './DrawerShell';
 import ImplementStatusBadge from './ImplementStatusBadge';
@@ -30,6 +31,7 @@ export default function UseCaseDrawer({
   onToggleFavorite,
   onOpenImplement,
   actions = null,
+  yearly = null,
   children,
 }) {
   useEffect(() => {
@@ -143,6 +145,7 @@ export default function UseCaseDrawer({
             <ScoreTile label="Feasibility" value={row.feasibility} />
             <ScoreTile label="Quality" value={row.quality} />
           </div>
+          <YearlyValueLine yearly={yearly} />
         </>
       )}
       footer={(actions || (onOpenImplement && row.status?.label)) && (

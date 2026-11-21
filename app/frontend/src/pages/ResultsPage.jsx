@@ -102,6 +102,8 @@ import DocumentActions from '../components/DocumentActions';
 import { documentBasePath } from '../lib/documentActions';
 import { generationFolder, workspaceNotebookUrl, workspaceWebUiHashPath } from '../lib/workspaceLinks';
 import ImplementWizard from './ImplementWizard';
+import CalculateValueDialog from '../components/CalculateValueDialog';
+import { savedStakeAnswers, tableOfUseCase, useCalculatedValues } from '../lib/calculatedValue';
 import { kindFilterLabel, kindFilterOptions, matchesKindFilter } from '../lib/useCaseKind';
 import { MVP_FILTERS, START_MVP_LABEL, implementState, mvpCounts, mvpFilterMatches, notebookRunEnded, notebookStatus, versionActive } from '../lib/implementWizard';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -275,6 +277,8 @@ export default function ResultsPage({
   const runValue = useValueRead(apiFetch, runValueUrl, implementRefresh);
   const estimateUrl = runValueUrl ? runValueUrl.replace('/api/inspire/value?', '/api/inspire/value/estimates?') : '';
   const estimates = useValueRead(apiFetch, estimateUrl, implementRefresh);
+  const yearlyUrl = runValueUrl ? runValueUrl.replace('/api/inspire/value?', '/api/inspire/value/yearly?') : '';
+  const measuredYearly = useValueRead(apiFetch, yearlyUrl, implementRefresh);
 
   const resultsDiscoveryType = results?.discovery_type || '';
   const feedbackBusiness = useMemo(() => {
@@ -579,6 +583,9 @@ export default function ResultsPage({
 
   // ── Extract use cases (defensive — guard against non-array shapes) ──
   const allUseCases = useMemo(() => buildUseCaseList(results, usecases), [results, usecases]);
+  const [calcFor, setCalcFor] = useState(null);
+  const calcIds = useMemo(() => allUseCases.map((u) => trackingIdOf(u)).filter(Boolean), [allUseCases]);
+  const calculated = useCalculatedValues({ apiPostJson, host: settings?.databricksHost, inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId, ids: calcIds });
   const qualityBarCounts = useMemo(() => qualityBarCountsOf(allUseCases), [allUseCases]);
   const runOutcome = runOutcomeOf(results, qualityBarCounts);
   const reviewBarStages = useMemo(() => stepBarStagesOf(PIPELINE_STAGES,
@@ -2467,6 +2474,11 @@ export default function ResultsPage({
                         feedbackCurrent={feedbackCurrentFor(uc)}
                         useCaseValue={runValue?.use_cases?.[trackingIdOf(uc)] ?? null}
                         estimate={estimates?.use_cases?.[trackingIdOf(uc)] ?? null}
+                        yearly={calculated.byId[tid]?.yearly || measuredYearly?.use_cases?.[tid] || null}
+                        calc={calculated.byId[tid] || null}
+                        canCalculate={Boolean(runValueUrl && tid && tableOfUseCase(uc))}
+                        onCalculate={() => setCalcFor(uc)}
+                        onRetry={() => calculated.retry(tid)}
                         onSetRule={canImplement ? () => startImplement(uc) : undefined}
                         implementStatus={tid ? implementState(implementLatestById[tid] || null, notebookStatus(uc, implementView.notebook_run)) : null}
                         onImplement={canImplement ? () => startImplement(uc) : undefined}
@@ -2521,6 +2533,12 @@ export default function ResultsPage({
         </div>
       )}
 
+        {calcFor && (
+          <CalculateValueDialog uc={calcFor} table={tableOfUseCase(calcFor)} apiPostJson={apiPostJson} inspireDatabase={inspireDb} warehouseId={warehouseId}
+            sessionId={selectedSessionId} saved={savedStakeAnswers({ host: settings?.databricksHost, inspireDatabase: inspireDb, sessionId: selectedSessionId, useCaseId: trackingIdOf(calcFor) })?.answers || null}
+            onCancel={() => setCalcFor(null)}
+            onCalculate={(table, answers) => { const id = trackingIdOf(calcFor); setCalcFor(null); calculated.run(id, table, answers); }} />
+        )}
       {implementUc && selectedSessionId && inspireDb && warehouseId && (
         <ImplementWizard
           uc={implementUc}

@@ -400,6 +400,22 @@ components:
         run_name:
           type: string
 
+    YearlyValue:
+      type: object
+      properties:
+        verb: { type: string }
+        period: { type: string, example: Per Year }
+        estimated: { type: boolean }
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValueEntry'
+        basis:
+          type: object
+          properties:
+            sampled_records: { type: integer }
+            eligible_records: { type: integer }
+            days: { type: integer }
     ValueEntry:
       type: object
       required: [kind, unit, amount]
@@ -1427,6 +1443,72 @@ paths:
           description: A parameter is missing or malformed
         '401':
           $ref: '#/components/responses/PersonSignInRequired'
+  /api/inspire/value/yearly:
+    get:
+      tags: [Monitor]
+      summary: Measured value of each built use case, per year
+      description: |
+        The value at stake a built use case measured, per scored record, scaled to every eligible record of its source table and to a
+        year of the days its date column covers. A use case with no measured value or no readable basis is absent, never 0.
+      parameters:
+        - $ref: '#/components/parameters/DatabricksHost'
+        - $ref: '#/components/parameters/InspireDatabase'
+        - $ref: '#/components/parameters/WarehouseId'
+      responses:
+        '200':
+          description: Per-year value by use case id
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  use_cases:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/YearlyValue'
+        '400':
+          description: A parameter is missing or malformed
+        '401':
+          $ref: '#/components/responses/PersonSignInRequired'
+  /api/inspire/value/estimate:
+    post:
+      tags: [Monitor]
+      summary: Estimate the value per year of one use case
+      description: |
+        Runs one SQL estimate on a sample of the use case table with the Value at stake answers, scales it by record count and to a
+        year. It starts no Build and no job. It refuses with a reason (never 0) when the table has no date column or no record counts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inspire_database, warehouse_id, session_id, use_case_id, table, answers]
+              properties:
+                inspire_database: { type: string }
+                warehouse_id: { type: string }
+                session_id: { type: string }
+                use_case_id: { type: string }
+                table: { type: string }
+                answers:
+                  type: object
+                  properties:
+                    money: { type: object }
+                    kpi: { type: object }
+      responses:
+        '200':
+          description: The estimate
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  yearly:
+                    $ref: '#/components/schemas/YearlyValue'
+        '400':
+          description: No answers, or a parameter is missing or malformed
+        '422':
+          description: The sample gave no value to show; the error says why
   /api/inspire/value/runs:
     get:
       tags: [Monitor]

@@ -4,6 +4,7 @@ import { withStartDeadline } from '../lib/startDeadline';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { moneyPartsOf } from '../lib/moneyParts.js';
+import { savedStakeAnswers } from '../lib/calculatedValue';
 import { defaultMoneyRule, moneySummaryOf } from '../lib/moneyDefaults.js';
 import { valueEstimateOf } from '../lib/v130UseCase.js';
 import { Check, Loader2, NotebookPen, X, ChevronLeft, ChevronRight, LayoutDashboard, Sparkles, AppWindow, Bell, Lock, UserRound, KeyRound } from 'lucide-react';
@@ -638,7 +639,14 @@ export default function ImplementWizard({
   // Every MVP gets a money rule without input: the default is the amount the rule computes per flagged record when the use case states one, else the amount column of its table (or each record once) in USD.
   useEffect(() => {
     if (mode !== 'mvp' || spec.money || scopeProfile.state === 'loading') return;
-    setSpec((prev) => (prev.money ? prev : withMoneyRule(prev, defaultMoneyRule(scopeProfile.profile, Boolean(valueEstimateOf(uc))))));
+    // REQ-432: the answers a person gave in Calculate on the card are the starting point, so Build starts from them.
+    const saved = savedStakeAnswers({ host: settings.databricksHost, inspireDatabase, sessionId, useCaseId: spec.use_case_id })?.answers;
+    setSpec((prev) => {
+      if (prev.money) return prev;
+      const money = saved?.money || defaultMoneyRule(scopeProfile.profile, Boolean(valueEstimateOf(uc)));
+      const next = withMoneyRule(prev, money);
+      return !kpiTargetOf(next) && saved?.kpi?.name ? withKpiTarget(next, saved.kpi.name) : next;
+    });
   }, [mode, spec.money, scopeProfile.state, scopeProfile.profile, uc]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (steps[stepIndex].id !== 'stake') return;
@@ -2076,52 +2084,9 @@ export default function ImplementWizard({
               <h3 className="text-sm font-semibold text-text-primary">Value at stake</h3>
               <p className="text-[11px] text-text-secondary">{`Each record is counted in the ${stakeWords(sampleStake)}. Optional: the default already counts it, so Next moves on. Open a section to change it.`}</p>
             </div>
-            <ol aria-label="Money decisions" className="space-y-2">
-              {moneyParts.map((p, i) => {
-                // One decision on screen: the later decisions are not rendered until Next reaches them.
-                if (i > moneyActive) return null;
-                const open = i === moneyActive;
-                const label = `${i + 1}. ${MONEY_PART_LABEL[p]}`;
-                const nextPart = moneyParts[i + 1];
-                return (
-                  <li key={p} data-money-current={open ? '' : undefined} className="block">
-                    <div data-money-part={p}>
-                      {!open && <FoldLine label={label} what={MONEY_PART_LABEL[p]} summary={MEASURE_IMPACT_PARTS.includes(p) ? impactPartSummary(spec, p) : moneySummaryOf(spec.money, p)} onOpen={() => setMoneyPart(i)} />}
-                      {open && <p className="border-t border-border pt-3 text-[13px] font-semibold text-text-primary">{label}</p>}
-                    </div>
-                    {open && (
-                      <div className="space-y-3 pt-2 pb-1">
-                        {p === 'kpi' ? (
-                          <KpiTargetSetting
-                            spec={spec}
-                            best={best.kpi}
-                            options={kpiOptions}
-                            tracked={trackedKpi}
-                            before={context?.latest ? kpiTargetOf(context.latest.spec_json) : null}
-                            onPick={(name) => setSpec((prev) => withKpiTarget(prev, name))}
-                          />
-                        ) : p === 'holdout' ? (
-                          <div className="space-y-3">
-                            <HoldoutSetting spec={spec} best={best.holdout} onEnabled={(on) => setSpec((prev) => withHoldout(prev, on))} />
-                            <SettingRow label="Hold back" value={holdoutOf(spec).enabled ? `${holdoutPercentText(spec) || '10'}% of records` : 'off'} changeLabel="hold back share">
-                              <HoldoutPercent spec={spec} onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))} />
-                            </SettingRow>
-                          </div>
-                        ) : spec.money ? (
-                          <MoneyRuleEditor part={p} value={spec.money} sample={scopeProfile.profile?.money_sample || null} table={scopeProfile.profile?.table || ''} columns={scopeProfile.profile?.money_columns || []} api={moneyApi.current} onChange={(money) => { setSpec((prev) => withMoneyRule(prev, money)); if (Boolean(money?.off) !== Boolean(spec.money?.off)) setMoneyPart(money?.off ? 0 : moneyPartsOf(money?.rule).indexOf('off')); }} />
-                        ) : (
-                          <p className="text-[12px] text-text-secondary">Reading this table to pre-fill the money rule</p>
-                        )}
-                        <div className="flex items-center justify-between pt-1">
-                          {moneyActive > 0 ? <button type="button" data-money-back="" onClick={() => setMoneyPart(moneyActive - 1)} className="text-xs text-text-secondary">Previous decision</button> : <span />}
-                          {nextPart && <button type="button" data-money-next="" aria-label={`Next: ${MONEY_PART_LABEL[nextPart]}`} onClick={() => setMoneyPart(moneyActive + 1)} className="text-xs font-medium text-db-red-fg">Next</button>}
-                        </div>
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ol>
+            <StakeQuestions spec={spec} setSpec={setSpec} moneyParts={moneyParts} moneyActive={moneyActive} setMoneyPart={setMoneyPart}
+              profile={scopeProfile.profile} moneyApi={moneyApi.current} kpiOptions={kpiOptions} trackedKpi={trackedKpi} best={best}
+              before={context?.latest ? kpiTargetOf(context.latest.spec_json) : null} />
           </section>
         )}
 
@@ -2913,6 +2878,59 @@ function ResultTableStep({ table, ownTable, inspireTable, place, note = '', outp
       )}
       <p role="note" aria-label="Moving the result table" className="text-[11px] text-text-secondary">{RESULT_TABLE_MOVE_NOTE}</p>
     </section>
+  );
+}
+
+// REQ-432: the Value at stake questions, one decision at a time. The Build wizard and the Calculate dialog on a use case card both
+// render this one component, so the two never ask different questions. `profile` is the table profile (money sample, columns).
+export function StakeQuestions({ spec, setSpec, moneyParts, moneyActive, setMoneyPart, profile = null, moneyApi = {}, kpiOptions = [], trackedKpi = null, best = {}, before = null }) {
+  return (
+  <ol aria-label="Money decisions" className="space-y-2">
+    {moneyParts.map((p, i) => {
+      // One decision on screen: the later decisions are not rendered until Next reaches them.
+      if (i > moneyActive) return null;
+      const open = i === moneyActive;
+      const label = `${i + 1}. ${MONEY_PART_LABEL[p]}`;
+      const nextPart = moneyParts[i + 1];
+      return (
+        <li key={p} data-money-current={open ? '' : undefined} className="block">
+          <div data-money-part={p}>
+            {!open && <FoldLine label={label} what={MONEY_PART_LABEL[p]} summary={MEASURE_IMPACT_PARTS.includes(p) ? impactPartSummary(spec, p) : moneySummaryOf(spec.money, p)} onOpen={() => setMoneyPart(i)} />}
+            {open && <p className="border-t border-border pt-3 text-[13px] font-semibold text-text-primary">{label}</p>}
+          </div>
+          {open && (
+            <div className="space-y-3 pt-2 pb-1">
+              {p === 'kpi' ? (
+                <KpiTargetSetting
+                  spec={spec}
+                  best={best.kpi}
+                  options={kpiOptions}
+                  tracked={trackedKpi}
+                  before={before}
+                  onPick={(name) => setSpec((prev) => withKpiTarget(prev, name))}
+                />
+              ) : p === 'holdout' ? (
+                <div className="space-y-3">
+                  <HoldoutSetting spec={spec} best={best.holdout} onEnabled={(on) => setSpec((prev) => withHoldout(prev, on))} />
+                  <SettingRow label="Hold back" value={holdoutOf(spec).enabled ? `${holdoutPercentText(spec) || '10'}% of records` : 'off'} changeLabel="hold back share">
+                    <HoldoutPercent spec={spec} onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))} />
+                  </SettingRow>
+                </div>
+              ) : spec.money ? (
+                <MoneyRuleEditor part={p} value={spec.money} sample={profile?.money_sample || null} table={profile?.table || ''} columns={profile?.money_columns || []} api={moneyApi} onChange={(money) => { setSpec((prev) => withMoneyRule(prev, money)); if (Boolean(money?.off) !== Boolean(spec.money?.off)) setMoneyPart(money?.off ? 0 : moneyPartsOf(money?.rule).indexOf('off')); }} />
+              ) : (
+                <p className="text-[12px] text-text-secondary">Reading this table to pre-fill the money rule</p>
+              )}
+              <div className="flex items-center justify-between pt-1">
+                {moneyActive > 0 ? <button type="button" data-money-back="" onClick={() => setMoneyPart(moneyActive - 1)} className="text-xs text-text-secondary">Previous decision</button> : <span />}
+                {nextPart && <button type="button" data-money-next="" aria-label={`Next: ${MONEY_PART_LABEL[nextPart]}`} onClick={() => setMoneyPart(moneyActive + 1)} className="text-xs font-medium text-db-red-fg">Next</button>}
+              </div>
+            </div>
+          )}
+        </li>
+      );
+    })}
+  </ol>
   );
 }
 
