@@ -76,3 +76,9 @@ test('REQ-452: summarizePairs shows at most 3 pairs, one per use case and per am
   const two = refineScores([uc('A', 9, usd(1e6)), uc('B', 8.5, usd(3e6))]).pairs;
   assert.deepEqual(summarizePairs(two, 3).more, [], 'a short list has nothing more');
 });
+
+test('REQ-448: an estimate flagged "Check the numbers" never drives a score change; a calculated one still does', () => {
+  const flagged = { ...uc('B', 8.5, usd(3e9)), flagged: true };
+  assert.deepEqual(moves([uc('A', 9, usd(1e6)), flagged]), {});
+  assert.deepEqual(moves([uc('A', 9, usd(1e6)), { ...uc('B', 8.5, usd(3e6)), flagged: false }]), { B: [8.5, 9.05] });
+});
