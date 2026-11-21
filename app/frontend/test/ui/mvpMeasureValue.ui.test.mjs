@@ -47,23 +47,20 @@ async function openMeasure(state) {
 const text = async (loc) => (await loc.innerText()).replace(/\s+/g, ' ').trim();
 const button = (panel, name) => panel.getByRole('button', { name, exact: true });
 
-test('1: a calculated value shows the calculated box and the amount; Keep collapses the panel to the box and sends no PUT', async () => {
+// REQ-457: Keep is removed from the panel (the Keep or Edit choice now sits in the value wizard's "How the MVP measures it" section).
+test('1: a calculated value shows the calculated box, the amount and Edit; there is no Keep', async () => {
   const state = { answers: { [ID]: answerEntry(yearlyOf()) }, totals: totalsOf(entry('calculated', 2390000)) };
-  const { ui, page, panel } = await openMeasure(state);
+  const { ui, panel } = await openMeasure(state);
   try {
     const box = panel.locator('[data-value-box]');
     await box.waitFor({ timeout: 15000 });
     assert.equal(await box.getAttribute('data-value-box-state'), 'calculated');
     assert.equal(await text(box.locator('[data-value-amount]')), '$2.39M');
     assert.equal(await button(panel, 'Edit').isVisible(), true);
-    await button(panel, 'Keep').click();
-    assert.equal(await button(panel, 'Keep').count(), 0, 'Keep is gone once kept');
-    assert.equal(await button(panel, 'Edit').count(), 0, 'Edit is gone once kept');
-    assert.equal(await box.isVisible(), true, 'the box stays');
-    assert.equal(state.puts.length, 0, 'Keep sends no PUT');
+    assert.equal(await button(panel, 'Keep').count(), 0, 'Keep is gone');
+    assert.equal(state.puts.length, 0, 'no PUT');
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
-  assert.ok(page);
 });
 
 test('2: Edit opens the wizard over the MVP wizard; a stubbed Save updates the box in place and the MVP wizard stays on Measure', async () => {
@@ -85,23 +82,19 @@ test('2: Edit opens the wizard over the MVP wizard; a stubbed Save updates the b
   } finally { await ui.close(); }
 });
 
-test('3: no value: Calculate now opens the dialog; Skip sends no request and shows the estimate line', async () => {
+// REQ-457: "Calculate now" and "Skip, use Inspire's estimate" are removed; a missing value shows Calculate value, which opens the dialog.
+test('3: no value: Calculate value opens the dialog; there is no Skip and no Calculate now', async () => {
   const state = { answers: {}, totals: totalsOf(entry('none')) };
   const { ui, page, panel } = await openMeasure(state);
   try {
-    await button(panel, 'Calculate now').waitFor({ timeout: 15000 });
-    await button(panel, 'Calculate now').click();
-    await page.getByRole('dialog', { name: 'Calculate value at stake' }).waitFor();
-    await page.getByRole('dialog', { name: 'Calculate value at stake' }).getByRole('button', { name: /close|cancel/i }).first().click();
-    await page.getByRole('dialog', { name: 'Calculate value at stake' }).waitFor({ state: 'detached' });
-    const before = state.puts.length;
-    const sent = [];
-    page.on('request', (r) => { if (r.method() !== 'GET') sent.push(r.url()); });
-    await button(panel, "Skip, use Inspire's estimate").click();
-    assert.match(await text(panel), /estimate is used/i);
+    const calc = panel.locator('[data-value-calculate]');
+    await calc.waitFor({ timeout: 15000 });
+    assert.match(await text(calc), /Calculate value/);
+    assert.equal(await button(panel, "Skip, use Inspire's estimate").count(), 0);
     assert.equal(await button(panel, 'Calculate now').count(), 0);
-    assert.deepEqual(sent, [], 'Skip sends no request');
-    assert.equal(state.puts.length, before);
+    await calc.click();
+    await page.getByRole('dialog', { name: 'Calculate value at stake' }).waitFor();
+    assert.equal(state.puts.length, 0);
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
 });

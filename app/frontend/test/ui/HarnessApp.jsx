@@ -19,6 +19,8 @@ import { ThemeProvider } from '../../src/ThemeContext';
 import { ValueBulkRunProvider } from '../../src/lib/valueBulkRun';
 import { makeApiFetch, makeApiPostJson } from '../../src/lib/apiClient';
 import { caseIdOf, implementState, notebookStatus } from '../../src/lib/implementWizard';
+import MvpValuePanel from '../../src/components/MvpValuePanel';
+import { measureAnswersOf, measureRows, specWithMeasure } from '../../src/lib/measureSettings';
 import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
 
 const AUTH = { token: 'tok', databricksHost: 'https://workspace.example.com' };
@@ -64,6 +66,7 @@ function LandingHarness() {
 }
 
 function HarnessContent({ open, discoveryType, step, run }) {
+  if (open === 'valuePanel') return <ValuePanelHarness step={step} />;
   if (open === 'app') return <App />;
   if (open === 'card') return <CardHarness />;
   if (open === 'run') return <RunHarness />;
@@ -267,5 +270,31 @@ function WizardOnly({ discoveryType, step, onImplemented }) {
       onImplemented={onImplemented}
       onOpenBuild={(useCaseId) => onImplemented({ use_case_id: useCaseId })}
     />
+  );
+}
+
+// REQ-457: the MVP value panel on its own, with a measure prop driven by local state and a stand-in editor (one "Hold back" checkbox).
+// step 'nomeasure' mounts it with measure undefined; step 'open-holdout' sets measure.open. The live spec is on window.__measureSpec.
+const PANEL_SPEC = { money: { rule: 'gains', sign: { column: 'delta' }, currency: 'per_currency', value: { method: 'column', column: 'amount', currency: 'USD' } },
+  kpi: { target: 'Churn rate' }, holdout: { enabled: false, share: 0.1 } };
+function ValuePanelHarness({ step }) {
+  const apiFetch = useMemo(() => makeApiFetch(AUTH), []);
+  const apiPostJson = useMemo(() => makeApiPostJson(AUTH), []);
+  const [spec, setSpec] = useState(PANEL_SPEC);
+  window.__measureSpec = spec;
+  const editor = (
+    <label>
+      <input type="checkbox" checked={Boolean(spec.holdout?.enabled)} onChange={(e) => setSpec((s) => ({ ...s, holdout: { ...s.holdout, enabled: e.target.checked } }))} />
+      Hold back
+    </label>
+  );
+  const measure = step === 'nomeasure' ? undefined : {
+    rows: measureRows(spec), values: measureAnswersOf(spec), editor, open: step === 'open-holdout' ? 'holdout' : '',
+    onKeep: (snapshot) => setSpec((s) => specWithMeasure(s, snapshot)),
+  };
+  return (
+    <ThemeProvider>
+      <MvpValuePanel uc={HARNESS_USE_CASE} sessionId={HARNESS_SESSION_ID} settings={SETTINGS} apiFetch={apiFetch} apiPostJson={apiPostJson} measure={measure} />
+    </ThemeProvider>
   );
 }
