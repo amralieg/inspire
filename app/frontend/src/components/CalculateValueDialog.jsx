@@ -43,7 +43,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
         <>
           <button type="button" onClick={onCancel} className="rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle">Cancel</button>
           <button type="button" disabled={!ready} onClick={() => onCalculate(table, answersOf(spec, kpiOptions))}
-            className="rounded-md bg-db-red px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">{VALUE_LABELS.calculate}</button>
+            className="rounded-md bg-db-red-solid hover:bg-db-red-solid-hover px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">{VALUE_LABELS.calculate}</button>
         </>
       )}>
       <p className="text-[12px] text-text-secondary">Value at stake: Inspire estimates the value on a sample of the main table and scales it to every record and to a year. No build runs.</p>

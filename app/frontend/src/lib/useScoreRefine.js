@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { refineReason, refineScores, ratioText, withRefinedScores } from './scoreRefine.js';
 import { nameOfUseCase, trackingIdOf } from './useCaseFields.js';
 
-// REQ-433: the refine banner state for the Results page: the suggestions, Apply, Undo and Keep. Keep holds until a value changes.
+// REQ-433: the refine banner state for the Review page: the suggestions, Apply, Undo and Keep. Keep holds until a value changes.
 const keepKey = (host, db, sid) => `inspire.refine.keep.v1|${host || ''}|${db || ''}|${sid || ''}`;
 const readKeep = (key) => { try { return globalThis.localStorage?.getItem(key) || ''; } catch { return ''; } };
 const writeKeep = (key, v) => { try { globalThis.localStorage?.setItem(key, v); } catch { /* storage unavailable: Keep lasts for this view */ } };
