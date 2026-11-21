@@ -25,6 +25,16 @@ const results = (belowBar = '') => {
   return out;
 };
 const posts = [];
+// REQ-433: how the next POST answers: 'ok', 'hold' (stays open until release[kind]() is called) or 'fail' (HTTP 500).
+const mode = { apply: 'ok', undo: 'ok' };
+const release = {};
+const reset = () => { posts.length = 0; mode.apply = 'ok'; mode.undo = 'ok'; };
+const answer = async (kind, req, res, ok) => {
+  posts.push([kind, req.body]);
+  if (mode[kind] === 'hold') await new Promise((resolve) => { release[kind] = resolve; });
+  if (mode[kind] === 'fail') return res.status(500).json({ error: 'The warehouse write failed.' });
+  return res.json(ok);
+};
 const mount = (app) => {
   app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
   app.get('/api/showcase', (_req, res) => res.json({}));
@@ -32,8 +42,8 @@ const mount = (app) => {
   app.get('/api/inspire/value/overall', (_req, res) => res.json({ at_stake: [], saved: [], runs: 0, businesses: 0 }));
   app.get('/api/inspire/value/runs', (_req, res) => res.json({ runs: {} }));
   app.get('/api/inspire/value/yearly', (_req, res) => res.json({ use_cases: { 'N01-U01': entry(1e6), 'N01-U02': entry(3e6) } }));
-  app.post('/api/inspire/score-refine', (req, res) => { posts.push(['apply', req.body]); res.json({ applied: req.body.changes.map((c) => ({ use_case_id: c.use_case_id, score: c.score, from: c.from })) }); });
-  app.post('/api/inspire/score-refine/undo', (req, res) => { posts.push(['undo', req.body]); res.json({ restored: req.body.use_case_ids }); });
+  app.post('/api/inspire/score-refine', (req, res) => answer('apply', req, res, { applied: req.body.changes.map((c) => ({ use_case_id: c.use_case_id, score: c.score, from: c.from })) }));
+  app.post('/api/inspire/score-refine/undo', (req, res) => answer('undo', req, res, { restored: req.body.use_case_ids }));
 };
 const open = () => openUi('results', { ...REVIEW_STATE, results: results() }, '', { mount });
 const scoreOf = (page, name) => page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]').filter({ hasText: name }).locator('[title^="Inspire composite score"]').first();
@@ -57,7 +67,7 @@ test('the banner names the pair, previews old to new, and carries the full discl
 });
 
 test('Apply stores the new score and shows "Refined from 8.5"; Undo restores it', async () => {
-  posts.length = 0;
+  reset();
   const ui = await open();
   const { page } = ui;
   try {
@@ -80,7 +90,7 @@ test('Apply stores the new score and shows "Refined from 8.5"; Undo restores it'
 });
 
 test('Keep dismisses the banner and changes no score', async () => {
-  posts.length = 0;
+  reset();
   const ui = await open();
   const { page } = ui;
   try {
@@ -99,7 +109,7 @@ const openReloaded = () => openUi('results', { ...REVIEW_STATE, results: results
   useCases: [{ No: 'N01-U02', id: 'N01-U02', inspire_score: 8.5, refined_score: 9.05, refined_from: 8.5 }] }, '', { mount });
 
 test('after a reload the refined score still offers Undo on its card, and Undo restores the first score', async () => {
-  posts.length = 0;
+  reset();
   const ui = await openReloaded();
   const { page } = ui;
   try {
@@ -143,6 +153,99 @@ test('REQ-433: in one tier Apply moves the refined card above its partner', asyn
     await page.locator('[title*="Refined from 8.5"]').first().waitFor({ timeout: 15000 });
     const after = await cardNames(page);
     assert.ok(rowOf(after, 'Score upsell') < rowOf(after, 'Predict churn'), 'the refined card sits above its partner');
+  } finally {
+    await ui.close();
+  }
+});
+
+// REQ-433: the cards reorder on the click; the write follows and is undone on screen only if it fails.
+const waitPosts = (n) => new Promise((resolve, reject) => {
+  const t0 = Date.now();
+  const tick = () => (posts.length >= n ? resolve() : Date.now() - t0 > 15000 ? reject(new Error('the POST never arrived')) : setTimeout(tick, 25));
+  tick();
+});
+const refinedAbove = (names) => rowOf(names, 'Score upsell') < rowOf(names, 'Predict churn');
+
+test('REQ-433: Apply reorders the cards before the write answers, and the order stays after it answers', async () => {
+  reset(); mode.apply = 'hold';
+  const ui = await open();
+  const { page } = ui;
+  try {
+    const banner = page.getByRole('region', { name: 'Score refinement' });
+    await banner.waitFor({ timeout: 15000 });
+    assert.equal(refinedAbove(await cardNames(page)), false, 'before Apply the partner is first');
+    await banner.getByRole('button', { name: 'Apply', exact: true }).click();
+    await waitPosts(1);
+    await page.waitForFunction(() => document.querySelector('[title*="Refined from 8.5"]'), null, { timeout: 5000 });
+    assert.equal(refinedAbove(await cardNames(page)), true, 'the refined card is above its partner while the write is still open');
+    assert.equal(await banner.getByRole('button', { name: 'Undo', exact: true }).isDisabled(), true, 'the banner shows it is saving');
+    release.apply();
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent === 'Undo' && !b.disabled), null, { timeout: 15000 });
+    assert.equal(refinedAbove(await cardNames(page)), true, 'the order holds after the write answers');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('REQ-433: Apply answered with 500 restores the order, shows the error and offers Apply again', async () => {
+  reset(); mode.apply = 'fail';
+  const ui = await open();
+  const { page } = ui;
+  try {
+    const banner = page.getByRole('region', { name: 'Score refinement' });
+    await banner.waitFor({ timeout: 15000 });
+    const before = await cardNames(page);
+    await banner.getByRole('button', { name: 'Apply', exact: true }).click();
+    await banner.getByRole('alert').waitFor({ timeout: 15000 });
+    assert.deepEqual(await cardNames(page), before, 'the order is the one before Apply');
+    assert.equal(await page.locator('[title*="Refined from"]').count(), 0, 'no score reads refined');
+    assert.match(await banner.getByRole('alert').innerText(), /warehouse write failed/i);
+    const again = banner.getByRole('button', { name: 'Apply', exact: true });
+    assert.equal(await again.count(), 1);
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent === 'Apply' && !b.disabled), null, { timeout: 15000 });
+  } finally {
+    await ui.close();
+  }
+});
+
+test('REQ-433: Undo reorders the cards before the write answers', async () => {
+  reset();
+  const ui = await open();
+  const { page } = ui;
+  try {
+    const banner = page.getByRole('region', { name: 'Score refinement' });
+    await banner.getByRole('button', { name: 'Apply', exact: true }).click();
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent === 'Undo' && !b.disabled), null, { timeout: 15000 });
+    const original = await cardNames(page).then((n) => !refinedAbove(n));
+    assert.equal(original, false, 'the refined order is showing');
+    mode.undo = 'hold';
+    await banner.getByRole('button', { name: 'Undo', exact: true }).click();
+    await waitPosts(2);
+    await page.waitForFunction(() => !document.querySelector('[title*="Refined from"]'), null, { timeout: 5000 });
+    assert.equal(refinedAbove(await cardNames(page)), false, 'the order is back while the undo write is still open');
+    release.undo();
+    await page.waitForFunction(() => !document.querySelector('[title*="Refined from"]'), null, { timeout: 15000 });
+    assert.equal(refinedAbove(await cardNames(page)), false, 'the order holds after the undo answers');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('REQ-433: Undo answered with 500 brings the refined order back and shows the error', async () => {
+  reset();
+  const ui = await open();
+  const { page } = ui;
+  try {
+    const banner = page.getByRole('region', { name: 'Score refinement' });
+    await banner.getByRole('button', { name: 'Apply', exact: true }).click();
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent === 'Undo' && !b.disabled), null, { timeout: 15000 });
+    mode.undo = 'fail';
+    await banner.getByRole('button', { name: 'Undo', exact: true }).click();
+    await banner.getByRole('alert').waitFor({ timeout: 15000 });
+    assert.equal(refinedAbove(await cardNames(page)), true, 'the refined order is back');
+    assert.ok(await page.locator('[title*="Refined from 8.5"]').count() >= 1, 'the score reads refined again');
+    assert.match(await banner.getByRole('alert').innerText(), /warehouse write failed/i);
+    assert.equal(await banner.getByRole('button', { name: 'Undo', exact: true }).count(), 1, 'the banner offers Undo again');
   } finally {
     await ui.close();
   }
