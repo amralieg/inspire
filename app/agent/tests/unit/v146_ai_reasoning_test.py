@@ -216,6 +216,8 @@ def test_the_run_summary_says_how_old_the_data_is_so_no_row_carries_it(fresh_ns)
     asked = []
 
     def reply(statement):
+        if "'Reply with ok.'" in statement:
+            return [{"r": {"result": "ok", "errorMessage": None}}]  # REQ-422 model-name probe, not a summary ask
         if "ai_query(" in statement:
             asked.append(statement)
             return [{"r": {"result": "Twelve zones need drivers now.", "errorMessage": None}}]
