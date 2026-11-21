@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pencil } from 'lucide-react';
 import { valueChips } from '../lib/valueLedger';
-import { VALUE_DISCLAIMER } from '../lib/valueLabels';
+import { VALUE_DISCLAIMER, threeDigits } from '../lib/valueLabels';
 
 // REQ-438: the value box beside the Inspire score box on a card. Same size as the score box. States: none, estimated, calculated,
 // out of date (stale), no data. Pure display: the numbers come from the server (answers, totals), never from a formula here.
 const stop = (e) => e.stopPropagation();
 export const BOX = 'relative flex h-[6.25rem] w-[8.5rem] shrink-0 flex-col items-center justify-center rounded-xl border-2 text-center leading-tight';
 
-export const moneyText = (unit, amount) => valueChips([{ kind: 'money', unit: unit || 'USD', amount: Number(amount) }]).shown[0]?.text || '';
+// REQ-432: an amount carries three significant digits at most ($405,556 reads $406K).
+export const moneyText = (unit, amount) => valueChips([{ kind: 'money', unit: unit || 'USD', amount: threeDigits(Number(amount)) }]).shown[0]?.text || '';
 
 // What the box shows, from the best source: the saved shape-2 value, then an old-shape value, then the totals row.
 export function boxModel({ yearly = null, summary = null, status = '' } = {}) {
@@ -65,12 +66,12 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
     return undefined;
   }, [m.amount]);
   if (m.state === 'no_data') {
-    return <div data-value-box="" data-value-state="no_data" className={`${BOX} border-border bg-bg-subtle text-text-tertiary`}><span className="px-2 text-[11px]">No data to count</span></div>;
+    return <div data-value-box="" data-value-box-state="no_data" className={`${BOX} border-border bg-bg-subtle text-text-tertiary`}><span className="px-2 text-[11px]">No data to count</span></div>;
   }
   if (m.state === 'none') {
     if (!canCalculate || readOnly) return null;
     return (
-      <button type="button" data-value-box="" data-value-state="none" data-value-calculate="" onClick={(e) => { e.stopPropagation(); onCalculate?.(); }} onKeyDown={stop}
+      <button type="button" data-value-box="" data-value-box-state="none" data-value-calculate="" onClick={(e) => { e.stopPropagation(); onCalculate?.(); }} onKeyDown={stop}
         className={`${BOX} cursor-pointer border-dashed border-db-red/40 bg-surface hover:bg-db-red-50`}>
         <span className="text-[22px] leading-none text-db-red-fg">+</span>
         <span className="text-[11px] font-semibold text-db-red-fg">Calculate value</span>
@@ -84,7 +85,7 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
   const [tag, tagCls] = TAGS[m.state];
   const text = moneyText(m.unit, amount);
   return (
-    <div data-value-box="" data-value-state={m.state} data-value-yearly="" title={VALUE_DISCLAIMER} onClick={stop} onKeyDown={stop}
+    <div data-value-box="" data-value-box-state={m.state} data-value-yearly="" title={VALUE_DISCLAIMER} onClick={stop} onKeyDown={stop}
       className={`${BOX} ${edge} bg-surface ${pulse ? 'animate-pulse' : ''}`}>
       <span data-value-verb="" className="text-[11px] tracking-wide text-text-primary">{m.verb}</span>
       <span data-value-amount="" className={`text-[22px] font-extrabold tabular-nums ${amt}`}>{text}</span>

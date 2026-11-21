@@ -20,7 +20,7 @@ const count = (n) => Number(n).toLocaleString('en-US');
 
 // "$15M (estimated)": the largest amount in its own currency or unit, with how many other currencies or units follow.
 // An estimate carries three significant digits at most: $405,556 reads "$406K".
-const threeDigits = (n) => (Number.isFinite(n) && n !== 0 ? Number(n.toPrecision(3)) : n);
+export const threeDigits = (n) => (Number.isFinite(n) && n !== 0 ? Number(n.toPrecision(3)) : n);
 
 export function yearlyHeadline(yearly) {
   const entries = Array.isArray(yearly?.entries) ? yearly.entries.map((e) => ({ ...e, amount: threeDigits(Number(e.amount)) })) : [];

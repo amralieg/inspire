@@ -14,7 +14,7 @@ export default function InspireScoreBadge({ score, refinedFrom = null, onUndo = 
       >
         <span className="text-[10px] font-bold uppercase tracking-[0.12em] leading-none">Inspire</span>
         <span className="mt-1 text-3xl font-extrabold tabular-nums leading-none">{refined ? score.toFixed(2) : score.toFixed(1)}</span>
-        <span className="mt-1 text-[10px] opacity-90">score</span>
+        <span className="mt-1 text-[10px]">score</span>
       </div>
       {refined && onUndo && (
         <button type="button" aria-label="Undo refined score" title={`Restore the first score, ${from}`} className="text-[10px] font-semibold text-db-red-fg underline"
