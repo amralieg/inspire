@@ -8,6 +8,8 @@ export const CASE_PLAN_ROUTE = '/api/inspire/value/case-plan';
 export const PREVIEW_ROUTE = '/api/inspire/value/preview';
 export const PREVIEW_DEBOUNCE_MS = 150;
 export const FALLBACK_NOTICE = 'Inspire could not read the data for this; the numbers are estimates you can change';
+// REQ-448: with no AI model the plan starts with every value driver off, so nothing is invented; the reason comes from the server.
+export const noModelNotice = (reason) => `No AI model planned this value${reason ? ` (${reason})` : ''}, so every value driver starts off. Turn on the ones that apply and set their numbers.`;
 export const DRIVER_ICONS = { risk_avoided: '🛡️', time_saved: '⏱️', revenue_uplift: '📈', cost_cut: '🧾', productivity: '👥' };
 
 // Round up to 1, 2, 5 or 10 times a power of ten.

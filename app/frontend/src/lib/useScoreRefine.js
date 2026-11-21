@@ -27,7 +27,8 @@ export function useScoreRefine({ useCases, yearlyOf, apiPostJson, host, inspireD
   const [kept, setKept] = useState(() => readKeep(key));
   const list = useMemo(() => withRefinedScores(useCases, refined, trackingIdOf), [useCases, refined]);
   const tiers = useMemo(() => tiersOf(list), [list]);
-  const items = useMemo(() => list.map((uc, i) => ({ id: trackingIdOf(uc), tier: tiers[i], name: nameOfUseCase(uc), score: uc.inspire_score ?? null, entries: yearlyOf(trackingIdOf(uc))?.entries || null }))
+  const items = useMemo(() => list.map((uc, i) => ({ id: trackingIdOf(uc), tier: tiers[i], name: nameOfUseCase(uc), score: uc.inspire_score ?? null, entries: yearlyOf(trackingIdOf(uc))?.entries || null,
+    flagged: Boolean(yearlyOf(trackingIdOf(uc))?.check?.outside && !yearlyOf(trackingIdOf(uc))?.calculated) }))
     .filter((it) => it.id && it.score != null && it.score !== '').map((it) => ({ ...it, score: Number(it.score) })), [list, tiers, yearlyOf]);
   const found = useMemo(() => refineScores(items), [items]);
   const signature = useMemo(() => JSON.stringify(found.pairs.map((p) => [p.lower.id, p.higher.id, p.lowerAmount, p.higherAmount, p.lower.start])), [found]);

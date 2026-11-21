@@ -25,7 +25,8 @@ function ratioOf(x, y) {
 export function refineScores(items) {
   const rows = (Array.isArray(items) ? items : [])
     .map((it) => ({ ...it, values: valuesOf(it.entries), start: Number(it.score), now: Number(it.score) }))
-    .filter((r) => r.values.size && Number.isFinite(r.start));
+    // REQ-448: an estimate outside the usual range (flagged "Check the numbers") never moves a score.
+    .filter((r) => r.values.size && Number.isFinite(r.start) && !r.flagged);
   const total = (r) => Math.max(...r.values.values());
   const order = [...rows].sort((a, b) => total(a) - total(b));
   const pairs = [];

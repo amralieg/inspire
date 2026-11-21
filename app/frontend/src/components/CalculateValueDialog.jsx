@@ -7,7 +7,7 @@ import { StepData, StepGroups, StepKind, StepKinds } from './valueWizard/Steps.j
 import usePreview from './valueWizard/usePreview.js';
 import { trackingIdOf } from '../lib/useCaseFields';
 import { VALUE_LABELS } from '../lib/valueLabels';
-import { CASE_PLAN_ROUTE, FALLBACK_NOTICE, answersKey, bodyOf, carryAnswers, driversOn, initialAnswers } from '../lib/valueWizard.js';
+import { CASE_PLAN_ROUTE, FALLBACK_NOTICE, noModelNotice, answersKey, bodyOf, carryAnswers, driversOn, initialAnswers } from '../lib/valueWizard.js';
 
 const messageOf = (err) => String(err?.message || err || 'The value could not be saved.');
 const STEPS = ['Your data', 'Kinds of value', 'Each value', 'By group', 'Save'];
@@ -112,7 +112,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
     const yearly = preview.yearly;
     return (
       <>
-        {!plan.model && <p role="note" data-fallback-notice="" className="rounded-md border border-warning/40 bg-warning-bg px-3 py-1.5 text-[12px] text-warning-fg">{FALLBACK_NOTICE}</p>}
+        {!plan.model && <p role="note" data-fallback-notice="" className="rounded-md border border-warning/40 bg-warning-bg px-3 py-1.5 text-[12px] text-warning-fg">{plan.model_reason ? noModelNotice(plan.model_reason) : FALLBACK_NOTICE}</p>}
         {page === 'data' && <StepData plan={plan} answers={answers} onGrouping={chooseGrouping} />}
         {page === 'kinds' && <StepKinds plan={plan} answers={answers} onToggle={toggleDriver} />}
         {driver && <StepKind plan={plan} driver={driver} answers={answers} yearly={yearly} onInput={setInput} status={preview.status} error={preview.error} />}
