@@ -139,6 +139,12 @@ test('every Arabic value on the Review page sits in an element that sets or isol
     assert.match(await order.innerText(), new RegExp(AR.name), 'the build order lists the Arabic use case, so the check covers it');
     const { unisolated } = await ui.page.locator('body').evaluate(layout);
     assert.deepEqual(unisolated, []);
+    // REQ-444: the page is split into 3 views; the same check covers the other two.
+    for (const view of ['Use cases', 'Assets']) {
+      await toView(ui.page, view);
+      const other = await ui.page.locator('body').evaluate(layout);
+      assert.deepEqual(other.unisolated, [], `${view} view`);
+    }
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
