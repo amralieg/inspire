@@ -51,8 +51,8 @@ test('a measured card shows the verb line, "$15M (estimated)" and "Per Year" bel
 test('Calculate opens the Value at stake questions, submitting calls the estimate endpoint, and the card then shows the value', async () => {
   posts.length = 0;
   const ui = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS }, '', { mount: (app) => {
-    mount(app);
     app.get('/api/inspire/value/yearly', (_req, res) => res.json({ use_cases: {} }));
+    mount(app);
   } });
   const { page } = ui;
   try {
@@ -79,9 +79,9 @@ test('Calculate opens the Value at stake questions, submitting calls the estimat
 
 test('a failed estimate shows one line with a retry on the card, never 0 and never blank', async () => {
   const ui = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS }, '', { mount: (app) => {
-    mount(app);
     app.get('/api/inspire/value/yearly', (_req, res) => res.json({ use_cases: {} }));
     app.post('/api/inspire/value/estimate', (_req, res) => res.status(422).json({ error: 'The table has no date column to scale the sample to a year.' }));
+    mount(app);
   } });
   const { page } = ui;
   try {
