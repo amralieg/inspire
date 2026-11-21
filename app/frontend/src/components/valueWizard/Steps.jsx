@@ -53,7 +53,7 @@ export function StepKinds({ plan, answers, onToggle }) {
           const on = Boolean(answers.drivers[d.id]?.on);
           return (
             <button key={d.id} type="button" role="checkbox" aria-checked={on} onClick={() => onToggle(d.id)}
-              className={`flex items-start gap-2.5 rounded-lg border px-3 py-2 text-left ${on ? 'border-db-red-solid ring-1 ring-db-red-solid' : 'border-border hover:bg-bg-subtle'}`}>
+              className={`flex items-start gap-2.5 rounded-lg border px-3 py-2 text-start ${on ? 'border-db-red-solid ring-1 ring-db-red-solid' : 'border-border hover:bg-bg-subtle'}`}>
               <span aria-hidden="true" className="text-xl leading-none">{DRIVER_ICONS[d.id] || ''}</span>
               <span className="min-w-0 flex-1"><b className="block text-[13px] text-text-primary">{d.label}</b><span className="block text-[12px] text-text-secondary">{d.why}</span>
                 <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide text-text-secondary">{d.verb}</span></span>
@@ -75,8 +75,8 @@ export function StepKind({ plan, driver, answers, yearly, onInput, status, error
       <div className="flex flex-wrap items-center gap-3">
         <span aria-hidden="true" className="text-2xl">{DRIVER_ICONS[driver.id] || ''}</span>
         <div className="min-w-0 flex-1"><h3 className="text-sm font-bold text-text-primary">{driver.label}</h3><p className="text-[12px] text-text-secondary">{driver.why}</p></div>
-        <div className="rounded-lg border border-border px-3 py-1 text-right"><p className="text-[10px] uppercase tracking-wide text-text-secondary">{driver.label}</p><p data-kind-amount="" className="text-lg font-extrabold tabular-nums text-text-primary">{part ? moneyText(unit, part.amount) : '...'}</p></div>
-        <div className="rounded-lg border border-border bg-bg-subtle px-3 py-1 text-right"><p className="text-[10px] uppercase tracking-wide text-text-secondary">Running total</p><p data-run-total="" className="text-lg font-extrabold tabular-nums text-text-primary">{totalText(yearly) || '...'}</p></div>
+        <div className="rounded-lg border border-border px-3 py-1 text-end"><p className="text-[10px] uppercase tracking-wide text-text-secondary">{driver.label}</p><p data-kind-amount="" className="text-lg font-extrabold tabular-nums text-text-primary">{part ? moneyText(unit, part.amount) : '...'}</p></div>
+        <div className="rounded-lg border border-border bg-bg-subtle px-3 py-1 text-end"><p className="text-[10px] uppercase tracking-wide text-text-secondary">Running total</p><p data-run-total="" className="text-lg font-extrabold tabular-nums text-text-primary">{totalText(yearly) || '...'}</p></div>
       </div>
       {status === 'error' && <p role="alert" className="rounded-md border border-error/30 bg-error-bg px-3 py-1.5 text-[12px] text-error-fg">{error}</p>}
       <div className="grid grid-cols-2 gap-2">

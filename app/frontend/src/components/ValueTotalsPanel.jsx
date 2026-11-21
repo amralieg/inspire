@@ -81,7 +81,7 @@ export function AllRunsValuePanel({ reply }) {
   const byRun = runs.map((r, k) => ({ name: r.name || r.session_id, value: (r.totals || []).reduce((s, t) => s + (Number(t.amount) || 0), 0), text: (r.totals || []).map((t) => moneyText(t.currency, t.amount)).join(' + '), color: PALETTE[k % PALETTE.length] }));
   const cell = (r, f) => (r.totals || []).map((t) => moneyText(t.currency, t[f])).join(' + ') || '—';
   return (
-    <section aria-label="Value across all runs" data-value-all-panel="" className="mb-4 rounded-xl border border-border bg-surface p-4">
+    <section aria-label="Value at stake, every run" data-value-all-panel="" className="mb-4 rounded-xl border border-border bg-surface p-4">
       <h2 className="text-base font-bold text-text-primary">Value across all runs</h2>
       <p className="text-[12px] text-text-secondary">Each run&apos;s total, and one total for everything Inspire found.{reply.truncated ? ' Showing the newest runs only.' : ''}</p>
       <div className="mt-3 flex flex-wrap items-start gap-4">

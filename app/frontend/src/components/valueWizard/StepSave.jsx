@@ -32,7 +32,7 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
               </div>
               <p className="mt-auto text-base font-extrabold tabular-nums">{on ? (part ? moneyText(unit, part.amount) : '...') : 'off'}</p>
               <button type="button" disabled={!on} onClick={() => setOpen(open === d.id ? null : d.id)} aria-expanded={open === d.id}
-                className="text-left text-[12px] font-semibold text-db-red-solid disabled:opacity-40">Edit numbers</button>
+                className="text-start text-[12px] font-semibold text-db-red-solid disabled:opacity-40">Edit numbers</button>
             </div>
           );
         })}

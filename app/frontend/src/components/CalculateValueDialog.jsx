@@ -129,7 +129,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
     <ModalDialog titleId="calculate-value-title" title={VALUE_LABELS.dialogTitle} onClose={onClose} widthClass="max-w-4xl"
       footer={(
         <>
-          <span data-preview-state={preview.status} className="mr-auto text-[12px] text-text-secondary">{plan && answers && preview.status === 'updating' ? 'Updating' : 'Up to date'}</span>
+          <span data-preview-state={preview.status} className="me-auto text-[12px] text-text-secondary">{plan && answers && preview.status === 'updating' ? 'Updating' : 'Up to date'}</span>
           {pageIdx > 0 && <button type="button" className={btn} onClick={() => setPageIdx((i) => Math.max(0, i - 1))}>Back</button>}
           {last ? (
             <>
