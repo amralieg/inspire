@@ -563,10 +563,11 @@ test('REQ-078 Start: one estimates read feeds every run card and the banner; eac
     await page.locator('[data-run="42"] [data-value-headline="at stake"]').waitFor({ timeout: 20000 });
     const estimated = page.locator('[data-run="42"] [data-value-estimated-total]');
     await estimated.waitFor({ timeout: 20000 });
-    assert.equal((await estimated.innerText()).trim(), 'Plus estimated, not measured: 3,000 AED');
+    // REQ-434: every estimate total carries the short disclaimer.
+    assert.equal((await estimated.innerText()).trim(), 'Plus estimated, not measured: 3,000 AED Unverified estimate');
     const banner = page.locator('[data-value-overall] [data-value-estimated-total]');
     await banner.waitFor({ timeout: 20000 });
-    assert.equal((await banner.innerText()).trim(), 'Plus estimated, not measured: 3,000 AED', 'the banner shows the estimate too');
+    assert.equal((await banner.innerText()).trim(), 'Plus estimated, not measured: 3,000 AED Unverified estimate', 'the banner shows the estimate too');
     assert.equal(estimateUrls.length, 1, `Start reads the batch once (StrictMode must not double it): ${estimateUrls.join(' ')}`);
     assert.ok(!estimateUrls[0].includes('session_id='), 'the batch read is all runs, not one run');
     assert.equal(await page.locator('[data-run="42"] [data-value-headline="at stake"]').innerText().then((t) => t.trim()), 'AED 9K', 'the measured total is still shown on its own');
