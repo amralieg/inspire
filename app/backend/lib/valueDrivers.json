@@ -1,0 +1,56 @@
+{
+  "_doc": "REQ-435: value that is not in the data. One shared definition read by the backend estimate and the Calculate value dialog. Each driver is a yearly amount from typed assumptions; money inputs use the answer currency; pct inputs are 0-100.",
+  "attribution": { "id": "attribution_pct", "label": "Share of this value the use case earns", "default": 100, "min": 0, "max": 100 },
+  "drivers": [
+    {
+      "id": "time_saved",
+      "label": "Time saved",
+      "formula": "events_per_year * people * (hours_before - hours_after) * cost_per_hour",
+      "inputs": [
+        { "id": "events_per_year", "label": "Times the task is done per year", "kind": "count" },
+        { "id": "people", "label": "People who work on it each time", "kind": "count" },
+        { "id": "hours_before", "label": "Hours each time today", "kind": "hours" },
+        { "id": "hours_after", "label": "Hours each time with the use case", "kind": "hours" },
+        { "id": "cost_per_hour", "label": "Cost of one hour of work", "kind": "money" }
+      ]
+    },
+    {
+      "id": "productivity",
+      "label": "People productivity",
+      "formula": "headcount * cost_per_person_year * gain_pct / 100",
+      "inputs": [
+        { "id": "headcount", "label": "People whose work gets faster", "kind": "count" },
+        { "id": "cost_per_person_year", "label": "Cost of one person per year", "kind": "money" },
+        { "id": "gain_pct", "label": "Time they get back (%)", "kind": "pct" }
+      ]
+    },
+    {
+      "id": "revenue_uplift",
+      "label": "Revenue uplift",
+      "formula": "base_revenue_per_year * uplift_pct / 100",
+      "inputs": [
+        { "id": "base_revenue_per_year", "label": "Revenue this touches per year", "kind": "money" },
+        { "id": "uplift_pct", "label": "Expected uplift (%)", "kind": "pct" }
+      ]
+    },
+    {
+      "id": "cost_cut",
+      "label": "Cost cut",
+      "formula": "spend_per_year * cut_pct / 100",
+      "inputs": [
+        { "id": "spend_per_year", "label": "Spend this touches per year", "kind": "money" },
+        { "id": "cut_pct", "label": "Expected cut (%)", "kind": "pct" }
+      ]
+    },
+    {
+      "id": "risk_avoided",
+      "label": "Risk avoided",
+      "formula": "incidents_per_year * cost_per_incident * reduction_pct / 100",
+      "inputs": [
+        { "id": "incidents_per_year", "label": "Incidents per year today", "kind": "count" },
+        { "id": "cost_per_incident", "label": "Cost of one incident", "kind": "money" },
+        { "id": "reduction_pct", "label": "Incidents the use case prevents (%)", "kind": "pct" }
+      ]
+    }
+  ]
+}
