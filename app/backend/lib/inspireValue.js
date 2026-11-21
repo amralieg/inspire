@@ -50,8 +50,8 @@ function valueOverallSql(table, sessionsTable) {
   return `WITH latest_sessions AS (SELECT CAST(session_id AS STRING) AS session_id FROM (SELECT session_id, ROW_NUMBER() OVER `
     + `(PARTITION BY COALESCE(business_name, '') ORDER BY create_at DESC, session_id DESC) AS rn FROM ${sessionsTable}) ranked WHERE rn = 1), `
     + `${ledgerRows(table, '')}, `
-    + 'stake AS (SELECT kind, currency, unit, at_stake, ROW_NUMBER() OVER (PARTITION BY session_id, result_table, use_case_id '
-    + 'ORDER BY recorded_at DESC, run_id DESC) AS rn FROM ledger_rows WHERE record_key IS NULL '
+    + 'stake AS (SELECT kind, currency, unit, at_stake, ROW_NUMBER() OVER (PARTITION BY session_id, result_table, kind, currency, unit '
+    + 'ORDER BY at_stake DESC, recorded_at DESC, run_id DESC) AS rn FROM ledger_rows WHERE record_key IS NULL '
     + 'AND session_id IN (SELECT session_id FROM latest_sessions)), '
     + 'saved AS (SELECT kind, currency, unit, saved, ROW_NUMBER() OVER (PARTITION BY session_id, result_table, use_case_id, record_key '
     + 'ORDER BY recorded_at DESC, run_id DESC) AS rn FROM ledger_rows WHERE record_key IS NOT NULL) '

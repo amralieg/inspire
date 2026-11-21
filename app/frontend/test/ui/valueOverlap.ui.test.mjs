@@ -49,7 +49,7 @@ test('the run panel marks shared values, flagged values and what the total leave
     assert.equal(await flagged.getByText('Check the numbers').first().getAttribute('title'), REASON);
     assert.match(await text(panel), /1 estimate outside \$100K–\$100M not counted/);
     assert.match(await text(panel), /1 shared value counted once/);
-    assert.equal(await text(panel.locator('[data-value-run-total]')), 'Run total $35.61M');
+    assert.equal(await text(panel.locator('[data-value-run-total]')), 'Run total $35.6M');
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
 });

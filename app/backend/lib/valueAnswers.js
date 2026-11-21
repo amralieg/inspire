@@ -1,6 +1,7 @@
 // REQ-435: the saved Calculate value answers. Append-only: every save and every undo is one new version row of one use case, and every
 // value is a bound parameter, never part of the SQL text.
 const { binder } = require('./scoreRefine');
+const VP = require('./valuePlausibility');
 
 const COLUMNS = 'session_id STRING, use_case_id STRING, version INT, answers STRING, yearly STRING, saved_at TIMESTAMP, saved_by STRING, note STRING';
 const FIELDS = 'session_id, use_case_id, version, answers, yearly, saved_at, saved_by, note';
@@ -46,6 +47,8 @@ const json = (text) => {
   }
 };
 
-const versionOf = (row) => ({ version: Number(row.version), answers: json(row.answers), yearly: json(row.yearly), saved_at: row.saved_at ?? null, saved_by: row.saved_by ?? '' });
+// A stored yearly with no check (saved before REQ-448) is checked on read, so old rows are flagged without being rewritten.
+const checked = (yearly) => (yearly && typeof yearly === 'object' && yearly.total && !yearly.check ? { ...yearly, check: VP.checkOf(yearly) } : yearly);
+const versionOf = (row) => ({ version: Number(row.version), answers: json(row.answers), yearly: checked(json(row.yearly)), saved_at: row.saved_at ?? null, saved_by: row.saved_by ?? '' });
 
 module.exports = { createSql, latestSql, historySql, latestVersionSql, insertSql, versionOf };

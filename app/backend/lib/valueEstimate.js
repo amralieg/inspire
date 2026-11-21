@@ -36,8 +36,13 @@ function estimateOf({ measured = false, baseline = null, rules = [] } = {}) {
 // Totals keep measured money and estimated money apart, per currency; an estimate is never summed into a measured total.
 function totalsOf(estimates) {
   const estimated = {};
+  const seen = new Set();
   for (const e of estimates) {
     if (!e || e.status !== 'estimated') continue;
+    // REQ-454: one rule over one baseline is one pool of money, counted once.
+    const key = `${e.currency}|${e.app}|${e.per_record}|${e.baseline}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     estimated[e.currency] = Math.round(((estimated[e.currency] || 0) + e.amount) * 100) / 100;
   }
   return { estimated };

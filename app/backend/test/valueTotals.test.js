@@ -118,11 +118,11 @@ test('only the latest version counts, an undo row included', async () => {
 
 test('all runs: one row per run and all.totals is their sum', async () => {
   set({ useCases: ['A'], sessions: [['41', 'One', '2026-11-01'], ['42', 'Two', '2026-11-02'], ['43', 'Three', '2026-11-03']],
-    answersBySession: { 41: [saved('A', 1, 100, { calculated: true })], 42: [saved('A', 1, 200)], 43: [saved('A', 1, 300, { calculated: true })] } });
+    answersBySession: { 41: [saved('A', 1, 1e6, { calculated: true })], 42: [saved('A', 1, 2e6)], 43: [saved('A', 1, 3e6, { calculated: true })] } });
   const { status, body } = await get(`/api/inspire/value/totals?${QUERY}`);
   assert.equal(status, 200, JSON.stringify(body));
   assert.deepEqual(body.runs.map((r) => [r.session_id, r.name, r.created_at]), [['41', 'One', '2026-11-01'], ['42', 'Two', '2026-11-02'], ['43', 'Three', '2026-11-03']]);
-  assert.deepEqual(usd(body.all.totals), { currency: 'USD', amount: 600, calculated: 400, estimated: 200 });
+  assert.deepEqual(usd(body.all.totals), { currency: 'USD', amount: 6e6, calculated: 4e6, estimated: 2e6 });
   assert.equal(body.all.n_calculated, 2);
   assert.equal(body.all.n_estimated, 1);
   assert.ok(!body.truncated);
@@ -136,11 +136,11 @@ test('more sessions than the cap sets truncated and reads only the cap', async (
 });
 
 test('by_verb sums per currency and verb', async () => {
-  set({ useCases: ['A', 'B', 'C'], answersBySession: { 42: [saved('A', 1, 10, { calculated: true, verb: 'REDUCE COST' }), saved('B', 1, 5, { verb: 'REDUCE COST' }),
-    saved('C', 1, 7, { calculated: true, verb: 'GROW REVENUE' })] } });
+  set({ useCases: ['A', 'B', 'C'], answersBySession: { 42: [saved('A', 1, 10e6, { calculated: true, verb: 'REDUCE COST' }), saved('B', 1, 5e6, { verb: 'REDUCE COST' }),
+    saved('C', 1, 7e6, { calculated: true, verb: 'GROW REVENUE' })] } });
   const { body } = await get(`/api/inspire/value/totals?${QUERY}&session_id=42`);
   const key = (r) => `${r.currency}|${r.verb}`;
-  assert.deepEqual(body.run.by_verb.map((r) => [key(r), r.amount]).sort(), [['USD|GROW REVENUE', 7], ['USD|REDUCE COST', 15]]);
+  assert.deepEqual(body.run.by_verb.map((r) => [key(r), r.amount]).sort(), [['USD|GROW REVENUE', 7e6], ['USD|REDUCE COST', 15e6]]);
 });
 
 test('a non-numeric session_id is 400', async () => {

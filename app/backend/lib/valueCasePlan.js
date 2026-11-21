@@ -8,6 +8,7 @@ const { replyContent } = require('./appFeedback');
 const VY = require('./valueYearly');
 const { quoteColumn: quote } = require('./inspireImplement');
 const GR = require('./groupingRule');
+const VP = require('./valuePlausibility');
 
 const DEF = VDC.DEFINITION;
 const { GROUP_MIN_RECORDS, GROUP_MAX_GROUPS } = GR;
@@ -51,7 +52,7 @@ function shell(columns, groupBy) {
 
 function fallbackPlan(columns, groupBy = '') {
   const plan = shell(columns || [], groupBy);
-  return { ...plan, drivers: plan.drivers.map((d) => ({ ...d, on: true })) };
+  return plan;
 }
 
 // ---- the model call ----
@@ -129,25 +130,35 @@ function filterSql(f, b) {
   return f.value === undefined || f.value === null ? '' : ` WHERE ${quote(f.column)} ${f.op} ${b.bind(f.value)}`;
 }
 
+// The filter and the dated rows: a row with no date counts toward neither the records nor the days (D4).
+function whereOf(f, b, dateColumn) {
+  const base = filterSql(f, b);
+  const dated = `${quote(dateColumn)} IS NOT NULL`;
+  return base ? `${base} AND ${dated}` : ` WHERE ${dated}`;
+}
+
 function groupedSql(GP, scopes, plan, table, dateColumn) {
   const b = binder();
   return GP.statement(scopes, (ctx) => {
     const needed = [dateColumn, plan.grouping, ...plan.metrics.map((m) => m.column), plan.case_filter && plan.case_filter.column].filter(Boolean);
     const from = GP.previewFrom(table, ctx, needed);
     const f = plan.case_filter;
-    const where = filterSql(f, b);
+    const where = whereOf(f, b, dateColumn);
     const group = plan.grouping ? `COALESCE(CAST(${quote(plan.grouping)} AS STRING), '(blank)')` : "'All'";
     const metrics = plan.metrics.filter((m) => ID_SHAPE.test(String(m.id))).map((m) => `, ${m.agg === 'avg' ? 'AVG' : 'SUM'}(CAST(${quote(m.column)} AS DOUBLE)) AS m_${m.id}`).join('');
-    return `SELECT ${group} AS g, COUNT(*) AS records, DATEDIFF(MAX(${quote(dateColumn)}), MIN(${quote(dateColumn)})) + 1 AS days${metrics} FROM ${from}${where}${plan.grouping ? ' GROUP BY 1' : ''}`;
+    return `SELECT ${group} AS g, COUNT(*) AS records${metrics} FROM ${from}${where}${plan.grouping ? ' GROUP BY 1 ORDER BY records DESC' : ''} LIMIT ${GROUP_MAX_GROUPS}`;
   }, b.parameters);
 }
 
-// Rows of the grouped query -> { days, groups }. Groups under GROUP_MIN_RECORDS (and any past GROUP_MAX_GROUPS) go into "Other".
-function groupsFrom(rows, plan) {
-  const days = Math.max(0, ...rows.map((r) => Number(r.days) || 0));
+// Rows of the grouped query and the population ({ records, days } of the whole filtered table, from currentCountSql) -> { days, groups }.
+// Groups under GROUP_MIN_RECORDS go into "Other", which also holds every record the row list left out, so the total is the population's.
+function groupsFrom(rows, plan, population) {
+  const days = Math.max(0, Number(population && population.days) || 0);
   const raw = rows.map((r) => ({ g: String(r.g), records: Number(r.records) || 0, row: r })).sort((a, b) => b.records - a.records);
   const kept = raw.filter((r, i) => r.records >= GROUP_MIN_RECORDS && i < GROUP_MAX_GROUPS);
   const rest = raw.filter((r) => !kept.includes(r));
+  const total = Number(population && population.records) || 0;
+  const cutOff = Math.max(0, total - raw.reduce((s, r) => s + r.records, 0));
   const scale = (n) => round2(VY.extrapolate({ amount: n, sampled: 1, eligible: 1, days }) ?? 0);
   const metricOf = (m, set) => {
     const records = set.reduce((s, r) => s + r.records, 0);
@@ -155,9 +166,9 @@ function groupsFrom(rows, plan) {
     if (m.agg === 'sum_per_year') return scale(set.reduce((s, r) => s + (Number(r.row[col]) || 0), 0));
     return records ? round2(set.reduce((s, r) => s + (Number(r.row[col]) || 0) * r.records, 0) / records) : 0;
   };
-  const make = (g, set) => ({ g, records_per_year: scale(set.reduce((s, r) => s + r.records, 0)), metrics: Object.fromEntries(plan.metrics.map((m) => [m.id, metricOf(m, set)])) });
+  const make = (g, set, extra = 0) => ({ g, records_per_year: scale(set.reduce((s, r) => s + r.records, 0) + extra), metrics: Object.fromEntries(plan.metrics.map((m) => [m.id, metricOf(m, set)])) });
   const groups = kept.map((r) => make(r.g, [r]));
-  if (rest.length) groups.push(make(OTHER, rest));
+  if (rest.length || cutOff) groups.push(make(OTHER, rest, cutOff));
   return { days, groups };
 }
 
@@ -207,13 +218,14 @@ function yearlyOf(plan, answers) {
   const largest = parts.reduce((best, p) => (!best || p.amount > best.amount ? p : best), null);
   const calculated = Boolean(answers && answers.calculated);
   const grouping = (plan.groupings || []).find((g) => g.column === plan.grouping);
-  return { yearly: {
+  const yearly = {
     verb: largest ? largest.verb : 'VALUE AT STAKE', period: VY.PERIOD, estimated: !calculated, calculated, currency,
     total: { unit: currency, amount: round2((sum * attribution) / 100) },
     parts,
     groups: { grouping_label: grouping ? grouping.label : '', covered: groups.length, of: allGroups.length },
     case_noun: plan.case_noun || 'record', attribution_pct: attribution,
-  } };
+  };
+  return { yearly: { ...yearly, check: VP.checkOf(yearly) } };
 }
 
 // The count behind C5 `stale`: records per year of the table under the plan's filter, and the days its date column covers.
@@ -222,7 +234,7 @@ function currentCountSql(GP, scopes, plan) {
   return GP.statement(scopes, (ctx) => {
     const f = plan.case_filter;
     const from = GP.previewFrom(plan.table, ctx, [plan.date_column, f && f.column].filter(Boolean));
-    const where = filterSql(f, b);
+    const where = whereOf(f, b, plan.date_column);
     return `SELECT COUNT(*) AS records, DATEDIFF(MAX(${quote(plan.date_column)}), MIN(${quote(plan.date_column)})) + 1 AS days FROM ${from}${where}`;
   }, b.parameters);
 }

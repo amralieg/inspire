@@ -1,4 +1,5 @@
 import { moneyText } from './ValueBox';
+import { ValueCheckNote } from './ValueCheckNote';
 
 // REQ-439: a total box, a calculated vs estimated bar, a second bar, and a table. Used for one run and for all runs.
 // Amounts are per currency; two currencies show two totals, never one converted number.
@@ -39,6 +40,21 @@ const split = (totals) => totals.flatMap((t) => [
 
 const PILL = { calculated: 'bg-success-bg text-success-fg', measured: 'bg-success-bg text-success-fg', estimated: 'bg-warning-bg text-warning-fg' };
 
+const plural = (n, one, many) => (n === 1 ? one : many);
+
+// REQ-448, REQ-454: what the total leaves out and what it counts once.
+function CountNotes({ run }) {
+  const out = (run.excluded || []).reduce((s, e) => s + (Number(e.n) || 0), 0);
+  const shared = Number(run.n_shared) || 0;
+  if (!out && !shared) return null;
+  return (
+    <div data-value-count-notes="" className="mt-2 text-[11px] text-text-secondary">
+      {out > 0 && <p>{`${out} ${plural(out, 'estimate', 'estimates')} outside $100K–$100M not counted: check the numbers`}</p>}
+      {shared > 0 && <p>{`${shared} shared ${plural(shared, 'value', 'values')} counted once`}</p>}
+    </div>
+  );
+}
+
 // One run: run = C6 run block, useCases = C6 use_cases, nameOf(id), onRow(id).
 export function RunValuePanel({ run, useCases, nameOf, onRow }) {
   const rows = Object.entries(useCases || {});
@@ -52,6 +68,7 @@ export function RunValuePanel({ run, useCases, nameOf, onRow }) {
         <div className="min-w-0 flex-1">
           <Bar parts={split(run.totals || [])} label="Calculated vs estimated" />
           <Bar parts={byVerb} label="By kind of value" />
+          <CountNotes run={run} />
           <p className="mt-2 text-[11px] text-text-secondary">{`${run.n} use cases · ${run.n_calculated} calculated · ${run.n_estimated} estimated · ${run.n_none} not worked out yet`}</p>
         </div>
       </div>
@@ -60,10 +77,15 @@ export function RunValuePanel({ run, useCases, nameOf, onRow }) {
         <tbody>
           {rows.map(([id, u]) => (
             <tr key={id} data-value-row={id} onClick={() => onRow?.(id)} className="cursor-pointer border-t border-border/60 hover:bg-bg-subtle">
-              <td className="py-1">{nameOf?.(id) || id}</td>
+              <td className="py-1">{nameOf?.(id) || id}
+                {u.overlap && u.overlap.counted === false && <span data-value-shared="" className="block text-[10px] text-text-secondary">{`Shared with ${nameOf?.(u.overlap.with) || u.overlap.with}, counted once`}</span>}
+                {u.overlap && u.overlap.counted === true && <span data-value-shared="" className="block text-[10px] text-text-secondary">{`Also counted for ${u.overlap.shared_with.length} other ${plural(u.overlap.shared_with.length, 'use case', 'use cases')}`}</span>}
+              </td>
               <td className="text-text-secondary">{u.verb || ''}</td>
               <td><span className={`rounded-full px-2 py-px text-[10px] ${PILL[u.status] || 'bg-bg-subtle text-text-secondary'}`}>{u.status === 'calculated' ? 'calculated' : u.status === 'measured' ? 'measured' : u.status === 'estimated' ? 'estimated' : u.status === 'no_data' ? 'no data' : 'not yet'}</span></td>
-              <td className="text-end tabular-nums">{u.amount != null ? moneyText(u.currency, u.amount) : 'Not calculated'}</td>
+              <td className="text-end tabular-nums">{u.amount != null ? moneyText(u.currency, u.amount) : 'Not calculated'}
+                {u.check && <span className="block"><ValueCheckNote check={u.check} notCounted={u.counted === false} /></span>}
+              </td>
             </tr>
           ))}
           <tr data-value-run-total="" className="border-t-2 border-border font-bold"><td className="py-1">Run total</td><td /><td />

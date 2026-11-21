@@ -2930,7 +2930,8 @@ async function totalsOfSession(req, warehouse_id, parsedDb, sid, rows = null) {
   const noTable = new Set(read.tables.filter((row) => !String(row.primary_table || '').trim()).map((row) => String(row.id)));
   const estimates = (await estimatesOfSession(req, warehouse_id, parsedDb, sid, read)).use_cases;
   const measured = await implementApi.measuredYearlyOf(req, warehouse_id, sid, parsedDb, { ledgerRows: read.ledgerRows, specRows: read.specRows, tableRows: read.tables });
-  return VT.runOf({ ids: read.tables.map((row) => String(row.id)), saved, estimates, measured, noTable });
+  const tables = Object.fromEntries(read.tables.map((row) => [String(row.id), String(row.primary_table || '')]));
+  return VT.runOf({ ids: read.tables.map((row) => String(row.id)), saved, estimates, measured, noTable, tables });
 }
 
 app.get('/api/inspire/value/totals', requireToken, async (req, res) => {
@@ -2950,7 +2951,7 @@ app.get('/api/inspire/value/totals', requireToken, async (req, res) => {
       const answers = await Promise.all(sids.map((sid) => totalsOfSession(req, warehouse_id, parsedDb, sid, splitBySession(all, sid))));
       const runs = sessions.map((row, i) => ({ session_id: String(row.session_id), name: row.business_name || '', created_at: row.create_at ?? null,
         n: answers[i].run.n, n_calculated: answers[i].run.n_calculated, n_estimated: answers[i].run.n_estimated, n_measured: answers[i].run.n_measured, n_none: answers[i].run.n_none, totals: answers[i].run.totals }));
-      return res.json({ runs, all: VT.mergeRuns(runs), truncated, cap: SESSION_LIST_CAP, disclaimer: VALUE_DISCLAIMER.full });
+      return res.json({ runs, all: VT.mergeRuns(runs, answers.map((a) => a.use_cases)), truncated, cap: SESSION_LIST_CAP, disclaimer: VALUE_DISCLAIMER.full });
     }
     if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
     res.json({ ...(await totalsOfSession(req, warehouse_id, parsedDb, String(session_id).trim())), disclaimer: VALUE_DISCLAIMER.full });

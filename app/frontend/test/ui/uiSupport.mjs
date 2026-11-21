@@ -203,7 +203,9 @@ export async function openUi(open, overrides = {}, query = '', { mount, init } =
     app.get('/api/inspire/value/answers/history', (_req, res) => res.json({ history: [] }));
     // REQ-436/438: the harness warehouse has no dated table, so a test that does not mount them gets the server's fallback case plan over
     // two groups and no run totals (no number on any card). POST preview stays the real server route.
+    // REQ-448: the real fallback plan has every driver off; this harness plan turns them on so the wizard tests can walk the steps.
     app.post('/api/inspire/value/case-plan', (req, res) => res.json({ plan: { ...VCP.fallbackPlan([{ column_name: 'region', data_type: 'string' }]),
+      drivers: VCP.fallbackPlan([{ column_name: 'region', data_type: 'string' }]).drivers.map((d) => ({ ...d, on: true })),
       table: String(req.body?.table || ''), date_column: 'created_at', days: 365,
       groups: [{ g: 'North', records_per_year: 1200, metrics: {} }, { g: 'South', records_per_year: 800, metrics: {} }] } }));
     app.get('/api/inspire/value/totals', (req, res) => totalsQueryMissing(req, res) || res.json(req.query.session_id

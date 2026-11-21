@@ -25,7 +25,9 @@ const modelDenied = { 'GET /api/2.0/serving-endpoints': ENDPOINTS, 'POST /servin
 // 365 days of data: 1000 and 3000 records, and an average amount of 10 and 20.
 const GROUPED = { rows: [{ g: 'north', records: '1000', days: '365', m_avg_amount: '10' }, { g: 'south', records: '3000', days: '365', m_avg_amount: '20' }] };
 
-const appWith = (responses, statements = {}) => makeApp({ forwardedToken: 'person-tok', session: SESSION, columns: COLUMNS, responses, statements: { 'AS records': GROUPED, ...statements } });
+// The population count (REQ-448): the records and days of the whole table, which the grouped rows add up to.
+const POPULATION = { rows: [{ records: '4000', days: '365' }] };
+const appWith = (responses, statements = {}) => makeApp({ forwardedToken: 'person-tok', session: SESSION, columns: COLUMNS, responses, statements: { 'AS records': (sql) => (sql.includes(' AS g') ? GROUPED : POPULATION), ...statements } });
 async function call(made, method, route, body) {
   const srv = await listen(made.app);
   try {
@@ -47,7 +49,7 @@ test('case-plan: 200 with groups from the grouped SQL, and the filter value is a
   assert.equal(plan.date_column, 'event_date');
   assert.equal(plan.days, 365);
   assert.deepEqual(plan.groups.map((g) => [g.g, g.records_per_year, g.metrics.avg_amount]), [['south', 3000, 20], ['north', 1000, 10]]);
-  const grouped = made.sqlCalls.filter((c) => c.sql.includes('AS records'));
+  const grouped = made.sqlCalls.filter((c) => c.sql.includes(' AS g'));
   assert.equal(grouped.length, 1);
   assert.ok(!grouped[0].sql.includes('SECRETFLAG'), grouped[0].sql);
   assert.ok(grouped[0].parameters.some((p) => p.value === 'SECRETFLAG'));

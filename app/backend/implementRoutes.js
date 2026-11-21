@@ -2472,18 +2472,19 @@ function registerImplementRoutes(app, deps) {
   // REQ-436: the case plan. The model names the case, filter, groupings, metrics and what each driver asks; every name is checked against the
   // table. One grouped SQL reads the counts. A model that cannot answer gives the fallback plan, never a 5xx.
   async function modelPlanOf(req, table, columns, groupBy) {
+    const without = (reason) => ({ ...VCP.fallbackPlan(columns, groupBy), model_reason: reason });
     try {
       const listed = await jsonOf(dbFetch, req.dbHost, req.dbToken, '/api/2.0/serving-endpoints');
-      if (!listed.ok) return VCP.fallbackPlan(columns, groupBy);
+      if (!listed.ok) return without(`The list of model endpoints answered HTTP ${listed.status || 'error'}.`);
       const endpoint = FB.chatEndpoint({}, (listed.data.endpoints || []).map((e) => ({ name: e.name, state: e.state, task: e.task })));
-      if (!endpoint) return VCP.fallbackPlan(columns, groupBy);
+      if (!endpoint) return without('No chat model endpoint is ready in this workspace.');
       const got = await invokeChatModel(chatCall(req, req.dbToken), endpoint, { messages: VCP.planMessages({ table, columns }), max_tokens: 1500, temperature: 0 });
-      if (!got.ok) return VCP.fallbackPlan(columns, groupBy);
+      if (!got.ok) return without(`The model answered HTTP ${got.status || 'error'}.`);
       const plan = VCP.planFrom(got.data, columns, groupBy);
       const asked = plan.drivers.some((d) => d.on) || plan.metrics.length || plan.case_filter || plan.case_noun !== 'record';
-      return { ...plan, model: asked ? endpoint : null };
-    } catch {
-      return VCP.fallbackPlan(columns, groupBy);
+      return asked ? { ...plan, model: endpoint } : { ...plan, model: null, model_reason: 'The model reply was not a usable plan.' };
+    } catch (err) {
+      return without('The model could not be reached.');
     }
   }
 
@@ -2500,8 +2501,11 @@ function registerImplementRoutes(app, deps) {
       if (!dateColumn) throw I.badRequest('The table has no date column to scale the counts to a year, so Inspire cannot plan a value per year.', 422);
       const plan = await modelPlanOf(req, table, columns, String(req.body?.group_by || '').trim());
       const made = VCP.groupedSql(GP, scopes, plan, table, dateColumn);
-      const rows = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters, { rowLimit: 5000, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }));
-      const counted = VCP.groupsFrom(rows, plan);
+      const rows = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters, { rowLimit: VCP.GROUP_MAX_GROUPS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }));
+      // The records and the days come from the whole filtered table (the C5 count), never from the grouped rows.
+      const countSql = VCP.currentCountSql(GP, scopes, { ...plan, table, date_column: dateColumn });
+      const population = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, countSql.sql, countSql.parameters, { rowLimit: 1, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }))[0] || {};
+      const counted = VCP.groupsFrom(rows, plan, population);
       if (!counted.days || !counted.groups.length) throw I.badRequest(`Inspire found no ${plan.case_noun} in ${table} to plan a value on.`, 422);
       return res.json({ plan: { ...plan, table, date_column: dateColumn, days: counted.days, groups: counted.groups } });
     } catch (err) {

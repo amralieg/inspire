@@ -10,7 +10,7 @@ const plan = (over = {}) => ({ table: 'c.s.t', date_column: 'event_date', case_f
 test('a forged filter operator never reaches the stale count SQL', () => {
   const made = VCP.currentCountSql(GP, {}, plan({ case_filter: { column: 'kind', op: '= 1 OR 1=1 --', value: 'x' } }));
   assert.doesNotMatch(made.sql, /OR 1=1/);
-  assert.doesNotMatch(made.sql, /WHERE/);
+  assert.doesNotMatch(made.sql, /`kind`/); // only the dated-rows condition remains (REQ-448)
 });
 
 test('a forged filter operator never reaches the grouped SQL', () => {

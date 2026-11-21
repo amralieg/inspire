@@ -119,9 +119,10 @@ test('all runs: n_measured and the per-run measured add up', async () => {
   const usd = (totals) => totals.find((t) => t.currency === 'USD');
   assert.equal(usd(body.runs[0].totals).measured, 5000000);
   assert.equal(usd(body.runs[2].totals).measured, 10000000);
-  assert.equal(usd(body.all.totals).measured, 15000000);
+  // Both runs measured the same table: one pool of money, the larger measurement counts once (REQ-454).
+  assert.equal(usd(body.all.totals).measured, 10000000);
   assert.equal(usd(body.all.totals).calculated, 300);
-  assert.equal(usd(body.all.totals).amount, 15000300);
+  assert.equal(usd(body.all.totals).amount, 10000300);
 });
 
 // The snapshot of the unchanged /value/yearly reply for the same fake warehouse (taken on the commit before this change).
