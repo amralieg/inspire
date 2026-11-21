@@ -61,3 +61,18 @@ test('REQ-433: a pair in different sort tiers is never offered, the same items i
   assert.deepEqual(together.changes.map((c) => [c.id, c.from, c.to]), [['B', 8.5, 9.05]]);
   assert.equal(together.pairs.length, 1);
 });
+
+test('REQ-452: summarizePairs shows at most 3 pairs, one per use case and per amount, and counts the rest', async () => {
+  const { summarizePairs } = await import('../../src/lib/scoreRefine.js');
+  const items = [uc('H', 8.39, usd(25.61e6)), ...Array.from({ length: 30 }, (_, i) => uc(`L${i}`, 8.39, usd(638.96e6)))];
+  const { pairs } = refineScores(items);
+  assert.equal(pairs.length, 30);
+  const got = summarizePairs(pairs, 3);
+  assert.ok(got.shown.length >= 1 && got.shown.length <= 3);
+  assert.equal(got.shown.length + got.more.length, 30);
+  const ids = got.shown.flatMap((p) => [p.lower.id, p.higher.id]);
+  assert.equal(new Set(ids).size, ids.length, 'a use case appears on one line only');
+  assert.equal(new Set(got.shown.map((p) => p.lowerAmount)).size, got.shown.length, 'lines with the same amount collapse into one');
+  const two = refineScores([uc('A', 9, usd(1e6)), uc('B', 8.5, usd(3e6))]).pairs;
+  assert.deepEqual(summarizePairs(two, 3).more, [], 'a short list has nothing more');
+});
