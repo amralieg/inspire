@@ -226,6 +226,9 @@ def test_the_sweep_leaves_text_that_adds_no_column(clean):
 def test_every_column_inspire_adds_goes_through_the_one_helper():
     assert add_sites(_agentload.agent_source()) == [HELPER_SITE]
     shell = {path.name: add_sites(path.read_text()) for path in sorted(SHELL_SERVER.glob("*.py"))}
+    # REQ-414 part B (cac19ed09): shell_build.approval_ddl adds the approval columns to a Lakebase (Postgres) table with
+    # ADD COLUMN IF NOT EXISTS, which is itself idempotent and race-safe. The one helper retries Delta conflicts, so it does not apply.
+    assert shell.pop("shell_build.py") == [("approval_ddl", "ALTER TABLE {target} ADD COLUMN IF NOT EXISTS {status} TEXT, ADD COLUMN IF NOT EXISTS {note} TEXT")]
     assert shell and all(sites == [] for sites in shell.values()), shell
 
 
