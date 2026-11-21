@@ -11,12 +11,15 @@ const DEFAULTS = { envSkipsSetupWizard: true, isDatabricksApp: true, databricksH
   inspireDatabase: 'main.inspire', notebookPath: '/Shared/inspire_ai' };
 const entry = (amount) => ({ verb: 'INCREASE REVENUE', period: 'Per Year', estimated: true, entries: [{ kind: 'money', unit: 'USD', amount }],
   basis: { sampled_records: 1200, eligible_records: 48000, days: 90 } });
-const results = () => {
+const results = (belowBar = '') => {
   const out = structuredClone(REVIEW_RESULTS);
   for (const domain of out.domains) {
     for (const u of domain.use_cases) {
+      // The pair sits in one tier of the default order: neither is a Best of Best, both meet the bar.
+      if (u.No === 'N01-U01' || u.No === 'N01-U02') { u.best_of_best = 'N'; delete u.best_of_best_rank; }
       if (u.No === 'N01-U01') u.inspire_score = '9.0';
       if (u.No === 'N01-U02') u.inspire_score = '8.5';
+      if (belowBar && u.No === belowBar) u.meets_quality_bar = 'N';
     }
   }
   return out;
@@ -110,6 +113,36 @@ test('after a reload the refined score still offers Undo on its card, and Undo r
     assert.equal((await scoreOf(page, 'Score upsell').innerText()).replace(/\s+/g, ' ').trim().endsWith('8.5'), true);
     assert.equal(await page.getByRole('button', { name: 'Undo refined score', exact: true }).count(), 0, 'Undo is gone once restored');
     assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+const cardNames = (page) => page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]').allInnerTexts();
+const rowOf = (names, name) => names.findIndex((t) => t.includes(name));
+
+test('REQ-433: a pair in different quality-bar tiers shows no banner', async () => {
+  const ui = await openUi('results', { ...REVIEW_STATE, results: results('N01-U01') }, '', { mount });
+  try {
+    await scoreOf(ui.page, 'Score upsell').waitFor({ timeout: 15000 });
+    assert.equal(await ui.page.getByRole('region', { name: 'Score refinement' }).count(), 0);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('REQ-433: in one tier Apply moves the refined card above its partner', async () => {
+  const ui = await open();
+  const { page } = ui;
+  try {
+    const banner = page.getByRole('region', { name: 'Score refinement' });
+    await banner.waitFor({ timeout: 15000 });
+    const before = await cardNames(page);
+    assert.ok(rowOf(before, 'Predict churn') >= 0 && rowOf(before, 'Score upsell') >= 0);
+    await banner.getByRole('button', { name: 'Apply', exact: true }).click();
+    await page.locator('[title*="Refined from 8.5"]').first().waitFor({ timeout: 15000 });
+    const after = await cardNames(page);
+    assert.ok(rowOf(after, 'Score upsell') < rowOf(after, 'Predict churn'), 'the refined card sits above its partner');
   } finally {
     await ui.close();
   }

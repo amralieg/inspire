@@ -51,3 +51,13 @@ test('currencies and units are never mixed: USD against EUR, or money against a 
   assert.deepEqual(refineScores([uc('A', 9, usd(1e6)), uc('B', 8.5, hours)]).changes, []);
   assert.deepEqual(moves([uc('A', 9, [...usd(1e6), ...eur]), uc('B', 8.5, [{ kind: 'money', unit: 'EUR', amount: 9e7 }])]), { B: [8.5, 9.05] });
 });
+
+test('REQ-433: a pair in different sort tiers is never offered, the same items in one tier are', () => {
+  const tiered = (tierA, tierB) => [{ ...uc('A', 9, usd(1e6)), tier: tierA }, { ...uc('B', 8.5, usd(3e6)), tier: tierB }];
+  const apart = refineScores(tiered('meets', 'below'));
+  assert.deepEqual(apart.changes, []);
+  assert.deepEqual(apart.pairs, []);
+  const together = refineScores(tiered('meets', 'meets'));
+  assert.deepEqual(together.changes.map((c) => [c.id, c.from, c.to]), [['B', 8.5, 9.05]]);
+  assert.equal(together.pairs.length, 1);
+});
