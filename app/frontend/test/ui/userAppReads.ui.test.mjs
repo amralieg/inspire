@@ -83,9 +83,9 @@ test('a user-authorization Build lists the viewer the scope view refuses, with i
     // The first check of this build lists the gap once: the dialog opens with bob's SELECT and its exact SQL.
     const dialog = page.locator('[data-permission-dialog=""]');
     await dialog.waitFor({ timeout: 15000 });
-    // Both people who may open the App still need grants: bob all four; the owner holds MANAGE, which covers READ METADATA, so three.
+    // Both people who may open the App still need grants: bob and the owner all four: MANAGE is not READ METADATA (REQ-417).
     assert.deepEqual(await viewerRowTexts(page), [`Ask your admin to grant ${BOB} access to ${VIEW}`, `Ask your admin to grant ${ME} access to ${VIEW}`]);
-    assert.deepEqual((await listed(page)).sort(), [...grantsTo(BOB), ...grantsTo(ME).slice(0, 3)].sort(), 'the dialog lists the exact SQL each viewer still needs');
+    assert.deepEqual((await listed(page)).sort(), [...grantsTo(BOB), ...grantsTo(ME)].sort(), 'the dialog lists the exact SQL each viewer still needs');
     await dialog.getByRole('button', { name: 'Close' }).click();
     await page.getByRole('region', { name: CARD }).waitFor({ timeout: 15000 });
     await expandBuild(page);

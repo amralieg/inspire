@@ -2,14 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
-import { closeBrowser, goToStep, openUi, profileAt } from './uiSupport.mjs';
+import { closeBrowser, goToStep, openFolded, openUi, profileAt } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
 // REQ-391: a new build pre-selects Classic UI, and the Agentic choice no longer says (default).
 const SHOTS = '/private/tmp/inspire_v15/shots/u11';
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const next = (page) => page.getByRole('button', { name: 'Next', exact: true }).click();
 const withData = { ...ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } };
 const WITH_PROFILE = { init: profileAt([], GROUPING_PROFILE) };
 
@@ -18,8 +17,8 @@ test('REQ-391: a new build pre-selects Classic UI in How people start in the App
   const { page } = ui;
   try {
     await goToStep(page, 'Who uses the App');
-    await next(page);
-    await next(page);
+    // REQ-418: the who-sees-which-rows fold is not in the default flow any more, so the experience fold is opened by name, not by counting Next.
+    await openFolded(page, 'How people start in the App');
     const group = page.locator('[data-choice="app-experience"]');
     await group.getByText('How people start in the App', { exact: true }).waitFor();
     const checked = await group.locator('input[type="radio"]:checked').inputValue();
