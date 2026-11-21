@@ -75,3 +75,16 @@ test('skipped items never reach the worker and do not take a slot', async () => 
   const rows = await done;
   assert.deepEqual(rows.filter((r) => r.state === 'skipped').map((r) => r.reason), ['already has a value', 'no table to count']);
 });
+
+// REQ-443: one copy of the save; the bulk worker and useCalculatedValues.run both use it.
+test('saveAnswers PUTs the same route and body useCalculatedValues.run sent, and gives the reply back', async () => {
+  const { saveAnswers, ANSWERS_ROUTE } = await import('../src/lib/calculatedValue.js');
+  const calls = [];
+  const reply = { version: 2, yearly: { total: { unit: 'USD', amount: 5 } } };
+  const put = async (route, body) => { calls.push([route, body]); return reply; };
+  const answers = { shape: 2, calculated: false };
+  const got = await saveAnswers(put, { inspireDatabase: 'main.inspire', warehouseId: 'wh1', sessionId: 42 }, 'N01-U02', 'main.s.orders', answers);
+  assert.equal(got, reply);
+  assert.deepEqual(calls, [[ANSWERS_ROUTE, { inspire_database: 'main.inspire', warehouse_id: 'wh1', session_id: '42', use_case_id: 'N01-U02', table: 'main.s.orders', answers }]]);
+  await assert.rejects(saveAnswers(async () => ({}), { inspireDatabase: 'd', warehouseId: 'w', sessionId: 1 }, 'U', 't', {}), /no value back/);
+});
