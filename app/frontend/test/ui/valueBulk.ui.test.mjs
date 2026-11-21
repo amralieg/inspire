@@ -35,7 +35,7 @@ function mountBulk(state) {
     app.get('/api/inspire/value/runs', (_req, res) => res.json({ runs: {} }));
     app.get('/api/inspire/value/estimates', (_req, res) => res.json({ use_cases: {}, totals: null }));
     app.get('/api/inspire/value/yearly', (_req, res) => res.json({ use_cases: {} }));
-    app.get('/api/inspire/value/totals', (_req, res) => res.status(404).json({ error: 'none' }));
+    app.get('/api/inspire/value/totals', (_req, res) => res.json({ run: { totals: [], n: 0, n_calculated: 0, n_estimated: 0, n_none: 0, by_verb: [] }, use_cases: {} }));
     app.get('/api/inspire/value/answers', (_req, res) => res.json({ answers: { 'N01-U01': SAVED } }));
     app.get('/api/inspire/value/answers/history', (_req, res) => res.json({ history: [] }));
     app.post('/api/inspire/value/case-plan', (req, res) => {
@@ -128,6 +128,6 @@ test('2: a case-plan that answers 500 shows failed with Retry; Retry with the st
     await poll(async () => (await row.getAttribute('data-bulk-state')) === 'done', 'the retried row is done');
     assert.equal(await text(panel.locator('[data-bulk-progress]')), '2 of 2 done');
     assert.equal(state.started.filter((id) => id === 'N01-U02').length, 1, 'Retry re-runs only that use case');
-    assert.deepEqual(ui.pageErrors, []);
+    assert.deepEqual(ui.pageErrors.filter((e) => !/status of 500/.test(String(e))), []);
   } finally { await ui.close(); }
 });

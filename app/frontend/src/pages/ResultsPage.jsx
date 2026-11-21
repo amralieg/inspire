@@ -104,6 +104,8 @@ import { documentBasePath } from '../lib/documentActions';
 import { generationFolder, workspaceNotebookUrl, workspaceWebUiHashPath } from '../lib/workspaceLinks';
 import ImplementWizard from './ImplementWizard';
 import CalculateValueDialog from '../components/CalculateValueDialog';
+import ValueBulkPanel, { ValueBulkBar } from '../components/ValueBulkPanel';
+import { SKIP_HAS_VALUE, SKIP_NO_TABLE, valueWorker } from '../lib/valueBulk';
 import { tableOfUseCase, useCalculatedValues } from '../lib/calculatedValue';
 import { kindFilterLabel, kindFilterOptions, matchesKindFilter } from '../lib/useCaseKind';
 import { MVP_FILTERS, START_MVP_LABEL, implementState, mvpCounts, mvpFilterMatches, notebookRunEnded, notebookStatus, versionActive } from '../lib/implementWizard';
@@ -592,6 +594,8 @@ export default function ResultsPage({
   // ── Extract use cases (defensive — guard against non-array shapes) ──
   const builtUseCases = useMemo(() => buildUseCaseList(results, usecases), [results, usecases]);
   const [calcFor, setCalcFor] = useState(null);
+  const [bulkPicked, setBulkPicked] = useState(() => new Set());
+  const [bulk, setBulk] = useState(null);
   const calculated = useCalculatedValues({ apiFetch: showcase ? null : apiFetch, apiPostJson, apiPutJson, inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId });
   const valuesForDialog = useMemo(() => ({
     ...calculated,
@@ -697,6 +701,19 @@ export default function ResultsPage({
       return k && favorites[k];
     });
   }
+  // REQ-441: pick cards and calculate their value from the defaults. Not in the demo (no ledger) and not without a database and warehouse.
+  const bulkOn = !showcase && Boolean(inspireDb && warehouseId && selectedSessionId);
+  const bulkIds = filteredUseCases.map((uc) => trackingIdOf(uc)).filter((id) => id && bulkPicked.has(id));
+  const setBulkPick = (id, on) => setBulkPicked((prev) => { const next = new Set(prev); if (on) next.add(id); else next.delete(id); return next; });
+  const startBulk = () => {
+    const picked = new Set(bulkIds);
+    const items = filteredUseCases.filter((uc) => picked.has(trackingIdOf(uc))).map((uc) => {
+      const id = trackingIdOf(uc);
+      const table = tableOfUseCase(uc);
+      return { id, name: nameOfUseCase(uc), table, skip: calculated.byId[id] ? SKIP_HAS_VALUE : !table ? SKIP_NO_TABLE : '' };
+    });
+    setBulk({ items, worker: valueWorker({ apiPostJson, inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId, values: valuesForDialog }) });
+  };
   const cardKeys = new Map();
   const usedCardKeys = new Set();
   for (const [idx, uc] of filteredUseCases.entries()) {
@@ -2475,6 +2492,10 @@ export default function ResultsPage({
               </div>
 
               <RefineBanner {...refineBanner} />
+              {bulkOn && filteredUseCases.length > 0 && (
+                <ValueBulkBar shown={filteredUseCases.filter((uc) => trackingIdOf(uc)).length} selected={bulkIds.length} onCalculate={startBulk}
+                  onSelectAll={(on) => setBulkPicked(on ? new Set(filteredUseCases.map((uc) => trackingIdOf(uc)).filter(Boolean)) : new Set())} />
+              )}
 
               {/* Use case cards — only this region scrolls; sidebar + filter bar stay visible */}
               <div
@@ -2503,6 +2524,7 @@ export default function ResultsPage({
                         onRename={inspireDb && warehouseId && selectedSessionId ? (name) => renameUseCase(uc, name) : undefined}
                         liveAppStale={liveAppRenameStale(implementLatestById[trackingIdOf(uc)], nameOfUseCase(uc)) && cardAssetLinks(implementLatestById[trackingIdOf(uc)]).some((l) => l.id === 'app')}
                         onUpdateLiveApp={inspireDb && warehouseId && selectedSessionId ? () => updateLiveApp(uc) : undefined}
+                        selection={bulkOn && tid ? { checked: bulkPicked.has(tid), onChange: (on) => setBulkPick(tid, on) } : null}
                         v130={uc._v130}
                         feedbackCurrent={feedbackCurrentFor(uc)}
                         useCaseValue={runValue?.use_cases?.[trackingIdOf(uc)] ?? null}
@@ -2572,6 +2594,7 @@ export default function ResultsPage({
             sessionId={selectedSessionId} saved={calculated.byId[trackingIdOf(calcFor)]?.answers || null} version={calculated.byId[trackingIdOf(calcFor)]?.version || null}
             values={valuesForDialog} onClose={() => setCalcFor(null)} />
         )}
+      {bulk && <ValueBulkPanel items={bulk.items} worker={bulk.worker} onClose={() => setBulk(null)} />}
       {implementUc && selectedSessionId && inspireDb && warehouseId && (
         <ImplementWizard
           uc={implementUc}

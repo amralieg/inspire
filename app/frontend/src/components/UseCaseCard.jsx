@@ -59,6 +59,7 @@ function UseCaseCardBody({
   canCalculate = false,
   onCalculate = null,
   onEdit = null,
+  selection = null,
   ...detailProps
 }) {
   const u = uc;
@@ -76,6 +77,16 @@ function UseCaseCardBody({
   return (
     <div className="bg-surface border border-border/70 rounded-xl overflow-hidden shadow-elevated lift-on-hover hover:border-db-red/25">
       <div className="flex items-center gap-0">
+        {selection && (
+          <input
+            type="checkbox"
+            data-use-case-select=""
+            className="ms-3 shrink-0"
+            aria-label={`Select ${titlePlain}`}
+            checked={Boolean(selection.checked)}
+            onChange={(e) => selection.onChange(e.target.checked)}
+          />
+        )}
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
