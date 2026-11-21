@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const { startInspire } = require('./support/serverProcess');
+const { full: DISCLAIMER } = require('../lib/valueDisclaimer.json');
 
 const LEDGER = '`c`.`s`.`__inspire_value_ledger`';
 const SESSIONS = '`c`.`s`.`__inspire_session`';
@@ -123,6 +124,7 @@ test('GET /api/inspire/value/runs answers each run with its own totals and measu
       42: { at_stake: [{ kind: 'money', unit: 'USD', amount: 300 }, { kind: 'time', unit: 'hours', amount: 2 }],
         saved: [{ kind: 'time', unit: 'hours', amount: 1 }], mvps_measured: 2 },
     },
+    disclaimer: DISCLAIMER, // REQ-434: every value answer carries the disclaimer
   });
   assert.equal(statements().length, 1);
 });
@@ -132,7 +134,7 @@ test('GET /api/inspire/value/overall answers the latest-run totals, the saved to
   const { status, body } = await app.get(`/api/inspire/value/overall?${QUERY}`);
   assert.equal(status, 200, JSON.stringify(body));
   assert.deepEqual(body, { at_stake: [{ kind: 'money', unit: 'EUR', amount: 350 }], saved: [{ kind: 'money', unit: 'EUR', amount: 30 }],
-    runs: 3, businesses: 2 });
+    runs: 3, businesses: 2, disclaimer: DISCLAIMER });
 });
 
 test('no value route reads the raw ledger rows: every statement aggregates in SQL', async () => {
@@ -148,11 +150,11 @@ test('no value route reads the raw ledger rows: every statement aggregates in SQ
 test('a missing ledger table answers empty totals, not an error, on every value route', async () => {
   reset({ missingLedger: true });
   assert.deepEqual((await app.get(`/api/inspire/value?${QUERY}&session_id=42`)).body,
-    { use_cases: {}, run: { at_stake: [], saved: [], mvps_measured: 0 } });
-  assert.deepEqual((await app.get(`/api/inspire/value/runs?${QUERY}`)).body, { runs: {} });
+    { use_cases: {}, run: { at_stake: [], saved: [], mvps_measured: 0 }, disclaimer: DISCLAIMER });
+  assert.deepEqual((await app.get(`/api/inspire/value/runs?${QUERY}`)).body, { runs: {}, disclaimer: DISCLAIMER });
   const overall = await app.get(`/api/inspire/value/overall?${QUERY}`);
   assert.equal(overall.status, 200);
-  assert.deepEqual(overall.body, { at_stake: [], saved: [], runs: 3, businesses: 2 });
+  assert.deepEqual(overall.body, { at_stake: [], saved: [], runs: 3, businesses: 2, disclaimer: DISCLAIMER });
 });
 
 test('a session id that is not numeric is refused before any SQL is sent', async () => {
