@@ -52,8 +52,24 @@ export function useScoreRefine({ useCases, yearlyOf, apiPostJson, host, inspireD
     }
   }, [applied, apiPostJson, inspireDatabase, warehouseId, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // After a reload the banner is gone but the stored score still reads "Refined from X": the card restores it from the stored history.
+  const undoCard = useCallback(async (id) => {
+    const from = Number(list.find((uc) => trackingIdOf(uc) === id)?.refined_from);
+    if (!id || !Number.isFinite(from)) return;
+    setBusy(true); setError('');
+    try {
+      await apiPostJson('/api/inspire/score-refine/undo', body({ use_case_ids: [id] }));
+      setRefined((prev) => ({ ...prev, [id]: { from, to: from, undone: true } }));
+      setApplied((prev) => (prev ? { ...prev, changes: prev.changes.filter((c) => c.id !== id) } : prev));
+    } catch (err) {
+      setError(err?.message || 'The scores could not be restored.');
+    } finally {
+      setBusy(false);
+    }
+  }, [list, apiPostJson, inspireDatabase, warehouseId, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const keep = useCallback(() => { writeKeep(key, signature); setKept(signature); }, [key, signature]);
   const view = applied ? { applied: true, ...applied }
     : (found.changes.length && kept !== signature ? { applied: false, pairs: found.pairs, changes: found.changes, names: {} } : null);
-  return { list, banner: { view, busy, error, onApply: apply, onUndo: undo, onKeep: keep } };
+  return { list, undoCard, banner: { view, busy, error, onApply: apply, onUndo: undo, onKeep: keep } };
 }

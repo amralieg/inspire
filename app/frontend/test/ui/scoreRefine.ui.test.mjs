@@ -90,3 +90,27 @@ test('Keep dismisses the banner and changes no score', async () => {
     await ui.close();
   }
 });
+
+// REQ-433: after a reload the banner is gone, but the score stays "Refined from 8.5", so the card offers Undo from the stored history.
+const openReloaded = () => openUi('results', { ...REVIEW_STATE, results: results(),
+  useCases: [{ No: 'N01-U02', id: 'N01-U02', inspire_score: 8.5, refined_score: 9.05, refined_from: 8.5 }] }, '', { mount });
+
+test('after a reload the refined score still offers Undo on its card, and Undo restores the first score', async () => {
+  posts.length = 0;
+  const ui = await openReloaded();
+  const { page } = ui;
+  try {
+    await page.locator('[title*="Refined from 8.5"]').first().waitFor({ timeout: 15000 });
+    assert.equal(await page.getByRole('region', { name: 'Score refinement' }).count(), 0, 'no banner after a reload');
+    const undo = page.getByRole('button', { name: 'Undo refined score', exact: true });
+    assert.equal(await undo.count(), 1, 'the refined card offers Undo');
+    await undo.click();
+    await page.waitForFunction(() => !document.querySelector('[title*="Refined from"]'), null, { timeout: 15000 });
+    assert.deepEqual(posts, [['undo', { ...posts[0][1], use_case_ids: ['N01-U02'] }]]);
+    assert.equal((await scoreOf(page, 'Score upsell').innerText()).replace(/\s+/g, ' ').trim().endsWith('8.5'), true);
+    assert.equal(await page.getByRole('button', { name: 'Undo refined score', exact: true }).count(), 0, 'Undo is gone once restored');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

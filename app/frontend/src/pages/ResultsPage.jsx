@@ -589,7 +589,7 @@ export default function ResultsPage({
   const calcIds = useMemo(() => builtUseCases.map((u) => trackingIdOf(u)).filter(Boolean), [builtUseCases]);
   const calculated = useCalculatedValues({ apiPostJson, host: settings?.databricksHost, inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId, ids: calcIds });
   const yearlyOf = useCallback((id) => calculated.byId[id]?.yearly || measuredYearly?.use_cases?.[id] || null, [calculated.byId, measuredYearly]);
-  const { list: allUseCases, banner: refineBanner } = useScoreRefine({ useCases: builtUseCases, yearlyOf, apiPostJson, host: settings?.databricksHost,
+  const { list: allUseCases, banner: refineBanner, undoCard: undoRefinedCard } = useScoreRefine({ useCases: builtUseCases, yearlyOf, apiPostJson, host: settings?.databricksHost,
     inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId });
   const qualityBarCounts = useMemo(() => qualityBarCountsOf(allUseCases), [allUseCases]);
   const runOutcome = runOutcomeOf(results, qualityBarCounts);
@@ -2487,6 +2487,7 @@ export default function ResultsPage({
                         onCalculate={() => setCalcFor(uc)}
                         onRetry={() => calculated.retry(tid)}
                         onSetRule={canImplement ? () => startImplement(uc) : undefined}
+                        onUndoRefine={tid ? () => undoRefinedCard(tid) : undefined}
                         implementStatus={tid ? implementState(implementLatestById[tid] || null, notebookStatus(uc, implementView.notebook_run)) : null}
                         onImplement={canImplement ? () => startImplement(uc) : undefined}
                         onOpenMvp={onOpenImplement && tid && selectedSessionId ? () => onOpenImplement(String(selectedSessionId), tid) : undefined}
