@@ -32,3 +32,10 @@ test('a valid filter is kept with its value bound', () => {
   assert.match(made.sql, /WHERE `kind` = :/);
   assert.doesNotMatch(made.sql, /fraud/);
 });
+
+test('a sum-per-year metric shows the sum over the included groups, an average metric the records-weighted average', () => {
+  const VDC = require('../lib/valueDriversCalc');
+  const groups = [{ g: 'a', records_per_year: 1000, metrics: { spend: 100, amt: 10 } }, { g: 'b', records_per_year: 3000, metrics: { spend: 300, amt: 20 } }];
+  assert.equal(VDC.dataFigure({ id: 'base_revenue_per_year', metric: 'spend' }, groups, 'sum_per_year'), 400);
+  assert.equal(VDC.dataFigure({ id: 'cost_per_incident', metric: 'amt' }, groups, 'avg'), 17.5);
+});
