@@ -4,6 +4,7 @@ import pathlib
 import sys
 
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.errors import NotFound
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import rc_install
@@ -58,8 +59,11 @@ def snapshot(path):
         d = a.active_deployment
         yaml_sha = None
         if d and d.source_code_path:
-            with w.workspace.download(f"{d.source_code_path}/app.yaml") as h:
-                yaml_sha = hashlib.sha256(h.read()).hexdigest()
+            try:
+                with w.workspace.download(f"{d.source_code_path}/app.yaml") as h:
+                    yaml_sha = hashlib.sha256(h.read()).hexdigest()
+            except NotFound:
+                yaml_sha = "absent"
         out["apps"][name] = {"sp": a.service_principal_client_id, "deployment": d.deployment_id if d else None,
                              "source": d.source_code_path if d else None, "app_yaml_sha256": yaml_sha,
                              "compute": str(a.compute_status.state) if a.compute_status else None,
