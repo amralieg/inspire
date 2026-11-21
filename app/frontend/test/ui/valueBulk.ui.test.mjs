@@ -6,6 +6,7 @@ import { closeBrowser, openUi } from './uiSupport.mjs';
 import { DEFAULTS, PLAN } from './valueWizardSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
 import { initialAnswers } from '../../src/lib/valueWizard.js';
+import { bulkSummary } from '../../src/lib/valueBulk.js';
 
 test.after(closeBrowser);
 
@@ -149,4 +150,46 @@ test('FX-28: a case-plan that answers 422 shows skipped with the reason and no R
     assert.equal(await failed.getAttribute('data-bulk-state'), 'failed');
     assert.deepEqual(ui.pageErrors.filter((e) => !/status of (500|422)/.test(String(e))), []);
   } finally { await ui.close(); }
+});
+
+// REQ-441 (FX-33): the bar counts what really happened when use cases are skipped by the server (422).
+async function runHiddenThenRelease(state, names, count) {
+  const { ui, page } = await openBulk(state);
+  await pick(page, names);
+  await page.getByRole('button', { name: `Calculate value for ${count}`, exact: true }).click();
+  const panel = page.getByRole('dialog', { name: 'Calculating value' });
+  await panel.waitFor();
+  return { ui, page, panel };
+}
+
+test('FX-33: every selected use case skipped (all 422): the bar says 0 of 2 calculated, 2 skipped, never 0 of 0 done', async () => {
+  const state = { hold: false, plans: [], puts: [], planStatus: { 'N01-U02': 422, 'N01-U03': 422 } };
+  const { ui, page, panel } = await runHiddenThenRelease(state, ['Score upsell', 'Segment shoppers'], 2);
+  try {
+    await poll(async () => (await panel.locator('[data-bulk-row="N01-U03"]').getAttribute('data-bulk-state')) === 'skipped', 'both skipped');
+    await poll(async () => (await panel.locator('[data-bulk-row="N01-U02"]').getAttribute('data-bulk-state')) === 'skipped', 'both skipped');
+    const line = await text(panel.locator('[data-bulk-progress]'));
+    assert.match(line, /^0 of 2 calculated, 2 skipped/);
+    assert.doesNotMatch(line, /0 of 0/);
+    assert.deepEqual(ui.pageErrors.filter((e) => !/status of 422/.test(String(e))), []);
+  } finally { await ui.close(); }
+});
+
+test('FX-33: mixed run, 2 calculated and 2 skipped by the server: 2 of 4 calculated, 2 skipped', async () => {
+  const state = { hold: false, plans: [], puts: [], planStatus: { 'N01-U02': 422, 'N01-U03': 422 } };
+  const { ui, panel } = await runHiddenThenRelease(state, ['Score upsell', 'Segment shoppers', 'Price elasticity', 'Forecast stock'], 4);
+  try {
+    await poll(async () => /^2 of 4 calculated, 2 skipped/.test(await text(panel.locator('[data-bulk-progress]'))), 'the mixed summary shows');
+    assert.deepEqual(ui.pageErrors.filter((e) => !/status of 422/.test(String(e))), []);
+  } finally { await ui.close(); }
+});
+
+test('FX-33: bulkSummary counts what happened (pure)', () => {
+  const nodate = 'The table has no date column to estimate from.';
+  const items = [{ id: 'a', skip: 'already has a value' }, { id: 'b' }, { id: 'c' }, { id: 'd' }, { id: 'e' }, { id: 'f' }];
+  const mk = (states) => states.map((state, i) => ({ id: items[i].id, state, ...(state === 'skipped' ? { reason: i === 0 ? 'already has a value' : nodate } : {}) }));
+  assert.equal(bulkSummary(mk(['skipped', 'done', 'done', 'working', 'working', 'working']), items), '2 of 5 done');
+  assert.equal(bulkSummary(mk(['skipped', 'done', 'done', 'done', 'skipped', 'skipped']), items), '3 of 5 calculated, 2 skipped');
+  assert.equal(bulkSummary(mk(['skipped', 'skipped', 'skipped', 'skipped', 'skipped', 'skipped']), items), '0 of 5 calculated, 5 skipped (the table has no date column to estimate from)');
+  assert.equal(bulkSummary([], []), '0 of 0 done');
 });
