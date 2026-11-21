@@ -865,7 +865,10 @@ def history_source():
 def test_the_history_helpers_touch_only_the_result_table_its_run_log_and_its_stage(history_source):
     sources = _runtime_texts()
     assert {"IMPLEMENT_RESULT_HISTORY_SOURCE", "GENIE_NUMBER_TEXT_SOURCE", "_JOB_LAUNCHER_CLASS_SOURCE"} <= set(sources)
-    hidden = {name: len(guard.audit(text)[0]) for name, text in sources.items() if name != "IMPLEMENT_RESULT_HISTORY_SOURCE"}
+    # REQ-421: the packed shell modules the notebook executes are audited by v120 with their reviewed statements listed verbatim
+    # (REVIEWED_SHELL_STATEMENTS); REQ-415's AI-function probes live in shell_build, so it is no longer an unguarded source here.
+    hidden = {name: len(guard.audit(text)[0]) for name, text in sources.items()
+              if name != "IMPLEMENT_RESULT_HISTORY_SOURCE" and name != guard.REVIEWED_SHELL_MODULE}
     assert not any(hidden.values()), f"exec'd source runs SQL the metadata guard does not check: {hidden}"
     assert len(guard.audit(history_source)[0]) >= 10, "the guard no longer extracts the history statements"
     assert _history_problems(history_source) == []

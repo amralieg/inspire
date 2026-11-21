@@ -205,10 +205,11 @@ def orchestrator_job_spec(name: str, genie_space_ids, cron: str = "") -> dict:
     return {"name": str(name), "schedule": str(cron or ""), "tasks": tasks}
 
 
-def orchestrate(ask, genie_space_ids, question: str) -> dict:
+def orchestrate(ask, genie_space_ids, question: str, redact_error=str) -> dict:
     """Run the orchestrator's question against each domain Genie space and collect the answers. `ask(space_id, question)` is the
     notebook's existing Genie conversation helper, passed in so this module makes no Genie call of its own. A space that fails keeps
-    its error next to its answer; nothing is dropped silently."""
+    its error next to its answer; nothing is dropped silently. `redact_error` is the notebook's one redaction (REQ-169 rule: no error
+    becomes text any other way)."""
     spaces = [str(s).strip() for s in genie_space_ids if str(s or "").strip()]
     if not spaces:
         raise ValueError("the orchestrator needs at least one Genie space")
@@ -219,7 +220,7 @@ def orchestrate(ask, genie_space_ids, question: str) -> dict:
         try:
             answers[space] = {"answer": str(ask(space, question)), "error": ""}
         except Exception as exc:
-            answers[space] = {"answer": "", "error": str(exc)[:300]}
+            answers[space] = {"answer": "", "error": redact_error(exc)[:300]}
     return {"answers": answers, "failed": sorted(s for s, a in answers.items() if a["error"])}
 
 
@@ -351,21 +352,20 @@ def pick_endpoint(listed) -> str:
     return ""
 
 
-def delete_records(api, records, is_not_found, redact) -> list:
+def delete_records(api, records, is_not_found, redact_error) -> list:
     """REQ-354: deletes what a build path created. A missing asset is silent (as for the job deletes); any other failure is reported
     with its message, so the person can remove it by hand. Returns the warnings."""
     try:
         calls = uninstall_requests(records or [])
     except ValueError as error:
-        return [f"Inspire could not list the build assets to delete: {redact(error)}"]
-    warnings = []
+        return [f"Inspire could not list the build assets to delete: {redact_error(error)}"]
+    failed = []
     for method, path, body in calls:
         try:
             api.do(method, path, body=body)
         except Exception as error:
-            if not is_not_found(error):
-                warnings.append(f"{method} {path} could not be deleted: {redact(error)}")
-    return warnings
+            failed.append((method, path, error))
+    return [f"{method} {path} could not be deleted: {redact_error(error)}" for method, path, error in failed if not is_not_found(error)]
 
 
 class BuildApi:
