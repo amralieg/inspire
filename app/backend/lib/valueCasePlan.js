@@ -6,10 +6,11 @@ const { binder } = require('./scoreRefine');
 const { parseExactJson } = require('./exactJson');
 const { replyContent } = require('./appFeedback');
 const VY = require('./valueYearly');
+const { quoteColumn: quote } = require('./inspireImplement');
+const GR = require('./groupingRule');
 
 const DEF = VDC.DEFINITION;
-const GROUP_MIN_RECORDS = 30;
-const GROUP_MAX_GROUPS = 500;
+const { GROUP_MIN_RECORDS, GROUP_MAX_GROUPS } = GR;
 const OTHER = 'Other';
 const OPS = ['=', '!=', '>', '>=', '<', '<=', 'is_not_null'];
 const AGGS = ['avg', 'sum_per_year'];
@@ -121,16 +122,22 @@ function planFrom(data, columns, groupBy = '') {
 }
 
 // ---- the grouped SQL ----
+// The plan may have come back from the browser (saved answers), so the filter is checked again here: a known operator on a column name.
+function filterSql(f, b) {
+  if (!f || typeof f !== 'object' || !OPS.includes(f.op) || !String(f.column || '').trim()) return '';
+  if (f.op === 'is_not_null') return ` WHERE ${quote(f.column)} IS NOT NULL`;
+  return f.value === undefined || f.value === null ? '' : ` WHERE ${quote(f.column)} ${f.op} ${b.bind(f.value)}`;
+}
+
 function groupedSql(GP, scopes, plan, table, dateColumn) {
   const b = binder();
-  const quote = (name) => `\`${String(name).replace(/`/g, '')}\``;
   return GP.statement(scopes, (ctx) => {
     const needed = [dateColumn, plan.grouping, ...plan.metrics.map((m) => m.column), plan.case_filter && plan.case_filter.column].filter(Boolean);
     const from = GP.previewFrom(table, ctx, needed);
     const f = plan.case_filter;
-    const where = !f ? '' : f.op === 'is_not_null' ? ` WHERE ${quote(f.column)} IS NOT NULL` : ` WHERE ${quote(f.column)} ${f.op} ${b.bind(f.value)}`;
+    const where = filterSql(f, b);
     const group = plan.grouping ? `COALESCE(CAST(${quote(plan.grouping)} AS STRING), '(blank)')` : "'All'";
-    const metrics = plan.metrics.map((m) => `, ${m.agg === 'avg' ? 'AVG' : 'SUM'}(CAST(${quote(m.column)} AS DOUBLE)) AS m_${m.id}`).join('');
+    const metrics = plan.metrics.filter((m) => ID_SHAPE.test(String(m.id))).map((m) => `, ${m.agg === 'avg' ? 'AVG' : 'SUM'}(CAST(${quote(m.column)} AS DOUBLE)) AS m_${m.id}`).join('');
     return `SELECT ${group} AS g, COUNT(*) AS records, DATEDIFF(MAX(${quote(dateColumn)}), MIN(${quote(dateColumn)})) + 1 AS days${metrics} FROM ${from}${where}${plan.grouping ? ' GROUP BY 1' : ''}`;
   }, b.parameters);
 }
@@ -193,7 +200,7 @@ function yearlyOf(plan, answers) {
     const amount = round2(VDC.amountOverGroups(d.id, fixed, dataAsks, groups));
     parts.push({ id: d.id, label: d.label, verb: d.verb || VERBS[d.id], amount, per_group: dataAsks.length > 0,
       inputs: d.asks.map((ask) => ({ id: ask.id, label: ask.label, kind: ask.kind, source: ask.source,
-        value: ask.source === 'data' ? round2(VDC.dataFigure(ask, groups)) : fixed[ask.id] })) });
+        value: ask.source === 'data' ? round2(VDC.dataFigure(ask, groups, ((plan.metrics || []).find((m) => m.id === ask.metric) || {}).agg)) : fixed[ask.id] })) });
   }
   if (Object.keys(errors).length) return { errors };
   const sum = parts.reduce((s, p) => s + p.amount, 0);
@@ -212,11 +219,10 @@ function yearlyOf(plan, answers) {
 // The count behind C5 `stale`: records per year of the table under the plan's filter, and the days its date column covers.
 function currentCountSql(GP, scopes, plan) {
   const b = binder();
-  const quote = (name) => `\`${String(name).replace(/`/g, '')}\``;
   return GP.statement(scopes, (ctx) => {
     const f = plan.case_filter;
     const from = GP.previewFrom(plan.table, ctx, [plan.date_column, f && f.column].filter(Boolean));
-    const where = !f ? '' : f.op === 'is_not_null' ? ` WHERE ${quote(f.column)} IS NOT NULL` : ` WHERE ${quote(f.column)} ${f.op} ${b.bind(f.value)}`;
+    const where = filterSql(f, b);
     return `SELECT COUNT(*) AS records, DATEDIFF(MAX(${quote(plan.date_column)}), MIN(${quote(plan.date_column)})) + 1 AS days FROM ${from}${where}`;
   }, b.parameters);
 }

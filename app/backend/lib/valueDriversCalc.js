@@ -79,9 +79,9 @@ function amountOverGroups(id, fixed, dataAsks, groups) {
   return groups.reduce((sum, g) => sum + amountOf(id, { ...fixed, ...Object.fromEntries(dataAsks.map((a) => [a.id, groupValue(g, a.metric)])) }), 0);
 }
 
-// The one figure a data ask shows for the included groups: the records sum, or a metric averaged with the records as weights.
-function dataFigure(ask, groups) {
-  if (ask.metric === 'records') return groups.reduce((s, g) => s + groupValue(g, 'records'), 0);
+// The one figure a data ask shows for the included groups: the records or a sum-per-year metric summed, else a metric averaged with the records as weights.
+function dataFigure(ask, groups, agg) {
+  if (ask.metric === 'records' || agg === 'sum_per_year') return groups.reduce((s, g) => s + groupValue(g, ask.metric), 0);
   const total = groups.reduce((s, g) => s + groupValue(g, 'records'), 0);
   if (!total) return 0;
   return groups.reduce((s, g) => s + groupValue(g, ask.metric) * groupValue(g, 'records'), 0) / total;
