@@ -59,7 +59,7 @@ def test_exactly_the_dashboard_and_agent_layouts_are_informational_and_every_oth
 
 
 def test_every_kind_decides_exactly_when_it_is_not_informational():
-    assert len(KINDS["kinds"]) == 40
+    assert len(KINDS["kinds"]) == 51
     for kind in KINDS["kinds"]:
         layout = kind["layout"]
         assert shell_sql.layout_decides(layout) is (kind.get("informational") is not True), (

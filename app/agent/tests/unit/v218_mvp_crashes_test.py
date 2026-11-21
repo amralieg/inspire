@@ -152,7 +152,7 @@ def test_the_fill_round_repairs_widget_defaults_before_it_checks_them(agent_ns):
         "reply += validate_genie_fill_result(fill, widget_names[:-1])")
 
 
-ROW_COUNT_KINDS = 10
+ROW_COUNT_KINDS = 15
 
 
 def _kind_space(ns, kind):

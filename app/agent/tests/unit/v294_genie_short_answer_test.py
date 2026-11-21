@@ -96,7 +96,7 @@ def test_the_entity_matching_kind_declares_pairs_for_its_list_and_profiles_for_i
 
 def test_every_kind_in_the_registry_declares_a_singular_and_plural_noun_for_its_list_and_its_kpi():
     kinds = shell_sql.kinds_registry()["kinds"]
-    assert len(kinds) == 40
+    assert len(kinds) == 51
     for kind in kinds:
         for key in ("record", "kpi"):
             singular, plural = kind["nouns"][key]

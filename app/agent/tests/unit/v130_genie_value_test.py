@@ -716,12 +716,16 @@ def test_round_23_ratios_survive_zero_shares_keep_losing_groups_and_small_groups
     assert weight.isascii() and types.isascii() and empty.isascii() and frames.isascii()
     guidance = agent_ns["TECHNIQUE_IMPLEMENTATION_GUIDANCE"]
     families = agent_ns["TECHNIQUE_EXECUTION_FAMILY"]
-    assert sum(1 for technique in guidance if families[technique] == "F") == 11
+    # REQ-414 (9ab397a1e) added four AI-native techniques to family F. They read whole records, not groups, so they carry their own
+    # shortfall text and the group-shortfall rule below does not apply to them.
+    ai_native = {"Written Commentary", "Cross-Domain Assistant", "AI Entity Matching", "AI Data Agent"}
+    assert sum(1 for technique in guidance if families[technique] == "F" and technique not in ai_native) == 11
+    assert ai_native <= {technique for technique in guidance if families[technique] == "F"}
     for technique, text in guidance.items():
         shortfall = text.split("\n")[-1]
         assert "below the minimum rows or fewer than two periods stop the run" not in shortfall, \
             f"{technique}: one small group must never stop a run that has enough groups to compare"
-        if families[technique] == "F":
+        if families[technique] == "F" and technique not in ai_native:
             assert "below the minimum rows are left out of the findings and counted" in shortfall, technique
             assert "`min_reportable_groups`" in shortfall and "`min_periods`" in shortfall, technique
     assert "every contributor of a reported group keeps its place in that group's share" in guidance["Pareto Analysis"]
