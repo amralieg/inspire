@@ -1,8 +1,10 @@
-// REQ-432: the use case card shows the value per year under the Inspire score, or a Calculate button that asks the Value at stake questions.
+// REQ-432: the use case card shows the value per year beside the Inspire score (REQ-438 v8 value box), or a Calculate value box that opens the
+// Calculate value wizard (REQ-436 v8: Next through the steps, Save on the last one).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, openUi } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
+import { goTo } from './valueWizardSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -23,7 +25,7 @@ const mount = (app) => {
   app.put('/api/inspire/value/answers', (req, res) => { posts.push(req.body); res.json({ version: 1, yearly: YEARLY_ENTRY(405556), disclaimer: '' }); });
 };
 
-test('a measured card shows the verb line, "$15M (estimated)" and "Per Year" below the score, and a card with no value shows Calculate', async () => {
+test('a measured card shows the value box with the verb, "$15M", "(estimated)" and "Per year" beside the score, and a card with no value shows Calculate value', async () => {
   const ui = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS }, '', { mount });
   const { page } = ui;
   try {
@@ -33,16 +35,17 @@ test('a measured card shows the verb line, "$15M (estimated)" and "Per Year" bel
     const line = card('Predict churn').locator('[data-value-yearly]');
     await line.waitFor({ timeout: 15000 });
     assert.equal((await line.locator('[data-value-verb]').innerText()).trim().toUpperCase(), 'INCREASE REVENUE');
-    assert.equal((await line.locator('[data-value-amount]').innerText()).replace(/\s+/g, ' ').trim(), '$15M (estimated)');
-    assert.equal((await line.locator('[data-value-period]').innerText()).trim(), 'Per Year');
-    const score = await card('Predict churn').locator('[title="Inspire composite score"]').first().boundingBox();
+    assert.equal((await line.locator('[data-value-amount]').innerText()).replace(/\s+/g, ' ').trim(), '$15M');
+    assert.equal((await line.locator('[data-value-qualifier]').innerText()).trim(), '(estimated)');
+    assert.equal((await line.locator('[data-value-period]').innerText()).trim(), 'Per year');
+    const score = await card('Predict churn').locator('[data-score-box]').first().boundingBox();
     const box = await line.boundingBox();
-    assert.ok(box.y >= score.y + score.height - 1, 'the value line sits below the Inspire score');
+    assert.ok(Math.abs(box.y - score.y) <= 1 && box.x > score.x, 'the value box sits beside the Inspire score');
     assert.equal(await card('Predict churn').locator('[data-value-calculate]').count(), 0);
 
     const empty = card('Score upsell');
     await empty.locator('[data-value-calculate]').waitFor();
-    assert.equal((await empty.locator('[data-value-calculate]').innerText()).trim(), 'Calculate');
+    assert.match((await empty.locator('[data-value-calculate]').innerText()).replace(/\s+/g, ' ').trim(), /^\+ Calculate value at stake$/);
     assert.equal(await empty.locator('[data-value-yearly]').count(), 0, 'no number, never 0, for a value that was not calculated');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -50,7 +53,7 @@ test('a measured card shows the verb line, "$15M (estimated)" and "Per Year" bel
   }
 });
 
-test('Calculate opens the Value at stake questions, submitting saves the answers on the server, and the card then shows the value', async () => {
+test('Calculate opens the wizard, Save on its last step saves the answers on the server, and the card then shows the value', async () => {
   posts.length = 0;
   const ui = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS }, '', { mount: (app) => {
     app.get('/api/inspire/value/yearly', (_req, res) => res.json({ use_cases: {} }));
@@ -64,15 +67,21 @@ test('Calculate opens the Value at stake questions, submitting saves the answers
     await card.locator('[data-value-calculate]').click();
     const dialog = page.getByRole('dialog', { name: 'Calculate value at stake' });
     await dialog.waitFor();
-    await dialog.getByRole('list', { name: 'Money decisions' }).waitFor();
-    assert.match(await dialog.innerText(), /Value at stake/);
-    await dialog.getByRole('button', { name: 'Calculate', exact: true }).click();
+    await dialog.getByRole('list', { name: 'Steps' }).waitFor();
+    assert.match(await dialog.innerText(), /value at stake/i);
+    await goTo(dialog, 'save');
+    await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     const line = card.locator('[data-value-yearly]');
     await line.waitFor({ timeout: 15000 });
-    assert.equal((await line.locator('[data-value-amount]').innerText()).replace(/\s+/g, ' ').trim(), '$406K (estimated)');
+    // The v8 box counts up to the new figure over half a second.
+    const amountOf = async () => (await line.locator('[data-value-amount]').innerText()).replace(/\s+/g, ' ').trim();
+    for (let i = 0; i < 30 && await amountOf() !== '$406K'; i += 1) await page.waitForTimeout(100);
+    assert.equal(await amountOf(), '$406K');
+    assert.equal((await line.locator('[data-value-qualifier]').innerText()).trim(), '(estimated)');
     assert.equal(posts.length, 1, 'one save request');
     assert.equal(posts[0].use_case_id, 'N01-U01');
-    assert.ok(posts[0].answers && posts[0].answers.money, 'the answers travel with the request');
+    assert.ok(posts[0].answers && posts[0].answers.shape === 2 && posts[0].answers.plan, 'the answers (shape 2, with the plan) travel with the request');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -92,7 +101,9 @@ test('a failed save shows its one line in the box, keeps the box open, and the c
     const card = list.locator('[aria-expanded]').filter({ hasText: 'Predict churn' });
     await card.locator('[data-value-calculate]').click();
     const dialog = page.getByRole('dialog', { name: 'Calculate value at stake' });
-    await dialog.getByRole('button', { name: 'Calculate', exact: true }).click();
+    await goTo(dialog, 'save');
+    await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await dialog.getByRole('alert').waitFor({ timeout: 15000 });
     assert.match(await dialog.getByRole('alert').innerText(), /no date column/);
     assert.equal(await card.locator('[data-value-yearly]').count(), 0);

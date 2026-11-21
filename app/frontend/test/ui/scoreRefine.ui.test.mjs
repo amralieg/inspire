@@ -69,11 +69,11 @@ test('Apply stores the new score and shows "Refined from 8.5"; Undo restores it'
     const [change] = posts[0][1].changes;
     assert.deepEqual([change.use_case_id, change.score, change.from], ['N01-U02', 9.05, 8.5]);
     assert.ok(String(change.reason).length > 10, 'the reason travels with the change');
-    assert.equal((await scoreOf(page, 'Score upsell').innerText()).replace(/\s+/g, ' ').trim().endsWith('9.05'), true);
+    assert.equal((await scoreOf(page, 'Score upsell').innerText()).replace(/\s+/g, ' ').trim().endsWith('9.05 score'), true, 'REQ-438 v8 score box: INSPIRE / number / score');
     await banner.getByRole('button', { name: 'Undo', exact: true }).click();
     await page.waitForFunction(() => !document.querySelector('[title*="Refined from"]'), null, { timeout: 15000 });
     assert.deepEqual(posts[1], ['undo', { ...posts[1][1], use_case_ids: ['N01-U02'] }]);
-    assert.equal((await scoreOf(page, 'Score upsell').innerText()).replace(/\s+/g, ' ').trim().endsWith('8.5'), true);
+    assert.equal((await scoreOf(page, 'Score upsell').innerText()).replace(/\s+/g, ' ').trim().endsWith('8.5 score'), true, 'REQ-438 v8 score box: INSPIRE / number / score');
   } finally {
     await ui.close();
   }
@@ -110,7 +110,7 @@ test('after a reload the refined score still offers Undo on its card, and Undo r
     await undo.click();
     await page.waitForFunction(() => !document.querySelector('[title*="Refined from"]'), null, { timeout: 15000 });
     assert.deepEqual(posts, [['undo', { ...posts[0][1], use_case_ids: ['N01-U02'] }]]);
-    assert.equal((await scoreOf(page, 'Score upsell').innerText()).replace(/\s+/g, ' ').trim().endsWith('8.5'), true);
+    assert.equal((await scoreOf(page, 'Score upsell').innerText()).replace(/\s+/g, ' ').trim().endsWith('8.5 score'), true, 'REQ-438 v8 score box: INSPIRE / number / score');
     assert.equal(await page.getByRole('button', { name: 'Undo refined score', exact: true }).count(), 0, 'Undo is gone once restored');
     assert.deepEqual(ui.pageErrors, []);
   } finally {

@@ -15,7 +15,8 @@ export { expandBuild };
 
 const frontend = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const { makeApp } = createRequire(import.meta.url)('../../../backend/test/support/implementApp.js');
-export const CURRENT_BUILD = createRequire(import.meta.url)('../../../backend/lib/appShell.js').bundledBuildStamp();
+const VCP = createRequire(import.meta.url)('../../../backend/lib/valueCasePlan.js');
+export const CURRENT_BUILD =createRequire(import.meta.url)('../../../backend/lib/appShell.js').bundledBuildStamp();
 const UNKNOWN_BUILD = { version: '', shell: '' };
 
 export const PREBUNDLED_ENV = 'INSPIRE_UI_PREBUNDLED';
@@ -190,6 +191,14 @@ export async function openUi(open, overrides = {}, query = '', { mount, init } =
     mount?.(app);
     app.get('/api/inspire/value/answers', (_req, res) => res.json({ answers: {} }));
     app.get('/api/inspire/value/answers/history', (_req, res) => res.json({ history: [] }));
+    // REQ-436/438: the harness warehouse has no dated table, so a test that does not mount them gets the server's fallback case plan over
+    // two groups and no run totals (no number on any card). POST preview stays the real server route.
+    app.post('/api/inspire/value/case-plan', (req, res) => res.json({ plan: { ...VCP.fallbackPlan([{ column_name: 'region', data_type: 'string' }]),
+      table: String(req.body?.table || ''), date_column: 'created_at', days: 365,
+      groups: [{ g: 'North', records_per_year: 1200, metrics: {} }, { g: 'South', records_per_year: 800, metrics: {} }] } }));
+    app.get('/api/inspire/value/totals', (req, res) => res.json(req.query.session_id
+      ? { run: { totals: [], n: 0, n_calculated: 0, n_estimated: 0, n_none: 0, by_verb: [] }, use_cases: {} }
+      : { runs: [], all: { totals: [], n_calculated: 0, n_estimated: 0 } }));
   };
   const made = makeApp({ useCase: HARNESS_USE_CASE, buildStamp: UNKNOWN_BUILD, forwardedEmail: overrides.me?.userName, ...overrides }, { mount: withAnswers });
   const opened = [];

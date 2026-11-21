@@ -28,18 +28,16 @@ test('the disclaimer is one constant with the agreed words', () => {
   assert.equal(VALUE_DISCLAIMER_SHORT, 'Unverified estimate');
 });
 
-test('the card shows the short line under "Per Year" and the full text in its tooltip', async () => {
+// REQ-438 v8: the value box has no short line under "Per year"; it carries the full text in its tooltip, and the short line sits in
+// "How we got this number" (source check below).
+test('the card value box carries the full text in its tooltip', async () => {
   const ui = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS }, '', { mount });
   const { page } = ui;
   try {
     const card = page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]').filter({ hasText: 'Predict churn' });
     const line = card.locator('[data-value-yearly]');
     await line.waitFor({ timeout: 15000 });
-    const short = line.locator('[data-value-disclaimer]');
-    assert.equal((await short.innerText()).trim(), VALUE_DISCLAIMER_SHORT);
-    const period = await line.locator('[data-value-period]').boundingBox();
-    const shortBox = await short.boundingBox();
-    assert.ok(shortBox.y >= period.y + period.height - 1, 'the short line sits under "Per Year"');
+    assert.equal((await line.locator('[data-value-period]').innerText()).trim(), 'Per year');
     assert.ok(((await line.getAttribute('title')) || '').includes(FULL), 'the tooltip carries the full text');
   } finally {
     await ui.close();
@@ -72,6 +70,7 @@ test('the measured value badge on the Results page and the value across runs on 
 test('the rule estimate line and the drawer carry the disclaimer', () => {
   const read = (p) => readFileSync(new URL(`../../src/${p}`, import.meta.url), 'utf8');
   assert.match(read('components/ValueEstimateLine.jsx'), /ValueDisclaimer|VALUE_DISCLAIMER/, 'the rule estimate line renders it');
-  assert.match(read('components/CardValueLine.jsx'), /VALUE_DISCLAIMER/, 'the card and drawer line render it');
-  assert.match(read('components/CalculateValueDialog.jsx') + read('pages/ResultsPage.jsx'), /ValueDisclaimer|VALUE_DISCLAIMER/, 'the Calculate result renders it');
+  assert.match(read('components/ValueBox.jsx'), /VALUE_DISCLAIMER/, 'the card and drawer value box render it');
+  assert.match(read('components/ValueHow.jsx'), /ValueDisclaimer/, 'How we got this number renders the short line');
+  assert.match(read('components/CalculateValueDialog.jsx') + read('components/valueWizard/StepSave.jsx') + read('pages/ResultsPage.jsx'), /ValueDisclaimer|VALUE_DISCLAIMER/, 'the Calculate result renders it');
 });

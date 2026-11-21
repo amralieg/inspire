@@ -19,7 +19,8 @@ const SAVED = { version: 2, saved_at: '2026-11-20T10:00:00Z', saved_by: 'amr@exa
 
 const mountWith = ({ puts = [], posts = [], saved = SAVED, putReply = null, history = [] } = {}) => mountWizard({ puts, posts, saved, putReply, history });
 
-const amount = async (card) => (await card.locator('[data-value-amount]').innerText()).replace(/\s+/g, ' ').trim();
+// REQ-438 v8 value box: the amount and its "(estimated)" qualifier sit on their own lines; this reads them as one.
+const amount = async (card) => `${(await card.locator('[data-value-amount]').innerText()).trim()} ${(await card.locator('[data-value-qualifier]').innerText()).trim()}`;
 const openDialog = async (page) => {
   const dialog = page.getByRole('dialog', { name: 'Calculate value at stake' });
   await dialog.waitFor();
