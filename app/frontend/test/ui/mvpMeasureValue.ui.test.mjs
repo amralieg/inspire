@@ -80,7 +80,7 @@ test('2: Edit opens the wizard over the MVP wizard; a stubbed Save updates the b
     await page.waitForFunction(() => document.querySelector('[data-mvp-value] [data-value-amount]')?.textContent.trim() === '$3M', null, { timeout: 15000 });
     assert.equal(state.puts.length, 1);
     assert.equal(await page.locator('[data-mvp-value]').count(), 1, 'still on the Measure step, no reload');
-    assert.equal(await page.locator('[aria-current="step"]').innerText().then((t) => /Measure/i.test(t)), true, 'the MVP wizard is still on Measure');
+    assert.equal(await page.locator('[data-wizard-header] [aria-current="step"]').innerText().then((t) => /Measure/i.test(t)), true, 'the MVP wizard is still on Measure');
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
 });
