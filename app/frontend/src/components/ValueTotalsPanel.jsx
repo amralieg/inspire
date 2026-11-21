@@ -37,7 +37,7 @@ const split = (totals) => totals.flatMap((t) => [
   { name: `Estimated ${totals.length > 1 ? t.currency : ''}`.trim(), value: Number(t.estimated) || 0, text: moneyText(t.currency, t.estimated), color: AMBER },
 ]);
 
-const PILL = { calculated: 'bg-success-bg text-success-fg', estimated: 'bg-warning-bg text-warning-fg' };
+const PILL = { calculated: 'bg-success-bg text-success-fg', measured: 'bg-success-bg text-success-fg', estimated: 'bg-warning-bg text-warning-fg' };
 
 // One run: run = C6 run block, useCases = C6 use_cases, nameOf(id), onRow(id).
 export function RunValuePanel({ run, useCases, nameOf, onRow }) {
@@ -62,7 +62,7 @@ export function RunValuePanel({ run, useCases, nameOf, onRow }) {
             <tr key={id} data-value-row={id} onClick={() => onRow?.(id)} className="cursor-pointer border-t border-border/60 hover:bg-bg-subtle">
               <td className="py-1">{nameOf?.(id) || id}</td>
               <td className="text-text-secondary">{u.verb || '—'}</td>
-              <td><span className={`rounded-full px-2 py-px text-[10px] ${PILL[u.status] || 'bg-bg-subtle text-text-secondary'}`}>{u.status === 'calculated' ? 'calculated' : u.status === 'estimated' ? 'estimated' : u.status === 'no_data' ? 'no data' : 'not yet'}</span></td>
+              <td><span className={`rounded-full px-2 py-px text-[10px] ${PILL[u.status] || 'bg-bg-subtle text-text-secondary'}`}>{u.status === 'calculated' ? 'calculated' : u.status === 'measured' ? 'measured' : u.status === 'estimated' ? 'estimated' : u.status === 'no_data' ? 'no data' : 'not yet'}</span></td>
               <td className="text-end tabular-nums">{u.amount != null ? moneyText(u.currency, u.amount) : '—'}</td>
             </tr>
           ))}

@@ -302,6 +302,7 @@ import { chosenScopeParam, chosenTableScopes, normalizeTableScope, rowFilterText
 import SamplesCopyOffer from '../components/SamplesCopyOffer';
 import { samplesTarget, validCopyTarget } from '../lib/samplesCopy';
 import { useModal } from '../components/useModal';
+import MvpValuePanel from '../components/MvpValuePanel';
 import { DRAFT_BACK_NOTE, DRAFT_START_OVER, clearWizardDraft, readWizardDraft, draftStampOf, wizardDraftKey, writeWizardDraft } from '../lib/wizardDraft';
 import {
   FIRST_RUN_TITLE, FIRST_RUN_LABEL, GROUPING_EXAMPLE, GROUPING_PICK, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isFirstRunSetting, isGroupingSetting, isScopeSetting,
@@ -2093,6 +2094,7 @@ export default function ImplementWizard({
               <h3 className="text-sm font-semibold text-text-primary">Value at stake</h3>
               <p className="text-[11px] text-text-secondary">{`Each record is counted in the ${stakeWords(sampleStake)}. Optional: the default already counts it, so Next moves on. Open a section to change it.`}</p>
             </div>
+            {moneyActive === 0 && <MvpValuePanel uc={uc} sessionId={sessionId} settings={settings} apiFetch={apiFetch} apiPostJson={apiPostJson} />}
             <StakeQuestions spec={spec} setSpec={setSpec} moneyParts={moneyParts} moneyActive={moneyActive} setMoneyPart={setMoneyPart}
               profile={scopeProfile.profile} moneyApi={moneyApi.current} kpiOptions={kpiOptions} trackedKpi={trackedKpi} best={best}
               before={context?.latest ? kpiTargetOf(context.latest.spec_json) : null} />

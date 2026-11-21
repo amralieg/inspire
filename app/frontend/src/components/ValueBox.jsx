@@ -16,6 +16,8 @@ export function boxModel({ yearly = null, summary = null, status = '' } = {}) {
   const st = status || summary?.status || '';
   if (st === 'no_data') return { state: 'no_data' };
   const pick = (verb, unit, amount, calculated, stale = false) => ({ state: stale ? 'stale' : calculated ? 'calculated' : 'estimated', verb, unit, amount: Number(amount), calculated, stale });
+  // REQ-440: the MVP's measured money wins over a saved or estimated value.
+  if (st === 'measured' && summary && Number.isFinite(Number(summary.amount))) return { state: 'measured', verb: summary.verb, unit: summary.currency, amount: Number(summary.amount), calculated: false, stale: false };
   if (yearly?.total && Number.isFinite(Number(yearly.total.amount))) {
     return pick(yearly.verb, yearly.total.unit, yearly.total.amount, Boolean(yearly.calculated), Boolean(yearly.stale));
   }
@@ -52,6 +54,7 @@ function useCountUp(target) {
 const TAGS = {
   calculated: ['✓ CHECKED', 'border-success/40 bg-success-bg text-success-fg'],
   estimated: ['ESTIMATE', 'border-warning/40 bg-warning-bg text-warning-fg'],
+  measured: ['MEASURED', 'border-success/40 bg-success-bg text-success-fg'],
   stale: ['DATA CHANGED', 'border-warning/40 bg-warning-bg text-warning-fg'],
 };
 
@@ -89,9 +92,9 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
       className={`${BOX} ${edge} bg-surface ${pulse ? 'animate-pulse' : ''}`}>
       <span data-value-verb="" className="text-[11px] tracking-wide text-text-primary">{m.verb}</span>
       <span data-value-amount="" className={`text-[22px] font-extrabold tabular-nums ${amt}`}>{text}</span>
-      <span data-value-qualifier="" className="text-[10px] text-text-secondary">{m.calculated ? '(calculated)' : '(estimated)'}</span>
+      <span data-value-qualifier="" className="text-[10px] text-text-secondary">{m.state === 'measured' ? '(measured)' : m.calculated ? '(calculated)' : '(estimated)'}</span>
       <span data-value-period="" className="text-[10px] text-text-secondary">Per year</span>
-      {!readOnly && onEdit && (
+      {!readOnly && onEdit && m.state !== 'measured' && (
         <button type="button" data-value-edit="" aria-label="Edit value" title="Edit value" onClick={(e) => { e.stopPropagation(); onEdit(); }}
           className="absolute -right-2.5 -top-2.5 flex h-[26px] w-[26px] items-center justify-center rounded-full border border-border bg-surface text-text-secondary shadow hover:border-db-red-solid hover:text-db-red-fg">
           <Pencil size={13} />
