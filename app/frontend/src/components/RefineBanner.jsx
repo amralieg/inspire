@@ -1,6 +1,7 @@
 import { valueChips } from '../lib/valueLedger';
 import { ratioText, scoreText } from '../lib/scoreRefine';
 import ValueDisclaimer from './ValueDisclaimer';
+import { PlainMessage } from './TechnicalDetails';
 
 // REQ-433: asks right away to refine an out-of-order score (Apply, Keep), and after Apply offers Undo. REQ-434: carries the full disclaimer.
 const money = (pair, amount) => valueChips([{ kind: pair.kind, unit: pair.unit, amount }], 1).shown[0]?.text || '';
@@ -32,7 +33,7 @@ export default function RefineBanner({ view, busy, error, onApply, onUndo, onKee
           {changes.map((c) => <li key={c.id} className="tabular-nums">{`${names[c.id] || c.id}: ${scoreText(c.from)} → ${scoreText(c.to)}`}</li>)}
         </ul>
       )}
-      {error && <p role="alert" className="mt-1 text-xs text-error-fg">{error}</p>}
+      {error && <PlainMessage text={error} role="alert" className="mt-1 text-xs text-error-fg" />}
       <div className="mt-2 flex gap-2">
         {applied ? (
           <button type="button" disabled={busy} onClick={onUndo} className={`${btn} border-border text-text-primary`}>Undo</button>

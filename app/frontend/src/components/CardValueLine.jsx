@@ -1,5 +1,6 @@
 import { VALUE_DISCLAIMER, VALUE_LABELS, yearlyBasis, yearlyHeadline } from '../lib/valueLabels';
 import ValueDisclaimer from './ValueDisclaimer';
+import { PlainMessage } from './TechnicalDetails';
 
 // REQ-432: the value per year under the Inspire score: the verb, the number with "(estimated)", and the period. A use case with no
 // value shows Calculate; calculating shows a busy line; a failure shows one line of why with Retry (never 0 and never blank).
@@ -26,7 +27,7 @@ export default function CardValueLine({ yearly = null, calc = null, canCalculate
   if (calc?.status === 'failed') {
     return (
       <div data-value-failed="" role="alert" {...guard} className="mt-1.5 flex max-w-[9.5rem] flex-col items-end text-end text-[11px] leading-snug text-error-fg">
-        <span dir="auto" className="break-words">{calc.error}</span>
+        <PlainMessage as="span" text={calc.error} dir="auto" className="break-words" />
         <button type="button" onClick={(e) => { e.stopPropagation(); onRetry?.(); }} className={link}>{VALUE_LABELS.retry}</button>
       </div>
     );
