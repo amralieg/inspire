@@ -21,6 +21,7 @@ function ratioOf(x, y) {
   return best;
 }
 
+// Only pairs with the same `tier` are compared: the Results order puts the quality bar and Best of Best before the score.
 export function refineScores(items) {
   const rows = (Array.isArray(items) ? items : [])
     .map((it) => ({ ...it, values: valuesOf(it.entries), start: Number(it.score), now: Number(it.score) }))
@@ -33,6 +34,7 @@ export function refineScores(items) {
     let beat = null;
     for (const y of rows) {
       if (y === x || y.now < x.now) continue;
+      if ((x.tier ?? '') !== (y.tier ?? '')) continue; // different sort tiers: the score never decides their order
       const found = ratioOf(x.values, y.values);
       if (found.ratio >= REFINE_RATIO - 1e-9 && y.now + STEP > target) { target = y.now + STEP; beat = { y, ...found }; }
     }

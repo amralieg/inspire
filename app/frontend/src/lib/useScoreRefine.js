@@ -1,11 +1,22 @@
 import { useCallback, useMemo, useState } from 'react';
 import { refineReason, refineScores, ratioText, withRefinedScores } from './scoreRefine.js';
-import { nameOfUseCase, trackingIdOf } from './useCaseFields.js';
+import { compareMeetsQualityBarFirst, nameOfUseCase, trackingIdOf } from './useCaseFields.js';
+import { compareBestOfBestFirst } from './v130UseCase.js';
 
 // REQ-433: the refine banner state for the Review page: the suggestions, Apply, Undo and Keep. Keep holds until a value changes.
 const keepKey = (host, db, sid) => `inspire.refine.keep.v1|${host || ''}|${db || ''}|${sid || ''}`;
 const readKeep = (key) => { try { return globalThis.localStorage?.getItem(key) || ''; } catch { return ''; } };
 const writeKeep = (key, v) => { try { globalThis.localStorage?.setItem(key, v); } catch { /* storage unavailable: Keep lasts for this view */ } };
+
+// The tier key of each use case in the default Results order: use cases the quality-bar and Best of Best comparisons cannot tell apart share a key.
+export function tiersOf(list) {
+  const heads = [];
+  return list.map((uc) => {
+    let head = heads.find((h) => compareMeetsQualityBarFirst(h, uc) === 0 && compareBestOfBestFirst(h._v130, uc._v130) === 0);
+    if (!head) { head = uc; heads.push(uc); }
+    return heads.indexOf(head);
+  });
+}
 
 export function useScoreRefine({ useCases, yearlyOf, apiPostJson, host, inspireDatabase, warehouseId, sessionId }) {
   const [refined, setRefined] = useState({});
@@ -15,8 +26,9 @@ export function useScoreRefine({ useCases, yearlyOf, apiPostJson, host, inspireD
   const key = keepKey(host, inspireDatabase, sessionId);
   const [kept, setKept] = useState(() => readKeep(key));
   const list = useMemo(() => withRefinedScores(useCases, refined, trackingIdOf), [useCases, refined]);
-  const items = useMemo(() => list.map((uc) => ({ id: trackingIdOf(uc), name: nameOfUseCase(uc), score: uc.inspire_score ?? null, entries: yearlyOf(trackingIdOf(uc))?.entries || null }))
-    .filter((it) => it.id && it.score != null && it.score !== '').map((it) => ({ ...it, score: Number(it.score) })), [list, yearlyOf]);
+  const tiers = useMemo(() => tiersOf(list), [list]);
+  const items = useMemo(() => list.map((uc, i) => ({ id: trackingIdOf(uc), tier: tiers[i], name: nameOfUseCase(uc), score: uc.inspire_score ?? null, entries: yearlyOf(trackingIdOf(uc))?.entries || null }))
+    .filter((it) => it.id && it.score != null && it.score !== '').map((it) => ({ ...it, score: Number(it.score) })), [list, tiers, yearlyOf]);
   const found = useMemo(() => refineScores(items), [items]);
   const signature = useMemo(() => JSON.stringify(found.pairs.map((p) => [p.lower.id, p.higher.id, p.lowerAmount, p.higherAmount, p.lower.start])), [found]);
   const body = (extra) => ({ inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId), ...extra });
