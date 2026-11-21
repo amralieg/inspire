@@ -39,30 +39,39 @@ export function useScoreRefine({ useCases, yearlyOf, apiPostJson, host, inspireD
       const pair = found.pairs.find((p) => p.lower.id === c.id);
       return { use_case_id: c.id, score: c.to, from: c.from, reason: pair ? refineReason(pair, ratioText(pair.ratio)) : 'Refined so the order follows the value.' };
     });
+    // The cards reorder on the click; the write follows, and a failed write puts the previous state back.
+    const prevRefined = refined;
+    const prevApplied = applied;
+    setRefined((prev) => ({ ...prev, ...Object.fromEntries(found.changes.map((c) => [c.id, { from: c.from, to: c.to }])) }));
+    setApplied({ changes: found.changes, pairs: found.pairs, names: Object.fromEntries(items.map((it) => [it.id, it.name])) });
     try {
       await apiPostJson('/api/inspire/score-refine', body({ changes }));
-      setRefined((prev) => ({ ...prev, ...Object.fromEntries(found.changes.map((c) => [c.id, { from: c.from, to: c.to }])) }));
-      setApplied({ changes: found.changes, pairs: found.pairs, names: Object.fromEntries(items.map((it) => [it.id, it.name])) });
     } catch (err) {
+      setRefined(prevRefined);
+      setApplied(prevApplied);
       setError(err?.message || 'The scores could not be refined.');
     } finally {
       setBusy(false);
     }
-  }, [found, items, apiPostJson, inspireDatabase, warehouseId, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [found, items, refined, applied, apiPostJson, inspireDatabase, warehouseId, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const undo = useCallback(async () => {
     if (!applied) return;
     setBusy(true); setError('');
+    const prevRefined = refined;
+    const prevApplied = applied;
+    setRefined((prev) => ({ ...prev, ...Object.fromEntries(applied.changes.map((c) => [c.id, { from: c.from, to: c.from, undone: true }])) }));
+    setApplied(null);
     try {
-      await apiPostJson('/api/inspire/score-refine/undo', body({ use_case_ids: applied.changes.map((c) => c.id) }));
-      setRefined((prev) => ({ ...prev, ...Object.fromEntries(applied.changes.map((c) => [c.id, { from: c.from, to: c.from, undone: true }])) }));
-      setApplied(null);
+      await apiPostJson('/api/inspire/score-refine/undo', body({ use_case_ids: prevApplied.changes.map((c) => c.id) }));
     } catch (err) {
+      setRefined(prevRefined);
+      setApplied(prevApplied);
       setError(err?.message || 'The scores could not be restored.');
     } finally {
       setBusy(false);
     }
-  }, [applied, apiPostJson, inspireDatabase, warehouseId, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [applied, refined, apiPostJson, inspireDatabase, warehouseId, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // After a reload the banner is gone but the stored score still reads "Refined from X": the card restores it from the stored history.
   const undoCard = useCallback(async (id) => {
