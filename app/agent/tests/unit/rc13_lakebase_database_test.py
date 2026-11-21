@@ -158,7 +158,8 @@ def test_a_lakebase_permission_refusal_carries_one_structured_entry_with_its_exa
 
 def test_the_permission_entry_has_the_fields_of_the_app_permission_payload_and_drops_repeated_statements(agent_ns):
     entry = agent_ns["implement_permission_entry"]("app-sp", ["GRANT SELECT ON TABLE a.b.c TO `app-sp`", "", "GRANT SELECT ON TABLE a.b.c TO `app-sp`"], "why")
-    assert entry == {"statements": ["GRANT SELECT ON TABLE a.b.c TO `app-sp`"], "instructions": [], "principal": "app-sp", "why": "why"}
+    # REQ-408 (de113fe36): the entry asks read grants at schema level, so the table grant becomes its schema's SELECT
+    assert entry == {"statements": ["GRANT SELECT ON SCHEMA `a`.`b` TO `app-sp`"], "instructions": [], "principal": "app-sp", "why": "why"}
 
 
 def test_the_scope_view_denial_and_the_app_return_raise_one_structured_entry_each(agent_ns):

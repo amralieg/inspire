@@ -2,6 +2,7 @@
 labels the user sees; a main part or a section the layout requires stays with a plain reason; an unknown name says so. A removed section
 is passed to Genie as "do not include", and a page that still carries it fails its check."""
 import re
+import types
 from pathlib import Path
 
 from _agentload import agent_source
@@ -11,6 +12,10 @@ APP_LABEL = implement_output_label("app")
 
 MODES_JS = Path(__file__).resolve().parents[2] / "agent" / "app_shell" / "web" / "src" / "modes.js"
 FORECAST = "forecast_cockpit"
+
+
+# REQ-354 REQ-011 (734886e3d): the App settings read the siblings through the shell_sql module; no sibling rows here.
+NO_SIBLINGS = types.SimpleNamespace(sibling_items=lambda rows, ucs: [])
 
 
 def _resolve(agent_ns, text, layout=FORECAST):
@@ -105,7 +110,7 @@ def test_the_app_settings_carry_the_screen_off_and_the_removed_label(agent_ns):
                "urls": {}}
     core = type("Core", (), {"SETTINGS_VERSION": 1})
     outputs = {"app_access": "sp", "app_vibes": "Remove the Accuracy page", "app_options": {"alerts": False}}
-    written = inst._implement_app_settings(context, {"shell_core": core}, {"id": "n01_u01"}, None, "off", outputs)
+    written = inst._implement_app_settings(context, {"shell_core": core, "shell_sql": NO_SIBLINGS}, {"id": "n01_u01"}, None, "off", outputs)
     assert written["screens"]["performance"] is False and written["screens"]["runs"] is True
     assert written["removed_nav"] == ["Accuracy"] and written["removed_sections"] == [] and written["removal_notes"] == []
 

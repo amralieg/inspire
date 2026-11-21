@@ -343,6 +343,7 @@ def test_the_shell_does_not_run_sql_over_a_blocked_table_but_runs_other_tables()
 def test_a_viewer_workspace_carries_the_blocked_tables_from_the_settings():
     shell = shell_core.Shell.__new__(shell_core.Shell)
     shell.settings, shell.env = {"auth": "user", "blocked": [SUMMARY.upper()]}, {"DATABRICKS_HOST": "h"}
+    shell.inside = False  # REQ-418 (a30553d73): a page inside Inspire reads as the App SP; this one is a viewer page
     shell.user_factory = lambda host, token: types.SimpleNamespace(blocked=())
     ws, who = shell.workspace({"x-forwarded-access-token": "t", "x-forwarded-email": "a@b"})
     assert ws.blocked == (SUMMARY,) and who == "user:a@b"

@@ -5,6 +5,7 @@ Walk evidence (rc.7, franchises MVP): the Build card read "Restore Sales At Sile
 title, so the first test fails. The must-exclude cases pin the typed-name precedence, the 80-character clip and the no-name fallback.
 """
 import copy
+import types
 import json
 import os
 
@@ -15,6 +16,10 @@ from v142_dash_test import _runner as _pages_of
 GENIE_TITLE = "Silent franchise sales monitor"
 NAME = "Restore Sales At Silent Franchises"
 TYPED = "Franchise sales watch"
+
+
+# REQ-354 REQ-011 (734886e3d): the App settings read the siblings through the shell_sql module; no sibling rows here.
+NO_SIBLINGS = types.SimpleNamespace(sibling_items=lambda rows, ucs: [])
 
 
 class _Runner:
@@ -86,7 +91,7 @@ def test_the_app_settings_title_is_the_use_case_name_with_no_id_prefix(agent_ns,
     context = {"uc_id": "N02-U01", "key": (5150, "N02-U01", 1), "use_case": {"No": "N02-U01", "Name": NAME}, "job_id": 77,
                "spec": {"outputs": {"app_access": "sp"}}, "urls": {}}
     core = type("Core", (), {"SETTINGS_VERSION": 1})
-    written = inst._implement_app_settings(context, {"shell_core": core}, {"id": "n02_u01"}, None, "off", context["spec"]["outputs"])
+    written = inst._implement_app_settings(context, {"shell_core": core, "shell_sql": NO_SIBLINGS}, {"id": "n02_u01"}, None, "off", context["spec"]["outputs"])
     assert written["title"] == NAME, "the App title is the use case name, the same text a rename writes"
 
 

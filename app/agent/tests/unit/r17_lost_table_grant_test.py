@@ -9,7 +9,7 @@ def test_the_unreadable_tables_grants_ride_a_permission_entry(agent_ns):
     assert entry["statements"] == [
         "GRANT USE CATALOG ON CATALOG `main` TO `runner@example.com`",
         "GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `runner@example.com`",
-        "GRANT SELECT ON TABLE `main`.`s`.`b` TO `runner@example.com`"]
+        "GRANT SELECT ON SCHEMA `main`.`s` TO `runner@example.com`"]  # REQ-408 (de113fe36): read grants are asked at schema level
 
 
 def test_the_refusal_sentence_names_no_grant_and_a_gone_table_needs_no_entry(agent_ns):

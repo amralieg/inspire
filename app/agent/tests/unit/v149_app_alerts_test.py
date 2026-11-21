@@ -1,4 +1,5 @@
 import copy
+import types
 import json
 import re
 import statistics
@@ -26,6 +27,10 @@ ON = dict(SETTINGS, options=dict(SETTINGS["options"], decisions=True, alerts=Tru
 ME = {"x-forwarded-email": PERSON, "x-forwarded-host": "loss-desk-1.example.com"}
 WATCH = {"what": "records", "filters": {"category": ["A"]}, "operator": ">=", "threshold": 2, "basis": "fixed"}
 HISTORY = shell_sql.HISTORY_COLUMNS + ("category", "run_id", "as_of_date")
+
+
+# REQ-354 REQ-011 (734886e3d): the App settings read the siblings through the shell_sql module; no sibling rows here.
+NO_SIBLINGS = types.SimpleNamespace(sibling_items=lambda rows, ucs: [])
 
 
 class _StddevSamp:
@@ -487,7 +492,7 @@ def _settings_inspire(agent_ns, outputs):
     context = {"uc_id": "N01-U01", "key": (5150, "N01-U01", 3), "use_case": {"Name": "Predict churn"}, "job_id": 77, "spec": {"outputs": outputs}, "urls": {},
                "app_host": {"name": "churn-desk-ab12", "merged": False}}
     core = type("Core", (), {"SETTINGS_VERSION": 2})
-    return inst._implement_app_settings(context, {"shell_core": core}, {"id": "n01_u01"}, None, "off", outputs)
+    return inst._implement_app_settings(context, {"shell_core": core, "shell_sql": NO_SIBLINGS}, {"id": "n01_u01"}, None, "off", outputs)
 
 
 def test_the_alerts_setting_is_off_by_default_and_when_on_names_the_apps_alerts_folder(agent_ns):

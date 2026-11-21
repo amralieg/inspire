@@ -91,9 +91,10 @@ def test_a_full_spec_with_one_unreadable_table_is_produced_warns_once_and_record
     entry = refused[0]
     assert entry["principal"] == "builder@example.com" and entry["instructions"] == []
     assert entry["statements"] == [
-        "GRANT USE CATALOG ON CATALOG main TO `builder@example.com`",
-        "GRANT USE SCHEMA ON SCHEMA main.inspire TO `builder@example.com`",
-        "GRANT SELECT ON TABLE main.inspire.b TO `builder@example.com`",
+        # REQ-408 (de113fe36): read grants are asked at schema level, with quoted names
+        "GRANT USE CATALOG ON CATALOG `main` TO `builder@example.com`",
+        "GRANT USE SCHEMA ON SCHEMA `main`.`inspire` TO `builder@example.com`",
+        "GRANT SELECT ON SCHEMA `main`.`inspire` TO `builder@example.com`",
     ]
 
 

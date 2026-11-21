@@ -1,4 +1,5 @@
 import ast
+import types
 import json
 import os
 
@@ -33,6 +34,10 @@ PARTS = {"app:page:n01_u01": {"state": "ready", "spec_version": 2, "title": "Chu
 # The served App's page meta, as the App check stores it before the vibe gate runs (REQ-214). These tests stub the App build, so the
 # check never runs; without this the region filter ask has no served App to be judged against.
 SERVED_APP = {"n01_u01": {"filters": {"region": {"label": "Region", "problem": ""}}, "columns": {"records": {}}, "shown": None}}
+
+
+# REQ-354 REQ-011 (734886e3d): the App settings read the siblings through the shell_sql module; no sibling rows here.
+NO_SIBLINGS = types.SimpleNamespace(sibling_items=lambda rows, ucs: [])
 
 
 def _llm(inst, splits=SPLITS, verdict=("done", "Customers at risk")):
@@ -610,10 +615,10 @@ def test_the_app_names_the_business_and_links_each_page_to_its_alert(agent_ns):
     context = {"uc_id": "N01-U01", "key": (5150, "N01-U01", 1), "use_case": {"Name": "Predict churn"}, "job_id": 77, "spec": {"outputs": {"alert": True, "app_access": "sp"}},
                "urls": {"alert_url": "https://h/sql/alerts-v2/al-1"}}
     core = type("Core", (), {"SETTINGS_VERSION": 1})
-    written = inst._implement_app_settings(context, {"shell_core": core}, {"id": "n01_u01"}, None, "off", context["spec"]["outputs"])
+    written = inst._implement_app_settings(context, {"shell_core": core, "shell_sql": NO_SIBLINGS}, {"id": "n01_u01"}, None, "off", context["spec"]["outputs"])
     assert (written["business"], written["alerts"]) == ("Acme Retail", {"n01_u01": "https://h/sql/alerts-v2/al-1"})
     context["spec"]["outputs"]["alert"] = False
-    assert inst._implement_app_settings(context, {"shell_core": core}, {"id": "n01_u01"}, None, "off", context["spec"]["outputs"])["alerts"] == {}
+    assert inst._implement_app_settings(context, {"shell_core": core, "shell_sql": NO_SIBLINGS}, {"id": "n01_u01"}, None, "off", context["spec"]["outputs"])["alerts"] == {}
     assert agent_ns["IMPLEMENT_BUILD_ORDER"].index("alert") < agent_ns["IMPLEMENT_BUILD_ORDER"].index("app"), \
         "the alert is built first, so the App links this version's alert"
     assert set(agent_ns["IMPLEMENT_BUILD_ORDER"]) == set(agent_ns["IMPLEMENT_OUTPUTS"])
