@@ -10,6 +10,8 @@ import { chromium } from 'playwright';
 import { HARNESS_USE_CASE } from './implementFixtures.js';
 import { expandBuild } from '../../../scripts/showcaseRecorder.mjs';
 import { ASSET_FILTER_STORAGE } from '../../src/lib/implementControl.js';
+import { buildChoiceKey } from '../../src/lib/wizardDraft.js';
+import { caseIdOf } from '../../src/lib/implementWizard.js';
 
 export { expandBuild };
 
@@ -193,7 +195,11 @@ export async function dumpFor(page, reason) {
 }
 
 
-export async function openUi(open, overrides = {}, query = '', { mount, init } = {}) {
+// REQ-457a: the key the Build wizard remembers its Standard or Advanced choice under, for the harness use case.
+export const HARNESS_BUILD_KEY = buildChoiceKey({ host: 'https://workspace.example.com', inspireDatabase: 'main.inspire', sessionId: '42', useCaseId: caseIdOf(HARNESS_USE_CASE) });
+
+// `build` seeds the remembered choice before the page loads: 'advanced' (default) keeps every existing test on What to deliver as it was; null seeds nothing.
+export async function openUi(open, overrides = {}, query = '', { mount, init, build = 'advanced' } = {}) {
   if (!browser) browser = await chromium.launch();
   // REQ-418: the Apps proxy forwards the signed-in person (x-forwarded-email); the harness forwards the same person as the overridden `me`.
   // REQ-435: the saved Value at stake answers are read from the server; a test that does not mount them gets none (its own mount wins, it runs first).
@@ -257,6 +263,13 @@ export async function openUi(open, overrides = {}, query = '', { mount, init } =
       sessionStorage.setItem('inspire.ui_fresh_page', '1');
       localStorage.removeItem(key);
     }, ASSET_FILTER_STORAGE);
+    if (build) {
+      await page.addInitScript(([key, value]) => {
+        if (sessionStorage.getItem('inspire.ui_build_seed')) return;
+        sessionStorage.setItem('inspire.ui_build_seed', '1');
+        localStorage.setItem(key, value);
+      }, [HARNESS_BUILD_KEY, build]);
+    }
     opened.push(async () => { await page.unrouteAll({ behavior: 'ignoreErrors' }); await page.close(); });
     const asking = new Set();
     ASKING.set(page, asking);
@@ -411,7 +424,7 @@ export async function pollNow(page, route = '/api/inspire/implement/status', eve
 const STEP_HOLDING = {
   'Who uses the App': 'Where it lives', 'Page storage': 'Where it lives', 'Who uses the App and storage': 'Where it lives', 'Run it': 'First run', 'Schedule': 'First run',
   'Use case': 'Data & results', Data: 'Data & results', Results: 'Data & results', Summary: 'Review & build', 'What to build': 'What to deliver', Delivery: 'What to deliver', App: 'Where it lives', 'App placement': 'Where it lives', 'App access': 'Where it lives',
-  'App features': 'Where it lives', 'App pages': 'Where it lives', 'App look': 'Where it lives', Measure: 'Measure', 'Keep it fresh': 'First run', Vibes: 'Review & build',
+  'App features': 'Where it lives', 'App pages': 'Where it lives', 'App look': 'Where it lives', Measure: 'Review & build', 'Keep it fresh': 'First run', Vibes: 'Review & build',
 };
 const exactly = (label) => {
   const body = label === 'Data & results' ? 'Data(?: & results)?' : label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -505,14 +518,18 @@ export async function toVibes(page) {
   await nextUntil(page, 'Vibes');
 }
 
+// The last step is Review & build in Advanced and Build in Standard (REQ-457a).
 export async function toSummary(page) {
-  await nextUntil(page, 'Review & build');
+  await page.locator('[aria-current="step"]').waitFor({ timeout: 15000 });
+  const labels = await page.locator('[data-wizard-header] ol li').allTextContents();
+  await nextUntil(page, labels.some((l) => /^\s*(\d+\.\s*)?Build\s*$/.test(l)) ? 'Build' : 'Review & build');
 }
 
 // The App panels are folds of Where it lives (REQ-002): reaching one by its old step name also opens its fold.
 const APP_FOLD = { 'App access': 'Who sees which rows', 'Who uses the App': 'Who sees which rows', 'Who uses the App and storage': 'Who sees which rows',
   'App features': 'What people can do', 'App pages': 'Pages', 'App look': 'App look' };
 export async function goToStep(page, part) {
+  if (part === 'Measure') return openMeasureSettings(page);
   await goToStepOnScreen(page, part);
   if (APP_FOLD[part]) await openFolded(page, APP_FOLD[part]);
   // REQ-418: after a first version (Add/Remove/Vibe) the identity choice sits under Advanced settings, closed until opened.
@@ -542,8 +559,6 @@ export async function nextUntil(page, part) {
   await current.waitFor({ timeout: 15000 });
   const steps = page.locator('[data-wizard-header] ol li');
   for (let i = 0; i < 30 && !isStep(await current.innerText(), label); i += 1) {
-    const moneyNext = page.locator('[data-money-next]');
-    if (await moneyNext.count() && await moneyNext.isVisible()) { await moneyNext.click(); continue; }
     const from = await current.innerText();
     // Next folds the section it ends and opens the next one inside the same step, so a change of folded sections counts too.
     const sections = () => [...document.querySelectorAll('[data-fold-line]')].map((e) => e.dataset.foldLine).join(',');
@@ -829,9 +844,25 @@ export async function onMoneyPart(page, part) {
   await page.locator(current).waitFor({ timeout: 15000 });
 }
 
-// Walks Measure to an impact decision: "holdout" (hold back, the default, the last Measure decision) or "kpi" (target KPI).
+// REQ-457: Measure is no longer a step. Goes to the last step, opens the value dialog from the value line (Edit, or Calculate value),
+// clicks Edit on "How the MVP measures it", then walks the money parts to `part` (the first part when empty).
+export async function openMeasureSettings(page, part = '') {
+  if (!(await page.locator('[data-measure-editor]').count())) {
+    if (!(await page.locator('[data-measure-settings]').count())) {
+      await toSummary(page);
+      const edit = page.locator('[data-mvp-value]').getByRole('button', { name: 'Edit', exact: true });
+      const calculate = page.locator('[data-mvp-value] [data-value-calculate]');
+      await page.locator('[data-mvp-value]').waitFor({ timeout: 15000 });
+      if (await calculate.count()) await calculate.first().click(); else await edit.click();
+    }
+    await page.locator('[data-measure-edit]').click();
+  }
+  if (part) await onMoneyPart(page, part);
+}
+
+// Walks the measure settings to an impact decision: "holdout" (hold back, the default, the last Measure decision) or "kpi" (target KPI).
 export async function goToMeasureImpact(page, part = 'holdout') {
-  await goToStep(page, 'Measure');
+  await openMeasureSettings(page);
   const onPart = async () => (await page.locator(`[data-money-part="${part}"]`).count()) > 0
     && page.locator(`[data-money-part="${part}"]`).evaluate((el) => el.closest('li').hasAttribute('data-money-current'));
   // Later decisions are not rendered until Next reaches them, so the impact row may not exist yet.
