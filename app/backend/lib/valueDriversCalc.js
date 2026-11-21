@@ -67,4 +67,24 @@ function combine({ drivers = {}, attribution_pct: attribution = DEF.attribution.
   return { parts, attribution_pct: attribution, total: { unit: currency, amount: round2((sum * attribution) / 100) } };
 }
 
-module.exports = { amountOf, validate, attributionOf, combine };
+// REQ-436: a driver priced per group. `fixed` are the typed (estimate) inputs; `dataAsks` are [{id, metric}] read from each group
+// (metric "records" is the group's records_per_year). The amount is the sum over `groups`; a driver with no data ask is priced once.
+function groupValue(group, metric) {
+  const v = metric === 'records' ? group.records_per_year : group.metrics && group.metrics[metric];
+  return Number.isFinite(Number(v)) ? Number(v) : 0;
+}
+
+function amountOverGroups(id, fixed, dataAsks, groups) {
+  if (!dataAsks.length) return amountOf(id, fixed);
+  return groups.reduce((sum, g) => sum + amountOf(id, { ...fixed, ...Object.fromEntries(dataAsks.map((a) => [a.id, groupValue(g, a.metric)])) }), 0);
+}
+
+// The one figure a data ask shows for the included groups: the records sum, or a metric averaged with the records as weights.
+function dataFigure(ask, groups) {
+  if (ask.metric === 'records') return groups.reduce((s, g) => s + groupValue(g, 'records'), 0);
+  const total = groups.reduce((s, g) => s + groupValue(g, 'records'), 0);
+  if (!total) return 0;
+  return groups.reduce((s, g) => s + groupValue(g, ask.metric) * groupValue(g, 'records'), 0) / total;
+}
+
+module.exports = { amountOf, validate, attributionOf, combine, amountOverGroups, dataFigure, DEFINITION: DEF };

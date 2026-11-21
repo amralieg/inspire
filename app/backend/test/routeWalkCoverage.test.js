@@ -39,6 +39,8 @@ const NOT_WALKED = {
   'POST /api/money/describe-value': 'turns a description into a value rule with a chat model the person can use, changes nothing; no non-owner harness row walks it yet, and the route samples prove the sign-in refusal',
   'GET /api/inspire/value/yearly': 'reads the ledger, specs and source tables with the App\u2019s service principal and changes nothing; valueYearlyRoutes.test.js drives it through the fake warehouse',
   'POST /api/inspire/value/estimate': 'reads one sample of a use case table with the App\u2019s service principal and changes nothing; valueYearlyRoutes.test.js drives it, including the 400 and 422 refusals',
+  'POST /api/inspire/value/case-plan': 'reads the use case table once, grouped, with the App\u2019s service principal and changes nothing; valueCasePlanRoutes.test.js drives it, including the model-refused fallback',
+  'POST /api/inspire/value/preview': 'runs no SQL: pure arithmetic on the plan and answers it is sent; valueCasePlanRoutes.test.js drives it',
   'GET /api/inspire/value/answers': 'reads the latest saved Calculate answers of a session with the App\u2019s service principal and changes nothing; valueAnswersRoutes.test.js drives it through the fake warehouse, including the missing table',
   'PUT /api/inspire/value/answers': 'runs the estimate and appends one answers row with the App\u2019s service principal; valueAnswersRoutes.test.js drives it through the fake warehouse, including the 400 refusal and the bound parameters',
   'GET /api/inspire/value/answers/history': 'reads the saved versions of one use case with the App\u2019s service principal and changes nothing; valueAnswersRoutes.test.js drives it through the fake warehouse',

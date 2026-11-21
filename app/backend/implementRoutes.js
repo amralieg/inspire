@@ -59,6 +59,7 @@ const VY = require('./lib/valueYearly');
 const VE = require('./lib/valueEstimate');
 const VDC = require('./lib/valueDriversCalc');
 const VA = require('./lib/valueAnswers');
+const VCP = require('./lib/valueCasePlan');
 const IV = require('./lib/inspireValue');
 
 function sendError(res, err) {
@@ -2469,6 +2470,62 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
+  // REQ-436: the case plan. The model names the case, filter, groupings, metrics and what each driver asks; every name is checked against the
+  // table. One grouped SQL reads the counts. A model that cannot answer gives the fallback plan, never a 5xx.
+  async function modelPlanOf(req, table, columns, groupBy) {
+    try {
+      const listed = await jsonOf(dbFetch, req.dbHost, req.dbToken, '/api/2.0/serving-endpoints');
+      if (!listed.ok) return VCP.fallbackPlan(columns, groupBy);
+      const endpoint = FB.chatEndpoint({}, (listed.data.endpoints || []).map((e) => ({ name: e.name, state: e.state, task: e.task })));
+      if (!endpoint) return VCP.fallbackPlan(columns, groupBy);
+      const got = await invokeChatModel(chatCall(req, req.dbToken), endpoint, { messages: VCP.planMessages({ table, columns }), max_tokens: 1500, temperature: 0 });
+      if (!got.ok) return VCP.fallbackPlan(columns, groupBy);
+      const plan = VCP.planFrom(got.data, columns, groupBy);
+      const asked = plan.drivers.some((d) => d.on) || plan.metrics.length || plan.case_filter || plan.case_noun !== 'record';
+      return { ...plan, model: asked ? endpoint : null };
+    } catch {
+      return VCP.fallbackPlan(columns, groupBy);
+    }
+  }
+
+  app.post('/api/inspire/value/case-plan', requireToken, async (req, res) => {
+    const table = String(req.body?.table || '').trim();
+    try {
+      const warehouseId = warehouseOf(req);
+      I.validateUseCaseId(q(req, 'use_case_id'));
+      if (!table) throw I.badRequest('Name the use case table to plan the value on.');
+      const scopes = await launchScopesOf(req, warehouseId, req.body?.table_scope);
+      await refuseMetricView(req, warehouseId, table);
+      const columns = GP.scopedColumns(await I.readPickedTable(table, () => sqlRows(req.dbHost, req.dbToken, warehouseId, I.columnsStatement(table))), scopes, table);
+      const dateColumn = VY.dateColumnOf(columns);
+      if (!dateColumn) throw I.badRequest('The table has no date column to scale the counts to a year, so Inspire cannot plan a value per year.', 422);
+      const plan = await modelPlanOf(req, table, columns, String(req.body?.group_by || '').trim());
+      const made = VCP.groupedSql(GP, scopes, plan, table, dateColumn);
+      const rows = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters, { rowLimit: 5000, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }));
+      const counted = VCP.groupsFrom(rows, plan);
+      if (!counted.days || !counted.groups.length) throw I.badRequest(`Inspire found no ${plan.case_noun} in ${table} to plan a value on.`, 422);
+      return res.json({ plan: { ...plan, table, date_column: dateColumn, days: counted.days, groups: counted.groups } });
+    } catch (err) {
+      return sendError(res, estimateFailure(err, table));
+    }
+  });
+
+  // The yearly of a shape-2 answer, from its plan and the typed numbers; a 400 names each driver that is wrong. No SQL.
+  const shape2Yearly = (plan, answers) => {
+    const got = VCP.yearlyOf(plan && typeof plan === 'object' ? plan : {}, answers && typeof answers === 'object' ? answers : {});
+    if (got.errors) throw Object.assign(I.badRequest(Object.values(got.errors)[0]), { errorMap: got.errors });
+    return got.yearly;
+  };
+  const sendShape2Error = (res, err) => (err && err.errorMap ? res.status(400).json({ error: err.message, errors: err.errorMap }) : sendError(res, err));
+
+  app.post('/api/inspire/value/preview', requireToken, (req, res) => {
+    try {
+      return res.json({ yearly: shape2Yearly(req.body?.plan, req.body?.answers) });
+    } catch (err) {
+      return sendShape2Error(res, err);
+    }
+  });
+
   // REQ-435: the saved Calculate answers, one append-only version row per save in __inspire_value_answers (see lib/valueAnswers.js).
   const answersTable = (req) => {
     const { catalog, schema } = dbOf(req, splitInspireDatabase);
@@ -2493,13 +2550,49 @@ function registerImplementRoutes(app, deps) {
     return (row && row.latest !== null && row.latest !== undefined ? Number(row.latest) : 0) + 1;
   };
 
+  // REQ-436 (C5): a shape-2 entry is stale when the table's records per year under the same filter differ from the saved plan's by more than
+  // 10%. One count per distinct table and filter; a count that fails, or a scope that cannot be read, is not stale.
+  async function staleOf(req, warehouseId, versions) {
+    const planOf = (v) => (v.answers && v.answers.shape === 2 && v.answers.plan && typeof v.answers.plan === 'object' ? v.answers.plan : null);
+    if (!versions.some(planOf)) return versions.map(() => false);
+    let scopes = null;
+    try {
+      scopes = await launchScopesOf(req, warehouseId, undefined);
+    } catch {
+      return versions.map(() => false);
+    }
+    const counted = new Map();
+    const countOf = (plan) => {
+      const key = JSON.stringify([plan.table, plan.date_column, plan.case_filter]);
+      if (!counted.has(key)) {
+        counted.set(key, (async () => {
+          try {
+            const made = VCP.currentCountSql(GP, scopes, plan);
+            return sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters))[0] || null;
+          } catch {
+            return null;
+          }
+        })());
+      }
+      return counted.get(key);
+    };
+    return Promise.all(versions.map(async (v) => {
+      const plan = planOf(v);
+      if (!plan) return false;
+      const row = await countOf(plan);
+      return row ? VCP.isStale(plan, row) : false;
+    }));
+  }
+
   app.get('/api/inspire/value/answers', requireToken, async (req, res) => {
     try {
       const warehouseId = warehouseOf(req);
       const sid = String(sessionIdOf(req));
       const table = answersTable(req);
       const rows = await readAnswers(req, warehouseId, VA.latestSql(table, sid));
-      return res.json({ answers: Object.fromEntries(rows.map((r) => [String(r.use_case_id), VA.versionOf(r)])) });
+      const versions = rows.map((r) => [String(r.use_case_id), VA.versionOf(r)]);
+      const stale = await staleOf(req, warehouseId, versions.map(([, v]) => v));
+      return res.json({ answers: Object.fromEntries(versions.map(([id, v], i) => [id, { ...v, stale: stale[i] }])) });
     } catch (err) {
       return sendError(res, err);
     }
@@ -2513,13 +2606,14 @@ function registerImplementRoutes(app, deps) {
       const table = answersTable(req);
       const useCaseId = q(req, 'use_case_id');
       const answers = answersOf(req);
-      const yearly = await estimateYearly(req, warehouseId, asked, answers).catch((err) => { throw estimateFailure(err, asked); });
+      const yearly = answers.shape === 2 ? shape2Yearly(answers.plan, answers)
+        : await estimateYearly(req, warehouseId, asked, answers).catch((err) => { throw estimateFailure(err, asked); });
       await executeSql(req.dbHost, req.dbToken, warehouseId, VA.createSql(table));
       const version = await nextVersion(req, warehouseId, table, sid, useCaseId);
       await appendAnswers(req, warehouseId, table, { sessionId: sid, useCaseId, version, answers, yearly, savedBy: savedBy(req), note: '' });
       return res.json({ version, yearly, disclaimer: VALUE_DISCLAIMER.full });
     } catch (err) {
-      return sendError(res, err);
+      return sendShape2Error(res, err);
     }
   });
 
