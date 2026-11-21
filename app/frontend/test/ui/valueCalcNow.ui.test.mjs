@@ -22,7 +22,7 @@ test('C1: on the first page Calculate now sends one PUT with calculated false an
     assert.equal(puts[0].answers.shape, 2);
     assert.equal(puts[0].answers.calculated, false);
     for (const d of PLAN.drivers) assert.deepEqual(puts[0].answers.drivers[d.id].inputs, defaultsOf(d), `${d.id} keeps its default numbers`);
-    assert.match(await text(dialog.locator('[data-save-total]')), /\$/);
+    await dialog.locator('[data-save-total]').filter({ hasText: /\$/ }).waitFor({ timeout: 15000 });
     assert.match(await text(dialog.locator('[data-save-total]')), /\(estimated\)/, 'the save page does not claim it was confirmed');
   } finally { await ui.close(); }
 });
@@ -70,5 +70,22 @@ test('C4: a PUT answered 500 shows the error and the wizard stays on the same pa
     assert.equal(puts.length, 1);
     assert.equal(await dialog.locator('[data-wizard-page="data"]').count(), 1, 'still on the first page');
     assert.equal(await dialog.locator('[data-wizard-page="save"]').count(), 0);
+  } finally { await ui.close(); }
+});
+
+test('C5: after Save confirms the numbers, Back and Calculate now with no change saves them as estimated and the Save step says (estimated)', async () => {
+  const puts = [];
+  const { ui, card, page } = await openCard(mountWizard({ puts }));
+  try {
+    const dialog = await openWizard(page, card);
+    await goTo(dialog, 'save');
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await dialog.locator('[data-save-total]').filter({ hasText: '(calculated)' }).waitFor({ timeout: 15000 });
+    await dialog.getByRole('button', { name: 'Back', exact: true }).click();
+    await calcNow(dialog).click();
+    await dialog.locator('[data-wizard-page="save"]').waitFor({ timeout: 15000 });
+    assert.equal(puts.length, 2);
+    assert.equal(puts[1].answers.calculated, false);
+    await dialog.locator('[data-save-total]').filter({ hasText: '(estimated)' }).waitFor({ timeout: 15000 });
   } finally { await ui.close(); }
 });
