@@ -1,0 +1,150 @@
+// REQ-436, REQ-437: the Calculate value wizard (steps: data, kinds, one page per kind, groups, save).
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { closeBrowser } from './uiSupport.mjs';
+import { dragTo, FALLBACK_PLAN, goTo, mountWizard, next, openCard, openWizard, sleep } from './valueWizardSupport.mjs';
+
+test.after(closeBrowser);
+
+const text = async (loc) => (await loc.innerText()).replace(/\s+/g, ' ').trim();
+
+test('W1: Calculate calls case-plan once and step 1 shows the case noun and records per year', async () => {
+  const plans = [];
+  const { ui, card, page } = await openCard(mountWizard({ plans }));
+  try {
+    const dialog = await openWizard(page, card);
+    await dialog.locator('[data-wizard-page="data"]').waitFor({ timeout: 15000 });
+    assert.equal(plans.length, 1);
+    assert.equal(plans[0].use_case_id, 'N01-U01');
+    assert.match(await text(dialog.locator('[data-case-noun]')), /review case/);
+    assert.match(await text(dialog.locator('[data-records-per-year]')), /12,000/);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally { await ui.close(); }
+});
+
+test('W2: on a kind page a slider moves the number box, one preview follows the debounce, and the amount takes the reply; typing moves the slider', async () => {
+  const previews = [];
+  const { ui, card, page } = await openCard(mountWizard({ previews }));
+  try {
+    const dialog = await openWizard(page, card);
+    await goTo(dialog, 'driver:risk_avoided');
+    const ask = dialog.locator('[data-ask="reduction_pct"]');
+    const slider = ask.locator('input[type=range]');
+    const box = ask.locator('input[type=number]');
+    await slider.waitFor();
+    await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
+    previews.length = 0;
+    const before = await text(dialog.locator('[data-kind-amount]'));
+    await dragTo(slider, 40);
+    assert.equal(await box.inputValue(), '40');
+    await dialog.locator('[data-preview-state="updating"]').waitFor({ timeout: 2000 });
+    await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
+    await sleep(400);
+    assert.equal(previews.length, 1, 'one preview for one move');
+    assert.equal(previews[0].answers.drivers.risk_avoided.inputs.reduction_pct, 40);
+    assert.notEqual(await text(dialog.locator('[data-kind-amount]')), before);
+    assert.match(await text(dialog.locator('[data-run-total]')), /\$/);
+    await box.fill('25');
+    assert.equal(await slider.inputValue(), '25');
+    await box.fill('250');
+    assert.equal(await box.inputValue(), '250', 'a typed value above the range is kept');
+    assert.equal(Number(await slider.getAttribute('max')) >= 250, true, 'the slider grows to the typed value');
+    const a = await slider.boundingBox();
+    const b = await box.boundingBox();
+    assert.ok(Math.abs(a.width - b.width) <= 1, `slider ${a.width} and box ${b.width} share one width`);
+    assert.ok(await ask.locator('[data-from-data]').count() === 0, 'an estimate ask is not marked from data');
+    assert.ok(await dialog.locator('[data-ask="incidents_per_year"] [data-from-data]').count() === 1, 'a data ask is marked from your data');
+  } finally { await ui.close(); }
+});
+
+test('W3: the save page has the total above a row of five tiles, unticking a tile previews without it, and one editor opens under the grid', async () => {
+  const previews = [];
+  const { ui, card, page } = await openCard(mountWizard({ previews }));
+  try {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const dialog = await openWizard(page, card);
+    await goTo(dialog, 'save');
+    const total = dialog.locator('[data-save-total]');
+    const tiles = dialog.locator('[data-tile]');
+    assert.equal(await tiles.count(), 5);
+    const t = await total.boundingBox();
+    const boxes = [];
+    for (let i = 0; i < 5; i += 1) boxes.push(await tiles.nth(i).boundingBox());
+    assert.ok(t.y + t.height <= boxes[0].y + 1, 'total is above the grid');
+    assert.ok(boxes.every((b) => Math.abs(b.y - boxes[0].y) <= 1), 'five tiles in one row');
+    await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
+    const before = await text(total);
+    previews.length = 0;
+    await tiles.nth(0).locator('input[type=checkbox]').uncheck();
+    await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
+    await sleep(400);
+    assert.equal(previews.length, 1);
+    assert.equal(previews[0].answers.drivers.risk_avoided.on, false);
+    assert.notEqual(await text(total), before);
+    await tiles.nth(1).getByRole('button', { name: 'Edit numbers' }).click();
+    await tiles.nth(2).getByRole('button', { name: 'Edit numbers' }).click();
+    assert.equal(await dialog.locator('[data-editor]').count(), 1, 'one editor at a time');
+    const e = await dialog.locator('[data-editor]').boundingBox();
+    assert.ok(e.y >= boxes[0].y + boxes[0].height - 1, 'the editor sits under the grid');
+    assert.equal(await dialog.locator('[data-editor] input[type=range]').count() > 0, true);
+  } finally { await ui.close(); }
+});
+
+test('W4: Save sends PUT shape 2 with calculated true and the box label changes from estimated to calculated', async () => {
+  const puts = [];
+  const { ui, card, page } = await openCard(mountWizard({ puts }));
+  try {
+    const dialog = await openWizard(page, card);
+    await goTo(dialog, 'save');
+    await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
+    assert.match(await text(dialog.locator('[data-save-total]')), /\(estimated\)/);
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await dialog.locator('[data-save-total]').getByText('(calculated)').waitFor({ timeout: 15000 });
+    assert.equal(puts.length, 1);
+    assert.equal(puts[0].use_case_id, 'N01-U01');
+    assert.equal(puts[0].answers.shape, 2);
+    assert.equal(puts[0].answers.calculated, true);
+    assert.equal(puts[0].answers.attribution_pct, 100);
+    assert.equal(puts[0].answers.plan.case_noun, 'review case');
+    assert.equal(puts[0].answers.drivers.time_saved.on, true);
+    assert.equal(puts[0].answers.drivers.cost_cut.on, false);
+  } finally { await ui.close(); }
+});
+
+test('W5: a plan with no model shows the fallback notice, and a case-plan 500 shows Retry', async () => {
+  const first = await openCard(mountWizard({ planReply: { plan: FALLBACK_PLAN } }));
+  try {
+    const dialog = await openWizard(first.page, first.card);
+    await dialog.getByText('Inspire could not read the data for this; the numbers are estimates you can change').waitFor({ timeout: 15000 });
+  } finally { await first.ui.close(); }
+  const plans = [];
+  const { ui, card, page } = await openCard(mountWizard({ plans, planReply: { status: 500, body: { error: 'boom' } } }));
+  try {
+    const dialog = await openWizard(page, card);
+    const retry = dialog.getByRole('button', { name: 'Retry' });
+    await retry.waitFor({ timeout: 15000 });
+    await retry.click();
+    await dialog.getByRole('button', { name: 'Retry' }).waitFor({ timeout: 15000 });
+    assert.equal(plans.length, 2, 'Retry asks again');
+  } finally { await ui.close(); }
+});
+
+test('W6: steps 1, 2 and 5 fit a 1280x800 window with no scroll', async () => {
+  const { ui, card, page } = await openCard(mountWizard());
+  try {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const dialog = await openWizard(page, card);
+    for (const step of ['data', 'kinds', 'save']) {
+      await goTo(dialog, step);
+      await dialog.locator('[data-preview-state="ready"], [data-wizard-page="data"], [data-wizard-page="kinds"]').first().waitFor({ timeout: 15000 });
+      const fit = await page.evaluate(() => {
+        const dlg = document.querySelector('[role=dialog]');
+        const body = dlg.querySelector('[data-wizard-page]').parentElement;
+        const scroller = [dlg, ...dlg.querySelectorAll('*')].find((n) => n.scrollHeight > n.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(n).overflowY));
+        return { page: document.documentElement.scrollHeight > window.innerHeight || document.documentElement.scrollWidth > window.innerWidth,
+          inner: Boolean(scroller), bottom: dlg.getBoundingClientRect().bottom, bodyOver: body.scrollHeight > body.clientHeight + 1 };
+      });
+      assert.deepEqual({ step, ...fit, bottom: fit.bottom <= 800 }, { step, page: false, inner: false, bottom: true, bodyOver: false });
+    }
+  } finally { await ui.close(); }
+});
