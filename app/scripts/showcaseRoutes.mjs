@@ -39,6 +39,7 @@ export const NOT_IN_DEMO = {
   'GET /api/inspire/value/runs': 'the Start run cards read each run value from the ledger of a workspace run; the demo has no ledger, so Start sends no value read while the demo is open',
   'GET /api/inspire/value/estimates': 'the Build and Review cards read each use case estimate from the value ledger of a workspace run; the demo has no ledger, so the cards send no estimate read while the demo is open',
   'GET /api/inspire/value/yearly': 'the Review and Build cards read the value per year of each use case from the value ledger of a workspace run; the demo has no ledger, so the pages send no yearly read while the demo is open (REQ-432)',
+  'GET /api/inspire/value/answers': 'the Review cards read the saved Calculate answers of a workspace run from its answers table; the demo has no such table, so the pages send no answers read while the demo is open (REQ-435)',
   'GET /api/defaults': 'the App reads its workspace settings when it starts, before the demo opens, and never with the demo header',
   'GET /api/showcase': 'this is the list of demos itself, read from the demo files the App carries',
   'GET /api/warehouses': 'setup, Settings and the Start MVP wizard pick a warehouse; the demo has no setup and no wizard',

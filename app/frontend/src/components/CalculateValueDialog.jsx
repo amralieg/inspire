@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { PlainMessage } from './TechnicalDetails';
 import ModalDialog from './ModalDialog';
 import { StakeQuestions } from '../pages/ImplementWizard';
 import { useGroupingProfile } from '../lib/groupingProfile';
@@ -115,7 +116,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
       )}>
       <p className="text-[12px] text-text-secondary">Value at stake: Inspire estimates the value on a sample of the main table and scales it to every record and to a year. Add your own numbers for value that is not in the data. No build runs.</p>
       {result ? <ValueSplit yearly={result} /> : <ValueDisclaimer />}
-      {error && <p role="alert" dir="auto" className="rounded-md border border-error/30 bg-error-bg px-3 py-2 text-[12px] text-error-fg">{error}</p>}
+      {error && <PlainMessage text={error} role="alert" dir="auto" className="rounded-md border border-error/30 bg-error-bg px-3 py-2 text-[12px] text-error-fg" />}
       {problem && !error && <p role="status" className="text-[12px] text-text-secondary">{problem}</p>}
       <section aria-label="From your data" className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
