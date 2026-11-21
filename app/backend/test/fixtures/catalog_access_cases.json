@@ -3,6 +3,7 @@
   "below_sql": "SELECT 'schema' AS level, schema_name AS schema_name, schema_name AS object_name, privilege_type AS privilege FROM `main`.information_schema.schema_privileges WHERE lower(grantee) = 'account users' UNION ALL SELECT 'table' AS level, table_schema AS schema_name, table_name AS object_name, privilege_type AS privilege FROM `main`.information_schema.table_privileges WHERE lower(grantee) = 'account users' UNION ALL SELECT 'volume' AS level, volume_schema AS schema_name, volume_name AS object_name, privilege_type AS privilege FROM `main`.information_schema.volume_privileges WHERE lower(grantee) = 'account users' UNION ALL SELECT 'function' AS level, routine_schema AS schema_name, routine_name AS object_name, privilege_type AS privilege FROM `main`.information_schema.routine_privileges WHERE lower(grantee) = 'account users'",
   "grant_sql": "GRANT USE CATALOG ON CATALOG `main` TO `account users`",
   "app": { "name": "inspire-manual", "id": "app-sp-id" },
+  "metadata_only": ["BROWSE", "READ METADATA"],
   "source_tables": [
     {
       "name": "the person owns the catalog and the App holds only USE CATALOG and BROWSE",
@@ -153,6 +154,17 @@
       "name": "the setting is off",
       "setting": "off", "account_users": [], "person": ["OWNER"], "below": [], "inspire_manages": false,
       "decision": "off", "real": []
+    },
+    {
+      "name": "account users hold READ METADATA (metadata only)",
+      "setting": "account users", "account_users": ["READ_METADATA"], "person": ["MANAGE"], "below": [], "inspire_manages": false,
+      "decision": "grant", "real": []
+    },
+    {
+      "name": "READ METADATA below the catalog opens no data",
+      "setting": "account users", "account_users": [], "person": ["MANAGE"],
+      "below": [{ "level": "table", "schema_name": "sales", "object_name": "orders", "privilege": "READ_METADATA" }],
+      "inspire_manages": false, "decision": "grant", "real": []
     }
   ]
 }

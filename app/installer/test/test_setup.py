@@ -9,6 +9,7 @@ import tarfile
 import tempfile
 import time
 import types
+import urllib.parse
 import unittest
 from unittest import mock
 
@@ -616,6 +617,34 @@ class CatalogAccessTest(unittest.TestCase):
         self.assertIn("SELECT on table main.s.t9, 3 more, which USE CATALOG", said)
         self.assertNotIn("main.s.t10", said)
 
+    def test_metastore_inherited_read_metadata_does_not_block_the_account_users_grant(self):
+        """REQ-456: SHOW GRANTS lists the metastore's READ METADATA for account users; it opens no data, so USE CATALOG is still granted."""
+        case = dict(CASES["new_apps"][0], account_users=[], person=["MANAGE"], below=[])
+        executed = []
+
+        class Statements:
+            def execute_statement(self, warehouse_id, statement, wait_timeout):
+                executed.append(statement)
+                cols = lambda names: types.SimpleNamespace(schema=types.SimpleNamespace(columns=[types.SimpleNamespace(name=n) for n in names]))
+                if statement.startswith("SHOW GRANTS"):
+                    return types.SimpleNamespace(status=statement_ok(), manifest=cols(("Principal", "ActionType", "ObjectType", "ObjectKey")),
+                                                 result=types.SimpleNamespace(data_array=[["account users", "READ METADATA", "METASTORE", "metastore_x"]]))
+                if "information_schema" in statement:
+                    rows = [["schema", "information_schema", "information_schema", "SELECT"]]
+                    return types.SimpleNamespace(status=statement_ok(), manifest=cols(("level", "schema_name", "object_name", "privilege")),
+                                                 result=types.SimpleNamespace(data_array=rows))
+                return globals()["statement"](SUCCEEDED)
+
+        setup._catalog_privileges = lambda ctx, catalog: (False, {"MANAGE"})
+        w = types.SimpleNamespace(statement_execution=Statements(), catalogs=types.SimpleNamespace(get=lambda name: types.SimpleNamespace(owner="x")))
+        ctx = {"w": w, "WAREHOUSE_ID": "wh", "CATALOG": "main", "USER_EMAIL": "someone@example.com", "NEW_APPS_CATALOG_ACCESS": "account users"}
+        said = setup._catalog_access_for_new_apps(ctx, "SP")
+        self.assertIn(CASES["grant_sql"], executed)
+        self.assertIn("the installer granted USE CATALOG on it to account users ✅", said)
+
+    def test_the_metadata_only_set_is_the_shared_one(self):
+        self.assertEqual(setup.METADATA_ONLY_PRIVILEGES, tuple(CASES["metadata_only"]))
+
     def test_the_setting_is_account_users_or_off(self):
         self.assertEqual([setup._new_apps_setting(v) for v in ("account users", " Account Users ", "off", "OFF")],
                          ["account users", "account users", "off", "off"])
@@ -665,8 +694,10 @@ def postgres_posts(calls):
 class GrantPlanTest(unittest.TestCase):
     def grant(self, data, listed=("main", "sales", "finance", "samples", "system", "inspire_lakebase"), rights=None, owners=None, catalog="main",
               admin="metastore-admins", fail=None, api=None, lakebase=LAKEBASE, schema_mode=False,
-              notebook="/Shared/inspire-ai/dbx_inspire_ai_agent"):
+              notebook="/Shared/inspire-ai/dbx_inspire_ai_agent", fresh=None, setting="account users"):
         out = io.StringIO()
+        # REQ-456: what a fresh App service principal holds on the catalog: its only group is account users, and the Inspire principal holds its own grants
+        fresh = {"account users": ("USE_CATALOG",), "SP": ("USE_CATALOG", "BROWSE", "CREATE_SCHEMA"), **(fresh or {})}
         executed = []
         held_on = {n: ("MANAGE",) for n in listed} if rights is None else rights
         prefix = "/api/2.1/unity-catalog/effective-permissions/catalog/"
@@ -686,6 +717,11 @@ class GrantPlanTest(unittest.TestCase):
             if path == "/api/2.1/unity-catalog/metastore_summary":
                 return {"owner": admin}
             name = path[len(prefix):].split("?")[0]
+            asked = urllib.parse.unquote(path.split("principal=")[1]) if "principal=" in path else ""
+            if path.startswith(prefix) and asked in fresh:
+                if isinstance(fresh[asked], Exception):
+                    raise fresh[asked]
+                return {"privilege_assignments": [{"principal": asked, "privileges": [{"privilege": p} for p in fresh[asked]]}]}
             if path.startswith(prefix) and name in held_on:
                 if isinstance(held_on[name], Exception):
                     raise held_on[name]
@@ -703,7 +739,7 @@ class GrantPlanTest(unittest.TestCase):
                "api": api, "available_catalogs": [n for n in listed if n != "system"],
                "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0", "DATA_CATALOGS": list(data), "api_get": api_get,
                "USER_EMAIL": "someone@example.com", "USER_GROUPS": ["admins"], "LAKEBASE": lakebase,
-               "NOTEBOOK_PATH": notebook}
+               "NOTEBOOK_PATH": notebook, "NEW_APPS_CATALOG_ACCESS": setting}
         ctx["SCHEMA_MODE"] = schema_mode
         with contextlib.redirect_stdout(out), mock.patch.object(setup, "LAKEBASE_POLL_S", 0):
             setup.step_grant_permissions(ctx)
@@ -712,6 +748,53 @@ class GrantPlanTest(unittest.TestCase):
         grants = essentials(grants) + sorted(g for g in grants if g.startswith(SCAN_PREFIX))
         printed = [line.strip() for line in out.getvalue().splitlines() if line.startswith("  GRANT ")]
         return grants, printed, executed, out.getvalue()
+
+    def test_a_fresh_app_that_cannot_use_the_catalog_stops_the_install_before_deploy_with_the_exact_grant(self):
+        """REQ-456: the probe reads what account users hold; a missing USE CATALOG stops the install and names the way out."""
+        with self.assertRaises(RuntimeError) as raised:
+            self.grant([], listed=("main",), fresh={"account users": ()})
+        message = str(raised.exception)
+        self.assertIn("GRANT USE CATALOG ON CATALOG `main` TO `account users`", message)
+        self.assertIn("GRANT MANAGE ON CATALOG `main` TO `SP`", message)
+        self.assertIn("before it deploys", message)
+
+    def test_an_unreadable_probe_stops_the_install_it_never_reports_ok(self):
+        with self.assertRaises(RuntimeError) as raised:
+            self.grant([], listed=("main",), fresh={"account users": RuntimeError("boom")})
+        self.assertIn("GRANT USE CATALOG ON CATALOG `main` TO `account users`", str(raised.exception))
+
+    def test_the_inspire_principal_without_create_schema_stops_the_install(self):
+        with self.assertRaises(RuntimeError) as raised:
+            self.grant([], listed=("main",), fresh={"SP": ("USE_CATALOG",)})
+        self.assertIn("CREATE SCHEMA", str(raised.exception))
+
+    def test_the_probe_passes_when_account_users_hold_use_catalog_and_warns_only_when_the_setting_is_off(self):
+        _, _, _, said = self.grant([], listed=("main",))
+        line = next(l for l in said.splitlines() if "New Apps can read Build results in `main`" in l)
+        self.assertTrue(line.endswith("✅"), line)
+        _, _, _, said = self.grant([], listed=("main",), fresh={"account users": ()}, setting="off")
+        self.assertIn("⚠️", next(l for l in said.splitlines() if "New Apps cannot read Build results in `main`" in l))
+
+    def test_one_behaviour_for_every_install_schema_mode_stops_too_and_never_says_so(self):
+        """REQ-456/REQ-458 override REQ-113's no-stop contract for the catalog and schema traverse grants."""
+        api, _ = lakebase_api(catalog=((200, BOUND),), make_catalog=REFUSED_CATALOG)
+        with self.assertRaises(RuntimeError) as raised:
+            self.grant("all", schema_mode=True, api=api, fresh={"account users": ()}, notebook="/Users/someone@example.com/inspire-ai/inspire-ai/x")
+        self.assertIn("GRANT USE CATALOG ON CATALOG `main` TO `account users`", str(raised.exception))
+        self.assertNotRegex(str(raised.exception).lower(), r"schema mode|catalog mode")
+
+    def test_the_installer_grants_account_users_use_schema_on_the_inspire_schema_and_use_catalog_on_every_data_catalog(self):
+        _, _, executed, said = self.grant(["sales", "finance"])
+        sql = [text for text, _ in executed]
+        self.assertIn("GRANT USE SCHEMA ON SCHEMA `main`.`_inspire` TO `account users`", sql)
+        for catalog in ("sales", "finance"):
+            self.assertIn(f"GRANT USE CATALOG ON CATALOG `{catalog}` TO `account users`", sql)
+
+    def test_a_refused_account_users_grant_on_a_data_catalog_stops_the_install_with_the_exact_grant(self):
+        with self.assertRaises(RuntimeError) as raised:
+            self.grant(["sales"], fail={"ON CATALOG `sales` TO `account users`": RuntimeError("PERMISSION_DENIED: not the owner")})
+        self.assertIn("GRANT USE CATALOG ON CATALOG `sales` TO `account users`", str(raised.exception))
+        self.assertIn("before it deploys", str(raised.exception))
 
     def test_a_failed_value_ledger_grant_blocks_the_install_and_names_the_table_and_the_principal(self):
         with self.assertRaises(RuntimeError) as raised:
@@ -1857,14 +1940,18 @@ class SchemaModeTest(unittest.TestCase):
         grants, printed, executed, said = GrantPlanTest.grant(self, "all", schema_mode=True, api=api, notebook=person_notebook)
         granted = [sql for sql, _ in executed if sql.startswith("GRANT ")]
         self.assertTrue(granted, executed)
-        self.assertTrue(all(" ON SCHEMA `main`.`_inspire` TO `SP`" in sql for sql in granted), granted)
-        self.assertNotIn("GRANT USE CATALOG ON CATALOG `main` TO `SP`", granted)
-        self.assertIn("asked once for the App's service principal", said)
+        # REQ-456/REQ-458 (overrides REQ-113/REQ-418 for these grants): one behaviour for every install, so schema mode grants the catalog
+        # and schema traverse rights to the App's principal and to account users, and probes them, instead of asking once
+        self.assertIn("GRANT USE CATALOG ON CATALOG `main` TO `SP`", granted)
+        self.assertIn("GRANT USE CATALOG ON CATALOG `main` TO `account users`", granted)
+        self.assertIn("GRANT USE SCHEMA ON SCHEMA `main`.`_inspire` TO `account users`", granted)
+        self.assertNotIn("asked once for the App's service principal", said)
+        self.assertNotIn("schema mode", said.lower())
         touched = [(m, p, b) for m, p, b in api_calls if "/Shared" in p or "/Shared" in str(b) or "SP" in str(b)]
         self.assertEqual(touched, [], api_calls)
         self.assertIn(("POST", "/api/2.0/workspace/mkdirs", {"path": "/Users/someone@example.com/inspire-ai/demos"}), api_calls)
         self.assertIn("Lakebase is not wired", self.ctx["LAKEBASE_SUMMARY"])
-        self.assertNotIn("New Apps can use catalog", said)
+        self.assertIn("New Apps can read Build results in `main`", said)
 
 class ServicePrincipalOnlyTest(unittest.TestCase):
     """REQ-418 / D-SL-10B: the installer makes no run-as-me jobs and sets no run-as flag; the App's service principal runs everything."""

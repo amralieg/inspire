@@ -526,3 +526,7 @@ test('grant-access for a use case reads its involved tables and build record as 
     assert.ok(reads.length > 0 && reads.every((c) => c.token === APP_TOKEN), 'the tracking tables are read as the App');
   });
 });
+
+test('the metadata-only privilege set is the shared one (REQ-456)', () => {
+  assert.deepEqual([...I.IMPLEMENT_METADATA_ONLY_PRIVILEGES], CASES.metadata_only);
+});

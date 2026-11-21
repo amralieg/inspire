@@ -780,8 +780,10 @@ test('access gap messages match the agent word for word, and name the Permission
     'a new App could not read the result table: its service principal needs these accesses, which not all account users have, and Inspire can grant them only '
     + 'with MANAGE or ownership. Ask your data owner to grant them on the catalog and on the schema: the commands are in Permission Required, or give all account users the same access, '
     + 'which open no data by themselves; or choose a result table in a catalog and schema Inspire manages');
-  assert.ok(I.appAccessMessage(ACCESS_TABLE, [GAP_CATALOG]).includes(
-    'on the catalog: the commands are in Permission Required, or give all account users the same access, which opens no data by itself; or choose'));
+  // REQ-456: a catalog-only USE CATALOG gap names the exact GRANT and the installer, and no longer sends the person to another result table
+  const catalogOnly = I.appAccessMessage(ACCESS_TABLE, [GAP_CATALOG]);
+  assert.ok(catalogOnly.includes('GRANT USE CATALOG ON CATALOG `main` TO `account users`'));
+  assert.doesNotMatch(catalogOnly, /choose a result table/);
   const withSelect = I.appAccessMessage(ACCESS_TABLE, [GAP_CATALOG, { ...NEED_SELECT, owner: 'data-eng' }]);
   assert.ok(withSelect.includes('Ask your data owner to grant them on the catalog and on the table: the commands are in Permission Required; or choose'));
   assert.ok(!withSelect.includes('give all account users'), 'SELECT for every account user would open the data, so it is never offered');
