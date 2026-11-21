@@ -7,7 +7,7 @@ export const SKIP_NO_TABLE = 'no table to count';
 
 const messageOf = (err) => String(err?.message || err || 'The value could not be calculated.');
 
-// items: [{ id, skip? }]. Item states: waiting, working, done (yearly), failed (message), skipped (reason), stopped.
+// items: [{ id, skip? }]. Item states: waiting, working, done (yearly), failed (message), skipped (reason; also a 422 from the worker), stopped.
 // At most `concurrency` workers are in flight; the next item starts when one ends; a failure never stops the others.
 // Abort (signal) starts nothing new and marks every waiting item 'stopped'; the ones in flight finish. Resolves with the final rows.
 // onUpdate(rows) gets a fresh array of { id, state, ... } after every change.
@@ -25,7 +25,10 @@ export function runBulk({ items, worker, concurrency = VALUE_BULK_WORKERS, onUpd
         rows[i] = { id: items[i].id, state: 'working' };
         Promise.resolve().then(() => worker(items[i])).then(
           (got) => { rows[i] = { id: items[i].id, state: 'done', yearly: got?.yearly || got || null }; },
-          (err) => { rows[i] = { id: items[i].id, state: 'failed', message: messageOf(err) }; },
+          (err) => {
+            // A 422 is deterministic (the use case cannot be estimated from defaults): skipped with the server's reason, no Retry.
+            rows[i] = err?.status === 422 ? { id: items[i].id, state: 'skipped', reason: messageOf(err) } : { id: items[i].id, state: 'failed', message: messageOf(err) };
+          },
         ).then(() => { inFlight -= 1; publish(); pump(); });
       }
       if (signal?.aborted) queue.splice(0).forEach((i) => { rows[i] = { id: items[i].id, state: 'stopped' }; });
