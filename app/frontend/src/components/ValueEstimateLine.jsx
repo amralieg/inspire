@@ -1,4 +1,5 @@
 import { valueEstimateOf } from '../lib/v130UseCase';
+import ValueDisclaimer from './ValueDisclaimer';
 
 // REQ-078: the rule-based estimate from /api/inspire/value/estimates. Measured money is never shown as an estimate.
 const amountText = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -9,7 +10,8 @@ function RuleEstimateLine({ estimate, className, onSetRule }) {
     return (
       <p data-value-estimate="estimated" className={base}>
         <span className="font-medium text-text-primary">Estimated {amountText(estimate.amount)} {estimate.currency}</span>
-        {` · estimated with ${estimate.app}'s money rule`}
+        {` · estimated with ${estimate.app}'s money rule `}
+        <ValueDisclaimer short />
       </p>
     );
   }
@@ -42,7 +44,8 @@ export function EstimateTotals({ totals, className = '' }) {
   if (!entries.length) return null;
   return (
     <p data-value-estimated-total="" className={`text-xs leading-snug text-text-secondary ${className}`}>
-      {`Plus estimated, not measured: ${entries.map(([code, amount]) => `${amountText(amount)} ${code}`).join(', ')}`}
+      {`Plus estimated, not measured: ${entries.map(([code, amount]) => `${amountText(amount)} ${code}`).join(', ')} `}
+      <ValueDisclaimer short />
     </p>
   );
 }
@@ -53,10 +56,11 @@ export default function ValueEstimateLine({ uc = null, estimate: given = null, c
   if (given && given.status && !own?.measured) return <RuleEstimateLine estimate={given} className={className} onSetRule={onSetRule} />;
   const estimate = own?.measured ? own : (given || own);
   if (!estimate) return null;
-  return (
+  const line = (
     <p data-value-estimate={estimate.measured ? 'measured' : 'not-measured'}
       className={`text-xs leading-snug ${estimate.measured ? 'font-semibold text-success-fg' : 'text-text-tertiary'} ${className}`}>
       {estimate.text}
     </p>
   );
+  return estimate.measured ? <>{line}<ValueDisclaimer short className="block" /></> : line;
 }

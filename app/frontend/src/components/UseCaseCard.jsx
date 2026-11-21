@@ -121,11 +121,11 @@ function UseCaseCardBody({
                 <QualityBarReason uc={u} className="mt-1" />
                 <ValueEstimateLine uc={u} estimate={estimate} onSetRule={onSetRule} className="mt-1" />
                 {useCaseValue && (
-                  <ValueBadge atStake={useCaseValue.at_stake} saved={useCaseValue.saved} measured={useCaseValue.measured} className="mt-2" />
+                  <ValueBadge atStake={useCaseValue.at_stake} saved={useCaseValue.saved} measured={useCaseValue.measured} className="mt-2" compact />
                 )}
               </div>
               <div className="flex shrink-0 flex-col items-end">
-                <InspireScoreBadge score={inspireScoreNum} />
+                <InspireScoreBadge score={inspireScoreNum} refinedFrom={u.refined_from} />
                 <CardValueLine yearly={yearly} calc={calc} canCalculate={canCalculate} onCalculate={onCalculate} onRetry={onRetry} />
               </div>
             </div>

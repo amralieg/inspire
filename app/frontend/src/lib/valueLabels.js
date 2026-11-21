@@ -1,5 +1,5 @@
 import { valueChips } from './valueLedger.js';
-import disclaimer from '../../../backend/lib/valueDisclaimer.json';
+import disclaimer from '../../../backend/lib/valueDisclaimer.json' with { type: 'json' };
 
 // REQ-434: one text shared with the backend answers (backend/lib/valueDisclaimer.json); no copy of the words lives here.
 export const VALUE_DISCLAIMER = disclaimer.full;

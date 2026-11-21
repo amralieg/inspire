@@ -107,6 +107,8 @@ import { savedStakeAnswers, tableOfUseCase, useCalculatedValues } from '../lib/c
 import { kindFilterLabel, kindFilterOptions, matchesKindFilter } from '../lib/useCaseKind';
 import { MVP_FILTERS, START_MVP_LABEL, implementState, mvpCounts, mvpFilterMatches, notebookRunEnded, notebookStatus, versionActive } from '../lib/implementWizard';
 import { buildUseCaseList } from '../lib/useCaseList';
+import { useScoreRefine } from '../lib/useScoreRefine';
+import RefineBanner from '../components/RefineBanner';
 import { cardAssetLinks, liveAppRenameStale, renameRestyleSpec, trackBuildSubmit } from '../lib/implementControl';
 import { ARCHIVE_VIEWS, archiveKeyOf, inArchiveView, loadArchiveMap, toggledArchive } from '../lib/useCaseArchive';
 import QualityGateDrops from '../components/QualityGateDrops';
@@ -582,10 +584,13 @@ export default function ResultsPage({
   };
 
   // ── Extract use cases (defensive — guard against non-array shapes) ──
-  const allUseCases = useMemo(() => buildUseCaseList(results, usecases), [results, usecases]);
+  const builtUseCases = useMemo(() => buildUseCaseList(results, usecases), [results, usecases]);
   const [calcFor, setCalcFor] = useState(null);
-  const calcIds = useMemo(() => allUseCases.map((u) => trackingIdOf(u)).filter(Boolean), [allUseCases]);
+  const calcIds = useMemo(() => builtUseCases.map((u) => trackingIdOf(u)).filter(Boolean), [builtUseCases]);
   const calculated = useCalculatedValues({ apiPostJson, host: settings?.databricksHost, inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId, ids: calcIds });
+  const yearlyOf = useCallback((id) => calculated.byId[id]?.yearly || measuredYearly?.use_cases?.[id] || null, [calculated.byId, measuredYearly]);
+  const { list: allUseCases, banner: refineBanner } = useScoreRefine({ useCases: builtUseCases, yearlyOf, apiPostJson, host: settings?.databricksHost,
+    inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId });
   const qualityBarCounts = useMemo(() => qualityBarCountsOf(allUseCases), [allUseCases]);
   const runOutcome = runOutcomeOf(results, qualityBarCounts);
   const reviewBarStages = useMemo(() => stepBarStagesOf(PIPELINE_STAGES,
@@ -2442,6 +2447,8 @@ export default function ResultsPage({
                   </div>
                 )}
               </div>
+
+              <RefineBanner {...refineBanner} />
 
               {/* Use case cards — only this region scrolls; sidebar + filter bar stay visible */}
               <div
