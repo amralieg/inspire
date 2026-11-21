@@ -11,6 +11,7 @@ at call time is out of scope for the offline suite and must be tested against a 
 """
 import ast
 import base64
+import contextlib
 import gzip
 import json
 import os
@@ -70,12 +71,47 @@ def _honest_types():
     return _HONEST_TYPES
 
 
-def _ensure_module(name):
+LOADER_STUBS = {}
+
+
+def ensure_loader_module(name):
+    """The module registered under `name`; a plain stub the loader owns when none is registered.
+
+    The loader's stubs are process-wide on purpose (the notebook namespace holds references into them),
+    so `sdk_modules_restored` keeps exactly these and nothing else a test added.
+    """
     mod = sys.modules.get(name)
     if mod is None:
         mod = types.ModuleType(name)
         sys.modules[name] = mod
+        LOADER_STUBS[name] = mod
     return mod
+
+
+_ensure_module = ensure_loader_module
+
+
+def _is_sdk_name(name):
+    return name == "databricks" or name.startswith("databricks.")
+
+
+@contextlib.contextmanager
+def sdk_modules_restored():
+    """Put every `databricks*` entry of sys.modules back as it was on entry.
+
+    Entries a test added or replaced are undone; the loader's own stubs (see `ensure_loader_module`) stay
+    while they are still the registered object. This is the one place that writes those names back.
+    """
+    before = {name: mod for name, mod in sys.modules.items() if _is_sdk_name(name)}
+    try:
+        yield
+    finally:
+        for name in [n for n in sys.modules if _is_sdk_name(n) and n not in before]:
+            if LOADER_STUBS.get(name) is not sys.modules[name]:
+                del sys.modules[name]
+        for name, mod in before.items():
+            if sys.modules.get(name) is not mod:
+                sys.modules[name] = mod
 
 
 def install_types():

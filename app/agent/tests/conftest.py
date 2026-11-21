@@ -18,6 +18,7 @@ open(ISOLATED_DATABRICKS_CONFIG, "w").close()
 os.environ["DATABRICKS_CONFIG_FILE"] = ISOLATED_DATABRICKS_CONFIG
 
 import _agentload  # noqa: E402
+import _nbload  # noqa: E402
 
 RELEASE = os.path.join(os.path.dirname(HERE), "release")
 RELEASE_TOOLS = ("rc_settings", "rc_install", "rc_release", "isolation", "infra_install")
@@ -53,8 +54,8 @@ def release_tool(tmp_path, monkeypatch):
 
     write()
     monkeypatch.setenv("INSPIRE_RC_SETTINGS", str(path))
-    for name in ("databricks", "databricks.sdk", "databricks.sdk.config", "databricks.sdk.service", "databricks.sdk.service.jobs",
-                 "databricks.sdk.service.workspace", "databricks.sdk.service.sql"):
+    for name in ("databricks", "databricks.sdk", "databricks.sdk.config", "databricks.sdk.errors", "databricks.sdk.service",
+                 "databricks.sdk.service.jobs", "databricks.sdk.service.workspace", "databricks.sdk.service.sql"):
         monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
     class SdkStub:
         def __init__(self, **kwargs):
@@ -62,6 +63,8 @@ def release_tool(tmp_path, monkeypatch):
 
     sys.modules["databricks.sdk"].WorkspaceClient = SdkStub
     sys.modules["databricks.sdk.config"].Config = SdkStub
+    for name in ("NotFound", "PermissionDenied"):
+        setattr(sys.modules["databricks.sdk.errors"], name, type(name, (Exception,), {}))
     for name in ("jobs", "workspace", "sql"):
         setattr(sys.modules["databricks.sdk.service"], name, sys.modules[f"databricks.sdk.service.{name}"])
 
@@ -77,6 +80,13 @@ def release_tool(tmp_path, monkeypatch):
     yield types.SimpleNamespace(load=load, settings=settings, path=path, write=write, release=RELEASE, root=tmp_path)
     for tool in RELEASE_TOOLS:
         sys.modules.pop(tool, None)
+
+
+@pytest.fixture(autouse=True)
+def _restore_sdk_modules():
+    """No test leaves a databricks.* stub (or a real-SDK import) in sys.modules for the next one."""
+    with _nbload.sdk_modules_restored():
+        yield
 
 
 @pytest.fixture(autouse=True)
