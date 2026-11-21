@@ -1,4 +1,5 @@
 const express = require('express');
+const VALUE_DISCLAIMER = require('./lib/valueDisclaimer.json');
 const IMPLEMENT_OUTPUT_LABELS = require('./lib/implementOutputLabels.json');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -2880,10 +2881,10 @@ app.get('/api/inspire/value/estimates', requireToken, async (req, res) => {
       const sids = rows.slice(0, SESSION_LIST_CAP).map((row) => String(row.session_id)).filter((sid) => !invalidSessionId(sid));
       const answers = await Promise.all(sids.map((sid) => estimatesOfSession(req, warehouse_id, parsedDb, sid)));
       const runs = Object.fromEntries(sids.map((sid, i) => [sid, answers[i]]));
-      return res.json({ runs, totals: VE.mergeTotals(answers.map((answer) => answer.totals)), truncated, cap: SESSION_LIST_CAP });
+      return res.json({ runs, totals: VE.mergeTotals(answers.map((answer) => answer.totals)), truncated, cap: SESSION_LIST_CAP, disclaimer: VALUE_DISCLAIMER.full });
     }
     if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
-    res.json(await estimatesOfSession(req, warehouse_id, parsedDb, String(session_id).trim()));
+    res.json({ ...(await estimatesOfSession(req, warehouse_id, parsedDb, String(session_id).trim())), disclaimer: VALUE_DISCLAIMER.full });
   } catch (err) {
     PM_ERROR.sendFailure(res, PM_ERROR.failureStatus(err), err.message);
   }
@@ -2898,7 +2899,7 @@ app.get('/api/inspire/value', requireToken, async (req, res) => {
     const parsedDb = splitInspireDatabase(inspire_database);
     if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
-    res.json(valueOfSession(await readValueRows(req, warehouse_id, valueSessionSql(valueLedgerTable(parsedDb), String(session_id).trim()))));
+    res.json({ ...valueOfSession(await readValueRows(req, warehouse_id, valueSessionSql(valueLedgerTable(parsedDb), String(session_id).trim()))), disclaimer: VALUE_DISCLAIMER.full });
   } catch (err) {
     PM_ERROR.sendFailure(res, 500, err.message);
   }
@@ -2914,7 +2915,7 @@ app.get('/api/inspire/value/overall', requireToken, async (req, res) => {
     if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     const totals = await readValueRows(req, warehouse_id, valueOverallSql(valueLedgerTable(parsedDb), inspireSessionTable(parsedDb)));
     const [counts] = await readValueRows(req, warehouse_id, sessionCountsSql(inspireSessionTable(parsedDb)));
-    res.json(overallValue(totals, counts));
+    res.json({ ...overallValue(totals, counts), disclaimer: VALUE_DISCLAIMER.full });
   } catch (err) {
     PM_ERROR.sendFailure(res, 500, err.message);
   }
@@ -2928,7 +2929,7 @@ app.get('/api/inspire/value/runs', requireToken, async (req, res) => {
     }
     const parsedDb = splitInspireDatabase(inspire_database);
     if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
-    res.json(valueOfRuns(await readValueRows(req, warehouse_id, valueRunsSql(valueLedgerTable(parsedDb)))));
+    res.json({ ...valueOfRuns(await readValueRows(req, warehouse_id, valueRunsSql(valueLedgerTable(parsedDb)))), disclaimer: VALUE_DISCLAIMER.full });
   } catch (err) {
     PM_ERROR.sendFailure(res, 500, err.message);
   }

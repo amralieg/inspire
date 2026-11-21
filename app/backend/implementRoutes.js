@@ -1,4 +1,6 @@
 const { isMissingTableError } = require('./lib/inspireFeedback');
+const VALUE_DISCLAIMER = require('./lib/valueDisclaimer.json');
+const SR = require('./lib/scoreRefine');
 const { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, noSessionText, stepsStatement } = require('./lib/sqlInputs');
 const I = require('./lib/inspireImplement');
 const RL = require('./lib/relationships');
@@ -2429,9 +2431,55 @@ function registerImplementRoutes(app, deps) {
       const basis = found[0] || {};
       const yearly = VY.yearlyOf({ entries, sampled: basis.sampled, eligible: basis.eligible, days: basis.days, kpi: answers.kpi, rule: money.rule });
       if (!yearly) throw I.badRequest(`Inspire read a sample of ${table} and found no record that counts toward the value, so it shows no number.`, 422);
-      return res.json({ yearly });
+      return res.json({ yearly, disclaimer: VALUE_DISCLAIMER.full });
     } catch (err) {
       return sendError(res, sqlFailure(err, profileFailures(table || 'the use case table')));
+    }
+  });
+
+  // REQ-433: Apply stores the refined Inspire scores on the use case rows and keeps the old score and the reason in history; Undo restores them.
+  async function refineTables(req, warehouseId) {
+    const { catalog, schema } = dbOf(req, splitInspireDatabase);
+    const usecases = `\`${catalog}\`.\`${schema}\`.\`__inspire_usecases\``;
+    const history = `\`${catalog}\`.\`${schema}\`.\`__inspire_score_history\``;
+    const have = I.describedColumnNames(await sqlRows(req.dbHost, req.dbToken, warehouseId, { sql: `DESCRIBE TABLE ${usecases}`, parameters: null }));
+    const missing = SR.COLUMNS.filter(([name]) => !have.has(name));
+    if (missing.length) await ensureTableColumns(req.dbHost, req.dbToken, warehouseId, usecases, missing);
+    await executeSql(req.dbHost, req.dbToken, warehouseId, SR.historyCreateSql(history));
+    return { usecases, history };
+  }
+
+  app.post('/api/inspire/score-refine', requireToken, async (req, res) => {
+    try {
+      const warehouseId = warehouseOf(req);
+      const sid = sessionIdOf(req);
+      dbOf(req, splitInspireDatabase);
+      const changes = SR.parseChanges(req.body?.changes, I.badRequest);
+      const { usecases, history } = await refineTables(req, warehouseId);
+      for (const change of changes) {
+        const made = SR.applyStatements(usecases, history, sid, change);
+        await executeSql(req.dbHost, req.dbToken, warehouseId, made.update.sql, made.update.parameters);
+        await executeSql(req.dbHost, req.dbToken, warehouseId, made.record.sql, made.record.parameters);
+      }
+      return res.json({ applied: changes.map((c) => ({ use_case_id: c.use_case_id, score: c.score, from: c.from })) });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/inspire/score-refine/undo', requireToken, async (req, res) => {
+    try {
+      const warehouseId = warehouseOf(req);
+      const sid = sessionIdOf(req);
+      dbOf(req, splitInspireDatabase);
+      const ids = SR.parseIds(req.body?.use_case_ids, I.badRequest);
+      const { usecases, history } = await refineTables(req, warehouseId);
+      const made = SR.undoStatements(usecases, history, sid, ids);
+      await executeSql(req.dbHost, req.dbToken, warehouseId, made.record.sql, made.record.parameters);
+      await executeSql(req.dbHost, req.dbToken, warehouseId, made.update.sql, made.update.parameters);
+      return res.json({ restored: ids });
+    } catch (err) {
+      return sendError(res, err);
     }
   });
 
@@ -2452,7 +2500,7 @@ function registerImplementRoutes(app, deps) {
       };
       const measured = IV.valueOfSession(await readOrEmpty(IV.valueSessionSql(IV.valueLedgerTable(parsedDb), String(sid)))).use_cases;
       const ids = Object.keys(measured).filter((id) => measured[id].measured && (measured[id].at_stake || []).length);
-      if (!ids.length) return res.json({ use_cases: {} });
+      if (!ids.length) return res.json({ use_cases: {}, disclaimer: VALUE_DISCLAIMER.full });
       const [specRows, tableRows] = await Promise.all([
         readOrEmpty(VE.latestSpecsSql(I.implementTableName(parsedDb.catalog, parsedDb.schema), sid)),
         readOrEmpty(`SELECT id, primary_table FROM ${IV.qualified(parsedDb, '__inspire_usecases')} WHERE session_id = ${sid}`),
@@ -2485,7 +2533,7 @@ function registerImplementRoutes(app, deps) {
           kpi: { name: summary.kpi_name, direction: summary.kpi_direction }, rule: spec.money && spec.money.rule });
       };
       const got = await mapLimit(ids, 4, oneOf);
-      return res.json({ use_cases: Object.fromEntries(ids.map((id, i) => [id, got[i]]).filter(([, v]) => v)) });
+      return res.json({ use_cases: Object.fromEntries(ids.map((id, i) => [id, got[i]]).filter(([, v]) => v)), disclaimer: VALUE_DISCLAIMER.full });
     } catch (err) {
       return sendError(res, err);
     }

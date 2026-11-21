@@ -1,4 +1,9 @@
 import { valueChips } from './valueLedger.js';
+import disclaimer from '../../../backend/lib/valueDisclaimer.json';
+
+// REQ-434: one text shared with the backend answers (backend/lib/valueDisclaimer.json); no copy of the words lives here.
+export const VALUE_DISCLAIMER = disclaimer.full;
+export const VALUE_DISCLAIMER_SHORT = disclaimer.short;
 
 // REQ-432: the words of the value line on a use case card. The App shows English labels; every label of the line lives here, so one
 // translation hook covers them all.
