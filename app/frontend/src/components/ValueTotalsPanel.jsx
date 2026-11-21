@@ -61,13 +61,13 @@ export function RunValuePanel({ run, useCases, nameOf, onRow }) {
           {rows.map(([id, u]) => (
             <tr key={id} data-value-row={id} onClick={() => onRow?.(id)} className="cursor-pointer border-t border-border/60 hover:bg-bg-subtle">
               <td className="py-1">{nameOf?.(id) || id}</td>
-              <td className="text-text-secondary">{u.verb || '—'}</td>
+              <td className="text-text-secondary">{u.verb || ''}</td>
               <td><span className={`rounded-full px-2 py-px text-[10px] ${PILL[u.status] || 'bg-bg-subtle text-text-secondary'}`}>{u.status === 'calculated' ? 'calculated' : u.status === 'measured' ? 'measured' : u.status === 'estimated' ? 'estimated' : u.status === 'no_data' ? 'no data' : 'not yet'}</span></td>
-              <td className="text-end tabular-nums">{u.amount != null ? moneyText(u.currency, u.amount) : '—'}</td>
+              <td className="text-end tabular-nums">{u.amount != null ? moneyText(u.currency, u.amount) : 'Not calculated'}</td>
             </tr>
           ))}
           <tr data-value-run-total="" className="border-t-2 border-border font-bold"><td className="py-1">Run total</td><td /><td />
-            <td className="text-end tabular-nums">{(run.totals || []).map((t) => moneyText(t.currency, t.amount)).join(' + ') || '—'}</td></tr>
+            <td className="text-end tabular-nums">{(run.totals || []).map((t) => moneyText(t.currency, t.amount)).join(' + ') || 'Not calculated'}</td></tr>
         </tbody>
       </table>
     </section>
@@ -79,7 +79,7 @@ export function AllRunsValuePanel({ reply }) {
   const runs = reply.runs || [];
   const all = reply.all || { totals: [] };
   const byRun = runs.map((r, k) => ({ name: r.name || r.session_id, value: (r.totals || []).reduce((s, t) => s + (Number(t.amount) || 0), 0), text: (r.totals || []).map((t) => moneyText(t.currency, t.amount)).join(' + '), color: PALETTE[k % PALETTE.length] }));
-  const cell = (r, f) => (r.totals || []).map((t) => moneyText(t.currency, t[f])).join(' + ') || '—';
+  const cell = (r, f) => (r.totals || []).map((t) => moneyText(t.currency, t[f])).join(' + ') || 'Not calculated';
   return (
     <section aria-label="Value at stake, every run" data-value-all-panel="" className="mb-4 rounded-xl border border-border bg-surface p-4">
       <h2 className="text-base font-bold text-text-primary">Value across all runs</h2>
@@ -98,11 +98,11 @@ export function AllRunsValuePanel({ reply }) {
             <tr key={r.session_id} data-all-runs-row={r.session_id} className="border-t border-border/60">
               <td className="py-1">{r.name || r.session_id}</td><td className="text-end tabular-nums">{r.n}</td>
               <td className="text-end tabular-nums">{cell(r, 'calculated')}</td><td className="text-end tabular-nums">{cell(r, 'estimated')}</td>
-              <td className="text-end font-semibold tabular-nums">{(r.totals || []).map((t) => moneyText(t.currency, t.amount)).join(' + ') || '—'}</td>
+              <td className="text-end font-semibold tabular-nums">{(r.totals || []).map((t) => moneyText(t.currency, t.amount)).join(' + ') || 'Not calculated'}</td>
             </tr>
           ))}
           <tr className="border-t-2 border-border font-bold"><td className="py-1">All runs</td><td /><td /><td />
-            <td className="text-end tabular-nums">{(all.totals || []).map((t) => moneyText(t.currency, t.amount)).join(' + ') || '—'}</td></tr>
+            <td className="text-end tabular-nums">{(all.totals || []).map((t) => moneyText(t.currency, t.amount)).join(' + ') || 'Not calculated'}</td></tr>
         </tbody>
       </table>
     </section>

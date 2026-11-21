@@ -116,7 +116,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
         {page === 'groups' && <StepGroups plan={plan} answers={answers} onToggleGroup={toggleGroup} />}
         {last && (
           <StepSave plan={plan} answers={answers} yearly={yearly} calculated={calculated} onToggleDriver={toggleDriver} onInput={setInput} onToggleGroup={toggleGroup} onCredit={setCredit}>
-            {preview.status === 'error' && <p role="status" className="text-[12px] text-error-fg">{preview.error}</p>}
+            {preview.status === 'error' && <PlainMessage text={preview.error} role="status" dir="auto" className="text-[12px] text-error-fg" />}
             <ValueHistory history={history} busy={busy} onUndo={undo} />
           </StepSave>
         )}

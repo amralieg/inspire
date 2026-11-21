@@ -1,3 +1,4 @@
+import { PlainMessage } from '../TechnicalDetails';
 import { DRIVER_ICONS, countText, moneyText, partOf, recordsOf, totalText } from '../../lib/valueWizard.js';
 import Ask from './Ask.jsx';
 
@@ -78,7 +79,7 @@ export function StepKind({ plan, driver, answers, yearly, onInput, status, error
         <div className="rounded-lg border border-border px-3 py-1 text-end"><p className="text-[10px] uppercase tracking-wide text-text-secondary">{driver.label}</p><p data-kind-amount="" className="text-lg font-extrabold tabular-nums text-text-primary">{part ? moneyText(unit, part.amount) : '...'}</p></div>
         <div className="rounded-lg border border-border bg-bg-subtle px-3 py-1 text-end"><p className="text-[10px] uppercase tracking-wide text-text-secondary">Running total</p><p data-run-total="" className="text-lg font-extrabold tabular-nums text-text-primary">{totalText(yearly) || '...'}</p></div>
       </div>
-      {status === 'error' && <p role="alert" className="rounded-md border border-error/30 bg-error-bg px-3 py-1.5 text-[12px] text-error-fg">{error}</p>}
+      {status === 'error' && <PlainMessage text={error} role="alert" dir="auto" className="rounded-md border border-error/30 bg-error-bg px-3 py-1.5 text-[12px] text-error-fg" />}
       <div className="grid grid-cols-2 gap-2">
         {driver.asks.map((a) => (
           <Ask key={a.id} ask={a} value={answers.drivers[driver.id]?.inputs[a.id]} dataValue={dataValueOf(yearly, driver.id, a)} currency={yearly?.currency}
