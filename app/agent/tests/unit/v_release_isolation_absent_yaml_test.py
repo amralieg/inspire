@@ -34,7 +34,7 @@ class FakeWorkspace:
     def __init__(self, failure_for_a):
         self.failure = failure_for_a
         self.workspace = SimpleNamespace(download=self._download, list=lambda *a, **k: [])
-        self.api_client = SimpleNamespace(do=lambda *a, **k: {})
+        self.api_client = SimpleNamespace(do=lambda *a, **k: {"object_id": 1})
         self.apps = SimpleNamespace(get=self._get)
 
     def _get(self, name):
