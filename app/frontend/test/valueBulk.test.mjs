@@ -45,6 +45,14 @@ test('one failure leaves the other 9 done', async () => {
   assert.deepEqual(rows.find((r) => r.state === 'failed'), { id: 'U2', state: 'failed', message: 'the plan failed' });
 });
 
+test('FX-28: a 422 is skipped with the server message; a 500 stays failed', async () => {
+  const msg = 'The table has no date column ...';
+  const worker = (item) => Promise.reject(item.id === 'U1' ? Object.assign(new Error(msg), { status: 422 }) : Object.assign(new Error('down'), { status: 500 }));
+  const rows = await runBulk({ items: ids(2), worker });
+  assert.deepEqual(rows.find((r) => r.id === 'U1'), { id: 'U1', state: 'skipped', reason: msg });
+  assert.deepEqual(rows.find((r) => r.id === 'U2'), { id: 'U2', state: 'failed', message: 'down' });
+});
+
 test('Stop after 2 done: the in-flight ones finish, the rest are stopped, nothing new starts', async () => {
   const f = fake();
   const ctl = new AbortController();

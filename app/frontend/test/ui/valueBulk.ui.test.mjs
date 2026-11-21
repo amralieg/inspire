@@ -41,7 +41,7 @@ function mountBulk(state) {
     app.post('/api/inspire/value/case-plan', (req, res) => {
       const id = req.body.use_case_id;
       state.started.push(id);
-      if (state.planStatus?.[id]) return res.status(state.planStatus[id]).json({ error: 'The plan service is down.' });
+      if (state.planStatus?.[id]) return res.status(state.planStatus[id]).json({ error: state.planStatus[id] === 422 ? 'The table has no date column to estimate from.' : 'The plan service is down.' });
       state.plans.push({ id, res });
       if (!state.hold) state.releasePlan(id);
     });
@@ -129,5 +129,24 @@ test('2: a case-plan that answers 500 shows failed with Retry; Retry with the st
     assert.equal(await text(panel.locator('[data-bulk-progress]')), '2 of 2 done');
     assert.equal(state.started.filter((id) => id === 'N01-U02').length, 1, 'Retry re-runs only that use case');
     assert.deepEqual(ui.pageErrors.filter((e) => !/status of 500/.test(String(e))), []);
+  } finally { await ui.close(); }
+});
+
+test('FX-28: a case-plan that answers 422 shows skipped with the reason and no Retry; a 500 row still has Retry', async () => {
+  const state = { hold: false, plans: [], puts: [], planStatus: { 'N01-U03': 422, 'N01-U04': 500 } };
+  const { ui, page } = await openBulk(state);
+  try {
+    await pick(page, ['Score upsell', 'Segment shoppers', 'Price elasticity']);
+    await page.getByRole('button', { name: 'Calculate value for 3', exact: true }).click();
+    const panel = page.getByRole('dialog', { name: 'Calculating value' });
+    const skipped = panel.locator('[data-bulk-row="N01-U03"]');
+    const failed = panel.locator('[data-bulk-row="N01-U04"]');
+    await failed.locator('button', { hasText: 'Retry' }).waitFor();
+    assert.equal(await skipped.getAttribute('data-bulk-state'), 'skipped');
+    assert.match(await text(skipped), /Skipped: The table has no date column/);
+    assert.equal(await skipped.locator('button', { hasText: 'Retry' }).count(), 0);
+    assert.equal(await panel.locator('[data-bulk-row="N01-U02"]').getAttribute('data-bulk-state'), 'done');
+    assert.equal(await failed.getAttribute('data-bulk-state'), 'failed');
+    assert.deepEqual(ui.pageErrors.filter((e) => !/status of (500|422)/.test(String(e))), []);
   } finally { await ui.close(); }
 });
