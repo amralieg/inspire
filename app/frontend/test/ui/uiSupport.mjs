@@ -185,7 +185,13 @@ export async function dumpFor(page, reason) {
 export async function openUi(open, overrides = {}, query = '', { mount, init } = {}) {
   if (!browser) browser = await chromium.launch();
   // REQ-418: the Apps proxy forwards the signed-in person (x-forwarded-email); the harness forwards the same person as the overridden `me`.
-  const made = makeApp({ useCase: HARNESS_USE_CASE, buildStamp: UNKNOWN_BUILD, forwardedEmail: overrides.me?.userName, ...overrides }, { mount });
+  // REQ-435: the saved Value at stake answers are read from the server; a test that does not mount them gets none (its own mount wins, it runs first).
+  const withAnswers = (app) => {
+    mount?.(app);
+    app.get('/api/inspire/value/answers', (_req, res) => res.json({ answers: {} }));
+    app.get('/api/inspire/value/answers/history', (_req, res) => res.json({ history: [] }));
+  };
+  const made = makeApp({ useCase: HARNESS_USE_CASE, buildStamp: UNKNOWN_BUILD, forwardedEmail: overrides.me?.userName, ...overrides }, { mount: withAnswers });
   const opened = [];
   let record = null;
   const close = async () => {

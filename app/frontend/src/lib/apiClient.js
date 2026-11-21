@@ -59,15 +59,17 @@ export function makeApiFetch({ token, databricksHost, showcase = '' } = {}) {
   };
 }
 
-export function makeApiPostJson({ token, databricksHost, showcase = '' } = {}) {
-  return async (url, body, { signal, raise = true } = {}) => {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: requestHeaders(token, databricksHost, { 'Content-Type': 'application/json' }, showcase),
-      body: JSON.stringify(body),
-      signal,
-    });
-    if (!resp.ok) throw await responseError(resp, { raise });
-    return resp.json();
-  };
-}
+const makeApiSendJson = (method) => ({ token, databricksHost, showcase = '' } = {}) => async (url, body, { signal, raise = true } = {}) => {
+  const resp = await fetch(url, {
+    method,
+    headers: requestHeaders(token, databricksHost, { 'Content-Type': 'application/json' }, showcase),
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!resp.ok) throw await responseError(resp, { raise });
+  return resp.json();
+};
+
+export const makeApiPostJson = makeApiSendJson('POST');
+// REQ-435: the same call with PUT, for the saved Value at stake answers.
+export const makeApiPutJson = makeApiSendJson('PUT');

@@ -54,10 +54,9 @@ function UseCaseCardBody({
   onSetRule = null,
   onUndoRefine = null,
   yearly = null,
-  calc = null,
   canCalculate = false,
   onCalculate = null,
-  onRetry = null,
+  onEdit = null,
   ...detailProps
 }) {
   const u = uc;
@@ -127,7 +126,7 @@ function UseCaseCardBody({
               </div>
               <div className="flex shrink-0 flex-col items-end">
                 <InspireScoreBadge score={inspireScoreNum} refinedFrom={u.refined_from} onUndo={onUndoRefine} />
-                <CardValueLine yearly={yearly} calc={calc} canCalculate={canCalculate} onCalculate={onCalculate} onRetry={onRetry} />
+                <CardValueLine yearly={yearly} canCalculate={canCalculate} onCalculate={onCalculate} onEdit={onEdit} />
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-2">

@@ -117,7 +117,7 @@ test('B4: an empty driver is not sent, and a driver alone (no money) can be calc
     await card.locator('[data-value-calculate]').click();
     const dialog = await openDialog(page);
     await dialog.getByRole('list', { name: 'Money decisions' }).waitFor();
-    await dialog.getByRole('button', { name: 'Off' }).first().click().catch(() => null);
+    await dialog.getByLabel('Use the value from your data').uncheck();
     await openPart(dialog, TIME.label);
     for (const i of TIME.inputs) await dialog.getByLabel(i.label).fill(i.id === 'hours_after' ? '1' : '2');
     const go = dialog.getByRole('button', { name: 'Calculate', exact: true });

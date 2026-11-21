@@ -8,25 +8,19 @@ const TABLE = /[\w$-]+\.[\w$-]+\.[\w$-]+/;
 // The main table of a use case as catalog.schema.table, or '' when it names none.
 export const tableOfUseCase = (uc) => primaryTableOf(uc) || tablesOf(uc)[0] || (String(fieldOf(uc, 'Tables Involved', 'tables_involved') ?? '').match(TABLE) || [''])[0];
 
-export const ESTIMATE_ROUTE = '/api/inspire/value/estimate';
-const KEY = 'inspire.stake.v1';
-const storageKey = ({ host, inspireDatabase, sessionId, useCaseId }) => [KEY, host, inspireDatabase, sessionId, useCaseId].map((p) => String(p ?? '').trim()).join('|');
+export const ANSWERS_ROUTE = '/api/inspire/value/answers';
+const query = ({ inspireDatabase, warehouseId, sessionId }, extra = {}) => new URLSearchParams({ inspire_database: inspireDatabase || '', warehouse_id: warehouseId || '',
+  session_id: String(sessionId ?? ''), ...extra }).toString();
 
-// The Value at stake answers a person gave in Calculate, kept on this browser so the next Build starts from them.
-export function savedStakeAnswers(where) {
+// REQ-435: the Value at stake answers live in a table on the server, latest version per use case: { <use_case_id>: { version, answers, yearly, ... } }.
+// A read that fails gives {} so a page that cannot read them still opens.
+export async function fetchSavedAnswers(apiFetch, where) {
+  if (typeof apiFetch !== 'function' || !where?.sessionId || !where?.inspireDatabase) return {};
   try {
-    const got = JSON.parse(window.localStorage.getItem(storageKey(where)) || 'null');
-    return got && typeof got === 'object' ? got : null;
+    const got = await apiFetch(`${ANSWERS_ROUTE}?${query(where)}`, { raise: false });
+    return got?.answers && typeof got.answers === 'object' ? got.answers : {};
   } catch {
-    return null;
-  }
-}
-
-function saveStake(where, saved) {
-  try {
-    window.localStorage.setItem(storageKey(where), JSON.stringify(saved));
-  } catch {
-    // A browser that refuses storage still shows the value for this visit.
+    return {};
   }
 }
 
@@ -37,41 +31,37 @@ export function answersOf(spec, kpiOptions = []) {
   return { money: spec.money || null, kpi: name ? { name, direction: option?.direction || '' } : null };
 }
 
-// The per-year values a person calculated, by use case id: busy, ready (the same shape the card reads) or failed with one line of why.
-export function useCalculatedValues({ apiPostJson, host = '', inspireDatabase, warehouseId, sessionId, ids = [] }) {
+// The per-year values a person calculated, by use case id, read from the server: { status: 'ready', yearly, version, answers }.
+// run saves new answers (a new version) and returns { version, yearly }; it throws the server's one line of why when the save fails.
+export function useCalculatedValues({ apiFetch, apiPostJson, apiPutJson, inspireDatabase, warehouseId, sessionId }) {
   const [byId, setById] = useState({});
-  const post = useRef(apiPostJson);
-  useEffect(() => { post.current = apiPostJson; }, [apiPostJson]);
-  const last = useRef({});
-  const idsKey = ids.join('|');
+  const api = useRef({ apiFetch, apiPostJson, apiPutJson });
+  useEffect(() => { api.current = { apiFetch, apiPostJson, apiPutJson }; }, [apiFetch, apiPostJson, apiPutJson]);
   useEffect(() => {
-    const read = {};
-    for (const id of ids) {
-      const saved = savedStakeAnswers({ host, inspireDatabase, sessionId, useCaseId: id });
-      if (saved?.yearly) read[id] = { status: 'ready', yearly: saved.yearly };
-    }
-    setById(read);
-  }, [host, inspireDatabase, sessionId, idsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    let live = true;
+    fetchSavedAnswers(api.current.apiFetch, { inspireDatabase, warehouseId, sessionId }).then((answers) => {
+      if (!live) return;
+      setById(Object.fromEntries(Object.entries(answers).filter(([, a]) => a?.yearly).map(([id, a]) => [id, { status: 'ready', yearly: a.yearly, version: a.version, answers: a.answers }])));
+    });
+    return () => { live = false; };
+  }, [inspireDatabase, warehouseId, sessionId]);
+  const keep = (useCaseId, got, answers) => setById((prev) => ({ ...prev, [useCaseId]: { status: 'ready', yearly: got.yearly, version: got.version, answers: got.answers || answers } }));
+  const ids = useCallback((extra = {}) => ({ inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId), ...extra }), [inspireDatabase, warehouseId, sessionId]);
   const run = useCallback(async (useCaseId, table, answers) => {
-    const where = { host, inspireDatabase, sessionId, useCaseId };
-    last.current[useCaseId] = { table, answers };
-    saveStake(where, { answers });
-    setById((prev) => ({ ...prev, [useCaseId]: { status: 'busy' } }));
-    try {
-      const got = await post.current(ESTIMATE_ROUTE, { inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId),
-        use_case_id: useCaseId, table, answers });
-      if (!got?.yearly) throw new Error('Inspire got no value back for this use case.');
-      saveStake(where, { answers, yearly: got.yearly });
-      setById((prev) => ({ ...prev, [useCaseId]: { status: 'ready', yearly: got.yearly } }));
-    } catch (err) {
-      setById((prev) => ({ ...prev, [useCaseId]: { status: 'failed', error: String(err?.message || err) } }));
-    }
-  }, [host, inspireDatabase, warehouseId, sessionId]);
-  const retry = useCallback((useCaseId) => {
-    const again = last.current[useCaseId] || null;
-    const saved = again || savedStakeAnswers({ host, inspireDatabase, sessionId, useCaseId });
-    if (saved?.answers && (again?.table || saved.table)) return run(useCaseId, again?.table || saved.table, saved.answers);
-    return undefined;
-  }, [host, inspireDatabase, sessionId, run]);
-  return { byId, run, retry };
+    const got = await api.current.apiPutJson(ANSWERS_ROUTE, ids({ use_case_id: useCaseId, table, answers }));
+    if (!got?.yearly) throw new Error('Inspire got no value back for this use case.');
+    keep(useCaseId, got, answers);
+    return got;
+  }, [ids]);
+  const history = useCallback(async (useCaseId) => {
+    const got = await api.current.apiFetch(`${ANSWERS_ROUTE}/history?${query({ inspireDatabase, warehouseId, sessionId }, { use_case_id: useCaseId })}`, { raise: false });
+    return Array.isArray(got?.history) ? got.history : [];
+  }, [inspireDatabase, warehouseId, sessionId]);
+  const undo = useCallback(async (useCaseId) => {
+    const got = await api.current.apiPostJson(`${ANSWERS_ROUTE}/undo`, ids({ use_case_id: useCaseId }));
+    if (!got?.yearly) throw new Error('Inspire got no earlier value back for this use case.');
+    keep(useCaseId, got, got.answers);
+    return got;
+  }, [ids]);
+  return { byId, run, history, undo };
 }

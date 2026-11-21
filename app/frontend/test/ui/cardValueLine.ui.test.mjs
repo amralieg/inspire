@@ -18,7 +18,9 @@ const mount = (app) => {
   app.get('/api/inspire/value/overall', (_req, res) => res.json({ at_stake: [], saved: [], runs: 0, businesses: 0 }));
   app.get('/api/inspire/value/runs', (_req, res) => res.json({ runs: {} }));
   app.get('/api/inspire/value/yearly', (_req, res) => res.json({ use_cases: { 'N01-U01': YEARLY_ENTRY(15000000) } }));
-  app.post('/api/inspire/value/estimate', (req, res) => { posts.push(req.body); res.json({ yearly: YEARLY_ENTRY(405556) }); });
+  app.get('/api/inspire/value/answers', (_req, res) => res.json({ answers: {} }));
+  app.get('/api/inspire/value/answers/history', (_req, res) => res.json({ history: [] }));
+  app.put('/api/inspire/value/answers', (req, res) => { posts.push(req.body); res.json({ version: 1, yearly: YEARLY_ENTRY(405556), disclaimer: '' }); });
 };
 
 test('a measured card shows the verb line, "$15M (estimated)" and "Per Year" below the score, and a card with no value shows Calculate', async () => {
@@ -48,7 +50,7 @@ test('a measured card shows the verb line, "$15M (estimated)" and "Per Year" bel
   }
 });
 
-test('Calculate opens the Value at stake questions, submitting calls the estimate endpoint, and the card then shows the value', async () => {
+test('Calculate opens the Value at stake questions, submitting saves the answers on the server, and the card then shows the value', async () => {
   posts.length = 0;
   const ui = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS }, '', { mount: (app) => {
     app.get('/api/inspire/value/yearly', (_req, res) => res.json({ use_cases: {} }));
@@ -68,7 +70,7 @@ test('Calculate opens the Value at stake questions, submitting calls the estimat
     const line = card.locator('[data-value-yearly]');
     await line.waitFor({ timeout: 15000 });
     assert.equal((await line.locator('[data-value-amount]').innerText()).replace(/\s+/g, ' ').trim(), '$406K (estimated)');
-    assert.equal(posts.length, 1, 'one estimate request');
+    assert.equal(posts.length, 1, 'one save request');
     assert.equal(posts[0].use_case_id, 'N01-U01');
     assert.ok(posts[0].answers && posts[0].answers.money, 'the answers travel with the request');
     assert.deepEqual(ui.pageErrors, []);
@@ -77,10 +79,10 @@ test('Calculate opens the Value at stake questions, submitting calls the estimat
   }
 });
 
-test('a failed estimate shows one line with a retry on the card, never 0 and never blank', async () => {
+test('a failed save shows its one line in the box, keeps the box open, and the card shows no value', async () => {
   const ui = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS }, '', { mount: (app) => {
     app.get('/api/inspire/value/yearly', (_req, res) => res.json({ use_cases: {} }));
-    app.post('/api/inspire/value/estimate', (_req, res) => res.status(422).json({ error: 'The table has no date column to scale the sample to a year.' }));
+    app.put('/api/inspire/value/answers', (_req, res) => res.status(422).json({ error: 'The table has no date column to scale the sample to a year.' }));
     mount(app);
   } });
   const { page } = ui;
@@ -91,10 +93,8 @@ test('a failed estimate shows one line with a retry on the card, never 0 and nev
     await card.locator('[data-value-calculate]').click();
     const dialog = page.getByRole('dialog', { name: 'Calculate value at stake' });
     await dialog.getByRole('button', { name: 'Calculate', exact: true }).click();
-    const failed = page.locator('[data-value-failed]');
-    await failed.waitFor({ timeout: 15000 });
-    assert.match(await failed.innerText(), /no date column/);
-    assert.equal(await page.getByRole('button', { name: 'Retry' }).count() > 0, true);
+    await dialog.getByRole('alert').waitFor({ timeout: 15000 });
+    assert.match(await dialog.getByRole('alert').innerText(), /no date column/);
     assert.equal(await card.locator('[data-value-yearly]').count(), 0);
   } finally {
     await ui.close();

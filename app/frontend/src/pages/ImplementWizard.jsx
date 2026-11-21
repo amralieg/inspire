@@ -4,7 +4,7 @@ import { withStartDeadline } from '../lib/startDeadline';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { moneyPartsOf } from '../lib/moneyParts.js';
-import { savedStakeAnswers } from '../lib/calculatedValue';
+import { fetchSavedAnswers } from '../lib/calculatedValue';
 import { defaultMoneyRule, moneySummaryOf } from '../lib/moneyDefaults.js';
 import { valueEstimateOf } from '../lib/v130UseCase.js';
 import { Check, Loader2, NotebookPen, X, ChevronLeft, ChevronRight, LayoutDashboard, Sparkles, AppWindow, Bell, Lock, UserRound, KeyRound } from 'lucide-react';
@@ -637,17 +637,26 @@ export default function ImplementWizard({
     ? <FoldLine key={panel} label={label} what={label} summary={summary} onOpen={() => openFoldSection(panel)} /> : null);
   useEffect(() => { setOpenFold(null); }, [stepId]);
   // Every MVP gets a money rule without input: the default is the amount the rule computes per flagged record when the use case states one, else the amount column of its table (or each record once) in USD.
+  // REQ-435: the answers a person gave in Calculate on the card live on the server; they are the starting point, so Build starts from them.
+  const [saved, setSaved] = useState({ loaded: false, answers: null });
   useEffect(() => {
-    if (mode !== 'mvp' || spec.money || scopeProfile.state === 'loading') return;
-    // REQ-432: the answers a person gave in Calculate on the card are the starting point, so Build starts from them.
-    const saved = savedStakeAnswers({ host: settings.databricksHost, inspireDatabase, sessionId, useCaseId: spec.use_case_id })?.answers;
+    if (mode !== 'mvp') return undefined;
+    let live = true;
+    fetchSavedAnswers(settings?.showcase ? null : apiFetch, { inspireDatabase, warehouseId, sessionId }).then((all) => {
+      if (live) setSaved({ loaded: true, answers: all[spec.use_case_id]?.answers || null });
+    });
+    return () => { live = false; };
+  }, [mode, apiFetch, inspireDatabase, warehouseId, sessionId, spec.use_case_id, settings?.showcase]);
+  useEffect(() => {
+    if (mode !== 'mvp' || spec.money || scopeProfile.state === 'loading' || !saved.loaded) return;
+    const answers = saved.answers;
     setSpec((prev) => {
       if (prev.money) return prev;
-      const money = saved?.money || defaultMoneyRule(scopeProfile.profile, Boolean(valueEstimateOf(uc)));
+      const money = answers?.money || defaultMoneyRule(scopeProfile.profile, Boolean(valueEstimateOf(uc)));
       const next = withMoneyRule(prev, money);
-      return !kpiTargetOf(next) && saved?.kpi?.name ? withKpiTarget(next, saved.kpi.name) : next;
+      return !kpiTargetOf(next) && answers?.kpi?.name ? withKpiTarget(next, answers.kpi.name) : next;
     });
-  }, [mode, spec.money, scopeProfile.state, scopeProfile.profile, uc]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, spec.money, scopeProfile.state, scopeProfile.profile, saved, uc]);
   useEffect(() => {
     if (steps[stepIndex].id !== 'stake') return;
     setMoneyPart(Math.max(0, moneyParts.indexOf(openOnImpact.current)));

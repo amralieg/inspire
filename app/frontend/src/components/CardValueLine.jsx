@@ -1,14 +1,13 @@
 import { VALUE_DISCLAIMER, VALUE_LABELS, yearlyBasis, yearlyHeadline } from '../lib/valueLabels';
 import ValueDisclaimer from './ValueDisclaimer';
-import { PlainMessage } from './TechnicalDetails';
 
 // REQ-432: the value per year under the Inspire score: the verb, the number with "(estimated)", and the period. A use case with no
-// value shows Calculate; calculating shows a busy line; a failure shows one line of why with Retry (never 0 and never blank).
+// value shows Calculate; a card with a value shows Edit value (REQ-435), which reopens the box with the saved answers. A failed save shows in the box.
 const stop = (e) => e.stopPropagation();
 const guard = { onClick: stop, onKeyDown: stop };
 const link = 'text-[11px] font-semibold text-db-red-fg hover:underline underline-offset-2';
 
-export default function CardValueLine({ yearly = null, calc = null, canCalculate = false, onCalculate, onRetry }) {
+export default function CardValueLine({ yearly = null, canCalculate = false, onCalculate, onEdit }) {
   const head = yearly ? yearlyHeadline(yearly) : null;
   if (head) {
     return (
@@ -18,17 +17,7 @@ export default function CardValueLine({ yearly = null, calc = null, canCalculate
         {head.more > 0 && <span className="text-[10px] text-text-tertiary">{`+${head.more} more`}</span>}
         <span data-value-period="" className="text-[10px] text-text-secondary">{yearly.period || VALUE_LABELS.perYear}</span>
         <ValueDisclaimer short />
-      </div>
-    );
-  }
-  if (calc?.status === 'busy') {
-    return <p data-value-busy="" role="status" {...guard} className="mt-1.5 text-end text-[11px] text-text-secondary">{`${VALUE_LABELS.calculating}...`}</p>;
-  }
-  if (calc?.status === 'failed') {
-    return (
-      <div data-value-failed="" role="alert" {...guard} className="mt-1.5 flex max-w-[9.5rem] flex-col items-end text-end text-[11px] leading-snug text-error-fg">
-        <PlainMessage as="span" text={calc.error} dir="auto" className="break-words" />
-        <button type="button" onClick={(e) => { e.stopPropagation(); onRetry?.(); }} className={link}>{VALUE_LABELS.retry}</button>
+        {onEdit && <button type="button" data-value-edit="" onClick={(e) => { e.stopPropagation(); onEdit(); }} onKeyDown={stop} className={`mt-0.5 ${link}`}>Edit value</button>}
       </div>
     );
   }

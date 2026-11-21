@@ -103,7 +103,7 @@ import { documentBasePath } from '../lib/documentActions';
 import { generationFolder, workspaceNotebookUrl, workspaceWebUiHashPath } from '../lib/workspaceLinks';
 import ImplementWizard from './ImplementWizard';
 import CalculateValueDialog from '../components/CalculateValueDialog';
-import { savedStakeAnswers, tableOfUseCase, useCalculatedValues } from '../lib/calculatedValue';
+import { tableOfUseCase, useCalculatedValues } from '../lib/calculatedValue';
 import { kindFilterLabel, kindFilterOptions, matchesKindFilter } from '../lib/useCaseKind';
 import { MVP_FILTERS, START_MVP_LABEL, implementState, mvpCounts, mvpFilterMatches, notebookRunEnded, notebookStatus, versionActive } from '../lib/implementWizard';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -112,7 +112,7 @@ import RefineBanner from '../components/RefineBanner';
 import { cardAssetLinks, liveAppRenameStale, renameRestyleSpec, trackBuildSubmit } from '../lib/implementControl';
 import { ARCHIVE_VIEWS, archiveKeyOf, inArchiveView, loadArchiveMap, toggledArchive } from '../lib/useCaseArchive';
 import QualityGateDrops from '../components/QualityGateDrops';
-import { makeApiFetch, makeApiPostJson, requestHeaders, responseError } from '../lib/apiClient';
+import { makeApiFetch, makeApiPostJson, makeApiPutJson, requestHeaders, responseError } from '../lib/apiClient';
 import { RESULTS_PENDING_TEXT, noResultsText, resultsReadFailure, reviewLinkText } from '../lib/runPages';
 import { sessionFailed, sessionFinished, sessionSucceeded } from '../lib/monitorState';
 import { placeholderWords } from '../lib/placeholderWords';
@@ -270,6 +270,7 @@ export default function ResultsPage({
 
   const apiFetch = useMemo(() => makeApiFetch({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
   const apiPostJson = useMemo(() => makeApiPostJson({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
+  const apiPutJson = useMemo(() => makeApiPutJson({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
 
   const [portfolioTick, setPortfolioTick] = useState(0);
   const { portfolio } = usePortfolio(apiFetch, inspireDb, warehouseId, portfolioTick);
@@ -586,8 +587,7 @@ export default function ResultsPage({
   // ── Extract use cases (defensive — guard against non-array shapes) ──
   const builtUseCases = useMemo(() => buildUseCaseList(results, usecases), [results, usecases]);
   const [calcFor, setCalcFor] = useState(null);
-  const calcIds = useMemo(() => builtUseCases.map((u) => trackingIdOf(u)).filter(Boolean), [builtUseCases]);
-  const calculated = useCalculatedValues({ apiPostJson, host: settings?.databricksHost, inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId, ids: calcIds });
+  const calculated = useCalculatedValues({ apiFetch: showcase ? null : apiFetch, apiPostJson, apiPutJson, inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId });
   const yearlyOf = useCallback((id) => calculated.byId[id]?.yearly || measuredYearly?.use_cases?.[id] || null, [calculated.byId, measuredYearly]);
   const { list: allUseCases, banner: refineBanner, undoCard: undoRefinedCard } = useScoreRefine({ useCases: builtUseCases, yearlyOf, apiPostJson, host: settings?.databricksHost,
     inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId });
@@ -2482,10 +2482,9 @@ export default function ResultsPage({
                         useCaseValue={runValue?.use_cases?.[trackingIdOf(uc)] ?? null}
                         estimate={estimates?.use_cases?.[trackingIdOf(uc)] ?? null}
                         yearly={calculated.byId[tid]?.yearly || measuredYearly?.use_cases?.[tid] || null}
-                        calc={calculated.byId[tid] || null}
-                        canCalculate={Boolean(runValueUrl && tid && tableOfUseCase(uc))}
+                        canCalculate={Boolean(runValueUrl && tid)}
                         onCalculate={() => setCalcFor(uc)}
-                        onRetry={() => calculated.retry(tid)}
+                        onEdit={runValueUrl && tid ? () => setCalcFor(uc) : undefined}
                         onSetRule={canImplement ? () => startImplement(uc) : undefined}
                         onUndoRefine={tid ? () => undoRefinedCard(tid) : undefined}
                         implementStatus={tid ? implementState(implementLatestById[tid] || null, notebookStatus(uc, implementView.notebook_run)) : null}
@@ -2542,10 +2541,9 @@ export default function ResultsPage({
       )}
 
         {calcFor && (
-          <CalculateValueDialog uc={calcFor} table={tableOfUseCase(calcFor)} apiPostJson={apiPostJson} inspireDatabase={inspireDb} warehouseId={warehouseId}
-            sessionId={selectedSessionId} saved={savedStakeAnswers({ host: settings?.databricksHost, inspireDatabase: inspireDb, sessionId: selectedSessionId, useCaseId: trackingIdOf(calcFor) })?.answers || null}
-            onCancel={() => setCalcFor(null)}
-            onCalculate={(table, answers) => { const id = trackingIdOf(calcFor); setCalcFor(null); calculated.run(id, table, answers); }} />
+          <CalculateValueDialog key={trackingIdOf(calcFor)} uc={calcFor} table={tableOfUseCase(calcFor)} apiPostJson={apiPostJson} inspireDatabase={inspireDb} warehouseId={warehouseId}
+            sessionId={selectedSessionId} saved={calculated.byId[trackingIdOf(calcFor)]?.answers || null} version={calculated.byId[trackingIdOf(calcFor)]?.version || null}
+            values={calculated} onClose={() => setCalcFor(null)} />
         )}
       {implementUc && selectedSessionId && inspireDb && warehouseId && (
         <ImplementWizard
