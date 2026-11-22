@@ -145,6 +145,8 @@ const PIPELINE_STAGES = [
 ];
 
 import { BuildNextPanel } from '../components/BuildNext';
+import ValueDisclaimer from '../components/ValueDisclaimer';
+import { anyValued } from '../lib/valueFooter';
 
 export default function ResultsPage({
   settings,
@@ -739,6 +741,8 @@ export default function ResultsPage({
   const isArchivedUc = (uc) => Boolean(archived[archiveKeyOf(selectedSessionId, uc)]);
   const archivedCount = allUseCases.filter(isArchivedUc).length;
   const archiveCounts = { active: allUseCases.length - archivedCount, archived: archivedCount };
+  // FX-63c: Build next counts and suggests from the use cases the Active list shows, never an archived one.
+  const shownForBuildNext = allUseCases.filter((uc) => !isArchivedUc(uc));
   filteredUseCases = filteredUseCases.filter((uc) => inArchiveView(archiveView, isArchivedUc(uc)));
 
   // Apply favorites filter
@@ -1245,7 +1249,7 @@ export default function ResultsPage({
       )}
       {!embedded && results && selectedSessionId && inspireDb && warehouseId && (
         <div className="mb-3">
-          <BuildNextPanel apiFetch={apiFetch} inspireDatabase={inspireDb} warehouseId={warehouseId} sessionId={selectedSessionId} showcase={Boolean(showcase)} useCases={builtUseCases}
+          <BuildNextPanel apiFetch={apiFetch} inspireDatabase={inspireDb} warehouseId={warehouseId} sessionId={selectedSessionId} showcase={Boolean(showcase)} useCases={shownForBuildNext}
             onStart={onOpenImplement ? (useCaseId) => onOpenImplement(String(selectedSessionId), useCaseId) : undefined}
             onMeasure={onOpenImplement ? (useCaseId) => onOpenImplement(String(selectedSessionId), useCaseId, 'measure') : undefined} />
         </div>
@@ -2243,7 +2247,7 @@ export default function ResultsPage({
           } : null}
         />
       )}
-
+      {(valueTotals?.run?.totals?.length > 0 || anyValued(valueTotals?.use_cases)) && <ValueDisclaimer footer />}
     </div>
   );
 }

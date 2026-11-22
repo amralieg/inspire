@@ -73,7 +73,7 @@ export function initialAnswers(plan, saved = null) {
 export const carryAnswers = (plan, previous) => {
   const fresh = initialAnswers(plan);
   const drivers = Object.fromEntries(Object.entries(fresh.drivers).map(([id, d]) => [id, previous.drivers[id] ? { on: previous.drivers[id].on, inputs: { ...d.inputs, ...previous.drivers[id].inputs } } : d]));
-  return { ...fresh, currency: previous.currency, attribution_pct: previous.attribution_pct, drivers, ...(previous.economic_trend && fresh.economic_trend ? { economic_trend: previous.economic_trend } : {}) };
+  return { ...fresh, currency: previous.currency, attribution_pct: previous.attribution_pct, drivers, ...(previous.economic_trend && fresh.economic_trend ? { economic_trend: trendOf(plan.economic_trend, previous.economic_trend) } : {}) };
 };
 
 // The plan as sent: each driver's on flag follows the answers, so the server and the page agree on what is counted.

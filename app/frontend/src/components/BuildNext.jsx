@@ -42,7 +42,7 @@ export function RunValue({ row, onMeasure }) {
 // The demo has no value ledger, so its cards send no estimate read (showcase).
 // D-uae-06: `listed` is the use case list the page shows; the count and the rows come from it, so the header never counts a different pass.
 export function useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, showcase = false, listed = null) {
-  const [state, setState] = useState({ rows: null, liveSpecs: {}, error: '' });
+  const [state, setState] = useState({ got: null, error: '' });
   useEffect(() => {
     if (!sessionId || !inspireDatabase || !warehouseId) return undefined;
     let cancelled = false;
@@ -51,19 +51,24 @@ export function useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, 
     const totals = showcase ? Promise.resolve({ use_cases: {} }) : apiFetch(`/api/inspire/value/totals?${q}`).catch(() => ({ use_cases: {} }));
     Promise.all([apiFetch(`/api/inspire/usecases?${q}`), apiFetch(`/api/inspire/implement/history?${q}`), estimates, totals])
       .then(([cases, history, estimates, totals]) => {
-        if (cancelled) return;
-        const latest = history?.latest || [];
-        const statusById = Object.fromEntries(latest.map((row) => [String(row.use_case_id ?? ''), row.status]));
-        const liveSpecs = Object.fromEntries(latest.map((row) => [String(row.use_case_id ?? ''), row.live_spec_json]));
-        const byUseCase = estimates?.use_cases || {};
-        const valued = totals?.use_cases || {};
-        const rows = buildItems(listed || cases?.usecases || [], statusById).map((row) => ({ ...row, estimate: byUseCase[String(row.id)] ?? null, value: valued[String(row.id)] ?? null }));
-        setState({ rows, liveSpecs, error: '' });
+        if (!cancelled) setState({ got: { cases, history, estimates, totals }, error: '' });
       })
-      .catch((err) => { if (!cancelled) setState({ rows: null, liveSpecs: {}, error: String(err?.message || err) }); });
+      .catch((err) => { if (!cancelled) setState({ got: null, error: String(err?.message || err) }); });
     return () => { cancelled = true; };
-  }, [apiFetch, inspireDatabase, warehouseId, sessionId, showcase, listed]);
-  return state;
+  }, [apiFetch, inspireDatabase, warehouseId, sessionId, showcase]);
+  // FX-63c: the rows follow the list the page shows without a second read, so a new list identity never refetches.
+  // An absent list (null or undefined) falls back to the run's own use cases; an empty one is shown as empty.
+  const { got, error } = state;
+  const rows = useMemo(() => {
+    if (!got) return null;
+    const latest = got.history?.latest || [];
+    const statusById = Object.fromEntries(latest.map((row) => [String(row.use_case_id ?? ''), row.status]));
+    const byUseCase = got.estimates?.use_cases || {};
+    const valued = got.totals?.use_cases || {};
+    return buildItems(listed ?? got.cases?.usecases ?? [], statusById).map((row) => ({ ...row, estimate: byUseCase[String(row.id)] ?? null, value: valued[String(row.id)] ?? null }));
+  }, [got, listed]);
+  const liveSpecs = useMemo(() => Object.fromEntries((got?.history?.latest || []).map((row) => [String(row.use_case_id ?? ''), row.live_spec_json])), [got]);
+  return { rows, liveSpecs, error };
 }
 
 function StakeLine({ progress }) {
