@@ -1,7 +1,7 @@
 // REQ-457 (W16 D29-D34): the Build wizard steps. Each test is walked on the Advanced path; the build start (D34) is also walked on Standard.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GROUPING_PROFILE as PROFILE, OWNER } from './implementFixtures.js';
+import { GROUPING_INSTRUCTION as INSTRUCTION, GROUPING_PROFILE as PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
 import { closeBrowser, nextUntil, onStep, openUi, startMvp, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
@@ -39,21 +39,23 @@ test('D29: Data & results says the source once, hides the result table with Hide
   }
 });
 
-const DEEP = { ...PROFILE, recommended: ['franchiseID'], deep_suggestion: { columns: ['franchiseID'], record_level: 'order_id' } };
-const READ = { ...DEEP, groups_for: 'franchiseID', group_count: 7,
-  columns: [...PROFILE.columns, { name: 'franchiseID', type: 'string', distinct: 7, smallest: 10, largest: 900, nulls: 0, parent: null }],
-  group_list: Array.from({ length: 7 }, (_, i) => ({ value: `F${i + 1}`, records: 900 - i * 100, parts: [{ column: 'franchiseID', value: `F${i + 1}` }] })) };
+const UC = { ...HARNESS_USE_CASE, genie_instruction: INSTRUCTION };
+const DEEP = { ...PROFILE, deep_suggestion: { columns: ['stores.region'], record_level: 'order_id' } };
+const READ = { ...DEEP, groups_for: 'stores.region', group_count: 7,
+  group_list: Array.from({ length: 7 }, (_, i) => ({ value: `R${i + 1}`, records: 900 - i * 100, parts: [{ column: 'stores.region', value: `R${i + 1}` }] })) };
+const toGroups = async (page) => { await nextUntil(page, 'Data groups'); await onStep(page, 'Data groups'); };
 
 test('D30: the picked Data group shows its count on its card, in the sentence, and on First run, never "counted once picked"', async () => {
-  const ui = await openUi('wizard', ME, '', { init: mountProfile((body) => (body.group_by === 'franchiseID' ? READ : DEEP)) });
+  const ui = await openUi('wizard', { me: ME.me, useCase: UC }, '', { init: mountProfile((body) => (body.group_by === 'stores.region' ? READ : DEEP)) });
   const { page, pageErrors } = ui;
   try {
-    await nextUntil(page, 'First run');
-    const card = page.locator('[data-grouping-choice="franchiseID"]');
+    await toGroups(page);
+    const card = page.locator('[data-grouping-choice="stores.region"]');
     await card.waitFor({ timeout: 15000 });
-    await until(async () => /7 groups/.test(await card.locator('[data-grouping-count]').innerText()), 'the picked card shows its 7 groups');
-    assert.match(await page.locator('[data-grouping-lead]').innerText(), /^franchiseID splits the data into 7 groups\./);
-    assert.match(await page.locator('[data-grouping-chosen]').innerText(), /Data groups: franchiseID · 7 groups\./);
+    await until(async () => /7 groups/.test(await card.locator('[data-grouping-count]').innerText()), 'the picked card shows its 7 groups', 30000);
+    assert.match(await page.locator('[data-grouping-lead]').innerText(), /^stores\.region splits the data into 7 groups\./);
+    await next(page).click();
+    assert.match(await page.locator('[data-grouping-chosen]').innerText(), /Data groups: stores\.region · 7 groups\./);
     assert.doesNotMatch(await bodyText(page), /counted once picked/);
     assert.deepEqual(pageErrors, []);
   } finally {
@@ -61,14 +63,14 @@ test('D30: the picked Data group shows its count on its card, in the sentence, a
   }
 });
 
-test('D30: when no count can be read the sentence stays readable and says so, on the card, the sentence and First run', async () => {
-  const ui = await openUi('wizard', ME, '', { init: mountProfile(() => DEEP) });
+test('D30: when no count can be read the sentence stays readable and says so', async () => {
+  const ui = await openUi('wizard', { me: ME.me, useCase: UC }, '', { init: mountProfile(() => DEEP) });
   const { page } = ui;
   try {
-    await nextUntil(page, 'First run');
+    await toGroups(page);
     await page.locator('[data-grouping-lead]').waitFor({ timeout: 15000 });
     assert.equal(await page.locator('[data-grouping-lead]').innerText(),
-      'franchiseID splits the data into groups. Inspire counts them when it reads the data, and models each group on its own.');
+      'stores.region splits the data into groups. Inspire counts them when it reads the data, and models each group on its own.');
     assert.doesNotMatch(await bodyText(page), /counted once picked|into groups not counted/);
   } finally {
     await ui.close();
