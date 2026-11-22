@@ -86,6 +86,7 @@ const SAMPLES = [
   { key: 'POST /api/inspire/score-refine/undo', rule: 'any', method: 'POST', path: '/api/inspire/score-refine/undo', body: { inspire_database: DB, warehouse_id: WH, session_id: '1001', use_case_ids: ['N01-U01'] } },
   { key: 'POST /api/inspire/value/estimate', rule: 'any', method: 'POST', path: '/api/inspire/value/estimate', body: { ...UC, table: 'main.s.orders', answers: { money: { currency: 'per_currency', value: { method: 'fixed', amount: 1, currency: 'USD' } } } } },
   { key: 'POST /api/inspire/value/case-plan', rule: 'any', method: 'POST', path: '/api/inspire/value/case-plan', body: { ...UC, table: 'main.s.orders' } },
+  { key: 'POST /api/inspire/value/run-review', rule: 'any', method: 'POST', path: '/api/inspire/value/run-review', body: { ...UC } },
   { key: 'POST /api/inspire/value/preview', rule: 'any', method: 'POST', path: '/api/inspire/value/preview', body: { ...UC, plan: { drivers: [] }, answers: { shape: 2, drivers: {} } } },
   { key: 'PUT /api/inspire/value/answers', rule: 'any', method: 'PUT', path: '/api/inspire/value/answers', body: { ...UC, answers: { drivers: { cost_cut: { spend_per_year: 1000, cut_pct: 10 } }, currency: 'USD' } } },
   { key: 'POST /api/inspire/value/answers/undo', rule: 'any', method: 'POST', path: '/api/inspire/value/answers/undo', body: { ...UC } },

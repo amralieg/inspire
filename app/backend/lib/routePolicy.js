@@ -169,6 +169,8 @@ const ROUTE_POLICY = {
     'reads the use case table with the App\'s service principal'),
   'POST /api/inspire/value/case-plan': tracked('plan the value of one use case: its case, filter, groups and what each driver asks, with the counts per group',
     'reads the use case table with the App\'s service principal'),
+  'POST /api/inspire/value/run-review': tracked('have the model review the value of a whole run, so its total is realistic next to the size of the business',
+    'calls a chat model and saves the review as one row of the Calculate value answers'),
   'POST /api/inspire/value/preview': tracked('work out the value per year of a case plan and typed answers, with no data read',
     'reads nothing: pure arithmetic on the plan and answers it is sent'),
   'GET /api/inspire/value/answers': tracked('read the saved Calculate value answers of a session'),

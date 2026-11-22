@@ -19,7 +19,7 @@ const messageOf = (err) => String(err?.message || err || 'The value could not be
 // At most `concurrency` workers are in flight; the next item starts when one ends; a failure never stops the others.
 // Abort (signal) starts nothing new and marks every waiting item 'stopped'; the ones in flight finish. Resolves with the final rows.
 // onUpdate(rows) gets a fresh array of { id, state, ... } after every change.
-export function runBulk({ items, worker, concurrency = VALUE_BULK_WORKERS, onUpdate = () => {}, signal = null }) {
+export function runBulk({ items, worker, concurrency = VALUE_BULK_WORKERS, onUpdate = () => {}, signal = null, afterRun = null }) {
   const rows = items.map((it) => (it.skip ? { id: it.id, state: 'skipped', reason: it.skip } : { id: it.id, state: 'waiting' }));
   const publish = () => onUpdate(rows.map((r) => ({ ...r })));
   const queue = items.map((it, i) => i).filter((i) => rows[i].state === 'waiting');
@@ -40,7 +40,14 @@ export function runBulk({ items, worker, concurrency = VALUE_BULK_WORKERS, onUpd
         ).then(() => { inFlight -= 1; publish(); pump(); });
       }
       if (signal?.aborted) queue.splice(0).forEach((i) => { rows[i] = { id: items[i].id, state: 'stopped' }; });
-      if (!inFlight && !queue.length) { publish(); resolve(rows.map((r) => ({ ...r }))); return; }
+      if (!inFlight && !queue.length) {
+        publish();
+        const final = rows.map((r) => ({ ...r }));
+        // REQ-480: the run's values are in; the run review (one model call for the whole run) follows. It never fails the run.
+        if (afterRun && final.some((r) => r.state === 'done')) Promise.resolve().then(() => afterRun(final)).catch(() => {}).then(() => resolve(final));
+        else resolve(final);
+        return;
+      }
       publish();
     };
     signal?.addEventListener?.('abort', pump);
@@ -48,9 +55,14 @@ export function runBulk({ items, worker, concurrency = VALUE_BULK_WORKERS, onUpd
   });
 }
 
+// REQ-480: the whole-run review the server makes once a run's values are saved. Fire-and-forget from runBulk's afterRun.
+export const RUN_REVIEW_ROUTE = '/api/inspire/value/run-review';
+export const runReviewAfter = ({ apiPostJson, inspireDatabase, warehouseId, sessionId }) => () => apiPostJson(RUN_REVIEW_ROUTE,
+  { inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId) });
+
 // The worker for one use case: the case plan, its defaults, then the same save the wizard's Calculate makes (calculated true, FX-34 D13).
 // save(id, table, answers) is the plain save (saveAnswers), so the worker needs no mounted page.
-export const valueWorker = ({ apiPostJson, inspireDatabase, warehouseId, sessionId, save }) => async (item) => {
+export const valueWorker = ({ apiPostJson, inspireDatabase, warehouseId, sessionId, save }) => Object.assign(async (item) => {
   const got = await apiPostJson(CASE_PLAN_ROUTE, { inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId),
     use_case_id: item.id, table: item.table });
   if (!got?.plan) throw new Error('Inspire got no plan back for this use case.');
@@ -63,7 +75,7 @@ export const valueWorker = ({ apiPostJson, inspireDatabase, warehouseId, session
   const sent = { ...bodyOf(plan, answers, !check).answers, plan: bodyOf(plan, answers, !check).plan };
   const saved = await save(item.id, item.table, sent);
   return { ...saved, answers: saved.answers || sent, ...(check ? { check } : {}) };
-};
+}, { afterRun: runReviewAfter({ apiPostJson, inspireDatabase, warehouseId, sessionId }) });
 
 // REQ-441: the one line that says what a run did. Rows skipped before the run (items[].skip) are not counted; rows the server skipped (422) are.
 // No server skips: "D of T done". Some: "D of T calculated, S skipped", plus the reason in brackets when all share one.

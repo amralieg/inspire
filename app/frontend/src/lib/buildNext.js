@@ -1,6 +1,7 @@
 import { IMPLEMENT_DONE_STATUSES } from './implementWizard.js';
 import { fieldOf, inspireScoreFromUc, nameOfUseCase, trackingIdOf } from './useCaseFields.js';
 import { parseJson, v130View } from './v130UseCase.js';
+import { VALUE_DISPLAY_CAP, valueChips } from './valueLedger.js';
 
 export const NEXT_LIST_COUNT = 3;
 export const NEXT_STEP_COUNT = 2;
@@ -92,6 +93,8 @@ export function nextSharingTables(rows, focusId, count = NEXT_STEP_COUNT) {
 }
 
 export function moneyText({ currency, amount }) {
+  // REQ-480: 20M or more reads "20M+" through the one money helper (valueChips).
+  if (Number(amount) >= VALUE_DISPLAY_CAP) return valueChips([{ kind: 'money', unit: currency || 'USD', amount: Number(amount) }]).shown[0].text;
   const short = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(amount);
   return currency ? `${currency} ${short}` : short;
 }

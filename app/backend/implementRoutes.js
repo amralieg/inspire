@@ -2739,6 +2739,34 @@ function registerImplementRoutes(app, deps) {
     }));
   }
 
+  // REQ-480: one model call reviews the whole run once its values are saved: a realistic run total, a scale per use case and one reason. The review is saved
+  // as a row of the answers table (VR.RUN_REVIEW_ID); valueTotals reads it. With no model the hard limit still applies and the row says ai_checked false.
+  app.post('/api/inspire/value/run-review', requireToken, async (req, res) => {
+    try {
+      const warehouseId = warehouseOf(req);
+      const sid = String(sessionIdOf(req));
+      const table = answersTable(req);
+      const rows = (await readAnswers(req, warehouseId, VA.latestSql(table, sid))).filter((r) => String(r.use_case_id) !== VR.RUN_REVIEW_ID);
+      const versions = rows.map((r) => [String(r.use_case_id), VA.versionOf(r)]).filter(([, v]) => v.yearly && v.yearly.total && Number(v.yearly.total.amount) > 0);
+      if (!versions.length) return res.json({ review: null, reason: 'No use case has a saved value yet.' });
+      const cases = await mapLimit(versions, 4, async ([id, v]) => {
+        const uc = await planUseCaseOf(req, warehouseId, id);
+        return { id, name: uc.use_case, kind: v.yearly.verb || '', amount: Number(v.yearly.total.amount), currency: v.yearly.total.unit || v.yearly.currency || '', business_name: uc.business_name };
+      });
+      const businessName = (cases.find((c) => c.business_name) || {}).business_name || '';
+      const anchor = await anchorOf(req, { id: cases[0].id, use_case: cases[0].name, business_name: businessName });
+      const review = await VR.reviewRun({ businessName, revenue: anchor ? anchor.business_revenue_estimate : 0, useCases: cases,
+        ask: async (messages) => { const asked = await askChatModel(req, messages, 800); return asked.got ? asked.got.data : null; } });
+      const saved = { ai_checked: review.ai_checked, reason: review.reason, scales: review.scales };
+      await executeSql(req.dbHost, req.dbToken, warehouseId, VA.createSql(table));
+      const version = await nextVersion(req, warehouseId, table, sid, VR.RUN_REVIEW_ID);
+      await appendAnswers(req, warehouseId, table, { sessionId: sid, useCaseId: VR.RUN_REVIEW_ID, version, answers: { review: saved }, yearly: {}, savedBy: savedBy(req), note: 'run review' });
+      return res.json({ review: { ...saved, counted_total: review.counted_total, limit: review.limit }, version });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
   app.get('/api/inspire/value/answers', requireToken, async (req, res) => {
     try {
       const warehouseId = warehouseOf(req);

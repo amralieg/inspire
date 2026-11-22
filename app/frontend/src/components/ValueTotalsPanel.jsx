@@ -133,7 +133,8 @@ export function RunValuePanel({ run, useCases, nameOf, onRow }) {
             </tr>
           ))}
           <tr data-value-run-total="" className="border-t-2 border-border font-bold"><td className="py-1">Run total</td><td /><td /><td />
-            <td className="text-end tabular-nums">{(run.totals || []).map((t) => moneyText(t.currency, t.amount)).join(' + ') || 'Not calculated'}</td></tr>
+            <td className="text-end tabular-nums"><RunValueTotal value={run} />
+              {run.review?.reason && <span data-run-review-reason="" className="block text-[10px] font-normal text-text-secondary">{run.review.reason}</span>}</td></tr>
         </tbody>
       </table>
       <ValueDisclaimer className="mt-2" />
@@ -145,8 +146,6 @@ export function RunValuePanel({ run, useCases, nameOf, onRow }) {
 export function AllRunsValuePanel({ reply }) {
   const runs = reply.runs || [];
   const all = reply.all || { totals: [] };
-  const byRun = runs.map((r, k) => ({ name: r.name || r.session_id, value: (r.totals || []).reduce((s, t) => s + (Number(t.amount) || 0), 0), text: (r.totals || []).map((t) => moneyText(t.currency, t.amount)).join(' + '), color: PALETTE[k % PALETTE.length] }));
-  const cell = (r, f) => (r.totals || []).map((t) => moneyText(t.currency, t[f])).join(' + ') || 'Not calculated';
   return (
     <section aria-label="Value across runs" data-value-all-panel="" data-value-overall="" className="mb-4 rounded-xl border border-border bg-surface p-4">
       <h2 className="text-base font-bold text-text-primary">Value across all runs</h2>
@@ -156,20 +155,18 @@ export function AllRunsValuePanel({ reply }) {
         <div className="min-w-0 flex-1">
           <RunValueKinds value={all} className="text-[12px] text-text-secondary" />
           <Bar parts={split(all.totals || [])} label="Calculated vs estimated" />
-          {all.totals?.length <= 1 && <Bar parts={byRun} label="By run" />}
         </div>
       </div>
       <table className="mt-3 w-full text-[12px]">
-        <thead><tr><th className="text-start font-medium">Run</th><th className="text-end font-medium">Use cases</th><th className="text-end font-medium">Calculated</th><th className="text-end font-medium">Estimated</th><th className="text-end font-medium">Run total</th></tr></thead>
+        <thead><tr><th className="text-start font-medium">Run</th><th className="text-end font-medium">Use cases</th><th className="text-end font-medium">Run total</th></tr></thead>
         <tbody>
           {runs.map((r) => (
             <tr key={r.session_id} data-all-runs-row={r.session_id} className="border-t border-border/60">
               <td className="py-1">{r.name || r.session_id}</td><td className="text-end tabular-nums">{r.n}</td>
-              <td className="text-end tabular-nums">{cell(r, 'calculated')}</td><td className="text-end tabular-nums">{cell(r, 'estimated')}</td>
               <td className="text-end font-semibold tabular-nums"><RunValueTotal value={r.run_value || r} /></td>
             </tr>
           ))}
-          <tr className="border-t-2 border-border font-bold"><td className="py-1">All runs</td><td /><td /><td />
+          <tr className="border-t-2 border-border font-bold"><td className="py-1">All runs</td><td />
             <td className="text-end tabular-nums">{(all.totals || []).map((t) => moneyText(t.currency, t.amount)).join(' + ') || 'Not calculated'}</td></tr>
         </tbody>
       </table>
@@ -198,8 +195,15 @@ export function RunValueKinds({ value, className = '' }) {
 // The Start bars, the run card and the Review header all render it, so they cannot disagree.
 export function RunValueTotal({ value }) {
   const totals = value?.totals || [];
-  if (!totals.length) return <span data-run-value-state="not-calculated">Not calculated</span>;
-  return <span data-run-value-total="">{totals.map((t) => moneyText(t.currency, t.amount)).join(' + ')}</span>;
+  if (!totals.length) return <span data-run-value-state="not-calculated" className="text-text-tertiary">Not calculated</span>;
+  // Green when the total is calculated, amber when any of it is only estimated.
+  const calculated = Number(value?.n_calculated) > 0 && !(Number(value?.n_estimated) > 0);
+  return (
+    <span data-run-value-total="" data-run-value-state={calculated ? 'calculated' : 'estimated'} className={calculated ? 'text-success-fg' : 'text-warning-fg'}>
+      {totals.map((t) => moneyText(t.currency, t.amount)).join(' + ')}
+      {value?.review && value.review.ai_checked === false && <span data-run-not-ai-checked="" className="ms-1 text-[10px] font-normal text-text-secondary">Not checked by AI</span>}
+    </span>
+  );
 }
 
 export function RunValueLine({ value, label = 'Value of this run', className = '' }) {

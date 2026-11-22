@@ -39,6 +39,7 @@ const NOT_WALKED = {
   'GET /api/inspire/value/yearly': 'reads the ledger, specs and source tables with the App\u2019s service principal and changes nothing; valueYearlyRoutes.test.js drives it through the fake warehouse',
   'POST /api/inspire/value/estimate': 'reads one sample of a use case table with the App\u2019s service principal and changes nothing; valueYearlyRoutes.test.js drives it, including the 400 and 422 refusals',
   'POST /api/inspire/value/case-plan': 'reads the use case table once, grouped, with the App\u2019s service principal and changes nothing; valueCasePlanRoutes.test.js drives it, including the model-refused fallback',
+  'POST /api/inspire/value/run-review': 'reads the saved Calculate answers, asks a chat model once and appends one review row with the App\u2019s service principal; valueRunReview.test.js drives the review itself',
   'POST /api/inspire/value/preview': 'runs no SQL: pure arithmetic on the plan and answers it is sent; valueCasePlanRoutes.test.js drives it',
   'GET /api/inspire/value/answers': 'reads the latest saved Calculate answers of a session with the App\u2019s service principal and changes nothing; valueAnswersRoutes.test.js drives it through the fake warehouse, including the missing table',
   'PUT /api/inspire/value/answers': 'runs the estimate and appends one answers row with the App\u2019s service principal; valueAnswersRoutes.test.js drives it through the fake warehouse, including the 400 refusal and the bound parameters',

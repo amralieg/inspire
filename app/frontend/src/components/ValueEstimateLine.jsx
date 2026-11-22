@@ -1,15 +1,18 @@
 import { valueEstimateOf } from '../lib/v130UseCase';
 import ValueDisclaimer from './ValueDisclaimer';
+import { moneyText } from './ValueBox';
+import { VALUE_DISPLAY_CAP } from '../lib/valueLedger';
 
 // REQ-078: the rule-based estimate from /api/inspire/value/estimates. Measured money is never shown as an estimate.
-const amountText = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
+// REQ-480: 20M or more reads "20M+" through the one money helper; below it the full number stays.
+const amountText = (n, currency) => (Number(n) >= VALUE_DISPLAY_CAP ? moneyText(currency, n) : `${Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 })} ${currency}`);
 
 function RuleEstimateLine({ estimate, className, onSetRule, oneLine = false }) {
   const base = `text-xs leading-snug text-text-secondary ${oneLine ? 'truncate' : ''} ${className}`;
   if (estimate.status === 'estimated') {
     return (
       <p data-value-estimate="estimated" className={base}>
-        <span className="font-medium text-text-primary">Estimated {amountText(estimate.amount)} {estimate.currency}</span>
+        <span className="font-medium text-text-primary">Estimated {amountText(estimate.amount, estimate.currency)}</span>
         {` · estimated with ${estimate.app}'s money rule `}
         <ValueDisclaimer short />
       </p>

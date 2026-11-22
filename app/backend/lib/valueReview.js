@@ -8,6 +8,9 @@ const BUSINESS_SHARE = 0.01; // one use case is never worth more than 1% of what
 const AGREE = 0.01; // a reviewer amount within 1% of the plan's value is an approval of it
 const OPTION_ID = /^[a-z][a-z0-9_]{0,30}$/;
 const TREND_LIMIT = 50;
+const RUN_SHARE = 0.03; // REQ-480: the whole run is never worth more than 3% of what the business earns in a year
+const CASE_CEILING = 20000000; // with no revenue known, no single use case is counted above this
+const RUN_REVIEW_ID = '__run_review__'; // the use_case_id of the run review row in the saved answers table
 
 const text = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 const num = (v) => (typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN);
@@ -99,4 +102,69 @@ const onDriversOf = (plan) => (plan.drivers || []).filter((d) => d.on).map((d) =
 // True when the reviewer's amount is the plan's own value (within 1%): the reviewer has nothing to change.
 const agrees = (amount, current) => Number.isFinite(amount) && Number.isFinite(current) && current > 0 && Math.abs(amount - current) <= AGREE * current;
 
-module.exports = { REVIEW_ROUNDS, capOf, anchorMessages, anchorFrom, trendFrom, reviewMessages, reviewFrom, onDriversOf, agrees, round2 };
+
+// REQ-480: one model call reviews the whole run. Pure prompt builder, reply parser and limit; the route makes the call and saves the result.
+const clamp01 = (n) => Math.min(1, Math.max(0, n));
+
+function runReviewMessages({ businessName, revenue, useCases }) {
+  const system = [
+    'You review the yearly value of every use case of one run, together, and answer with one JSON object and nothing else:',
+    '{"run_total": number, "scales": {"<use case id>": number between 0 and 1}, "reason": "one plain line"}',
+    'run_total is the realistic yearly value of the whole run in the run\'s currency; it must not be more than the sum of the amounts.',
+    'scales gives each use case the share of its amount that is worth counting: 1 keeps it whole, 0.5 keeps half, 0 counts none of it. Use cases that overlap, share one pool of money or count the same gain twice get a scale below 1.',
+    'The total must look believable next to the size of the business. When the business\'s yearly revenue is given, one run is rarely worth more than a few percent of it.',
+    'Explicit inputs from the user (amounts a person typed or measured) win over your own view: do not scale those down for plausibility alone.',
+    'reason is one short plain sentence that names the main cause of any reduction.',
+  ].join('\n');
+  const lines = [`Business: ${text(businessName, 200) || 'not named'}`];
+  if (Number.isFinite(revenue) && revenue > 0) lines.push(`Yearly revenue of the business: ${Math.round(revenue)}`);
+  for (const c of useCases) lines.push(`Use case ${c.id}: ${text(c.name, 200)} | kind: ${text(c.kind, 60)} | per year: ${Math.round(c.amount)}${c.currency ? ` ${c.currency}` : ''}`);
+  return [{ role: 'system', content: system }, { role: 'user', content: lines.join('\n') }];
+}
+
+// { total, scales, reason }, or null when the reply is not usable.
+function runReviewFrom(data) {
+  const got = jsonOf(data);
+  if (!got) return null;
+  const total = num(got.run_total);
+  const scales = {};
+  if (got.scales && typeof got.scales === 'object' && !Array.isArray(got.scales)) {
+    for (const [id, v] of Object.entries(got.scales)) if (Number.isFinite(num(v))) scales[id] = clamp01(num(v));
+  }
+  if (!Number.isFinite(total) && !Object.keys(scales).length) return null;
+  return { total: Number.isFinite(total) && total >= 0 ? total : null, scales, reason: text(got.reason, 300) };
+}
+
+// useCases: [{id, name, kind, amount, currency}]; ask(messages) answers the model reply or null (no model, or it failed).
+// { ai_checked, reason, counted: {id: amount}, scales: {id: 0..1}, counted_total, limit }. The raw amounts are never changed.
+async function reviewRun({ businessName, revenue, useCases, ask }) {
+  const known = Number.isFinite(revenue) && revenue > 0 ? revenue : 0;
+  const cases = useCases.filter((c) => Number.isFinite(Number(c.amount)) && Number(c.amount) > 0).map((c) => ({ ...c, amount: Number(c.amount) }));
+  let reply = null;
+  if (cases.length) {
+    try { reply = runReviewFrom(await ask(runReviewMessages({ businessName, revenue: known, useCases: cases }))); } catch { reply = null; }
+  }
+  const counted = {};
+  for (const c of cases) counted[c.id] = c.amount * (reply && Number.isFinite(reply.scales[c.id]) ? reply.scales[c.id] : 1);
+  const shrink = (to) => {
+    const sum = Object.values(counted).reduce((s, v) => s + v, 0);
+    if (sum > to) for (const id of Object.keys(counted)) counted[id] = sum > 0 ? (counted[id] * to) / sum : 0;
+  };
+  if (reply && reply.total !== null) shrink(reply.total);
+  // The hard limit, with or without a model.
+  let limit = null;
+  if (known) { limit = known * RUN_SHARE; shrink(limit); } else for (const id of Object.keys(counted)) counted[id] = Math.min(counted[id], CASE_CEILING);
+  const scales = {};
+  for (const c of cases) { counted[c.id] = round2(counted[c.id]); scales[c.id] = c.amount > 0 ? Math.min(1, counted[c.id] / c.amount) : 1; }
+  return { ai_checked: Boolean(reply), reason: reply ? reply.reason : '', counted, scales, counted_total: round2(Object.values(counted).reduce((s, v) => s + v, 0)), limit };
+}
+
+// The saved review of a run, from the latest answers rows (the row of RUN_REVIEW_ID), or null for a run that was never reviewed.
+function savedReviewOf(answerRows, versionOf) {
+  const row = (answerRows || []).find((r) => String(r.use_case_id) === RUN_REVIEW_ID);
+  const got = row && versionOf(row).answers;
+  const r = got && got.review;
+  return r && typeof r === 'object' && r.scales ? { ai_checked: Boolean(r.ai_checked), reason: text(r.reason, 300), scales: r.scales } : null;
+}
+
+module.exports = { RUN_SHARE, CASE_CEILING, RUN_REVIEW_ID, runReviewMessages, runReviewFrom, reviewRun, savedReviewOf, REVIEW_ROUNDS, capOf, anchorMessages, anchorFrom, trendFrom, reviewMessages, reviewFrom, onDriversOf, agrees, round2 };

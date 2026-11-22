@@ -29,7 +29,7 @@ export function ValueBulkRunProvider({ children }) {
       if (L.token !== token) return;
       setRun((prev) => (prev ? { ...prev, rows: onlyRows ? prev.rows.map((r) => next.find((n) => n.id === r.id) || r) : next, gots: { ...L.gots } } : prev));
     };
-    runBulk({ items, worker, onUpdate: merge, signal: onlyRows ? null : L.ctl.signal }).then(() => {
+    runBulk({ items, worker, onUpdate: merge, signal: onlyRows ? null : L.ctl.signal, afterRun: L.worker?.afterRun || null }).then(() => {
       L.active -= 1;
       if (L.token === token) setRun((prev) => (prev ? { ...prev, running: L.active > 0 } : prev));
     });
