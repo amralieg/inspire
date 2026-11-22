@@ -36,6 +36,8 @@ test('W2: on a kind page a slider moves the number box, one preview follows the 
     previews.length = 0;
     const before = await text(dialog.locator('[data-kind-amount]'));
     await dragTo(slider, 40);
+    // FX-43 repro: a test runner starved for 1.5 s under load looks at the page after the instant mock reply has already ended 'updating'.
+    await sleep(1500);
     assert.equal(await box.inputValue(), '40');
     await dialog.locator('[data-preview-state="updating"]').waitFor({ timeout: 2000 });
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
