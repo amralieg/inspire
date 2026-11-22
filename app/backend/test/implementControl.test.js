@@ -432,10 +432,10 @@ test('the Build summary counts each use case once, by the same state the rail gr
   const got = v.buildSummary(items);
   assert.deepEqual({ ...got, building: got.building.map((i) => i.id) },
     { mvps: 5, building: ['N02'], ready: 2, held: 0, vibeHeld: 0, untrusted: 0, untrustedPublished: 0, heldOther: 0, unmet: 0, unmetPublished: 0,
-      failed: 2, notebooks: 1, notStarted: 2, // REQ-295: the header counts added
+      failed: 2, notebooks: 2, notStarted: 2, // REQ-295: the header counts added
       delivered: [{ id: 'dashboard', count: 2, text: '2 dashboards' }, { id: 'genie_space', count: 1, text: '1 Genie Agent' },
         { id: 'alert', count: 1, text: '1 alert' }] });
-  assert.equal(got.mvps + got.notebooks + got.notStarted, items.length, 'every use case lands in exactly one count');
+  assert.equal(got.mvps + got.notebooks - 1 + got.notStarted, items.length, 'every use case lands in one count, except N08, an MVP that also has a notebook and shows in both (FX-39b: the header notebook count is the Notebook chip count)');
   assert.deepEqual(latest.map((row) => v.deliveredOutputs(row)), [['dashboard', 'genie_space'], ['dashboard'], [], [], ['alert']],
     'an output with a recorded link counts as delivered');
   assert.deepEqual(v.deliveredOutputs({ alert_id: 'a1', alert_url: '', asset_status: { alert: { state: 'ready' } } }), ['alert'],
