@@ -21,7 +21,7 @@ export default function ValueStrip({ page, data, app }) {
       {strip.saved && (strip.saved.warning
         ? <p role="alert" data-value-saved-warning="">{strip.saved.warning}</p>
         : <p data-value-saved="" data-tour="saved">{strip.saved.text}</p>)}
-      {strip.disclaimer && <p className="value-disclaimer" data-value-disclaimer="" role="note">{strip.disclaimer}</p>}
+      {strip.disclaimer && <p className="value-disclaimer" data-value-strip-disclaimer="" role="note">{strip.disclaimer}</p>}
       <ValueCounter page={page} />
       {more && (
         <a className="link" data-more-use-cases="" href={more.href} target={more.inside ? '_top' : '_blank'}
