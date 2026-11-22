@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getMoney } from './api.js';
+import ValueCounter from './ValueCounter.jsx';
 import { MORE_USE_CASES, valueStripOf } from './valueStrip.js';
 
 export default function ValueStrip({ page, data, app }) {
@@ -21,6 +22,7 @@ export default function ValueStrip({ page, data, app }) {
         ? <p role="alert" data-value-saved-warning="">{strip.saved.warning}</p>
         : <p data-value-saved="" data-tour="saved">{strip.saved.text}</p>)}
       {strip.disclaimer && <p className="value-disclaimer" data-value-disclaimer="" role="note">{strip.disclaimer}</p>}
+      <ValueCounter page={page} />
       {more && (
         <a className="link" data-more-use-cases="" href={more.href} target={more.inside ? '_top' : '_blank'}
           rel={more.inside ? undefined : 'noopener noreferrer'}>{MORE_USE_CASES}</a>

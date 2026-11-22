@@ -1980,6 +1980,45 @@ def week_start(day: datetime.date) -> datetime.date:
     return day - datetime.timedelta(days=day.weekday())
 
 
+VALUE_BADGES = (("p1", "1% of the year", 0.01), ("p5", "5% of the year", 0.05), ("p10", "10% of the year", 0.10), ("p25", "25% of the year", 0.25),
+                ("p50", "50% of the year", 0.50), ("p100", "The whole year", 1.0))
+FIRST_BADGE = {"key": "first", "label": "First case"}
+
+
+def value_badges(mine, amount: float) -> tuple:
+    """(earned badges, the next one): milestones of my resolved value against the saved yearly value. Personal only."""
+    if mine is None:
+        return [], None
+    earned = [dict(FIRST_BADGE)] if mine["cases"] >= 1 else []
+    if not earned:
+        return [], dict(FIRST_BADGE, remaining=1, unit="case")
+    for key, label, share in VALUE_BADGES:
+        if mine["value"] >= amount * share - 1e-9:
+            earned.append({"key": key, "label": label})
+            continue
+        return earned, {"key": key, "label": label, "remaining": amount * share - mine["value"], "unit": "money"}
+    return earned, None
+
+
+def value_streak(weeks, today: datetime.date) -> int:
+    """Consecutive ISO weeks, ending this week or last, with at least one of my resolutions; an empty current week does not break it."""
+    given = weeks if isinstance(weeks, (list, tuple)) else str(weeks or "").split(",")
+    starts = set()
+    for item in given:
+        try:
+            starts.add(week_start(datetime.date.fromisoformat(str(item).strip()[:10])))
+        except ValueError:
+            continue
+    week = week_start(today)
+    if week not in starts:
+        week -= datetime.timedelta(weeks=1)
+    count = 0
+    while week in starts:
+        count += 1
+        week -= datetime.timedelta(weeks=1)
+    return count
+
+
 def day_text(value):
     return str(value)[:10] if value else None
 
@@ -2905,6 +2944,8 @@ class Shell:
                 return 200, self.my_work(headers, data)
             if route == ("GET", "money"):
                 return 200, self.money(headers, query.get("page"))
+            if route == ("GET", "value/counter"):
+                return 200, self.value_counter(headers, query.get("page"))
             if route == ("POST", "money/assumption"):
                 return 200, self.change_assumption(headers, data)
             if route == ("GET", "feedback"):
@@ -4239,6 +4280,37 @@ class Shell:
         refusal = self.assumption_refusal(headers, page, model)
         return {"model": shell_sql.public_money(model), "history": history, "editable": not refusal, "why": refusal, "held": held,
                 "saved": self.saved_value(ws, page)}
+
+    def value_counter(self, headers: dict, ident) -> dict:
+        """FX-84: what the cases people resolved here are worth, priced from the value saved in Inspire (no number of its own)."""
+        page = self.page(ident)
+        basis = shell_sql.value_basis_clean((self.settings.get("value_basis") or {}).get(page["id"]))
+        if basis is None or not page.get("result_table"):
+            return {"shown": False}
+        try:
+            since = shell_sql.utc_micros(inspire_parse_time(self.settings.get("built_at")))
+        except ValueError:
+            return {"shown": False, "warning": "the App has no go-live date, so the value counter has no start"}
+        person = str(headers.get("x-forwarded-email") or "").strip()
+        try:
+            ws, who = self.workspace(headers)
+            fields = self.table_fields(ws, who, page)
+            if not self.keeps_actions(ws, who, page, fields):
+                return {"shown": False}
+            sql, params = shell_sql.resolved_counts_query(page, {f["name"] for f in fields}, person, since, self.history_for(ws, who, page, fields))
+            rows = self.run(ws, who, sql, params, 1)["rows"]
+        except QueryError as error:
+            return {"shown": False, "warning": f"the value counter could not be read: {shell_sql.error_text(error)}"}
+        row = rows[0] if rows else {}
+        cases = lambda key: int(shell_sql.as_number(row.get(key)) or 0)
+        per, amount = basis["per_case"], basis["amount"]
+        mine = {"cases": cases("mine_n"), "value": cases("mine_n") * per} if person else None
+        badges, upcoming = value_badges(mine, amount)
+        return {"shown": True, "case_noun": basis.get("case_noun") or "record", "per_case": per, "amount": amount, "cases_per_year": basis["cases_per_year"],
+                "currency": basis["currency"], "status": basis["status"], "cases_from": basis.get("cases_from") or "", "saved_at": str(basis.get("saved_at") or ""),
+                "mine": mine, "team": {"cases": cases("team_n"), "value": cases("team_n") * per},
+                "streak_weeks": value_streak(row.get("weeks"), self.now().date()) if person else 0, "badges": badges, "next_badge": upcoming,
+                "disclaimer": basis["disclaimer"]}
 
     def change_assumption(self, headers: dict, data: dict) -> dict:
         page = self.page(data.get("page"))

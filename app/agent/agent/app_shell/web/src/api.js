@@ -180,6 +180,7 @@ export const getOverview = (body = {}) => json('POST', 'overview', body);
 export const getMyWork = (body) => json('POST', 'my_work', body);
 export const getSummary = (page) => json('GET', `summary?page=${encodeURIComponent(page)}`);
 export const getMoney = (page) => json('GET', `money?page=${encodeURIComponent(page)}`);
+export const getValueCounter = (page) => json('GET', `value/counter?page=${encodeURIComponent(page)}`);
 export const changeAssumption = (body) => json('POST', 'money/assumption', body);
 export const getSettings = (page) => json('GET', `settings?page=${encodeURIComponent(page)}`);
 export const previewSetting = (body) => json('POST', 'settings/preview', body);

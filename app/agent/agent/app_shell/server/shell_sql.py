@@ -6397,6 +6397,45 @@ def my_work_query(page: dict, names: set, person: str, bounds: dict, rows: int, 
     return f"{_with(ctes, MY_WORK_ORDER)} {' UNION ALL '.join(branches)}", params.items
 
 
+VALUE_COUNTER_ORDER = (*CLOSING_ORDER, "vp", "vw")
+VALUE_COUNTER_WEEKS = 52
+VALUE_STATUSES = ("calculated", "estimated")
+
+
+def value_basis_clean(raw) -> dict:
+    """FX-84: the saved value basis of one page as the counter may use it, or None. per_case is computed here and nowhere else."""
+    if not isinstance(raw, dict):
+        return None
+    numbers = [raw.get(k) if isinstance(raw.get(k), (int, float)) else None for k in ("amount", "cases_per_year")]
+    amount, cases = (as_number(n) for n in numbers)
+    currency, status, said = raw.get("currency"), raw.get("status"), raw.get("disclaimer")
+    if amount is None or cases is None or amount <= 0 or cases <= 0 or status not in VALUE_STATUSES:
+        return None
+    if not isinstance(currency, str) or not re.fullmatch(r"[A-Z]{3}", currency):
+        return None
+    if not isinstance(said, dict) or not all(isinstance(said.get(k), str) and said[k].strip() for k in ("short", "full")):
+        return None
+    per_case = amount / cases
+    if not math.isfinite(per_case) or per_case <= 0:
+        return None
+    return dict(raw, amount=amount, cases_per_year=cases, per_case=per_case, disclaimer={"short": said["short"], "full": said["full"]})
+
+
+def resolved_counts_query(page: dict, names: set, person: str, since_us: int, history=None) -> tuple:
+    """One row: mine_n and team_n (cases closed Done since go-live) and weeks (the ISO week starts of my closes, newest first)."""
+    params, table, label = _Params(), table_name(page["result_table"]), (page.get("records") or {}).get("label")
+    scope = use_case_scope(page, params)
+    who, since = params.add(str(person).strip().lower()), params.add(str(int(since_us)), "BIGINT")
+    ctes = closing_ctes(table, names, label, scope, history)
+    ctes["vp"] = (f"SELECT `_inspire_closer`, `_inspire_closed` FROM hm WHERE `_inspire_status` = '{DONE}' AND "
+                  f"`_inspire_closed` IS NOT NULL AND unix_micros(`_inspire_closed`) >= {since}")
+    ctes["vw"] = (f"SELECT DISTINCT CAST(date_trunc('week', `_inspire_closed`) AS DATE) AS `_v_week` FROM vp WHERE lower(`_inspire_closer`) = {who} "
+                  f"ORDER BY `_v_week` DESC LIMIT {VALUE_COUNTER_WEEKS}")
+    sql = (f"{_with(ctes, VALUE_COUNTER_ORDER)} SELECT CAST(SUM(CASE WHEN lower(`_inspire_closer`) = {who} THEN 1 ELSE 0 END) AS BIGINT) AS `mine_n`, "
+           f"CAST(COUNT(*) AS BIGINT) AS `team_n`, (SELECT array_join(collect_list(CAST(`_v_week` AS STRING)), ',') FROM vw) AS `weeks` FROM vp")
+    return sql, params.items
+
+
 TRENDS_ORDER = ("kv", "kc", "ko", "ks", "kl", "ka", "kw", "kx", "kr", "kp", "kn", "kf", "kq")
 WEEK_US = 7 * DAY_US
 
