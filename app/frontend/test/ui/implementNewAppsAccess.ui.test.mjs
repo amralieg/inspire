@@ -46,7 +46,7 @@ test('the default result table is the Inspire-owned schema, and a missing USE CA
     await toSummary(page);
     await page.locator('[data-access-verdict="pending"]').waitFor({ state: 'detached', timeout: 25000 });
     await page.getByText(/reads the data/).first().waitFor({ timeout: 30000 });
-    const text = await page.getByText(/reads the data/).first().locator('xpath=ancestor::*[3]').innerText();
+    const text = await page.getByText(/reads the data/).first().locator('xpath=ancestor::*[3]').textContent(); // the GRANT sits in the closed Details drawer by design
     assert.match(text, /App reads the data/, 'the row is on the page');
     assert.ok(text.includes('GRANT USE CATALOG ON CATALOG `main` TO `account users`'), 'the row names the exact GRANT');
     assert.doesNotMatch(text, /choose a result table in a catalog and schema Inspire manages/);

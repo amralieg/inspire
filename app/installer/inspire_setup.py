@@ -20,9 +20,12 @@ SCAN_PROGRESS_STEPS = 10
 SCAN_SHOWN = 10
 NEW_APPS_ACCOUNT_USERS = "account users"
 INSPIRE_SCHEMA_OFF = ""
-SCHEMA_MODE_CATALOG_NOTE = ("catalog-level grants (USE CATALOG, BROWSE) are asked once for the App's service principal, because the "
-                            "catalog owner gives them; the schema-level grants run with your sign-in")
+# REQ-456, REQ-458: one behaviour for every install. The installer grants USE CATALOG and USE SCHEMA, probes them, and stops with the exact GRANTs.
+SCHEMA_MODE_CATALOG_NOTE = ("the installer grants the App's service principal and account users USE CATALOG and USE SCHEMA with your sign-in, "
+                            "checks them, and stops before the deploy with the exact GRANT statements when one is missing")
 NEW_APPS_OFF = "off"
+# REQ-456: privileges that open no data. Shared with the App (IMPLEMENT_METADATA_ONLY_PRIVILEGES); both read catalog_access_cases.json.
+METADATA_ONLY_PRIVILEGES = ("BROWSE", "READ METADATA")
 SYSTEM_SCHEMA = "information_schema"
 BELOW_CATALOG_VIEWS = (("schema", "schema_privileges", "schema_name", "schema_name"),
                        ("table", "table_privileges", "table_schema", "table_name"),
@@ -942,8 +945,7 @@ def build_runtime_context(env):
     print(f"Selected warehouse: {warehouse_name} ({warehouse_id})")
     print(f"Selected catalog:   {catalog}  →  {inspire_db}")
     if schema_pair:
-        print(f"Install mode: schema mode (INSPIRE_SCHEMA = {inspire_db}). The installer creates no catalog rights: "
-              f"{SCHEMA_MODE_CATALOG_NOTE}. Files go under {folders['APPS_PARENT'].rsplit('/', 1)[0]}.")
+        print(f"Install into {inspire_db} (INSPIRE_SCHEMA): {SCHEMA_MODE_CATALOG_NOTE}. Files go under {folders['APPS_PARENT'].rsplit('/', 1)[0]}.")
 
     release_version = str(env["manifest"]["version"])
     release_tag = str(env["manifest"].get("tag") or release_version)
@@ -1411,10 +1413,10 @@ def _below_catalog_sql(catalog):
 
 def _real_grants(catalog, account_users, below):
     real = [f"{_privilege_word(p)} on catalog {catalog}" for p in account_users or []
-            if _privilege_word(p) not in ("BROWSE", "USE CATALOG")]
+            if _privilege_word(p) not in METADATA_ONLY_PRIVILEGES + ("USE CATALOG",)]
     for row in below or []:
         schema, privilege, level = str(row.get("schema_name") or ""), _privilege_word(row.get("privilege")), str(row.get("level") or "")
-        if schema.lower() == SYSTEM_SCHEMA or privilege == "BROWSE":
+        if schema.lower() == SYSTEM_SCHEMA or privilege in METADATA_ONLY_PRIVILEGES:
             continue
         where = f"{catalog}.{schema}" if level == "schema" else f"{catalog}.{schema}.{row.get('object_name')}"
         real.append(f"{privilege} on {level} {where}")
@@ -1494,6 +1496,90 @@ def _catalog_access_for_new_apps(ctx, sp):
     return (
         f"{need}, which account users do not hold, and Inspire can grant it only with MANAGE on the catalog. {owners}"
     )
+
+
+def _effective_privileges(ctx, catalog, principal):
+    data = ctx["api_get"](f"/api/2.1/unity-catalog/effective-permissions/catalog/{urllib.parse.quote(catalog)}?principal={urllib.parse.quote(principal)}")
+    return {str(p.get("privilege") or "").upper() for a in data.get("privilege_assignments") or [] for p in a.get("privileges") or []}
+
+
+def _new_apps_probe(ctx, sp):
+    """REQ-456: what a fresh App service principal can do on the Inspire catalog, read from Unity Catalog's own evaluation.
+
+    A new App's only group is account users, so account users must hold USE CATALOG; Inspire's principal must hold USE CATALOG and CREATE SCHEMA
+    to create, own and share the result schemas. Returns (ok, line, statements).
+    """
+    catalog = ctx["CATALOG"]
+    use = f"GRANT USE CATALOG ON CATALOG `{catalog}` TO `{NEW_APPS_ACCOUNT_USERS}`"
+    manage = f"GRANT MANAGE ON CATALOG `{catalog}` TO `{sp}`"
+    create = f"GRANT CREATE SCHEMA ON CATALOG `{catalog}` TO `{sp}`"
+    covers = lambda held, privilege: bool(held & {privilege, "ALL_PRIVILEGES"})
+    try:
+        users = _effective_privileges(ctx, catalog, NEW_APPS_ACCOUNT_USERS)
+        inspire = _effective_privileges(ctx, catalog, sp)
+    except Exception as exc:
+        return (False, f"⚠️ New Apps cannot read Build results in `{catalog}`: what account users and {sp} hold on it could not be read "
+                       f"({_error_words(exc, 120)})", [use, manage])
+    missing, statements = [], []
+    if not covers(users, "USE_CATALOG"):
+        missing.append("account users hold no USE CATALOG")
+        statements += [use, manage]
+    if not covers(inspire, "USE_CATALOG"):
+        missing.append(f"{sp} holds no USE CATALOG")
+        statements.append(f"GRANT USE CATALOG ON CATALOG `{catalog}` TO `{sp}`")
+    if not covers(inspire, "CREATE_SCHEMA"):
+        missing.append(f"{sp} holds no CREATE SCHEMA, so Inspire cannot create the result schemas it owns")
+        statements.append(create)
+    if missing:
+        return False, f"⚠️ New Apps cannot read Build results in `{catalog}`: {'; '.join(missing)}", list(dict.fromkeys(statements))
+    return True, f"New Apps can read Build results in `{catalog}`: account users hold USE CATALOG, Inspire owns the result schemas ✅", []
+
+
+def _new_apps_access_check(ctx, sp):
+    """REQ-456, REQ-458: the same check for every install, whatever catalog or schema was picked. It stops the install before the deploy
+    and prints the exact GRANT statements, unless the person turned new-App access off (then it only warns)."""
+    ok, line, statements = _new_apps_probe(ctx, sp)
+    ctx["NEW_APPS_PROBE"] = line
+    print(f"  {line}")
+    if ok or ctx.get("NEW_APPS_CATALOG_ACCESS", NEW_APPS_ACCOUNT_USERS) == NEW_APPS_OFF:
+        return
+    catalog = ctx["CATALOG"]
+    manage = f"GRANT MANAGE ON CATALOG `{catalog}` TO `{sp}`"
+    needed = [sql for sql in statements if sql != manage]
+    raise RuntimeError(f"{line[3:] if line.startswith('⚠️ ') else line}. A catalog owner runs {' and '.join(needed)} (opens no data), "
+                       f"or {manage} so Inspire can grant it. Or pick another catalog, or set "
+                       f'NEW_APPS_CATALOG_ACCESS = "{NEW_APPS_OFF}" to accept that Build cannot share results. '
+                       "Inspire stopped before it deploys the new App version, so the App keeps its last working version. "
+                       "Then run this installer again.")
+
+def _grant_account_users(ctx):
+    """REQ-456, REQ-458: new Apps hold only what account users hold, so account users get USE SCHEMA on the Inspire schema and USE CATALOG on
+    every data catalog the person picked. Neither opens data by itself: the App's own schema and table grants stay per App. Returns the refusals."""
+    setting = ctx.get("NEW_APPS_CATALOG_ACCESS", NEW_APPS_ACCOUNT_USERS)
+    if setting == NEW_APPS_OFF:
+        return {}
+    catalog, schema = ctx["CATALOG"], ctx["SCHEMA"]
+    grants = [f"GRANT USE SCHEMA ON SCHEMA `{catalog}`.`{schema}` TO `{NEW_APPS_ACCOUNT_USERS}`"]
+    grants += [f"GRANT USE CATALOG ON CATALOG `{cat}` TO `{NEW_APPS_ACCOUNT_USERS}`" for cat in ctx.get("DATA_CATALOGS") or [] if cat != catalog]
+    failed = _run_scan_grants(ctx["w"], ctx["WAREHOUSE_ID"], grants)
+    print(f"  Account users get USE SCHEMA on `{catalog}`.`{schema}` and USE CATALOG on {_plural(len(grants) - 1, 'data catalog')}, "
+          f"which opens no data by itself: {len(grants) - len(failed):,} of {len(grants):,} ran {'✅' if not failed else '⚠️'}")
+    for sql, error in failed.items():
+        print(f"  ⚠️ {sql}: {error[:160]}")
+    return failed
+
+
+def _stop_on_refused_account_grants(failed, ctx=None):
+    """A refused account-users grant stops the install. The one exception is a data catalog whose own read grant for the App was also refused:
+    that is already printed as the admin's statement (REQ-132, a refused read grant never stops the install), so it is not stopped twice."""
+    refused = " ".join((ctx or {}).get("READ_REFUSED") or [])
+    failed = {sql: error for sql, error in failed.items()
+              if not (" ON CATALOG `" in sql and f"ON CATALOG `{sql.split(' ON CATALOG `', 1)[1].split('`')[0]}` TO" in refused)}
+    if failed:
+        raise RuntimeError(f"New Apps cannot read Build results until account users hold: {'; '.join(list(failed)[:3])}"
+                           f"{f' and {len(failed) - 3} more' if len(failed) > 3 else ''} (first reason: {str(next(iter(failed.values())))[:160]}). "
+                           "A catalog owner can run them. Inspire stopped before it deploys the new App version, so the App keeps its last working version. "
+                           "Then run this installer again.")
 
 
 LAKEBASE_DELTA = "until then the Apps that Implement builds read Delta tables"
@@ -1822,22 +1908,26 @@ def _schema_mode_access(ctx):
         _ensure_value_ledger(w, warehouse_id, catalog, schema)
     schema_sql = [sql for sql in _grant_plan(sp, catalog, schema, set()) if " ON SCHEMA " in sql] if sp else []
     catalog_sql = [f"GRANT {p} ON CATALOG `{catalog}` TO `{sp}`" for p in ("USE CATALOG", "BROWSE")] if sp else []
-    failed = {sql: error for sql in schema_sql if (error := _grant_error(w, warehouse_id, sql))}
-    print(f"  Schema mode: the App's service principal reads `{catalog}`.`{schema}` with its own access. "
-          f"Schema grants: {len(schema_sql) - len(failed)} of {len(schema_sql)} ran {'✅' if not failed else '⚠️'}")
+    failed = {sql: error for sql in schema_sql + catalog_sql if (error := _grant_error(w, warehouse_id, sql))}
+    print(f"  The App's service principal reads `{catalog}`.`{schema}` with its own access. "
+          f"Grants: {len(schema_sql) + len(catalog_sql) - len(failed)} of {len(schema_sql) + len(catalog_sql)} ran {'✅' if not failed else '⚠️'}")
     for sql, error in failed.items():
         print(f"  ⚠️ {sql}: {error}")
-    ctx["SCHEMA_MODE_CATALOG_ASK"] = catalog_sql
-    if catalog_sql:
-        print(f"  Permission Required, asked once for the App's service principal {sp} (a catalog owner runs them): "
-              + "; ".join(catalog_sql))
-    ctx["LAKEBASE_NOTE"] = "schema mode does not grant Lakebase to the App's principal, so Lakebase is not wired for Apps that Implement builds"
+    ctx["SCHEMA_MODE_CATALOG_ASK"] = [sql for sql in catalog_sql if sql in failed]
+    if sp:
+        # REQ-456, REQ-458: the same new-App access as every install (overrides REQ-113's no-stop contract for these grants)
+        print(f"  {_catalog_access_for_new_apps(ctx, sp)}")
+        account_failed = _grant_account_users(ctx)
+    ctx["LAKEBASE_NOTE"] = "an install into a chosen schema does not grant Lakebase to the App's principal, so Lakebase is not wired for Apps that Implement builds"
     ctx["LAKEBASE_SUMMARY"] = f"⚠️ {ctx['LAKEBASE_NOTE']}"
     shared_ok, shared_said = _own_output_access(api, ctx["NOTEBOOK_PATH"])
     print(f"  {'' if shared_ok else '⚠️ '}{shared_said}")
     if not shared_ok:
         raise RuntimeError(f"{shared_said}. Inspire stopped before it deploys the new App version, so the App keeps its last working version. "
                            "Then run this installer again.")
+    if sp:
+        _new_apps_access_check(ctx, sp)
+        _stop_on_refused_account_grants(account_failed, ctx)
 
 
 # REQ-405: the App's service principal runs Discover, so it must be able to query the chat model the agent would pick. The installer
@@ -2028,6 +2118,7 @@ def step_grant_permissions(ctx):
             print(line)
         shared_ok, shared_said = _shared_output_access(api, ctx["NOTEBOOK_PATH"], sp)
         print(f"  {'' if shared_ok else '⚠️ '}{shared_said}")
+        account_failed = _grant_account_users(ctx)
         _grant_data_catalogs(ctx, sp)
         blocking = _blocking_read_grants(failed)
         if blocking:
@@ -2039,6 +2130,8 @@ def step_grant_permissions(ctx):
         if not shared_ok:
             raise RuntimeError(f"{shared_said}. Inspire stopped before it deploys the new App version, so the App keeps its last working version. "
                                "Then run this installer again.")
+        _new_apps_access_check(ctx, sp)
+        _stop_on_refused_account_grants(account_failed, ctx)
     elif not new_sp_app_id:
         print("⚠️ Skipped: SP not found. Grant manually after checking /api/health.")
     elif not warehouse_id:
@@ -2342,7 +2435,7 @@ def step_preflight(ctx):
                            "Fix these, then run this installer again:\n" + "\n".join(f"  • {p}" for p in problems))
     print(f"  Rights: ✅ App {app_name}, warehouse {ctx['WAREHOUSE_NAME']}, catalog `{catalog}` and the workspace folders")
     if ctx.get("SCHEMA_MODE"):
-        print(f"  Schema mode: the App reads only `{catalog}`.`{schema}`; {SCHEMA_MODE_CATALOG_NOTE}")
+        print(f"  The App reads only `{catalog}`.`{schema}`; {SCHEMA_MODE_CATALOG_NOTE}")
 
 
 def run(env):

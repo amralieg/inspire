@@ -694,7 +694,7 @@ def postgres_posts(calls):
 class GrantPlanTest(unittest.TestCase):
     def grant(self, data, listed=("main", "sales", "finance", "samples", "system", "inspire_lakebase"), rights=None, owners=None, catalog="main",
               admin="metastore-admins", fail=None, api=None, lakebase=LAKEBASE, schema_mode=False,
-              notebook="/Shared/inspire-ai/dbx_inspire_ai_agent", fresh=None, setting="account users"):
+              notebook="/Shared/inspire-ai/dbx_inspire_ai_agent", fresh=None, setting="account users", shows=False):
         out = io.StringIO()
         # REQ-456: what a fresh App service principal holds on the catalog: its only group is account users, and the Inspire principal holds its own grants
         fresh = {"account users": ("USE_CATALOG",), "SP": ("USE_CATALOG", "BROWSE", "CREATE_SCHEMA"), **(fresh or {})}
@@ -708,6 +708,10 @@ class GrantPlanTest(unittest.TestCase):
                 for needle, err in (fail or {}).items():
                     if needle in statement:
                         raise err
+                if shows and (statement.startswith("SHOW GRANTS") or "information_schema" in statement):  # REQ-456: a readable grant listing
+                    names = ("Principal", "ActionType", "ObjectType", "ObjectKey") if statement.startswith("SHOW") else ("level", "schema_name", "object_name", "privilege")
+                    return types.SimpleNamespace(status=statement_ok(), result=types.SimpleNamespace(data_array=[]),
+                                                 manifest=types.SimpleNamespace(schema=types.SimpleNamespace(columns=[types.SimpleNamespace(name=n) for n in names])))
                 return globals()["statement"](SUCCEEDED)
 
         self.reads = []
@@ -744,7 +748,8 @@ class GrantPlanTest(unittest.TestCase):
         with contextlib.redirect_stdout(out), mock.patch.object(setup, "LAKEBASE_POLL_S", 0):
             setup.step_grant_permissions(ctx)
         self.ctx = ctx
-        grants = [s for s, _ in executed if s.startswith("GRANT ")]
+        # REQ-456: the account users grants have their own tests; the plan lists below are the App principal's
+        grants = [s for s, _ in executed if s.startswith("GRANT ") and not s.endswith("TO `account users`")]
         grants = essentials(grants) + sorted(g for g in grants if g.startswith(SCAN_PREFIX))
         printed = [line.strip() for line in out.getvalue().splitlines() if line.startswith("  GRANT ")]
         return grants, printed, executed, out.getvalue()
@@ -882,7 +887,7 @@ class LargeWorkspaceGrantTest(unittest.TestCase):
                 time.sleep(0.001)
                 with lock:
                     live[0] -= 1
-                if any(f"CATALOG `{name}` TO" in statement for name in refused):
+                if statement.startswith(SCAN_PREFIX) and any(f"CATALOG `{name}` TO" in statement for name in refused):  # REQ-132: the App's own read grant
                     raise RuntimeError("PERMISSION_DENIED: User does not have MANAGE on the catalog")
                 return globals()["statement"](SUCCEEDED)
 
@@ -891,6 +896,8 @@ class LargeWorkspaceGrantTest(unittest.TestCase):
                 reads.append(path)
             if path == "/api/2.1/unity-catalog/metastore_summary":
                 return {"owner": "admins"}
+            if "/effective-permissions/catalog/main?principal=" in path:  # REQ-456: the probe of what a fresh App holds
+                return {"privilege_assignments": [{"privileges": [{"privilege": p} for p in ("USE_CATALOG", "CREATE_SCHEMA")]}]}
             raise AssertionError(path)
 
         got = []
@@ -939,7 +946,8 @@ class LargeWorkspaceGrantTest(unittest.TestCase):
         self.assertIn("Catalog grants: 360 of 3,600\n", run.said)
         self.assertIn("Catalog grants: 3,600 of 3,600 ran ✅", run.said)
         self.assertIn("on: cat_0000, cat_0001, cat_0002, cat_0003, cat_0004, cat_0005, cat_0006, cat_0007, cat_0008, cat_0009 and 3590 more", run.said)
-        self.assertFalse([p for p in run.reads if "effective-permissions" in p], "no rights are read per catalog: the grant itself decides")
+        self.assertFalse([p for p in run.reads if "effective-permissions" in p and "/catalog/main?" not in p],
+                         "no rights are read per data catalog: the grant itself decides (REQ-456: only the Inspire catalog is probed)")
         self.assertEqual(run.got, ["main"], "owners come from the catalog listing; only the Inspire catalog is read again, for new Apps")
         self.assertLess(run.secs, 30)
         self.assertLess(len(run.said.splitlines()), 80, "the output stays short on thousands of catalogs")
@@ -1843,7 +1851,9 @@ class SchemaModeTest(unittest.TestCase):
         steps, error, out = self.preflight(ctx, [])
         self.assertIsNone(error)
         self.assertEqual(steps, list(INSTALL_STEPS))
-        self.assertIn("Schema mode: the App reads only `main`.`_inspire`", out)
+        # REQ-456/REQ-458: the user-facing text no longer names a mode
+        self.assertIn("The App reads only `main`.`_inspire`", out)
+        self.assertNotIn("Schema mode", out)
 
     def test_schema_mode_refuses_before_any_change_when_the_person_cannot_use_the_catalog(self):
         api, calls = recording(app_exists())
@@ -1937,7 +1947,7 @@ class SchemaModeTest(unittest.TestCase):
         catalog-level ones are asked once for the principal, and no /Shared folder is touched."""
         api, api_calls = lakebase_api(catalog=((200, BOUND),), make_catalog=REFUSED_CATALOG)
         person_notebook = "/Users/someone@example.com/inspire-ai/inspire-ai/dbx_inspire_ai_agent"
-        grants, printed, executed, said = GrantPlanTest.grant(self, "all", schema_mode=True, api=api, notebook=person_notebook)
+        grants, printed, executed, said = GrantPlanTest.grant(self, "all", schema_mode=True, api=api, notebook=person_notebook, shows=True)
         granted = [sql for sql, _ in executed if sql.startswith("GRANT ")]
         self.assertTrue(granted, executed)
         # REQ-456/REQ-458 (overrides REQ-113/REQ-418 for these grants): one behaviour for every install, so schema mode grants the catalog

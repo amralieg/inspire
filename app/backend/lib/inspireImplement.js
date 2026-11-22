@@ -3270,12 +3270,15 @@ function belowCatalogStatement(catalog) {
   };
 }
 
+// REQ-456: privileges that open no data. The installer holds the same list (METADATA_ONLY_PRIVILEGES); both read catalog_access_cases.json.
+const IMPLEMENT_METADATA_ONLY_PRIVILEGES = ['BROWSE', 'READ METADATA'];
+
 function realAccountUserGrants(catalog, accountUsers, below) {
-  const real = (accountUsers || []).map(privilegeOf).filter((p) => !['BROWSE', 'USE CATALOG'].includes(p)).map((p) => `${p} on catalog ${catalog}`);
+  const real = (accountUsers || []).map(privilegeOf).filter((p) => !IMPLEMENT_METADATA_ONLY_PRIVILEGES.includes(p) && p !== 'USE CATALOG').map((p) => `${p} on catalog ${catalog}`);
   for (const row of below || []) {
     const schema = str(row && row.schema_name);
     const privilege = privilegeOf(row && row.privilege);
-    if (schema.toLowerCase() === IMPLEMENT_SYSTEM_SCHEMA || privilege === 'BROWSE') continue;
+    if (schema.toLowerCase() === IMPLEMENT_SYSTEM_SCHEMA || IMPLEMENT_METADATA_ONLY_PRIVILEGES.includes(privilege)) continue;
     const level = str(row.level);
     real.push(`${privilege} on ${level} ${level === 'schema' ? `${catalog}.${schema}` : `${catalog}.${schema}.${str(row.object_name)}`}`);
   }
@@ -3649,6 +3652,11 @@ function appAccessPermission(gaps, me = '') {
 }
 
 function appAccessMessage(table, gaps) {
+  // REQ-456: when USE CATALOG on the catalog is the only gap, another table location cannot help; name the statement and the installer
+  if (gaps.length && gaps.every((g) => g.level === 'catalog' && g.privilege === 'USE CATALOG')) {
+    return `a new App could not read the result table: its service principal needs USE CATALOG on the catalog, which account users do not hold. `
+      + `Ask the catalog owner to run: ${newAppsCatalogGrant(tableParts(table).catalog)} (it opens no data by itself), or run the Inspire installer again: it grants this access`;
+  }
   const one = gaps.length === 1;
   // the places the grant is missing on, in plain words (the App tile names them the same way)
   const places = [...new Set(gaps.map((g) => g.level))].map((level) => `on the ${level}`).join(' and ');
@@ -4092,6 +4100,7 @@ async function settleUninstallRunJob({ row, run, remove, cache }) {
 }
 
 module.exports = {
+  IMPLEMENT_METADATA_ONLY_PRIVILEGES,
   opensAppSentence,
   uninstallRunId,
   settleUninstallRunJob,
