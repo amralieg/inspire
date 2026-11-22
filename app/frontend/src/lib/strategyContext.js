@@ -157,7 +157,8 @@ export function serializeStrategy(model) {
   }
   const priorities = [...new Set(model.priorities.map(text).filter(Boolean))];
   if (priorities.length) out.priorities = priorities;
-  const sponsors = model.sponsors.filter((s) => text(s.role)).map((s) => {
+  // A sponsor with no role is kept (not dropped), so the validation on the serialized text names it and Get Started waits.
+  const sponsors = model.sponsors.map((s) => {
     const sponsor = { role: text(s.role) };
     if (text(s.name)) sponsor.name = text(s.name);
     if (text(s.reports_to)) sponsor.reports_to = text(s.reports_to);

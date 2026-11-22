@@ -59,7 +59,7 @@ test('strategy journey by hand: build an entry, a child, a KPI, a key result and
     await pickData(page);
     const section = await openStrategy(page);
     await buildByHand(section);
-    assert.match(await section.getByRole('button', { name: /Strategy \(optional\)/ }).innerText(), /Set/, 'the header says the strategy is set');
+    await until(async () => /Set/.test(await section.getByRole('button', { name: /Strategy \(optional\)/ }).innerText()), 'the header says the strategy is set');
     const sent = await launch(page, made);
     assert.equal(sent.strategy.length, 1);
     assert.equal(sent.strategy[0].name, 'Customer');

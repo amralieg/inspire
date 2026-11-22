@@ -596,9 +596,9 @@ export default function DataFilters({ scope, scopes, tables, listing, onScopes, 
               <p className="font-semibold text-text-primary">Your filters ({filterCount})</p>
               <ul className="flex flex-wrap gap-1.5">
                 {withFilters.flatMap((table) => rowsOf(table).map((f, index) => (
-                  <li key={`${table}\u0000${index}`} data-filter-table={table} data-scope-condition={f.column} className={CHIP}>
-                    <span>{f.column}: {rowText(f)}</span>
-                    <span className="text-text-tertiary">{shortName(table)}{countLine(table) && ` · ${countLine(table)}`}</span>
+                  <li key={`${table}\u0000${index}`} data-filter-table={table} data-scope-condition={f.column} className={`${CHIP} max-w-full`}>
+                    <span className="min-w-0 [overflow-wrap:anywhere]">{f.column}: {rowText(f)}</span>
+                    <span className="min-w-0 text-text-tertiary [overflow-wrap:anywhere]">{shortName(table)}{countLine(table) && ` · ${countLine(table)}`}</span>
                     <button type="button" aria-label={`Remove ${f.group ? 'row group' : 'row filter'} on ${f.column} in ${shortName(table)}: ${rowText(f)}`}
                       onClick={() => removeRow(table, index)}>
                       <X size={10} />
