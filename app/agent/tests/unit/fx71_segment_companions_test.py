@@ -94,7 +94,9 @@ def test_written_reads_hold_this_results_base_companions_only(agent_ns):
 def test_no_check_is_handed_the_bare_allowed_list():
     """Closing grep: the page, dashboard and alert checks all take implement_written_reads, never context["allowed"] itself."""
     source = "".join(json.loads(NOTEBOOK.read_text())["cells"][1]["source"])
-    for call in ("check_dashboard_definition(", "check_alert_condition_sql(", "implement_app_page_problems("):
+    page_call = source.index("found = implement_app_page_problems(")
+    assert "written_only=True" in source[page_call:page_call + 400]
+    for call in ("check_dashboard_definition(", "check_alert_condition_sql("):
         sites = [i for i in range(len(source)) if source.startswith(call, i) and not source[max(0, i - 4):i] == "def "]
         assert sites, call
         for i in sites:
