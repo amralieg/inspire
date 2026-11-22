@@ -89,15 +89,15 @@ test('the Summary of an MVP build states what is built, never only a notebook, a
   assert.deepEqual(w.droppedOutputs(before, after, {}), [], 'a person unticking it is not a drop');
 });
 
-test('Data & results holds the table place; First run holds Keep it fresh; Measure holds Measure impact; the wizard has no Team capacity', async () => {
+test('Data & results holds the table place; First run holds Keep it fresh; Review & build holds Measure impact; the wizard has no Team capacity', async () => {
   const w = await lib('implementWizard.js');
   const steps = w.wizardSteps('mvp', { outputs: { app: true } }, { grouping: true, firstRun: true });
   const results = steps.find((s) => s.id === 'data');
   assert.deepEqual(results.sections.filter((x) => x === 'results'), ['results'], 'the result table is on Data & results');
   assert.equal(steps.some((s) => s.id === 'run'), false, 'Run it is gone');
-  // REQ-265: the Measure step checks the money rule first, so Gains only with no sign stops the build (decided).
-  assert.deepEqual(steps.find((s) => s.id === 'stake').sections, ['money', 'kpi', 'holdout']);
-  assert.deepEqual(steps.find((s) => s.id === 'stake').panels, ['stake'], 'Measure holds Measure impact');
+  // REQ-265: the Review & build step checks the money rule first, so Gains only with no sign stops the build (decided).
+  assert.deepEqual(steps.find((s) => s.id === 'summary').sections, ['vibes', 'money', 'kpi', 'holdout']);
+  assert.deepEqual(steps.find((s) => s.id === 'summary').panels, ['summary', 'vibes'], 'Review & build holds Measure impact (the Measure step is gone, REQ-457)');
   assert.deepEqual(results.panels, ['data', 'results'], 'Keep it fresh is not on Data & results');
   assert.deepEqual(steps.find((s) => s.id === 'first_run').panels, ['first_run', 'fresh', 'schedule'], 'Keep it fresh and its schedule sit in First run');
   assert.equal(steps.flatMap((s) => s.sections).includes('capacity'), false);
