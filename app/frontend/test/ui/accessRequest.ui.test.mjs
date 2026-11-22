@@ -18,7 +18,7 @@ const STATEMENTS = [
 const FORM = { type: 'SCHEMA', full_name: 'main.s', url: 'https://workspace.example.com/explore/data/main/s' };
 const PERMISSION = { statements: STATEMENTS, principal: PERSON, why: 'Launch reads main.s.orders with your own access, and you cannot read it yet.' };
 // REQ-313: the one instruction line sits under Advanced (REQ-300: exactly one instruction line).
-const COPY_LINE = 'Copy the SQL below and send it to your Databricks admin.';
+const COPY_LINE = 'Copy the text below and pass it on to your Databricks admin.';
 
 async function openDialog(overrides) {
   const ui = await openUi('launch', { ...STATE, checkPermissions: [PERMISSION], ...overrides });

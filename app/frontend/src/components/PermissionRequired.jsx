@@ -8,7 +8,7 @@ const BUTTON = 'inline-flex h-8 items-center justify-center px-3 rounded-lg text
 const PRIMARY = 'inline-flex h-8 items-center justify-center px-3 rounded-lg text-xs font-semibold text-white bg-db-red-solid hover:opacity-90 disabled:opacity-60';
 // REQ-313: Request access is the primary action. The SQL sits under Advanced, with the one instruction line (REQ-300). Advanced opens
 // by default only when no destination exists, because then the SQL is the way forward.
-export const ADVANCED_LINE = 'Copy the SQL below and send it to your Databricks admin.';
+export const ADVANCED_LINE = 'Copy the text below and pass it on to your Databricks admin.';
 
 export default function PermissionRequired({ permissions, onStart, onRetry, onClose }) {
   const [status, setStatus] = useState('');

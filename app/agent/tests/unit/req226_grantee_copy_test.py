@@ -7,7 +7,7 @@ stays; only the copy changed. Fail-pre: the old text said '<group> opens this Ap
 
 def test_the_audience_entry_names_who_runs_and_who_receives_the_grant(agent_ns):
     why = agent_ns["implement_audience_grant_why"]("admins")
-    assert why.startswith("Your workspace admin runs these commands to give admins read access"), why
+    assert why.startswith("These commands give admins read access"), why
     assert "opens this App" not in why and "so it needs" not in why
 
 
@@ -16,4 +16,4 @@ def test_the_audience_entry_is_built_with_that_copy_and_the_audience_principal(a
     entry = agent_ns["implement_permission_entry"]("admins", ["GRANT SELECT ON TABLE `c`.`s`.`t` TO `admins`"],
                                                    agent_ns["implement_audience_grant_why"]("admins"), exact=True)
     assert entry["principal"] == "admins" and entry["statements"] == ["GRANT SELECT ON TABLE `c`.`s`.`t` TO `admins`"]
-    assert entry["why"].endswith("Then click Try again.")
+    assert entry["why"].endswith("with each person's own access.")

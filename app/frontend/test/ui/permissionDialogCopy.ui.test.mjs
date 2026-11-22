@@ -15,7 +15,7 @@ const GRANTS = [
   `GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders\` TO \`${APP}\``,
 ];
 // REQ-313: the one instruction line sits under Advanced (REQ-300: exactly one instruction line).
-const COPY_LINE = 'Copy the SQL below and send it to your Databricks admin.';
+const COPY_LINE = 'Copy the text below and pass it on to your Databricks admin.';
 const REBUILD = 'The App inspire-fwa-batch-a-walk-fraud reads inspire_kinds_rc7._inspire.sales_transactions directly, so its viewers cannot see that data. A rebuild reads them through the App views.';
 
 async function openLaunch(checkPermissions) {
