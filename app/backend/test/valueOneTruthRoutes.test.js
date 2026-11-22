@@ -12,8 +12,8 @@ const savedRow = (id, amount, calculated) => [id, '1',
   JSON.stringify({ shape: 2, currency: 'USD', calculated, plan: { basis: 'use_case', use_case_id: id, table: `c.s.t_${id}`, drivers: [] } }),
   JSON.stringify({ verb: 'REDUCE COST', calculated, estimated: !calculated, currency: 'USD', total: { unit: 'USD', amount }, parts: [{ id: 'p', verb: 'REDUCE COST', amount }] }),
   '2026-11-21 10:00:00', 'p@example.com', ''];
-const RUNS = { 42: [savedRow('A', 6800000, true), savedRow('B', 2400000, false)], 43: [savedRow('A', 1200000, false)] };
-const USE_CASES = { 42: ['A', 'B', 'C'], 43: ['A'] };
+const RUNS = { 42: [savedRow('A', 6800000, true), savedRow('B', 2400000, false)], 43: [savedRow('D', 1200000, false)] };  // run 43 has its own pool; the same pool in two runs counts once (REQ-454)
+const USE_CASES = { 42: ['A', 'B', 'C'], 43: ['D'] };
 
 function fakeWarehouse() {
   const sidsOf = (sql, bound) => {

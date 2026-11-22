@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, lowContrast, openUi, setDark } from './uiSupport.mjs';
+import { closeBrowser, lowContrast, openUi, setDark, totalsQueryMissing } from './uiSupport.mjs';
 import { RAW_PORTFOLIO_TABLES, REVIEW_PORTFOLIO, REVIEW_STATE } from './reviewFixtures.js';
 import { rawWarehouse } from './rawWarehouse.mjs';
 import { PORTFOLIO_GROUPS } from '../../src/lib/reviewFigures.js';
@@ -463,6 +463,9 @@ const RC10_VALUE_OVERALL = { at_stake: [{ kind: 'money', unit: 'AED', amount: 12
 const RC10_VALUE_RUNS = { runs: { 42: { at_stake: [{ kind: 'money', unit: 'AED', amount: 9000 }], saved: [], mvps_measured: 2 } } };
 // REQ-078: the run's use cases with no measured value are estimated, and the total is kept apart from the measured one.
 const RC10_VALUE_ESTIMATES = { runs: { 42: { use_cases: {}, totals: { estimated: { AED: 3000 } } } }, totals: { estimated: { AED: 3000 } } };
+// FX-34 (REQ-448): the all-runs totals reply; run 42 has a value, the other runs have none.
+const RC10_RUN_VALUE = { totals: [{ currency: 'AED', amount: 12000, calculated: 9000, estimated: 3000 }], n: 3, n_calculated: 1, n_estimated: 1, n_measured: 0, n_none: 1, n_shared: 0 };
+const RC10_VALUE_TOTALS = { runs: [{ session_id: '42', name: 'Acme', ...RC10_RUN_VALUE, run_value: RC10_RUN_VALUE }], all: RC10_RUN_VALUE, truncated: false, cap: 20 };
 const RC10_STATS_TOGGLE = 'Across all runs in this Inspire Database';
 const rc10Mount = (app) => {
   app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
@@ -470,6 +473,7 @@ const rc10Mount = (app) => {
   app.get('/api/inspire/value/overall', (_req, res) => res.json(RC10_VALUE_OVERALL));
   app.get('/api/inspire/value/runs', (_req, res) => res.json(RC10_VALUE_RUNS));
   app.get('/api/inspire/value/estimates', (_req, res) => res.json(RC10_VALUE_ESTIMATES));
+  app.get('/api/inspire/value/totals', (req, res) => totalsQueryMissing(req, res) || res.json(req.query.session_id ? { run: { totals: [], n: 0 }, use_cases: {} } : RC10_VALUE_TOTALS));
 };
 const boxOf = (page, selector) => page.locator(selector).boundingBox();
 
@@ -552,42 +556,44 @@ test('REQ-095 Value across runs sits above the all-runs stats, and the stats col
   }
 });
 
-test('REQ-078 Start: one estimates read feeds every run card and the banner; each card keeps its measured total apart', async () => {
+// FX-34 (REQ-448, W16 D2/D3) replaced the REQ-078 contract: Start no longer reads /value/estimates, /value/runs or /value/overall; one
+// /value/totals read (all runs) feeds the value panel and every run card, so they cannot disagree.
+test('REQ-078 REQ-448 Start: one totals read feeds every run card and the value panel, and they show the same run value', async () => {
   const ui = await openUi('app', REVIEW_STATE, '', { mount: rc10Mount });
   const { page } = ui;
-  const estimateUrls = [];
-  page.on('request', (req) => { if (req.url().includes('/api/inspire/value/estimates')) estimateUrls.push(req.url()); });
+  const valueUrls = [];
+  page.on('request', (req) => { if (req.url().includes('/api/inspire/value')) valueUrls.push(new URL(req.url()).pathname + new URL(req.url()).search); });
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
-    await page.locator('[data-run="42"] [data-value-headline="at stake"]').waitFor({ timeout: 20000 });
-    const estimated = page.locator('[data-run="42"] [data-value-estimated-total]');
-    await estimated.waitFor({ timeout: 20000 });
-    // REQ-434: every estimate total carries the short disclaimer.
-    assert.equal((await estimated.innerText()).trim(), 'Plus estimated, not measured: 3,000 AED Unverified estimate');
-    const banner = page.locator('[data-value-overall] [data-value-estimated-total]');
-    await banner.waitFor({ timeout: 20000 });
-    assert.equal((await banner.innerText()).trim(), 'Plus estimated, not measured: 3,000 AED Unverified estimate', 'the banner shows the estimate too');
-    assert.equal(estimateUrls.length, 1, `Start reads the batch once (StrictMode must not double it): ${estimateUrls.join(' ')}`);
-    assert.ok(!estimateUrls[0].includes('session_id='), 'the batch read is all runs, not one run');
-    assert.equal(await page.locator('[data-run="42"] [data-value-headline="at stake"]').innerText().then((t) => t.trim()), 'AED 9K', 'the measured total is still shown on its own');
+    const card = page.locator('[data-run="42"] [data-run-value] [data-run-value-total]');
+    await card.waitFor({ timeout: 20000 });
+    const row = page.locator('[data-value-all-panel] [data-all-runs-row="42"] [data-run-value-total]');
+    await row.waitFor({ timeout: 20000 });
+    assert.equal((await card.innerText()).trim(), (await row.innerText()).trim(), 'the run card says what the value panel says for the run');
+    assert.match((await card.innerText()).trim(), /12/, 'the run card shows the run value');
+    // REQ-434: the run value carries the short disclaimer.
+    assert.equal(await page.locator('[data-run="42"] [data-run-value] [data-value-disclaimer]').count(), 1);
+    const totalsReads = valueUrls.filter((u) => u.startsWith('/api/inspire/value/totals'));
+    assert.equal(totalsReads.length, 1, `Start reads the totals once (StrictMode must not double it): ${valueUrls.join(' ')}`);
+    assert.ok(!totalsReads[0].includes('session_id='), 'the read is all runs, not one run');
+    assert.deepEqual(valueUrls.filter((u) => /\/value\/(estimates|runs|overall)/.test(u)), [], 'no second value read on Start');
     assert.deepEqual(ui.pageErrors.filter((e) => !/status of 500/.test(e)), []);
   } finally {
     await ui.close();
   }
 });
 
-test('REQ-096 every run card shows its value at stake, and Not calculated where the run has none', async () => {
+test('REQ-096 every run card shows its value, and Not calculated where the run has none', async () => {
   const ui = await openUi('app', REVIEW_STATE, '', { mount: rc10Mount });
   const { page } = ui;
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
-    await page.locator('[data-run="42"] [data-value-headline="at stake"]').waitFor({ timeout: 20000 });
-    assert.notEqual((await page.locator('[data-run="42"] [data-value-headline="at stake"]').innerText()).trim(), 'none yet', 'run 42 shows its stake');
+    await page.locator('[data-run="42"] [data-run-value] [data-run-value-total]').waitFor({ timeout: 20000 });
     const without = page.locator('[data-run="41"] [data-run-value]');
     assert.equal(await without.count(), 1, 'run 41 has a value line');
-    assert.equal((await page.locator('[data-run="41"] [data-run-value-state="not-calculated"]').innerText()).trim(), 'Not calculated', 'run 41 says Not calculated');
+    assert.equal((await without.locator('[data-run-value-state="not-calculated"]').innerText()).trim(), 'Not calculated', 'run 41 says Not calculated');
     const lines = await page.locator('[data-run]').evaluateAll((els) => els.map((el) => el.querySelectorAll('[data-run-value]').length));
     assert.ok(lines.length >= 5 && lines.every((n) => n === 1), `every run card has one value line: ${lines.join(',')}`);
     assert.deepEqual(ui.pageErrors.filter((e) => !/status of 500/.test(e)), []);

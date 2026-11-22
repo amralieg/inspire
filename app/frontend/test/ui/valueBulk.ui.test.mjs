@@ -1,4 +1,5 @@
-// REQ-441: select many cards, "Calculate value for N", a progress panel; four at once, defaults, saved as estimates (calculated false).
+// REQ-441: select many cards, "Calculate value for N", a progress panel; four at once, defaults. FX-34 (W16 D13): bulk saves calculated
+// values (calculated true) and skips only a calculated row ("already calculated").
 // HTTP-level stubs of POST case-plan and PUT answers that can be held open.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -72,7 +73,7 @@ const poll = async (check, what, timeout = 10000) => {
   }
 };
 
-test('1: six cards selected (one saved, one without a table): 6 rows, four case-plan requests open at once, PUT bodies are the defaults with calculated false, rows and cards fill in as each ends', async () => {
+test('1: six cards selected (one saved, one without a table): 6 rows, four case-plan requests open at once, PUT bodies are the defaults with calculated true, rows and cards fill in as each ends', async () => {
   const state = { hold: true, plans: [], puts: [] };
   const { ui, page } = await openBulk(state);
   try {
@@ -87,13 +88,13 @@ test('1: six cards selected (one saved, one without a table): 6 rows, four case-
     assert.deepEqual([...state.started].sort(), Object.keys(AMOUNTS).sort());
     assert.equal(await text(panel.locator('[data-bulk-progress]')), '0 of 4 done');
     assert.equal(await panel.locator('[data-bulk-row="N01-U02"]').getAttribute('data-bulk-state'), 'working');
-    assert.equal(await text(panel.locator('[data-bulk-row="N01-U01"]')).then((t) => t.includes('already has a value')), true);
+    assert.equal(await text(panel.locator('[data-bulk-row="N01-U01"]')).then((t) => t.includes('already calculated')), true);
     assert.equal(await text(panel.locator('[data-bulk-row="N02-U02"]')).then((t) => t.includes('no table to count')), true);
     for (const id of Object.keys(AMOUNTS)) state.releasePlan(id);
     await poll(() => state.puts.length === 4, 'four saves arrive');
     const want = initialAnswers(PLAN).drivers;
     for (const body of state.putBodies) {
-      assert.equal(body.answers.calculated, false);
+      assert.equal(body.answers.calculated, true);
       assert.deepEqual(body.answers.drivers, want);
       assert.equal(body.use_case_id in AMOUNTS, true);
     }

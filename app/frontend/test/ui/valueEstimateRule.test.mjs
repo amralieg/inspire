@@ -11,7 +11,7 @@ const dir = mkdtempSync(path.join(os.tmpdir(), 'value-estimate-'));
 const outfile = path.join(dir, 'estimate.cjs');
 await build({
   stdin: {
-    contents: "export { createElement } from 'react'; export { renderToStaticMarkup } from 'react-dom/server'; export { default as ValueEstimateLine, EstimateTotals } from './src/components/ValueEstimateLine.jsx';\nexport { UseCaseStrategyDetail } from './src/components/UseCaseStrategyDetail.jsx';\nexport { v130View } from './src/lib/v130UseCase.js';",
+    contents: "export { createElement } from 'react'; export { renderToStaticMarkup } from 'react-dom/server'; export { default as ValueEstimateLine } from './src/components/ValueEstimateLine.jsx';\nexport { UseCaseStrategyDetail } from './src/components/UseCaseStrategyDetail.jsx';\nexport { v130View } from './src/lib/v130UseCase.js';",
     resolveDir: root, loader: 'jsx', sourcefile: 'entry.jsx',
   },
   bundle: true, platform: 'node', format: 'cjs', outfile, logLevel: 'silent', jsx: 'automatic', loader: { '.css': 'empty' },
@@ -72,13 +72,7 @@ test('a card with no estimate falls back to the existing line, and a measured us
   assert.equal(line(null), '');
 });
 
-test('the totals keep estimated money apart and say so; no estimate, no totals line', () => {
-  const html = bundle.renderToStaticMarkup(bundle.createElement(bundle.EstimateTotals, { totals: { estimated: { AED: 6100, USD: 0.5 } } }));
-  assert.match(html, /data-value-estimated-total/);
-  assert.match(html, /Plus estimated, not measured: 6,100 AED, 1 USD|Plus estimated, not measured: 6,100 AED, 0\.5 USD|Plus estimated, not measured: 6,100 AED, 1 USD/);
-  assert.equal(bundle.renderToStaticMarkup(bundle.createElement(bundle.EstimateTotals, { totals: { estimated: {} } })), '');
-});
-
+// FX-34 (REQ-448): EstimateTotals is gone; every run total is the one run value (ValueTotalsPanel RunValueLine, valueOneTruth.ui).
 // REQ-078 rc7 walk: the Build page passed no route estimate, so 18 cards read "Value not measured yet" and 6 measured cards
 // could be overwritten by a rule line. A card's own measured figure must win; an unmeasured card shows the route's line.
 const lineUc = (uc, estimate) => bundle.renderToStaticMarkup(bundle.createElement(bundle.ValueEstimateLine, { uc, estimate }));
@@ -94,7 +88,7 @@ const notMeasuredUc = {
 test('a measured card keeps its measured figure even when the route says set a rule for it', () => {
   const html = lineUc(measuredUc, { status: 'set_rule' });
   assert.match(html, /data-value-estimate="measured"/);
-  assert.match(html, /USD 77\.1K-231\.4K a year/);
+  assert.match(html, /USD 77\.1K-231K a year/, 'FX-34 (W16 D4): one precision in the Discover sentence');
   assert.doesNotMatch(html, /Set a money rule/);
 });
 

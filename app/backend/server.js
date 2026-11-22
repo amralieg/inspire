@@ -2884,10 +2884,14 @@ app.get('/api/inspire/value/estimates', requireToken, async (req, res) => {
       const sids = rows.slice(0, SESSION_LIST_CAP).map((row) => String(row.session_id)).filter((sid) => !invalidSessionId(sid));
       const answers = await Promise.all(sids.map((sid) => estimatesOfSession(req, warehouse_id, parsedDb, sid)));
       const runs = Object.fromEntries(sids.map((sid, i) => [sid, answers[i]]));
-      return res.json({ runs, totals: VE.mergeTotals(answers.map((answer) => answer.totals)), truncated, cap: SESSION_LIST_CAP, disclaimer: VALUE_DISCLAIMER.full });
+      const { all, byRun } = await runValuesOf(req, warehouse_id, parsedDb);
+      return res.json({ runs, totals: VE.mergeTotals(answers.map((answer) => answer.totals)), run_value: all, run_values: byRun, truncated, cap: SESSION_LIST_CAP, disclaimer: VALUE_DISCLAIMER.full });
     }
     if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
-    res.json({ ...(await estimatesOfSession(req, warehouse_id, parsedDb, String(session_id).trim())), disclaimer: VALUE_DISCLAIMER.full });
+    const sid = String(session_id).trim();
+    const read = await valueRowsOf(req, warehouse_id, parsedDb, sid);
+    const one = await totalsOfSession(req, warehouse_id, parsedDb, sid, read);
+    res.json({ ...one.estimates, run_value: VT.runValueOf(one.use_cases), disclaimer: VALUE_DISCLAIMER.full });
   } catch (err) {
     PM_ERROR.sendFailure(res, PM_ERROR.failureStatus(err), err.message);
   }
@@ -2928,10 +2932,26 @@ async function totalsOfSession(req, warehouse_id, parsedDb, sid, rows = null) {
   const read = rows || await valueRowsOf(req, warehouse_id, parsedDb, sid);
   const saved = new Map(read.answerRows.map((row) => [String(row.use_case_id), VA_ANSWERS.versionOf(row)]));
   const noTable = new Set(read.tables.filter((row) => !String(row.primary_table || '').trim()).map((row) => String(row.id)));
-  const estimates = (await estimatesOfSession(req, warehouse_id, parsedDb, sid, read)).use_cases;
+  const estimated = await estimatesOfSession(req, warehouse_id, parsedDb, sid, read);
+  const estimates = estimated.use_cases;
   const measured = await implementApi.measuredYearlyOf(req, warehouse_id, sid, parsedDb, { ledgerRows: read.ledgerRows, specRows: read.specRows, tableRows: read.tables });
   const tables = Object.fromEntries(read.tables.map((row) => [String(row.id), String(row.primary_table || '')]));
-  return VT.runOf({ ids: read.tables.map((row) => String(row.id)), saved, estimates, measured, noTable, tables });
+  return { ...VT.runOf({ ids: read.tables.map((row) => String(row.id)), saved, estimates, measured, noTable, tables }), estimates: estimated };
+}
+
+// FX-34 (W16 D2/D3/D9): the run value of every run the Start list shows and of all of them, computed once by valueTotals. /value/totals,
+// /value/overall, /value/runs and /value/estimates all answer from here, so the Start banner, bars and cards never disagree.
+async function runValuesOf(req, warehouse_id, parsedDb) {
+  const rows = await readValueRows(req, warehouse_id, VT.sessionsSql(qualifiedInspireTable(parsedDb, '__inspire_session'), SESSION_LIST_CAP));
+  const truncated = rows.length > SESSION_LIST_CAP;
+  const sessions = rows.slice(0, SESSION_LIST_CAP).filter((row) => !invalidSessionId(row.session_id));
+  const sids = sessions.map((row) => String(row.session_id));
+  const read = sids.length ? await valueRowsOf(req, warehouse_id, parsedDb, sids) : null;
+  const answers = await Promise.all(sids.map((sid) => totalsOfSession(req, warehouse_id, parsedDb, sid, splitBySession(read, sid))));
+  const values = answers.map((a) => VT.runValueOf(a.use_cases));
+  const runs = sessions.map((row, i) => ({ session_id: String(row.session_id), name: row.business_name || '', created_at: row.create_at ?? null,
+    ...values[i], run_value: values[i] }));
+  return { runs, all: VT.mergedRunValueOf(answers.map((a) => a.use_cases)), truncated, byRun: Object.fromEntries(sids.map((sid, i) => [sid, values[i]])), answers, sids };
 }
 
 app.get('/api/inspire/value/totals', requireToken, async (req, res) => {
@@ -2943,18 +2963,12 @@ app.get('/api/inspire/value/totals', requireToken, async (req, res) => {
     const parsedDb = splitInspireDatabase(inspire_database);
     if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     if (session_id === undefined || session_id === '') {
-      const rows = await readValueRows(req, warehouse_id, VT.sessionsSql(qualifiedInspireTable(parsedDb, '__inspire_session'), SESSION_LIST_CAP));
-      const truncated = rows.length > SESSION_LIST_CAP;
-      const sessions = rows.slice(0, SESSION_LIST_CAP).filter((row) => !invalidSessionId(row.session_id));
-      const sids = sessions.map((row) => String(row.session_id));
-      const all = sids.length ? await valueRowsOf(req, warehouse_id, parsedDb, sids) : null;
-      const answers = await Promise.all(sids.map((sid) => totalsOfSession(req, warehouse_id, parsedDb, sid, splitBySession(all, sid))));
-      const runs = sessions.map((row, i) => ({ session_id: String(row.session_id), name: row.business_name || '', created_at: row.create_at ?? null,
-        n: answers[i].run.n, n_calculated: answers[i].run.n_calculated, n_estimated: answers[i].run.n_estimated, n_measured: answers[i].run.n_measured, n_none: answers[i].run.n_none, totals: answers[i].run.totals }));
-      return res.json({ runs, all: VT.mergeRuns(runs, answers.map((a) => a.use_cases)), truncated, cap: SESSION_LIST_CAP, disclaimer: VALUE_DISCLAIMER.full });
+      const { runs, all, truncated } = await runValuesOf(req, warehouse_id, parsedDb);
+      return res.json({ runs, all, truncated, cap: SESSION_LIST_CAP, disclaimer: VALUE_DISCLAIMER.full });
     }
     if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
-    res.json({ ...(await totalsOfSession(req, warehouse_id, parsedDb, String(session_id).trim())), disclaimer: VALUE_DISCLAIMER.full });
+    const { estimates: _estimates, ...one } = await totalsOfSession(req, warehouse_id, parsedDb, String(session_id).trim());
+    res.json({ ...one, run_value: VT.runValueOf(one.use_cases), disclaimer: VALUE_DISCLAIMER.full });
   } catch (err) {
     PM_ERROR.sendFailure(res, PM_ERROR.failureStatus(err), err.message);
   }
@@ -2970,7 +2984,7 @@ app.get('/api/inspire/value/overall', requireToken, async (req, res) => {
     if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     const totals = await readValueRows(req, warehouse_id, valueOverallSql(valueLedgerTable(parsedDb), inspireSessionTable(parsedDb)));
     const [counts] = await readValueRows(req, warehouse_id, sessionCountsSql(inspireSessionTable(parsedDb)));
-    res.json({ ...overallValue(totals, counts), disclaimer: VALUE_DISCLAIMER.full });
+    res.json({ ...overallValue(totals, counts), run_value: (await runValuesOf(req, warehouse_id, parsedDb)).all, disclaimer: VALUE_DISCLAIMER.full });
   } catch (err) {
     PM_ERROR.sendFailure(res, 500, err.message);
   }
@@ -2984,7 +2998,8 @@ app.get('/api/inspire/value/runs', requireToken, async (req, res) => {
     }
     const parsedDb = splitInspireDatabase(inspire_database);
     if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
-    res.json({ ...valueOfRuns(await readValueRows(req, warehouse_id, valueRunsSql(valueLedgerTable(parsedDb)))), disclaimer: VALUE_DISCLAIMER.full });
+    const ledger = valueOfRuns(await readValueRows(req, warehouse_id, valueRunsSql(valueLedgerTable(parsedDb))));
+    res.json({ ...ledger, run_values: (await runValuesOf(req, warehouse_id, parsedDb)).byRun, disclaimer: VALUE_DISCLAIMER.full });
   } catch (err) {
     PM_ERROR.sendFailure(res, 500, err.message);
   }

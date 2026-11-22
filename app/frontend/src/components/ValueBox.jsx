@@ -16,6 +16,9 @@ export const moneyText = (unit, amount) => valueChips([{ kind: 'money', unit: un
 export function boxModel({ yearly = null, summary = null, status = '' } = {}) {
   const st = status || summary?.status || '';
   if (st === 'no_data') return { state: 'no_data' };
+  // FX-34 (REQ-448, W16 D5/D18): an estimate saved before Inspire planned each use case on its own data is never shown as current.
+  // A value calculated since (the saved yearly says so) wins over the totals read that has not caught up yet.
+  if (st === 'not_estimated' && !yearly?.calculated) return { state: 'not_estimated', reason: summary?.reason || '' };
   const pick = (verb, unit, amount, calculated, stale = false) => ({ state: stale ? 'stale' : calculated ? 'calculated' : 'estimated', verb, unit, amount: Number(amount), calculated, stale });
   // REQ-440: the MVP's measured money wins over a saved or estimated value.
   if (st === 'measured' && summary && Number.isFinite(Number(summary.amount))) return { state: 'measured', verb: summary.verb, unit: summary.currency, amount: Number(summary.amount), calculated: false, stale: false };
@@ -71,6 +74,19 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
   }, [m.amount]);
   if (m.state === 'no_data') {
     return <div data-value-box="" data-value-box-state="no_data" className={`${BOX} border-border bg-bg-subtle text-text-tertiary`}><span className="px-2 text-[11px]">No data to count</span></div>;
+  }
+  if (m.state === 'not_estimated') {
+    const why = m.reason || 'This use case has no estimate of its own yet.';
+    if (!canCalculate || readOnly) {
+      return <div data-value-box="" data-value-box-state="not_estimated" title={why} className={`${BOX} border-border bg-bg-subtle text-text-secondary`}><span className="px-2 text-[11px]">Not estimated</span></div>;
+    }
+    return (
+      <button type="button" data-value-box="" data-value-box-state="not_estimated" data-value-calculate="" title={why} onClick={(e) => { e.stopPropagation(); onCalculate?.(); }} onKeyDown={stop}
+        className={`${BOX} cursor-pointer border-dashed border-warning/60 bg-surface hover:bg-warning-bg`}>
+        <span className="text-[11px] font-semibold text-text-primary">Not estimated</span>
+        <span className="text-[11px] font-semibold text-db-red-fg">Calculate again</span>
+      </button>
+    );
   }
   if (m.state === 'none') {
     if (!canCalculate || readOnly) return null;

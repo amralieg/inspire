@@ -2,7 +2,9 @@ import { CASE_PLAN_ROUTE, bodyOf, initialAnswers } from './valueWizard.js';
 
 // REQ-441: value for many use cases at once, from the defaults. A pure runner (no React, no network): the worker does one use case.
 export const VALUE_BULK_WORKERS = 4;
-export const SKIP_HAS_VALUE = 'already has a value';
+// FX-34 (REQ-441, W16 D13): bulk turns estimates into calculated values; only a use case already calculated is skipped.
+export const SKIP_CALCULATED = 'already calculated';
+export const isCalculated = (saved) => Boolean(saved && (saved.yearly?.calculated ?? saved.answers?.calculated));
 export const SKIP_NO_TABLE = 'no table to count';
 
 const messageOf = (err) => String(err?.message || err || 'The value could not be calculated.');
@@ -40,7 +42,7 @@ export function runBulk({ items, worker, concurrency = VALUE_BULK_WORKERS, onUpd
   });
 }
 
-// The worker for one use case: the case plan, its defaults, then the same save the wizard makes, with calculated false (an estimate).
+// The worker for one use case: the case plan, its defaults, then the same save the wizard's Calculate makes (calculated true, FX-34 D13).
 // save(id, table, answers) is the plain save (saveAnswers), so the worker needs no mounted page.
 export const valueWorker = ({ apiPostJson, inspireDatabase, warehouseId, sessionId, save }) => async (item) => {
   const got = await apiPostJson(CASE_PLAN_ROUTE, { inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId),
@@ -50,7 +52,7 @@ export const valueWorker = ({ apiPostJson, inspireDatabase, warehouseId, session
   // REQ-448: no model planned this use case, so there is nothing honest to save; the runner shows it as skipped.
   if (!plan.model) throw Object.assign(new Error('Inspire could not reach a model to plan this use case, so it saves no estimate; open Calculate value to set the numbers.'), { status: 422 });
   const answers = initialAnswers(plan);
-  const sent = { ...bodyOf(plan, answers, false).answers, plan: bodyOf(plan, answers).plan };
+  const sent = { ...bodyOf(plan, answers, true).answers, plan: bodyOf(plan, answers, true).plan };
   const saved = await save(item.id, item.table, sent);
   return { ...saved, answers: saved.answers || sent };
 };
@@ -67,4 +69,11 @@ export function bulkSummary(rows = [], items = []) {
   const reasons = [...new Set(late.map((r) => String(r.reason || '').replace(/\.$/, '')))].filter(Boolean);
   const why = done === 0 && reasons.length === 1 ? ` (${reasons[0].charAt(0).toLowerCase()}${reasons[0].slice(1)})` : '';
   return `${done} of ${total} calculated, ${late.length} skipped${why}`;
+}
+
+// FX-34 (W16 D13): what the run skipped before it started, and why: "1 already calculated, skipped".
+export function preSkipNote(items = []) {
+  const by = new Map();
+  for (const it of items) if (it.skip) by.set(it.skip, (by.get(it.skip) || 0) + 1);
+  return [...by].map(([why, n]) => `${n} ${why}, skipped`).join(' · ');
 }

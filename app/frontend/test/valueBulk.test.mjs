@@ -75,13 +75,13 @@ test('Stop after 2 done: the in-flight ones finish, the rest are stopped, nothin
 
 test('skipped items never reach the worker and do not take a slot', async () => {
   const f = fake();
-  const items = [{ id: 'S1', skip: 'already has a value' }, ...ids(4), { id: 'S2', skip: 'no table to count' }];
+  const items = [{ id: 'S1', skip: 'already calculated' }, ...ids(4), { id: 'S2', skip: 'no table to count' }];
   const done = runBulk({ items, worker: f.worker });
   await tick();
   assert.equal(f.open.size, 4);
   for (let i = 1; i <= 4; i += 1) await f.finish(`U${i}`);
   const rows = await done;
-  assert.deepEqual(rows.filter((r) => r.state === 'skipped').map((r) => r.reason), ['already has a value', 'no table to count']);
+  assert.deepEqual(rows.filter((r) => r.state === 'skipped').map((r) => r.reason), ['already calculated', 'no table to count']);
 });
 
 // REQ-443: one copy of the save; the bulk worker and useCalculatedValues.run both use it.

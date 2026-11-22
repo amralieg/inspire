@@ -5,10 +5,8 @@ import MagneticButton from '../components/MagneticButton';
 import { SkeletonCard } from '../components/SkeletonLoader';
 import LatestRunBadge from '../components/LatestRunBadge';
 import PortfolioCards, { usePortfolio } from '../components/PortfolioCards';
-import ValueBadge, { OverallValue } from '../components/ValueBadge';
-import { EstimateTotals } from '../components/ValueEstimateLine';
-import { AllRunsValuePanel } from '../components/ValueTotalsPanel';
-import { valueChips, valueQuery } from '../lib/valueLedger';
+import { AllRunsValuePanel, RunValueLine } from '../components/ValueTotalsPanel';
+import { valueQuery } from '../lib/valueLedger';
 import { useValueRead } from '../lib/useValueLedger';
 import { makeApiFetch, requestHeaders, responseError } from '../lib/apiClient';
 import { saveBlob } from '../lib/download';
@@ -188,12 +186,9 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   const apiFetch = useMemo(() => makeApiFetch({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
   const { portfolio, error: portfolioError } = usePortfolio(apiFetch, inspireDatabase, warehouseId);
   const valueReady = Boolean(inspireDatabase && warehouseId && !showcase);
-  const overallValue = useValueRead(apiFetch, valueReady ? `/api/inspire/value/overall?${valueQuery(inspireDatabase, warehouseId)}` : '');
-  const runsValue = useValueRead(apiFetch, valueReady ? `/api/inspire/value/runs?${valueQuery(inspireDatabase, warehouseId)}` : '');
-  // REQ-078: one read for every run's estimate (the cards and the banner), kept apart from the measured totals.
-  const estimates = useValueRead(apiFetch, valueReady ? `/api/inspire/value/estimates?${valueQuery(inspireDatabase, warehouseId)}` : '');
+  // FX-34 (REQ-448, W16 D2/D3): one read, the run value of every run and of all runs; the panel, its bars and the run cards render it.
   const allTotals = useValueRead(apiFetch, valueReady ? `/api/inspire/value/totals?${valueQuery(inspireDatabase, warehouseId)}` : '');
-  const runValues = runsValue?.runs || {};
+  const runValueOf = (sid) => (allTotals?.runs || []).find((r) => String(r.session_id) === sid)?.run_value || null;
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
@@ -368,7 +363,6 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
         <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
 
         {allTotals?.all && <AllRunsValuePanel reply={allTotals} />}
-        {valueReady && <OverallValue value={overallValue} estimated={estimates?.totals} estimateCap={estimates?.truncated ? estimates.cap : null} />}
         {inspireDatabase && warehouseId && (
           <PortfolioCards portfolio={portfolio} error={portfolioError} sessions={sessions} active={runFilter} onCard={openCard} />
         )}
@@ -516,22 +510,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                               {isCompleted && session.completed_on && <li className="text-text-tertiary">Completed {formatCompletedDate(session.completed_on)}</li>}
                             </ul>
                           )}
-                          {runsValue && (
-                            <div data-run-value="" className="mt-3 space-y-1.5">
-                              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Value of this run</p>
-                              {valueChips(runValues[sidStr]?.at_stake, Infinity).shown.length > 0 ? (
-                                <ValueBadge
-                                  atStake={runValues[sidStr].at_stake}
-                                  saved={runValues[sidStr].saved}
-                                  measured={Number(runValues[sidStr].mvps_measured) > 0}
-                                  mvps={Number(runValues[sidStr].mvps_measured) || 0}
-                                />
-                              ) : (
-                                <p data-run-value-state="not-calculated" className="text-xs leading-snug text-text-secondary">Not calculated</p>
-                              )}
-                              {valueReady && estimates?.runs?.[sidStr]?.totals && <EstimateTotals totals={estimates.runs[sidStr].totals} className="mt-1" />}
-                            </div>
-                          )}
+                          {allTotals && <RunValueLine value={runValueOf(sidStr)} className="mt-3" />}
                           {counts.note && <p data-run-counts-note="" className="mt-1.5 text-[11px] text-text-secondary">{counts.note}</p>}
                           {counts.why.map((line) => (
                             <p key={line} data-run-counts-why="" className="mt-0.5 text-[10px] leading-snug text-text-secondary">{line}</p>

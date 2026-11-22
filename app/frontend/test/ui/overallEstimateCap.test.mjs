@@ -11,7 +11,7 @@ const dir = mkdtempSync(path.join(os.tmpdir(), 'overall-cap-'));
 const outfile = path.join(dir, 'overall.cjs');
 await build({
   stdin: {
-    contents: "export { createElement } from 'react'; export { renderToStaticMarkup } from 'react-dom/server'; export { OverallValue } from './src/components/ValueBadge.jsx';",
+    contents: "export { createElement } from 'react'; export { renderToStaticMarkup } from 'react-dom/server'; export { AllRunsValuePanel } from './src/components/ValueTotalsPanel.jsx';",
     resolveDir: root, loader: 'jsx', sourcefile: 'entry.jsx',
   },
   bundle: true, platform: 'node', format: 'cjs', outfile, logLevel: 'silent', jsx: 'automatic', loader: { '.css': 'empty' },
@@ -19,18 +19,18 @@ await build({
 const bundle = createRequire(import.meta.url)(outfile);
 rmSync(dir, { recursive: true, force: true });
 
-const VALUE = { at_stake: [{ kind: 'money', unit: 'AED', amount: 12000 }], saved: [], runs: 6, businesses: 3 };
-const render = (props) => bundle.renderToStaticMarkup(bundle.createElement(bundle.OverallValue, { value: VALUE, ...props }));
+// FX-34 (REQ-448, W16 D2): the one Start value panel is AllRunsValuePanel (OverallValue is gone); it says when it covers the newest runs only.
+const RUN_VALUE = { totals: [{ currency: 'AED', amount: 12000, calculated: 9000, estimated: 3000 }], n: 2, n_calculated: 1, n_estimated: 1, n_measured: 0, n_none: 0, n_shared: 0 };
+const REPLY = { runs: [{ session_id: '42', name: 'Run', ...RUN_VALUE, run_value: RUN_VALUE }], all: RUN_VALUE, cap: 20 };
+const render = (props) => bundle.renderToStaticMarkup(bundle.createElement(bundle.AllRunsValuePanel, { reply: { ...REPLY, ...props } }));
 
-test('when the estimate covers the latest runs only, the banner says so', () => {
-  const html = render({ estimated: { estimated: { AED: 3000 } }, estimateCap: 20 });
-  assert.match(html, /Plus estimated, not measured: 3,000 AED/);
-  assert.match(html, /data-estimate-cap/);
-  assert.match(html, /Estimate covers the latest 20 runs/);
+test('when the panel covers the latest runs only, it says so', () => {
+  const html = render({ truncated: true });
+  assert.match(html, /Showing the newest 20 runs only/);
 });
 
-test('when every run is covered, the banner names no cap', () => {
-  const html = render({ estimated: { estimated: { AED: 3000 } }, estimateCap: null });
-  assert.match(html, /Plus estimated, not measured: 3,000 AED/);
-  assert.doesNotMatch(html, /data-estimate-cap/);
+test('when every run is covered, the panel names no cap', () => {
+  const html = render({ truncated: false });
+  assert.doesNotMatch(html, /Showing the newest/);
+  assert.match(html, /data-run-value-total/);
 });

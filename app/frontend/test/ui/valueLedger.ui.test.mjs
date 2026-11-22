@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, lowContrast, openUi, setDark } from './uiSupport.mjs';
+import { closeBrowser, lowContrast, openUi, setDark, totalsQueryMissing } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
 import { valueChips } from '../../src/lib/valueLedger.js';
 import { SHOWCASE_NOTE } from '../../src/lib/showcase.js';
@@ -43,6 +43,10 @@ const OVERALL = {
 const DEFAULTS = { envSkipsSetupWizard: true, isDatabricksApp: true, databricksHost: 'https://workspace.example.com', warehouseId: 'wh1',
   inspireDatabase: 'main.inspire', notebookPath: '/Shared/inspire_ai' };
 const RUNS = { runs: { 42: VALUE.run } };
+// FX-34 (REQ-448): the one run value the Review header and the Start page render.
+const RUN_VALUE = { totals: [{ currency: 'AED', amount: 12000, calculated: 9000, estimated: 3000 }], n: 2, n_calculated: 1, n_estimated: 1, n_measured: 0, n_none: 0, n_shared: 0 };
+const TOTALS_ONE = { run: { ...RUN_VALUE, excluded: [], by_verb: [] }, use_cases: {}, run_value: RUN_VALUE };
+const TOTALS_ALL = { runs: [{ session_id: '42', name: 'Acme', ...RUN_VALUE, run_value: RUN_VALUE }], all: RUN_VALUE, truncated: false, cap: 20 };
 const valueHits = [];
 const mountValue = (app) => {
   app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
@@ -51,6 +55,7 @@ const mountValue = (app) => {
   app.get('/api/inspire/value', (_req, res) => res.json(VALUE));
   app.get('/api/inspire/value/overall', (_req, res) => res.json(OVERALL));
   app.get('/api/inspire/value/runs', (_req, res) => res.json(RUNS));
+  app.get('/api/inspire/value/totals', (req, res) => totalsQueryMissing(req, res) || res.json(req.query.session_id ? TOTALS_ONE : TOTALS_ALL));
 };
 const withValue = (results, runs) => ({ ...REVIEW_STATE, results, ...runs });
 
@@ -94,23 +99,24 @@ test('the use case card headlines the largest at stake amount, the saved amount 
   }
 });
 
-test('the run header totals the run across its MVPs, with the headline numbers and from how many MVPs', async () => {
+// FX-34 (REQ-448, W16 D2/D3/D9) replaced the header MVP badge and the Start "reported by owners" banner: the Review header and the Start
+// page render the one run value from /value/totals, so they cannot disagree with the Business panel.
+test('the run header shows the run value from the totals, with its counts and the short disclaimer', async () => {
   const ui = await openUi('results', withValue(REVIEW_RESULTS, {}), '', { mount: mountValue });
   const { page } = ui;
   try {
-    const header = page.locator('[data-run-heading]');
-    await header.locator('[data-value-badge]').waitFor({ timeout: 15000 });
-    assert.equal((await header.locator('[data-value-headline="at stake"]').innerText()).trim(), 'AED 9K');
-    assert.equal((await header.locator('[data-value-headline="saved"]').innerText()).trim(), 'AED 1.5K');
-    assert.deepEqual(await header.locator('[data-value-secondary] [data-value-chip]').evaluateAll((els) => els.map((el) => el.textContent.trim())), ['$4K', '120 hours']);
-    assert.equal((await header.locator('[data-value-mvps]').innerText()).trim(), 'from 2 MVPs');
+    const header = page.locator('[data-run-heading] [data-run-header-value]');
+    await header.locator('[data-run-value-total]').waitFor({ timeout: 15000 });
+    assert.equal((await header.locator('[data-run-value-total]').innerText()).trim(), 'AED 12K');
+    assert.match(await header.innerText(), /1 calculated · 1 estimated/);
+    assert.equal(await header.locator('[data-value-disclaimer]').count(), 1);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }
 });
 
-test('Start shows one overall banner across runs with headline numbers, and each run card carries its value and a Go to Build button', async () => {
+test('Start shows one value panel across runs, each run card carries its run value and a Go to Build button, from one totals read', async () => {
   const ui = await openUi('app', { ...REVIEW_STATE }, '', { mount: mountValue });
   const { page } = ui;
   try {
@@ -119,30 +125,28 @@ test('Start shows one overall banner across runs with headline numbers, and each
     await page.locator('[data-run="42"]').waitFor({ timeout: 20000 });
     const banner = page.locator('[data-value-overall]');
     await banner.waitFor({ timeout: 15000 });
-    assert.match(await banner.innerText(), /across 6 runs, 3 businesses/);
-    assert.match(await banner.innerText(), /reported by owners/);
-    assert.equal((await banner.locator('[data-value-headline="at stake"]').innerText()).trim(), 'AED 12K');
-    assert.equal((await banner.locator('[data-value-headline="saved"]').innerText()).trim(), 'AED 1.5K');
-    const runValue = page.locator('[data-run="42"] [data-run-value]');
-    await runValue.locator('[data-value-badge]').waitFor({ timeout: 15000 });
-    assert.deepEqual(await runValue.locator('[data-value-headline]').evaluateAll((els) => els.map((el) => el.textContent.trim())), ['AED 9K', 'AED 1.5K']);
+    assert.equal(await banner.count(), 1, 'one value panel');
+    assert.equal((await banner.locator('[data-total-amount]').first().innerText()).trim(), 'AED 12K');
+    const runValue = page.locator('[data-run="42"] [data-run-value] [data-run-value-total]');
+    await runValue.waitFor({ timeout: 15000 });
+    assert.equal((await runValue.innerText()).trim(), 'AED 12K');
     assert.equal(await page.locator('[data-run="42"] [data-run-go-build]').count(), 1, 'a run with MVPs and none building shows Go to Build');
-    const runsCalls = valueHits.filter((u) => u.startsWith('/api/inspire/value/runs'));
-    assert.ok(runsCalls.length >= 1 && new Set(runsCalls).size === 1, `one runs read for every run on Start: ${runsCalls.length}`);
-    assert.equal(valueHits.filter((u) => u.startsWith('/api/inspire/value?')).length, 0, 'no per-run call on Start');
+    const totalsCalls = valueHits.filter((u) => u.startsWith('/api/inspire/value/totals'));
+    assert.ok(totalsCalls.length >= 1 && new Set(totalsCalls).size === 1, `one totals read for every run on Start: ${totalsCalls.length}`);
+    assert.equal(valueHits.filter((u) => /^\/api\/inspire\/value(\?|\/runs|\/overall|\/estimates)/.test(u)).length, 0, 'no per-run or second value read on Start');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }
 });
 
-test('when the runs route is missing, Start lists its runs with no value line and no per-run reads', async () => {
+test('when the totals route is missing, Start lists its runs with no value line and no per-run reads', async () => {
   const ui = await openUi('app', { ...REVIEW_STATE }, '', {
     mount: (app) => {
       app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
       app.get('/api/showcase', (_req, res) => res.json({}));
       app.use('/api/inspire/value', (req, _res, next) => { valueHits.push(req.originalUrl); next(); });
-      app.get('/api/inspire/value/runs', (_req, res) => res.status(404).json({ error: 'not found' }));
+      app.get('/api/inspire/value/totals', (_req, res) => res.status(404).json({ error: 'not found' }));
     },
   });
   const { page } = ui;
@@ -164,7 +168,7 @@ test('value chips and the overall banner keep 4.5:1 contrast in light and dark',
   const ui = await openUi('results', withValue(REVIEW_RESULTS, {}), '', { mount: mountValue });
   const { page } = ui;
   try {
-    await page.locator('[data-run-heading] [data-value-badge]').waitFor({ timeout: 15000 });
+    await page.locator('[data-run-heading] [data-run-value-total]').waitFor({ timeout: 15000 });
     for (const dark of [false, true]) {
       await setDark(page, dark);
       const measured = await lowContrast(page, ['[data-run-heading]', '[data-use-case-no="N01-U01"]', '[data-use-case-no="N01-U02"]']);

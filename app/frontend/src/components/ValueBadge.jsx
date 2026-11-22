@@ -1,6 +1,5 @@
 import { plural } from '../lib/plural';
 import { valueChips } from '../lib/valueLedger';
-import { EstimateTotals } from './ValueEstimateLine';
 import ValueDisclaimer from './ValueDisclaimer';
 
 const isCount = (entry) => entry?.kind === 'count';
@@ -50,22 +49,5 @@ export default function ValueBadge({ atStake, saved, measured = true, mvps = nul
       {meta && <p data-value-mvps="" className="mt-2 text-[11px] text-text-secondary">{meta}</p>}
       <ValueDisclaimer short={compact} className="mt-2 block" />
     </div>
-  );
-}
-
-export function OverallValue({ value, estimated = null, estimateCap = null }) {
-  if (!value || !(Number(value.runs) > 0)) return null;
-  return (
-    <section aria-label="Value across runs" data-value-overall="" className="rounded-xl border border-border bg-surface px-4 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-secondary">Value across runs</p>
-      <div className="mt-2">
-        <ValueBadge atStake={value.at_stake} saved={value.saved} />
-      </div>
-      <p className="mt-2 text-[11px] text-text-secondary">
-        across {plural(value.runs, 'run')}, {plural(value.businesses, 'business', 'businesses')} · saved is as reported by owners
-      </p>
-      {estimated && <EstimateTotals totals={estimated} className="mt-1" />}
-      {estimated && estimateCap && <p data-estimate-cap="" className="mt-1 text-[11px] text-text-tertiary">{`Estimate covers the latest ${estimateCap} runs`}</p>}
-    </section>
   );
 }

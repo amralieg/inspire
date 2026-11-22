@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { closeBrowser, openUi } from './uiSupport.mjs';
+import { closeBrowser, openUi, totalsQueryMissing } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
 import { VALUE_DISCLAIMER, VALUE_DISCLAIMER_SHORT } from '../../src/lib/valueLabels.js';
 
@@ -14,6 +14,8 @@ const DEFAULTS = { envSkipsSetupWizard: true, isDatabricksApp: true, databricksH
 const money = [{ kind: 'money', unit: 'USD', amount: 120000 }];
 const yearly = { verb: 'INCREASE REVENUE', period: 'Per Year', estimated: true, entries: [{ kind: 'money', unit: 'USD', amount: 15e6 }],
   basis: { sampled_records: 1200, eligible_records: 48000, days: 90 } };
+// FX-34 (REQ-448): the one run value the Review header, the Start panel and the run cards render.
+const RUN_VALUE = { totals: [{ currency: 'USD', amount: 120000, calculated: 120000, estimated: 0 }], n: 1, n_calculated: 1, n_estimated: 0, n_measured: 0, n_none: 0, n_shared: 0 };
 const mount = (app) => {
   app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
   app.get('/api/showcase', (_req, res) => res.json({}));
@@ -21,6 +23,9 @@ const mount = (app) => {
   app.get('/api/inspire/value/overall', (_req, res) => res.json({ at_stake: money, saved: [], runs: 1, businesses: 1 }));
   app.get('/api/inspire/value/runs', (_req, res) => res.json({ runs: { 42: { at_stake: money, saved: [], mvps_measured: 1 } } }));
   app.get('/api/inspire/value/yearly', (_req, res) => res.json({ use_cases: { 'N01-U01': yearly } }));
+  app.get('/api/inspire/value/totals', (req, res) => totalsQueryMissing(req, res) || res.json(req.query.session_id
+    ? { run: { ...RUN_VALUE, excluded: [], by_verb: [] }, use_cases: {}, run_value: RUN_VALUE }
+    : { runs: [{ session_id: '42', name: 'Acme', ...RUN_VALUE, run_value: RUN_VALUE }], all: RUN_VALUE, truncated: false, cap: 20 }));
 };
 
 test('the disclaimer is one constant with the agreed words', () => {
@@ -44,12 +49,13 @@ test('the card value box carries the full text in its tooltip', async () => {
   }
 });
 
-test('the measured value badge on the Results page and the value across runs on the Choose page both carry the disclaimer', async () => {
+// FX-34 (REQ-448, W16 D9): the Review header shows the run value (the header MVP badge is gone), so the disclaimer moved with it.
+test('the run value in the Review header, the value across runs and each run card on the Choose page carry the disclaimer', async () => {
   const results = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS }, '', { mount });
   try {
-    const badge = results.page.locator('[data-value-badge]').first();
-    await badge.waitFor({ timeout: 15000 });
-    assert.ok((await badge.locator('xpath=..').innerText()).includes(FULL), 'a full disclaimer sits with the measured badge');
+    const header = results.page.locator('[data-run-header-value]');
+    await header.locator('[data-run-value-total]').waitFor({ timeout: 15000 });
+    assert.equal(await header.locator('[data-value-disclaimer]').getAttribute('title'), FULL, 'the header run value carries the disclaimer');
   } finally {
     await results.close();
   }
@@ -58,10 +64,11 @@ test('the measured value badge on the Results page and the value across runs on 
     await choose.page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
     const overall = choose.page.locator('[data-value-overall]');
     await overall.waitFor({ timeout: 20000 });
+    await overall.locator('[data-value-disclaimer]').waitFor({ timeout: 15000 });
     assert.ok((await overall.innerText()).includes(FULL), 'value across runs carries the full text');
     const runValue = choose.page.locator('[data-run="42"] [data-run-value]');
-    await runValue.locator('[data-value-badge]').waitFor({ timeout: 15000 });
-    assert.ok((await runValue.innerText()).includes(FULL), 'a run value carries the full text');
+    await runValue.locator('[data-run-value-total]').waitFor({ timeout: 15000 });
+    assert.equal(await runValue.locator('[data-value-disclaimer]').getAttribute('title'), FULL, 'a run value carries the disclaimer');
   } finally {
     await choose.close();
   }

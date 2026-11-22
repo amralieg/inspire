@@ -56,7 +56,17 @@ function fallbackPlan(columns, groupBy = '') {
 }
 
 // ---- the model call ----
-function planMessages({ table, columns }) {
+// FX-34 (W16 D5): the plan is for one use case. Before, the prompt named only the table, so every use case on a table got the same plan
+// and the same defaults, hence the same amount. PLAN_BASIS marks a plan made this way; a saved estimate without it is not shown as current.
+const PLAN_BASIS = 'use_case';
+const useCaseText = (uc) => {
+  if (!uc || typeof uc !== 'object') return '';
+  const lines = [['Use case', uc.use_case || uc.name || uc.id], ['Statement', uc.statement], ['Business value', uc.business_value]]
+    .map(([k, v]) => [k, text(v, 600)]).filter(([, v]) => v);
+  return lines.length ? `\n${lines.map(([k, v]) => `${k}: ${v}`).join('\n')}` : '';
+};
+
+function planMessages({ table, columns, useCase = null }) {
   const system = [
     'You plan how to put a value per year on one use case over one data table. Answer with one JSON object and nothing else:',
     '{"case_noun": "singular lower case noun for one record, e.g. fraud case",',
@@ -68,8 +78,9 @@ function planMessages({ table, columns }) {
     'Use only the listed columns, the driver ids and the input ids below. records means the number of records per year in the group.',
     `Drivers and inputs: ${DEF.drivers.map((d) => `${d.id} (${d.inputs.map((i) => `${i.id}:${i.kind}`).join(', ')})`).join('; ')}`,
     'Percent inputs are 0-100. Mark a driver on only when the data supports it.',
+    'Plan for the use case named below: its filter, drivers and estimates fit what it does, not the table in general. The user\'s own input always wins.',
   ].join('\n');
-  const user = `Table: ${table}\nColumns: ${columns.map((c) => `${nameOf(c)} ${c.data_type}`).join(', ')}`;
+  const user = `Table: ${table}\nColumns: ${columns.map((c) => `${nameOf(c)} ${c.data_type}`).join(', ')}${useCaseText(useCase)}`;
   return [{ role: 'system', content: system }, { role: 'user', content: user }];
 }
 
@@ -247,4 +258,4 @@ function isStale(plan, row) {
   return saved === 0 ? now > 0 : Math.abs(now - saved) / saved > 0.1;
 }
 
-module.exports = { currentCountSql, isStale, planMessages, planFrom, fallbackPlan, groupedSql, groupsFrom, yearlyOf, GROUP_MIN_RECORDS, GROUP_MAX_GROUPS, DISCLAIMER };
+module.exports = { PLAN_BASIS, currentCountSql, isStale, planMessages, planFrom, fallbackPlan, groupedSql, groupsFrom, yearlyOf, GROUP_MIN_RECORDS, GROUP_MAX_GROUPS, DISCLAIMER };

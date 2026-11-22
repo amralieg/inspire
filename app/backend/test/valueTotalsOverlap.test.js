@@ -8,7 +8,7 @@ const IV = require('../lib/inspireValue');
 
 const entry = (table, amount, { filter = null, calculated = false } = {}) => VA.versionOf({
   version: 1,
-  answers: JSON.stringify({ shape: 2, currency: 'USD', attribution_pct: 100, calculated, plan: { table, case_filter: filter, groups: [{ g: 'a' }] } }),
+  answers: JSON.stringify({ shape: 2, currency: 'USD', attribution_pct: 100, calculated, plan: { basis: 'use_case', table, case_filter: filter, groups: [{ g: 'a' }] } }),
   yearly: JSON.stringify({ verb: 'AVOID RISK', currency: 'USD', calculated, estimated: !calculated, total: { unit: 'USD', amount }, parts: [{ id: 'risk_avoided', label: 'Risk avoided', verb: 'AVOID RISK', amount }] }),
 });
 const fixture = (over = {}) => new Map(Object.entries({

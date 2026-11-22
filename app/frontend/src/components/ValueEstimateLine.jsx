@@ -39,17 +39,6 @@ function RuleEstimateLine({ estimate, className, onSetRule }) {
   );
 }
 
-export function EstimateTotals({ totals, className = '' }) {
-  const entries = Object.entries(totals?.estimated || {});
-  if (!entries.length) return null;
-  return (
-    <p data-value-estimated-total="" className={`text-xs leading-snug text-text-secondary ${className}`}>
-      {`Plus estimated, not measured: ${entries.map(([code, amount]) => `${amountText(amount)} ${code}`).join(', ')} `}
-      <ValueDisclaimer short />
-    </p>
-  );
-}
-
 export default function ValueEstimateLine({ uc = null, estimate: given = null, className = '', onSetRule = null }) {
   const own = valueEstimateOf(uc);
   // A measured figure is the figure: a rule estimate never replaces it (REQ-078).

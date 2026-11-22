@@ -10,7 +10,7 @@ const QUERY = 'inspire_database=c.s&warehouse_id=w1';
 const CAP = 20;
 
 const saved = (id, version, amount, { shape = 2, calculated = false, currency = 'USD', verb = 'REDUCE COST' } = {}) => [
-  id, String(version), JSON.stringify(shape ? { shape, currency, calculated } : { currency }),
+  id, String(version), JSON.stringify(shape ? { shape, currency, calculated, plan: { basis: 'use_case', use_case_id: id } } : { currency }), // FX-34: a current estimate carries its own plan basis
   JSON.stringify({ verb, calculated, estimated: !calculated, currency, total: { unit: currency, amount }, parts: [{ id: 'p', verb, amount }] }), '2026-11-21 10:00:00', 'p@example.com', '',
 ];
 const RULE = { use_case_name: 'App', money: { currency: 'convert', base: 'USD', value: { method: 'fixed', amount: 50, currency: 'USD' } }, config: { result_table: 'c.s.orders' } };
@@ -184,7 +184,10 @@ test('all-runs rows equal the single-run read of each session, and all is mergeR
     assert.equal(body.runs[i].session_id, sid);
     assert.deepEqual(pick(body.runs[i]), pick(one), `run ${sid}`);
   }
-  assert.deepEqual(body.all, VT.mergeRuns(body.runs));
+  // FX-34 (REQ-448): all is the one merged run value (valueTotals.mergedRunValueOf), with the same totals and counts mergeRuns gives.
+  const counts = ({ totals, n_calculated, n_estimated, n_measured }) => ({ totals, n_calculated, n_estimated, n_measured });
+  assert.deepEqual(counts(body.all), counts(VT.mergeRuns(body.runs)));
+  assert.equal(body.all.n, body.runs.reduce((s, r) => s + r.n, 0));
 });
 
 test('a single-run read never sends the same statement twice', async () => {

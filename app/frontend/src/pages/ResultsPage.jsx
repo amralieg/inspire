@@ -44,9 +44,7 @@ import { SkeletonCard, SkeletonStats } from '../components/SkeletonLoader';
 import { DataAccessBadge, InsightsGrid, SidebarFilterPanel } from '../components/ResultsInsights';
 import { usePortfolio } from '../components/PortfolioCards';
 import UseCaseCard from '../components/UseCaseCard';
-import ValueBadge from '../components/ValueBadge';
-import { EstimateTotals } from '../components/ValueEstimateLine';
-import { RunValuePanel } from '../components/ValueTotalsPanel';
+import { RunValueLine, RunValuePanel } from '../components/ValueTotalsPanel';
 import { valueQuery } from '../lib/valueLedger';
 import { useValueRead } from '../lib/useValueLedger';
 import LatestRunBadge from '../components/LatestRunBadge';
@@ -102,7 +100,7 @@ import ImplementWizard from './ImplementWizard';
 import CalculateValueDialog from '../components/CalculateValueDialog';
 import ValueBulkPanel, { ValueBulkBar, ValueBulkProgress } from '../components/ValueBulkPanel';
 import { useValueBulkRun } from '../lib/valueBulkRun';
-import { SKIP_HAS_VALUE, SKIP_NO_TABLE, valueWorker } from '../lib/valueBulk';
+import { SKIP_CALCULATED, SKIP_NO_TABLE, isCalculated, valueWorker } from '../lib/valueBulk';
 import { saveAnswers, tableOfUseCase, useCalculatedValues } from '../lib/calculatedValue';
 import { kindFilterLabel, kindFilterOptions, matchesKindFilter } from '../lib/useCaseKind';
 import { MVP_FILTERS, START_MVP_LABEL, implementState, mvpFilterMatches, notebookRunEnded, notebookStatus, versionActive } from '../lib/implementWizard';
@@ -655,10 +653,13 @@ export default function ResultsPage({
     requestAnimationFrame(() => requestAnimationFrame(() => scrollToCard(id)));
   };
   const yearlyOf = useCallback((id) => {
+    // FX-34 (W16 D6): the refine banner compares only a use case's own value: never one not estimated, without data, or a shared estimate.
+    const e = valueTotals?.use_cases?.[id];
+    if (e && (e.status === 'not_estimated' || e.status === 'no_data' || (e.status === 'estimated' && e.overlap))) return null;
     const y = calculated.byId[id]?.yearly || measuredYearly?.use_cases?.[id] || null;
     // A shape-2 value carries its total, not entries; the score refine reads entries.
     return y && !y.entries && y.total ? { ...y, entries: [{ kind: 'money', unit: y.total.unit, amount: y.total.amount }] } : y;
-  }, [calculated.byId, measuredYearly]);
+  }, [calculated.byId, measuredYearly, valueTotals]);
   const { list: allUseCases, banner: refineBanner, undoCard: undoRefinedCard } = useScoreRefine({ useCases: builtUseCases, yearlyOf, apiPostJson, host: settings?.databricksHost,
     inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId });
   const qualityBarCounts = useMemo(() => qualityBarCountsOf(allUseCases), [allUseCases]);
@@ -756,7 +757,7 @@ export default function ResultsPage({
     const items = filteredUseCases.filter((uc) => picked.has(trackingIdOf(uc))).map((uc) => {
       const id = trackingIdOf(uc);
       const table = tableOfUseCase(uc);
-      return { id, name: nameOfUseCase(uc), table, skip: calculated.byId[id] ? SKIP_HAS_VALUE : !table ? SKIP_NO_TABLE : '' };
+      return { id, name: nameOfUseCase(uc), table, skip: isCalculated(calculated.byId[id]) ? SKIP_CALCULATED : !table ? SKIP_NO_TABLE : '' };
     });
     const where = { inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId };
     bulkRun.start({ sessionId: selectedSessionId, items, worker: valueWorker({ apiPostJson, ...where, save: (id, table, answers) => saveAnswers(apiPutJson, where, id, table, answers) }) });
@@ -1217,16 +1218,8 @@ export default function ResultsPage({
               {runDate(selectedSession) && <span>· Updated {formatSessionDate(runDate(selectedSession))}</span>}
               <LatestRunBadge session={selectedSession} latest={String(selectedSessionId) === latestId} />
             </p>
-            {runValue?.run && (
-              <ValueBadge
-                atStake={runValue.run.at_stake}
-                saved={runValue.run.saved}
-                measured={Number(runValue.run.mvps_measured) > 0}
-                mvps={Number(runValue.run.mvps_measured) || 0}
-                className="mt-2"
-              />
-            )}
-            {!valueTotals?.run && estimates?.totals && <EstimateTotals totals={estimates.totals} className="mt-1" />}
+            {/* FX-34 (REQ-448, W16 D9): the header says the run value the Business panel and the Start card say. */}
+            {valueTotals?.run && <div data-run-header-value="" className="mt-2"><RunValueLine value={valueTotals.run_value || valueTotals.run} /></div>}
           </div>
           <button
             type="button"

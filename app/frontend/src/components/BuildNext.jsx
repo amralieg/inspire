@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import ValueEstimateLine from './ValueEstimateLine';
+import { moneyText as boxMoneyText } from './ValueBox';
 import { AppReadAccess } from './AppReadAccess';
 import { PlainMessage } from './TechnicalDetails';
 import { raisePermissions } from '../lib/permissionBus';
@@ -13,7 +14,17 @@ const BUILD_NOW_BUTTON = 'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-
 const BUILD_CUSTOM_BUTTON = 'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-xs font-semibold text-text-primary hover:bg-bg-subtle';
 
 // REQ-078: a sibling shows its own estimate from its domain's money rule, or asks for a rule (the same route and line as Review).
+// FX-34 (REQ-448, W16 D12): a use case the value totals already value shows that amount, the one its card shows.
+const VALUED = { calculated: 'calculated', estimated: 'estimated', measured: 'measured' };
 export function RunValue({ row, onMeasure }) {
+  const v = row.value;
+  if (v && VALUED[v.status] && Number.isFinite(Number(v.amount)) && v.amount != null) {
+    return (
+      <p data-value-estimate="value" className="text-xs leading-snug text-text-secondary">
+        {`${v.verb || 'Value at stake'}: `}<span data-value-line-amount="" className="font-semibold tabular-nums text-text-primary">{boxMoneyText(v.currency, v.amount)}</span>{` a year (${VALUED[v.status]})`}
+      </p>
+    );
+  }
   if (row.estimate) return <ValueEstimateLine estimate={row.estimate} onSetRule={onMeasure ? () => onMeasure(row.id) : undefined} />;
   if (row.uc && row.est) return <ValueEstimateLine uc={row.uc} />;
   return (
@@ -35,14 +46,16 @@ export function useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, 
     let cancelled = false;
     const q = new URLSearchParams({ inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId) });
     const estimates = showcase ? Promise.resolve({ use_cases: {} }) : apiFetch(`/api/inspire/value/estimates?${q}`);
-    Promise.all([apiFetch(`/api/inspire/usecases?${q}`), apiFetch(`/api/inspire/implement/history?${q}`), estimates])
-      .then(([cases, history, estimates]) => {
+    const totals = showcase ? Promise.resolve({ use_cases: {} }) : apiFetch(`/api/inspire/value/totals?${q}`).catch(() => ({ use_cases: {} }));
+    Promise.all([apiFetch(`/api/inspire/usecases?${q}`), apiFetch(`/api/inspire/implement/history?${q}`), estimates, totals])
+      .then(([cases, history, estimates, totals]) => {
         if (cancelled) return;
         const latest = history?.latest || [];
         const statusById = Object.fromEntries(latest.map((row) => [String(row.use_case_id ?? ''), row.status]));
         const liveSpecs = Object.fromEntries(latest.map((row) => [String(row.use_case_id ?? ''), row.live_spec_json]));
         const byUseCase = estimates?.use_cases || {};
-        const rows = buildItems(cases?.usecases || [], statusById).map((row) => ({ ...row, estimate: byUseCase[String(row.id)] ?? null }));
+        const valued = totals?.use_cases || {};
+        const rows = buildItems(cases?.usecases || [], statusById).map((row) => ({ ...row, estimate: byUseCase[String(row.id)] ?? null, value: valued[String(row.id)] ?? null }));
         setState({ rows, liveSpecs, error: '' });
       })
       .catch((err) => { if (!cancelled) setState({ rows: null, liveSpecs: {}, error: String(err?.message || err) }); });

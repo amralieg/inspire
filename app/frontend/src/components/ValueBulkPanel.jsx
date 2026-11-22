@@ -2,7 +2,7 @@ import ModalDialog from './ModalDialog';
 import { PlainMessage } from './TechnicalDetails';
 import { bulkCounts, useValueBulkRun } from '../lib/valueBulkRun';
 import { totalText } from '../lib/valueWizard.js';
-import { bulkSummary } from '../lib/valueBulk.js';
+import { bulkSummary, preSkipNote } from '../lib/valueBulk.js';
 
 const btn = 'rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle disabled:opacity-50';
 const LABELS = { waiting: 'Waiting', working: 'Working', stopped: 'Stopped' };
@@ -44,6 +44,7 @@ export default function ValueBulkPanel() {
         </>
       ) : <button type="button" onClick={close} className={btn}>Close</button>}>
       <p data-bulk-progress="" aria-live="polite" className="text-sm font-semibold text-text-primary">{bulkSummary(rows, items)}</p>
+      {preSkipNote(items) && <p data-bulk-skipped="" className="text-xs text-text-secondary">{preSkipNote(items)}</p>}
       <ul className="divide-y divide-border">
         {rows.map((r) => (
           <li key={r.id} data-bulk-row={r.id} data-bulk-state={r.state} className="flex items-baseline gap-3 py-2 text-sm">

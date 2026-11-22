@@ -4,6 +4,7 @@ const VA = require('./valueAnswers');
 const { idList } = require('./inspireValue');
 const VP = require('./valuePlausibility');
 const OV = require('./valueOverlap');
+const { PLAN_BASIS } = require('./valueCasePlan');
 
 const round2 = (n) => Math.round(n * 100) / 100;
 const finite = (v) => v !== null && v !== undefined && v !== '' && typeof v !== 'boolean' && Number.isFinite(Number(v));
@@ -36,7 +37,16 @@ function flagged(entry) {
 
 // One use case: {status, verb, amount, currency}. saved = VA.versionOf(row) or null; estimate = the valueEstimate entry or null;
 // measured = the measured yearly of the use case's MVP or null (it wins over both).
-function useCaseOf({ saved = null, estimate = null, measured = null, hasTable = true, table = '' } = {}) {
+// FX-34 (W16 D5/D6/D18): an estimate (shape 2, not calculated) counts only when its plan was made for this use case (PLAN_BASIS and its id).
+// One saved before that, or copied from another use case, shares a table-wide default: it is "not estimated" with the reason, never current.
+const NOT_ESTIMATED_REASON = 'This estimate was saved before Inspire planned each use case on its own data, so it is not counted: calculate it again.';
+const NO_DATA_REASON = 'This use case names no table Inspire can count, so it has no estimate.';
+const ownPlan = (saved, id) => {
+  const plan = saved.answers && saved.answers.plan;
+  return Boolean(plan && plan.basis === PLAN_BASIS && (!id || plan.use_case_id === undefined || String(plan.use_case_id) === String(id)));
+};
+
+function useCaseOf({ id = '', saved = null, estimate = null, measured = null, hasTable = true, table = '' } = {}) {
   const money = measuredOf(measured);
   if (money) return withHidden(flagged(money), OV.wholeKeys(table, 'measured', 'measured', money.currency, money.amount));
   const yearly = saved && saved.yearly;
@@ -44,6 +54,7 @@ function useCaseOf({ saved = null, estimate = null, measured = null, hasTable = 
   if (finite(amount)) {
     const shape2 = Boolean(saved.answers && saved.answers.shape === 2);
     const calculated = shape2 && Boolean(yearly.calculated ?? saved.answers.calculated);
+    if (shape2 && !calculated && !ownPlan(saved, id)) return { status: 'not_estimated', stale: true, reason: NOT_ESTIMATED_REASON, verb: '', amount: null, currency: '' };
     const currency = String(yearly.currency ?? (saved.answers && saved.answers.currency) ?? yearly.total.unit ?? '');
     const verb = String(yearly.verb || (yearly.parts && yearly.parts[0] && yearly.parts[0].verb) || FALLBACK_VERB);
     const entry = { status: calculated ? 'calculated' : 'estimated', verb, amount: Number(amount), currency };
@@ -59,7 +70,7 @@ function useCaseOf({ saved = null, estimate = null, measured = null, hasTable = 
     const entry = { status: 'estimated', verb: FALLBACK_VERB, amount: Number(estimate.amount), currency };
     return withHidden(flagged(entry), OV.estimateKeys(estimate, currency, Number(estimate.amount)));
   }
-  return { status: hasTable ? 'none' : 'no_data', verb: '', amount: null, currency: '' };
+  return hasTable ? { status: 'none', verb: '', amount: null, currency: '' } : { status: 'no_data', reason: NO_DATA_REASON, verb: '', amount: null, currency: '' };
 }
 
 const COUNTED = ['calculated', 'estimated', 'measured'];
@@ -85,8 +96,11 @@ function countable(useCases) {
   const items = [];
   for (const [id, e] of Object.entries(useCases)) {
     if (!COUNTED.includes(e.status)) continue;
+    // A second count (the run value after the run panel, all runs after each run) starts from a clean entry.
+    delete e.counted; delete e.overlap; delete e.counted_amount;
     if (e.status === 'estimated' && e.check && e.check.outside) {
       e.counted = false;
+      e.counted_amount = 0;
       const row = excluded.get(e.currency) || { currency: e.currency, amount: 0, n: 0 };
       row.amount = round2(row.amount + e.amount);
       row.n += 1;
@@ -103,10 +117,13 @@ function countable(useCases) {
     if (r.keyed && r.counted <= 0 && item.amount > 0) {
       item.e.counted = false;
       item.e.overlap = { counted: false, with: r.with, not_counted: item.amount };
+      item.e.counted_amount = 0;
       shared += 1;
       continue;
     }
     if (r.shared.length) item.e.overlap = { counted: true, shared_with: r.shared };
+    // REQ-454 (W16 D7): the amount this row adds to the total, so the rows a person sees add up to it.
+    item.e.counted_amount = round2(r.counted);
     counted.push({ status: item.status, currency: item.currency, verb: item.e.verb, amount: round2(r.counted) });
   }
   return { counted, excluded: [...excluded.values()], shared };
@@ -155,8 +172,22 @@ function mergeRuns(runs, useCasesByRun = null) {
 // without a primary table.
 function runOf({ ids, saved, estimates, measured = {}, noTable, tables = {} }) {
   const useCases = {};
-  for (const id of ids) useCases[id] = useCaseOf({ saved: saved.get(id) || null, estimate: estimates[id] || null, measured: measured[id] || null, hasTable: !noTable.has(id), table: tables[id] || '' });
+  for (const id of ids) useCases[id] = useCaseOf({ id, saved: saved.get(id) || null, estimate: estimates[id] || null, measured: measured[id] || null, hasTable: !noTable.has(id), table: tables[id] || '' });
   return { run: summarize(useCases), use_cases: useCases };
 }
 
-module.exports = { answersSql, sessionsSql, tablesSql, useCaseOf, totalsOf, summarize, mergeRuns, runOf };
+// FX-34 (W16 D2/D3/D9): THE run value. Every value route returns it and every surface (Start banner and bars, run card, Review header,
+// Business panel) renders it, so no two of them can disagree. useCases: one run's use_cases (runOf).
+function runValueOf(useCases) {
+  const s = summarize(useCases || {});
+  return { totals: s.totals, n: s.n, n_calculated: s.n_calculated, n_estimated: s.n_estimated, n_measured: s.n_measured, n_none: s.n_none, n_shared: s.n_shared };
+}
+
+// The run value of several runs as one: the same pool of money in two runs counts once.
+function mergedRunValueOf(useCasesByRun) {
+  const all = {};
+  (useCasesByRun || []).forEach((cases, i) => { for (const [id, e] of Object.entries(cases || {})) all[`${i}:${id}`] = e; });
+  return runValueOf(all);
+}
+
+module.exports = { answersSql, sessionsSql, tablesSql, useCaseOf, totalsOf, summarize, mergeRuns, runOf, runValueOf, mergedRunValueOf, NOT_ESTIMATED_REASON };

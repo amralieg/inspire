@@ -125,13 +125,21 @@ export function dataSignalLine(signal) {
 const UNKNOWN_CURRENCY_STORED = '(currency not known)';
 const UNRECORDED_CURRENCY_ACTION = '(no currency recorded on this run: run Discover again to convert it to the reporting currency)';
 
+// FX-34 (REQ-448, W16 D4): the stored Discover sentence reads clean: no nested brackets, one precision (three significant figures).
+export function cleanValueText(text) {
+  return String(text || '')
+    .replace(/\(reporting currency ([A-Z]{3}) \(default\)\)/g, '(currency $1, default)')
+    .replace(/\(currency assumed: ([A-Z]{3}) \(reporting currency\)\)/g, '(currency assumed: $1, the reporting currency)')
+    .replace(/(\d+(?:\.\d+)?)([KMB])\b/g, (_m, n, unit) => `${Number(Number(n).toPrecision(3))}${unit}`);
+}
+
 export function valueEstimateOf(uc) {
   const u = uc && typeof uc === 'object' ? uc : {};
   const parsed = parseJson(fieldOf(u, 'Value Estimate', 'value_estimate'));
   const estimate = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   const stored = String(u.value_estimate_text || estimate.text || '').trim();
   const currency = estimate.currency || null;
-  const text = currency ? stored : stored.split(UNKNOWN_CURRENCY_STORED).join(UNRECORDED_CURRENCY_ACTION);
+  const text = cleanValueText(currency ? stored : stored.split(UNKNOWN_CURRENCY_STORED).join(UNRECORDED_CURRENCY_ACTION));
   return text ? { text, measured: estimate.status === 'measured', currency } : null;
 }
 
