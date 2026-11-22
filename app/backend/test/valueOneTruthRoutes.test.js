@@ -89,7 +89,13 @@ const USE_CASE_ROWS = [{ id: 'N01-U01', use_case: 'Spot late deliveries', statem
 
 test('1a: case-plan asks the model about the use case it plans, and the plan carries its use case and basis', async () => {
   const made = makeApp({ forwardedToken: 'person-tok', columns: COLUMNS, useCases: USE_CASE_ROWS,
-    responses: { 'GET /api/2.0/serving-endpoints': ENDPOINTS, 'POST /serving-endpoints/chat-1/invocations': [{ choices: [{ message: { content: JSON.stringify(MODEL_PLAN) } }] }] },
+    responses: { 'GET /api/2.0/serving-endpoints': ENDPOINTS },
+    workspace: ({ path, method, body }) => {
+      if (method !== 'POST' || !path.includes('/invocations')) return undefined;
+      const first = String(body.messages[0].content);
+      const answer = /^You anchor/.test(first) ? {} : /^You review/.test(first) ? { approved: true, amount: 0, reason: 'ok' } : MODEL_PLAN;
+      return [{ choices: [{ message: { content: JSON.stringify(answer) } }] }];
+    },
     statements: { 'AS records': (sql) => (sql.includes(' AS g') ? { rows: [{ g: 'north', records: '4000' }] } : { rows: [{ records: '4000', days: '365' }] }) } });
   const srv = await listen(made.app);
   const plans = [];
@@ -105,7 +111,8 @@ test('1a: case-plan asks the model about the use case it plans, and the plan car
     await srv.close();
   }
   assert.deepEqual(plans.map((p) => [p.use_case_id, p.basis]), [['N01-U01', 'use_case'], ['N01-U02', 'use_case']]);
-  const asked = made.fetches.filter((f) => f.path.includes('/invocations')).map((f) => String(f.opts && f.opts.body));
+  const asked = made.fetches.filter((f) => f.path.includes('/invocations')).map((f) => String(f.opts && f.opts.body))
+    .filter((b) => !/^You (anchor|review)/.test(JSON.parse(b).messages[0].content));
   assert.equal(asked.length, 2);
   assert.match(asked[0], /Spot late deliveries/);
   assert.match(asked[1], /Price by demand/);

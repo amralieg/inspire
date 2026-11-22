@@ -30,6 +30,10 @@ test('the case plan call sends a body an endpoint that refuses temperature accep
   const bodies = [];
   const got = await planWith(({ path: p, body }) => {
     if (!p.endsWith('/chat-new/invocations')) return undefined;
+    // REQ-472: anchor and review calls are answered apart from the plan call.
+    const first = String(body.messages[0].content);
+    if (/^You anchor/.test(first)) return [{ choices: [{ message: { content: '{}' } }] }, 200];
+    if (/^You review/.test(first)) return [{ choices: [{ message: { content: JSON.stringify({ approved: true, amount: 0, reason: 'ok' }) } }] }, 200];
     bodies.push(body);
     if ('temperature' in body) return [{ message: 'Model global.anthropic.claude-opus-5-5 does not support the temperature parameter.' }, 400];
     return [{ choices: [{ message: { content: JSON.stringify(PLAN) } }] }, 200];

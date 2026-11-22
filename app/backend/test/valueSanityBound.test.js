@@ -17,20 +17,30 @@ const POPULATION = { rows: [{ records: '4000', days: '365' }] };
 const planWorth = (amount) => ({ case_noun: 'order', case_filter: null, groupings: [{ column: 'region', label: 'By region' }], metrics: [],
   drivers: [{ id: 'revenue_uplift', label: 'Uplift', on: true, why: 'more sales', asks: [
     { id: 'base_revenue_per_year', source: 'estimate', default: amount, why: 'a guess' }, { id: 'uplift_pct', source: 'estimate', default: 100, why: 'a guess' }] }] });
+const plainReply = (obj) => [{ choices: [{ message: { content: JSON.stringify(obj) } }] }];
 const reply = (amount) => [{ choices: [{ message: { content: JSON.stringify(planWorth(amount)) } }] }];
 // The model answers each call with the next amount (the last one repeats).
 function modelAnswering(...amounts) {
   let n = 0;
-  return { 'GET /api/2.0/serving-endpoints': [ENDPOINTS], get 'POST /serving-endpoints/chat-1/invocations'() { return reply(amounts[Math.min(n++, amounts.length - 1)]); } };
+  return { next: () => reply(amounts[Math.min(n++, amounts.length - 1)]) };
 }
+// Anchor and review calls are answered apart from plan calls: no anchor (the generic range stays), and a review that approves.
+const workspaceFor = (responses) => ({ path, method, body }) => {
+  if (method !== 'POST' || !path.includes('/invocations')) return undefined;
+  const first = String(body.messages[0].content);
+  if (/^You anchor/.test(first)) return plainReply({});
+  if (/^You review/.test(first)) return plainReply({ approved: true, amount: 0, reason: 'ok' });
+  return responses.next();
+};
 async function planWith(...amounts) {
-  const made = makeApp({ forwardedToken: 'person-tok', session: SESSION, columns: COLUMNS, responses: modelAnswering(...amounts),
+  const made = makeApp({ forwardedToken: 'person-tok', session: SESSION, columns: COLUMNS, responses: { 'GET /api/2.0/serving-endpoints': [ENDPOINTS] }, workspace: workspaceFor(modelAnswering(...amounts)),
     statements: { 'AS records': (sql) => (sql.includes(' AS g') ? GROUPED : POPULATION) } });
   const srv = await listen(made.app);
   try {
     const resp = await fetch(`${srv.url}/api/inspire/value/case-plan`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-forwarded-email': 'person@example.com' }, body: JSON.stringify(BODY) });
     const data = await resp.json();
-    const asked = made.fetches.filter((f) => f.path.includes('/invocations')).map((f) => JSON.parse(f.opts.body).messages.map((m) => m.content).join('\n'));
+    const asked = made.fetches.filter((f) => f.path.includes('/invocations')).map((f) => JSON.parse(f.opts.body).messages.map((m) => m.content).join('\n'))
+      .filter((text) => !/^You (anchor|review)/.test(text));
     return { status: resp.status, plan: data.plan, asked, data };
   } finally {
     await srv.close();
