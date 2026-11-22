@@ -116,16 +116,18 @@ function feedbackView(rows, { editable, why = '' }) {
   return { items, new_count: items.filter((i) => i.status === 'new').length, editable: Boolean(editable), why: editable ? '' : why };
 }
 
-function chatEndpoint(spec, endpoints) {
+// Every ready chat endpoint in the order to try: the one the spec chose first, then the rest in the list's order.
+function chatEndpoints(spec, endpoints) {
   const listed = (endpoints || []).filter((e) => e && e.name);
   const ready = (e) => str(e.state && typeof e.state === 'object' ? e.state.ready : e.state).toUpperCase() === 'READY';
   const chosen = str(spec && spec.config && spec.config.ai_endpoint).trim();
-  if (chosen) {
-    const found = listed.find((e) => e.name === chosen);
-    if (found && ready(found)) return found.name;
-  }
-  const chat = listed.find((e) => e.task === CHAT_TASK && ready(e));
-  return chat ? chat.name : '';
+  const first = chosen ? listed.filter((e) => e.name === chosen && ready(e)).map((e) => e.name) : [];
+  const chat = listed.filter((e) => e.task === CHAT_TASK && ready(e)).map((e) => e.name);
+  return [...new Set([...first, ...chat])];
+}
+
+function chatEndpoint(spec, endpoints) {
+  return chatEndpoints(spec, endpoints)[0] || '';
 }
 
 function pageSummary(page) {
@@ -204,6 +206,7 @@ module.exports = {
   FEEDBACK_STATUSES,
   VIBE_MAX_TOKENS,
   chatEndpoint,
+  chatEndpoints,
   replyContent,
   feedbackId,
   appFeedbackKey,

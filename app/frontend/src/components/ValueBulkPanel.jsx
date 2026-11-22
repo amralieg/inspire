@@ -5,6 +5,8 @@ import { totalText } from '../lib/valueWizard.js';
 import { bulkSummary, preSkipNote } from '../lib/valueBulk.js';
 
 const btn = 'rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle disabled:opacity-50';
+// A failed or skipped row carries a sentence: it wraps on its own line under the name instead of squeezing it.
+const wide = (state) => state === 'failed' || state === 'skipped';
 const LABELS = { waiting: 'Waiting', working: 'Working', stopped: 'Stopped' };
 
 // REQ-441: the bar above the cards: Select all (the cards shown) and "Calculate value for N".
@@ -48,8 +50,8 @@ export default function ValueBulkPanel() {
       <ul className="divide-y divide-border">
         {rows.map((r) => (
           <li key={r.id} data-bulk-row={r.id} data-bulk-state={r.state} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 text-sm">
-            <span dir="auto" className="min-w-[8rem] flex-1 basis-40 break-words text-text-primary">{nameOf(r.id)}</span>
-            <span className="min-w-0 max-w-full break-words text-text-secondary sm:text-end">
+            <span dir="auto" data-bulk-name="" title={nameOf(r.id)} className="min-w-[8rem] max-w-full flex-1 basis-40 truncate text-text-primary">{nameOf(r.id)}</span>
+            <span data-bulk-reason="" className={`min-w-0 max-w-full break-words text-text-secondary ${wide(r.state) ? 'basis-full' : 'sm:text-end'}`}>
               {r.state === 'done' && <span className="font-semibold text-text-primary">{totalText(r.yearly) || 'Done'} per year</span>}
               {r.state === 'failed' && (
                 <span className="inline-flex items-center gap-2">

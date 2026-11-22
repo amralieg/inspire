@@ -2450,15 +2450,25 @@ function registerImplementRoutes(app, deps) {
     return `The model ${endpoint} answered HTTP ${got.status || 'error'}${said ? `: ${said}` : ''}.`;
   }
 
+  const PLAN_MODEL_TRIES = 4;
   async function modelPlanOf(req, table, columns, groupBy, useCase = null) {
     const without = (reason) => ({ ...VCP.fallbackPlan(columns, groupBy), model_reason: reason });
     try {
       const listed = await jsonOf(dbFetch, req.dbHost, req.dbToken, '/api/2.0/serving-endpoints');
       if (!listed.ok) return without(`The list of model endpoints answered HTTP ${listed.status || 'error'}.`);
-      const endpoint = FB.chatEndpoint({}, (listed.data.endpoints || []).map((e) => ({ name: e.name, state: e.state, task: e.task })));
-      if (!endpoint) return without('No chat model endpoint is ready in this workspace.');
-      const got = await invokeChatModel(chatCall(req, req.dbToken), endpoint, { messages: VCP.planMessages({ table, columns, useCase }), max_tokens: 1500 });
-      if (!got.ok) return without(modelRefusal(endpoint, got));
+      const names = FB.chatEndpoints({}, (listed.data.endpoints || []).map((e) => ({ name: e.name, state: e.state, task: e.task })));
+      if (!names.length) return without('No chat model endpoint is ready in this workspace.');
+      // FX-46 (D13/D20): the first listed model may be one the App cannot query or that rejects the call; the next ready ones are tried
+      // (at most PLAN_MODEL_TRIES), and a refusal of every one reports the first, which names the grant.
+      let endpoint = '';
+      let got = null;
+      let firstFailure = '';
+      for (const name of names.slice(0, PLAN_MODEL_TRIES)) {
+        const tried = await invokeChatModel(chatCall(req, req.dbToken), name, { messages: VCP.planMessages({ table, columns, useCase }), max_tokens: 1500 });
+        if (tried.ok) { endpoint = name; got = tried; break; }
+        firstFailure = firstFailure || modelRefusal(name, tried);
+      }
+      if (!got) return without(firstFailure);
       const plan = VCP.planFrom(got.data, columns, groupBy);
       const asked = plan.drivers.some((d) => d.on) || plan.metrics.length || plan.case_filter || plan.case_noun !== 'record';
       return asked ? { ...plan, model: endpoint } : { ...plan, model: null, model_reason: 'The model reply was not a usable plan.' };
