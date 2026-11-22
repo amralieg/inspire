@@ -1560,9 +1560,11 @@ def _grant_account_users(ctx):
         return {}
     catalog, schema = ctx["CATALOG"], ctx["SCHEMA"]
     grants = [f"GRANT USE SCHEMA ON SCHEMA `{catalog}`.`{schema}` TO `{NEW_APPS_ACCOUNT_USERS}`"]
-    grants += [f"GRANT USE CATALOG ON CATALOG `{cat}` TO `{NEW_APPS_ACCOUNT_USERS}`" for cat in ctx.get("DATA_CATALOGS") or [] if cat != catalog]
+    others = [cat for cat in ctx.get("DATA_CATALOGS") or [] if cat != catalog]
+    # catalog-level USE SCHEMA inherits to every schema of the catalog and opens no data; SELECT is never granted to account users
+    grants += [f"GRANT {p} ON CATALOG `{cat}` TO `{NEW_APPS_ACCOUNT_USERS}`" for cat in others for p in ("USE CATALOG", "USE SCHEMA")]
     failed = _run_scan_grants(ctx["w"], ctx["WAREHOUSE_ID"], grants)
-    print(f"  Account users get USE SCHEMA on `{catalog}`.`{schema}` and USE CATALOG on {_plural(len(grants) - 1, 'data catalog')}, "
+    print(f"  Account users get USE SCHEMA on `{catalog}`.`{schema}` and USE CATALOG and USE SCHEMA on {_plural(len(others), 'data catalog')}, "
           f"which opens no data by itself: {len(grants) - len(failed):,} of {len(grants):,} ran {'✅' if not failed else '⚠️'}")
     for sql, error in failed.items():
         print(f"  ⚠️ {sql}: {error[:160]}")
