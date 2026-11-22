@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, goToStep, onMoneyPart, openUi, profileAt, stubMoney as stub } from './uiSupport.mjs';
-import { GROUPING_PROFILE, LIVE_RATES, MONEY_PROFILE } from './implementFixtures.js';
+import { LIVE_RATES, MONEY_PROFILE } from './implementFixtures.js';
 
 test.after(closeBrowser);
 
@@ -43,72 +43,6 @@ async function openMeasure({ rates = LIVE_RATES, calls = { preview: [], currency
   return { ...ui, calls };
 }
 
-test('the Measure step asks how the value of each record is measured, with six choices (the rule’s own amount first, then the cost of a lost opportunity) and no old fields', async () => {
-  const ui = await openMeasure();
-  const { page } = ui;
-  try {
-    assert.match(await page.locator('[data-measure-value] legend').innerText(), /How does your business measure the value of each record\?/);
-    assert.equal(await page.locator('[data-money-method]').count(), 6, 'the rule’s own amount, fixed, the cost of a lost opportunity, a column, an equation, and describe');
-    assert.equal(await page.locator('[data-money-method="rule"]').isChecked(), false, 'this use case states no amount, so the default is the table column');
-    assert.equal(await page.locator('[data-money-mode]').count(), 0, 'the old per-currency and convert radios are gone');
-    await onMoneyPart(page, 'window');
-    assert.equal(await page.locator('[data-money-window]').isVisible(), true, 'the periods box is on its own decision, with no More options fold');
-  } finally {
-    await page.context().close();
-  }
-});
-
-test('a fixed amount previews three example rows in the currency it names, and the rule saves that value', async () => {
-  const ui = await openMeasure();
-  const { page, calls } = ui;
-  try {
-    await page.locator('[data-money-method="fixed"]').check();
-    await page.locator('[data-money-fixed-amount]').fill('120');
-    await page.locator('[data-money-value-currency-by="code"]').check({ force: true });
-    await page.locator('[data-money-value-code]').fill('USD');
-    await page.waitForSelector('[data-money-preview-rows] li', { timeout: 15000 });
-    assert.equal(await page.locator('[data-money-preview-rows] li').count(), 3);
-    assert.equal(await page.locator('[data-money-preview-rows] li').first().innerText(), '120 USD');
-    assert.deepEqual(calls.preview.at(-1).value, { method: 'fixed', amount: 120, currency: 'USD' });
-  } finally {
-    await page.context().close();
-  }
-});
-
-test('a column value previews the rows of the column picked, with its currency column', async () => {
-  const ui = await openMeasure();
-  const { page, calls } = ui;
-  try {
-    await page.locator('[data-money-method="column"]').check();
-    await page.locator('[data-money-value-column]').fill('amount');
-    await page.locator('[data-money-value-currency-by="column"]').check();
-    await page.waitForSelector('[data-money-preview-rows] li', { timeout: 15000 });
-    assert.deepEqual(calls.preview.at(-1).value, { method: 'column', column: 'amount', currency_column: 'currency' });
-  } finally {
-    await page.context().close();
-  }
-});
-
-test('an equation the grammar does not allow is refused on the spot, and a valid one previews its three rows', async () => {
-  const ui = await openMeasure();
-  const { page, calls } = ui;
-  try {
-    await page.locator('[data-money-method="equation"]').check();
-    await page.locator('[data-money-value-currency-by="code"]').check({ force: true });
-    await page.locator('[data-money-value-code]').fill('USD');
-    await page.locator('[data-money-equation]').fill('quantity ^ 2');
-    await page.waitForSelector('[data-money-error]', { timeout: 15000 });
-    assert.match(await page.locator('[data-money-error]').innerText(), /adds, subtracts, multiplies and divides column names and numbers/);
-    assert.equal(calls.preview.filter((c) => JSON.stringify(c).includes('quantity ^ 2')).length, 0, 'a refused equation never reaches the warehouse');
-    await page.locator('[data-money-equation]').fill('quantity * unit_price - discount');
-    await page.waitForSelector('[data-money-preview-rows] li', { timeout: 15000 });
-    assert.equal(await page.locator('[data-money-preview-rows] li').count(), 3);
-    assert.equal(calls.preview.at(-1).value.expression, 'quantity * unit_price - discount');
-  } finally {
-    await page.context().close();
-  }
-});
-
 test('the reporting currency is the data main currency, its rates show today’s source, and an edited rate is saved as typed', async () => {
   const ui = await openMeasure();
   const { page } = ui;
@@ -136,57 +70,6 @@ test('with no internet the rates are the saved averages, and one line says so', 
     await page.locator('[data-money-rates-notice]').waitFor({ timeout: 30000 });
     assert.match(await page.locator('[data-money-rates-notice]').innerText(), /No internet: every rate is the saved historical average/);
     assert.match(await page.locator('[data-money-rate-row="EUR"] [data-money-rate-source]').innerText(), /ECB average, 2025/);
-  } finally {
-    await page.context().close();
-  }
-});
-
-test('which movement counts is one plain question, and both gains and losses net inside each total', async () => {
-  const ui = await openMeasure();
-  const { page } = ui;
-  try {
-    await onMoneyPart(page, 'direction');
-    await page.locator('[data-money-rule-kind="net"]').check();
-    await page.waitForFunction(() => /netted/.test(document.querySelector('[data-money-sentence]')?.textContent || ''), null, { timeout: 15000 });
-    assert.equal(await page.locator('[data-money-rule-kind="net"]').isChecked(), true);
-  } finally {
-    await page.context().close();
-  }
-});
-
-test('Describe it: the App proposes the rule from the words, the person sees it with its rows and uses it', async () => {
-  const ui = await openMeasure();
-  const { page, calls } = ui;
-  try {
-    await page.locator('[data-money-method="describe"]').check();
-    await page.locator('[data-money-describe-text]').fill('each booking loses its price less the discount');
-    await page.locator('[data-money-describe-propose]').click();
-    await page.waitForSelector('[data-money-describe-proposal]', { timeout: 15000 });
-    assert.match(await page.locator('[data-money-describe-rule]').innerText(), /quantity \* unit_price - discount, in the currency of currency/);
-    assert.equal(calls.describe.at(-1).text, 'each booking loses its price less the discount');
-    assert.ok(calls.describe.at(-1).columns.includes('unit_price'), 'the model is told the table columns');
-    assert.deepEqual(calls.preview.at(-1).value, DESCRIBED.value, 'the proposal is previewed on its three rows before it is used');
-    await page.locator('[data-money-describe-use]').click();
-    await page.waitForSelector('[data-money-preview-rows] li', { timeout: 15000 });
-    assert.deepEqual(calls.preview.at(-1).value, { method: 'equation', expression: 'quantity * unit_price - discount', currency_column: 'currency' });
-  } finally {
-    await page.context().close();
-  }
-});
-
-test('an equation that names a column the table does not have is refused before it saves, and nothing is saved', async () => {
-  const ui = await openMeasure();
-  const { page, calls } = ui;
-  try {
-    await page.locator('[data-money-method="equation"]').check();
-    await page.locator('[data-money-value-currency-by="code"]').check({ force: true });
-    await page.locator('[data-money-value-code]').fill('USD');
-    await page.locator('[data-money-equation]').fill('quantity * shipping_fee');
-    await page.waitForSelector('[data-money-error]', { timeout: 15000 });
-    assert.match(await page.locator('[data-money-error]').innerText(), /The column shipping_fee is not in this table, so the rule cannot use it./);
-    assert.equal(calls.preview.filter((c) => JSON.stringify(c).includes('shipping_fee')).length, 0, 'a rule naming a missing column never reaches the warehouse');
-    await page.locator('[data-money-equation]').fill('quantity * unit_price');
-    await page.waitForSelector('[data-money-preview-rows] li', { timeout: 15000 });
   } finally {
     await page.context().close();
   }
@@ -228,102 +111,6 @@ test('a rate typed for one reporting currency is dropped when the reporting curr
     assert.equal(await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').isDisabled(), true);
     assert.doesNotMatch(await page.locator('[data-money-sentence]').innerText(), /EUR = 4\.1 /, 'the typed 4.10 is never saved as the EUR rate');
     assert.match(await page.locator('[data-money-rates-notice]').innerText(), /Your typed rate for EUR was for the previous reporting currency, so it was dropped/);
-  } finally {
-    await page.context().close();
-  }
-});
-
-test('an older Describe it proposal that answers late does not replace the newer one', async () => {
-  const calls = { preview: [], currency: [], describe: [] };
-  const first = { value: { method: 'equation', expression: 'quantity * unit_price', currency_column: 'currency' }, explanation: 'first reading' };
-  const second = { value: { method: 'equation', expression: 'quantity * discount', currency_column: 'currency' }, explanation: 'second reading' };
-  const ui = await openMeasure({ calls, init: plannedStub('describe-value', (n) => (n === 0 ? { answer: first, delay: 2500 } : { answer: second }), calls.describe) });
-  const { page } = ui;
-  try {
-    await page.locator('[data-money-method="describe"]').check();
-    await page.locator('[data-money-describe-text]').fill('a booking, two ways');
-    await page.locator('[data-money-describe-propose]').click();
-    await page.locator('[data-money-describe-propose]').click();
-    await page.waitForSelector('[data-money-describe-explanation]', { timeout: 15000 });
-    await page.waitForTimeout(3000);
-    assert.equal(await page.locator('[data-money-describe-explanation]').innerText(), 'second reading');
-    assert.match(await page.locator('[data-money-describe-rule]').innerText(), /quantity \* discount/);
-  } finally {
-    await page.context().close();
-  }
-});
-
-test('Gains only is chosen on its movement screen; its sign is the next screen, and a status sign completes the rule (REQ-265 decided: one decision per screen)', async () => {
-  const ui = await openMeasure();
-  const { page } = ui;
-  try {
-    await onMoneyPart(page, 'direction');
-    assert.equal(await page.locator('[data-money-rule-kind="gains"]').isDisabled(), false, 'Gains only can be chosen; the sign is asked on the next screen');
-    assert.equal(await page.locator('[data-measure-sign]').count(), 0, 'the sign question is not on the movement screen (must-exclude)');
-    await page.locator('[data-money-rule-kind="gains"]').check();
-    await page.locator('[data-money-next]').click();
-    await onMoneyPart(page, 'sign');
-    assert.match(await page.locator('[data-money-sign-needed]').innerText(), /Gains only needs a sign/);
-    await page.locator('[data-money-sign-kind="status"]').check();
-    await page.locator('[data-money-sign-status-column]').fill('currency');
-    await page.locator('[data-money-sign-value]').fill('gain');
-    await page.waitForFunction(() => !document.querySelector('[data-money-sign-needed]'), null, { timeout: 15000 });
-    await page.waitForFunction(() => /Only gains count/.test(document.querySelector('[data-money-sentence]')?.textContent || ''), null, { timeout: 15000 });
-  } finally {
-    await page.context().close();
-  }
-});
-
-test('a person can switch from a column to the rule’s own amount and back, and the rule shows which one it uses', async () => {
-  const ui = await openMeasure();
-  const { page, calls } = ui;
-  try {
-    await page.locator('[data-money-method="column"]').check();
-    await page.locator('[data-money-value-column]').fill('unit_price');
-    for (let i = 0; i < 100 && calls.preview.at(-1)?.value?.column !== 'unit_price'; i += 1) await new Promise((done) => setTimeout(done, 100));
-    assert.equal(calls.preview.at(-1).value.column, 'unit_price', 'the preview reads the column the person typed');
-    await page.locator('[data-money-method="rule"]').check();
-    assert.equal(await page.locator('[data-money-rule-own]').isVisible(), true, 'the rule’s-own sentence shows');
-    assert.equal(await page.locator('[data-money-value-currency]').count(), 0, 'no currency block for the rule’s own amount');
-    await page.locator('[data-money-method="column"]').check();
-    assert.equal(await page.locator('[data-money-value-column]').inputValue(), 'unit_price', 'the column the person picked is kept');
-  } finally {
-    await page.context().close();
-  }
-});
-
-test('the cost of each lost opportunity is a fixed amount counted over the lost statuses, and the sentence says so', async () => {
-  const ui = await openMeasure();
-  const { page, calls } = ui;
-  try {
-    await page.locator('[data-money-method="lost"]').check();
-    await page.locator('[data-money-lost-amount]').fill('120');
-    // rc.1 opens the value currency on the saved column; the lost tests pick one code for all records first.
-    await page.getByRole('radio', { name: 'One currency for all records' }).check();
-    await page.locator('[data-money-value-code]').fill('USD');
-    await page.locator('[data-money-lost-status-column]').selectOption('status');
-    await page.locator('[data-money-lost-statuses]').fill('lost');
-    await page.waitForSelector('[data-money-preview-rows] li', { timeout: 15000 });
-    assert.deepEqual(calls.preview.at(-1).value, { method: 'fixed', amount: 120, currency: 'USD' }, 'each lost record is worth 120 USD');
-    assert.deepEqual(calls.preview.at(-1).lost_filter, { statuses: ['lost'], status_column: 'status' }, 'the example rows are the lost rows only');
-    assert.match(await page.locator('[data-money-sentence]').innerText(), /Only rows whose status is lost count\./);
-    assert.equal(await page.locator('[data-money-problems], [data-money-error]').count(), 0, 'no problem is shown once the statuses are named');
-  } finally {
-    await page.context().close();
-  }
-});
-
-test('a lost opportunity with no statuses named says what to name, and does not save', async () => {
-  const ui = await openMeasure();
-  const { page } = ui;
-  try {
-    await page.locator('[data-money-method="lost"]').check();
-    await page.locator('[data-money-lost-amount]').fill('120');
-    // rc.1 opens the value currency on the saved column; the lost tests pick one code for all records first.
-    await page.getByRole('radio', { name: 'One currency for all records' }).check();
-    await page.locator('[data-money-value-code]').fill('USD');
-    await page.locator('[data-money-lost-status-column]').selectOption('status');
-    assert.match(await page.locator('[data-money-error]').innerText(), /Name the statuses that mean the opportunity was lost, such as lost\./);
   } finally {
     await page.context().close();
   }

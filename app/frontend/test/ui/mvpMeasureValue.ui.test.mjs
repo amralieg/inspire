@@ -70,7 +70,7 @@ test('2: Edit opens the wizard over the MVP wizard; a stubbed Save updates the b
   try {
     await panel.locator('[data-value-box]').waitFor({ timeout: 15000 });
     await button(panel, 'Edit').click();
-    const dialog = page.getByRole('dialog', { name: 'Calculate value at stake' });
+    const dialog = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
     await dialog.waitFor();
     await goTo(dialog, 'save');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
@@ -94,7 +94,7 @@ test('3: no value: Calculate value opens the dialog; there is no Skip and no Cal
     assert.equal(await button(panel, "Skip, use Inspire's estimate").count(), 0);
     assert.equal(await button(panel, 'Calculate now').count(), 0);
     await calc.click();
-    await page.getByRole('dialog', { name: 'Calculate value at stake' }).waitFor();
+    await page.getByRole('dialog', { name: /^Calculating Value at Stake for / }).waitFor();
     assert.equal(state.puts.length, 0);
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }

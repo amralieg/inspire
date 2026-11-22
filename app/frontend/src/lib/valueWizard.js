@@ -44,6 +44,12 @@ export function unitOf(ask, currency) {
 export const estimateAsks = (driver) => (driver?.asks || []).filter((a) => a.source === 'estimate');
 export const isBad = (ask, value) => !Number.isFinite(Number(value)) || value === '' || Number(value) < 0 || (ask.kind === 'pct' && Number(value) > 100);
 
+// REQ-474: the economic trend starts unticked with the AI's likely option; a saved choice wins when its option still exists.
+const trendOf = (trend, old) => {
+  const ids = (trend.options || []).map((o) => o.id);
+  return { on: Boolean(old?.on), option: ids.includes(old?.option) ? old.option : trend.likely };
+};
+
 // The answers a plan starts with (or a saved shape 2 answers restore): every driver's on flag and estimate defaults.
 export function initialAnswers(plan, saved = null) {
   const keep = saved?.shape === 2 ? saved : null;
@@ -59,6 +65,7 @@ export function initialAnswers(plan, saved = null) {
       return [d.id, { on: old ? Boolean(old.on) : Boolean(d.on),
         inputs: Object.fromEntries(estimateAsks(d).map((a) => [a.id, Number.isFinite(Number(old?.inputs?.[a.id])) && old?.inputs?.[a.id] !== undefined ? Number(old.inputs[a.id]) : a.default])) }];
     })),
+    ...(plan.economic_trend ? { economic_trend: trendOf(plan.economic_trend, keep?.economic_trend) } : {}),
     calculated: false,
   };
 }
@@ -66,7 +73,7 @@ export function initialAnswers(plan, saved = null) {
 export const carryAnswers = (plan, previous) => {
   const fresh = initialAnswers(plan);
   const drivers = Object.fromEntries(Object.entries(fresh.drivers).map(([id, d]) => [id, previous.drivers[id] ? { on: previous.drivers[id].on, inputs: { ...d.inputs, ...previous.drivers[id].inputs } } : d]));
-  return { ...fresh, currency: previous.currency, attribution_pct: previous.attribution_pct, drivers };
+  return { ...fresh, currency: previous.currency, attribution_pct: previous.attribution_pct, drivers, ...(previous.economic_trend && fresh.economic_trend ? { economic_trend: previous.economic_trend } : {}) };
 };
 
 // The plan as sent: each driver's on flag follows the answers, so the server and the page agree on what is counted.
@@ -91,3 +98,11 @@ export const figureText = (kind, value, currency) => {
   return kind === 'money' ? moneyText(currency, n) : kind === 'pct' ? `${n.toFixed(1)}%` : kind === 'count' ? countText(n) : Number(n.toFixed(2)).toLocaleString('en-US');
 };
 export const recordsOf = (plan, answers) => (plan.groups || []).filter((g) => !answers.excluded_groups.includes(g.g)).reduce((s, g) => s + Number(g.records_per_year || 0), 0);
+
+// REQ-472 (FX-62): the one line that says whether a model reviewed the plan's value. No review (an older server) says nothing.
+export const reviewLineOf = (review) => {
+  if (!review || typeof review !== 'object') return '';
+  return review.approved ? `Reviewed by ${review.model}: ${review.reason}` : `Not approved by a model review: ${review.reason}. Saved as an estimate.`;
+};
+// REQ-474: the AI's likely value of the use case, one line.
+export const likelyLineOf = (likely) => (likely && Number.isFinite(Number(likely.amount)) ? `Likely value (AI): ${moneyText(likely.currency, likely.amount)}${likely.reason ? `, ${likely.reason}` : ''}` : '');

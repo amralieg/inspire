@@ -520,7 +520,7 @@ export async function toVibes(page) {
 
 // REQ-457: the value dialog covers the wizard; a test that moves on closes it first (Escape), as a person would.
 export async function closeValueDialog(page) {
-  const dialog = page.getByRole('dialog', { name: 'Calculate value at stake' });
+  const dialog = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
   if (!(await dialog.count())) return;
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'detached', timeout: 15000 });
@@ -871,6 +871,8 @@ export async function openMeasureSettings(page, part = '') {
       await page.locator('[data-mvp-value]').waitFor({ timeout: 15000 });
       if (await calculate.count()) await calculate.first().click(); else await edit.click();
     }
+    // REQ-472 (d): the dialog opens on Kinds of value; the measure section sits on the next step, Your data.
+    if (!(await page.locator('[data-measure-edit]').isVisible())) await page.getByRole('dialog', { name: /^Calculating Value at Stake for / }).getByRole('button', { name: 'Next', exact: true }).click();
     await page.locator('[data-measure-edit]').click();
   }
   if (part) await onMoneyPart(page, part);

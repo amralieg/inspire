@@ -15,7 +15,7 @@ test('C1: on the first page Calculate now sends one PUT with calculated false an
   const { ui, card, page } = await openCard(mountWizard({ puts }));
   try {
     const dialog = await openWizard(page, card);
-    await dialog.locator('[data-wizard-page="data"]').waitFor({ timeout: 15000 });
+    await dialog.locator('[data-wizard-page="kinds"]').waitFor({ timeout: 15000 });
     await calcNow(dialog).click();
     await dialog.locator('[data-wizard-page="save"]').waitFor({ timeout: 15000 });
     assert.equal(puts.length, 1);
@@ -47,7 +47,7 @@ test('C3: the Save page has no Calculate now button, and Save there sends calcul
   const { ui, card, page } = await openCard(mountWizard({ puts }));
   try {
     const dialog = await openWizard(page, card);
-    await dialog.locator('[data-wizard-page="data"]').waitFor({ timeout: 15000 });
+    await dialog.locator('[data-wizard-page="kinds"]').waitFor({ timeout: 15000 });
     assert.equal(await calcNow(dialog).count(), 1);
     await goTo(dialog, 'save');
     assert.equal(await calcNow(dialog).count(), 0);
@@ -64,11 +64,11 @@ test('C4: a PUT answered 500 shows the error and the wizard stays on the same pa
   const { ui, card, page } = await openCard(mountWizard({ puts, putReply: { status: 500, body: { error: 'The value store is down.' } } }));
   try {
     const dialog = await openWizard(page, card);
-    await dialog.locator('[data-wizard-page="data"]').waitFor({ timeout: 15000 });
+    await dialog.locator('[data-wizard-page="kinds"]').waitFor({ timeout: 15000 });
     await calcNow(dialog).click();
     await dialog.getByRole('alert').filter({ hasText: /down|could not|500/i }).first().waitFor({ timeout: 15000 });
     assert.equal(puts.length, 1);
-    assert.equal(await dialog.locator('[data-wizard-page="data"]').count(), 1, 'still on the first page');
+    assert.equal(await dialog.locator('[data-wizard-page="kinds"]').count(), 1, 'still on the first page');
     assert.equal(await dialog.locator('[data-wizard-page="save"]').count(), 0);
   } finally { await ui.close(); }
 });
@@ -82,8 +82,8 @@ test('C5: after Save confirms the numbers, Back and Calculate now with no change
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await dialog.waitFor({ state: 'hidden', timeout: 5000 }); // REQ-449: Save closes the dialog; reopen it and keep the numbers as estimated
     await card.getByRole('button', { name: 'Edit value' }).click();
-    const again = page.getByRole('dialog', { name: 'Calculate value at stake' });
-    await again.locator('[data-wizard-page="data"]').waitFor({ timeout: 15000 });
+    const again = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
+    await again.locator('[data-wizard-page="kinds"]').waitFor({ timeout: 15000 });
     await calcNow(again).click();
     await again.locator('[data-wizard-page="save"]').waitFor({ timeout: 15000 });
     assert.equal(puts.length, 2);

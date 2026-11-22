@@ -410,7 +410,7 @@ test('a run card with no measured KPI baseline says Value at stake: Not calculat
     assert.match(await panel.locator('[data-build-next-row="N02-U01"] [data-value-estimate]').innerText(), /AED 2,500/, 'a measured card still shows its estimate');
     await row.locator('[data-measure-value="N02-U02"]').click();
     await page.waitForFunction(() => window.location.hash.includes('/build/42/N02-U02'), null, { timeout: 20000 });
-    await page.getByRole('dialog', { name: 'Calculate value at stake' }).waitFor({ timeout: 20000 });
+    await page.getByRole('dialog', { name: /^Calculating Value at Stake for / }).waitFor({ timeout: 20000 });
     assert.equal(await page.locator('[data-wizard-header]').count(), 0, 'Build next opens the value wizard, never the Build wizard (REQ-457)');
   } finally {
     await ui.close();
@@ -427,9 +427,9 @@ test('the Measure step opens once from the Build next action; picking another us
     const panel = page.locator('[data-build-next]');
     await panel.waitFor({ timeout: 20000 });
     await panel.locator('[data-build-next-row="N02-U02"] [data-measure-value="N02-U02"]').click();
-    await page.getByRole('dialog', { name: 'Calculate value at stake' }).waitFor({ timeout: 20000 });
-    await page.getByRole('dialog', { name: 'Calculate value at stake' }).getByRole('button', { name: 'Close', exact: true }).last().click();
-    await page.getByRole('dialog', { name: 'Calculate value at stake' }).waitFor({ state: 'detached', timeout: 20000 });
+    await page.getByRole('dialog', { name: /^Calculating Value at Stake for / }).waitFor({ timeout: 20000 });
+    await page.getByRole('dialog', { name: /^Calculating Value at Stake for / }).getByRole('button', { name: 'Close', exact: true }).last().click();
+    await page.getByRole('dialog', { name: /^Calculating Value at Stake for / }).waitFor({ state: 'detached', timeout: 20000 });
     await go(page, '#/build/42/N02-U01');
     await page.waitForFunction(() => window.location.hash.includes('/build/42/N02-U01'), null, { timeout: 20000 });
     await page.waitForTimeout(1500);

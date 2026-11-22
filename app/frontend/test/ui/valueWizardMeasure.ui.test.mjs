@@ -34,7 +34,7 @@ async function openPanel(state, query = '') {
   const ui = await openUi('valuePanel', ME, query, { mount: mountWith(state) });
   const panel = ui.page.locator('[data-mvp-value]');
   await panel.waitFor({ timeout: 15000 });
-  return { ui, page: ui.page, panel, dialog: ui.page.getByRole('dialog', { name: 'Calculate value at stake' }) };
+  return { ui, page: ui.page, panel, dialog: ui.page.getByRole('dialog', { name: /^Calculating Value at Stake for / }) };
 }
 const button = (loc, name) => loc.getByRole('button', { name, exact: true });
 const holdoutOn = (page) => page.evaluate(() => window.__measureSpec.holdout.enabled);
@@ -54,7 +54,7 @@ test('1: no value: Calculate value opens the dialog; no Skip, no Keep', async ()
   } finally { await ui.close(); }
 });
 
-test('2: a calculated value shows the amount, Edit and the pencil; Edit opens the dialog with 8 measure rows, Keep checked, no editor', async () => {
+test('2: a calculated value shows the amount, Edit and the pencil; Edit opens the dialog with 5 measure rows, Keep checked, no editor', async () => {
   const { ui, panel, dialog } = await openPanel(calculated());
   try {
     await panel.locator('[data-value-box]').waitFor({ timeout: 15000 });
@@ -63,9 +63,10 @@ test('2: a calculated value shows the amount, Edit and the pencil; Edit opens th
     assert.equal(await panel.locator('[data-value-edit]').count(), 1);
     await button(panel, 'Edit').click();
     await dialog.waitFor();
+    await goTo(dialog, 'data');
     const section = dialog.locator('[data-measure-settings]');
     await section.waitFor();
-    assert.equal(await section.locator('[data-measure-row]').count(), 8);
+    assert.equal(await section.locator('[data-measure-row]').count(), 5);
     assert.equal(await section.locator('[data-measure-keep]').getAttribute('aria-checked'), 'true');
     assert.equal(await dialog.locator('[data-measure-editor]').count(), 0);
     assert.deepEqual(ui.pageErrors, []);
@@ -76,6 +77,7 @@ test('3: Edit shows the editor and changes the spec; Keep restores the opening v
   const { ui, page, panel, dialog } = await openPanel(calculated());
   try {
     await button(panel, 'Edit').click();
+    await goTo(dialog, 'data');
     await dialog.locator('[data-measure-edit]').click();
     const editor = dialog.locator('[data-measure-editor]');
     await editor.waitFor();
@@ -95,6 +97,7 @@ test('4: Save sends one PUT with the toggled holdout and the panel money', async
   const { ui, panel, dialog } = await openPanel(state);
   try {
     await button(panel, 'Edit').click();
+    await goTo(dialog, 'data');
     await dialog.locator('[data-measure-edit]').click();
     await dialog.locator('[data-measure-editor]').getByLabel('Hold back').check();
     await goTo(dialog, 'save');
@@ -140,6 +143,7 @@ test('7: measure.open "holdout" opens the dialog on mount with the section in Ed
   const { ui, dialog } = await openPanel(calculated(), '&step=open-holdout');
   try {
     await dialog.waitFor({ timeout: 15000 });
+    await goTo(dialog, 'data');
     await dialog.locator('[data-measure-editor]').waitFor();
     assert.equal(await dialog.locator('[data-measure-edit]').getAttribute('aria-checked'), 'true');
     assert.deepEqual(ui.pageErrors, []);

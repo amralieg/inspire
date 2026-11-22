@@ -157,7 +157,7 @@ test('3: How we got this number lists each part with data and estimate chips and
     assert.match(meta, /calculated by sara@example\.com/);
     assert.match(meta, /\(version 3\)/);
     await how.getByRole('button', { name: 'Open the full calculation' }).click();
-    await page.getByRole('dialog', { name: 'Calculate value at stake' }).waitFor();
+    await page.getByRole('dialog', { name: /^Calculating Value at Stake for / }).waitFor();
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
 });
@@ -237,7 +237,7 @@ test('6: after a PUT answers succeeds, the card amount and the run total change 
     assert.equal(await text(page.locator('[data-value-run-panel] [data-value-total] [data-total-amount]')), '$5M');
     await toView(page, 'Use cases');
     await card.getByRole('button', { name: 'Edit value' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Calculate value at stake' });
+    const dialog = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
     await dialog.waitFor();
     // v8 wizard: walk to the Save step, then Save (the old dialog's single Calculate button is gone).
     await goTo(dialog, 'save');

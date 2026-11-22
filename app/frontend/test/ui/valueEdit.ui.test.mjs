@@ -22,7 +22,7 @@ const mountWith = ({ puts = [], posts = [], saved = SAVED, putReply = null, hist
 // REQ-438 v8 value box: the amount and its "(estimated)" qualifier sit on their own lines; this reads them as one.
 const amount = async (card) => `${(await card.locator('[data-value-amount]').innerText()).trim()} ${(await card.locator('[data-value-qualifier]').innerText()).trim()}`;
 const openDialog = async (page) => {
-  const dialog = page.getByRole('dialog', { name: 'Calculate value at stake' });
+  const dialog = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
   await dialog.waitFor();
   return dialog;
 };

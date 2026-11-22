@@ -7,7 +7,7 @@ import { kpiTargetOf, withKpiTarget } from './targetKpi.js';
 // and the saved answers (PUT /api/inspire/value/answers), and list them as the read-only rows of "How the MVP measures it".
 export const MEASURE_FIELDS = ['money', 'kpi', 'holdout'];
 
-const LABELS = { method: 'How the value is measured', direction: 'Which movement counts', sign: 'Which records are gains', currency: 'Currency',
+const LABELS = { currency: 'Currency',
   window: 'Periods and statuses', off: 'Turn it off', kpi: 'Target KPI', holdout: 'Hold back' };
 const isMap = (v) => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
 
@@ -30,12 +30,10 @@ export function specWithMeasure(spec, answers) {
   return next;
 }
 
-const signSummary = (money) => (money?.sign?.column ? `Gains are the records marked by ${money.sign.column}` : 'Not set yet');
-
-// One read-only row per setting, in the order of the Measure decisions; the sign row only exists for the Gains movement.
+// One read-only row per setting, in the order of the Measure decisions (REQ-473: no method, movement or sign question).
 export function measureRows(spec) {
-  const parts = [...moneyPartsOf(spec?.money?.rule), 'kpi', 'holdout'];
-  const summaryOf = (id) => (id === 'kpi' || id === 'holdout' ? impactPartSummary(spec || {}, id) : id === 'sign' ? signSummary(spec?.money) : moneySummaryOf(spec?.money, id));
+  const parts = [...moneyPartsOf(), 'kpi', 'holdout'];
+  const summaryOf = (id) => (id === 'kpi' || id === 'holdout' ? impactPartSummary(spec || {}, id) : moneySummaryOf(spec?.money, id));
   return parts.map((id) => ({ id, label: LABELS[id], summary: String(summaryOf(id) ?? '') }));
 }
 

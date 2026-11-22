@@ -13,8 +13,10 @@ export const VALUE_LABELS = {
   perYear: 'Per Year',
   calculating: 'Calculating',
   retry: 'Retry',
-  dialogTitle: 'Calculate value at stake',
 };
+
+// REQ-472 (e): the dialog title names the use case it values.
+export const dialogTitleFor = (name) => `Calculating Value at Stake for ${name}`;
 
 const count = (n) => Number(n).toLocaleString('en-US');
 

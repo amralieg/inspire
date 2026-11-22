@@ -206,6 +206,7 @@ export default function ResultsPage({
   const [filterHasGenie, setFilterHasGenie] = useState('all');
   const [filterQualityBar, setFilterQualityBar] = useState('all');
   const [filterMvp, setFilterMvp] = useState('all');
+  const [filterValue, setFilterValue] = useState('all'); // REQ-472 (f): all | calculated | not_calculated
   const [filterStrategy, setFilterStrategy] = useState('all');
   const [filterBizPriority, setFilterBizPriority] = useState('all');
   const [filterLevels, setFilterLevels] = useState({});
@@ -701,6 +702,7 @@ export default function ResultsPage({
         if (filterHasGenie === 'no' && hasGenieInstruction(uc)) return false;
         if (!qualityBarFilterMatches(filterQualityBar, uc)) return false;
         if (!mvpFilterMatches(filterMvp, mvpStateOf(uc))) return false;
+        if (filterValue !== 'all' && isCalculated(calculated.byId[trackingIdOf(uc)]) !== (filterValue === 'calculated')) return false;
         if (searchQuery) {
           const q = searchQuery.trim().toLowerCase();
           const shown = cardTitlesOfUseCase(uc);
@@ -894,6 +896,7 @@ export default function ResultsPage({
     filterHasGenie !== 'all' ||
     filterQualityBar !== 'all' ||
     filterMvp !== 'all' ||
+    filterValue !== 'all' ||
     showBestOfBestOnly ||
     showFavoritesOnly;
 
@@ -907,6 +910,7 @@ export default function ResultsPage({
     setFilterHasGenie('all');
     setFilterQualityBar('all');
     setFilterMvp('all');
+    setFilterValue('all');
     setShowBestOfBestOnly(false);
     setShowFavoritesOnly(false);
   };
@@ -1906,6 +1910,18 @@ export default function ResultsPage({
                     ))}
                   </select>
 
+                  <select
+                    value={filterValue}
+                    onChange={(e) => setFilterValue(e.target.value)}
+                    aria-label="Value"
+                    title="Filter by whether the value at stake is calculated"
+                    className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth min-w-[9rem]"
+                  >
+                    <option value="all">Value: All</option>
+                    <option value="calculated">Value: Calculated</option>
+                    <option value="not_calculated">Value: Not calculated</option>
+                  </select>
+
                   {/* Sort */}
                   <select
                     aria-label="Sort"
@@ -1989,6 +2005,12 @@ export default function ResultsPage({
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
                         Genie Code instruction: {filterHasGenie === 'yes' ? 'Yes' : 'No'}
                         <button type="button" onClick={() => setFilterHasGenie('all')} className="hover:text-db-red-fg">&times;</button>
+                      </span>
+                    )}
+                    {filterValue !== 'all' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                        {filterValue === 'calculated' ? 'Value calculated' : 'Value not calculated'}
+                        <button type="button" aria-label="Clear the Value filter" onClick={() => setFilterValue('all')} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}
                     {filterMvp !== 'all' && (

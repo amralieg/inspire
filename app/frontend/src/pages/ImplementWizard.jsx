@@ -290,7 +290,7 @@ import { AppReadAccess, GrantList } from '../components/AppReadAccess';
 import { placeholderWords } from '../lib/placeholderWords';
 import {
   KPI_CHANGE_NOTE, KPI_INSPIRE_PICKS, KPI_NONE_YET, KPI_PICK_RULE, kpiKey, kpiOptionLabel, kpiTargetOf, kpiTargetOptions, kpiTargetProblems, trackedKpiOf,
-  stakeWords, trackedKpiText, withKpiTarget,
+  trackedKpiText, withKpiTarget,
 } from '../lib/targetKpi';
 import {
   SETTINGS_ON_THEIR_STEP, isSettingWidget, settingsModelOf, withSetting,
@@ -450,7 +450,7 @@ function CheckLine({ check, label }) {
   );
 }
 
-const MONEY_PART_LABEL = { method: 'How the value is measured', direction: 'Which movement counts', sign: 'Which records are gains', currency: 'Currency', window: 'Periods and statuses', off: 'Turn it off', kpi: 'Target KPI', holdout: 'Hold back' };
+const MONEY_PART_LABEL = { currency: 'Currency', window: 'Periods and statuses', off: 'Turn it off', kpi: 'Target KPI', holdout: 'Hold back' };
 
 export default function ImplementWizard({
   uc,

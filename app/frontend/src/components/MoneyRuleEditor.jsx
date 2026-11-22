@@ -3,7 +3,7 @@ import { draftOf, ruleOf, ruleSentence } from '../../../agent/agent/app_shell/we
 import '../../../agent/agent/app_shell/web/src/styles/moneyRule.css';
 import { compileExpression } from '../../../agent/agent/app_shell/web/src/moneyValue.js';
 import { moneyPartsOf } from '../lib/moneyParts.js';
-import { ALL_PERIODS, DEFAULT_CURRENCY, MONEY_CURRENCY_CHOICES, WINDOW_CHOICES, valueTextOf } from '../lib/moneyDefaults.js';
+import { ALL_PERIODS, DEFAULT_CURRENCY, MONEY_CURRENCY_CHOICES, WINDOW_CHOICES } from '../lib/moneyDefaults.js';
 import AVERAGES from '../../../backend/lib/fxAverages.json';
 import { PlainMessage } from './TechnicalDetails.jsx';
 import { joinSentences } from '../lib/sentences';
@@ -70,8 +70,6 @@ function columnsOf(value) {
   return [value.currency_column].filter(Boolean);
 }
 
-const shownAmount = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
-
 // A radio or checkbox sits to the left of its label, on the same row.
 function Choice({ control, label, hint = '' }) {
   return (
@@ -95,12 +93,9 @@ function Section({ left, right, className = '' }) {
 export function MoneyRuleEditor({ value, onChange, sample = null, table = '', columns = [], api = {}, part = null }) {
   const onlyPart = moneyPartsOf('gains').includes(part) ? part : null;
   const [draft, setDraft] = useState(() => ({ ...draftOf(value || {}), rateSource: 'typed' }));
-  const [pick, setPick] = useState(() => ({ ...pickOf(value?.value, value) }));
-  const [signPick, setSignPick] = useState(() => ({ kind: value?.sign?.kind || '', column: value?.sign?.column || '', value: value?.sign?.value || '', losses: (value?.sign?.losses || []).join(', ') }));
+  const [pick] = useState(() => ({ ...pickOf(value?.value, value) }));
   const [problems, setProblems] = useState([]);
   const [notice, setNotice] = useState('');
-  const [preview, setPreview] = useState(null);
-  const [proposalRows, setProposalRows] = useState(null);
   const hasCurrencyColumn = Boolean(sample?.currency);
   const effective = effectiveOf(pick);
   // The currency the rates are read for: the table's currency column, else the code the value is written in (REQ-103). A value the rule
@@ -125,22 +120,12 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
     if (!blocking.length && rule) onChange(picked.value ? { ...rule, value: picked.value } : rule);
     else if (value?.off) onChange(null);
   };
-  const pickSign = (patch) => {
-    const next = { ...signPick, ...patch };
-    setSignPick(next);
-    const column = next.column.trim();
-    const ready = COLUMN.test(column) && (next.kind === 'column' || (next.kind === 'status' && next.value.trim() !== ''));
-    const losses = next.losses.split(',').map((v) => v.trim()).filter(Boolean);
-    setDraftPart({ sign: !ready ? null : next.kind === 'column' ? { kind: 'column', column } : { kind: 'status', column, value: next.value.trim(), losses } });
-  };
   const setDraftPart = (patch) => { const next = { ...draft, ...patch }; setDraft(next); save(next, pick); };
-  const setPickPart = (patch) => { const next = { ...pick, ...patch }; setPick(next); save(draft, next); };
   const setRate = (i, patch) => setDraftPart({ rates: draft.rates.map((row, at) => (at === i ? { ...row, ...patch, source: 'typed' } : row)) });
 
   const latest = useRef({ draft, pick, rateKey });
   latest.current = { draft, pick, rateKey };
   const ratesRequest = useRef(0);
-  const proposalRequest = useRef(0);
 
   const shownBase = useRef(value?.base || '');
   const mergedRates = (current, data) => {
@@ -183,219 +168,8 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table, rateKey]);
 
-  const { value: picked, problems: pickProblems } = valueOf(effective);
-  const gone = picked && columns.length ? columnsOf(picked).filter((name) => !columns.includes(name)) : [];
-  // The lost-opportunity choice previews only the rows whose status means lost, the rows the rule counts.
-  const lostFilter = pick.method === 'lost' ? { statuses: draft.statuses.split(',').map((s) => s.trim()).filter(Boolean), status_column: draft.statusColumn } : null;
-  const lostUnnamed = lostFilter !== null && !(lostFilter.statuses.length && lostFilter.status_column);
-  const previewKey = JSON.stringify(pickProblems.length || gone.length || lostUnnamed ? null : { picked, lostFilter });
-  useEffect(() => {
-    if (!picked || pickProblems.length || gone.length || lostUnnamed || !table || !api.preview) { setPreview(null); return undefined; }
-    let live = true;
-    api.preview({ table, value: picked, lost_filter: lostFilter }).then((data) => { if (live) setPreview({ rows: data.rows || [] }); })
-      .catch((err) => { if (live) setPreview({ error: err?.message || 'The example rows could not be read.' }); });
-    return () => { live = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewKey, table]);
-
-  const propose = () => {
-    const text = pick.text.trim();
-    const request = ++proposalRequest.current;
-    setProposalRows(null);
-    setPick((p) => ({ ...p, error: '', proposal: null, explanation: '' }));
-    api.describe({ table, text, columns, currency_column: sample?.currency || '' }).then((data) => {
-      if (request !== proposalRequest.current) return null;
-      setPick((p) => ({ ...p, proposal: data.value, explanation: data.explanation || '', error: '' }));
-      return api.preview({ table, value: data.value }).then((pv) => { if (request === proposalRequest.current) setProposalRows(pv.rows || []); });
-    }).catch((err) => { if (request === proposalRequest.current) setPick((p) => ({ ...p, proposal: null, error: err?.message || 'The rule could not be proposed; choose one of the other ways.' })); });
-  };
-
-  const useProposal = () => {
-    const used = pickOf(pick.proposal);
-    setPickPart({ used, method: 'describe' });
-  };
-
   const shown = ruleOf(draft).rule;
   const sentence = shown && draft.base ? ruleSentence(shown) : '';
-  const columnList = <datalist id="money-columns">{columns.map((name) => <option key={name} value={name} />)}</datalist>;
-  const exampleRows = preview?.rows && (
-    <div className="space-y-1" data-money-value-preview>
-      <p className="font-semibold text-text-primary">Worked example from your table</p>
-      {preview.error && <PlainMessage text={preview.error} className="text-[12px] text-danger" />}
-      <ol className="list-decimal ps-5" data-money-preview-rows>{preview.rows.map((row, i) => <li key={i}>{`${shownAmount(row.stake)} ${row.currency}`}</li>)}</ol>
-    </div>
-  );
-
-
-  const valueCurrencyBlock = pick.method && pick.method !== 'describe' && pick.method !== 'rule' && (
-    <fieldset className="space-y-2 text-[12px]" data-money-value-currency>
-      <legend className="font-semibold text-text-primary">Currency of those values</legend>
-      {hasCurrencyColumn && (
-        <Choice label="Each record has its own currency column" control={<input type="radio" name="value-currency-by" className="mt-0.5 shrink-0" checked={pick.currencyBy === 'column'} onChange={() => setPickPart({ currencyBy: 'column', currencyColumn: pick.currencyColumn || sample.currency })} data-money-value-currency-by="column" />} />
-      )}
-      {hasCurrencyColumn && pick.currencyBy === 'column' && (
-        <label className="block ps-6">Currency column (type or pick)
-          <input dir="auto" className="ms-2 w-40" list="money-columns" value={pick.currencyColumn} onChange={(e) => setPickPart({ currencyColumn: e.target.value.trim() })} data-money-value-currency-column />
-        </label>
-      )}
-      <Choice label="One currency for all records" control={<input type="radio" name="value-currency-by" className="mt-0.5 shrink-0" checked={pick.currencyBy !== 'column'} onChange={() => setPickPart({ currencyBy: 'code' })} data-money-value-currency-by="code" />} />
-      {pick.currencyBy !== 'column' && (
-        <label className="block ps-6">Currency code (USD is the default; type or pick)
-          <input dir="auto" className="ms-2 w-24" list="money-currency-codes" value={pick.code} onChange={(e) => setPickPart({ code: e.target.value.toUpperCase() })} data-money-value-code />
-        </label>
-      )}
-    </fieldset>
-  );
-
-  const methodPart = (
-    <Section
-      left={(
-        <fieldset className="space-y-3" data-measure-value>
-          <legend className="text-[13px] font-semibold text-text-primary">How does your business measure the value of each record?</legend>
-          {METHODS.map((m) => (
-            <Choice key={m.id} label={m.label} hint={m.hint}
-              control={<input type="radio" name="measure-method" className="mt-0.5 shrink-0" checked={pick.method === m.id} onChange={() => setPickPart({ method: m.id })} data-money-method={m.id} data-measure-method={m.id} />} />
-          ))}
-        </fieldset>
-      )}
-      right={(
-        <>
-          <p className="font-semibold text-text-primary">Calculation</p>
-          {pick.method === '' && <p className="text-text-secondary">Choose how the value is measured. The default is pre-filled from this use case’s table, so you can keep it.</p>}
-          {pick.method === 'rule' && <p className="text-text-secondary" data-money-rule-own>Each flagged record counts the amount its own rule works out, so there is nothing to fill in. Pick a column, a fixed amount or an equation to use a value of your own instead.</p>}
-          {pick.method === 'fixed' && (
-            <>
-              <label className="block">Amount for each record (positive, for example 120)
-                <input dir="auto" inputMode="decimal" className="block mt-1 w-40" value={pick.amount} onChange={(e) => setPickPart({ amount: e.target.value })} data-money-fixed-amount />
-              </label>
-              <p className="text-text-secondary">Total = number of records × amount. Example: a lost booking worth 120 counts 120; three of them count 360.</p>
-            </>
-          )}
-          {pick.method === 'lost' && (
-            <div className="space-y-2 text-[12px]" data-money-lost>
-              <label className="block">Amount for each lost record
-                <input dir="auto" className="block mt-1 w-40" value={pick.amount} onChange={(e) => setPickPart({ amount: e.target.value })} data-money-lost-amount />
-              </label>
-              <label className="block">Column that holds the status of each record
-                <select className="block mt-1" value={draft.statusColumn} onChange={(e) => setDraftPart({ statusColumn: e.target.value })} data-money-lost-status-column>
-                  <option value="">Pick a column</option>
-                  {[...new Set([...columns, draft.statusColumn].filter(Boolean))].map((name) => <option key={name} value={name}>{name}</option>)}
-                </select>
-              </label>
-              <label className="block">Statuses that mean the opportunity was lost, comma-separated
-                <input dir="auto" className="block mt-1 w-full" value={draft.statuses} onChange={(e) => setDraftPart({ statuses: e.target.value })} data-money-lost-statuses />
-              </label>
-            </div>
-          )}
-          {pick.method === 'column' && (
-            <>
-              <label className="block">Column with the amount of each record (type or pick)
-                <input dir="auto" className="block mt-1 w-full" list="money-columns" value={pick.column} placeholder={sample?.amount || 'total_amount'}
-                  onChange={(e) => setPickPart({ column: e.target.value.trim() })} data-money-value-column />
-              </label>
-              {columnList}
-              <p className="text-text-secondary">Total = sum of this column over the records. Example: a row with 250 in {sample?.amount || 'this column'} adds 250.</p>
-            </>
-          )}
-          {pick.method === 'equation' && (
-            <>
-              <label className="block">Equation over columns (type or pick a column)
-                <input dir="auto" className="block mt-1 w-full" list="money-columns" value={pick.expression} placeholder="quantity * unit_price - discount"
-                  onChange={(e) => setPickPart({ expression: e.target.value })} data-money-equation />
-              </label>
-              {columnList}
-              <p className="text-text-secondary">Each record is worked out from its own row, then the values are summed. Example: quantity 3, unit_price 40, discount 10 gives 110.</p>
-            </>
-          )}
-          {pick.method === 'describe' && (
-            <div className="space-y-2" data-money-describe>
-              <label className="block">How does the value of each record work?
-                <textarea rows={4} dir="auto" className="block mt-1 w-full" value={pick.text} placeholder={DESCRIBE_EXAMPLE}
-                  onChange={(e) => { proposalRequest.current += 1; setPickPart({ text: e.target.value, proposal: null }); }} data-money-describe-text />
-              </label>
-              <p className="text-text-secondary">{DESCRIBE_EXAMPLE}</p>
-              <button type="button" className="lnk" disabled={!pick.text.trim()} onClick={propose} data-money-describe-propose>Turn into a rule</button>
-              {pick.error && <PlainMessage text={pick.error} className="text-[12px] text-danger" data-money-describe-error />}
-              {pick.proposal && (
-                <div className="space-y-1" data-money-describe-proposal>
-                  <p className="text-text-primary" data-money-describe-explanation>{pick.explanation}</p>
-                  <p className="text-text-secondary" data-money-describe-rule>{`Proposed rule: ${valueTextOf(pick.proposal)}`}</p>
-                  {proposalRows && <ol className="list-decimal ps-5" data-money-describe-rows>{proposalRows.map((row, i) => <li key={i}>{`${shownAmount(row.stake)} ${row.currency}`}</li>)}</ol>}
-                  <button type="button" className="lnk" onClick={useProposal} data-money-describe-use data-draft-change="">Use this rule</button>
-                </div>
-              )}
-            </div>
-          )}
-          {valueCurrencyBlock}
-          {effective.method && !pickProblems.length && !gone.length && exampleRows}
-          {gone.length > 0 && <PlainMessage text={gone.map((name) => `The column ${name} is not in this table, so the rule cannot use it.`).join(' ')} className="text-[12px] text-danger" />}
-        </>
-      )}
-    />
-  );
-
-  const directionPart = (
-    <Section
-      left={(
-        <fieldset className="space-y-3" data-measure-direction>
-          <legend className="text-[13px] font-semibold text-text-primary">Which movement counts?</legend>
-          {DIRECTIONS.map((d) => (
-            <Choice key={d.id} label={d.label} hint={d.hint}
-              control={<input type="radio" name="measure-direction" className="mt-0.5 shrink-0" checked={(draft.rule || 'losses') === d.id} onChange={() => setDraftPart({ rule: d.id })} data-money-rule-kind={d.id} />} />
-          ))}
-        </fieldset>
-      )}
-      right={(
-        <>
-          <p className="font-semibold text-text-primary">Calculation</p>
-          <p className="text-text-secondary">{{
-            losses: 'Total = sum of the value of the records that are losses. Example: a loss worth 120 adds 120; a gain adds 0.',
-            gains: 'Total = sum of the value of the records that are gains. Example: a row with channel "gain" and value 120 adds 120.',
-            net: 'Total = gains and losses added together. Example: a gain of 120 and a loss of 120 net to 0.',
-          }[draft.rule || 'losses']}</p>
-        </>
-      )}
-    />
-  );
-
-  const signPart = (
-    <Section
-      left={(
-        <fieldset className="space-y-2" data-measure-sign>
-          <legend className="font-semibold text-text-primary">Which records are gains?</legend>
-          <Choice label="A column: its positive values are gains" control={<input type="radio" name="measure-sign" className="mt-0.5 shrink-0" checked={signPick.kind === 'column'} onChange={() => setSignPick({ ...signPick, kind: 'column' })} data-money-sign-kind="column" />} />
-          {signPick.kind === 'column' && (
-            <label className="block ps-6">Column (type or pick)
-              <input dir="auto" className="ms-2 w-40" list="money-columns" value={signPick.column} onChange={(e) => pickSign({ column: e.target.value.trim() })} data-money-sign-column />
-            </label>
-          )}
-          <Choice label="A status value marks a gain" control={<input type="radio" name="measure-sign" className="mt-0.5 shrink-0" checked={signPick.kind === 'status'} onChange={() => setSignPick({ ...signPick, kind: 'status' })} data-money-sign-kind="status" />} />
-          {signPick.kind === 'status' && (
-            <div className="space-y-1 ps-6">
-              <label className="block">Status column (type or pick)
-                <input dir="auto" className="ms-2 w-40" list="money-columns" value={signPick.column} onChange={(e) => pickSign({ column: e.target.value.trim() })} data-money-sign-status-column />
-              </label>
-              <label className="block">Status value that marks a gain, for example gain
-                <input dir="auto" className="ms-2 w-40" value={signPick.value} onChange={(e) => pickSign({ value: e.target.value })} data-money-sign-value />
-              </label>
-              <label className="block">Statuses that mark a loss, comma-separated, for example refunded (any other status counts neither)
-                <input dir="auto" className="ms-2 w-56" value={signPick.losses} onChange={(e) => pickSign({ losses: e.target.value })} data-money-sign-losses />
-              </label>
-            </div>
-          )}
-          {!draft.sign && <p className="text-text-secondary" data-money-sign-needed>Gains only needs a sign: name the column whose positive values are gains, or the status value that marks a gain.</p>}
-        </fieldset>
-      )}
-      right={(
-        <>
-          <p className="font-semibold text-text-primary">Calculation</p>
-          <p className="text-text-secondary">Total = sum of the value of the records that are gains. Example: a row with channel "gain" and value 120 adds 120.</p>
-          {columnList}
-        </>
-      )}
-    />
-  );
-
   const currencyPart = (
     <Section
       left={(
@@ -505,7 +279,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
     />
   );
 
-  const parts = { method: methodPart, direction: directionPart, sign: signPart, currency: currencyPart, window: windowPart, off: offPart };
+  const parts = { currency: currencyPart, window: windowPart, off: offPart };
   return (
     <div className="money-rule space-y-4" data-money-rule-editor>
       {(onlyPart ? [onlyPart] : moneyPartsOf(draft.rule)).map((name) => <div key={name}>{parts[name]}</div>)}

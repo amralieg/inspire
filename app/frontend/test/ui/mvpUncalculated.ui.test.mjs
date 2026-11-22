@@ -28,7 +28,7 @@ for (const [name, entry] of [['no estimate', { status: 'none', verb: '', amount:
       await panel.getByText('No value yet', { exact: true }).waitFor({ timeout: 15000 });
       assert.equal(await panel.getByRole('button', { name: 'Edit', exact: true }).count(), 0);
       await panel.getByRole('button', { name: /Calculate/ }).first().click();
-      await ui.page.getByRole('dialog', { name: 'Calculate value at stake' }).waitFor();
+      await ui.page.getByRole('dialog', { name: /^Calculating Value at Stake for / }).waitFor();
       assert.deepEqual(ui.pageErrors, []);
     } finally { await ui.close(); }
   });

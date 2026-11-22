@@ -45,7 +45,7 @@ test('FX-55: Edit on a bulk row opens the value editor when the use case card is
     await page.getByPlaceholder('Search use cases...').fill('zzz no such use case zzz');
     await page.locator('[data-use-case-id="N01-U01"]').waitFor({ state: 'detached', timeout: 5000 });
     await panel.locator('[data-bulk-row="N01-U01"]').getByRole('button', { name: 'Edit', exact: true }).click();
-    await page.getByRole('dialog', { name: 'Calculate value at stake' }).waitFor({ timeout: 5000 });
+    await page.getByRole('dialog', { name: /^Calculating Value at Stake for / }).waitFor({ timeout: 5000 });
   } finally { await ui.close(); }
 });
 
@@ -55,6 +55,6 @@ test('FX-55: Edit on a bulk row still opens the value editor when the card is vi
   try {
     const panel = await toCheckRow(page);
     await panel.locator('[data-bulk-row="N01-U01"]').getByRole('button', { name: 'Edit', exact: true }).click();
-    await page.getByRole('dialog', { name: 'Calculate value at stake' }).waitFor({ timeout: 5000 });
+    await page.getByRole('dialog', { name: /^Calculating Value at Stake for / }).waitFor({ timeout: 5000 });
   } finally { await ui.close(); }
 });

@@ -92,7 +92,7 @@ export async function openCard(mount) {
 export const openWizard = async (page, card) => {
   await card.locator('[data-value-calculate]').waitFor({ timeout: 15000 });
   await card.locator('[data-value-calculate]').click();
-  const dialog = page.getByRole('dialog', { name: 'Calculate value at stake' });
+  const dialog = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
   await dialog.waitFor();
   return dialog;
 };

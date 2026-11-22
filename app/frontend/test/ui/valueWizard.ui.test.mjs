@@ -1,4 +1,4 @@
-// REQ-436, REQ-437: the Calculate value wizard (steps: data, kinds, one page per kind, groups, save).
+// REQ-436, REQ-437: the Calculate value wizard (steps: kinds, data, one page per kind, save).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser } from './uiSupport.mjs';
@@ -8,12 +8,13 @@ test.after(closeBrowser);
 
 const text = async (loc) => (await loc.innerText()).replace(/\s+/g, ' ').trim();
 
-test('W1: Calculate calls case-plan once and step 1 shows the case noun and records per year', async () => {
+test('W1: Calculate calls case-plan once and step 2 shows the case noun and records per year', async () => {
   const plans = [];
   const { ui, card, page } = await openCard(mountWizard({ plans }));
   try {
     const dialog = await openWizard(page, card);
-    await dialog.locator('[data-wizard-page="data"]').waitFor({ timeout: 15000 });
+    await dialog.locator('[data-wizard-page="kinds"]').waitFor({ timeout: 15000 });
+    await goTo(dialog, 'data');
     assert.equal(plans.length, 1);
     assert.equal(plans[0].use_case_id, 'N01-U01');
     assert.match(await text(dialog.locator('[data-case-noun]')), /review case/);
@@ -135,12 +136,12 @@ test('W5: a plan with no model shows the fallback notice, and a case-plan 500 sh
   } finally { await ui.close(); }
 });
 
-test('W6: steps 1, 2 and 5 fit a 1280x800 window with no scroll', async () => {
+test('W6: steps 1, 2 and 4 fit a 1280x800 window with no scroll', async () => {
   const { ui, card, page } = await openCard(mountWizard());
   try {
     await page.setViewportSize({ width: 1280, height: 800 });
     const dialog = await openWizard(page, card);
-    for (const step of ['data', 'kinds', 'save']) {
+    for (const step of ['kinds', 'data', 'save']) {
       await goTo(dialog, step);
       await dialog.locator('[data-preview-state="ready"], [data-wizard-page="data"], [data-wizard-page="kinds"]').first().waitFor({ timeout: 15000 });
       const fit = await page.evaluate(() => {

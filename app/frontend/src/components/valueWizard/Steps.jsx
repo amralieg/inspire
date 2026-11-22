@@ -1,13 +1,13 @@
 import { PlainMessage } from '../TechnicalDetails';
-import { DRIVER_ICONS, countText, moneyText, partOf, recordsOf, totalText } from '../../lib/valueWizard.js';
+import { DRIVER_ICONS, countText, likelyLineOf, moneyText, partOf, recordsOf, totalText } from '../../lib/valueWizard.js';
 import Ask from './Ask.jsx';
 
 const opTexts = { '=': 'is', '!=': 'is not', '>': 'is above', '>=': 'is at least', '<': 'is below', '<=': 'is at most', is_not_null: 'is filled' };
 const filterText = (f) => (f?.column ? ` where ${f.column} ${opTexts[f.op] || f.op}${f.op === 'is_not_null' ? '' : ` ${f.value}`}` : '');
 const dataValueOf = (yearly, driverId, ask) => (yearly ? partOf(yearly, driverId)?.inputs?.find((i) => i.id === ask.id)?.value : undefined);
 
-// REQ-436 step 1: what the use case works on, the grouping, and how value is built.
-export function StepData({ plan, answers, onGrouping }) {
+// REQ-436 step 2: what the use case works on and how value is built. REQ-473: the value is over all records, so there is no grouping choice.
+export function StepData({ plan, answers }) {
   return (
     <div data-wizard-page="data" className="space-y-3">
       <div className="rounded-lg border border-border bg-bg-subtle px-3 py-2 text-[13px] text-text-primary">
@@ -17,18 +17,6 @@ export function StepData({ plan, answers, onGrouping }) {
         <div className="rounded-lg border border-ok/30 bg-ok-bg px-4 py-2">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-ok-fg">From your data</p>
           <p data-records-per-year="" className="text-2xl font-extrabold tabular-nums text-ok-fg">{countText(recordsOf(plan, answers))} <span className="text-[12px] font-normal">{plan.case_noun}s a year</span></p>
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-text-primary">How should the numbers be grouped?</p>
-          <div role="radiogroup" aria-label="Grouping" className="mt-1 flex flex-wrap gap-2">
-            {plan.groupings.map((g) => {
-              const on = g.column === plan.grouping;
-              return (
-                <button key={g.column} type="button" role="radio" aria-checked={on} onClick={() => !on && onGrouping(g.column)}
-                  className={`rounded-lg border px-3 py-1 text-[13px] ${on ? 'border-db-red-solid ring-1 ring-db-red-solid' : 'border-border hover:bg-bg-subtle'}`}>{g.label}</button>
-              );
-            })}
-          </div>
         </div>
       </div>
       <div aria-label="How value is built" className="flex flex-wrap items-center gap-2 text-[12px]">
@@ -44,31 +32,51 @@ export function StepData({ plan, answers, onGrouping }) {
   );
 }
 
-// Step 2: the five kinds of value, each on or off.
-export function StepKinds({ plan, answers, onToggle }) {
+// REQ-472 (d): step 1, every factor with an Include box, then (REQ-474) the economic trend and the AI's likely value.
+export function StepKinds({ plan, answers, onToggle, onTrend }) {
+  const trend = plan.economic_trend;
+  const mine = answers.economic_trend;
+  const likely = likelyLineOf(plan.likely_value);
   return (
     <div data-wizard-page="kinds" className="space-y-2">
-      <p className="text-[13px] text-text-secondary">Pick the kinds of value this use case creates. Each one you keep gets its own page.</p>
+      <p className="text-[13px] text-text-secondary">Pick the kinds of value this use case creates. Each one you include gets its own page.</p>
+      {likely && <p data-likely-value="" className="text-[13px] font-semibold text-text-primary">{likely}</p>}
       <div className="grid grid-cols-2 gap-2">
         {plan.drivers.map((d) => {
           const on = Boolean(answers.drivers[d.id]?.on);
           return (
-            <button key={d.id} type="button" role="checkbox" aria-checked={on} onClick={() => onToggle(d.id)}
-              className={`flex items-start gap-2.5 rounded-lg border px-3 py-2 text-start ${on ? 'border-db-red-solid ring-1 ring-db-red-solid' : 'border-border hover:bg-bg-subtle'}`}>
+            <label key={d.id} className={`flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2 text-start ${on ? 'border-db-red-solid ring-1 ring-db-red-solid' : 'border-border hover:bg-bg-subtle'}`}>
+              <input type="checkbox" aria-label={`Include ${d.label}`} checked={on} onChange={() => onToggle(d.id)} className="mt-1" />
               <span aria-hidden="true" className="text-xl leading-none">{DRIVER_ICONS[d.id] || ''}</span>
               <span className="min-w-0 flex-1"><b className="block text-[13px] text-text-primary">{d.label}</b><span className="block text-[12px] text-text-secondary">{d.why}</span>
                 <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide text-text-secondary">{d.verb}</span></span>
-              <span aria-hidden="true" className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] ${on ? 'border-db-red-solid bg-db-red-solid text-white' : 'border-border'}`}>{on ? '✓' : ''}</span>
-            </button>
+              <span className="shrink-0 text-[11px] font-semibold text-text-secondary">Include</span>
+            </label>
           );
         })}
       </div>
+      {trend && mine && (
+        <section data-economic-trend="" aria-label="Economic trend" className="space-y-1.5 rounded-lg border border-border px-3 py-2">
+          <h4 className="text-[13px] font-semibold text-text-primary">Economic trend</h4>
+          <label className="flex items-center gap-2 text-[13px] text-text-primary">
+            <input type="checkbox" checked={mine.on} onChange={() => onTrend({ on: !mine.on })} />Include economic trend
+          </label>
+          <div role="radiogroup" aria-label="Economic trend option" className="space-y-1">
+            {(trend.options || []).map((o) => (
+              <label key={o.id} className={`flex items-start gap-2 text-[12px] ${mine.on ? 'text-text-primary' : 'text-text-secondary'}`}>
+                <input type="radio" name="economic-trend-option" checked={mine.option === o.id} onChange={() => onTrend({ option: o.id })} className="mt-0.5" />
+                <span><b>{o.label}</b> {Number(o.pct)}%{o.why ? `, ${o.why}` : ''}</span>
+              </label>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
 
 // Steps 3: one kind, its asks, its amount and the running total.
-export function StepKind({ plan, driver, answers, yearly, onInput, status, error }) {
+export function StepKind({ driver, answers, yearly, onInput, status, error }) {
   const part = partOf(yearly, driver.id);
   const unit = yearly?.total?.unit;
   return (
@@ -84,23 +92,6 @@ export function StepKind({ plan, driver, answers, yearly, onInput, status, error
         {driver.asks.map((a) => (
           <Ask key={a.id} ask={a} value={answers.drivers[driver.id]?.inputs[a.id]} dataValue={dataValueOf(yearly, driver.id, a)} currency={answers.currency || yearly?.currency}
             onChange={(v) => onInput(driver.id, a.id, v)} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// Step 4: which groups count.
-export function StepGroups({ plan, answers, onToggleGroup }) {
-  const out = new Set(answers.excluded_groups);
-  return (
-    <div data-wizard-page="groups" className="space-y-2">
-      <p className="text-[13px] text-text-secondary">{plan.groups.length > 1 ? `Tick the groups to count (${plan.groupings.find((g) => g.column === plan.grouping)?.label || plan.grouping}).` : 'Your data has one group, so there is nothing to pick here.'}</p>
-      <div className="flex flex-wrap gap-2">
-        {plan.groups.map((g) => (
-          <label key={g.g} className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-[13px] ${out.has(g.g) ? 'border-border bg-bg-subtle text-text-secondary' : 'border-db-red-solid'}`}>
-            <input type="checkbox" checked={!out.has(g.g)} onChange={() => onToggleGroup(g.g)} />{g.g}<span className="text-[11px] text-text-secondary">{countText(g.records_per_year)} a year</span>
-          </label>
         ))}
       </div>
     </div>

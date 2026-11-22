@@ -18,9 +18,9 @@ test('3: saved answers become the spec, and the round trip is exact', () => {
   assert.deepEqual({ money: back.money, kpi: back.kpi, holdout: back.holdout }, { money, kpi: { target: 'Churn rate' }, holdout: { enabled: true, share: 0.1 } });
   assert.deepEqual(specWithMeasure(spec, {}), spec, 'absent answers leave the spec as it is');
 });
-test('4: one row per setting, in order; sign only for gains', () => {
-  assert.deepEqual(measureRows(spec).map((r) => r.id), ['method', 'direction', 'sign', 'currency', 'window', 'off', 'kpi', 'holdout']);
-  assert.ok(!measureRows({ ...spec, money: { ...money, rule: 'losses' } }).some((r) => r.id === 'sign'));
+test('4: one row per setting, in order; no method, movement or sign row (REQ-473)', () => {
+  assert.deepEqual(measureRows(spec).map((r) => r.id), ['currency', 'window', 'off', 'kpi', 'holdout']);
+  assert.ok(!measureRows({ ...spec, money: { ...money, rule: 'gains' } }).some((r) => r.id === 'sign'));
   assert.ok(measureRows(spec).every((r) => r.label && typeof r.summary === 'string'));
 });
 test('5: the carry-through keeps only the measure fields', () => {

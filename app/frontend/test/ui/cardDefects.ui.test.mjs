@@ -74,7 +74,7 @@ async function openCalc(page, name) {
   const card = cardOf(page, name);
   await card.first().waitFor();
   await card.locator('[data-value-calculate]').click();
-  const dialog = page.getByRole('dialog', { name: 'Calculate value at stake' });
+  const dialog = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
   await dialog.waitFor();
   return dialog;
 }

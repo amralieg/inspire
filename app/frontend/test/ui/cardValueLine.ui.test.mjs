@@ -63,7 +63,7 @@ test('Calculate opens the wizard, Save on its last step saves the answers on the
     await list.locator('[aria-expanded]').first().waitFor();
     const card = list.locator('[aria-expanded]').filter({ hasText: 'Predict churn' });
     await card.locator('[data-value-calculate]').click();
-    const dialog = page.getByRole('dialog', { name: 'Calculate value at stake' });
+    const dialog = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
     await dialog.waitFor();
     await dialog.getByRole('list', { name: 'Steps' }).waitFor();
     assert.match(await dialog.innerText(), /value at stake/i);
@@ -98,7 +98,7 @@ test('a failed save shows its one line in the box, keeps the box open, and the c
     await list.locator('[aria-expanded]').first().waitFor();
     const card = list.locator('[aria-expanded]').filter({ hasText: 'Predict churn' });
     await card.locator('[data-value-calculate]').click();
-    const dialog = page.getByRole('dialog', { name: 'Calculate value at stake' });
+    const dialog = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
     await goTo(dialog, 'save');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();

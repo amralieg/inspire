@@ -17,6 +17,7 @@ test('D21: a record count is a whole number', async () => {
   const { ui, card, page } = await openCard(mountWizard({ planReply: { plan: FRACTIONAL } }));
   try {
     const dialog = await openWizard(page, card);
+    await goTo(dialog, 'data');
     const figure = dialog.locator('[data-records-per-year]');
     await figure.waitFor({ timeout: 15000 });
     const t = await flat(figure);
@@ -29,7 +30,7 @@ test('D21: the footer says Calculating until a value exists, never Up to date', 
   const slow = await openCard(mountWizard({ previewDelay: 2500 }));
   try {
     const dialog = await openWizard(slow.page, slow.card);
-    await dialog.locator('[data-wizard-page="data"]').waitFor({ timeout: 15000 });
+    await dialog.locator('[data-wizard-page="kinds"]').waitFor({ timeout: 15000 });
     assert.match(await flat(dialog.locator('[data-preview-state]')), /^Calculating\.\.\.$/);
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     assert.match(await flat(dialog.locator('[data-preview-state]')), /^Up to date$/);
@@ -63,7 +64,7 @@ test('D23: the dialog and its buttons stay put at every step, and group counts a
   const { ui, card, page } = await openCard(mountWizard({ planReply: { plan: FRACTIONAL } }));
   try {
     const dialog = await openWizard(page, card);
-    await dialog.locator('[data-wizard-page="data"]').waitFor({ timeout: 15000 });
+    await dialog.locator('[data-wizard-page="kinds"]').waitFor({ timeout: 15000 });
     const boxes = [];
     const nextBtn = dialog.getByRole('button', { name: 'Next', exact: true });
     for (let i = 0; i < 12; i += 1) {
@@ -76,7 +77,7 @@ test('D23: the dialog and its buttons stay put at every step, and group counts a
       if (!(await nextBtn.count())) break;
       await next(dialog);
     }
-    assert.ok(boxes.length >= 5, 'walked every step');
+    assert.ok(boxes.length >= 4, 'walked every step');
     for (const b of boxes) {
       assert.equal(b.y, boxes[0].y, `dialog top at ${b.page}`);
       assert.equal(b.h, boxes[0].h, `dialog height at ${b.page}`);
@@ -92,10 +93,8 @@ test('D24: with no kind ticked Calculate now is off, says what to tick and write
   try {
     const dialog = await openWizard(page, card);
     const calc = dialog.getByRole('button', { name: 'Calculate now', exact: true });
-    await dialog.locator('[data-wizard-page="data"]').waitFor({ timeout: 15000 });
-    assert.equal(await calc.isDisabled(), true, 'disabled on the first page too');
-    await goTo(dialog, 'kinds');
-    assert.equal(await calc.isDisabled(), true);
+    await dialog.locator('[data-wizard-page="kinds"]').waitFor({ timeout: 15000 });
+    assert.equal(await calc.isDisabled(), true, 'disabled on the kinds page');
     assert.match(await flat(dialog), /Tick a kind of value/);
     assert.equal(puts.length, 0);
     await dialog.getByRole('checkbox').first().click();

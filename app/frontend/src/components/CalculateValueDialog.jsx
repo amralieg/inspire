@@ -4,16 +4,16 @@ import ModalDialog from './ModalDialog';
 import ValueHistory from './ValueHistory';
 import MeasureSettings from './valueWizard/MeasureSettings.jsx';
 import StepSave from './valueWizard/StepSave.jsx';
-import { StepData, StepGroups, StepKind, StepKinds } from './valueWizard/Steps.jsx';
+import { StepData, StepKind, StepKinds } from './valueWizard/Steps.jsx';
 import usePreview from './valueWizard/usePreview.js';
-import { trackingIdOf } from '../lib/useCaseFields';
+import { nameOfUseCase, trackingIdOf } from '../lib/useCaseFields';
 import { measureOfSaved } from '../lib/measureSettings.js';
-import { VALUE_LABELS } from '../lib/valueLabels';
+import { VALUE_LABELS, dialogTitleFor } from '../lib/valueLabels';
 import { outsideValueRange, rangeNote } from '../lib/valueBulk.js';
-import { CASE_PLAN_ROUTE, FALLBACK_NOTICE, noModelNotice, answersKey, bodyOf, carryAnswers, driversOn, initialAnswers } from '../lib/valueWizard.js';
+import { CASE_PLAN_ROUTE, FALLBACK_NOTICE, noModelNotice, answersKey, bodyOf, carryAnswers, driversOn, initialAnswers, reviewLineOf } from '../lib/valueWizard.js';
 
 const messageOf = (err) => String(err?.message || err || 'The value could not be saved.');
-const STEPS = ['Your data', 'Kinds of value', 'Each value', 'By group', 'Save'];
+const STEPS = ['Kinds of value', 'Your data', 'Each value', 'Save'];
 const btn = 'rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle disabled:opacity-50';
 const primary = 'rounded-md bg-db-red-solid hover:bg-db-red-solid-hover px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50';
 
@@ -22,10 +22,10 @@ const primary = 'rounded-md bg-db-red-solid hover:bg-db-red-solid-hover px-3 py-
 export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDatabase, warehouseId, sessionId, saved = null, version = null, values, measure = null, onClose }) {
   const useCaseId = trackingIdOf(uc);
   const [planState, setPlanState] = useState({ status: 'loading', plan: null, error: '' });
-  const [groupBy, setGroupBy] = useState('');
   const [attempt, setAttempt] = useState(0);
   const [answers, setAnswers] = useState(null);
-  const [pageIdx, setPageIdx] = useState(0);
+  // A link that opens the measure settings (measure.open) lands on Your data, where that section sits; every other opening starts on Kinds of value.
+  const [pageIdx, setPageIdx] = useState(measure?.open ? 1 : 0);
   const [savedKey, setSavedKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -35,11 +35,11 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
   useEffect(() => {
     let live = true;
     setPlanState((s) => ({ ...s, status: 'loading', error: '' }));
-    const ask = `${groupBy}|${attempt}`;
+    const ask = String(attempt);
     // One request per ask, even when the effect runs twice (React strict mode).
     if (asked.current.key !== ask) {
       asked.current = { key: ask, promise: apiPostJson(CASE_PLAN_ROUTE, { inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId),
-        use_case_id: useCaseId, table, ...(groupBy ? { group_by: groupBy } : {}) }) };
+        use_case_id: useCaseId, table }) };
     }
     asked.current.promise
       .then((got) => {
@@ -54,14 +54,14 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
       })
       .catch((err) => { if (live) setPlanState({ status: 'error', plan: null, error: messageOf(err) }); });
     return () => { live = false; };
-  }, [groupBy, attempt]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [attempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const plan = planState.plan;
   const preview = usePreview(plan && answers ? plan : null, answers, apiPostJson);
   const loadHistory = useCallback(() => values.history(useCaseId).then(setHistory, () => setHistory([])), [values, useCaseId]);
   useEffect(() => { if (version) loadHistory(); }, [version]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const pages = useMemo(() => (plan && answers ? ['data', 'kinds', ...driversOn(plan, answers).map((d) => `driver:${d.id}`), 'groups', 'save'] : ['data']), [plan, answers]);
+  const pages = useMemo(() => (plan && answers ? ['kinds', 'data', ...driversOn(plan, answers).map((d) => `driver:${d.id}`), 'save'] : ['kinds']), [plan, answers]);
   const page = pages[Math.min(pageIdx, pages.length - 1)];
   const calculated = Boolean(answers) && savedKey === answersKey(answers);
 
@@ -69,8 +69,8 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
   const setInput = (id, ask, v) => edit((a) => ({ ...a, drivers: { ...a.drivers, [id]: { ...a.drivers[id], inputs: { ...a.drivers[id].inputs, [ask]: v } } } }));
   const toggleDriver = (id) => edit((a) => ({ ...a, drivers: { ...a.drivers, [id]: { ...a.drivers[id], on: !a.drivers[id].on } } }));
   const toggleGroup = (g) => edit((a) => ({ ...a, excluded_groups: a.excluded_groups.includes(g) ? a.excluded_groups.filter((x) => x !== g) : [...a.excluded_groups, g] }));
+  const setTrend = (patch) => edit((a) => ({ ...a, economic_trend: { ...a.economic_trend, ...patch } }));
   const setCredit = (v) => edit((a) => ({ ...a, attribution_pct: v }));
-  const chooseGrouping = (column) => { setGroupBy(column); setSavedKey(''); };
 
   // One save for both buttons: Save confirms (calculated true); Calculate now keeps the numbers as estimated (calculated false) and jumps to the Save step.
   const save = async (calculated = true) => {
@@ -98,7 +98,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
     } finally { setBusy(false); }
   };
 
-  const mainStep = page === 'data' ? 0 : page === 'kinds' ? 1 : page === 'groups' ? 3 : page === 'save' ? 4 : 2;
+  const mainStep = page === 'kinds' ? 0 : page === 'data' ? 1 : page === 'save' ? 3 : 2;
   const driver = plan?.drivers.find((d) => page === `driver:${d.id}`);
   const last = page === 'save';
   const anyOn = plan && answers ? driversOn(plan, answers).length > 0 : false;
@@ -120,10 +120,10 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
     return (
       <>
         {!plan.model && <p role="note" data-fallback-notice="" className="rounded-md border border-warning/40 bg-warning-bg px-3 py-1.5 text-[12px] text-warning-fg">{plan.model_reason ? noModelNotice(plan.model_reason) : FALLBACK_NOTICE}</p>}
-        {page === 'data' && <StepData plan={plan} answers={answers} onGrouping={chooseGrouping} />}
-        {page === 'kinds' && <StepKinds plan={plan} answers={answers} onToggle={toggleDriver} />}
-        {driver && <StepKind plan={plan} driver={driver} answers={answers} yearly={yearly} onInput={setInput} status={preview.status} error={preview.error} />}
-        {page === 'groups' && <StepGroups plan={plan} answers={answers} onToggleGroup={toggleGroup} />}
+        {(page === 'kinds' || last) && reviewLineOf(plan.review) && <p role="note" data-value-review="" className="rounded-md border border-border bg-bg-subtle px-3 py-1.5 text-[12px] text-text-secondary">{reviewLineOf(plan.review)}</p>}
+        {page === 'data' && <StepData plan={plan} answers={answers} />}
+        {page === 'kinds' && <StepKinds plan={plan} answers={answers} onToggle={toggleDriver} onTrend={setTrend} />}
+        {driver && <StepKind driver={driver} answers={answers} yearly={yearly} onInput={setInput} status={preview.status} error={preview.error} />}
         {last && yearly && outsideValueRange(yearly.total?.amount) && (
           <p role="note" data-value-range-note="" className="rounded-md border border-warning/40 bg-warning-bg px-3 py-1.5 text-[12px] text-warning-fg">{rangeNote(yearly.total.unit, yearly.total.amount)}</p>
         )}
@@ -139,7 +139,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
   };
 
   return (
-    <ModalDialog titleId="calculate-value-title" title={VALUE_LABELS.dialogTitle} onClose={onClose} widthClass="max-w-4xl"
+    <ModalDialog titleId="calculate-value-title" title={dialogTitleFor(nameOfUseCase(uc))} onClose={onClose} widthClass="max-w-4xl"
       footer={(
         <>
           <span data-preview-state={preview.status} className="me-auto truncate text-[12px] text-text-secondary">{footerNote}</span>
