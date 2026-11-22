@@ -163,17 +163,29 @@ class ConsentAndGrantTest(unittest.TestCase):
         self.assertFalse([g for g in grants if g.startswith("GRANT USE CATALOG, USE SCHEMA")], grants)
         self.assertIn("Inspire's App gets read access on no catalog besides `ops`", said)
 
-    def test_a_refused_grant_is_printed_as_a_plain_statement_line_and_the_rest_still_runs(self):
-        _, _, _, said = self.grant_read(["sales", "finance"], fail={"CATALOG `finance`": RuntimeError("PERMISSION_DENIED: not the owner")})
+    def grant_stopped(self, data, **kwargs):
+        """FX-47: a refused catalog grant raises before the deploy; returns the message and everything printed before the stop."""
+        printed = []
+        with mock.patch("builtins.print", lambda *args, **kw: printed.append(" ".join(str(a) for a in args))):
+            with self.assertRaises(RuntimeError) as raised:
+                ConsentAndGrantTest.grant_read(self, data, **kwargs)
+        return str(raised.exception), "\n".join(printed)
+
+    def test_a_refused_grant_is_printed_as_a_plain_statement_line_and_the_install_stops_before_the_deploy_with_the_exact_grant(self):
+        message, said = self.grant_stopped(["sales", "finance"], fail={"CATALOG `finance`": RuntimeError("PERMISSION_DENIED: not the owner")})
         lines = said.splitlines()
         self.assertIn("Permission Required: ask your admin to grant this permission:", lines)
         self.assertIn(READ.format("finance"), lines, "the statement starts at the line start so it copies as is")
         self.assertIn("Catalog grants: 1 of 2 ran ⚠️", said)
-        self.assertIn("Grants:", said, "the core plan still runs")
+        self.assertIn("Grants:", said, "the core plan ran before the stop")
+        self.assertIn(READ.format("finance"), message, "the stop message carries the exact GRANT")
+        self.assertIn("before it deploys", message)
 
-    def test_a_refused_grant_never_stops_the_install_before_the_deploy(self):
-        self.grant_read(["finance"], listed=("ops", "finance"), fail={"CATALOG `finance`": RuntimeError("PERMISSION_DENIED: not the owner")})
+    def test_a_refused_grant_stops_the_install_before_the_deploy(self):
+        message, _said = self.grant_stopped(["finance"], listed=("ops", "finance"), fail={"CATALOG `finance`": RuntimeError("PERMISSION_DENIED: not the owner")})
         self.assertEqual(self.ctx["READ_REFUSED"], [READ.format("finance")])
+        self.assertIn(READ.format("finance"), message)
+        self.assertIn("before it deploys", message)
 
     def test_every_statement_uses_the_documented_privilege_spelling_with_spaces(self):
         """The Databricks GRANT reference writes USE CATALOG, USE SCHEMA, CREATE TABLE with spaces; underscore names are not documented."""
@@ -248,10 +260,12 @@ class JourneyTest(unittest.TestCase):
         self.assertTrue(self.app_reads(held, "sales"), "the App reads sales.orders, so the Discover pre-check finds nothing missing")
         self.assertIn(CONSENT.format("sales"), said)
 
-    def test_a_refused_read_grant_leaves_discover_a_prompt_and_prints_the_one_statement_for_the_admin(self):
-        held, said = self.install(fail={"CATALOG `sales`": RuntimeError("PERMISSION_DENIED: not the owner")})
-        self.assertFalse(self.app_reads(held, "sales"), "the App cannot read sales.orders, so Discover offers the grant prompt")
-        self.assertIn("\n" + READ.format("sales") + "\n", said)
+    def test_a_refused_read_grant_stops_the_install_before_the_deploy_and_prints_the_one_statement_for_the_admin(self):
+        message, said = ConsentAndGrantTest.grant_stopped(self, ["sales"], listed=("ops", "sales", "samples", "system"),
+                                                          fail={"CATALOG `sales`": RuntimeError("PERMISSION_DENIED: not the owner")})
+        self.assertIn("\n" + READ.format("sales") + "\n", "\n" + said + "\n")
+        self.assertIn(READ.format("sales"), message, "the stop message carries the exact GRANT")
+        self.assertIn("before it deploys", message)
 
 
 class DroppedCatalogRevokeTest(unittest.TestCase):

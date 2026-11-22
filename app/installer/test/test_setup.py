@@ -935,9 +935,13 @@ class LargeWorkspaceGrantTest(unittest.TestCase):
                "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent"}
         out = io.StringIO()
         started = time.monotonic()
+        stopped = None
         with contextlib.redirect_stdout(out), mock.patch.object(setup, "LAKEBASE_POLL_S", 0):
-            setup.step_grant_permissions(ctx)
-        return types.SimpleNamespace(events=events, peak=peak[0], said=out.getvalue(), reads=reads, got=got, secs=time.monotonic() - started)
+            try:
+                setup.step_grant_permissions(ctx)
+            except RuntimeError as err:  # FX-47: a refused data-catalog grant stops the install before the deploy
+                stopped = str(err)
+        return types.SimpleNamespace(events=events, peak=peak[0], said=out.getvalue(), reads=reads, got=got, secs=time.monotonic() - started, stopped=stopped)
 
     def test_thousands_of_catalogs_get_one_read_grant_each_in_a_bounded_pool_with_progress_after_the_warehouse_and_essentials(self):
         run = self.install(3600)
@@ -965,13 +969,16 @@ class LargeWorkspaceGrantTest(unittest.TestCase):
         self.assertLess(run.secs, 30)
         self.assertLess(len(run.said.splitlines()), 80, "the output stays short on thousands of catalogs")
 
-    def test_refused_catalogs_print_each_statement_on_its_own_line_and_the_install_still_completes(self):
+    def test_refused_catalogs_print_each_statement_on_its_own_line_and_the_install_stops_before_the_deploy_with_the_exact_grant(self):
         run = self.install(5, refused=("cat_0001", "cat_0004"))
         block = run.said[run.said.index("Permission Required"):]
         for name in ("cat_0001", "cat_0004"):
             self.assertIn(f"\n{SCAN_PREFIX}`{name}` TO `SP`\n", block + "\n")
+            self.assertIn(f"{SCAN_PREFIX}`{name}` TO `SP`", run.stopped, "the stop message carries the exact GRANT")
         self.assertIn("Catalog grants: 3 of 5 ran ⚠️", run.said)
-        self.assertIn("Grants:", run.said)
+        self.assertIn("Grants:", run.said, "the core plan ran before the stop")
+        self.assertIsNotNone(run.stopped, "the install stops")
+        self.assertIn("before it deploys", run.stopped)
 
     def test_a_handful_of_catalogs_prints_no_progress_lines(self):
         run = self.install(3)
