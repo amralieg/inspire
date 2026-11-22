@@ -40,7 +40,8 @@ export function RunValue({ row, onMeasure }) {
 }
 
 // The demo has no value ledger, so its cards send no estimate read (showcase).
-export function useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, showcase = false) {
+// D-uae-06: `listed` is the use case list the page shows; the count and the rows come from it, so the header never counts a different pass.
+export function useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, showcase = false, listed = null) {
   const [state, setState] = useState({ rows: null, liveSpecs: {}, error: '' });
   useEffect(() => {
     if (!sessionId || !inspireDatabase || !warehouseId) return undefined;
@@ -56,12 +57,12 @@ export function useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, 
         const liveSpecs = Object.fromEntries(latest.map((row) => [String(row.use_case_id ?? ''), row.live_spec_json]));
         const byUseCase = estimates?.use_cases || {};
         const valued = totals?.use_cases || {};
-        const rows = buildItems(cases?.usecases || [], statusById).map((row) => ({ ...row, estimate: byUseCase[String(row.id)] ?? null, value: valued[String(row.id)] ?? null }));
+        const rows = buildItems(listed || cases?.usecases || [], statusById).map((row) => ({ ...row, estimate: byUseCase[String(row.id)] ?? null, value: valued[String(row.id)] ?? null }));
         setState({ rows, liveSpecs, error: '' });
       })
       .catch((err) => { if (!cancelled) setState({ rows: null, liveSpecs: {}, error: String(err?.message || err) }); });
     return () => { cancelled = true; };
-  }, [apiFetch, inspireDatabase, warehouseId, sessionId, showcase]);
+  }, [apiFetch, inspireDatabase, warehouseId, sessionId, showcase, listed]);
   return state;
 }
 
@@ -84,8 +85,8 @@ function StartButton({ id, onStart }) {
   );
 }
 
-export function BuildNextPanel({ apiFetch, inspireDatabase, warehouseId, sessionId, onStart, onMeasure = null, showcase = false }) {
-  const { rows, error } = useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, showcase);
+export function BuildNextPanel({ apiFetch, inspireDatabase, warehouseId, sessionId, onStart, onMeasure = null, showcase = false, useCases = null }) {
+  const { rows, error } = useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, showcase, useCases);
   const plan = useMemo(() => (rows ? buildNextOf(rows) : null), [rows]);
   if (error) return <p role="alert" data-build-next-error="" className="text-[12px] text-error-fg">Inspire could not load the next use cases: {error}</p>;
   if (!plan || plan.total === 0) return null;

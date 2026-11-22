@@ -124,6 +124,19 @@ export default function UseCaseDetailBody({
         </div>
       </div>
 
+      {Array.isArray(u.data_filters) && u.data_filters.length > 0 && (
+        <section data-use-case-data-filters="">
+          <h4 className="text-[10px] font-bold text-text-primary uppercase tracking-[0.18em] mb-1">
+            Data Filters
+          </h4>
+          <ul className="space-y-0.5 text-sm text-text-secondary leading-relaxed">
+            {u.data_filters.map((f) => (
+              <li key={f.column} dir="auto"><span className="font-medium text-text-primary">{f.column}</span>: {f.text}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {businessValue && (
         <div>
           <h4 className="text-[10px] font-bold text-warning-fg uppercase tracking-[0.18em] mb-1">

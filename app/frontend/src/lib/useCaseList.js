@@ -17,6 +17,12 @@ function cloneDomainUseCaseForList(uc) {
   }
 }
 
+// B13 (REQ-189): the Data Filters the list read for the use case ride on its card (null means the session's scope could not be read).
+function overlayDataFilters(uc, row) {
+  if (Array.isArray(row.data_filters) || row.data_filters === null) uc.data_filters = row.data_filters;
+  if (row.build_scope_unread === true) uc.build_scope_unread = true;
+}
+
 function overlayUserName(uc, row) {
   if (!row?.user_use_case_name) return;
   uc.original_name = uc.original_name || uc.Name || '';
@@ -83,6 +89,7 @@ export function buildUseCaseList(results, usecases) {
         const sn = row.short_name || row.shortName;
         if (sn && !uc.short_name) uc.short_name = sn;
         overlayUserName(uc, row);
+        overlayDataFilters(uc, row);
         const copyScore = (field) => {
           const v = row[field];
           if (v == null || v === '') return;
@@ -120,6 +127,7 @@ export function buildUseCaseList(results, usecases) {
         const row = byNameDomain.get(normKey(nm, uc._domain || uc['Business Domain'] || ''));
         if (!row) continue;
         overlayUserName(uc, row);
+        overlayDataFilters(uc, row);
         const hasScore =
           uc.priority_score != null && uc.priority_score !== '' && Number.isFinite(Number(uc.priority_score));
         if (hasScore) continue;
