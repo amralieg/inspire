@@ -45,7 +45,7 @@ async function fakeWorkspace(answer, { folders = SHARED_FOLDERS } = {}) {
     url: `http://127.0.0.1:${server.address().port}`,
     calls,
     model,
-    close: () => new Promise((resolve) => server.close(resolve)),
+    close: () => new Promise((resolve) => { server.close(resolve); server.closeAllConnections?.(); }),
   };
 }
 
@@ -63,7 +63,9 @@ async function startInspire(env, { readyMs = 90000, command = [process.execPath,
   const stop = async () => {
     if (child.exitCode === null && child.signalCode === null) {
       child.kill('SIGTERM');
+      const hard = setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* gone */ } }, 10000);
       await exited;
+      clearTimeout(hard);
     }
   };
   const deadline = Date.now() + readyMs;
@@ -73,8 +75,8 @@ async function startInspire(env, { readyMs = 90000, command = [process.execPath,
     if (listening) url = `http://127.0.0.1:${listening[1]}`;
     // Ready means the router answers JSON, not only that the port is open: /api/defaults is a JSON route, so an HTML answer (the SPA fallback
     // or an error page) keeps the harness waiting instead of racing the first test request.
-    const ready = url ? await Promise.all([fetch(`${url}/api/health`).then((resp) => resp.ok, () => false),
-      fetch(`${url}/api/defaults`).then(async (resp) => resp.ok && /json/.test(resp.headers.get('content-type') || ''), () => false)])
+    const ready = url ? await Promise.all([fetch(`${url}/api/health`, { signal: AbortSignal.timeout(5000) }).then((resp) => resp.ok, () => false),
+      fetch(`${url}/api/defaults`, { signal: AbortSignal.timeout(5000) }).then(async (resp) => resp.ok && /json/.test(resp.headers.get('content-type') || ''), () => false)])
       .then((checks) => checks.every(Boolean)) : false;
     if (ready) break;
     if (Date.now() > deadline) {
