@@ -62,25 +62,23 @@ test('blocking:true with every table covered by app_reads_by_you still leaves Bu
   } finally { await ui.close(); }
 });
 
-test('a table owned by someone else: Build is on, the grant SQL shows once, the owner is named once', async () => {
+test('a table owned by someone else: Build stays off, the grant SQL shows once, the owner is named once', async () => {
   const reads = {
     tables: [{ table: 'main.s.returns', owner: 'data-eng' }, { table: 'main.s.refunds', owner: 'data-eng' }],
     owners: ['data-eng', 'data-eng'], text: 'Inspire cannot share main.s.returns', blocking: true, grant: [GRANT_B],
   };
-  const { ui, page, submits } = await open({ reads, byYou: BY_YOU });
+  const { ui, page, submits } = await open({ reads });
   try {
-    await page.waitForFunction((label) => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === label && !b.disabled), BUILD_IT, { timeout: 30000 });
     const box = page.locator('[data-app-reads-grant]');
     await box.waitFor({ timeout: 15000 });
     assert.equal(await box.count(), 1);
     assert.equal((await page.locator('body').innerText()).split(GRANT_B).length - 1, 1, 'the grant SQL shows once');
-    const area = page.locator('[data-app-reads-others]');
+    const area = page.locator('[data-app-reads-blocking]');
     const said = await area.innerText();
     assert.equal(said.split('data-eng').length - 1, 1, 'the owner is named once');
-    assert.doesNotMatch(said, /Build waits/);
-    await page.getByRole('button', { name: BUILD_IT, exact: true }).click();
-    await page.waitForTimeout(1500);
-    assert.equal(submits.length, 1, 'Build posts the submit');
+    assert.match(said, /Build waits until the App can read this data/);
+    assert.equal(await page.getByRole('button', { name: BUILD_IT, exact: true }).isDisabled(), true, 'Build stays off for tables someone else owns');
+    assert.equal(submits.length, 0, 'nothing posts into the backend refusal');
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
 });

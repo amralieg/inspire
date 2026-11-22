@@ -1515,7 +1515,7 @@ export default function ImplementWizard({
   ].filter(([e]) => e));
   const accessVerdict = accessVerdictOf({ preflight, error: preflightError, busy: checksBusy, unread: appUnreadable });
   const unchanged = lastStep && accessVerdict === 'ok' && Boolean(plan?.unchanged);
-  // REQ-483: a source the new App cannot read never keeps Build off; the box below says what to send and to whom.
+  // FX-52 + REQ-483: a source owned by someone else keeps Build off until Check again finds the access; tables the person covers never do.
   const appReadsOthers = Boolean(lastStep && plan?.summary?.app_reads?.blocking);
   const appReadsOwners = [...new Set([...(plan?.summary?.app_reads?.owners || []), ...(plan?.summary?.app_reads?.tables || []).map((t) => t.owner)].filter(Boolean))];
   const appReadsYouCover = (() => {
@@ -1523,13 +1523,15 @@ export default function ImplementWizard({
     const listed = (plan?.summary?.app_reads?.tables || []).map((t) => t.table);
     return mine.size > 0 && listed.every((t) => mine.has(t));
   })();
+  const appReadsBlocked = appReadsOthers && !appReadsYouCover;
   const appReadsByYouText = plan?.summary?.app_reads_by_you?.text || '';
   const sourceRefused = accessVerdict === 'refused';
   const sourceAccessRefused = sourceRefused && !preflight?.checks?.sources?.missing;
   const refusedFooterText = appUnreadable?.builtin?.length ? SOURCE_BUILT_IN_REFUSED_REASON : SOURCE_REFUSED_REASON;
   const implementBlocked = busy || checksBusy || !placeSettled || dataMinimumBlocks(readCounted) || schemaJob?.state === 'running' || schemaJob?.state === 'failed' || rebuildNeedsChoice(plan, rebuildAsIs) || sourceRefused
     || (!ownErrors.length && (!preflight || !checkEntries.every(([, c]) => c.ok) || (lastStep && (!plan || Boolean(planError)))))
-    || (lastStep && accessVerdict !== 'ok' && accessVerdict !== 'refused');
+    || (lastStep && accessVerdict !== 'ok' && accessVerdict !== 'refused')
+    || appReadsBlocked;
   const palette = (look?.palette_colors || []).find((p) => p.id === spec.outputs.app_look.palette) || null;
   const best = oneBestPerStep({
     build: bestBuild(),
@@ -2326,9 +2328,9 @@ export default function ImplementWizard({
             {appReadsByYouText && (appReadsYouCover || !appReadsOthers) && (
               <p role="note" aria-label="Data the App is given with your permissions" data-app-reads-by-you="" className="text-[11px] text-success-fg">{appReadsByYouText}</p>
             )}
-            {appReadsOthers && !appReadsYouCover && (
-              <section role="note" aria-label="Data Inspire cannot share" data-app-reads-others="" className="space-y-2 rounded-lg border border-warning/40 bg-warning-bg p-3 text-[12px]">
-                <p className="font-semibold text-text-primary">The new App cannot read this data yet. Your build still runs; send this to {appReadsOwners.join(', ') || 'your data owner'} so the App can read it:</p>
+            {appReadsBlocked && (
+              <section role="alert" aria-label="Data Inspire cannot share" data-app-reads-blocking="" className="space-y-2 rounded-lg border border-warning/40 bg-warning-bg p-3 text-[12px]">
+                <p className="font-semibold text-text-primary">Build waits until the App can read this data. Send this to {appReadsOwners.join(', ') || 'your data owner'}:</p>
                 <pre data-app-reads-grant="" className="whitespace-pre-wrap break-words font-mono text-[11px] text-text-primary">{(plan.summary.app_reads.grant || []).join(';\n')}</pre>
                 <div className="flex gap-2">
                   <button type="button" className="rounded-md border border-border px-3 py-1 text-[12px]" onClick={() => copyText((plan.summary.app_reads.grant || []).join(';\n')).catch(() => null)}>Copy</button>
