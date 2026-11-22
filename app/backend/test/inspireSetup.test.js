@@ -147,8 +147,12 @@ def run(catalog_grants, owner="amr@x", show_fails=False, lakebase=(200, ""), lak
            "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0", "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent"}
     ctx["DATA_CATALOGS"] = list(data)
     out = io.StringIO()
-    with contextlib.redirect_stdout(out):
-        ns["step_grant_permissions"](ctx)
+    try:
+        with contextlib.redirect_stdout(out):
+            ns["step_grant_permissions"](ctx)
+    except RuntimeError as exc:
+        exc.said, exc.executed = out.getvalue(), executed
+        raise
     return executed, patched, out.getvalue()
 reader = {"json": json, "urllib": urllib, "time": time, "StatementState": StatementState}
 load_installer(tree, module.body, reader, path)
@@ -172,10 +176,17 @@ assert not [s for s in executed if "inspire_lakebase" in s], executed
 empty_sql, _, empty_said = run([], data=[])
 assert not [s for s in empty_sql if "\x60sales\x60" in s or "samples" in s], empty_sql
 assert "Inspire's App gets read access on no catalog besides \x60main\x60" in empty_said and "pick the catalogs in 02_data_catalogs_inspire_may_read" in empty_said, empty_said
-refused_sql, _, refused_said = run([], grantable=())
+# REQ-456/458: a refused catalog grant prints the exact GRANT, then stops the install before the deploy
+try:
+    run([], grantable=())
+    raise SystemExit("the install did not stop")
+except RuntimeError as exc:
+    refused_said, refused_error = exc.said, str(exc)
+grant_line = "GRANT USE CATALOG, USE SCHEMA, SELECT, BROWSE, READ METADATA ON CATALOG \x60sales\x60 TO \x60SP\x60"
 assert "Permission Required: ask your admin to grant this permission:" in refused_said.splitlines(), refused_said
-assert "GRANT USE CATALOG, USE SCHEMA, SELECT, BROWSE, READ METADATA ON CATALOG \x60sales\x60 TO \x60SP\x60" in refused_said.splitlines(), refused_said
+assert grant_line in refused_said.splitlines(), refused_said
 assert "Catalog grants: 0 of 1 ran \u26a0\ufe0f" in refused_said, refused_said
+assert "Inspire's App cannot read 1 data catalog you picked" in refused_error and f"A catalog owner runs {grant_line}" in refused_error and "stopped before it deploys" in refused_error, refused_error
 lakebase_sql = [s for s in run([], lakebase_catalog=True, grantable=("sales", "inspire_lakebase"), data=("sales", "inspire_lakebase"))[0] if "inspire_lakebase" in s and "\x60account users\x60" not in s]
 assert lakebase_sql == ["GRANT ALL PRIVILEGES ON CATALOG \x60inspire_lakebase\x60 TO \x60SP\x60",
                         "GRANT USE CATALOG, USE SCHEMA, SELECT, BROWSE, READ METADATA ON CATALOG \x60inspire_lakebase\x60 TO \x60SP\x60"], lakebase_sql
