@@ -1,6 +1,7 @@
 import { PlainMessage } from '../TechnicalDetails';
 import { DRIVER_ICONS, countText, likelyLineOf, moneyText, partOf, recordsOf, totalText } from '../../lib/valueWizard.js';
 import Ask from './Ask.jsx';
+import FormulaLine from './FormulaLine.jsx';
 
 const opTexts = { '=': 'is', '!=': 'is not', '>': 'is above', '>=': 'is at least', '<': 'is below', '<=': 'is at most', is_not_null: 'is filled' };
 const filterText = (f) => (f?.column ? ` where ${f.column} ${opTexts[f.op] || f.op}${f.op === 'is_not_null' ? '' : ` ${f.value}`}` : '');
@@ -77,17 +78,19 @@ export function StepKinds({ plan, answers, onToggle, onTrend }) {
 
 // Steps 3: one kind, its asks, its amount and the running total.
 export function StepKind({ driver, answers, yearly, onInput, status, error }) {
-  const part = partOf(yearly, driver.id);
+  const stale = status === 'error';
+  const part = stale ? null : partOf(yearly, driver.id);
   const unit = yearly?.total?.unit;
   return (
     <div data-wizard-page={`driver:${driver.id}`} className="space-y-2">
       <div className="flex flex-wrap items-center gap-3">
         <span aria-hidden="true" className="text-2xl">{DRIVER_ICONS[driver.id] || ''}</span>
         <div className="min-w-0 flex-1"><h3 className="text-sm font-bold text-text-primary">{driver.label}</h3><p className="text-[12px] text-text-secondary">{driver.why}</p></div>
-        <div className="rounded-lg border border-border px-3 py-1 text-end"><p className="text-[10px] uppercase tracking-wide text-text-secondary">{driver.label}</p><p data-kind-amount="" className="text-lg font-extrabold tabular-nums text-text-primary">{part ? moneyText(unit, part.amount) : '...'}{part && <span className="text-[11px] font-normal text-text-secondary"> per year</span>}</p></div>
-        <div className="rounded-lg border border-border bg-bg-subtle px-3 py-1 text-end"><p className="text-[10px] uppercase tracking-wide text-text-secondary">Running total</p><p data-run-total="" className="text-lg font-extrabold tabular-nums text-text-primary">{totalText(yearly) || '...'}{yearly?.total && <span className="text-[11px] font-normal text-text-secondary"> per year</span>}</p></div>
+        <div className="rounded-lg border border-border px-3 py-1 text-end"><p className="text-[10px] uppercase tracking-wide text-text-secondary">{driver.label}</p><p data-kind-amount="" className="text-lg font-extrabold tabular-nums text-text-primary">{part ? moneyText(unit, part.amount) : stale ? '—' : '...'}{part && <span className="text-[11px] font-normal text-text-secondary"> per year</span>}</p></div>
+        <div className="rounded-lg border border-border bg-bg-subtle px-3 py-1 text-end"><p className="text-[10px] uppercase tracking-wide text-text-secondary">Running total</p><p data-run-total="" className="text-lg font-extrabold tabular-nums text-text-primary">{stale ? '—' : totalText(yearly) || '...'}{!stale && yearly?.total && <span className="text-[11px] font-normal text-text-secondary"> per year</span>}</p></div>
       </div>
       {status === 'error' && <PlainMessage text={error} role="alert" dir="auto" className="rounded-md border border-error/30 bg-error-bg px-3 py-1.5 text-[12px] text-error-fg" />}
+      <FormulaLine driver={driver} answers={answers} yearly={yearly} status={status} />
       <div className="grid grid-cols-2 gap-2">
         {driver.asks.map((a) => (
           <Ask key={a.id} ask={a} value={answers.drivers[driver.id]?.inputs[a.id]} dataValue={dataValueOf(yearly, driver.id, a)} currency={answers.currency || yearly?.currency}

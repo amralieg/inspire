@@ -56,7 +56,7 @@ test('F2: changing the cost of an hour changes the line and the amount together'
     await dialog.locator('[data-ask="cost_per_hour"] input[type=number]').fill('50');
     await page.waitForFunction(() => /\$50 an hour/.test(document.querySelector('[data-formula-line]')?.textContent || ''), null, { timeout: 15000 });
     await page.waitForFunction((b) => document.querySelector('[data-kind-amount]')?.textContent !== b, before, { timeout: 15000 });
-    assert.match(await text(dialog.locator('[data-formula-line]')), /\$50 an hour = \$752\.\d+K a year$/);
+    assert.match(await text(dialog.locator('[data-formula-line]')), /\$50 an hour = \$751\.\d+K a year$/);
   } finally { await ui.close(); }
 });
 

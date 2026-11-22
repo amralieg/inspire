@@ -35,7 +35,7 @@ export default function Ask({ ask, value, onChange, dataValue, currency, compact
     <div data-ask={ask.id} className={`grid items-center gap-x-3 gap-y-0.5 rounded-lg border border-border ${compact ? 'grid-cols-[1fr_auto] px-2.5 py-1.5' : 'grid-cols-[1fr_auto] px-3 py-2'}`}>
       <div className="min-w-0">
         <p className="text-[13px] font-semibold text-text-primary">{ask.label}</p>
-        <p className="text-[12px] text-text-secondary">{fromData ? 'Read from your data.' : ask.why}</p>
+        <p className="text-[12px] text-text-secondary">{fromData ? `${ask.help ? `${ask.help} ` : ''}Read from your data.` : ask.why || ask.help}</p>
       </div>
       {fromData ? (
         <span data-from-data="" className="rounded-md border border-ok/30 bg-ok-bg px-2 py-1 text-sm font-semibold tabular-nums text-ok-fg">{figureText(ask.kind, dataValue, currency) || '...'}{ask.kind === 'money' ? '' : ` ${unitOf(ask, currency)}`}</span>

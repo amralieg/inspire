@@ -129,7 +129,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
           <p role="note" data-value-range-note="" className="rounded-md border border-warning/40 bg-warning-bg px-3 py-1.5 text-[12px] text-warning-fg">{rangeNote(yearly.total.unit, yearly.total.amount)}</p>
         )}
         {last && (
-          <StepSave plan={plan} answers={answers} yearly={yearly} calculated={calculated} onToggleDriver={toggleDriver} onInput={setInput} onCredit={setCredit}>
+          <StepSave plan={plan} answers={answers} yearly={yearly} calculated={calculated} onToggleDriver={toggleDriver} onInput={setInput} onCredit={setCredit} status={preview.status}>
             {preview.status === 'error' && <PlainMessage text={preview.error} role="status" dir="auto" className="text-[12px] text-error-fg" />}
             <ValueHistory history={history} busy={busy} onUndo={undo} />
           </StepSave>

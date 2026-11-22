@@ -3,11 +3,12 @@ import { ATTRIBUTION } from '../../lib/valueDrivers.js';
 import { DRIVER_ICONS, moneyText, partOf, totalText } from '../../lib/valueWizard.js';
 import ValueDisclaimer from '../ValueDisclaimer.jsx';
 import Ask, { Controls } from './Ask.jsx';
+import FormulaLine from './FormulaLine.jsx';
 
 const CREDIT = { id: ATTRIBUTION.id, label: ATTRIBUTION.label, kind: 'pct', default: ATTRIBUTION.default };
 
 // REQ-437, step 5: the total on top, five tiles side by side, one editor under them, then the credit. REQ-473: value is over all records, no groups.
-export default function StepSave({ plan, answers, yearly, calculated, onToggleDriver, onInput, onCredit, children }) {
+export default function StepSave({ plan, answers, yearly, calculated, onToggleDriver, onInput, onCredit, status, children }) {
   const [open, setOpen] = useState(null);
   const unit = yearly?.total?.unit;
   const opened = plan.drivers.find((d) => d.id === open);
@@ -39,6 +40,7 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
       {opened && answers.drivers[opened.id]?.on && (
         <div data-editor={opened.id} className="space-y-1.5 rounded-lg border border-db-red-solid px-3 py-2">
           <p className="text-[13px] font-semibold text-text-primary">{opened.label}</p>
+          <FormulaLine driver={opened} answers={answers} yearly={yearly} status={status} />
           <div className="grid grid-cols-2 gap-1.5">
             {opened.asks.map((a) => (
               <Ask key={a.id} ask={a} compact value={answers.drivers[opened.id].inputs[a.id]} currency={answers.currency || yearly?.currency}
