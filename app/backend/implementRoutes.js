@@ -5,7 +5,7 @@ const { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, noSessionText, stepsStatement } = r
 const I = require('./lib/inspireImplement');
 const RL = require('./lib/relationships');
 const { createGenieJobGuard } = require('./lib/genieJobGuard');
-const { invokeChatModel } = require('./lib/modelAccess');
+const { invokeChatModel, appChatModels } = require('./lib/modelAccess');
 const { mapLimit } = require('./lib/mapLimit');
 
 // REQ-323: how many history rows are enriched at once.
@@ -2159,6 +2159,16 @@ function registerImplementRoutes(app, deps) {
     method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
 
+  // REQ-475: the first chat model the App can call (a ready serving endpoint, else a Unity Gateway model); a refusal says why none is.
+  async function appModelOf(req, token, spec, cannot) {
+    const got = await appChatModels(chatCall(req, token), spec);
+    if (got.names.length) return got.names[0];
+    if (!got.listed.ok) throw I.badRequest(`Inspire could not list the serving endpoints as the App: ${got.listed.data.message || got.listed.data.error || `HTTP ${got.listed.status}`}`, got.listed.status);
+    // The refusal keeps its grant words; the empty answer keeps the wording the vibe and describe routes always gave, now naming the gateway.
+    const empty = got.reason.startsWith('No chat model');
+    throw I.badRequest(empty ? `no chat model the App can use is ready on this workspace, as a serving endpoint or through the AI Gateway, so Inspire cannot ${cannot}` : `${got.reason} Inspire cannot ${cannot}`, 409);
+  }
+
   app.post('/api/inspire/implement/feedback/vibe', requireToken, async (req, res) => {
     try {
       const id = FB.feedbackId(req.body?.feedback_id);
@@ -2167,10 +2177,7 @@ function registerImplementRoutes(app, deps) {
       const token = appReadToken(req);
       const { row: feedback } = await oneFeedback(req, ctx, id);
       const spec = ctx.before.spec_json || {};
-      const listed = await jsonOf(dbFetch, req.dbHost, token, '/api/2.0/serving-endpoints');
-      if (!listed.ok) throw I.badRequest(`Inspire could not list the serving endpoints as the App: ${listed.data.message || listed.data.error || `HTTP ${listed.status}`}`, listed.status);
-      const endpoint = FB.chatEndpoint(spec, (listed.data.endpoints || []).map((e) => ({ name: e.name, state: e.state, task: e.task })));
-      if (!endpoint) throw I.badRequest('no chat model the App can use is ready on this workspace, so Inspire cannot draft a vibe; write the vibe by hand', 409);
+      const endpoint = await appModelOf(req, token, spec, 'draft a vibe; write the vibe by hand');
       const [useCase, page] = await Promise.all([
         loadUseCase(req.dbHost, req.dbToken, ctx.warehouseId, ctx.catalog, ctx.schema, ctx.sid, ctx.useCaseId).catch(() => null),
         feedbackPage(req, ctx),
@@ -2525,10 +2532,8 @@ function registerImplementRoutes(app, deps) {
   // REQ-472: the one endpoint loop every value model call goes through (plan, anchor, review). { endpoint, got } or { reason }.
   async function askChatModel(req, messages, maxTokens) {
     try {
-      const listed = await jsonOf(dbFetch, req.dbHost, req.dbToken, '/api/2.0/serving-endpoints');
-      if (!listed.ok) return { reason: `The list of model endpoints answered HTTP ${listed.status || 'error'}.` };
-      const names = FB.chatEndpoints({}, (listed.data.endpoints || []).map((e) => ({ name: e.name, state: e.state, task: e.task })));
-      if (!names.length) return { reason: 'No chat model endpoint is ready in this workspace.' };
+      const { names, listed, reason } = await appChatModels(chatCall(req, req.dbToken), {});
+      if (!names.length) return { reason: listed.ok ? reason : `The list of model endpoints answered HTTP ${listed.status || 'error'}.` };
       // FX-46 (D13/D20): the first listed model may be one the App cannot query or that rejects the call; the next ready ones are tried
       // (at most PLAN_MODEL_TRIES), and a refusal of every one reports the first, which names the grant.
       let firstFailure = '';
@@ -2912,10 +2917,7 @@ function registerImplementRoutes(app, deps) {
       const text = String(req.body?.text ?? '').trim();
       const columns = Array.isArray(req.body?.columns) ? req.body.columns.map((c) => String(c)).slice(0, MD.COLUMN_LIMIT) : [];
       if (!text || text.length > MD.DESCRIBE_MAX_CHARS || !columns.length) throw I.badRequest('Describe how the value of each record works, in up to ' + MD.DESCRIBE_MAX_CHARS + ' characters, and name the table.');
-      const listed = await jsonOf(dbFetch, req.dbHost, token, '/api/2.0/serving-endpoints');
-      if (!listed.ok) throw I.badRequest(`Inspire could not list the serving endpoints as the App: ${listed.data.message || listed.data.error || `HTTP ${listed.status}`}`, listed.status);
-      const endpoint = FB.chatEndpoint({}, (listed.data.endpoints || []).map((e) => ({ name: e.name, state: e.state, task: e.task })));
-      if (!endpoint) throw I.badRequest('no chat model the App can use is ready on this workspace, so Inspire cannot turn the description into a value; choose the value by hand', 409);
+      const endpoint = await appModelOf(req, token, {}, 'turn the description into a value; choose the value by hand');
       const messages = MD.describeMessages({ text, columns, currencyColumn: String(req.body?.currency_column ?? '') });
       const got = await invokeChatModel(chatCall(req, token), endpoint, { messages, max_tokens: 400 });
       if (!got.ok) throw I.badRequest(`the model ${endpoint} did not answer: ${got.data.message || got.data.error || `HTTP ${got.status}`}`, 502);

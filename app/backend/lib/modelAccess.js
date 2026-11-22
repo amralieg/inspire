@@ -4,10 +4,14 @@
 // and nothing else: an error that is not a refusal means the check could not tell, so the launch is not blocked.
 const { rosterOrder } = require('./modelRoster');
 const { permissionRequired } = require('./permissions');
+const { chatEndpoints } = require('./appFeedback');
 
 // The agent's roster holds at most six models (TECHNICAL_CONTEXT roster size); probing stops at the first answer.
 const CANDIDATE_LIMIT = 6;
 const PROBE = { messages: [{ role: 'user', content: 'Reply with the single word OK.' }], max_tokens: 4 };
+
+// The grant a model service is queried with, in every message that names it.
+const SERVICE_USAGE = 'with USE CATALOG on system and USE SCHEMA on system.ai';
 
 const grantCommand = (id, principal) => `databricks api patch /api/2.0/permissions/serving-endpoints/${id} --json '{"access_control_list":[{"service_principal_name":"${principal}","permission_level":"CAN_QUERY"}]}'`;
 
@@ -55,16 +59,63 @@ async function viaModelService(call, name, body) {
   return { response: await call('POST', GATEWAY_CHAT, { ...body, model: service }), enforced: true };
 }
 
+// REQ-475: a name that starts with system.ai. is a Unity Gateway model service; it has no serving endpoint, so it is called on the gateway chat route.
+const GATEWAY_MODEL_PREFIX = 'system.ai.';
+
 async function invokeChatModel(call, name, body) {
+  if (name.startsWith(GATEWAY_MODEL_PREFIX)) return call('POST', GATEWAY_CHAT, { ...body, model: name });
   return (await viaModelService(call, name, body)).response;
+}
+
+// REQ-475: the chat models the App itself calls (value plan, anchor, review, vibe draft, describe value), in the order to try.
+// The ready chat serving endpoints come first (appFeedback.chatEndpoints, the one filter). When there are none, or the list is not readable,
+// the Unity Gateway's system.ai models follow: the Anthropic route (data[].id) and the Codex route (models[].slug), claude-sonnet first
+// (newest first), then claude-haiku, claude-opus, then the others. Ids with an anthropic-aigw- prefix are not model services and are skipped.
+// Returns { names, via, listed, reason }: `listed` is the serving-endpoints answer, `reason` says why `names` is empty after the gateway was read.
+const GATEWAY_ANTHROPIC_MODELS = '/ai-gateway/anthropic/v1/models';
+const GATEWAY_FAMILIES = ['claude-sonnet', 'claude-haiku', 'claude-opus'];
+const gatewayRank = (id) => {
+  const i = GATEWAY_FAMILIES.findIndex((f) => id.startsWith(`${GATEWAY_MODEL_PREFIX}${f}`));
+  return i < 0 ? GATEWAY_FAMILIES.length : i;
+};
+const versionOf = (id) => (id.match(/\d+/g) || []).map(Number);
+const newerFirst = (a, b) => {
+  const [x, y] = [versionOf(a), versionOf(b)];
+  for (let i = 0; i < Math.max(x.length, y.length); i += 1) if ((y[i] || 0) !== (x[i] || 0)) return (y[i] || 0) - (x[i] || 0);
+  return 0;
+};
+const NO_MODEL_REASON = 'No chat model is ready in this workspace, as a serving endpoint or through the AI Gateway.';
+
+async function gatewayModels(call) {
+  const ids = [];
+  let refused = false;
+  for (const [path, pick] of [[GATEWAY_ANTHROPIC_MODELS, (d) => (d.data || []).map((m) => m && m.id)], [GATEWAY_MODELS, (d) => (d.models || []).map((m) => m && m.slug)]]) {
+    const got = await call('GET', path);
+    if (got.ok) ids.push(...pick(got.data || {}));
+    else if (got.status === 403) refused = true;
+  }
+  const names = [...new Set(ids.filter((id) => typeof id === 'string' && id.startsWith(GATEWAY_MODEL_PREFIX)))];
+  const ranked = names.map((id, i) => ({ id, i, rank: gatewayRank(id) }))
+    .sort((a, b) => a.rank - b.rank || (a.rank < GATEWAY_FAMILIES.length ? newerFirst(a.id, b.id) : 0) || a.i - b.i);
+  return { names: ranked.map((r) => r.id), refused };
+}
+
+async function appChatModels(call, spec) {
+  const listed = await call('GET', '/api/2.0/serving-endpoints');
+  const endpoints = listed.ok ? chatEndpoints(spec, ((listed.data && listed.data.endpoints) || []).map((e) => ({ name: e.name, state: e.state, task: e.task }))) : [];
+  if (endpoints.length) return { names: endpoints, via: 'endpoint', listed, reason: '' };
+  const gateway = await gatewayModels(call);
+  if (gateway.names.length) return { names: gateway.names, via: 'gateway', listed, reason: '' };
+  const reason = gateway.refused ? `The AI Gateway refused the list of models. Grant EXECUTE on the system.ai model service ${SERVICE_USAGE}.` : NO_MODEL_REASON;
+  return { names: [], via: '', listed, reason };
 }
 
 // REQ-424: the admin steps a blocked setup prints, in plain words. The installer prints the steps the App records, the Start page shows
 // them as the notes of the Permission Required entry, and test/support/modelAccessWorlds.json holds the one expected text.
 const MODEL_STOP_STEPS = {
   none: ['Serve a chat model the App can use: a Databricks-hosted model, a provisioned throughput endpoint, or a Unity Gateway route.',
-    'Then grant <principal> CAN_QUERY on that endpoint, or EXECUTE on its system.ai model service with USE CATALOG on system and USE SCHEMA on system.ai.'],
-  denied: ['Grant <principal> CAN_QUERY on the chat model endpoints in Serving, or EXECUTE on their system.ai model services with USE CATALOG on system and USE SCHEMA on system.ai.'],
+    `Then grant <principal> CAN_QUERY on that endpoint, or EXECUTE on its system.ai model service ${SERVICE_USAGE}.`],
+  denied: [`Grant <principal> CAN_QUERY on the chat model endpoints in Serving, or EXECUTE on their system.ai model services ${SERVICE_USAGE}.`],
 };
 const stopSteps = (setup, principal) => (MODEL_STOP_STEPS[setup] || []).map((step) => step.replace('<principal>', principal || '<principal>'));
 
@@ -166,4 +217,4 @@ async function modelAccessPermission(args) {
   return (await planModelAccess(args)).permission;
 }
 
-module.exports = { modelAccessPermission, planModelAccess, selfCheckRecord, MODEL_CHECK_ROUTE, MODEL_STOP_STEPS, invokeChatModel, systemModelService, CANDIDATE_LIMIT, GATEWAY_CHAT };
+module.exports = { modelAccessPermission, planModelAccess, selfCheckRecord, MODEL_CHECK_ROUTE, MODEL_STOP_STEPS, invokeChatModel, appChatModels, systemModelService, CANDIDATE_LIMIT, GATEWAY_CHAT };
