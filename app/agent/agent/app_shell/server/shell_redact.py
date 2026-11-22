@@ -48,6 +48,9 @@ _REDACT_NAME_POSITION_RE = _redact_re.compile(rf"\[{_REDACT_NAME_LIST}\] (?:not 
                                       r"\bcolumns? '([^'\n]{1,200})'|\bcolumns? \"([^\"\n]{1,200})\"|\bdtype='(\w+)'", _redact_re.IGNORECASE)
 _REDACT_NAME_SHAPE_RE = _redact_re.compile(r"[A-Za-z_][\w.$#-]{0,199}")
 _REDACT_EXCEPTION_LEAD_RE = _redact_re.compile(r"\b\w*(?:Error|Exception|Warning): $")
+# REQ-353: a quoted name that is an argument of a column-taking call is a column name in code, not a data value, so it stays as written.
+_REDACT_COLUMN_CALL_RE = _redact_re.compile(r"\b(?:partitionBy|groupBy|groupby|orderBy|sortBy|select|col|drop|withColumn|withColumnRenamed|agg)\(\s*"
+                                            r"(?:(?:'[^'\n]{1,200}'|\"[^\"\n]{1,200}\"|[\w.]{1,100})\s*,\s*)*$")
 _REDACT_AT_FRAME_RE = _redact_re.compile(r"(?:\(at |; )[A-Za-z_]\w* line \d+: ((?:(?!; [A-Za-z_]\w* line \d+\b)[^\n|]){1,200}?)(?=; [A-Za-z_]\w* line \d+\b|\)(?:\s|$)|$)", _redact_re.M)
 _REDACT_CODE_QUOTED_RE = _redact_re.compile(r"(?<!\w)'([^'\n]{1,80})'(?!\w)|(?<!\w)\"([^\"\n]{1,80})\"(?!\w)")
 _REDACT_VALUE_CHAR_RE = _redact_re.compile(r"[^\W_]")
@@ -297,7 +300,8 @@ def inspire_redact_text(text, seen, known: str, secrets=()) -> str:
         mark, inner = match.group(0)[0], match.group(1)
         if mark == '"' and _REDACT_SINGLE_QUOTED_RE.search(inner) and _REDACT_EXCEPTION_LEAD_RE.search(match.string[max(0, match.start() - 80):match.start()]):
             return match.group(0)
-        if not inner.strip() or _redact_known(inner, known, segments) or _redact_model_name(inner, match) or (mark == '"' and (
+        if not inner.strip() or _redact_known(inner, known, segments) or _redact_model_name(inner, match) or (
+                _REDACT_NAME_SHAPE_RE.fullmatch(inner) and _REDACT_COLUMN_CALL_RE.search(match.string[max(0, match.start() - 300):match.start()])) or (mark == '"' and (
                 _REDACT_SQL_TYPE_RE.fullmatch(inner.strip()) or _REDACT_SPARK_SETTING_RE.fullmatch(inner.strip())
                 or any(start <= match.start() < end for start, end in messages))) or _redact_code_value(inner):
             return match.group(0)
