@@ -48,7 +48,7 @@ import {
   carriedStart, trackBuildSubmit, withPendingBuilds,
 } from '../lib/implementControl';
 import {
-  buildingAssets, mvpScope, mvpStages, mvpProgressSummary, mvpRepairOf, feedArrivals, railProgress, sortedTo, statusProgress, steadyFeed, versionPlan, vibeChecklist,
+  buildingAssets, mvpScope, mvpStages, mvpProgressSummary, typicalBuildText, mvpRepairOf, feedArrivals, railProgress, sortedTo, statusProgress, steadyFeed, versionPlan, vibeChecklist,
   genieChangesOf, GENIE_CHANGES_HEADING, mvpFailureOf,
 } from '../lib/mvpProgress';
 import PaneResizer from '../components/PaneResizer';
@@ -621,6 +621,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
               refreshKey={refreshKey}
               valueEstimate={estimates?.use_cases?.[selected.id] ?? null}
               valueTotal={valued?.[selected.id] ?? null}
+              builds={rail.latest}
               onSetRule={readOnly ? undefined : () => openMeasure(selected.id)}
               collectedKey={scopeOf(selected.id)}
               onProgress={reportProgress}
@@ -900,7 +901,7 @@ function PartTabs({ assets, picked, onPick }) {
 // REQ-355: the steps a queued build reads: none, so the superseded run's steps never show under the queued row.
 const NO_STEPS = [];
 
-function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson, databricksHost, notebookRunError, refreshKey, collectedKey, valueEstimate = null, valueTotal = null, onSetRule = null,
+function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch, apiPostJson, databricksHost, notebookRunError, refreshKey, collectedKey, valueEstimate = null, valueTotal = null, onSetRule = null,
   onEdit, onOpenRun = null, onBuildQueued = null, onOpenDemoMvp = null, onProgress = null, readOnly = false }) {
   const useCaseId = item.id;
   const yearlyRead = useValueRead(apiFetch, readOnly ? '' : `/api/inspire/value/yearly?${qBase}`, refreshKey);
@@ -1957,7 +1958,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         {item.uc && (valuedLine(valueTotal)
           ? <RunValue row={{ id: item.id, value: valueTotal }} />
           : <ValueEstimateLine uc={item.uc} estimate={valueEstimate} onSetRule={onSetRule} />)}
-        {built && progress.active && <ProgressLine chip={chip} summary={progress} />}
+        {built && progress.active && <ProgressLine chip={chip} summary={progress} typical={typicalBuildText(builds)} />}
         <div className={HEADER_ACTIONS}>
           {item.uc && (
             <button type="button" onClick={() => setDetailsOpen(true)} className={OUTLINE_BUTTON}>

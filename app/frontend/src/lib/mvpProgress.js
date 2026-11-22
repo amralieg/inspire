@@ -383,8 +383,21 @@ export function progressPercent(chip, summary) {
   return chip?.tone === 'success' || chip?.tone === 'warning' ? 100 : summary?.percent ?? 0;
 }
 
-// FX-39b (W16 D38): shown next to the time a build has run, so a long build is not mistaken for a hang.
-export const TYPICAL_BUILD = 'A build usually takes 20 to 45 minutes';
+// FX-41 (REQ-431, W16 D38): the typical build time is the median of the finished successful builds the Build page already reads.
+// The App never shows a number it did not measure, so fewer than MIN_MEASURED_BUILDS finished builds give no figure.
+const MIN_MEASURED_BUILDS = 3;
+
+export function typicalBuildText(rows) {
+  const minutes = (rows || [])
+    .filter((r) => IMPLEMENT_DONE_STATUSES.includes(String(r?.status)))
+    .map((r) => ((timeOf(r.updated_at) ?? NaN) - (timeOf(r.created_at) ?? NaN)) / 60000)
+    .filter((m) => Number.isFinite(m) && m >= 0)
+    .sort((a, b) => a - b);
+  if (minutes.length < MIN_MEASURED_BUILDS) return '';
+  const mid = minutes.length >> 1;
+  const median = minutes.length % 2 ? minutes[mid] : (minutes[mid - 1] + minutes[mid]) / 2;
+  return `Builds here usually take about ${Math.round(median)} min (median of ${minutes.length})`;
+}
 
 export function mvpProgressSummary(stages, latest, { now = Date.now(), stalled = null, repair = null } = {}) {
   const counted = stages.filter((s) => s.state !== 'skipped');
