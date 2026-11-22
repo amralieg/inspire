@@ -7,7 +7,7 @@ const { permissionRequired } = require('./permissions');
 
 // The agent's roster holds at most six models (TECHNICAL_CONTEXT roster size); probing stops at the first answer.
 const CANDIDATE_LIMIT = 6;
-const PROBE = { messages: [{ role: 'user', content: 'Reply with the single word OK.' }], max_tokens: 4, temperature: 0 };
+const PROBE = { messages: [{ role: 'user', content: 'Reply with the single word OK.' }], max_tokens: 4 };
 
 const grantCommand = (id, principal) => `databricks api patch /api/2.0/permissions/serving-endpoints/${id} --json '{"access_control_list":[{"service_principal_name":"${principal}","permission_level":"CAN_QUERY"}]}'`;
 

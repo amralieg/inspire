@@ -2143,7 +2143,7 @@ function registerImplementRoutes(app, deps) {
       ]);
       const statuses = Object.fromEntries(Object.entries(ctx.before.asset_status || {}).map(([k, v]) => [k, v && typeof v === 'object' ? v.state || v.status || '' : v]));
       const messages = FB.vibePrompt({ useCaseId: ctx.useCaseId, useCase, page, vibes: specVibeAsks(spec), statuses, feedback });
-      const got = await invokeChatModel(chatCall(req, token), endpoint, { messages, max_tokens: FB.VIBE_MAX_TOKENS, temperature: 0 });
+      const got = await invokeChatModel(chatCall(req, token), endpoint, { messages, max_tokens: FB.VIBE_MAX_TOKENS });
       if (!got.ok) throw I.badRequest(`the model ${endpoint} did not answer: ${got.data.message || got.data.error || `HTTP ${got.status}`}`, 502);
       return res.json({ ...FB.vibeDraftOf(got.data), feedback_id: id, model: endpoint });
     } catch (err) {
@@ -2443,6 +2443,13 @@ function registerImplementRoutes(app, deps) {
 
   // REQ-436: the case plan. The model names the case, filter, groupings, metrics and what each driver asks; every name is checked against the
   // table. One grouped SQL reads the counts. A model that cannot answer gives the fallback plan, never a 5xx.
+  // The reason a model gave no plan, in words the person can act on: a refusal names the grant, any other answer carries the model's own words.
+  function modelRefusal(endpoint, got) {
+    if (got.status === 401 || got.status === 403) return `The App cannot query the model ${endpoint}. Give the App's service principal Can query on that serving endpoint (or EXECUTE on its system.ai model service).`;
+    const said = String((got.data && (got.data.message || got.data.error)) || '').trim().replace(/[.\s]+$/, '');
+    return `The model ${endpoint} answered HTTP ${got.status || 'error'}${said ? `: ${said}` : ''}.`;
+  }
+
   async function modelPlanOf(req, table, columns, groupBy, useCase = null) {
     const without = (reason) => ({ ...VCP.fallbackPlan(columns, groupBy), model_reason: reason });
     try {
@@ -2450,8 +2457,8 @@ function registerImplementRoutes(app, deps) {
       if (!listed.ok) return without(`The list of model endpoints answered HTTP ${listed.status || 'error'}.`);
       const endpoint = FB.chatEndpoint({}, (listed.data.endpoints || []).map((e) => ({ name: e.name, state: e.state, task: e.task })));
       if (!endpoint) return without('No chat model endpoint is ready in this workspace.');
-      const got = await invokeChatModel(chatCall(req, req.dbToken), endpoint, { messages: VCP.planMessages({ table, columns, useCase }), max_tokens: 1500, temperature: 0 });
-      if (!got.ok) return without(`The model answered HTTP ${got.status || 'error'}.`);
+      const got = await invokeChatModel(chatCall(req, req.dbToken), endpoint, { messages: VCP.planMessages({ table, columns, useCase }), max_tokens: 1500 });
+      if (!got.ok) return without(modelRefusal(endpoint, got));
       const plan = VCP.planFrom(got.data, columns, groupBy);
       const asked = plan.drivers.some((d) => d.on) || plan.metrics.length || plan.case_filter || plan.case_noun !== 'record';
       return asked ? { ...plan, model: endpoint } : { ...plan, model: null, model_reason: 'The model reply was not a usable plan.' };
@@ -2753,7 +2760,7 @@ function registerImplementRoutes(app, deps) {
       const endpoint = FB.chatEndpoint({}, (listed.data.endpoints || []).map((e) => ({ name: e.name, state: e.state, task: e.task })));
       if (!endpoint) throw I.badRequest('no chat model the App can use is ready on this workspace, so Inspire cannot turn the description into a value; choose the value by hand', 409);
       const messages = MD.describeMessages({ text, columns, currencyColumn: String(req.body?.currency_column ?? '') });
-      const got = await invokeChatModel(chatCall(req, token), endpoint, { messages, max_tokens: 400, temperature: 0 });
+      const got = await invokeChatModel(chatCall(req, token), endpoint, { messages, max_tokens: 400 });
       if (!got.ok) throw I.badRequest(`the model ${endpoint} did not answer: ${got.data.message || got.data.error || `HTTP ${got.status}`}`, 502);
       const described = MD.parseDescription(got.data, columns);
       if (described.problems.length) return res.status(422).json({ error: joinSentences(...described.problems), problems: described.problems, model: endpoint });

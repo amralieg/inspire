@@ -47,9 +47,9 @@ export default function ValueBulkPanel() {
       {preSkipNote(items) && <p data-bulk-skipped="" className="text-xs text-text-secondary">{preSkipNote(items)}</p>}
       <ul className="divide-y divide-border">
         {rows.map((r) => (
-          <li key={r.id} data-bulk-row={r.id} data-bulk-state={r.state} className="flex items-baseline gap-3 py-2 text-sm">
-            <span dir="auto" className="min-w-0 flex-1 break-words text-text-primary">{nameOf(r.id)}</span>
-            <span className="shrink-0 text-end text-text-secondary">
+          <li key={r.id} data-bulk-row={r.id} data-bulk-state={r.state} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 text-sm">
+            <span dir="auto" className="min-w-[8rem] flex-1 basis-40 break-words text-text-primary">{nameOf(r.id)}</span>
+            <span className="min-w-0 max-w-full break-words text-text-secondary sm:text-end">
               {r.state === 'done' && <span className="font-semibold text-text-primary">{totalText(r.yearly) || 'Done'} per year</span>}
               {r.state === 'failed' && (
                 <span className="inline-flex items-center gap-2">

@@ -50,7 +50,7 @@ export const valueWorker = ({ apiPostJson, inspireDatabase, warehouseId, session
   if (!got?.plan) throw new Error('Inspire got no plan back for this use case.');
   const plan = got.plan;
   // REQ-448: no model planned this use case, so there is nothing honest to save; the runner shows it as skipped.
-  if (!plan.model) throw Object.assign(new Error('Inspire could not reach a model to plan this use case, so it saves no estimate; open Calculate value to set the numbers.'), { status: 422 });
+  if (!plan.model) throw Object.assign(new Error(`Inspire could not reach a model to plan this use case${plan.model_reason ? ` (${String(plan.model_reason).replace(/\.$/, '')})` : ''}, so it saves no estimate; open Calculate value to set the numbers.`), { status: 422 });
   const answers = initialAnswers(plan);
   const sent = { ...bodyOf(plan, answers, true).answers, plan: bodyOf(plan, answers, true).plan };
   const saved = await save(item.id, item.table, sent);
