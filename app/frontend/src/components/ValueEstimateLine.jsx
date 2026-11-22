@@ -4,8 +4,8 @@ import ValueDisclaimer from './ValueDisclaimer';
 // REQ-078: the rule-based estimate from /api/inspire/value/estimates. Measured money is never shown as an estimate.
 const amountText = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
 
-function RuleEstimateLine({ estimate, className, onSetRule }) {
-  const base = `text-xs leading-snug text-text-secondary ${className}`;
+function RuleEstimateLine({ estimate, className, onSetRule, oneLine = false }) {
+  const base = `text-xs leading-snug text-text-secondary ${oneLine ? 'truncate' : ''} ${className}`;
   if (estimate.status === 'estimated') {
     return (
       <p data-value-estimate="estimated" className={base}>
@@ -39,17 +39,18 @@ function RuleEstimateLine({ estimate, className, onSetRule }) {
   );
 }
 
-export default function ValueEstimateLine({ uc = null, estimate: given = null, className = '', onSetRule = null }) {
+// oneLine: a list row shows the summary on one line; the whole text and the disclaimer stay in the tooltip (FX-38b, W16 D35).
+export default function ValueEstimateLine({ uc = null, estimate: given = null, className = '', onSetRule = null, oneLine = false }) {
   const own = valueEstimateOf(uc);
   // A measured figure is the figure: a rule estimate never replaces it (REQ-078).
-  if (given && given.status && !own?.measured) return <RuleEstimateLine estimate={given} className={className} onSetRule={onSetRule} />;
+  if (given && given.status && !own?.measured) return <RuleEstimateLine estimate={given} className={className} onSetRule={onSetRule} oneLine={oneLine} />;
   const estimate = own?.measured ? own : (given || own);
   if (!estimate) return null;
   const line = (
-    <p data-value-estimate={estimate.measured ? 'measured' : 'not-measured'}
-      className={`text-xs leading-snug ${estimate.measured ? 'font-semibold text-success-fg' : 'text-text-tertiary'} ${className}`}>
+    <p data-value-estimate={estimate.measured ? 'measured' : 'not-measured'} title={oneLine ? estimate.text : undefined}
+      className={`text-xs leading-snug ${estimate.measured ? 'font-semibold text-success-fg' : 'text-text-tertiary'} ${oneLine ? 'truncate' : ''} ${className}`}>
       {estimate.text}
     </p>
   );
-  return estimate.measured ? <>{line}<ValueDisclaimer short className="block" /></> : line;
+  return estimate.measured && !oneLine ? <>{line}<ValueDisclaimer short className="block" /></> : line;
 }

@@ -98,6 +98,7 @@ import DocumentActions from '../components/DocumentActions';
 import { generationFolder, workspaceNotebookUrl } from '../lib/workspaceLinks';
 import ImplementWizard from './ImplementWizard';
 import CalculateValueDialog from '../components/CalculateValueDialog';
+import { rememberCard, returnToCard } from '../lib/cardReturn';
 import ValueBulkPanel, { ValueBulkBar, ValueBulkProgress } from '../components/ValueBulkPanel';
 import { useValueBulkRun } from '../lib/valueBulkRun';
 import { SKIP_CALCULATED, SKIP_NO_TABLE, isCalculated, valueWorker } from '../lib/valueBulk';
@@ -613,6 +614,9 @@ export default function ResultsPage({
   // ── Extract use cases (defensive — guard against non-array shapes) ──
   const builtUseCases = useMemo(() => buildUseCaseList(results, usecases), [results, usecases]);
   const [calcFor, setCalcFor] = useState(null);
+  const calcBack = useRef(null);
+  const openCalc = (uc) => { calcBack.current = rememberCard(trackingIdOf(uc)); setCalcFor(uc); };
+  const closeCalc = () => { setCalcFor(null); returnToCard(calcBack.current); calcBack.current = null; };
   const [bulkPicked, setBulkPicked] = useState(() => new Set());
   const bulkRun = useValueBulkRun();
   const calculated = useCalculatedValues({ apiFetch: showcase ? null : apiFetch, apiPostJson, apiPutJson, inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId });
@@ -2038,7 +2042,7 @@ export default function ResultsPage({
                       const favKey = favoriteKeyOf(uc);
                       const tid = trackingIdOf(uc);
                       return (
-                      <div key={cardKeys.get(uc)} data-use-case-no={uc.No != null ? String(uc.No) : undefined} className="scroll-mt-2">
+                      <div key={cardKeys.get(uc)} data-use-case-no={uc.No != null ? String(uc.No) : undefined} data-use-case-id={tid || undefined} className="scroll-mt-2">
                       <UseCaseCard
                         uc={uc}
                         index={idx}
@@ -2057,8 +2061,8 @@ export default function ResultsPage({
                         yearly={calculated.byId[tid]?.yearly || measuredYearly?.use_cases?.[tid] || null}
                         valueSummary={valueTotals?.use_cases?.[tid] ?? null}
                         canCalculate={Boolean(runValueUrl && tid)}
-                        onCalculate={() => setCalcFor(uc)}
-                        onEdit={runValueUrl && tid ? () => setCalcFor(uc) : undefined}
+                        onCalculate={() => openCalc(uc)}
+                        onEdit={runValueUrl && tid ? () => openCalc(uc) : undefined}
                         onSetRule={canImplement ? () => startImplement(uc) : undefined}
                         onUndoRefine={tid ? () => undoRefinedCard(tid) : undefined}
                         implementStatus={tid ? implementState(implementLatestById[tid] || null, notebookStatus(uc, implementView.notebook_run)) : null}
@@ -2190,7 +2194,7 @@ export default function ResultsPage({
         {calcFor && (
           <CalculateValueDialog key={trackingIdOf(calcFor)} uc={calcFor} table={tableOfUseCase(calcFor)} apiPostJson={apiPostJson} inspireDatabase={inspireDb} warehouseId={warehouseId}
             sessionId={selectedSessionId} saved={calculated.byId[trackingIdOf(calcFor)]?.answers || null} version={calculated.byId[trackingIdOf(calcFor)]?.version || null}
-            values={valuesForDialog} onClose={() => setCalcFor(null)} />
+            values={valuesForDialog} onClose={closeCalc} />
         )}
       {bulkHere?.open && <ValueBulkPanel />}
       {implementUc && selectedSessionId && inspireDb && warehouseId && (

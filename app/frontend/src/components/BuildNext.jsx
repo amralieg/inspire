@@ -20,13 +20,13 @@ export function RunValue({ row, onMeasure }) {
   const v = row.value;
   if (valuedLine(v)) {
     return (
-      <p data-value-estimate="value" className="text-xs leading-snug text-text-secondary">
+      <p data-value-estimate="value" className="truncate text-xs leading-snug text-text-secondary">
         {`${v.verb || 'Value at stake'}: `}<span data-value-line-amount="" className="font-semibold tabular-nums text-text-primary">{boxMoneyText(v.currency, v.amount)}</span>{` a year (${VALUED[v.status]})`}
       </p>
     );
   }
-  if (row.estimate) return <ValueEstimateLine estimate={row.estimate} onSetRule={onMeasure ? () => onMeasure(row.id) : undefined} />;
-  if (row.uc && row.est) return <ValueEstimateLine uc={row.uc} />;
+  if (row.estimate) return <ValueEstimateLine estimate={row.estimate} onSetRule={onMeasure ? () => onMeasure(row.id) : undefined} oneLine />;
+  if (row.uc && row.est) return <ValueEstimateLine uc={row.uc} oneLine />;
   return (
     <p data-value-estimate="not-calculated" className="text-xs leading-snug text-text-secondary">
       Value at stake: Not calculated
@@ -100,8 +100,8 @@ export function BuildNextPanel({ apiFetch, inspireDatabase, warehouseId, session
         <ul className="divide-y divide-border">
           {plan.next.map((row) => (
             <li key={row.id} data-build-next-row={row.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-text-primary">{row.name || row.id}</p>
+              <div className="min-w-0 flex-1 basis-56">
+                <p dir="auto" className="break-words text-sm font-medium text-text-primary">{row.name || row.id}</p>
                 <RunValue row={row} onMeasure={onMeasure} />
               </div>
               {onStart && <StartButton id={row.id} onStart={onStart} />}
@@ -189,8 +189,8 @@ export function BuildNextStep({ apiFetch, apiPostJson, inspireDatabase, warehous
           return (
             <li key={row.id} data-next-step-row={row.id} className="space-y-2 py-2.5">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-text-primary">{row.name || row.id}</p>
+                <div className="min-w-0 flex-1 basis-56">
+                  <p dir="auto" className="break-words text-sm font-medium text-text-primary">{row.name || row.id}</p>
                   <p className="text-[11px] text-text-secondary">Shares {row.shared.join(', ')}</p>
                   <RunValue row={row} onMeasure={onMeasure} />
                 </div>

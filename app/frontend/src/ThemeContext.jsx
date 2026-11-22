@@ -3,7 +3,9 @@ import { createContext, useContext, useState, useEffect } from 'react';
 const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(() => localStorage.getItem('inspire_theme') || 'light');
+  // FX-38b (REQ-453, W16 D36): a saved choice wins; with none, the page starts in the system's colour scheme.
+  const [theme, setTheme] = useState(() => localStorage.getItem('inspire_theme')
+    || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
 
   useEffect(() => {
     const root = document.documentElement;
@@ -12,10 +14,14 @@ export function ThemeProvider({ children }) {
     } else {
       root.classList.remove('dark');
     }
-    localStorage.setItem('inspire_theme', theme);
   }, [theme]);
 
-  const toggle = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
+  // Only a click is a choice worth saving; the system default is read again on the next load.
+  const toggle = () => setTheme((t) => {
+    const next = t === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('inspire_theme', next);
+    return next;
+  });
 
   return (
     <ThemeContext.Provider value={{ theme, toggle }}>

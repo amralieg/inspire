@@ -104,14 +104,14 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
   const amt = grow ? 'text-success-fg' : 'text-db-red-fg';
   const [tag, tagCls] = TAGS[m.state];
   const text = moneyText(m.unit, amount);
-  return (
+  const note = <ValueCheckNote check={yearly?.check} notCounted={!m.calculated && m.state !== 'measured'} />;
+  const box = (
     <div data-value-box="" data-value-box-state={m.state} data-value-yearly="" title={VALUE_DISCLAIMER} onClick={stop} onKeyDown={stop}
       className={`${BOX} ${edge} bg-surface ${pulse ? 'animate-pulse' : ''}`}>
       <span data-value-verb="" className="text-[11px] tracking-wide text-text-primary">{m.verb}</span>
       <span data-value-amount="" className={`text-[22px] font-extrabold tabular-nums ${amt}`}>{text}</span>
       <span data-value-qualifier="" className="text-[10px] text-text-secondary">{m.state === 'measured' ? '(measured)' : m.calculated ? '(calculated)' : '(estimated)'}</span>
       <span data-value-period="" className="text-[10px] text-text-secondary">Per year</span>
-      <ValueCheckNote check={yearly?.check} notCounted={!m.calculated && m.state !== 'measured'} />
       {!readOnly && onEdit && m.state !== 'measured' && (
         <button type="button" data-value-edit="" aria-label="Edit value" title="Edit value" onClick={(e) => { e.stopPropagation(); onEdit(); }}
           className="absolute -end-2.5 -top-2.5 flex h-[26px] w-[26px] items-center justify-center rounded-full border border-border bg-surface text-text-secondary shadow hover:border-db-red-solid hover:text-db-red-fg">
@@ -121,4 +121,7 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
       <span data-value-tag="" className={`absolute -bottom-2.5 rounded-full border px-2 py-px text-[9px] font-bold tracking-wide ${tagCls}`}>{tag}</span>
     </div>
   );
+  // FX-38b (W16 D25): the note sits under the box, past the pill that overhangs its bottom edge, so it never covers the pill or leaves the box.
+  if (!yearly?.check?.outside) return box;
+  return <div className="flex w-[8.5rem] shrink-0 flex-col items-center gap-3.5">{box}{note}</div>;
 }

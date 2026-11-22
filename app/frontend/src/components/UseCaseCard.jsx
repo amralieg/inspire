@@ -72,6 +72,8 @@ function UseCaseCardBody({
   const showPriorityPill = !!(priority && inspireScoreNum == null && !isNumericPriorityString(priority));
   const kind = v130?.kind || null;
   const rename = useUseCaseRename(titlePlain, onRename);
+  // FX-38b (REQ-453, W16 D24): once a value is saved the box is the only value on the card; the older estimate text goes.
+  const savedValue = Boolean(yearly?.total || (Array.isArray(yearly?.entries) && yearly.entries.length));
 
   return (
     <div className="bg-surface border border-border/70 rounded-xl overflow-hidden shadow-elevated lift-on-hover hover:border-db-red/25">
@@ -131,7 +133,7 @@ function UseCaseCardBody({
                   </p>
                 )}
                 <QualityBarReason uc={u} className="mt-1" />
-                <ValueEstimateLine uc={u} estimate={estimate} onSetRule={onSetRule} className="mt-1" />
+                {!savedValue && <ValueEstimateLine uc={u} estimate={estimate} onSetRule={onSetRule} className="mt-1" />}
                 <ValueHow yearly={yearly} onOpen={onEdit} />
                 {useCaseValue && (
                   <ValueBadge atStake={useCaseValue.at_stake} saved={useCaseValue.saved} measured={useCaseValue.measured} className="mt-2" compact />
