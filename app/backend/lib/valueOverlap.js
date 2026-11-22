@@ -27,7 +27,7 @@ function savedKeys(saved, currency) {
 
 // A rule estimate: one whole key (the same rule over the same baseline is the same money).
 const estimateKeys = (estimate, currency, amount) => (estimate && estimate.app !== undefined && estimate.per_record !== undefined && estimate.baseline !== undefined
-  ? [{ key: `${currency}|rule:${estimate.app}|${estimate.per_record}|${estimate.baseline}`, amount }] : null);
+  ? [{ key: `${currency}|rule:${estimate.per_record}|${estimate.baseline}`, amount }] : null);
 
 // A whole value over a known table (measured, or a saved value without parts).
 const wholeKeys = (table, verb, signature, currency, amount) => (tableName(table) ? [{ key: [currency, tableName(table), verb, signature].join('|'), amount }] : null);

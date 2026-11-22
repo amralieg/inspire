@@ -29,13 +29,16 @@ function estimateOf({ measured = false, baseline = null, rules = [] } = {}) {
 }
 
 // Totals keep measured money and estimated money apart, per currency; an estimate is never summed into a measured total.
+// FX-48b: one rate over one baseline in one currency is one pool of money. The use case's own name is not part of it (it never repeats).
+const poolOf = (e) => `${e.currency}|${e.per_record}|${e.baseline}`;
+
 function totalsOf(estimates) {
   const estimated = {};
   const seen = new Set();
   for (const e of estimates) {
     if (!e || e.status !== 'estimated') continue;
     // REQ-454: one rule over one baseline is one pool of money, counted once.
-    const key = `${e.currency}|${e.app}|${e.per_record}|${e.baseline}`;
+    const key = poolOf(e);
     if (seen.has(key)) continue;
     seen.add(key);
     estimated[e.currency] = Math.round(((estimated[e.currency] || 0) + e.amount) * 100) / 100;
@@ -97,7 +100,7 @@ async function estimatesFor({ useCases, specs, measured, baselineOf }) {
     const baseline = isMeasured || !rules.length || !table ? null : await baselineOf(String(table), id);
     const estimate = estimateOf({ measured: isMeasured, baseline, rules });
     if (estimate && estimate.status === 'estimated') {
-      const key = `${estimate.currency}|${estimate.app}|${estimate.per_record}|${estimate.baseline}`;
+      const key = poolOf(estimate);
       if (firstOf.has(key)) estimate.shares_with = firstOf.get(key);
       else firstOf.set(key, id);
     }

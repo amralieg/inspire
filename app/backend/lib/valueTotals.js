@@ -46,6 +46,12 @@ const ownPlan = (saved, id) => {
   return Boolean(plan && plan.basis === PLAN_BASIS && (!id || plan.use_case_id === undefined || String(plan.use_case_id) === String(id)));
 };
 
+function estimateEntry(estimate) {
+  const currency = String(estimate.currency || '');
+  const entry = { status: 'estimated', verb: FALLBACK_VERB, amount: Number(estimate.amount), currency };
+  return withHidden(flagged(entry), OV.estimateKeys(estimate, currency, Number(estimate.amount)));
+}
+
 function useCaseOf({ id = '', saved = null, estimate = null, measured = null, hasTable = true, table = '' } = {}) {
   const money = measuredOf(measured);
   if (money) return withHidden(flagged(money), OV.wholeKeys(table, 'measured', 'measured', money.currency, money.amount));
@@ -54,7 +60,12 @@ function useCaseOf({ id = '', saved = null, estimate = null, measured = null, ha
   if (finite(amount)) {
     const shape2 = Boolean(saved.answers && saved.answers.shape === 2);
     const calculated = shape2 && Boolean(yearly.calculated ?? saved.answers.calculated);
-    if (shape2 && !calculated && !ownPlan(saved, id)) return { status: 'not_estimated', stale: true, reason: NOT_ESTIMATED_REASON, verb: '', amount: null, currency: '' };
+    // FX-48b (W17 D42): an older-shape saved estimate (no shape 2, so no plan) was made for no use case's own data either: the W10 run's six
+    // equal $791,561.47 cards were such rows (one typed driver set and the default 1-per-record rule over one table). Same rule as shape 2.
+    if (!calculated && !ownPlan(saved, id)) {
+      if (estimate && estimate.status === 'estimated' && finite(estimate.amount)) return estimateEntry(estimate);
+      return { status: 'not_estimated', stale: true, reason: NOT_ESTIMATED_REASON, verb: '', amount: null, currency: '' };
+    }
     const currency = String(yearly.currency ?? (saved.answers && saved.answers.currency) ?? yearly.total.unit ?? '');
     const verb = String(yearly.verb || (yearly.parts && yearly.parts[0] && yearly.parts[0].verb) || FALLBACK_VERB);
     const entry = { status: calculated ? 'calculated' : 'estimated', verb, amount: Number(amount), currency };
@@ -65,11 +76,7 @@ function useCaseOf({ id = '', saved = null, estimate = null, measured = null, ha
     const keys = shape2 ? OV.savedKeys(saved, currency) : (money ? OV.wholeKeys(table, 'saved', JSON.stringify(money) + String(saved.answers.lost_filter || ''), currency, Number(amount)) : null);
     return withHidden(entry, keys);
   }
-  if (estimate && estimate.status === 'estimated' && finite(estimate.amount)) {
-    const currency = String(estimate.currency || '');
-    const entry = { status: 'estimated', verb: FALLBACK_VERB, amount: Number(estimate.amount), currency };
-    return withHidden(flagged(entry), OV.estimateKeys(estimate, currency, Number(estimate.amount)));
-  }
+  if (estimate && estimate.status === 'estimated' && finite(estimate.amount)) return estimateEntry(estimate);
   return hasTable ? { status: 'none', verb: '', amount: null, currency: '' } : { status: 'no_data', reason: NO_DATA_REASON, verb: '', amount: null, currency: '' };
 }
 
