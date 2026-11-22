@@ -29,6 +29,7 @@ async function withInspireRows(rows, run) {
     tokenKind: 'app',
     forwardedToken: 'person-tok',
     history: [],
+    columns: [],
     statements: { 'system.information_schema.catalogs': (_s, _p, token) => ({ rows: token === APP_TOKEN ? rows : [] }) },
   });
   const srv = await listen(made.app);
