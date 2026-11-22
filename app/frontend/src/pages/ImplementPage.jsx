@@ -76,7 +76,7 @@ import CalculateValueDialog from '../components/CalculateValueDialog';
 import { tableOfUseCase, useCalculatedValues } from '../lib/calculatedValue';
 import { trackingIdOf } from '../lib/useCaseFields';
 import { valuedLine } from '../lib/buildNext';
-import { grantListKey, raisePermissions } from '../lib/permissionBus';
+import { raisePermissions } from '../lib/permissionBus';
 
 const OUTPUT_ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: GenieLogo, app: AppWindow, alert: BellRing };
 const OUTPUT_NAMES = OUTPUT_LABELS;
@@ -981,14 +981,8 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
   const stalled = (status ? status.stalled : item.latest?.stalled) || null;
   const uninstalled = latest?.status === IMPLEMENT_UNINSTALLED;
   const built = hasMvp && !uninstalled;
-  // The build's own Permission Required entries (scope-view grants, the Lakebase database grant) open once per distinct list.
+  // REQ-406: the build's own entries (scope-view grants, the Lakebase database grant) show as an inline note; Permission Required opens only on a click.
   const buildPermissions = latest?.asset_status?.permissions || [];
-  const buildPermissionsKey = grantListKey(buildPermissions);
-  useEffect(() => {
-    if (!buildPermissionsKey) return;
-    raisePermissions(buildPermissions, { retry: () => loadStatus().catch(() => {}) });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- raise once per distinct permission list
-  }, [buildPermissionsKey]);
   const moneyKey = `${latest?.spec_version ?? ''}:${latest?.status ?? ''}`;
   const issues = useReportedIssues({ apiFetch, apiPostJson, qBase, useCaseId, on: built && !readOnly, refreshKey: `${moneyKey}:${refreshKey}` });
   useEffect(() => {
@@ -1496,26 +1490,12 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
   const viewerNow = viewerReads && viewerReads.version === latest?.spec_version ? viewerReads : null;
   const readsLeft = reads || (viewerNow ? { tables: viewerNow.tables, canGrant: viewerNow.tables.some((t) => t.grants?.length > 0), viewers: viewerNow.user === true } : null)
     || (grantedAll ? { tables: [], canGrant: false } : null);
-  // A person who cannot grant the App's reads must act: Permission Required opens once per distinct grant list, with the owner's exact GRANT statements.
-  // The inline card under it keeps the copy-and-check, and See the grant reopens the dialog.
-  const mustAct = readsLeft?.tables?.length > 0 && readsLeft.canGrant !== true;
-  const mustActPermissions = mustAct ? [{
-    statements: [...new Set(readsLeft.tables.flatMap((t) => t.grants))],
-    instructions: [],
-    principal: readsLeft.app || 'the App',
-    why: 'The App cannot read part of its data.',
-  }] : [];
-  const mustActKey = grantListKey(mustActPermissions);
-  useEffect(() => {
-    if (!mustActKey) return;
-    raisePermissions(mustActPermissions, { retry: () => recheckSources() });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- raise once per distinct grant list
-  }, [mustActKey]);
+  // REQ-406: a person who cannot grant the App's reads sees the inline card below; See the grant opens Permission Required with the owner's exact GRANT statements.
   const refreshSourceNow = async () => {
     const fresh = await apiFetch(`/api/inspire/implement/context?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`);
     setSourceNow(liveSourceNow(fresh));
   };
-  const runReads = async (action) => {
+  const runReads = async (action, { auto = false } = {}) => {
     setReadsBusy(action);
     try {
       // A user-authorization build grants its viewers' scope views through app-reads; only the source tables take this path.
@@ -1523,16 +1503,16 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
         const tables = (sourceNow.unreadable?.tables || []);
         const got = await apiPostJson(`/api/inspire/implement/grant-access?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}&kind=source_tables`, { tables });
         const failed = [...(got.failed || []), ...(got.abac_gaps || []).flatMap((g) => g.grants.map((sql) => `${sql}: not yours to grant`))];
-        raisePermissions([...grantGapPermissions(got), ...grantFailurePermissions(got)], {}, { explicit: true });
+        if (!auto) raisePermissions([...grantGapPermissions(got), ...grantFailurePermissions(got)], {}, { explicit: true });
         setReadsResult({ text: abacGrantText(got), failed, refused: failed.length > 0, version: latest?.spec_version, action });
         await refreshSourceNow();
         return;
       }
-      // A check shows its refusal inline (Check again, See the grant). It raises Permission Required only for a grant list this page has not shown yet; a grant action always raises.
+      // REQ-406: a check shows its refusal inline (Check again, See the grant) and never opens Permission Required; only a grant action raises.
       const got = await apiPostJson(`/api/inspire/implement/app-reads?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`, { action }, { raise: action === 'grant' });
       setReadsResult({ ...got, version: latest?.spec_version, action });
-      if (got.objects) setViewerReads({ version: latest?.spec_version, tables: got.tables || [], user: got.mode === 'user' });
-      raisePermissions(got.permissions, { retry: () => recheckSources() }, { explicit: action === 'grant' });
+      if (got.objects) setViewerReads({ version: latest?.spec_version, tables: got.tables || [], user: got.mode === 'user', permissions: got.permissions || [] });
+      if (action === 'grant' && !auto) raisePermissions(got.permissions, { retry: () => recheckSources() }, { explicit: true });
       if (action === 'check' || action === 'grant') await refreshSourceNow();
     } catch (e) {
       setReadsResult({ error: e.message, version: latest?.spec_version, action });
@@ -1543,7 +1523,8 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
   const pickReads = async (choice) => {
     // REQ-131, REQ-260: the owner's grant commands open in Permission Required; there is no separate copy path for GRANT SQL
     if (choice.id !== 'copy') return runReads(choice.id);
-    raisePermissions(choice.permissions || [], {}, { explicit: true });
+    // A viewer check's own grant list (the exact SQL each viewer still needs) is what See the grant opens, as the check found it.
+    raisePermissions(readsLeft?.viewers && viewerNow?.permissions?.length ? viewerNow.permissions : (choice.permissions || []), {}, { explicit: true });
   };
   const autoReads = useRef({});
   const autoViewerChecks = useRef({});
@@ -1560,13 +1541,28 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
     const key = `${latest.session_id ?? ''}:${latest.spec_version}`;
     if (autoReads.current[key]) return;
     autoReads.current[key] = true;
-    runReads('grant');
+    runReads('grant', { auto: true });
   }, [reads, readOnly, latest?.session_id, latest?.spec_version]);
-  // REQ-131, REQ-260: the grants a failed build's lost tables need open in Permission Required (the build status carries them)
+  // REQ-131, REQ-260, REQ-406: the grants a failed build's lost tables need (the build status carries them) are an inline note, not an automatic dialog.
   const lostPermissions = latest?.status === 'failed' ? latest?.asset_status?.data?.permissions : null;
-  useEffect(() => {
-    if (lostPermissions?.length) raisePermissions(lostPermissions);
-  }, [lostPermissions]);
+  const noteGrants = [...buildPermissions, ...(lostPermissions || [])];
+  const permissionNote = noteGrants.length > 0 && (
+    <section aria-label="Permission needed" data-permission-note="" className="rounded-lg border border-warning/30 bg-warning-bg px-3.5 py-3 text-[12px] space-y-2">
+      <div className="flex items-start gap-2.5">
+        <AlertTriangle size={16} className="mt-px shrink-0 text-warning-fg" aria-hidden />
+        <div className="min-w-0 space-y-1 text-warning-fg">
+          <p className="text-[13px] font-semibold">Permission needed</p>
+          {[...new Set(noteGrants.map((g) => g?.why).filter(Boolean))].map((why) => <p key={why}>{why}</p>)}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" data-permission-see="" onClick={() => raisePermissions(noteGrants, { retry: () => loadStatus().catch(() => {}) }, { explicit: true })}
+          className="inline-flex h-8 items-center justify-center px-3 rounded-lg whitespace-nowrap text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle">See the grant</button>
+        <button type="button" data-permission-request="" onClick={() => raisePermissions(noteGrants, { retry: () => loadStatus().catch(() => {}) }, { explicit: true })}
+          className="text-xs text-text-secondary underline underline-offset-2 hover:text-text-primary">Request permission</button>
+      </div>
+    </section>
+  );
   const readsCard = readsLeft && (
     <section aria-label={readsLeft.tables.length ? APP_READS_HEADING : APP_READS_CLEARED} data-app-reads="" className="rounded-lg border border-warning/30 bg-warning-bg px-3.5 py-3 text-[12px] space-y-2.5">
       <div className="flex items-start gap-2.5">
@@ -1621,6 +1617,12 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
               className="text-xs text-text-secondary underline underline-offset-2 hover:text-text-primary disabled:opacity-50">
               {check.label}
             </button>
+            {primary.id === 'grant' && (
+              <button type="button" data-app-reads-choice="copy" disabled={readsBusy !== ''} onClick={() => pickReads(choices.find((c) => c.id === 'copy'))}
+                className="text-xs text-text-secondary underline underline-offset-2 hover:text-text-primary disabled:opacity-50">
+                {choices.find((c) => c.id === 'copy').label}
+              </button>
+            )}
           </div>
         );
       })()}
@@ -1984,7 +1986,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
                 </button>
               )}
               <button type="button" disabled={active || submitBusy} title={active ? 'Wait for this run to finish' : undefined} onClick={() => setUninstalling(true)} className={DANGER_BUTTON}>
-                <Trash2 size={13} /> Uninstall all
+                <Trash2 size={13} /> Uninstall this use case
               </button>
             </>
           ) : (
@@ -2004,6 +2006,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
           </p>
         )}
       </header>
+      {permissionNote}
       {detailsOpen && row && (
         <UseCaseDrawer row={row} yearly={yearlyRead?.use_cases?.[useCaseId] || null} onClose={() => setDetailsOpen(false)}>
           <UseCaseDetailBody uc={item.uc} v130={item.uc._v130 || null} valueEstimate={valueEstimate} databricksHost={databricksHost} />
@@ -2011,7 +2014,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
       )}
       {!built && notebook && <NotebookPanel notebook={notebook} />}
       {uninstalling && (
-        <ConfirmDialog title={`Uninstall everything ${useCaseId} built`} confirmLabel="Uninstall all" useCaseId={useCaseId} busy={submitBusy}
+        <ConfirmDialog title={`Uninstall everything ${useCaseId} built`} confirmLabel={`Uninstall ${useCaseId}`} useCaseId={useCaseId} busy={submitBusy}
           onCancel={() => setUninstalling(false)} onConfirm={uninstallAll}>
           <p>
             Inspire deletes the MVP notebook, its job, the build jobs of every version, the dashboard, the Genie Agent, the App, the alert, the App&apos;s Lakebase copy and every version kept live, in a new version of this MVP. A build job that is still running stays until its run ends, and Inspire says so.
