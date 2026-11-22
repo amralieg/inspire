@@ -17,8 +17,6 @@ const mount = (app) => {
   app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
   app.get('/api/showcase', (_req, res) => res.json({}));
   app.get('/api/inspire/value', (_req, res) => res.json({ use_cases: {}, run: { at_stake: [], saved: [], mvps_measured: 0 } }));
-  app.get('/api/inspire/value/overall', (_req, res) => res.json({ at_stake: [], saved: [], runs: 0, businesses: 0 }));
-  app.get('/api/inspire/value/runs', (_req, res) => res.json({ runs: {} }));
   app.get('/api/inspire/value/yearly', (_req, res) => res.json({ use_cases: { 'N01-U01': YEARLY_ENTRY(15000000) } }));
   app.get('/api/inspire/value/answers', (_req, res) => res.json({ answers: {} }));
   app.get('/api/inspire/value/answers/history', (_req, res) => res.json({ history: [] }));

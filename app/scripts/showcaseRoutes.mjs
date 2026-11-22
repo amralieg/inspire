@@ -35,8 +35,6 @@ export function demoReads(withMvps, walk = null) {
 
 export const NOT_IN_DEMO = {
   'GET /api/inspire/value': 'the value at stake and saved of a run is read from the ledger of a workspace run; a demo has no ledger, so the Review card and the run header send no value read while the demo is open',
-  'GET /api/inspire/value/overall': 'the Start banner reads the value across the workspace runs; the demo has no ledger, so Start sends no value read while the demo is open',
-  'GET /api/inspire/value/runs': 'the Start run cards read each run value from the ledger of a workspace run; the demo has no ledger, so Start sends no value read while the demo is open',
   'GET /api/inspire/value/estimates': 'the Build and Review cards read each use case estimate from the value ledger of a workspace run; the demo has no ledger, so the cards send no estimate read while the demo is open',
   'GET /api/inspire/value/yearly': 'the Review and Build cards read the value per year of each use case from the value ledger of a workspace run; the demo has no ledger, so the pages send no yearly read while the demo is open (REQ-432)',
   'GET /api/inspire/value/answers': 'the Review cards read the saved Calculate answers of a workspace run from its answers table; the demo has no such table, so the pages send no answers read while the demo is open (REQ-435)',
@@ -82,7 +80,6 @@ export const NOT_IN_DEMO = {
   'POST /api/inspire/implement/swaps': 'the Start MVP wizard and an editable tables panel look for other tables; the demo edits nothing',
   'GET /api/inspire/implement/table-lookup': 'the Start MVP wizard checks a table the person types in; the demo edits nothing',
   'GET /api/inspire/value': 'the value at stake and saved is read from the value ledger outside the demo only; the demo shows the value it recorded and never calls the ledger',
-  'GET /api/inspire/value/overall': 'the value across all runs is read from the value ledger outside the demo only; the demo shows the value it recorded and never calls the ledger',
 };
 
 export function routeOf(method, url) {

@@ -470,8 +470,6 @@ const RC10_STATS_TOGGLE = 'Across all runs in this Inspire Database';
 const rc10Mount = (app) => {
   app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
   app.get('/api/showcase', (_req, res) => res.json(DEMO_LIST));
-  app.get('/api/inspire/value/overall', (_req, res) => res.json(RC10_VALUE_OVERALL));
-  app.get('/api/inspire/value/runs', (_req, res) => res.json(RC10_VALUE_RUNS));
   app.get('/api/inspire/value/estimates', (_req, res) => res.json(RC10_VALUE_ESTIMATES));
   app.get('/api/inspire/value/totals', (req, res) => totalsQueryMissing(req, res) || res.json(req.query.session_id ? { run: { totals: [], n: 0 }, use_cases: {} } : RC10_VALUE_TOTALS));
 };

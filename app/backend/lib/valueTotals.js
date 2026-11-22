@@ -1,7 +1,7 @@
 // REQ-439 (C6): run and all-runs value totals that include the values saved through Calculate. Per use case: the latest saved answers
 // (shape 2 calculated or estimated, an older shape estimated), else the rule estimate, else none. Amounts add only inside one currency.
 const VA = require('./valueAnswers');
-const { idList } = require('./inspireValue');
+const { idList, totalOf } = require('./inspireValue');
 const VP = require('./valuePlausibility');
 const OV = require('./valueOverlap');
 const { PLAN_BASIS } = require('./valueCasePlan');
@@ -129,6 +129,14 @@ function countable(useCases) {
   return { counted, excluded: [...excluded.values()], shared };
 }
 
+// FX-34b (REQ-078, REQ-451): what the MVPs of the run measured besides money at stake: what they saved, the non-money kinds at stake
+// (hours, counts) and how many MVPs it is from. Each use case carries its own (runOf); the run adds them up.
+function mvpValueOf(entries) {
+  const mvps = entries.filter((e) => e.mvp);
+  const parts = (field) => mvps.flatMap((e) => e[field] || []);
+  return { saved: totalOf(parts('saved')), kinds: totalOf(parts('kinds')), n_mvps: mvps.length };
+}
+
 function summarize(useCases) {
   const entries = Object.values(useCases);
   const count = (status) => entries.filter((e) => e.status === status).length;
@@ -143,7 +151,7 @@ function summarize(useCases) {
   return {
     totals: totalsOf(counted), n: entries.length, n_calculated: count('calculated'), n_estimated: count('estimated'),
     n_measured: count('measured'), n_none: entries.length - count('calculated') - count('estimated') - count('measured'), by_verb: [...verbs.values()],
-    n_shared: shared, excluded,
+    n_shared: shared, excluded, ...mvpValueOf(entries),
   };
 }
 
@@ -170,9 +178,14 @@ function mergeRuns(runs, useCasesByRun = null) {
 
 // useCases: [{id}] of the run; savedOf: Map id -> versionOf; estimates: {id: estimate}; measured: {id: measured yearly}; noTable: Set of ids
 // without a primary table.
-function runOf({ ids, saved, estimates, measured = {}, noTable, tables = {} }) {
+// ledger: {id: {at_stake, saved, measured}} (inspireValue.valueOfSession); a use case whose MVP measured carries its saved and non-money kinds.
+function runOf({ ids, saved, estimates, measured = {}, noTable, tables = {}, ledger = {} }) {
   const useCases = {};
-  for (const id of ids) useCases[id] = useCaseOf({ id, saved: saved.get(id) || null, estimate: estimates[id] || null, measured: measured[id] || null, hasTable: !noTable.has(id), table: tables[id] || '' });
+  for (const id of ids) {
+    useCases[id] = useCaseOf({ id, saved: saved.get(id) || null, estimate: estimates[id] || null, measured: measured[id] || null, hasTable: !noTable.has(id), table: tables[id] || '' });
+    const mvp = ledger[id];
+    if (mvp && mvp.measured) Object.assign(useCases[id], { mvp: true, saved: mvp.saved || [], kinds: (mvp.at_stake || []).filter((p) => p.kind !== 'money') });
+  }
   return { run: summarize(useCases), use_cases: useCases };
 }
 
@@ -180,7 +193,8 @@ function runOf({ ids, saved, estimates, measured = {}, noTable, tables = {} }) {
 // Business panel) renders it, so no two of them can disagree. useCases: one run's use_cases (runOf).
 function runValueOf(useCases) {
   const s = summarize(useCases || {});
-  return { totals: s.totals, n: s.n, n_calculated: s.n_calculated, n_estimated: s.n_estimated, n_measured: s.n_measured, n_none: s.n_none, n_shared: s.n_shared };
+  return { totals: s.totals, n: s.n, n_calculated: s.n_calculated, n_estimated: s.n_estimated, n_measured: s.n_measured, n_none: s.n_none, n_shared: s.n_shared,
+    saved: s.saved, kinds: s.kinds, n_mvps: s.n_mvps };
 }
 
 // The run value of several runs as one: the same pool of money in two runs counts once.

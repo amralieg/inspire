@@ -20,8 +20,6 @@ const mount = (app) => {
   app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
   app.get('/api/showcase', (_req, res) => res.json({}));
   app.get('/api/inspire/value', (_req, res) => res.json({ use_cases: { 'N01-U01': { at_stake: money, saved: [], measured: true } }, run: { at_stake: money, saved: [], mvps_measured: 1 } }));
-  app.get('/api/inspire/value/overall', (_req, res) => res.json({ at_stake: money, saved: [], runs: 1, businesses: 1 }));
-  app.get('/api/inspire/value/runs', (_req, res) => res.json({ runs: { 42: { at_stake: money, saved: [], mvps_measured: 1 } } }));
   app.get('/api/inspire/value/yearly', (_req, res) => res.json({ use_cases: { 'N01-U01': yearly } }));
   app.get('/api/inspire/value/totals', (req, res) => totalsQueryMissing(req, res) || res.json(req.query.session_id
     ? { run: { ...RUN_VALUE, excluded: [], by_verb: [] }, use_cases: {}, run_value: RUN_VALUE }

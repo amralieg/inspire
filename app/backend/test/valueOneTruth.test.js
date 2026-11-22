@@ -83,6 +83,6 @@ test('1c: runValueOf is the one run value: totals and counts, the same for one r
   const saved = new Map([['A', savedOf(6800000, planFor('A', 'c.s.orders'), { calculated: true })], ['B', savedOf(900000, planFor('B', 'c.s.prices'))]]);
   const got = VT.runOf({ ids: ['A', 'B', 'X'], saved, estimates: {}, noTable: new Set(), tables: { A: 'c.s.orders', B: 'c.s.prices' } });
   const value = VT.runValueOf(got.use_cases);
-  assert.deepEqual(value, { totals: got.run.totals, n: 3, n_calculated: 1, n_estimated: 1, n_measured: 0, n_none: 1, n_shared: 0 });
+  assert.deepEqual(value, { totals: got.run.totals, n: 3, n_calculated: 1, n_estimated: 1, n_measured: 0, n_none: 1, n_shared: 0, saved: [], kinds: [], n_mvps: 0 });
   assert.deepEqual(VT.mergedRunValueOf([got.use_cases]), value, 'one run merged is the same run value');
 });

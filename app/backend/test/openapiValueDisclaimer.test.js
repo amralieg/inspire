@@ -5,7 +5,7 @@ const path = require('node:path');
 const yaml = require('js-yaml');
 
 // REQ-434: every value answer carries the full disclaimer (server.js and implementRoutes.js send `disclaimer`), so the contract names it.
-const ROUTES = [['get', '/api/inspire/value'], ['get', '/api/inspire/value/overall'], ['get', '/api/inspire/value/runs'],
+const ROUTES = [['get', '/api/inspire/value'],
   ['get', '/api/inspire/value/yearly'], ['post', '/api/inspire/value/estimate']];
 const missing = (doc) => ROUTES.filter(([method, p]) => {
   const schema = doc.paths?.[p]?.[method]?.responses?.['200']?.content?.['application/json']?.schema;

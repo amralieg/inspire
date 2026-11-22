@@ -2,6 +2,8 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { moneyText } from './ValueBox';
 import { ValueCheckNote } from './ValueCheckNote';
 import ValueDisclaimer from './ValueDisclaimer';
+import { valueChips } from '../lib/valueLedger';
+import { plural as pluralOf } from '../lib/plural';
 
 // REQ-439: a total box, a calculated vs estimated bar, a second bar, and a table. Used for one run and for all runs.
 // Amounts are per currency; two currencies show two totals, never one converted number.
@@ -104,6 +106,7 @@ export function RunValuePanel({ run, useCases, nameOf, onRow }) {
       <div className="mt-3 flex flex-wrap items-start gap-4">
         <TotalBox label="RUN VALUE" totals={run.totals || []} sub={`${run.n_calculated} calculated · ${run.n_estimated} estimated`} />
         <div className="min-w-0 flex-1">
+          <RunValueKinds value={run} className="text-[12px] text-text-secondary" />
           <Bar parts={split(run.totals || [])} label="Calculated vs estimated" />
           <Bar parts={byVerb} label="By kind of value" />
           <CountNotes run={run} />
@@ -151,6 +154,7 @@ export function AllRunsValuePanel({ reply }) {
       <div className="mt-3 flex flex-wrap items-start gap-4">
         <TotalBox label="ALL RUNS" totals={all.totals || []} sub={`${all.n_calculated ?? 0} calculated · ${all.n_estimated ?? 0} estimated`} />
         <div className="min-w-0 flex-1">
+          <RunValueKinds value={all} className="text-[12px] text-text-secondary" />
           <Bar parts={split(all.totals || [])} label="Calculated vs estimated" />
           {all.totals?.length <= 1 && <Bar parts={byRun} label="By run" />}
         </div>
@@ -174,6 +178,22 @@ export function AllRunsValuePanel({ reply }) {
   );
 }
 
+// FX-34b (REQ-078, REQ-096, REQ-451): what the run value also says: what the MVPs saved, the non-money kinds (hours, counts) and how many
+// MVPs it is from. Nothing renders for a run with no measured MVP.
+export function RunValueKinds({ value, className = '' }) {
+  const saved = valueChips(value?.saved, Infinity).shown;
+  const chips = valueChips(value?.kinds, Infinity).shown;
+  const mvps = Number(value?.n_mvps) || 0;
+  if (!saved.length && !chips.length && !mvps) return null;
+  return (
+    <span data-value-kinds="" className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${className}`}>
+      {saved.length > 0 && <span>Saved <span data-value-headline="saved" className="font-bold tabular-nums text-success-fg">{saved.map((c) => c.text).join(' + ')}</span></span>}
+      {chips.map((c) => <span key={`${c.kind}:${c.unit}`} data-value-chip={c.unit} data-value-kind={c.kind} className="rounded-md border border-border px-1.5 py-0.5 tabular-nums">{c.text}</span>)}
+      {mvps > 0 && <span data-value-mvps="">{`from ${pluralOf(mvps, 'MVP')}`}</span>}
+    </span>
+  );
+}
+
 // FX-34 (W16 D2/D3/D9): one line for the value of a run, from the run value the server computes once (valueTotals.runValueOf).
 // The Start bars, the run card and the Review header all render it, so they cannot disagree.
 export function RunValueTotal({ value }) {
@@ -189,6 +209,7 @@ export function RunValueLine({ value, label = 'Value of this run', className = '
       <span className="font-semibold uppercase tracking-wide">{label}: </span>
       <span className="font-bold tabular-nums text-text-primary"><RunValueTotal value={value} /></span>
       {value?.totals?.length ? <><span>{` (${n}) `}</span><ValueDisclaimer short /></> : null}
+      <RunValueKinds value={value} className="mt-1" />
     </p>
   );
 }

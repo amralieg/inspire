@@ -42,8 +42,6 @@ function mountWith(state) {
     app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
     app.get('/api/showcase', (_req, res) => res.json({}));
     app.get('/api/inspire/value', (_req, res) => res.json({ use_cases: {}, run: { at_stake: [], saved: [], mvps_measured: 0 } }));
-    app.get('/api/inspire/value/overall', (_req, res) => res.json({ at_stake: [], saved: [], runs: 0, businesses: 0 }));
-    app.get('/api/inspire/value/runs', (_req, res) => res.json({ runs: {} }));
     app.get('/api/inspire/value/estimates', (_req, res) => res.json({ use_cases: {}, totals: null }));
     app.get('/api/inspire/value/yearly', (_req, res) => res.json({ use_cases: {} }));
     app.get('/api/inspire/value/totals', (req, res) => totalsQueryMissing(req, res) || (state.totals ? res.json(state.totals) : res.status(404).json({ error: 'none' })));

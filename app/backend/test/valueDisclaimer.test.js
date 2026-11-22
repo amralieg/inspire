@@ -35,9 +35,9 @@ test('the Calculate answer and the measured per-year answer carry the disclaimer
   }
 });
 
-test('the value routes of the server (run, overall, runs, estimates) put the disclaimer in their answers', () => {
+test('the value routes of the server (run, estimates) put the disclaimer in their answers', () => {
   const src = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
-  for (const route of ["'/api/inspire/value'", "'/api/inspire/value/overall'", "'/api/inspire/value/runs'", "'/api/inspire/value/estimates'"]) {
+  for (const route of ["'/api/inspire/value'", "'/api/inspire/value/estimates'"]) {
     const at = src.indexOf(`app.get(${route}`);
     assert.ok(at > 0, route);
     const end = src.indexOf('\napp.', at + 10);

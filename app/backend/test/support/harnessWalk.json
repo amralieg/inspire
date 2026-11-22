@@ -101,8 +101,6 @@
   "S05"
  ],
  "GET /api/inspire/value": ["S02"],
- "GET /api/inspire/value/overall": ["S02"],
- "GET /api/inspire/value/runs": ["S02"],
  "GET /api/inspire/session": [
   "S02"
  ],

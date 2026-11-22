@@ -26,8 +26,6 @@ const mount = (app) => {
   app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
   app.get('/api/showcase', (_req, res) => res.json({}));
   app.get('/api/inspire/value', (_req, res) => res.json(LEDGER_RUN));
-  app.get('/api/inspire/value/overall', (_req, res) => res.json({ at_stake: [], saved: [], runs: 1, businesses: 1, run_value: RUN_VALUE }));
-  app.get('/api/inspire/value/runs', (_req, res) => res.json({ runs: {}, run_values: { 42: RUN_VALUE } }));
   app.get('/api/inspire/value/estimates', (req, res) => res.json(req.query.session_id ? { use_cases: {}, totals: null, run_value: RUN_VALUE } : { runs: {}, totals: { estimated: {} }, run_value: RUN_VALUE }));
   app.get('/api/inspire/value/yearly', (_req, res) => res.json({ use_cases: {} }));
   app.get('/api/inspire/value/totals', (req, res) => totalsQueryMissing(req, res) || res.json(req.query.session_id ? { run: RUN, use_cases: USE_CASES, run_value: RUN_VALUE } : ALL));

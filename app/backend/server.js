@@ -38,7 +38,7 @@ const {
 const JC = require('./lib/jobCurrency');
 const { notebookParamsFromSessionForGenerateRun } = require('./lib/inspireSessionParams');
 const { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, splitInspireDatabase, isTimestampText, stepsStatement } = require('./lib/sqlInputs');
-const { valueLedgerTable, inspireSessionTable, valueSessionSql, valueRunsSql, valueOverallSql, sessionCountsSql, valueOfSession, valueOfRuns, overallValue, qualified: qualifiedInspireTable } = require('./lib/inspireValue');
+const { valueLedgerTable, valueSessionSql, valueOfSession, qualified: qualifiedInspireTable } = require('./lib/inspireValue');
 const VE = require('./lib/valueEstimate');
 const VT = require('./lib/valueTotals');
 const VA_ANSWERS = require('./lib/valueAnswers');
@@ -2936,11 +2936,11 @@ async function totalsOfSession(req, warehouse_id, parsedDb, sid, rows = null) {
   const estimates = estimated.use_cases;
   const measured = await implementApi.measuredYearlyOf(req, warehouse_id, sid, parsedDb, { ledgerRows: read.ledgerRows, specRows: read.specRows, tableRows: read.tables });
   const tables = Object.fromEntries(read.tables.map((row) => [String(row.id), String(row.primary_table || '')]));
-  return { ...VT.runOf({ ids: read.tables.map((row) => String(row.id)), saved, estimates, measured, noTable, tables }), estimates: estimated };
+  return { ...VT.runOf({ ids: read.tables.map((row) => String(row.id)), saved, estimates, measured, noTable, tables, ledger: valueOfSession(read.ledgerRows).use_cases }), estimates: estimated };
 }
 
 // FX-34 (W16 D2/D3/D9): the run value of every run the Start list shows and of all of them, computed once by valueTotals. /value/totals,
-// /value/overall, /value/runs and /value/estimates all answer from here, so the Start banner, bars and cards never disagree.
+// /value/estimates answers from here too, so the Start banner, bars and cards never disagree.
 async function runValuesOf(req, warehouse_id, parsedDb) {
   const rows = await readValueRows(req, warehouse_id, VT.sessionsSql(qualifiedInspireTable(parsedDb, '__inspire_session'), SESSION_LIST_CAP));
   const truncated = rows.length > SESSION_LIST_CAP;
@@ -2971,37 +2971,6 @@ app.get('/api/inspire/value/totals', requireToken, async (req, res) => {
     res.json({ ...one, run_value: VT.runValueOf(one.use_cases), disclaimer: VALUE_DISCLAIMER.full });
   } catch (err) {
     PM_ERROR.sendFailure(res, PM_ERROR.failureStatus(err), err.message);
-  }
-});
-
-app.get('/api/inspire/value/overall', requireToken, async (req, res) => {
-  try {
-    const { inspire_database, warehouse_id } = req.query;
-    if (!inspire_database || !warehouse_id) {
-      return res.status(400).json({ error: 'inspire_database and warehouse_id required.' });
-    }
-    const parsedDb = splitInspireDatabase(inspire_database);
-    if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
-    const totals = await readValueRows(req, warehouse_id, valueOverallSql(valueLedgerTable(parsedDb), inspireSessionTable(parsedDb)));
-    const [counts] = await readValueRows(req, warehouse_id, sessionCountsSql(inspireSessionTable(parsedDb)));
-    res.json({ ...overallValue(totals, counts), run_value: (await runValuesOf(req, warehouse_id, parsedDb)).all, disclaimer: VALUE_DISCLAIMER.full });
-  } catch (err) {
-    PM_ERROR.sendFailure(res, 500, err.message);
-  }
-});
-
-app.get('/api/inspire/value/runs', requireToken, async (req, res) => {
-  try {
-    const { inspire_database, warehouse_id } = req.query;
-    if (!inspire_database || !warehouse_id) {
-      return res.status(400).json({ error: 'inspire_database and warehouse_id required.' });
-    }
-    const parsedDb = splitInspireDatabase(inspire_database);
-    if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
-    const ledger = valueOfRuns(await readValueRows(req, warehouse_id, valueRunsSql(valueLedgerTable(parsedDb))));
-    res.json({ ...ledger, run_values: (await runValuesOf(req, warehouse_id, parsedDb)).byRun, disclaimer: VALUE_DISCLAIMER.full });
-  } catch (err) {
-    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 

@@ -102,10 +102,6 @@ const reset = ({ missingLedger = false, manySessions = false } = {}) => {
   warehouse.state.manySessions = manySessions;
 };
 const statements = () => warehouse.state.statements.map((s) => s.statement);
-// FX-34 (REQ-448): /value/runs, /value/overall and /value/estimates also carry the one run value valueTotals computes; these tests check
-// the ledger part of each answer and the ledger statements.
-const ledgerStatements = () => statements().filter((sql) => sql.includes(LEDGER) && !/session_id IN \(/.test(sql));
-const ledgerOf = ({ run_value: _v, run_values: _vs, ...rest }) => rest;
 
 test('GET /api/inspire/value answers the use case map and the run from the aggregated rows, keeping money and time apart', async () => {
   reset();
@@ -120,42 +116,11 @@ test('GET /api/inspire/value answers the use case map and the run from the aggre
   assert.equal(statements().length, 1, 'one statement per route');
 });
 
-test('GET /api/inspire/value/runs answers each run with its own totals and measured count', async () => {
-  reset();
-  const { status, body } = await app.get(`/api/inspire/value/runs?${QUERY}`);
-  assert.equal(status, 200, JSON.stringify(body));
-  assert.ok(body.run_values && body.run_values['42'], 'each run carries its run value');
-  assert.deepEqual(ledgerOf(body), {
-    runs: {
-      41: { at_stake: [{ kind: 'money', unit: 'EUR', amount: 100 }], saved: [], mvps_measured: 1 },
-      42: { at_stake: [{ kind: 'money', unit: 'USD', amount: 300 }, { kind: 'time', unit: 'hours', amount: 2 }],
-        saved: [{ kind: 'time', unit: 'hours', amount: 1 }], mvps_measured: 2 },
-    },
-    disclaimer: DISCLAIMER, // REQ-434: every value answer carries the disclaimer
-  });
-  assert.equal(ledgerStatements().length, 1);
-});
-
-test('GET /api/inspire/value/overall answers the latest-run totals, the saved totals and the run and business counts', async () => {
-  reset();
-  const { status, body } = await app.get(`/api/inspire/value/overall?${QUERY}`);
-  assert.equal(status, 200, JSON.stringify(body));
-  assert.ok(body.run_value && Array.isArray(body.run_value.totals), 'the banner carries the all-runs run value');
-  assert.deepEqual(ledgerOf(body), { at_stake: [{ kind: 'money', unit: 'EUR', amount: 350 }], saved: [{ kind: 'money', unit: 'EUR', amount: 30 }],
-    runs: 3, businesses: 2, disclaimer: DISCLAIMER });
-});
-
 test('no value route reads the raw ledger rows: every statement aggregates in SQL', async () => {
   reset();
   await app.get(`/api/inspire/value?${QUERY}&session_id=42`);
-  await app.get(`/api/inspire/value/runs?${QUERY}`);
-  await app.get(`/api/inspire/value/overall?${QUERY}`);
   const sent = statements();
-  // FX-34: /value/runs and /value/overall each add the one run-value read, the same statements /value/totals sends for all runs.
-  reset();
-  await app.get(`/api/inspire/value/totals?${QUERY}`);
-  const runValueReads = statements().length;
-  assert.equal(sent.length, 4 + 2 * runValueReads);
+  assert.equal(sent.length, 1);
   for (const sql of sent.filter((q) => q.includes(LEDGER))) assert.match(sql, /GROUP BY|COUNT\(/);
 });
 
@@ -163,10 +128,6 @@ test('a missing ledger table answers empty totals, not an error, on every value 
   reset({ missingLedger: true });
   assert.deepEqual((await app.get(`/api/inspire/value?${QUERY}&session_id=42`)).body,
     { use_cases: {}, run: { at_stake: [], saved: [], mvps_measured: 0 }, disclaimer: DISCLAIMER });
-  assert.deepEqual(ledgerOf((await app.get(`/api/inspire/value/runs?${QUERY}`)).body), { runs: {}, disclaimer: DISCLAIMER });
-  const overall = await app.get(`/api/inspire/value/overall?${QUERY}`);
-  assert.equal(overall.status, 200);
-  assert.deepEqual(ledgerOf(overall.body), { at_stake: [], saved: [], runs: 3, businesses: 2, disclaimer: DISCLAIMER });
 });
 
 test('a session id that is not numeric is refused before any SQL is sent', async () => {

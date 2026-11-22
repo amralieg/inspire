@@ -39,8 +39,6 @@ const mount = (app) => {
   app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
   app.get('/api/showcase', (_req, res) => res.json({}));
   app.get('/api/inspire/value', (_req, res) => res.json({ use_cases: {}, run: { at_stake: [], saved: [], mvps_measured: 0 } }));
-  app.get('/api/inspire/value/overall', (_req, res) => res.json({ at_stake: [], saved: [], runs: 0, businesses: 0 }));
-  app.get('/api/inspire/value/runs', (_req, res) => res.json({ runs: {} }));
   app.get('/api/inspire/value/yearly', (_req, res) => res.json({ use_cases: { 'N01-U01': entry(1e6), 'N01-U02': entry(3e6) } }));
   app.post('/api/inspire/score-refine', (req, res) => answer('apply', req, res, { applied: req.body.changes.map((c) => ({ use_case_id: c.use_case_id, score: c.score, from: c.from })) }));
   app.post('/api/inspire/score-refine/undo', (req, res) => answer('undo', req, res, { restored: req.body.use_case_ids }));

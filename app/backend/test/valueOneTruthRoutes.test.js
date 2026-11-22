@@ -63,7 +63,7 @@ const get = async (route) => {
   return body;
 };
 
-test('1c: /value/totals, /value/estimates, /value/runs and /value/overall return the same run value for every run and for all runs', async () => {
+test('1c: /value/totals and /value/estimates return the same run value for every run and for all runs', async () => {
   const one = await get(`/api/inspire/value/totals?${QUERY}&session_id=42`);
   assert.ok(one.run_value, 'the single-run totals carry run_value');
   assert.deepEqual(one.run_value.totals, [{ currency: 'USD', amount: 9200000, calculated: 6800000, estimated: 2400000 }]);
@@ -73,11 +73,6 @@ test('1c: /value/totals, /value/estimates, /value/runs and /value/overall return
   const all = await get(`/api/inspire/value/totals?${QUERY}`);
   const row42 = all.runs.find((r) => r.session_id === '42');
   assert.deepEqual(row42.run_value, one.run_value, 'the all-runs row of run 42 = the run read');
-  const runs = await get(`/api/inspire/value/runs?${QUERY}`);
-  assert.deepEqual(runs.run_values['42'], one.run_value, '/value/runs (the run cards) = /value/totals');
-  assert.deepEqual(runs.run_values['43'], all.runs.find((r) => r.session_id === '43').run_value);
-  const overall = await get(`/api/inspire/value/overall?${QUERY}`);
-  assert.deepEqual(overall.run_value, all.all, '/value/overall (the Start banner) = the all-runs total');
   const allEstimates = await get(`/api/inspire/value/estimates?${QUERY}`);
   assert.deepEqual(allEstimates.run_value, all.all, '/value/estimates (all runs) = the all-runs total');
   assert.deepEqual(allEstimates.run_values['42'], one.run_value);

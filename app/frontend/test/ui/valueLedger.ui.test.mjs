@@ -53,8 +53,6 @@ const mountValue = (app) => {
   app.get('/api/showcase', (_req, res) => res.json({}));
   app.use('/api/inspire/value', (req, _res, next) => { valueHits.push(req.originalUrl); next(); });
   app.get('/api/inspire/value', (_req, res) => res.json(VALUE));
-  app.get('/api/inspire/value/overall', (_req, res) => res.json(OVERALL));
-  app.get('/api/inspire/value/runs', (_req, res) => res.json(RUNS));
   app.get('/api/inspire/value/totals', (req, res) => totalsQueryMissing(req, res) || res.json(req.query.session_id ? TOTALS_ONE : TOTALS_ALL));
 };
 const withValue = (results, runs) => ({ ...REVIEW_STATE, results, ...runs });
