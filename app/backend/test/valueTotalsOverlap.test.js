@@ -4,7 +4,6 @@ const assert = require('node:assert/strict');
 const VT = require('../lib/valueTotals');
 const VA = require('../lib/valueAnswers');
 const VE = require('../lib/valueEstimate');
-const IV = require('../lib/inspireValue');
 
 const entry = (table, amount, { filter = null, calculated = false } = {}) => VA.versionOf({
   version: 1,
@@ -55,11 +54,4 @@ test('mergeRuns counts the same pool of money once across runs', () => {
 test('estimate totals count one rule over one baseline once', () => {
   const e = { status: 'estimated', app: 'a1', per_record: 50, baseline: 1000, amount: 50000, currency: 'USD' };
   assert.equal(VE.totalsOf([e, { ...e }]).estimated.USD, 50000);
-});
-
-test('the overall stake CTE keeps one row per result table, not one per use case', () => {
-  const sql = IV.valueOverallSql('t', 's');
-  assert.match(sql, /PARTITION BY session_id, result_table, kind, currency, unit/);
-  const stake = sql.slice(sql.indexOf('stake AS'), sql.indexOf('saved AS'));
-  assert.doesNotMatch(stake, /use_case_id ORDER BY/);
 });

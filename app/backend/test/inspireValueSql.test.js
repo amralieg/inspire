@@ -70,53 +70,15 @@ test('the latest MVP run of a use case counts, a cleared save leaves the total, 
   assert.deepEqual(session41.run.at_stake, [entry('money', 'EUR', 100)]);
 });
 
-test('the runs route groups by run and keeps each run its own currencies and units', { skip: SKIP }, () => {
-  const db = engine([
-    stake('41', 'N01-U01', 'money', 'EUR', 100, '2026-11-08 10:00:00', '8001'),
-    stake('42', 'N01-U01', 'money', 'USD', 300, '2026-11-10 10:00:00', '9001'),
-    stake('42', 'N02-U01', 'time', 'days', 1, '2026-11-10 10:00:00', '9001'),
-    stake('42', 'N03-U01', 'time', 'hours', 2, '2026-11-10 10:00:00', '9001'),
-    saved('42', 'N02-U01', 'rec-1', 'time', 'hours', 1, '2026-11-10 11:00:00'),
-  ]);
-  const runs = V.valueOfRuns(rowsOf(db, V.valueRunsSql('ledger_t'))).runs;
-  assert.deepEqual(Object.keys(runs), ['41', '42']);
-  assert.deepEqual(runs['41'], { at_stake: [entry('money', 'EUR', 100)], saved: [], mvps_measured: 1 });
-  assert.deepEqual(runs['42'], {
-    at_stake: [entry('money', 'USD', 300), entry('time', 'hours', 26)], saved: [entry('time', 'hours', 1)], mvps_measured: 3,
-  });
-});
-
-test('overall at stake counts only the latest run of each business, saved counts every run, and counts come from the session table', { skip: SKIP }, () => {
-  const sessions = [[41, 'Acme', '2026-11-08 09:00:00'], [42, 'Acme', '2026-11-10 09:00:00'], [43, 'Globex', '2026-11-09 09:00:00']];
-  const db = engine([
-    stake('41', 'N01-U01', 'money', 'EUR', 100, '2026-11-08 10:00:00', '8001'),
-    stake('42', 'N01-U01', 'money', 'EUR', 300, '2026-11-10 10:00:00', '9001'),
-    stake('43', 'N09-U01', 'money', 'EUR', 50, '2026-11-09 10:00:00', '9002'),
-    saved('41', 'N01-U01', 'a', 'money', 'EUR', 10, '2026-11-08 11:00:00'),
-    saved('42', 'N01-U01', 'b', 'money', 'EUR', 20, '2026-11-10 11:00:00'),
-  ], sessions);
-  const totals = rowsOf(db, V.valueOverallSql('ledger_t', 'sessions_t'));
-  const counts = rowsOf(db, V.sessionCountsSql('sessions_t'))[0];
-  const overall = V.overallValue(totals, counts);
-  assert.deepEqual(overall.at_stake, [entry('money', 'EUR', 350)], 'the older Acme run (100) is not added to its latest (300)');
-  assert.deepEqual(overall.saved, [entry('money', 'EUR', 30)]);
-  assert.equal(overall.runs, 3);
-  assert.equal(overall.businesses, 2);
-});
-
 test('an empty ledger and an empty session table give empty totals', { skip: SKIP }, () => {
   const db = engine([], []);
   assert.deepEqual(V.valueOfSession(rowsOf(db, V.valueSessionSql('ledger_t', '42'))), { use_cases: {}, run: { at_stake: [], saved: [], mvps_measured: 0 } });
-  assert.deepEqual(V.valueOfRuns(rowsOf(db, V.valueRunsSql('ledger_t'))), { runs: {} });
-  assert.deepEqual(V.overallValue(rowsOf(db, V.valueOverallSql('ledger_t', 'sessions_t')), rowsOf(db, V.sessionCountsSql('sessions_t'))[0]),
-    { at_stake: [], saved: [], runs: 0, businesses: 0 });
 });
 
 test('every value query aggregates in SQL: no statement returns the raw ledger rows', () => {
-  for (const sql of [V.valueSessionSql('t', '42'), V.valueRunsSql('t'), V.valueOverallSql('t', 's')]) {
+  for (const sql of [V.valueSessionSql('t', '42')]) {
     assert.match(sql, /GROUP BY/);
     assert.match(sql, /ROW_NUMBER\(\) OVER/);
     assert.doesNotMatch(sql, /^SELECT .* FROM t\s*$/);
   }
-  assert.match(V.valueRunsSql('t'), /WHERE rn = 1/);
 });

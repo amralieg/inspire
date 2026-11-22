@@ -33,16 +33,8 @@ const VALUE = {
   },
   run: { at_stake: RUN_AT_STAKE, saved: RUN_SAVED, mvps_measured: 2 },
 };
-const OVERALL = {
-  at_stake: [{ kind: 'money', unit: 'AED', amount: 12000 }, { kind: 'money', unit: 'USD', amount: 4000 }, { kind: 'time', unit: 'hours', amount: 120 }],
-  saved: [{ kind: 'money', unit: 'AED', amount: 1500 }],
-  runs: 6,
-  businesses: 3,
-};
-
 const DEFAULTS = { envSkipsSetupWizard: true, isDatabricksApp: true, databricksHost: 'https://workspace.example.com', warehouseId: 'wh1',
   inspireDatabase: 'main.inspire', notebookPath: '/Shared/inspire_ai' };
-const RUNS = { runs: { 42: VALUE.run } };
 // FX-34 (REQ-448): the one run value the Review header and the Start page render.
 const RUN_VALUE = { totals: [{ currency: 'AED', amount: 12000, calculated: 9000, estimated: 3000 }], n: 2, n_calculated: 1, n_estimated: 1, n_measured: 0, n_none: 0, n_shared: 0 };
 const TOTALS_ONE = { run: { ...RUN_VALUE, excluded: [], by_verb: [] }, use_cases: {}, run_value: RUN_VALUE };
