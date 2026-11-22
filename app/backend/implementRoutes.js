@@ -2484,7 +2484,21 @@ function registerImplementRoutes(app, deps) {
   }
 
   const PLAN_MODEL_TRIES = 4;
-  async function modelPlanOf(req, table, columns, groupBy, useCase = null) {
+  // FX-51 (REQ-448, D50): one use case is worth 100K-100M a year. The prompt says so (it never clamps); a planned value outside it is asked once more.
+  const VALUE_RANGE = { low: 100000, high: 100000000 };
+  const outsideRange = (amount) => !Number.isFinite(amount) || amount < VALUE_RANGE.low || amount > VALUE_RANGE.high;
+  const rangeMessages = (messages, retry) => messages.map((m, i) => (i === 0
+    ? { ...m, content: `${m.content}\nOne use case is usually worth ${VALUE_RANGE.low}-${VALUE_RANGE.high} per year in the run's currency: choose the estimates so the total lands in that range, and say in each driver's "why" which driver moves the value into it. Never leave every driver off.` }
+    : i === messages.length - 1 && retry
+      ? { ...m, content: `${m.content}\nYour previous plan gave ${retry.amount} per year, which is ${retry.amount === 0 ? 'zero, and a use case is never worth 0' : retry.amount < VALUE_RANGE.low ? `below ${VALUE_RANGE.low}` : `above ${VALUE_RANGE.high}`}. Plan again so the total is between ${VALUE_RANGE.low} and ${VALUE_RANGE.high} per year.` }
+      : m));
+  // The yearly the plan gives with its own defaults (what bulk Calculate saves), or null when the plan has no readable amount.
+  const defaultYearlyOf = (plan) => {
+    const got = VCP.yearlyOf(plan, { currency: 'USD' });
+    return got.yearly ? got.yearly.total.amount : null;
+  };
+
+  async function modelPlanOf(req, table, columns, groupBy, useCase = null, retry = null) {
     const without = (reason) => ({ ...VCP.fallbackPlan(columns, groupBy), model_reason: reason });
     try {
       const listed = await jsonOf(dbFetch, req.dbHost, req.dbToken, '/api/2.0/serving-endpoints');
@@ -2497,7 +2511,7 @@ function registerImplementRoutes(app, deps) {
       let got = null;
       let firstFailure = '';
       for (const name of names.slice(0, PLAN_MODEL_TRIES)) {
-        const tried = await invokeChatModel(chatCall(req, req.dbToken), name, { messages: VCP.planMessages({ table, columns, useCase }), max_tokens: 1500 });
+        const tried = await invokeChatModel(chatCall(req, req.dbToken), name, { messages: rangeMessages(VCP.planMessages({ table, columns, useCase }), retry), max_tokens: 1500 });
         if (tried.ok) { endpoint = name; got = tried; break; }
         firstFailure = firstFailure || modelRefusal(name, tried);
       }
@@ -2532,15 +2546,36 @@ function registerImplementRoutes(app, deps) {
       const columns = GP.scopedColumns(await I.readPickedTable(table, () => sqlRows(req.dbHost, req.dbToken, warehouseId, I.columnsStatement(table))), scopes, table);
       const dateColumn = VY.dateColumnOf(columns);
       if (!dateColumn) throw I.badRequest('The table has no date column to scale the counts to a year, so Inspire cannot plan a value per year.', 422);
-      const plan = await modelPlanOf(req, table, columns, String(req.body?.group_by || '').trim(), await planUseCaseOf(req, warehouseId, useCaseId));
-      const made = VCP.groupedSql(GP, scopes, plan, table, dateColumn);
-      const rows = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters, { rowLimit: VCP.GROUP_MAX_GROUPS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }));
-      // The records and the days come from the whole filtered table (the C5 count), never from the grouped rows.
-      const countSql = VCP.currentCountSql(GP, scopes, { ...plan, table, date_column: dateColumn });
-      const population = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, countSql.sql, countSql.parameters, { rowLimit: 1, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }))[0] || {};
-      const counted = VCP.groupsFrom(rows, plan, population);
+      const useCase = await planUseCaseOf(req, warehouseId, useCaseId);
+      let read = null;
+      const planOnce = async (retry) => {
+        const plan = await modelPlanOf(req, table, columns, String(req.body?.group_by || '').trim(), useCase, retry);
+        // A retry that keeps the same filter, grouping and metrics reads the same counts: they are not read twice.
+        const readKey = JSON.stringify([plan.case_filter, plan.grouping, plan.metrics]);
+        if (read && read.key === readKey) return { plan, counted: read.counted };
+        const made = VCP.groupedSql(GP, scopes, plan, table, dateColumn);
+        const rows = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters, { rowLimit: VCP.GROUP_MAX_GROUPS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }));
+        // The records and the days come from the whole filtered table (the C5 count), never from the grouped rows.
+        const countSql = VCP.currentCountSql(GP, scopes, { ...plan, table, date_column: dateColumn });
+        const population = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, countSql.sql, countSql.parameters, { rowLimit: 1, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }))[0] || {};
+        read = { key: readKey, counted: VCP.groupsFrom(rows, plan, population) };
+        return { plan, counted: read.counted };
+      };
+      let { plan, counted } = await planOnce(null);
+      // FX-51: a model plan whose default value is outside the range is retried once; still outside, the plan carries value_check and is never saved as calculated.
+      let valueCheck = null;
+      if (plan.model && counted.days && counted.groups.length) {
+        const first = defaultYearlyOf({ ...plan, groups: counted.groups });
+        if (first !== null && outsideRange(first)) {
+          const again = await planOnce({ amount: first });
+          const second = again.plan.model && again.counted.days && again.counted.groups.length ? defaultYearlyOf({ ...again.plan, groups: again.counted.groups }) : null;
+          if (second !== null) ({ plan, counted } = again);
+          const last = second !== null ? second : first;
+          if (outsideRange(last)) valueCheck = { amount: last, low: VALUE_RANGE.low, high: VALUE_RANGE.high };
+        }
+      }
       if (!counted.days || !counted.groups.length) throw I.badRequest(`Inspire found no ${plan.case_noun} in ${table} to plan a value on.`, 422);
-      return res.json({ plan: { ...plan, table, date_column: dateColumn, days: counted.days, groups: counted.groups, use_case_id: useCaseId, basis: VCP.PLAN_BASIS } });
+      return res.json({ plan: { ...plan, table, date_column: dateColumn, days: counted.days, groups: counted.groups, use_case_id: useCaseId, basis: VCP.PLAN_BASIS, ...(valueCheck ? { value_check: valueCheck } : {}) } });
     } catch (err) {
       return sendError(res, estimateFailure(err, table));
     }

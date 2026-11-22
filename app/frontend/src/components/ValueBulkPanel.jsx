@@ -2,11 +2,17 @@ import ModalDialog from './ModalDialog';
 import { PlainMessage } from './TechnicalDetails';
 import { bulkCounts, useValueBulkRun } from '../lib/valueBulkRun';
 import { totalText } from '../lib/valueWizard.js';
-import { bulkSummary, preSkipNote } from '../lib/valueBulk.js';
+import { bulkSummary, preSkipNote, rangeNote } from '../lib/valueBulk.js';
 
 const btn = 'rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle disabled:opacity-50';
 // A failed or skipped row carries a sentence: it wraps on its own line under the name instead of squeezing it.
-const wide = (state) => state === 'failed' || state === 'skipped';
+const wide = (state, check) => state === 'failed' || state === 'skipped' || (state === 'done' && Boolean(check));
+// FX-51: Edit opens the use case's own value editor (its card's pencil) and puts the panel in the background.
+const editFor = (id, hide) => {
+  hide();
+  const cards = [...document.querySelectorAll('[data-use-case-id]')].filter((el) => el.getAttribute('data-use-case-id') === id);
+  cards[0]?.querySelector('[data-value-edit]')?.click();
+};
 const LABELS = { waiting: 'Waiting', working: 'Working', stopped: 'Stopped' };
 
 // REQ-441: the bar above the cards: Select all (the cards shown) and "Calculate value for N".
@@ -51,8 +57,14 @@ export default function ValueBulkPanel() {
         {rows.map((r) => (
           <li key={r.id} data-bulk-row={r.id} data-bulk-state={r.state} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 text-sm">
             <span dir="auto" data-bulk-name="" title={nameOf(r.id)} className="min-w-[8rem] max-w-full flex-1 basis-40 truncate text-text-primary">{nameOf(r.id)}</span>
-            <span data-bulk-reason="" className={`min-w-0 max-w-full break-words text-text-secondary ${wide(r.state) ? 'basis-full' : 'sm:text-end'}`}>
-              {r.state === 'done' && <span className="font-semibold text-text-primary">{totalText(r.yearly) || 'Done'} per year</span>}
+            <span data-bulk-reason="" className={`min-w-0 max-w-full break-words text-text-secondary ${wide(r.state, r.check) ? 'basis-full' : 'sm:text-end'}`}>
+              {r.state === 'done' && !r.check && <span className="font-semibold text-text-primary">{totalText(r.yearly) || 'Done'} per year</span>}
+              {r.state === 'done' && r.check && (
+                <span className="inline-flex items-center gap-2">
+                  <span dir="auto" data-bulk-check="" className="text-warning-fg">{rangeNote(r.yearly?.total?.unit || r.yearly?.currency, r.check.amount)}</span>
+                  <button type="button" onClick={() => editFor(r.id, hide)} className={btn}>Edit</button>
+                </span>
+              )}
               {r.state === 'failed' && (
                 <span className="inline-flex items-center gap-2">
                   <PlainMessage as="span" dir="auto" text={`Failed: ${r.message}`} className="text-error-fg" />

@@ -1,4 +1,4 @@
-import { CASE_PLAN_ROUTE, bodyOf, initialAnswers } from './valueWizard.js';
+import { CASE_PLAN_ROUTE, bodyOf, initialAnswers, moneyText } from './valueWizard.js';
 
 // REQ-441: value for many use cases at once, from the defaults. A pure runner (no React, no network): the worker does one use case.
 export const VALUE_BULK_WORKERS = 4;
@@ -6,6 +6,12 @@ export const VALUE_BULK_WORKERS = 4;
 export const SKIP_CALCULATED = 'already calculated';
 export const isCalculated = (saved) => Boolean(saved && (saved.yearly?.calculated ?? saved.answers?.calculated));
 export const SKIP_NO_TABLE = 'no table to count';
+
+// FX-51 (REQ-448): one use case is usually worth 100K-100M a year. A value outside it, or 0, is never shown or saved as calculated.
+export const VALUE_LOW = 100000;
+export const VALUE_HIGH = 100000000;
+export const outsideValueRange = (amount) => Number.isFinite(Number(amount)) && (Number(amount) < VALUE_LOW || Number(amount) > VALUE_HIGH);
+export const rangeNote = (unit, amount) => `Check this value: ${moneyText(unit, amount) || amount} is outside the usual 100K-100M range`;
 
 const messageOf = (err) => String(err?.message || err || 'The value could not be calculated.');
 
@@ -26,7 +32,7 @@ export function runBulk({ items, worker, concurrency = VALUE_BULK_WORKERS, onUpd
         inFlight += 1;
         rows[i] = { id: items[i].id, state: 'working' };
         Promise.resolve().then(() => worker(items[i])).then(
-          (got) => { rows[i] = { id: items[i].id, state: 'done', yearly: got?.yearly || got || null }; },
+          (got) => { rows[i] = { id: items[i].id, state: 'done', yearly: got?.yearly || got || null, ...(got?.check ? { check: got.check } : {}) }; },
           (err) => {
             // A 422 is deterministic (the use case cannot be estimated from defaults): skipped with the server's reason, no Retry.
             rows[i] = err?.status === 422 ? { id: items[i].id, state: 'skipped', reason: messageOf(err) } : { id: items[i].id, state: 'failed', message: messageOf(err) };
@@ -52,9 +58,11 @@ export const valueWorker = ({ apiPostJson, inspireDatabase, warehouseId, session
   // REQ-448: no model planned this use case, so there is nothing honest to save; the runner shows it as skipped.
   if (!plan.model) throw Object.assign(new Error(`Inspire could not reach a model to plan this use case${plan.model_reason ? ` (${String(plan.model_reason).replace(/\.$/, '')})` : ''}, so it saves no estimate; open Calculate value to set the numbers.`), { status: 422 });
   const answers = initialAnswers(plan);
-  const sent = { ...bodyOf(plan, answers, true).answers, plan: bodyOf(plan, answers, true).plan };
+  // FX-51: the server says a plan's value is outside the range after one retry; it is saved as an estimate (calculated false) and the row says so.
+  const check = plan.value_check || null;
+  const sent = { ...bodyOf(plan, answers, !check).answers, plan: bodyOf(plan, answers, !check).plan };
   const saved = await save(item.id, item.table, sent);
-  return { ...saved, answers: saved.answers || sent };
+  return { ...saved, answers: saved.answers || sent, ...(check ? { check } : {}) };
 };
 
 // REQ-441: the one line that says what a run did. Rows skipped before the run (items[].skip) are not counted; rows the server skipped (422) are.

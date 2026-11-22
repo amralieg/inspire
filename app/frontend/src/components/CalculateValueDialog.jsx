@@ -9,6 +9,7 @@ import usePreview from './valueWizard/usePreview.js';
 import { trackingIdOf } from '../lib/useCaseFields';
 import { measureOfSaved } from '../lib/measureSettings.js';
 import { VALUE_LABELS } from '../lib/valueLabels';
+import { outsideValueRange, rangeNote } from '../lib/valueBulk.js';
 import { CASE_PLAN_ROUTE, FALLBACK_NOTICE, noModelNotice, answersKey, bodyOf, carryAnswers, driversOn, initialAnswers } from '../lib/valueWizard.js';
 
 const messageOf = (err) => String(err?.message || err || 'The value could not be saved.');
@@ -123,6 +124,9 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
         {page === 'kinds' && <StepKinds plan={plan} answers={answers} onToggle={toggleDriver} />}
         {driver && <StepKind plan={plan} driver={driver} answers={answers} yearly={yearly} onInput={setInput} status={preview.status} error={preview.error} />}
         {page === 'groups' && <StepGroups plan={plan} answers={answers} onToggleGroup={toggleGroup} />}
+        {last && yearly && outsideValueRange(yearly.total?.amount) && (
+          <p role="note" data-value-range-note="" className="rounded-md border border-warning/40 bg-warning-bg px-3 py-1.5 text-[12px] text-warning-fg">{rangeNote(yearly.total.unit, yearly.total.amount)}</p>
+        )}
         {last && (
           <StepSave plan={plan} answers={answers} yearly={yearly} calculated={calculated} onToggleDriver={toggleDriver} onInput={setInput} onToggleGroup={toggleGroup} onCredit={setCredit}>
             {preview.status === 'error' && <PlainMessage text={preview.error} role="status" dir="auto" className="text-[12px] text-error-fg" />}
