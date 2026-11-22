@@ -795,6 +795,17 @@ class GrantPlanTest(unittest.TestCase):
         for catalog in ("sales", "finance"):
             self.assertIn(f"GRANT USE CATALOG ON CATALOG `{catalog}` TO `account users`", sql)
 
+    def test_account_users_also_get_use_schema_on_every_data_catalog_and_a_refusal_names_it(self):
+        """REQ-456: catalog-level USE SCHEMA inherits to the data catalog's schemas and opens no data; SELECT is never granted to account users."""
+        _, _, executed, _ = self.grant(["sales", "finance"])
+        sql = [text for text, _ in executed]
+        for catalog in ("sales", "finance"):
+            self.assertIn(f"GRANT USE SCHEMA ON CATALOG `{catalog}` TO `account users`", sql)
+        self.assertFalse([t for t in sql if "SELECT" in t and t.endswith("TO `account users`")], sql)
+        with self.assertRaises(RuntimeError) as raised:
+            self.grant(["sales"], fail={"USE SCHEMA ON CATALOG `sales` TO `account users`": RuntimeError("PERMISSION_DENIED: not the owner")})
+        self.assertIn("GRANT USE SCHEMA ON CATALOG `sales` TO `account users`", str(raised.exception))
+
     def test_a_refused_account_users_grant_on_a_data_catalog_stops_the_install_with_the_exact_grant(self):
         with self.assertRaises(RuntimeError) as raised:
             self.grant(["sales"], fail={"ON CATALOG `sales` TO `account users`": RuntimeError("PERMISSION_DENIED: not the owner")})
