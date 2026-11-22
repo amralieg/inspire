@@ -116,7 +116,7 @@ function GroupingPart({ values, onChange, profile, read = null, settings, editab
       <legend className="text-[12px] font-semibold text-text-primary">{SCOPE_LABELS[GROUP_BY]}</legend>
       {nothing ? <p data-grouping-nothing="" className="text-[12px] text-text-primary">{nothing}</p> : lead ? (
         <p data-grouping-lead="" className="text-[12px] text-text-primary">
-          <strong>{lead.label}</strong> splits the data into <strong>{groupingCountText(lead.groups)}</strong>. Inspire models each group on its own.
+          <strong>{lead.label}</strong> splits the data into {lead.groups == null ? 'groups' : <strong>{groupingCountText(lead.groups)}</strong>}. {lead.groups == null ? 'Inspire counts them when it reads the data, and models' : 'Inspire models'} each group on its own.
           {overLimit && <span role="alert" data-grouping-over-limit="" className="block text-warning-fg">{overLimit}</span>}
           {oneValue && (
             <span role="alert" data-grouping-one-value="" className="block text-warning-fg">
@@ -151,7 +151,7 @@ function GroupingPart({ values, onChange, profile, read = null, settings, editab
             <span className="min-w-0 flex-1 space-y-0.5">
               <span className="flex flex-wrap items-baseline justify-between gap-x-2">
                 <span className="font-medium break-words">{c.label}</span>
-                <span data-grouping-count="" className="shrink-0 text-[11px] text-text-secondary">{groupingCountText(groupingCount(c, profile))}</span>
+                <span data-grouping-count="" className="shrink-0 text-[11px] text-text-secondary">{groupingCountText(groupingCount(c, profile) ?? (read ? groupingCount(c, read) : null))}</span>
               </span>
               {c.deep && <span data-grouping-deep="" className="block text-[11px] text-text-secondary">{GROUPING_DEEP_MARK}</span>}
               <Recommended best={best} id={c.value} />

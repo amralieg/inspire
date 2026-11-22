@@ -42,12 +42,12 @@ test('a blocked Next opens the result table row, so the message sits beside the 
     await openRow(page, 'result table');
     const place = page.getByRole('region', { name: 'Where the result table lives' });
     await place.getByLabel('Table name').fill('bad name!');
-    await page.getByRole('button', { name: 'Close result table', exact: true }).click();
+    await page.getByRole('button', { name: 'Hide result table', exact: true }).click();
     assert.equal(await place.count(), 0, 'the row closes when the person closes it');
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await place.getByLabel('Table name').waitFor();
     await page.getByText('can only use catalog, schema and table names', { exact: false }).waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Close result table', exact: true }).count(), 1, 'the blocked Next leaves the row open');
+    assert.equal(await page.getByRole('button', { name: 'Hide result table', exact: true }).count(), 1, 'the blocked Next leaves the row open');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

@@ -244,7 +244,7 @@ test('a Deep discovery grouping is picked and marked on a first build, the perso
       ['all', 'stores.region, store_id', 'region, country', 'region', 'country']);
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['stores.region, store_id'], 'the Deep grouping is picked before the person chooses');
     assert.match(await grouping.locator('[data-grouping-choice="stores.region, store_id"]').innerText(),
-      /^stores\.region, then store_id\ngroups counted once picked\nSuggested by discovery\nRecommended/);
+      /^stores\.region, then store_id\ngroups not counted yet\nSuggested by discovery\nRecommended/);
     assert.equal(await grouping.locator('[data-grouping-cards] [data-recommended]').count(), 1, 'the picked Deep grouping is the one Recommended card');
     assert.equal(await grouping.locator('[data-grouping-choice="region, country"] [data-recommended]').count(), 0, 'must-exclude: no second Recommended');
     assert.equal(await grouping.locator('[data-grouping-record-level]').textContent(), 'Discovery found one record per order_id in main.sales.orders.');

@@ -348,7 +348,7 @@ export function groupingChoices(profile, settingChoices = []) {
 }
 
 export const GROUPING_SHOWN = 6;
-export const GROUPING_UNCOUNTED = 'groups counted once picked';
+export const GROUPING_UNCOUNTED = 'groups not counted yet';
 export const GROUPING_FIND = 'Find a column';
 export const GROUPING_MORE = 'How groups work';
 

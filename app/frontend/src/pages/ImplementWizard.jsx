@@ -520,6 +520,8 @@ export default function ImplementWizard({
   const writeCheckRun = useRef(false);
   const [dropped, setDropped] = useState([]);
   const [busy, setBusy] = useState(false);
+  // REQ-457: while the build start is answered the dialog is out of the way, so the progress behind it shows; a failed start brings it back with the reason.
+  const [starting, setStarting] = useState(false);
   const [plan, setPlan] = useState(null);
   const [planError, setPlanError] = useState('');
   const [appUnreadable, setAppUnreadable] = useState(null);
@@ -1347,6 +1349,7 @@ export default function ImplementWizard({
     setErrors([]);
     if (blockedBy(stepId)) return;
     setBusy(true);
+    setStarting(true);
     try {
       const data = await trackBuildSubmit(sent, () => withStartDeadline((signal) => apiPostJson('/api/inspire/implement/submit', {
         inspire_database: inspireDatabase,
@@ -1362,6 +1365,7 @@ export default function ImplementWizard({
       setErrors([e.message]);
     } finally {
       setBusy(false);
+      setStarting(false);
     }
   };
 
@@ -1535,9 +1539,11 @@ export default function ImplementWizard({
   });
   const groupingNow = spec.config.widgets?.[GROUP_BY] || scopeShown[GROUP_BY];
   const groupingPicked = groupingOf(scopeProfile.profile, groupingNow);
+  const freshLabel = FRESHNESS_OPTIONS.find((o) => o.id === freshness)?.label || 'Custom';
+  const firstRunLine = scopeSteps.firstRun ? firstRunSummaryText(scopedFirstRun?.state === 'ready' ? scopedFirstRun.profile : scopedProfile, sentScope) : '';
   const summaryRows = pickedSummary(spec, sourceTables, {
     grouping: scopeSteps.grouping && groupingPicked ? `${groupingPicked.label} · ${groupingCountText(groupingCount(groupingPicked, scopedFirstRun?.profile || scopedProfile))}` : '',
-    firstRun: scopeSteps.firstRun ? firstRunSummaryText(scopedFirstRun?.state === 'ready' ? scopedFirstRun.profile : scopedProfile, sentScope) : '',
+    firstRun: firstRunLine,
     settings: settingsList.length ? counted(settingsList.length, 'setting') : '',
     dropped: dropped.filter((d) => !spec.outputs[d.id]),
   });
@@ -1580,8 +1586,10 @@ export default function ImplementWizard({
 
   const toggleOutput = (id, checked) => setSpec((prev) => withOutput(prev, id, checked, context?.assets));
 
+  if (starting) return null;
+
   return (
-    <Overlay title={title} uc={uc} steps={steps} stepsReady={!loading && scopeReady} step={stepIndex} reach={reach} done={done} onGo={goTo} onDetails={() => setDetails(true)}
+    <Overlay title={title} uc={uc} steps={steps} stepsReady={!loading && scopeReady} step={stepIndex} part={foldPanels.length > 1 && !(standard && stepId === 'where') ? { at: foldPanels.indexOf(foldActive) + 1, of: foldPanels.length } : null} reach={reach} done={done} onGo={goTo} onDetails={() => setDetails(true)}
       onClose={cancel} onTouch={markTouched}>
       {details && <UseCaseDrawer title={title} ucRow={ucRow} spec={spec} patch={patch} onOwner={(owner) => setSpec((prev) => withDecisionOwner(prev, owner))} onClose={() => setDetails(false)} />}
       <div ref={bodyRef} data-wizard-body="" className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5">
@@ -1648,7 +1656,7 @@ export default function ImplementWizard({
             copying={copying} error={copyError} onCopy={copySamples} copyLabel="Copy it now" />
         )}
 
-        {foldLine('data', 'Source table', primaryChosen || 'not picked yet')}
+        {!(stepId === 'data' && mode === 'mvp' && sourcesFold) && foldLine('data', 'Source table', primaryChosen || 'not picked yet')}
         {stepId === 'data' && mode === 'mvp' && !isOpenSection('data') && <>{sourcesFold}{filtersFold}</>}
         {stepId === 'data' && mode === 'mvp' && isOpenSection('data') && (
           <>
@@ -1781,7 +1789,7 @@ export default function ImplementWizard({
           </>
         )}
 
-        {foldLine('first_run', FIRST_RUN_LABEL, narrowed ? 'Only the rows you narrowed to' : 'All rows of the source table')}
+        {foldLine('first_run', FIRST_RUN_LABEL, firstRunLine || (narrowed ? 'Only the rows you narrowed to' : 'All rows of the source table'))}
         {((shows('grouping') && mode === 'mvp' && (scopeSteps.grouping || scopeProfile.state === 'loading')) || shows('first_run')) && isOpenSection(shows('first_run') ? 'first_run' : 'grouping') && (
           <section aria-label={shows('first_run') ? FIRST_RUN_TITLE : GROUPING_TITLE} data-scope-step={shows('first_run') ? 'first_run' : 'grouping'} className="space-y-3">
             <h3 className="text-sm font-semibold text-text-primary">{shows('first_run') ? FIRST_RUN_TITLE : GROUPING_TITLE}</h3>
@@ -1796,7 +1804,7 @@ export default function ImplementWizard({
 
         {foldLine('results', 'Result table', spec.config.result_table || 'not set yet')}
         {resultsOn && isOpenSection('results') && (
-          <Advanced open={resultsShown} onToggle={() => { if (resultsShown) { setAdvanced((prev) => ({ ...prev, results: false })); setDataChoice('closed'); } else setDataChoice('results'); }} what="result table"
+          <Advanced open={resultsShown} onToggle={() => { if (resultsShown) { setAdvanced((prev) => ({ ...prev, results: false })); setDataChoice('closed'); } else setDataChoice('results'); }} what="result table" closeLabel="Hide"
             summary={`Result table: ${spec.config.result_table || 'not set yet'}`}>
             <ResultTableStep
               table={spec.config.result_table}
@@ -1831,11 +1839,11 @@ export default function ImplementWizard({
           </Advanced>
         )}
 
-        {foldLine('fresh', FRESH_LABEL, freshness === 'off' ? 'Run once now' : `Runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}`)}
+        {foldLine('fresh', FRESH_LABEL, freshness === 'off' ? 'Run once now' : freshLabel)}
         {shows('fresh') && isOpenSection('fresh') && (
           <section className="space-y-2" aria-label={FRESH_LABEL}>
             <Advanced open={advanced.fresh || sectionErrors('schedule', spec, extras).length > 0} onToggle={() => toggleAdvanced('fresh')} what={FRESH_LABEL}
-              summary={freshness === 'off' ? 'Keep it fresh: off, it runs once now' : `Keep it fresh: runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}`}>
+              summary={freshness === 'off' ? 'Keep it fresh: off, it runs once now' : `Keep it fresh: ${freshLabel}`}>
               <p className="text-[11px] text-text-secondary">{FRESH_HELP}</p>
               <p data-run-it="" className="text-[12px] text-text-secondary">{RUN_IT_TITLE}</p>
               <div data-choice="freshness" className="space-y-2">
@@ -1859,13 +1867,13 @@ export default function ImplementWizard({
               <p className="text-[11px] text-text-tertiary">
                 {freshness === 'off'
                   ? 'It runs once now. Turn this on later to keep the results current.'
-                  : `Runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}, after the first run works. Cost: ${costHint(spec, { scheduleSaid: true })}`}
+                  : `Starts after the first run works. Cost: ${costHint(spec, { scheduleSaid: true })}`}
               </p>
             </Advanced>
           </section>
         )}
 
-        {foldLine('schedule', 'Schedule', spec.schedule.enabled ? cronInWords(spec.schedule.cron, spec.schedule.timezone) : 'Run once now')}
+        {foldLine('schedule', 'Schedule', spec.schedule.enabled ? cronInWords(spec.schedule.cron, spec.schedule.timezone) : 'not scheduled')}
         {shows('schedule') && isOpenSection('schedule') && (
           <>
             <div className="space-y-3">
@@ -3700,7 +3708,7 @@ function UseCaseDrawer({ title, ucRow, spec, patch, onOwner, onClose }) {
 }
 
 // The step bar shows only once the real spec and scope are known (stepsReady), so its count never changes after it first shows.
-function Overlay({ title, uc, steps, stepsReady = true, step, reach = [], done = [], onGo = null, onDetails = null, onClose, onTouch = undefined, children }) {
+function Overlay({ title, uc, steps, stepsReady = true, step, part = null, reach = [], done = [], onGo = null, onDetails = null, onClose, onTouch = undefined, children }) {
   const panel = useRef(null);
   useModal(panel, onClose);
   const row = uc ? catalogRow(uc, 0) : null;
@@ -3753,6 +3761,7 @@ function Overlay({ title, uc, steps, stepsReady = true, step, reach = [], done =
               })}
             </ol>
             <span className="sr-only">Step {step + 1} of {steps.length}</span>
+            {part && <p data-step-part="" className="text-[11px] text-text-secondary">Step {step + 1} of {steps.length} · part {part.at} of {part.of}</p>}
           </>) : (
             <p data-step-bar-loading="" className="text-[11px] text-text-tertiary">Loading the steps…</p>
           )}
