@@ -3622,7 +3622,7 @@ function appReadsText(left, app, refused = []) {
 }
 
 function newAppReadsGaps(tables, plans) {
-  return (tables || []).map((table, i) => ({ table, owner: joinAnd([...new Set(((plans[i] || {}).gaps || []).map((g) => g.owner).filter(Boolean))]), gaps: (plans[i] || {}).gaps || [] }))
+  return (tables || []).map((table, i) => ({ table, owner: joinAnd([...new Set(((plans[i] || {}).gaps || []).map((g) => g.owner).filter(Boolean))]), gaps: (plans[i] || {}).gaps || [], me: (plans[i] || {}).me || '' }))
     .filter((t) => t.gaps.length);
 }
 
@@ -3633,6 +3633,20 @@ function newAppReadsWarning(unshared) {
   return `Inspire cannot share ${joinAnd(unshared.map((t) => (t.owner ? `${t.table} (owned by ${ownerLabel(t.owner)})` : t.table)))} with the App this build makes, `
     + `because Inspire neither owns nor manages ${one ? 'it' : 'them'}, so the App cannot read ${one ? 'it' : 'them'} on its own. The build still runs. `
     + `When it ends, the Build page offers Grant access with my permissions to grant ${one ? 'it' : 'them'} as you in one click, or the grant SQL to send to ${owners}`;
+}
+
+// FX-52 (D52): a source Inspire cannot share with the new App blocks the build. The flag and the exact GRANT for the data owner sit beside
+// `tables` in summary.app_reads; the plan warning text above is unchanged.
+function appReadsBlock(unshared) {
+  const grant = [...new Set((unshared || []).flatMap((t) => appAccessPermission(t.gaps || [], t.me || '').statements))];
+  return { blocking: true, grant };
+}
+
+function refuseAppReadsBlocked(plan) {
+  const reads = plan && plan.summary && plan.summary.app_reads;
+  if (!reads || !reads.blocking) return;
+  throw badRequest(`Inspire cannot share ${joinAnd((reads.tables || []).map((t) => t.table))} with the App this build makes, so no build started. `
+    + `Ask ${joinAnd([...new Set((reads.tables || []).map((t) => ownerLabel(t.owner)))])} to run: ${(reads.grant || []).join('; ')}. Then check again`, 403);
 }
 
 function gapList(gaps) {
@@ -4445,6 +4459,8 @@ module.exports = {
   appReadsText,
   newAppReadsGaps,
   newAppReadsWarning,
+  appReadsBlock,
+  refuseAppReadsBlocked,
   discoverUnreadText,
   shareWarnings,
   shareWarehouseWarnings,

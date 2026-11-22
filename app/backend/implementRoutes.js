@@ -1640,7 +1640,7 @@ function registerImplementRoutes(app, deps) {
     const appReadsWarning = I.newAppReadsWarning(unshared);
     const warnings = [asksWarning, ...readWarnings, empty, appReadsWarning, ...scopeIssues.carried.map((p) => `${I.FIRST_RUN_CARRIED}${p}.`)].filter(Boolean);
     const warningDetails = readDetails || [];
-    if (unshared.length) plan.summary.app_reads = { tables: unshared.map(({ table, owner }) => ({ table, owner })), text: appReadsWarning };
+    if (unshared.length) plan.summary.app_reads = { tables: unshared.map(({ table, owner }) => ({ table, owner })), text: appReadsWarning, ...I.appReadsBlock(unshared) };
     return { sid, warehouseId, inspire_database, catalog, schema, spec: plan.spec, useCaseId, useCase, session, history, plan, person, warnings, warningDetails };
   }
 
@@ -1743,6 +1743,7 @@ function registerImplementRoutes(app, deps) {
   }
 
   async function startVersion(req, { sid, warehouseId, inspire_database, catalog, schema, spec: planned, useCaseId, session, plan, person, warnings: noted = [], warningDetails = [], rebuildAsIs = false }) {
+    I.refuseAppReadsBlocked(plan); // FX-52: never starts a build the App cannot read, Rebuild as is included
     if (!rebuildAsIs) I.refuseUnchanged(plan);
     const { spec, warnings: outputWarnings } = await outputBeforeBuild(req, warehouseId, planned, useCaseId);
     const warnings = [...noted, ...outputWarnings];
