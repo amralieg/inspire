@@ -18,12 +18,11 @@ const AGGS = ['avg', 'sum_per_year'];
 const NUMERIC = /^(tinyint|smallint|int|integer|bigint|long|float|double|decimal|numeric|short|byte)/i;
 const VERBS = { time_saved: 'REDUCE COST', productivity: 'REDUCE COST', cost_cut: 'REDUCE COST', revenue_uplift: 'GROW REVENUE', risk_avoided: 'AVOID RISK' };
 const DEFAULTS = {
-  events_per_year: 1000, people: 1, hours_before: 2, hours_after: 1, cost_per_hour: 50, headcount: 10, cost_per_person_year: 60000, gain_pct: 10,
+  events_per_year: 1000, people: 1, hours_saved: 1, cost_per_hour: 50, headcount: 10, cost_per_person_year: 60000, gain_pct: 10,
   base_revenue_per_year: 1000000, uplift_pct: 5, spend_per_year: 1000000, cut_pct: 10, incidents_per_year: 100, cost_per_incident: 1000, reduction_pct: 30,
 };
 const DATA_BY_DEFAULT = ['incidents_per_year', 'events_per_year'];
 const DISCLAIMER = 'These figures are estimates built from the records Inspire counted and the numbers you confirm; they are not a forecast.';
-const WHY = 'A starting figure to confirm or change.';
 const ID_SHAPE = /^[a-z][a-z0-9_]{0,30}$/;
 
 const text = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -31,10 +30,10 @@ const round2 = (n) => Math.round(n * 100) / 100;
 const nameOf = (c) => String(c.column_name ?? c.name ?? '');
 
 function askOf(def, input, source) {
-  const base = { id: input.id, label: input.label, kind: input.kind };
+  const base = { id: input.id, label: input.label, kind: input.kind, help: input.help };
   if (source) return { ...base, ...source };
   if (DATA_BY_DEFAULT.includes(input.id)) return { ...base, source: 'data', metric: 'records' };
-  return { ...base, source: 'estimate', default: DEFAULTS[input.id], why: WHY };
+  return { ...base, source: 'estimate', default: DEFAULTS[input.id], why: '' };
 }
 
 function baseGroupings(columns, asked) {
@@ -77,7 +76,7 @@ function planMessages({ table, columns, useCase = null }) {
     '   {"id": "input id", "source": "data", "metric": "metric id or records"} or {"id": "input id", "source": "estimate", "default": number, "why": "one line"}]}]}',
     'Use only the listed columns, the driver ids and the input ids below. records means the number of records per year in the group.',
     `Drivers and inputs: ${DEF.drivers.map((d) => `${d.id} (${d.inputs.map((i) => `${i.id}:${i.kind}`).join(', ')})`).join('; ')}`,
-    'Percent inputs are 0-100. Mark a driver on only when the data supports it.',
+    'For time_saved ask hours_saved: the hours the use case takes off each time, one number. Percent inputs are 0-100. Mark a driver on only when the data supports it.',
     'Plan for the use case named below: its filter, drivers and estimates fit what it does, not the table in general. The user\'s own input always wins.',
   ].join('\n');
   const user = `Table: ${table}\nColumns: ${columns.map((c) => `${nameOf(c)} ${c.data_type}`).join(', ')}${useCaseText(useCase)}`;
@@ -124,7 +123,7 @@ function planFrom(data, columns, groupBy = '') {
       if (!input || asked.has(input.id) || (a.kind !== undefined && a.kind !== input.kind)) continue;
       if (a.source === 'data' && metricIds.has(String(a.metric))) asked.set(input.id, askOf(def, input, { source: 'data', metric: String(a.metric) }));
       else if (a.source === 'estimate' && Number.isFinite(Number(a.default)) && a.default !== null && a.default !== '' && Number(a.default) >= 0 && (input.kind !== 'pct' || Number(a.default) <= 100)) {
-        asked.set(input.id, askOf(def, input, { source: 'estimate', default: Number(a.default), why: text(a.why, 160) || WHY }));
+        asked.set(input.id, askOf(def, input, { source: 'estimate', default: Number(a.default), why: text(a.why, 160) }));
       }
     }
     return { id: def.id, label: text(d.label, 60) || def.label, verb: VERBS[def.id], on: d.on === true, why: text(d.why, 200),
@@ -213,9 +212,6 @@ function yearlyOf(plan, answers) {
       if (!Number.isFinite(n) || n < 0) errors[d.id] = `${d.label}: "${ask.label}" must be a number of 0 or more.`;
       else if (ask.kind === 'pct' && n > 100) errors[d.id] = `${d.label}: "${ask.label}" must be between 0 and 100.`;
       fixed[ask.id] = n;
-    }
-    if (!errors[d.id] && fixed.hours_after !== undefined && fixed.hours_before !== undefined && fixed.hours_after > fixed.hours_before) {
-      errors[d.id] = `${d.label}: hours with the use case cannot be more than hours today.`;
     }
     if (errors[d.id]) continue;
     const dataAsks = dataAsksOf(d);

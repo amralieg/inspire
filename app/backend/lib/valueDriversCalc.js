@@ -3,8 +3,10 @@
 const DEF = require('./valueDrivers.json');
 
 const DRIVERS = new Map(DEF.drivers.map((d) => [d.id, d]));
+// REQ-476: one input, hours_saved. Saved answers with hours_before / hours_after still compute (before - after; a negative result is 0).
+const hoursSaved = (i) => (i.hours_saved !== undefined && i.hours_saved !== null ? i.hours_saved : Math.max(0, i.hours_before - i.hours_after));
 const AMOUNTS = {
-  time_saved: (i) => i.events_per_year * i.people * (i.hours_before - i.hours_after) * i.cost_per_hour,
+  time_saved: (i) => i.events_per_year * i.people * hoursSaved(i) * i.cost_per_hour,
   productivity: (i) => (i.headcount * i.cost_per_person_year * i.gain_pct) / 100,
   revenue_uplift: (i) => (i.base_revenue_per_year * i.uplift_pct) / 100,
   cost_cut: (i) => (i.spend_per_year * i.cut_pct) / 100,
@@ -30,7 +32,9 @@ function validate(answers, badRequest) {
     if (!def) throw badRequest(`"${id}" is not a value driver Inspire knows.`);
     const given = raw[id] && typeof raw[id] === 'object' ? raw[id] : {};
     drivers[id] = {};
+    const legacy = id === 'time_saved' && !filled(given.hours_saved) && filled(given.hours_before) && filled(given.hours_after);
     for (const input of def.inputs) {
+      if (legacy && input.id === 'hours_saved') continue;
       const n = numberOf(given[input.id]);
       const where = `${def.label}: "${input.label}"`;
       if (!filled(given[input.id]) || given[input.id] === '') throw badRequest(`${where} needs a number.`);
@@ -38,9 +42,12 @@ function validate(answers, badRequest) {
       if (input.kind === 'pct' && n > 100) throw badRequest(`${where} must be between 0 and 100.`);
       drivers[id][input.id] = n;
     }
-    if (id === 'time_saved' && drivers[id].hours_after > drivers[id].hours_before) {
-      const label = (key) => def.inputs.find((i) => i.id === key).label;
-      throw badRequest(`${def.label}: "${label('hours_after')}" cannot be more than "${label('hours_before')}".`);
+    if (legacy) {
+      const b = numberOf(given.hours_before);
+      const a = numberOf(given.hours_after);
+      if (!Number.isFinite(b) || !Number.isFinite(a) || b < 0 || a < 0) throw badRequest(`${def.label}: hours today and hours with the use case must be numbers of 0 or more.`);
+      drivers[id].hours_before = b;
+      drivers[id].hours_after = a;
     }
   }
   const currency = String(answers.currency ?? '').trim().toUpperCase();

@@ -1,17 +1,42 @@
 {
   "_doc": "REQ-435: value that is not in the data. One shared definition read by the backend estimate and the Calculate value dialog. Each driver is a yearly amount from typed assumptions; money inputs use the answer currency; pct inputs are 0-100.",
-  "attribution": { "id": "attribution_pct", "label": "Share of this value the use case earns", "default": 100, "min": 0, "max": 100 },
+  "attribution": {
+    "id": "attribution_pct",
+    "label": "Share of this value the use case earns",
+    "default": 100,
+    "min": 0,
+    "max": 100
+  },
   "drivers": [
     {
       "id": "time_saved",
       "label": "Time saved",
-      "formula": "events_per_year * people * (hours_before - hours_after) * cost_per_hour",
+      "formula": "events_per_year * people * hours_saved * cost_per_hour",
       "inputs": [
-        { "id": "events_per_year", "label": "Times the task is done per year", "kind": "count" },
-        { "id": "people", "label": "People who work on it each time", "kind": "count" },
-        { "id": "hours_before", "label": "Hours each time today", "kind": "hours" },
-        { "id": "hours_after", "label": "Hours each time with the use case", "kind": "hours" },
-        { "id": "cost_per_hour", "label": "Cost of one hour of work", "kind": "money" }
+        {
+          "id": "events_per_year",
+          "label": "Times the task is done per year",
+          "kind": "count",
+          "help": "How many times a year this task is done across the business, for example 8,000 invoices checked."
+        },
+        {
+          "id": "people",
+          "label": "People who work on it each time",
+          "kind": "count",
+          "help": "How many people work on the task each time, for example 2 analysts review every case."
+        },
+        {
+          "id": "hours_saved",
+          "label": "Hours saved each time",
+          "kind": "hours",
+          "help": "Hours of work the use case takes off each time the task is done, for example 1.5 hours saved per case."
+        },
+        {
+          "id": "cost_per_hour",
+          "label": "Cost of one hour of work",
+          "kind": "money",
+          "help": "What one hour of a person's time costs the business, salary and overheads together, for example 50 an hour."
+        }
       ]
     },
     {
@@ -19,9 +44,24 @@
       "label": "People productivity",
       "formula": "headcount * cost_per_person_year * gain_pct / 100",
       "inputs": [
-        { "id": "headcount", "label": "People whose work gets faster", "kind": "count" },
-        { "id": "cost_per_person_year", "label": "Cost of one person per year", "kind": "money" },
-        { "id": "gain_pct", "label": "Time they get back (%)", "kind": "pct" }
+        {
+          "id": "headcount",
+          "label": "People whose work gets faster",
+          "kind": "count",
+          "help": "How many people do work that the use case makes faster, for example 40 claims handlers."
+        },
+        {
+          "id": "cost_per_person_year",
+          "label": "Cost of one person per year",
+          "kind": "money",
+          "help": "What one of these people costs the business in a year, salary and overheads together."
+        },
+        {
+          "id": "gain_pct",
+          "label": "Time they get back (%)",
+          "kind": "pct",
+          "help": "The share of their working time they get back each year, from 0 to 100, for example 10 means one day in ten."
+        }
       ]
     },
     {
@@ -29,8 +69,18 @@
       "label": "Revenue uplift",
       "formula": "base_revenue_per_year * uplift_pct / 100",
       "inputs": [
-        { "id": "base_revenue_per_year", "label": "Revenue this touches per year", "kind": "money" },
-        { "id": "uplift_pct", "label": "Expected uplift (%)", "kind": "pct" }
+        {
+          "id": "base_revenue_per_year",
+          "label": "Revenue this touches per year",
+          "kind": "money",
+          "help": "The yearly revenue of the products, customers or sales this use case can influence."
+        },
+        {
+          "id": "uplift_pct",
+          "label": "Expected uplift (%)",
+          "kind": "pct",
+          "help": "How much more of that revenue you expect the use case to earn, from 0 to 100, for example 5."
+        }
       ]
     },
     {
@@ -38,8 +88,18 @@
       "label": "Cost cut",
       "formula": "spend_per_year * cut_pct / 100",
       "inputs": [
-        { "id": "spend_per_year", "label": "Spend this touches per year", "kind": "money" },
-        { "id": "cut_pct", "label": "Expected cut (%)", "kind": "pct" }
+        {
+          "id": "spend_per_year",
+          "label": "Spend this touches per year",
+          "kind": "money",
+          "help": "The yearly spend on the cost this use case can reduce, for example what is paid on claims leakage."
+        },
+        {
+          "id": "cut_pct",
+          "label": "Expected cut (%)",
+          "kind": "pct",
+          "help": "How much of that spend you expect the use case to remove, from 0 to 100, for example 10."
+        }
       ]
     },
     {
@@ -47,9 +107,24 @@
       "label": "Risk avoided",
       "formula": "incidents_per_year * cost_per_incident * reduction_pct / 100",
       "inputs": [
-        { "id": "incidents_per_year", "label": "Incidents per year today", "kind": "count" },
-        { "id": "cost_per_incident", "label": "Cost of one incident", "kind": "money" },
-        { "id": "reduction_pct", "label": "Incidents the use case prevents (%)", "kind": "pct" }
+        {
+          "id": "incidents_per_year",
+          "label": "Incidents per year today",
+          "kind": "count",
+          "help": "How many incidents of this kind happen in a year today, for example 120 fraud cases."
+        },
+        {
+          "id": "cost_per_incident",
+          "label": "Cost of one incident",
+          "kind": "money",
+          "help": "What one incident costs the business on average, including losses and handling time."
+        },
+        {
+          "id": "reduction_pct",
+          "label": "Incidents the use case prevents (%)",
+          "kind": "pct",
+          "help": "The share of those incidents the use case stops, from 0 to 100, for example 30."
+        }
       ]
     }
   ]
