@@ -138,7 +138,7 @@ function countable(useCases) {
   return { counted, excluded: [...excluded.values()], shared };
 }
 
-// FX-34b (REQ-078, REQ-451): what the MVPs of the run measured besides money at stake: what they saved, the non-money kinds at stake
+// FX-34b (REQ-078, REQ-451): what the MVPs of the run measured besides the value at stake: what they saved, the non-money kinds at stake
 // (hours, counts) and how many MVPs it is from. Each use case carries its own (runOf); the run adds them up.
 function mvpValueOf(entries) {
   const mvps = entries.filter((e) => e.mvp);
