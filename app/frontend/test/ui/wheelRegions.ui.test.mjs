@@ -123,7 +123,7 @@ const BIG_PROFILE = {
 };
 const INSTRUCTION = '## Parameters\n| widget | type | default | allowed | used for |\n|---|---|---|---|---|\n'
   + '| `act_now_share` | text | 0.05 | 0 to 1 | Act now share |\n| `group_by` | text | all | | Data groups |\n| `run_scope` | text | all | | First run |\n';
-const STEPS = ['What to deliver', 'Data & results', 'Data groups', 'First run', 'Measure', 'Where it lives', 'Review & build'];
+const STEPS = ['How to build', 'What to deliver', 'Data & results', 'Data groups', 'First run', 'Where it lives', 'Review & build']; // REQ-457a: How to build is first; REQ-453: the Measure step left the wizard
 
 const OPEN_ALL = {
   'Data groups': async (page) => {

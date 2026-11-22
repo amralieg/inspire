@@ -19,7 +19,8 @@ async function auditEveryStep(page, { look = true } = {}) {
     if (impact) await goToMeasureImpact(page, impact);
     if (label === WHERE_LABEL) await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
     // Folds open one at a time now (opening one folds the other), so each closed section is opened in turn and audited.
-    const folds = await page.locator('[data-wizard-body] button[aria-expanded="false"][aria-label^="Change "]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label').replace(/^Change /, '')));
+    // REQ-457: the value dialog covers the step behind it; that step's folds were already audited on its own visit (no impact), so a dialog visit does not click them again.
+    const folds = impact ? [] : await page.locator('[data-wizard-body] button[aria-expanded="false"][aria-label^="Change "]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label').replace(/^Change /, '')));
     // The section already open on arrival is audited first, then each closed one.
     for (const fold of [null, ...new Set(folds)]) {
       if (fold) await openFolded(page, fold);

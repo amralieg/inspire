@@ -109,14 +109,15 @@ test('Who uses the App opens who sees which rows, and what people can do in the 
   }
 });
 
-test('the first page is What to deliver, and each step fits the screen at 1280x800 and 1440x900 with no control clipped or overlapping', async () => {
+test('the first page is How should I build the App, then What to deliver, and each step fits the screen at 1280x800 and 1440x900 with no control clipped or overlapping', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
     // REQ-166: the step list fills in once the scope is known (until then the bar shows "Loading the steps"), so wait for it.
     await page.locator('[data-wizard-header] ol li').first().waitFor({ timeout: 15000 });
     const labels = await stepLabels(page);
-    assert.equal(labels[0], 'What to deliver', labels.join(' | '));
+    assert.equal(labels[0], 'How to build', labels.join(' | ')); // REQ-457/457a: How should I build the App is the first step
+    assert.equal(labels[1], 'What to deliver', labels.join(' | '));
     for (const [width, height] of VIEWPORTS) {
       await page.setViewportSize({ width, height });
       const list = await page.evaluate(() => {

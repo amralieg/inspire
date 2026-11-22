@@ -24,8 +24,8 @@ test('What to deliver only picks what gets built, Where it lives places the App 
 
     const labels = await stepLabels(page);
     const at = (label) => labels.indexOf(label);
-    assert.ok(at('What to deliver') === 0 && at('Where it lives') === at('Measure') + 1 && labels.filter((l) => l === 'Where it lives').length === 1 && !labels.includes('Who uses the App and storage') && !labels.includes('App look'),
-      `What to deliver first, then Where it lives after Measure, which holds every App panel (REQ-002): ${labels.join(' | ')}`);
+    assert.ok(at('How to build') === 0 && at('What to deliver') === 1 && at('Where it lives') === at('First run') + 1 && labels.filter((l) => l === 'Where it lives').length === 1 && !labels.includes('Who uses the App and storage') && !labels.includes('App look'),
+      `How to build first (REQ-457a), then What to deliver, then Where it lives after First run (the Measure step left the wizard, REQ-453), which holds every App panel (REQ-002): ${labels.join(' | ')}`);
 
     await goToStep(page, 'Where it lives');
     await page.getByRole('radio', { name: /^One App per use case/ }).waitFor();
