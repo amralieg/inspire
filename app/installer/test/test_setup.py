@@ -694,7 +694,7 @@ def postgres_posts(calls):
 class GrantPlanTest(unittest.TestCase):
     def grant(self, data, listed=("main", "sales", "finance", "samples", "system", "inspire_lakebase"), rights=None, owners=None, catalog="main",
               admin="metastore-admins", fail=None, api=None, lakebase=LAKEBASE, schema_mode=False,
-              notebook="/Shared/inspire-ai/dbx_inspire_ai_agent", fresh=None, setting="account users", shows=False):
+              notebook="/Shared/inspire-ai/dbx_inspire_ai_agent", fresh=None, setting="account users", shows=False, data_all=False):
         out = io.StringIO()
         # REQ-456: what a fresh App service principal holds on the catalog: its only group is account users, and the Inspire principal holds its own grants
         fresh = {"account users": ("USE_CATALOG",), "SP": ("USE_CATALOG", "BROWSE", "CREATE_SCHEMA"), **(fresh or {})}
@@ -745,6 +745,8 @@ class GrantPlanTest(unittest.TestCase):
                "USER_EMAIL": "someone@example.com", "USER_GROUPS": ["admins"], "LAKEBASE": lakebase,
                "NOTEBOOK_PATH": notebook, "NEW_APPS_CATALOG_ACCESS": setting}
         ctx["SCHEMA_MODE"] = schema_mode
+        ctx["DATA_ALL_PICKED"] = data_all
+        self.ctx = ctx  # kept even when the step raises, so a stop can be inspected
         with contextlib.redirect_stdout(out), mock.patch.object(setup, "LAKEBASE_POLL_S", 0):
             setup.step_grant_permissions(ctx)
         self.ctx = ctx

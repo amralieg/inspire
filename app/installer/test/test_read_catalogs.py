@@ -187,6 +187,39 @@ class ConsentAndGrantTest(unittest.TestCase):
         self.assertFalse([g for g in grants if "`samples`" in g or "`system`" in g], grants)
 
 
+class UnmanagedCatalogGrantsTest(unittest.TestCase):
+    """FX-47 (REQ-456, REQ-458): the install never goes on with a data catalog the App cannot read."""
+
+    REFUSED = RuntimeError("PERMISSION_DENIED: not the owner")
+
+    def test_a_named_catalog_with_a_refused_grant_stops_the_install_before_deploy_and_prints_the_grant(self):
+        with self.assertRaises(RuntimeError) as raised:
+            ConsentAndGrantTest.grant_read(self, ["sales", "finance"], listed=("ops", "sales", "finance"), fail={"CATALOG `finance`": self.REFUSED})
+        message = str(raised.exception)
+        self.assertIn(READ.format("finance"), message, "the exact statement a catalog owner runs")
+        self.assertNotIn(READ.format("sales"), message, "only the refused catalog is named")
+        self.assertIn("catalog owner", message)
+        self.assertIn("before it deploys", message)
+
+    def test_all_catalogs_grants_the_ones_the_person_manages_and_leaves_the_rest_out_of_the_app_env(self):
+        refuse = {"CATALOG `a`": self.REFUSED, "CATALOG `b`": self.REFUSED}
+        rights = {"ops": ("MANAGE",), "sales": ("MANAGE",), "finance": ("MANAGE",), "a": ("USE_CATALOG", "SELECT"), "b": ("USE_CATALOG",)}
+        grants, _, executed, said = ConsentAndGrantTest.grant_read(
+            self, ["a", "b", "finance", "ops", "sales"], listed=("ops", "sales", "finance", "a", "b"), rights=rights, fail=refuse, data_all=True)
+        read = [g for g in grants if g.startswith("GRANT USE CATALOG, USE SCHEMA, SELECT, BROWSE, READ METADATA ON CATALOG ")]
+        self.assertEqual(read, [READ.format("finance"), READ.format("sales")], "the managed catalogs are granted")
+        self.assertEqual(self.ctx["DATA_CATALOGS"], ["finance", "ops", "sales"], "the App is offered only what it can read")
+        self.assertFalse([sql for sql, _ in executed if "`a`" in sql or "`b`" in sql], "nothing is attempted on a catalog the person cannot grant on")
+        env = setup.installer_data_catalog_env(self.ctx["DATA_CATALOGS"], self.ctx.get("DATA_ALL_PICKED", False))
+        self.assertEqual(env, {"INSPIRE_DATA_CATALOGS": '["finance", "ops", "sales"]'}, "the All pick no longer means every catalog")
+        for name in ("a", "b"):
+            self.assertEqual(said.count(READ.format(name)), 1, f"{name} is listed once with the GRANT a catalog owner runs")
+        self.assertIn("Catalog grants: 2 of 2 ran ✅", said)
+        self.assertNotIn("⚠️ GRANT", said)
+        self.assertNotIn("Permission Required", said)
+        self.assertFalse([line for line in said.splitlines() if "of" in line and "ran ⚠️" in line], said)
+
+
 class JourneyTest(unittest.TestCase):
     """The journey: a fresh Inspire catalog `ops`, the data in `sales`, install, then Discover reads sales with no prompt.
 
