@@ -132,7 +132,8 @@ test('the totals live on Start alone: Review renders no portfolio cards and Star
   assert.deepEqual(users, ['pages/ChoosePage.jsx']);
   assert.doesNotMatch(read('components/ResultsInsights.jsx'), /PortfolioCards|Across all runs/);
   assert.match(read('pages/ChoosePage.jsx'), /all: '1'/);
-  assert.doesNotMatch(read('pages/ResultsPage.jsx'), /all: '1'/, 'Review keeps its short run list');
+  // W16 D15 (FX-35): Change run on Review lists every run, so its count matches Start; the totals above still render on Start alone.
+  assert.match(read('pages/ResultsPage.jsx'), /all: '1'/, 'Change run on Review lists every run, as Start does');
 });
 
 test('each Start run row counts its use cases, quality, priority and MVPs, numbers first, and says why a count is missing', async () => {
