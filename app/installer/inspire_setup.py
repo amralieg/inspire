@@ -1820,9 +1820,9 @@ def _plain_list(names, limit=SCAN_SHOWN):
 
 
 def _leave_out_unmanaged_catalogs(ctx, sp):
-    """FX-47 (REQ-456, REQ-458), All pick only: a catalog the person can neither own nor MANAGE cannot be granted to the App, so it is left out
-    of the App's data catalogs (the App never offers what it cannot read) and listed once with the GRANT its owner runs. A catalog whose
-    rights cannot be read is kept: its grant is tried, and a refusal then stops the install."""
+    """FX-47, FX-61 (REQ-456, REQ-458), All pick only: a catalog the person can neither own nor MANAGE, or whose rights cannot be read, cannot be
+    granted to the App, so it is left out of the App's data catalogs (the App never offers what it cannot read) and listed once with the
+    GRANT its owner runs. The person never picked it, so the install goes on. An explicit pick keeps the stop on a refused grant."""
     if not ctx.get("DATA_ALL_PICKED"):
         return []
     left = []
@@ -1832,6 +1832,7 @@ def _leave_out_unmanaged_catalogs(ctx, sp):
         try:
             full, held = _catalog_privileges(ctx, cat)
         except Exception:
+            left.append(cat)
             continue
         if not _can_grant(_person_privileges(full, held)):
             left.append(cat)
