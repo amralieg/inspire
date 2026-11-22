@@ -1541,6 +1541,7 @@ class Agent:
         self.shell, self.sleep, self.clock = shell, sleep, clock
         self.executor = executor or ThreadPoolExecutor(max_workers=WORKERS)
         self.turns, self.lock, self.models_seen, self.ready = {}, threading.Lock(), {}, {}
+        self.no_temperature = set()  # endpoints that answered 400 naming temperature: never sent it again in this process
 
     def close(self) -> None:
         shutdown = getattr(self.executor, "shutdown", None)
@@ -1575,8 +1576,16 @@ class Agent:
     def complete(self, ws, who: str, turn: Turn, body: dict, timeout: int = CHAT_TIMEOUT_S) -> dict:
         for client, key in self.model_clients(ws, who):
             for candidate in list(self.models(client, key)):
+                sent = {k: v for k, v in body.items() if k != "temperature"} if candidate[1] in self.no_temperature else body
                 try:
-                    answer = client.call("POST", ROUTES[candidate[0]], dict(body, model=candidate[1]), timeout=timeout)
+                    try:
+                        answer = client.call("POST", ROUTES[candidate[0]], dict(sent, model=candidate[1]), timeout=timeout)
+                    except QueryError as error:
+                        if "temperature" not in sent or status_of(error) != 400 or "temperature" not in str(error).lower():
+                            raise
+                        self.no_temperature.add(candidate[1])
+                        sent = {k: v for k, v in sent.items() if k != "temperature"}
+                        answer = client.call("POST", ROUTES[candidate[0]], dict(sent, model=candidate[1]), timeout=timeout)
                 except QueryError as error:
                     if status_of(error) in UNUSABLE_STATUS:
                         self.drop_model(key, candidate)
