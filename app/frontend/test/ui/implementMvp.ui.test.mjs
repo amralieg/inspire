@@ -95,17 +95,17 @@ test('a version an earlier vibe kept live is removed only once the use case id i
   }
 });
 
-test('Uninstall all names what goes and what stays, asks for the use case id, and sends one uninstall version', async () => {
+test('Uninstall this use case names what goes and what stays, asks for the use case id, and sends one uninstall version', async () => {
   const ui = await openBuild();
   const { page, made } = ui;
   try {
-    assert.match(await page.getByRole('button', { name: 'Uninstall all', exact: true }).getAttribute('class'), /text-error-fg/, 'Uninstall all is red again, as in rc.3');
-    await page.getByRole('button', { name: 'Uninstall all', exact: true }).click();
+    assert.match(await page.getByRole('button', { name: 'Uninstall this use case', exact: true }).getAttribute('class'), /text-error-fg/, 'Uninstall this use case is red again, as in rc.3');
+    await page.getByRole('button', { name: 'Uninstall this use case', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Uninstall everything N01-U01 built' });
-    assert.match(await dialog.getByRole('button', { name: 'Uninstall all', exact: true }).getAttribute('class'), /bg-error-solid/, 'the confirm step stays red (must-keep)');
+    assert.match(await dialog.getByRole('button', { name: 'Uninstall N01-U01', exact: true }).getAttribute('class'), /bg-error-solid/, 'the confirm step stays red (must-keep)');
     await dialog.getByText(/^Inspire deletes the MVP notebook, its job, the build jobs of every version, the dashboard, the Genie Agent, the App, the alert/).waitFor();
     await dialog.getByText(/^The result tables, the history and any notebook Discover wrote for this use case stay\./).waitFor();
-    const confirm = dialog.getByRole('button', { name: 'Uninstall all', exact: true });
+    const confirm = dialog.getByRole('button', { name: 'Uninstall N01-U01', exact: true });
     assert.equal(await confirm.isDisabled(), true);
     for (const dark of [false, true]) {
       await setDark(page, dark);
@@ -118,7 +118,7 @@ test('Uninstall all names what goes and what stays, asks for the use case id, an
     await dialog.waitFor({ state: 'detached' });
     assert.equal(made.jobs.length, 0);
 
-    await page.getByRole('button', { name: 'Uninstall all', exact: true }).click();
+    await page.getByRole('button', { name: 'Uninstall this use case', exact: true }).click();
     await dialog.getByRole('textbox', { name: 'Type the use case id to confirm' }).fill('N01-U01');
     await confirm.click();
     await until(() => made.jobs.length === 1, 'the uninstall');
@@ -144,7 +144,7 @@ test('an uninstalled MVP says what is kept, offers Start again with no Uninstall
     await note.waitFor();
     assert.equal((await note.textContent()).trim(), "Uninstalled in v4. Not removed: Dashboard: d1 also holds use case N02-U01, so Inspire did not delete it; "
       + `this use case's part stays in it. The result tables and the history are kept. ${START} builds it again.`);
-    assert.equal(await page.getByRole('button', { name: 'Uninstall all', exact: true }).count(), 0, 'nothing is left to uninstall');
+    assert.equal(await page.getByRole('button', { name: 'Uninstall this use case', exact: true }).count(), 0, 'nothing is left to uninstall');
     await page.getByRole('button', { name: START, exact: true }).waitFor();
     const notebook = page.locator('[data-asset-panel="notebook"]');
     assert.equal(await notebook.getByRole('link', { name: 'Open the notebook', exact: true }).getAttribute('href'),

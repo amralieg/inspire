@@ -70,10 +70,10 @@ test('Check again on an unreadable build opens See the grant, with the full read
   const { page } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    // rc.1 opens Permission Required on its own when a grant is missing: close it before the Build page is used.
+    // REQ-406: Permission Required never opens by itself on load; it opens from See the grant.
     const dialog = page.locator('[data-permission-dialog=""]');
-    await dialog.waitFor({ timeout: 15000 });
-    await dialog.getByRole('button', { name: 'Close' }).click();
+    await page.waitForTimeout(1500);
+    assert.equal(await dialog.count(), 0, 'no dialog on load');
     await expandBuild(page);
     const card = page.getByRole('region', { name: 'The App cannot read part of its data' });
     await card.waitFor();

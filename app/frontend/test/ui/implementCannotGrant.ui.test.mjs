@@ -39,14 +39,7 @@ test('a person who cannot grant sees one plain sentence naming the owner, the GR
   const { page } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    // A person who cannot grant: Permission Required opens once on load with the owner's GRANTs; the inline card stays under it.
-    const dialog = page.locator('[data-permission-dialog=""]');
-    await dialog.waitFor({ timeout: 8000 });
-    // REQ-313: the SQL sits under Advanced, which opens by default when no destination exists (the owner is an id, not an email).
-    // The check that decides the default is async, so wait for the statements to show rather than read them at once.
-    const statements = dialog.locator('[data-permission-advanced=""] [data-permission-statements=""]').first();
-    await statements.waitFor({ state: 'visible', timeout: 8000 });
-    assert.match(await statements.innerText(), /^GRANT /m, 'the owner GRANTs open on load');
+    // REQ-406: a person who cannot grant sees the inline card; Permission Required opens only from See the grant, with the owner's GRANTs.
     await closeOnLoadPermission(page, { expect: true });
     await expandBuild(page);
     const card = page.locator('[data-app-reads]');
@@ -61,7 +54,12 @@ test('a person who cannot grant sees one plain sentence naming the owner, the GR
     assert.ok(live.grants.every(([, token]) => token === PERSON), 'the refused grants ran with the person sign-in only');
     // REQ-131, REQ-260: the owner's commands open in Permission Required, not a clipboard copy
     await card.locator('[data-app-reads-primary="copy"]').click();
-    await page.locator('[data-permission-dialog] [data-permission-statements]').waitFor({ timeout: 15000 });
+    const dialog = page.locator('[data-permission-dialog=""]');
+    await dialog.waitFor({ timeout: 15000 });
+    // REQ-313: the SQL sits under Advanced, which opens by default when no destination exists (the owner is an id, not an email).
+    const statements = dialog.locator('[data-permission-advanced=""] [data-permission-statements=""]').first();
+    await statements.waitFor({ state: 'visible', timeout: 8000 });
+    assert.match(await statements.innerText(), /^GRANT /m, 'the owner GRANTs open from See the grant');
     assert.doesNotMatch(await card.innerText(), /GRANT /, 'the card never shows the commands');
     assert.deepEqual(ui.pageErrors, []);
   } finally {

@@ -19,15 +19,19 @@ function buildWithPermission() {
   return { ...row, asset_status: JSON.stringify(assets) };
 }
 
-test('the Build page opens Permission Required once for the build entry, with its exact statement and no duplicate dialog', async () => {
+test('the Build page shows the build entry inline, opens Permission Required only on See the grant, with its exact statement and no duplicate dialog', async () => {
   const ui = await openUi('implement', { ...STUDIO_STATE, history: [buildWithPermission()] });
   const { page } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    // The entry opens Permission Required on load, over the drawer, so read it before the build is expanded.
+    // REQ-406: the entry is an inline note on load; the dialog opens only from its See the grant button.
+    const note = page.locator('[data-permission-note]');
+    await note.waitFor({ timeout: 15000 });
+    await page.waitForTimeout(1500);
+    assert.equal(await page.locator('[data-permission-dialog]').count(), 0, 'no dialog on load');
+    await note.getByRole('button', { name: 'See the grant', exact: true }).click();
     const dialog = page.locator('[data-permission-dialog=""]');
     await dialog.waitFor({ timeout: 15000 });
-    await page.waitForTimeout(1500);
     assert.equal(await page.locator('[data-permission-dialog]').count(), 1, 'one dialog, not one per poll');
     assert.match(await dialog.locator('#permission-required-title').innerText(), /^Permission Required$/);
     const statements = sqlStatementsOf(await dialog.locator('[data-permission-statements=""]').textContent());

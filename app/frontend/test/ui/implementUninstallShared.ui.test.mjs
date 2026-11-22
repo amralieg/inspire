@@ -40,7 +40,7 @@ test('the uninstall dialog names the use case that shares the App, and confirmin
   const ui = await open({ history: [OWN, OTHER], registry: [OWN, OTHER], appExists: true, app: APP });
   const { page, made } = ui;
   try {
-    await page.getByRole('button', { name: 'Uninstall all', exact: true }).click();
+    await page.getByRole('button', { name: 'Uninstall this use case', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Uninstall everything N01-U01 built' });
     const warning = dialog.locator('[data-uninstall-shared]');
     await warning.waitFor({ timeout: 15000 });
@@ -48,7 +48,7 @@ test('the uninstall dialog names the use case that shares the App, and confirmin
     assert.equal(await warning.locator('li').count(), 1);
     assert.match(await warning.locator('li').first().innerText(), /Forecast demand/);
     await dialog.getByRole('textbox', { name: 'Type the use case id to confirm' }).fill('N01-U01');
-    await dialog.getByRole('button', { name: 'Uninstall all', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Uninstall N01-U01', exact: true }).click();
     await until(() => made.jobs.length === 2, 'both uninstall runs');
     assert.deepEqual(insertsOf(made).map((s) => [s.use_case_id, s.uninstall]), [['N01-U01', true], ['N02-U01', true]]);
     assert.deepEqual(ui.pageErrors, []);
@@ -61,12 +61,12 @@ test('a use case whose App nobody else shares has no warning, and only it is uni
   const ui = await open({ history: [OWN], registry: [OWN], appExists: true, app: APP });
   const { page, made } = ui;
   try {
-    await page.getByRole('button', { name: 'Uninstall all', exact: true }).click();
+    await page.getByRole('button', { name: 'Uninstall this use case', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Uninstall everything N01-U01 built' });
     await dialog.getByRole('textbox', { name: 'Type the use case id to confirm' }).waitFor();
     assert.equal(await dialog.locator('[data-uninstall-shared]').count(), 0);
     await dialog.getByRole('textbox', { name: 'Type the use case id to confirm' }).fill('N01-U01');
-    await dialog.getByRole('button', { name: 'Uninstall all', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Uninstall N01-U01', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the uninstall');
     assert.deepEqual(insertsOf(made).map((s) => s.use_case_id), ['N01-U01']);
   } finally {

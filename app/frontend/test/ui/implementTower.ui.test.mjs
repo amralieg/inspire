@@ -670,7 +670,7 @@ test('an App this use case was taken out of says whose App it was and who keeps 
   }
 });
 
-test('the use case list sits on the left; on the right the name, then Use case details, Vibe/Add/Remove Features and Uninstall all, then one row of tiles, then Build progress filling the rest', async () => {
+test('the use case list sits on the left; on the right the name, then Use case details, Vibe/Add/Remove Features and Uninstall this use case, then one row of tiles, then Build progress filling the rest', async () => {
   const ui = await openTower();
   const { page } = ui;
   try {
@@ -683,12 +683,12 @@ test('the use case list sits on the left; on the right the name, then Use case d
       const name = pane.locator('[data-pinned-name]');
       assert.equal(await name.locator('h2').textContent(), HARNESS_USE_CASE.Name);
       assert.equal(await name.getByRole('progressbar').count(), 0, 'no progress bar while nothing builds');
-      const buttons = await Promise.all(['Use case details', 'Vibe/Add/Remove Features (0)', 'Uninstall all']
+      const buttons = await Promise.all(['Use case details', 'Vibe/Add/Remove Features (0)', 'Uninstall this use case']
         .map((label) => name.getByRole('button', { name: label, exact: true }).boundingBox()));
       assert.equal(await pane.getByRole('button', { name: /^Edit MVP/ }).count(), 0, 'Vibe/Add/Remove Features replaces Edit MVP');
       const [heading, tiles, progress] = await Promise.all([name.locator('h2'), pane.locator('[data-asset-tiles]'), pane.locator('[data-progress-card]')].map((el) => el.boundingBox()));
       assert.ok(buttons.every((b) => Math.abs(b.y - buttons[0].y) <= 1), 'the three buttons share one row');
-      assert.ok(buttons[0].x < buttons[1].x && buttons[1].x < buttons[2].x, 'in the order Use case details, Vibe/Add/Remove Features, Uninstall all');
+      assert.ok(buttons[0].x < buttons[1].x && buttons[1].x < buttons[2].x, 'in the order Use case details, Vibe/Add/Remove Features, Uninstall this use case');
       assert.ok(heading.y < tiles.y && buttons[0].y + buttons[0].height <= tiles.y, 'the tiles sit below the header');
       const spots = await pane.locator('[data-asset-tile]').evaluateAll((items) => items.map((li) => {
         const b = li.getBoundingClientRect();

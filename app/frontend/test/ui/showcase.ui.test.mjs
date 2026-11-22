@@ -287,7 +287,7 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     assert.equal(await page.locator('[data-asset-filter="alert"]').isDisabled(), false);
     await page.locator('[data-progress-card]').waitFor();
     assert.equal(await page.locator('[data-mvp-panel]').count(), 0, 'a ready MVP opens on its tiles and its Build progress, with no drawer open');
-    for (const name of ['Vibe/Add/Remove Features (0)', 'Uninstall all', START_MVP_LABEL]) assert.equal(await page.getByRole('button', { name, exact: true }).count(), 0, name);
+    for (const name of ['Vibe/Add/Remove Features (0)', 'Uninstall this use case', START_MVP_LABEL]) assert.equal(await page.getByRole('button', { name, exact: true }).count(), 0, name);
     assert.equal(await page.locator('[data-vibe-features]').count(), 0, 'no Vibe/Add/Remove Features, with or without vibes waiting');
 
     let vibeCards = 0;
