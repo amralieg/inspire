@@ -257,8 +257,8 @@ export default function ResultsPage({
   const [fileProblem, setFileProblem] = useState('');
   // Subdomain expansion state
   const [expandedDomains, setExpandedDomains] = useState({});
-  // The Domains tree is open by default; on a narrow screen it is a closed fold above the list.
-  const [domainPanelOpen, setDomainPanelOpen] = useState(() => !(typeof window !== 'undefined' && window.matchMedia?.('(max-width: 767px)').matches));
+  // REQ-444: the Domains tree is open by default, on a narrow screen too (there it is a fold above the list).
+  const [domainPanelOpen, setDomainPanelOpen] = useState(true);
   // The view (Use cases, Business, Assets) lives in the URL query, so Back, a reload and a shared link land on the same view.
   const [view, setView] = useState(() => viewOfSearch(typeof window !== 'undefined' ? window.location.search : ''));
   const showView = useCallback((next) => {

@@ -85,7 +85,7 @@ test('a preview grid gives every column a unique key, names blank headers, keeps
 
 test('the Results page builds Quick access from quickAccessFiles and keeps no extension list of its own', () => {
   const fs = require('node:fs');
-  const src = fs.readFileSync(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'pages', 'ResultsPage.jsx'), 'utf8');
+  const src = fs.readFileSync(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'components', 'results', 'ResultsAssets.jsx'), 'utf8');
   assert.match(src, /const previewableFiles = quickAccessFiles\(artifactFiles\);/);
   assert.doesNotMatch(src, /\['pdf', 'csv', 'xlsx', 'xls'\]\.includes/);
   assert.equal((src.match(/<table/g) || []).length, 0, 'both file previews draw through FilePreview, never a table of their own');

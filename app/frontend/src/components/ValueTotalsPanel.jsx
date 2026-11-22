@@ -49,7 +49,7 @@ function CountNotes({ run }) {
   if (!out && !shared) return null;
   return (
     <div data-value-count-notes="" className="mt-2 text-[11px] text-text-secondary">
-      {out > 0 && <p>{`${out} ${plural(out, 'estimate', 'estimates')} outside $100K–$100M not counted: check the numbers`}</p>}
+      {out > 0 && <p>{`${out} ${plural(out, 'estimate', 'estimates')} outside $100K to $100M not counted: check the numbers`}</p>}
       {shared > 0 && <p>{`${shared} shared ${plural(shared, 'value', 'values')} counted once`}</p>}
     </div>
   );

@@ -220,7 +220,7 @@ test('text never fades through opacity or a color alpha; only inactive or decora
     ['components/SourceTables.jsx', "removed ? 'opacity-60'"],
     ['components/Header.jsx', ": 'opacity-50'"],
     ['pages/LandingPage.jsx', 'animate-ping'],
-    ['pages/ResultsPage.jsx', 'text-db-red-fg opacity-80 group-hover:opacity-100'],
+    ['components/results/ResultsAssets.jsx', 'text-db-red-fg opacity-80 group-hover:opacity-100'], // moved from pages/ResultsPage.jsx (REQ-444)
   ];
   const used = new Set();
   const hits = [];

@@ -1,6 +1,8 @@
 import ModalDialog from './ModalDialog';
+import { PlainMessage } from './TechnicalDetails';
 import { bulkCounts, useValueBulkRun } from '../lib/valueBulkRun';
 import { totalText } from '../lib/valueWizard.js';
+import { bulkSummary } from '../lib/valueBulk.js';
 
 const btn = 'rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle disabled:opacity-50';
 const LABELS = { waiting: 'Waiting', working: 'Working', stopped: 'Stopped' };
@@ -31,7 +33,6 @@ export default function ValueBulkPanel() {
   if (!run) return null;
   const { rows, items, running } = run;
   const close = running ? hide : dismiss;
-  const { done, total } = bulkCounts(run);
   const nameOf = (id) => items.find((it) => it.id === id)?.name || id;
 
   return (
@@ -42,7 +43,7 @@ export default function ValueBulkPanel() {
           <button type="button" onClick={stop} className={btn}>Stop</button>
         </>
       ) : <button type="button" onClick={close} className={btn}>Close</button>}>
-      <p data-bulk-progress="" aria-live="polite" className="text-sm font-semibold text-text-primary">{done} of {total} done</p>
+      <p data-bulk-progress="" aria-live="polite" className="text-sm font-semibold text-text-primary">{bulkSummary(rows, items)}</p>
       <ul className="divide-y divide-border">
         {rows.map((r) => (
           <li key={r.id} data-bulk-row={r.id} data-bulk-state={r.state} className="flex items-baseline gap-3 py-2 text-sm">
@@ -51,7 +52,7 @@ export default function ValueBulkPanel() {
               {r.state === 'done' && <span className="font-semibold text-text-primary">{totalText(r.yearly) || 'Done'} per year</span>}
               {r.state === 'failed' && (
                 <span className="inline-flex items-center gap-2">
-                  <span dir="auto" className="text-error-fg">Failed: {r.message}</span>
+                  <PlainMessage as="span" dir="auto" text={`Failed: ${r.message}`} className="text-error-fg" />
                   <button type="button" onClick={() => retry(r.id)} className={btn}>Retry</button>
                 </span>
               )}
@@ -72,10 +73,10 @@ export function ValueBulkProgress() {
   const { done, total } = bulkCounts(run);
   return (
     <div data-bulk-bg="" className="mb-2 flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-secondary">
-      <span data-bulk-bg-text="" aria-live="polite" className="font-semibold text-text-primary">{run.running ? 'Calculating value' : 'Value calculated'}: {done} of {total} done</span>
+      <span data-bulk-bg-text="" aria-live="polite" className="font-semibold text-text-primary">{run.running ? 'Calculating value' : 'Value calculated'}: {bulkSummary(run.rows, run.items)}</span>
       <div role="progressbar" aria-label="Value calculation progress" aria-valuemin={0} aria-valuenow={done} aria-valuemax={total}
         className="h-2 min-w-24 flex-1 overflow-hidden rounded-full bg-bg-subtle">
-        <div className="h-full bg-db-red-solid" style={{ width: `${total ? Math.round((done / total) * 100) : 0}%` }} />
+        <div className="h-full bg-db-red-solid text-white" style={{ width: `${total ? Math.round((done / total) * 100) : 0}%` }} />
       </div>
       <button type="button" onClick={show} className={btn}>Open</button>
       {run.running ? <button type="button" onClick={stop} className={btn}>Stop</button> : <button type="button" onClick={dismiss} className={btn}>Dismiss</button>}

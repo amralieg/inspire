@@ -1,4 +1,4 @@
-// The 3 views of the Results page. The view lives in the URL query as `view=`, so Back, a reload and a shared link land on the same view.
+// The 3 views of the run results (Use cases, Business, Assets). The view lives in the URL query as `view=`, so Back, a reload and a shared link land on the same view.
 export const RESULTS_VIEWS = [
   { id: 'usecases', label: 'Use cases' },
   { id: 'business', label: 'Business' },

@@ -197,9 +197,11 @@ test('the priority bands are the pipeline quality-label bands, and the Start pag
 
 test('Review shows the Best of Best, High Priority and Avg Inspire score tiles and the Feedback panel even when no use case meets the bar', () => {
   const fs = require('node:fs');
-  const page = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'src', 'pages', 'ResultsPage.jsx'), 'utf8');
+  // The tiles moved from pages/ResultsPage.jsx to components/results/ResultsBusiness.jsx (REQ-444); the must-exclude reads both.
+  const business = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'src', 'components', 'results', 'ResultsBusiness.jsx'), 'utf8');
+  const page = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'src', 'pages', 'ResultsPage.jsx'), 'utf8') + business;
   assert.equal(/!noneMeetsBar && <StatCard|!noneMeetsBar && <InsightsGrid|\{!noneMeetsBar && \(\s*<StatCard/.test(page), false, 'no tile or panel hidden by the bar (must-exclude)');
-  assert.match(page, /label="High Priority"[\s\S]{0,120}renderValue=\{noneMeetsBar \? 'n\/a' : undefined\}/, 'High Priority claims no count when none meets the bar');
+  assert.match(business, /label="High Priority"[\s\S]{0,120}renderValue=\{noneMeetsBar \? 'n\/a' : undefined\}/, 'High Priority claims no count when none meets the bar');
 });
 
 test('a reason from an older run reads in plain words, with every internal check code taken out (must-exclude)', async () => {

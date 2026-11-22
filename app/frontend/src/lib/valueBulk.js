@@ -54,3 +54,17 @@ export const valueWorker = ({ apiPostJson, inspireDatabase, warehouseId, session
   const saved = await save(item.id, item.table, sent);
   return { ...saved, answers: saved.answers || sent };
 };
+
+// REQ-441: the one line that says what a run did. Rows skipped before the run (items[].skip) are not counted; rows the server skipped (422) are.
+// No server skips: "D of T done". Some: "D of T calculated, S skipped", plus the reason in brackets when all share one.
+export function bulkSummary(rows = [], items = []) {
+  const pre = new Set(items.filter((it) => it.skip).map((it) => it.id));
+  const counted = rows.filter((r) => !pre.has(r.id));
+  const late = counted.filter((r) => r.state === 'skipped');
+  const done = counted.filter((r) => r.state === 'done').length;
+  if (!late.length) return `${done} of ${counted.length} done`;
+  const total = counted.length;
+  const reasons = [...new Set(late.map((r) => String(r.reason || '').replace(/\.$/, '')))].filter(Boolean);
+  const why = done === 0 && reasons.length === 1 ? ` (${reasons[0].charAt(0).toLowerCase()}${reasons[0].slice(1)})` : '';
+  return `${done} of ${total} calculated, ${late.length} skipped${why}`;
+}

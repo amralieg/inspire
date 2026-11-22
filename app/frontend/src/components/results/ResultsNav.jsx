@@ -4,7 +4,7 @@ import { RESULTS_VIEWS } from '../../lib/resultsView';
 const ICONS = { usecases: Layers, business: Briefcase, assets: FolderOpen };
 
 /**
- * The left panel of the Results page: Use cases, Business, Assets. `children` is the use case browser's side rail (the Domains tree and the
+ * The left panel of the run results: Use cases, Business, Assets. `children` is the use case browser's side rail (the Domains tree and the
  * other filters); it shows under "Use cases" only while that view is open. Under the md breakpoint the panel is a row of 3 tabs and the rail
  * follows below them, above the list.
  */
