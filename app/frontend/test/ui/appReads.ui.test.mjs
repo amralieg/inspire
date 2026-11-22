@@ -155,7 +155,12 @@ test('the wizard warns on Summary when Inspire cannot share a picked table with 
         await ui.page.getByRole('region', { name: 'App access' }).getByRole('radio', { name: /^Sensitive data/ }).check();
       }
       await toSummary(ui.page);
-      await ui.page.waitForFunction((label) => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === label && !b.disabled), BUILD_IT, { timeout: 30000 });
+      if (warned) {
+        await ui.page.locator('[data-app-reads-blocking]').waitFor({ timeout: 30000 });
+        assert.equal(await ui.page.getByRole('button', { name: BUILD_IT, exact: true }).isDisabled(), true, 'Build stays off until Check again finds the access');
+      } else {
+        await ui.page.waitForFunction((label) => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === label && !b.disabled), BUILD_IT, { timeout: 30000 });
+      }
       const note = ui.page.getByRole('note', { name: 'Data the new App cannot read' });
       if (warned) {
         await note.waitFor();
