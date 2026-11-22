@@ -86,8 +86,13 @@ class StatementState:
     PENDING = "PENDING"
     RUNNING = "RUNNING"
 def run(catalog_grants, owner="amr@x", show_fails=False, lakebase=(200, ""), lakebase_catalog=False, folder=(200, 77), folder_grant=(200, ""),
-        grantable=("sales",), data=("sales",)):
+        grantable=("sales",), data=("sales",), effective=None):
     executed, patched = [], []
+    # Unity Catalog's own evaluation (REQ-456): by default account users hold USE CATALOG and the App's service principal holds USE CATALOG and CREATE SCHEMA
+    held = {"account users": ["USE_CATALOG"], "SP": ["USE_CATALOG", "CREATE_SCHEMA"]} if effective is None else effective
+    def api_get(url):
+        who = urllib.parse.unquote(url.split("principal=", 1)[1])
+        return {"privilege_assignments": [{"principal": who, "privileges": [{"privilege": p} for p in held.get(who, [])]}]}
     def ok(rows=None):
         manifest = types.SimpleNamespace(schema=types.SimpleNamespace(columns=[types.SimpleNamespace(name=n) for n in ("Principal", "ActionType", "ObjectType", "ObjectKey")]))
         return types.SimpleNamespace(status=types.SimpleNamespace(state=StatementState.SUCCEEDED, error=None), manifest=manifest,
@@ -138,7 +143,7 @@ def run(catalog_grants, owner="amr@x", show_fails=False, lakebase=(200, ""), lak
     load_installer(tree, module.body, ns, path)
     ctx = {"LAKEBASE": LAKEBASE, "NEW_SP_APP_ID": "SP", "APP_NAME": "inspire-ai", "APP_FOLDER": "/Shared/inspire-ai", "ASSETS_PARENT": "/Workspace/Shared/inspire-ai/assets", "SCHEMA_MODE": False, "WAREHOUSE_ID": "wh", "CATALOG": "main", "SCHEMA": "_inspire", "available_catalogs": ["main"],
            "USER_EMAIL": "amr@x",
-           "w": types.SimpleNamespace(statement_execution=Statements(), catalogs=Catalogs()), "api": api,
+           "w": types.SimpleNamespace(statement_execution=Statements(), catalogs=Catalogs()), "api": api, "api_get": api_get,
            "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0", "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent"}
     ctx["DATA_CATALOGS"] = list(data)
     out = io.StringIO()
@@ -154,10 +159,14 @@ assert volume == sorted(f"GRANT {p} VOLUME ON SCHEMA \x60main\x60.\x60_inspire\x
 assert "GRANT MODIFY ON SCHEMA \x60main\x60.\x60_inspire\x60 TO \x60SP\x60" in executed, executed
 assert "GRANT CREATE MODEL ON SCHEMA \x60main\x60.\x60_inspire\x60 TO \x60SP\x60" in executed, executed
 assert "GRANT MANAGE ON SCHEMA \x60main\x60.\x60_inspire\x60 TO \x60SP\x60" in executed, executed
-assert [s for s in executed if "\x60sales\x60" in s] == ["GRANT USE CATALOG, USE SCHEMA, SELECT, BROWSE, READ METADATA ON CATALOG \x60sales\x60 TO \x60SP\x60"], executed
+assert [s for s in executed if "\x60sales\x60" in s and "\x60account users\x60" not in s] == ["GRANT USE CATALOG, USE SCHEMA, SELECT, BROWSE, READ METADATA ON CATALOG \x60sales\x60 TO \x60SP\x60"], executed
 assert "Inspire's App will get read access (USE CATALOG, USE SCHEMA, SELECT, BROWSE, READ METADATA) on: sales\n" in said, said
 assert not [s for s in executed if "samples" in s], executed
-assert not [s for s in executed if "\x60account users\x60" in s], executed
+# REQ-456/458: account users get only USE SCHEMA on the Inspire schema and USE CATALOG / USE SCHEMA on the data catalog; never SELECT or anything that opens data
+account = [s for s in executed if "\x60account users\x60" in s]
+assert sorted(account) == sorted(["GRANT USE SCHEMA ON SCHEMA \x60main\x60.\x60_inspire\x60 TO \x60account users\x60",
+                                  "GRANT USE SCHEMA ON CATALOG \x60sales\x60 TO \x60account users\x60",
+                                  "GRANT USE CATALOG ON CATALOG \x60sales\x60 TO \x60account users\x60"]), account
 assert not [s for s in executed if s.startswith("GRANT MANAGE ON CATALOG")], executed
 assert not [s for s in executed if "inspire_lakebase" in s], executed
 empty_sql, _, empty_said = run([], data=[])
@@ -167,7 +176,7 @@ refused_sql, _, refused_said = run([], grantable=())
 assert "Permission Required: ask your admin to grant this permission:" in refused_said.splitlines(), refused_said
 assert "GRANT USE CATALOG, USE SCHEMA, SELECT, BROWSE, READ METADATA ON CATALOG \x60sales\x60 TO \x60SP\x60" in refused_said.splitlines(), refused_said
 assert "Catalog grants: 0 of 1 ran \u26a0\ufe0f" in refused_said, refused_said
-lakebase_sql = [s for s in run([], lakebase_catalog=True, grantable=("sales", "inspire_lakebase"), data=("sales", "inspire_lakebase"))[0] if "inspire_lakebase" in s]
+lakebase_sql = [s for s in run([], lakebase_catalog=True, grantable=("sales", "inspire_lakebase"), data=("sales", "inspire_lakebase"))[0] if "inspire_lakebase" in s and "\x60account users\x60" not in s]
 assert lakebase_sql == ["GRANT ALL PRIVILEGES ON CATALOG \x60inspire_lakebase\x60 TO \x60SP\x60",
                         "GRANT USE CATALOG, USE SCHEMA, SELECT, BROWSE, READ METADATA ON CATALOG \x60inspire_lakebase\x60 TO \x60SP\x60"], lakebase_sql
 manage = {"access_control_list": [{"service_principal_name": "SP", "permission_level": "CAN_MANAGE"}]}
@@ -213,6 +222,12 @@ assert blocked in said, said
 assert "New Apps can use catalog \x60main\x60: account users hold USE CATALOG ✅" in run([("Account Users", "USE_CATALOG")])[2]
 assert "New Apps can use catalog \x60main\x60: account users hold USE CATALOG ✅" in run([("account users", "ALL PRIVILEGES")])[2]
 assert "New Apps can use catalog \x60main\x60: Inspire can grant them USE CATALOG ✅" in run([("SP", "MANAGE")])[2]
+# REQ-458: when account users really hold no USE CATALOG, the install stops before the deploy and names the exact GRANT
+try:
+    run([], effective={"SP": ["USE_CATALOG", "CREATE_SCHEMA"]})
+    raise SystemExit("the install did not stop")
+except RuntimeError as exc:
+    assert "account users hold no USE CATALOG" in str(exc) and "GRANT USE CATALOG ON CATALOG \x60main\x60 TO \x60account users\x60" in str(exc) and "stopped before it deploys" in str(exc), str(exc)
 assert "New Apps can use catalog \x60main\x60: Inspire can grant them USE CATALOG ✅" in run([], owner="SP")[2]
 assert blocked in run([("someone@x", "MANAGE"), ("account users", "SELECT")])[2]
 failed = run([], show_fails=True)[2]
