@@ -55,7 +55,7 @@ def test_no_basis_when_the_answer_cannot_back_a_number(agent_ns, row):
 
 
 def _settings(agent_ns, **extra):
-    return agent_ns["implement_app_settings"](1, "T", ["p1"], None, "", "2026-11-22T00:00:00Z", {}, **extra)
+    return agent_ns["implement_app_settings"](1, "T", ["p1"], None, "", "2026-11-22T00:00:00Z", {"app_access": "sp"}, **extra)
 
 
 def test_settings_emit_value_basis_by_page_id(agent_ns):
