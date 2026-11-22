@@ -3742,6 +3742,7 @@ function Overlay({ title, uc, steps, stepsReady = true, step, part = null, reach
               </button>
             </div>
             {stepsReady ? (<>
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <ol aria-label="Steps" className="flex flex-wrap items-center gap-x-1 gap-y-1 text-[11px]">
               {steps.map((item, i) => {
                 const label = <>{done[i] && <Check size={11} className="text-success-fg" aria-hidden="true" />}{i + 1}. {item.label}</>;
@@ -3760,8 +3761,9 @@ function Overlay({ title, uc, steps, stepsReady = true, step, part = null, reach
                 );
               })}
             </ol>
+            {part && <p data-step-part="" className="shrink-0 text-[11px] text-text-secondary">Step {step + 1} of {steps.length} · part {part.at} of {part.of}</p>}
+            </div>
             <span className="sr-only">Step {step + 1} of {steps.length}</span>
-            {part && <p data-step-part="" className="text-[11px] text-text-secondary">Step {step + 1} of {steps.length} · part {part.at} of {part.of}</p>}
           </>) : (
             <p data-step-bar-loading="" className="text-[11px] text-text-tertiary">Loading the steps…</p>
           )}
