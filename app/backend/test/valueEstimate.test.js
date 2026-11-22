@@ -65,13 +65,13 @@ test('a malformed spec is no spec, never a guessed one', () => {
   assert.deepEqual(V.parseSpec('{"money":{}}'), { money: {} });
 });
 
-test('an unbuilt sibling takes its domain’s App rule, and is shown no number because it has no baseline of its own', async () => {
+test('an unbuilt sibling takes no rule from its domain (FX-48): it is shown "set a rule", and no baseline is read for it', async () => {
   const useCases = [{ id: 'N01-U01', business_domain: 'Sales' }, { id: 'N01-U02', business_domain: 'Sales' }];
   const specs = new Map([['N01-U01', ruleSpec('Sales App', 50, { config: { result_table: 'main.inspire.sales' } })]]);
   const calls = [];
   const out = await V.estimatesFor({ useCases, specs, measured: {}, baselineOf: async (table, id) => { calls.push([table, id]); return 120; } });
   assert.deepEqual(out.use_cases['N01-U01'], { status: 'estimated', app: 'Sales App', currency: 'AED', per_record: 50, baseline: 120, amount: 6000 });
-  assert.deepEqual(out.use_cases['N01-U02'], { status: 'no_baseline', app: 'Sales App' });
+  assert.deepEqual(out.use_cases['N01-U02'], { status: 'set_rule' });
   assert.deepEqual(calls, [['main.inspire.sales', 'N01-U01']], 'the baseline is read only from the use case’s own result table');
   assert.deepEqual(out.totals, { estimated: { AED: 6000 } });
 });
@@ -102,53 +102,13 @@ test('a sibling in another domain is not a rule source', async () => {
   assert.deepEqual(out.use_cases['N01-U01'], { status: 'set_rule' });
 });
 
-// REQ-078 (walk defect 4): the borrowed rule is the first usable fixed sibling, in a stable order, never the first sibling with any value.
+// FX-48: no estimate borrows a sibling's rule; the borrowed-rule tests of REQ-078 walk defect 4 were removed with the borrowing.
 const colRule = (app) => ({ app, money: { currency: 'convert', base: 'AED', value: { method: 'column', column: 'amount', currency: 'AED' } } });
 const fixedRule = (app, amount) => ({ app, money: { currency: 'convert', base: 'AED', value: { method: 'fixed', amount, currency: 'AED' } } });
-
-test('a borrowed column rule listed before a borrowed fixed rule does not block the fixed one (REQ-078 walk defect 4)', () => {
-  const borrowedColumnFirst = [{ ...colRule('Alpha App'), borrowed: true }, { ...fixedRule('Beta App', 50), borrowed: true }];
-  const e = estimateOf({ baseline: 120, rules: borrowedColumnFirst });
-  assert.deepEqual(e, { status: 'estimated', app: 'Beta App', currency: 'AED', per_record: 50, baseline: 120, amount: 6000 });
-});
 
 test('the own rule wins even when it is a column rule: the borrowed fixed rule is not used on top of it', () => {
   const rules = [{ ...colRule('Own App'), borrowed: false }, { ...fixedRule('Sibling App', 50), borrowed: true }];
   assert.deepEqual(estimateOf({ baseline: 120, rules }), { status: 'cannot', app: 'Own App', method: 'column', borrowed: false });
-});
-
-test('a borrowed column rule with no usable fixed sibling says it cannot estimate, names the borrowed App, and says so', () => {
-  const rules = [{ ...colRule('Alpha App'), borrowed: true }, { ...colRule('Beta App'), borrowed: true }];
-  assert.deepEqual(estimateOf({ baseline: 120, rules }), { status: 'cannot', app: 'Alpha App', method: 'column', borrowed: true });
-});
-
-test('estimatesFor borrows the same fixed rule whatever order the sibling rows arrive in (REQ-078 walk defect 4)', async () => {
-  const useCases = [{ id: 'N01-U01', business_domain: 'Sales' }, { id: 'N01-U02', business_domain: 'Sales' }, { id: 'N01-U03', business_domain: 'Sales' }];
-  const col = { use_case_name: 'Alpha App', money: colRule('Alpha App').money };
-  const fixed = ruleSpec('Beta App', 50);
-  const built = { config: { result_table: 'main.inspire.sales' } };
-  const forward = new Map([['N01-U01', built], ['N01-U02', col], ['N01-U03', fixed]]);
-  const backward = new Map([['N01-U03', fixed], ['N01-U02', col], ['N01-U01', built]]);
-  const run = (specs) => V.estimatesFor({ useCases, specs, measured: {}, baselineOf: async () => 120 });
-  const a = await run(forward);
-  const b = await run(backward);
-  assert.deepEqual(a.use_cases['N01-U01'], b.use_cases['N01-U01']);
-  assert.deepEqual(a.use_cases['N01-U01'], { status: 'estimated', app: 'Beta App', currency: 'AED', per_record: 50, baseline: 120, amount: 6000 });
-});
-
-test('estimatesFor with two usable fixed siblings picks the lower App name, not the one the rows arrived with', async () => {
-  const useCases = [{ id: 'N01-U01', business_domain: 'Sales' }, { id: 'N01-U02', business_domain: 'Sales' }, { id: 'N01-U03', business_domain: 'Sales' }];
-  const specs = new Map([['N01-U01', { config: { result_table: 'main.inspire.sales' } }], ['N01-U03', ruleSpec('Zeta App', 90)], ['N01-U02', ruleSpec('Alpha App', 10)]]);
-  const out = await V.estimatesFor({ useCases, specs, measured: {}, baselineOf: async () => 1 });
-  assert.equal(out.use_cases['N01-U01'].app, 'Alpha App');
-  assert.equal(out.use_cases['N01-U01'].per_record, 10);
-});
-
-test('estimatesFor with an own rule that has no value borrows the usable sibling; the own empty rule is never named', async () => {
-  const useCases = [{ id: 'N01-U01', business_domain: 'Sales' }, { id: 'N01-U02', business_domain: 'Sales' }];
-  const specs = new Map([['N01-U01', { use_case_name: 'Own App', money: { currency: 'per_currency' } }], ['N01-U02', ruleSpec('Sales App', 50)]]);
-  const out = await V.estimatesFor({ useCases, specs, measured: {}, baselineOf: async () => 120 });
-  assert.equal(out.use_cases['N01-U01'].app, 'Sales App');
 });
 
 // REQ-078 rc7 walk: Discover measured 6 of 24 use cases from their KPI query, and the value ledger

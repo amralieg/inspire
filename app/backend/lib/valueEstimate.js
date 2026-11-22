@@ -5,30 +5,25 @@ const { idList } = require('./inspireValue');
 // at all, give no number: the App says what to do instead.
 
 const finite = (value) => Number.isFinite(Number(value)) && value !== null && value !== '';
-const byText = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
-const usableFixed = (rule) => rule.money.value.method === 'fixed' && finite(rule.money.value.amount) && Number(rule.money.value.amount) > 0;
 
-// The rule an estimate reads. The use case's own rule wins whenever it names a value, even a column or equation rule (then the
-// estimate says "cannot" and what to set). Otherwise the best borrowed rule: a sibling with a usable fixed amount, else the first
-// sibling that has a value. `rules` arrive in order (own first, then siblings sorted by estimatesFor), so the pick is stable.
+// FX-48 (REQ-448, REQ-431): the rule an estimate reads is the use case's own, never a sibling's. A borrowed rate gave unrelated
+// use cases the same figure (W17 D42). With no rule of its own the use case shows no number.
 function pickRule(rules) {
-  const valued = rules.filter((rule) => rule && rule.money && rule.money.value);
-  if (!valued.length || !valued[0].borrowed) return valued[0] || null;
-  return valued.find(usableFixed) || valued[0];
+  return rules.find((rule) => rule && rule.money && rule.money.value) || null;
 }
 
-// rules: [{ app, money, borrowed }] in order: the use case's own App first (borrowed false), then siblings in the same domain.
+// rules: [{ app, money }]: the use case's own App rule.
 function estimateOf({ measured = false, baseline = null, rules = [] } = {}) {
   if (measured) return null;
   const ruled = pickRule(rules);
   if (!ruled) return { status: 'set_rule' };
-  const { app, money, borrowed = false } = ruled;
+  const { app, money } = ruled;
   const value = money.value;
-  if (value.method !== 'fixed') return { status: 'cannot', app, method: value.method, borrowed: Boolean(borrowed) };
+  if (value.method !== 'fixed') return { status: 'cannot', app, method: value.method, borrowed: false };
   if (!finite(baseline) || Number(baseline) <= 0) return { status: 'no_baseline', app };
   const perRecord = Number(value.amount);
-  if (!finite(perRecord) || perRecord <= 0) return { status: 'cannot', app, method: value.method, borrowed: Boolean(borrowed) };
+  if (!finite(perRecord) || perRecord <= 0) return { status: 'cannot', app, method: value.method, borrowed: false };
   const currency = value.currency !== undefined ? value.currency : (money.base || '');
   return { status: 'estimated', app, currency, per_record: perRecord, baseline: Number(baseline), amount: Math.round(Number(baseline) * perRecord * 100) / 100 };
 }
@@ -88,25 +83,25 @@ function parseSpec(raw) {
   }
 }
 
-// One estimate per use case. Rules come from the use case's own spec first, then the specs of its siblings in the same domain.
-// The baseline is only ever the use case's own: an unbuilt use case has none, so it shows no number.
+// One estimate per use case, from its own spec's rule and its own baseline. A use case with no rule of its own is "set a rule",
+// with no baseline read. When two use cases have the same rule and baseline, the later one says which it shares with.
 async function estimatesFor({ useCases, specs, measured, baselineOf }) {
-  const domainOf = new Map(useCases.map((row) => [String(row.id), String(row.business_domain || '')]));
   const out = {};
+  const firstOf = new Map();
   for (const row of useCases) {
     const id = String(row.id);
     const own = specs.get(id) || null;
-    // Siblings sort by App name, then id, so the borrowed rule never depends on the order the SQL happened to return rows in.
-    const siblingRules = [...specs.entries()]
-      .filter(([other, spec]) => other !== id && spec && domainOf.get(other) === domainOf.get(id))
-      .map(([other, spec]) => ({ app: String(spec.use_case_name || other), money: spec.money, borrowed: true, sid: other }))
-      .sort((a, b) => byText(a.app, b.app) || byText(a.sid, b.sid));
-    const ownRule = own && own.money ? [{ app: String(own.use_case_name || id), money: own.money, borrowed: false }] : [];
-    const rules = [...ownRule, ...siblingRules].filter((rule) => rule.money);
+    const rules = own && own.money ? [{ app: String(own.use_case_name || id), money: own.money }] : [];
     const isMeasured = Boolean((measured && measured[id] && measured[id].measured) || discoveredMeasured(row));
     const table = own && own.config && own.config.result_table;
     const baseline = isMeasured || !rules.length || !table ? null : await baselineOf(String(table), id);
-    out[id] = estimateOf({ measured: isMeasured, baseline, rules });
+    const estimate = estimateOf({ measured: isMeasured, baseline, rules });
+    if (estimate && estimate.status === 'estimated') {
+      const key = `${estimate.currency}|${estimate.app}|${estimate.per_record}|${estimate.baseline}`;
+      if (firstOf.has(key)) estimate.shares_with = firstOf.get(key);
+      else firstOf.set(key, id);
+    }
+    out[id] = estimate;
   }
   return { use_cases: out, totals: totalsOf(Object.values(out)) };
 }
