@@ -1,4 +1,5 @@
 import { CATALOG_SEARCH_FROM, catalogListNote, catalogNames } from '../lib/catalogList';
+import { Loader2 } from 'lucide-react';
 
 export default function CatalogPicker({ id, value, onChange, catalogs, truncated = false, loading = false, className = '', placeholder = 'Pick a catalog' }) {
   const names = catalogNames(catalogs);
@@ -6,11 +7,14 @@ export default function CatalogPicker({ id, value, onChange, catalogs, truncated
   if (!truncated && names.length < CATALOG_SEARCH_FROM) {
     const options = [...new Set([value, ...names].filter(Boolean))].sort((a, b) => a.localeCompare(b));
     return (
+      <>
       <select className={className} value={value || ''} onChange={(e) => onChange(e.target.value)}>
         {!value && <option value="">{placeholder}</option>}
         {options.map((name) => <option key={name} value={name}>{name}</option>)}
         {loading && <option disabled value="__loading__">Loading catalogs…</option>}
       </select>
+      {loading && <Loader2 size={12} className="ms-1.5 inline motion-safe:animate-spin" aria-hidden />}
+      </>
     );
   }
   const listId = `${id}-catalogs`;

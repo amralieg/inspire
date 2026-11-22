@@ -313,6 +313,7 @@ import {
   withScopedRows,
   scopedGroupRows,
 } from '../lib/runScope';
+import BusyNote from '../components/BusyNote';
 
 const CARD_CONTROL_SELECTOR = 'label,input,button,a,select,textarea,[role="radio"],[role="checkbox"],[role="button"]';
 const ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: Sparkles, app: AppWindow, alert: Bell };
@@ -1008,6 +1009,7 @@ export default function ImplementWizard({
   const countDataScope = async () => {
     const scope = readinessScope(spec, ucRow, dataScope);
     if (scope.table) {
+      // busy-ok: the Next button draws a spinning icon beside the checking text
       setChecking('Checking the data');
       setDataCheckAt(Date.now());
       try { setReadiness(await countScope(scope)); } finally { setDataCheckAt(0); }
@@ -1076,6 +1078,7 @@ export default function ImplementWizard({
           setSchemaJob({ state: 'failed', text: `${ownSchemaFallbackNote(own.catalog, context?.me?.username)} ${failureReasonOf(e)}` });
         });
       } else if (resultsLeaving) {
+        // busy-ok: the Next button draws a spinning icon beside the checking text
         setChecking('Checking you can write the result table');
         writeCheckRun.current = true;
         const check = await apiFetch(outputCheckPath(), { raise: false }).catch((e) => {
@@ -2621,6 +2624,7 @@ function AppNameField({ name, nameCheck, onName }) {
 }
 
 function joinListText(targets, choices, open) {
+  // busy-ok: the caller draws a spinning icon while targets is null
   if (targets === null) return 'Finding the Apps Inspire built';
   if (!choices.length) return 'Inspire has built none yet.';
   if (!open.length) return 'None can take a per-user use case.';
@@ -2877,11 +2881,14 @@ function ResultPlaceFields({ parts, catalogs, catalogsCut = false, catalogsError
             {typeSchema ? (
               <input dir="auto" className={inputCls} value={parts.schema} onChange={(e) => set('schema', e.target.value.trim())} />
             ) : (
+              <>
               <select className={inputCls} value={parts.schema} disabled={!parts.catalog} onChange={(e) => set('schema', e.target.value)}>
                 {!parts.schema && <option value="">{parts.catalog ? 'Pick a schema' : 'Pick a catalog first'}</option>}
                 {schemaOptions.map((s) => <option key={s} value={s}>{s}</option>)}
                 {parts.catalog && !schemas && <option disabled value="__loading__">Loading schemas…</option>}
               </select>
+              {parts.catalog && !schemas && <Loader2 size={12} className="ms-1.5 inline motion-safe:animate-spin" aria-hidden />}
+              </>
             )}
           </Field>
           <Field label="Table name">
@@ -3022,7 +3029,7 @@ export function StakeQuestions({ spec, setSpec, moneyParts, moneyActive, setMone
               ) : spec.money ? (
                 <MoneyRuleEditor part={p} value={spec.money} sample={profile?.money_sample || null} table={profile?.table || ''} columns={profile?.money_columns || []} api={moneyApi} onChange={(money) => { setSpec((prev) => withMoneyRule(prev, money)); if (Boolean(money?.off) !== Boolean(spec.money?.off)) setMoneyPart(money?.off ? 0 : moneyPartsOf(money?.rule).indexOf('off')); }} />
               ) : (
-                <p className="text-[12px] text-text-secondary">Reading this table to pre-fill the money rule</p>
+                <BusyNote className="text-[12px] text-text-secondary" text="Reading this table to pre-fill the money rule" />
               )}
               <div className="flex items-center justify-between pt-1">
                 {moneyActive > 0 ? <button type="button" data-money-back="" onClick={() => setMoneyPart(moneyActive - 1)} className="text-xs text-text-secondary">Previous decision</button> : <span />}
@@ -3791,7 +3798,7 @@ function Overlay({ title, uc, steps, stepsReady = true, step, part = null, reach
             </div>
             <span className="sr-only">Step {step + 1} of {steps.length}</span>
           </>) : (
-            <p data-step-bar-loading="" className="text-[11px] text-text-tertiary">Loading the steps…</p>
+            <BusyNote data-step-bar-loading="" className="text-[11px] text-text-tertiary" text="Loading the steps…" />
           )}
           </header>
           {children}

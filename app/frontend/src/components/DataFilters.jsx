@@ -8,6 +8,7 @@ import { leftOutLine } from '../lib/tableUsability';
 import {
   SCOPE_OPS, columnKindOf, filterValuesOf, isGroupRow, labelAvailable, normalizeTableScope, scopeKeyOf, scopeOpOf, scopeProblems, tableScopeOf,
 } from '../lib/tableScope';
+import BusyNote from './BusyNote';
 
 const VALUE_CHIPS = 40;
 const COUNT_DEBOUNCE_MS = 350;
@@ -165,7 +166,7 @@ function RowGroups({ column, picked, loaded, onLoad, onPick }) {
             Reload groups
           </button>
         )}
-        {loaded?.status === 'loading' && <span className="text-text-tertiary">Loading the groups of {column}</span>}
+        {loaded?.status === 'loading' && <BusyNote inline className="text-text-tertiary" text={`Loading the groups of ${column}`} />}
         {loaded?.status === 'done' && (
           <span className="text-text-tertiary">
             {plural(values.length, 'value')}{loaded.truncated ? `, the top ${GROUP_TOP} by rows` : ''}
@@ -629,7 +630,7 @@ export default function DataFilters({ scope, scopes, tables, listing, onScopes, 
               </label>
             </div>
             <p data-search-syntax className="text-text-tertiary">Use * at the start or end, for example brand* or *_id.</p>
-            {answer.status === 'loading' && <p data-search-loading className="text-text-tertiary">Searching the columns you picked</p>}
+            {answer.status === 'loading' && <BusyNote data-search-loading="" className="text-text-tertiary" text="Searching the columns you picked" />}
             {answer.status === 'error' && (
               <div className="flex flex-wrap items-center gap-2">
                 <PlainMessage role="alert" className="text-error-fg" text={answer.error} />

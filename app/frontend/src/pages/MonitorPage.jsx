@@ -1046,7 +1046,7 @@ function StatusIcon({ isPending, isRunning, isQuiet, isComplete, isWarning, isFa
   if (isWarning) return <div className={`${base} bg-warning/10`}><AlertTriangle size={22} className="text-warning-fg" /></div>;
   if (isComplete) return <div className={`${base} bg-success/10`}><CheckCircle2 size={22} className="text-success-fg" /></div>;
   if (isFailed) return <div className={`${base} bg-error/10`}><XCircle size={22} className="text-error-fg" /></div>;
-  if (isPending) return <div className={`${base} bg-info/10`}><Clock size={22} className="text-info-fg" /></div>;
+  if (isPending) return <div className={`${base} bg-info/10`}><Loader2 size={22} className="animate-spin text-info-fg" /></div>;
   if (isRunning) return <div className={`${base} bg-db-red/10`}><Loader2 size={22} className="animate-spin text-db-red-fg" /></div>;
   if (isQuiet) return <div className={`${base} bg-bg-subtle`}><Clock size={22} className="text-text-tertiary" /></div>;
   return <div className={`${base} bg-bg-subtle`}><Play size={22} className="text-text-tertiary" /></div>;

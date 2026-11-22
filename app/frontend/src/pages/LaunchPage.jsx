@@ -1186,6 +1186,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               <h2 className="text-sm font-semibold text-text-primary">Discovery Overview</h2>
               <p className="text-[11px] text-text-secondary truncate">
                 {overviewLoading
+                  // busy-ok: the list below this subtitle shows a spinning Loader2 while overviewLoading
                   ? 'Loading your recent runs…'
                   : overviewError
                     ? 'Inspire could not read your runs, see the message below'
@@ -1536,6 +1537,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                             : !token && !serverEnvHasPat
                               ? 'Inspire cannot sign in to the workspace. Ask whoever installed Inspire to run inspire_installer.py again.'
                               : loadingCatalogs
+                                // busy-ok: the label above this list shows a spinning Loader2 while it loads
                                 ? 'Loading...'
                                 : catalogBrowseError || catalogsWhy
                                   ? 'Inspire could not list the catalogs. The message above says why.'
@@ -1570,6 +1572,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         searchValue={schemaSearch}
                         onSearch={setSchemaSearch}
                         searchPlaceholder="Search schemas..."
+                        // busy-ok: the label above this list shows a spinning Loader2 while it loads
                         emptyText={selectedCatalogs.length === 0 ? 'Select catalogs first' : loadingSchemas ? 'Loading...' : schemasReadError ? 'Inspire could not list the schemas. The message above says why.' : `No schemas you can see in ${selectedCatalogs.join(', ')}`}
                       />
                     </div>
@@ -1604,6 +1607,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         searchValue={tableSearch}
                         onSearch={setTableSearch}
                         searchPlaceholder="Search tables..."
+                        // busy-ok: the label above this list shows a spinning Loader2 while it loads
                         emptyText={selectedSchemas.length === 0 ? 'Select schemas first' : loadingTables ? 'Loading...' : tablesReadError ? 'Inspire could not list the tables. The message above says why.' : `No tables you can see in ${selectedSchemas.join(', ')}`}
                       />
                       {tablesLeftOut.map((line) => (
@@ -2180,7 +2184,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 </button>
                 <button type="button" data-launch-save-run="" onClick={saveAndRun} disabled={saving || !saveAsk.name.trim()}
                   className="rounded-lg bg-db-red-solid px-4 py-2 text-sm font-bold text-white hover:bg-db-red-solid-hover disabled:opacity-50">
-                  {saving ? 'Saving…' : profileNamed(saveAsk.name) && saveAsk.confirmReplace ? 'Replace and run' : 'Save and run'}
+                  {saving ? <><Loader2 size={14} className="animate-spin" aria-hidden /> Saving…</> : profileNamed(saveAsk.name) && saveAsk.confirmReplace ? 'Replace and run' : 'Save and run'}
                 </button>
               </>
             )}>

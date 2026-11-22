@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { PlainMessage } from './TechnicalDetails';
 import { raisePermissions } from '../lib/permissionBus';
 import { sameLink } from '../lib/tableRelationships';
+import BusyNote from './BusyNote';
 
 const ANSWER_MS = 20000;
 const FILTER_AT = 12;
@@ -99,7 +100,7 @@ function LinkDialog({ dialog, links, suggestions, linked, onPick, onLink, onRemo
   return (
     <div ref={boxRef} role="dialog" aria-label={`Link ${nameOf(source)} to ${nameOf(target)}`} data-link-dialog className="min-w-0 space-y-3 rounded-xl border border-border bg-surface p-3">
       <p className="font-semibold text-text-primary">Link {nameOf(source)} to {nameOf(target)}</p>
-      {dialog.status === 'loading' && <p data-link-loading className="text-text-tertiary">Reading the columns of both tables</p>}
+      {dialog.status === 'loading' && <BusyNote data-link-loading="" className="text-text-tertiary" text="Reading the columns of both tables" />}
       {dialog.status === 'error' && (
         <div className="flex flex-wrap items-center gap-2">
           <PlainMessage role="alert" className="text-error-fg" text={dialog.error} />

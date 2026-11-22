@@ -3,6 +3,7 @@ import ModalDialog from './ModalDialog';
 import { copyStepsText, copyText, grantAsk, grantListKey } from '../lib/permissionBus';
 import { accessRequestResultText, checkAccessRequest, offerShown, sendAccessRequest, statementsOf } from '../lib/accessRequest';
 import { otherRequestLinks, requestFormLink, requestFormText } from '../lib/accessRequestText';
+import { Loader2 } from 'lucide-react';
 
 const BUTTON = 'inline-flex h-8 items-center justify-center px-3 rounded-lg text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle';
 const PRIMARY = 'inline-flex h-8 items-center justify-center px-3 rounded-lg text-xs font-semibold text-white bg-db-red-solid hover:opacity-90 disabled:opacity-60';
@@ -109,7 +110,7 @@ export default function PermissionRequired({ permissions, onStart, onRetry, onCl
   };
   const buttons = (
     <>
-      {asked.length > 0 && <button type="button" onClick={requestAccess} disabled={requesting} className={PRIMARY} data-request-access="">{requesting ? 'Requesting' : 'Request access'}</button>}
+      {asked.length > 0 && <button type="button" onClick={requestAccess} disabled={requesting} className={PRIMARY} data-request-access="">{requesting ? <><Loader2 size={13} className="inline me-1 animate-spin" aria-hidden />Requesting</> : 'Request access'}</button>}
       {onRetry && <button type="button" onClick={onRetry} className={BUTTON}>Try again</button>}
       {onStart && <button type="button" onClick={onStart} className={BUTTON}>Start anyway</button>}
     </>

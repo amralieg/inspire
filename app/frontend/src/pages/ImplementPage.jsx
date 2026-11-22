@@ -79,6 +79,7 @@ import { tableOfUseCase, useCalculatedValues } from '../lib/calculatedValue';
 import { trackingIdOf } from '../lib/useCaseFields';
 import { valuedLine } from '../lib/buildNext';
 import { raisePermissions } from '../lib/permissionBus';
+import BusyNote from '../components/BusyNote';
 
 const OUTPUT_ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: GenieLogo, app: AppWindow, alert: BellRing };
 const OUTPUT_NAMES = OUTPUT_LABELS;
@@ -832,6 +833,7 @@ function AssetCard({ asset, locked, lockedReason, active, error, money = null, m
     await run();
     setPending('');
   };
+  // busy-ok: the step in progress shows a spinning icon in the list below
   const steps = busy ? [
     busy.asks ? `Reading what you asked: ${busy.asks} ${busy.asks === 1 ? 'thing' : 'things'}` : 'Reading what you asked',
     rebuildingText(asset),
@@ -872,6 +874,7 @@ function AssetCard({ asset, locked, lockedReason, active, error, money = null, m
                       {state === 'done' ? '✓' : k + 1}
                     </span>
                     {step}
+                    {state === 'now' && <Loader2 size={13} className="shrink-0 motion-safe:animate-spin text-db-red-fg" aria-hidden data-step-spinner="" />}
                   </li>
                 );
               })}
@@ -1234,7 +1237,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
   const runCount = status?.runs?.ok === false ? null : status?.runs?.runs?.length ?? 0;
   const historyHint = status
     ? `${plural(versionCount, 'spec version')} · ${runCount === null ? 'job runs unknown' : plural(runCount, 'job run')}`
-    : 'Loading…';
+    : <BusyNote inline text="Loading…" />;
 
   const builtOn = builtVersion(history);
   const nextSpec = built && latest ? rebuildSpec(latest, vibes) : null;
@@ -1760,7 +1763,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
         </h3>
         <div id={`${viewId}-history`} hidden={!historyOpen} className="p-4 space-y-3 text-[12px] border-t border-border">
           <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-secondary">Spec versions</div>
-          {!status && <p className="text-[12px] text-text-secondary">Loading the versions and job runs…</p>}
+          {!status && <BusyNote className="text-[12px] text-text-secondary" text="Loading the versions and job runs…" />}
           {history.map((entry) => (
             <div key={entry.spec_version} data-history-version={entry.spec_version} className="border border-border rounded-lg bg-surface px-3 py-2 text-[12px]">
               <div>v{entry.spec_version} · {historyStatus(entry, latest, stalled)} · {isAppUpdate(history, entry) ? APP_UPDATED_TEXT : entry.change_classes || 'initial'}</div>

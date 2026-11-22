@@ -8,6 +8,7 @@ import { RunScopeLine } from './RunScope';
 import DataGrid from './DataGrid';
 import { VIBE_FEATURES_LABEL } from '../lib/implementWizard';
 import { PlainMessage } from './TechnicalDetails';
+import BusyNote from './BusyNote';
 
 const setByText = (a) => (a.changed_by ? `${a.changed_by} in the App` : 'Genie, in the notebook');
 
@@ -35,7 +36,7 @@ export default function MoneyReview({ money, error = '', impact = null, scope = 
   const stake = liveImpact(money?.run, impact);
   const words = stakeWords(stake);
   if (error) return <PlainMessage text={`Inspire could not read the ${words} of the last run: ${error}`} role="alert" className="text-[12px] text-error-fg" />;
-  if (!money) return <p className="text-[12px] text-text-secondary">Reading how the last run counted the {words}</p>;
+  if (!money) return <BusyNote className="text-[12px] text-text-secondary" text={`Reading how the last run counted the ${words}`} />;
   if (money.withheld) return <p data-money-withheld="" className="text-[12px] text-text-secondary">{money.withheld}</p>;
   const { model, run } = money;
   const sample = previewSampleText(run);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import { REMOVE_TABLE } from '../lib/implementWizard';
 import { PlainMessage } from './TechnicalDetails';
 import { unusableReasonOf } from '../lib/tableUsability';
@@ -74,6 +74,7 @@ export default function SourceTables({
         </div>
         {!readOnly && !removed && changing[original] && (
           <>
+            {/* busy-ok: a native option holds no icon, so a spinning Loader2 follows the select while options load */}
             <select aria-label={`Table to use for ${original}`} disabled={locked} className={selectClass} value={chosen} onChange={(e) => onPick(original, e.target.value)}>
               <option value={original}>{original} (Inspire's pick)</option>
               {chosen !== original && !(options || []).some((s) => s.table === chosen) && <option value={chosen}>{chosen}</option>}
@@ -85,6 +86,7 @@ export default function SourceTables({
               ))}
               <option value={REMOVE_TABLE} disabled={Boolean(blocker)}>{blocker ? `Don't use this table (${blocker})` : "Don't use this table"}</option>
             </select>
+            {options === undefined && <Loader2 size={12} className="ms-1.5 inline motion-safe:animate-spin" aria-hidden />}
             {onSearch && <FindTable original={original} locked={locked} onSearch={onSearch} onPick={onPick} />}
             {why && <PlainMessage as="p" text={why} data-swaps-why="" className="text-[11px] text-text-secondary" />}
           </>

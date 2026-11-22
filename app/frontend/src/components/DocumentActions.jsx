@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { DOCUMENT_ACTIONS, documentJobState, documentRunBody } from '../lib/documentActions.js';
 import { PlainMessage } from './TechnicalDetails';
+import BusyNote from './BusyNote';
 
 const POLL_MS = 15000;
 
@@ -67,8 +68,8 @@ export default function DocumentActions({ apiFetch, apiPostJson, session, onFini
           {DOCUMENT_ACTIONS['excel-workbook'].label}
         </button>
       </div>
-      {job?.state === 'running' && <p data-doc-status="running" className="mt-2 text-xs">Rebuilding the files for run {job.runId}. This page updates when they are ready.</p>}
-      {job?.state === 'starting' && <p data-doc-status="starting" className="mt-2 text-xs">Starting the document job.</p>}
+      {job?.state === 'running' && <BusyNote data-doc-status="running" className="mt-2 text-xs" text={`Rebuilding the files for run ${job.runId}. This page updates when they are ready.`} />}
+      {job?.state === 'starting' && <BusyNote data-doc-status="starting" className="mt-2 text-xs" text="Starting the document job." />}
       {job?.state === 'done' && <p data-doc-status="done" className="mt-2 text-xs">The files are ready and listed below.</p>}
       {job?.state === 'failed' && <PlainMessage text={job.error} as="p" className="mt-2 text-xs text-error-fg" />}
     </div>

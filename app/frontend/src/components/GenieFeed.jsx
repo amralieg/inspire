@@ -5,6 +5,7 @@ import GenieLogo from './GenieLogo';
 import TechnicalDetails from './TechnicalDetails';
 import { feedLine, feedKey, feedTypesOut, typedText, typingSchedule } from '../lib/mvpProgress';
 import { reducedMotion } from '../lib/motion';
+import BusyNote from './BusyNote';
 
 const TONE_TEXT = { plain: 'text-text-primary', quiet: 'text-text-secondary', warning: 'text-warning-fg', error: 'text-error-fg' };
 const PINNED_SLACK_PX = 24;
@@ -97,7 +98,7 @@ export default function GenieFeed({ feed, arrivals, active, working, scroller })
         aria-label="Genie's messages"
         className="bg-panel px-4 py-4 space-y-3"
       >
-        {!Array.isArray(feed) && <p className="text-[12px] text-text-tertiary">Loading Genie&apos;s messages…</p>}
+        {!Array.isArray(feed) && <BusyNote className="text-[12px] text-text-tertiary" text="Loading Genie's messages…" />}
         {Array.isArray(feed) && shown.length === 0 && (
           <p className="text-[12px] text-text-tertiary">
             {active ? 'Genie’s messages appear here as it works.' : 'Genie sent no messages for this version.'}

@@ -1,3 +1,4 @@
+import { Loader2 } from 'lucide-react';
 import ModalDialog from './ModalDialog';
 import { PlainMessage } from './TechnicalDetails';
 import { bulkCounts, useValueBulkRun } from '../lib/valueBulkRun';
@@ -38,6 +39,7 @@ export default function ValueBulkPanel({ onEdit }) {
   const close = running ? hide : dismiss;
   const nameOf = (id) => items.find((it) => it.id === id)?.name || id;
 
+  // busy-ok: the title names the dialog; each row being worked on spins below
   return (
     <ModalDialog titleId="value-bulk-title" title="Calculating value" onClose={close} widthClass="max-w-xl"
       footer={running ? (
@@ -67,6 +69,7 @@ export default function ValueBulkPanel({ onEdit }) {
                 </span>
               )}
               {r.state === 'skipped' && <span>Skipped: {r.reason}</span>}
+              {r.state === 'working' && <Loader2 size={12} className="me-1 inline motion-safe:animate-spin" aria-hidden />}
               {LABELS[r.state] || ''}
             </span>
             {r.state === 'done' && reviewLineOf(r.review) && <span dir="auto" data-value-review="" className="basis-full text-[12px] text-text-secondary">{reviewLineOf(r.review)}</span>}
@@ -84,7 +87,7 @@ export function ValueBulkProgress() {
   const { done, total } = bulkCounts(run);
   return (
     <div data-bulk-bg="" className="mb-2 flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-secondary">
-      <span data-bulk-bg-text="" aria-live="polite" className="font-semibold text-text-primary">{run.running ? 'Calculating value' : 'Value calculated'}: {bulkSummary(run.rows, run.items)}</span>
+      <span data-bulk-bg-text="" aria-live="polite" className="font-semibold text-text-primary">{run.running && <Loader2 size={12} className="me-1.5 inline motion-safe:animate-spin" aria-hidden />}{run.running ? 'Calculating value' : 'Value calculated'}: {bulkSummary(run.rows, run.items)}</span>
       <div role="progressbar" aria-label="Value calculation progress" aria-valuemin={0} aria-valuenow={done} aria-valuemax={total}
         className="h-2 min-w-24 flex-1 overflow-hidden rounded-full bg-bg-subtle">
         <div className="h-full bg-db-red-solid text-white" style={{ width: `${total ? Math.round((done / total) * 100) : 0}%` }} />

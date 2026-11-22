@@ -14,6 +14,7 @@ import { formatWhen } from '../lib/formatWhen';
 import { readOnlyReason } from '../lib/showcase';
 import { RUN_LINK_LABEL } from '../lib/implementWizard';
 import { PlainMessage } from './TechnicalDetails';
+import BusyNote from './BusyNote';
 
 const ACTION_ICONS = { stop: Square, start: Play, unpublish: EyeOff, publish: Eye, cancel: Ban };
 const ASSET_ICONS = { build: Hammer, job: Briefcase, dashboard: LayoutDashboard, genie_space: GenieLogo, app: AppWindow, alert: Bell, notebook: NotebookPen };
@@ -135,10 +136,12 @@ function StripRow({ row, controls }) {
   );
 }
 
+// busy-ok: the look text is drawn in one paragraph that spins while building, planning or checking
 const PENDING_LOOK = {
   building: (tile) => ({ tone: 'red', text: tile.now ? tile.doing || 'Genie is building it now' : 'Waiting for its turn in this run' }),
   planning: () => ({ tone: 'idle', text: 'Inspire is working out whether this version changes it' }),
   failed: (tile) => ({ tone: 'error', text: tile.error ? `It failed: ${tile.error}` : 'It failed on this version' }),
+  // busy-ok: the paragraph that draws look.text spins for planning and checking
   checking: (_tile, liveError) => ({ tone: 'idle', text: liveError ? 'Inspire cannot read its live status' : 'Reading its live status' }),
   missing: () => ({ tone: 'warning', text: 'Not built on this version' }),
   held: (tile) => ({ tone: 'warning', text: tile.note }),
@@ -342,7 +345,7 @@ export function AssetPanel({
           {look && kind === 'failed' && <PlainMessage text={look.text} className="text-error-fg" />}
           {look && kind !== 'failed' && (
             <p className="text-text-secondary">
-              {busy?.now && <Loader2 size={11} className="inline me-1 align-[-1px] motion-safe:animate-spin text-db-red-fg" aria-hidden />}
+              {(busy?.now || kind === 'checking' || kind === 'planning') && <Loader2 size={11} className="inline me-1 align-[-1px] motion-safe:animate-spin text-db-red-fg" aria-hidden />}
               {look.text}
             </p>
           )}
@@ -475,7 +478,7 @@ export function BuildControls({
       <SectionTitle
         icon={Hammer}
         title="Build and job"
-        hint={live?.checked_at ? `Live status checked ${formatWhen(live.checked_at, live.checked_at)}` : 'Reading the live status of the build and the job'}
+        hint={live?.checked_at ? `Live status checked ${formatWhen(live.checked_at, live.checked_at)}` : (liveError ? 'Reading the live status of the build and the job' : <BusyNote inline text="Reading the live status of the build and the job" />)}
         right={(
           <button type="button" onClick={onRefresh} aria-label="Check the live status now" className="p-1.5 rounded-lg border border-border bg-surface text-text-secondary hover:text-text-primary">
             <RefreshCw size={13} />
