@@ -8,8 +8,9 @@ import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToMeas
 test.after(closeBrowser);
 
 const ME = { me: { userName: OWNER, displayName: 'Owner' }, policies: POLICIED_SOURCE }; // D-SL-11: the access choice shows for a row-filtered source
-const WITH_APP = ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Review & build'];
-const NO_APP = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Review & build'];
+// REQ-457: How to build is step 1 and Measure is no longer a step, so the step lists and numbers changed.
+const WITH_APP = ['1. How to build', '2. What to deliver', '3. Data & results', '4. Data groups', '5. First run', '6. Where it lives', '7. Review & build'];
+const NO_APP = ['1. How to build', '2. What to deliver', '3. Data & results', '4. First run', '5. Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const builtLine = (page) => page.locator('[data-built-sentence]').innerText();
 

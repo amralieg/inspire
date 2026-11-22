@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, dataToResults, goToMeasureImpact, goToStep, onStep, openAdvanced, openFolded, openUi, startMvp, toAppAccess, POLICIED_SOURCE } from './uiSupport.mjs';
+import { closeBrowser, closeValueDialog, dataToResults, goToMeasureImpact, goToStep, onStep, openAdvanced, openFolded, openUi, startMvp, toAppAccess, POLICIED_SOURCE } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const PAT = ['pat', 'example.com'].join('@');
@@ -76,9 +76,13 @@ test('Measure impact, a screen of Measure, starts ticked with its badge, takes a
     assert.doesNotMatch(await impact.textContent(), /\u2014|\u2013/);
     await share.fill('60');
     await impact.getByText(SHARE_PROBLEM, { exact: true }).waitFor();
-    await next(page);
+    // REQ-457: Measure is not a step; the dialog closes and Build refuses with the problem on the last step, then the dialog reopens on the hold-back decision.
+    await closeValueDialog(page);
+    await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await page.locator('[role="alert"] p', { hasText: SHARE_PROBLEM }).waitFor();
-    assert.equal(await page.locator('[data-money-part="holdout"]').evaluate((el) => el.closest('li').hasAttribute('data-money-current')), true, 'a share above half the records keeps the person on the hold-back decision');
+    assert.equal(ui.made.jobs.length, 0, 'a share above half the records stops the build');
+    await goToMeasureImpact(page);
+    if (!(await share.count())) await page.getByRole('button', { name: 'Change hold back share', exact: true }).click();
     await share.fill('');
     await page.locator('[role="alert"] p', { hasText: SHARE_PROBLEM }).waitFor();
     await box.uncheck();
@@ -196,7 +200,7 @@ test('App owners are typed under Advanced settings like alert recipients, checke
     assert.equal(await owners.inputValue(), `${PAT}, nope`);
     await next(page);
     await page.locator('[role="alert"] p', { hasText: 'App owners must be email addresses: nope' }).waitFor();
-    assert.equal(await page.locator('[aria-current="step"]').textContent(), '1. What to deliver');
+    assert.equal(await page.locator('[aria-current="step"]').textContent(), '2. What to deliver');
     await owners.fill(`${PAT}, ${PAT.toUpperCase()}, ${LEE}`);
     await throughApp(page);
     await startWhenReady(page);

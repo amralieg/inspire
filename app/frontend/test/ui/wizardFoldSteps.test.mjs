@@ -7,7 +7,8 @@ const APP_SPEC = { outputs: { app: true, app_placement: 'domain', merge: {} } };
 
 test('the MVP wizard has at most 10 steps, with the App and every scope step on', () => {
   const steps = wizardSteps('mvp', APP_SPEC, WITH_APP_AND_SCOPE);
-  assert.deepEqual(steps.map((s) => s.label), ['What to deliver', 'Data & results', 'Data groups', 'First run', 'Measure', 'Where it lives', 'Review & build']);
+  // REQ-457: How to build is the first step; Measure is no longer a step (its settings are asked in the value dialog on the last step).
+  assert.deepEqual(steps.map((s) => s.label), ['How to build', 'What to deliver', 'Data & results', 'Data groups', 'First run', 'Where it lives', 'Review & build']);
   assert.ok(steps.length <= WIZARD_STEPS_MAX, `${steps.length} steps`);
   assert.equal(WIZARD_STEPS_MAX, 10);
 });
@@ -33,7 +34,8 @@ test('Where it lives holds every App panel in order: place, pages, access, featu
 
 test('a joined App and a use case without an App keep their short step lists', () => {
   const none = wizardSteps('mvp', { outputs: { app: false } }, { grouping: false, firstRun: false }).map((s) => s.label);
-  assert.deepEqual(none, ['What to deliver', 'Data & results', 'First run', 'Measure', 'Review & build']);
+  // REQ-457: How to build first, no Measure step.
+  assert.deepEqual(none, ['How to build', 'What to deliver', 'Data & results', 'First run', 'Review & build']);
   const joined = wizardSteps('mvp', { outputs: { app: true, merge: { app: 'x' } } }, { grouping: false, firstRun: true }).map((s) => s.label);
   assert.equal(joined.includes('Where it lives'), true, 'a joined App still shows its place on Where it lives');
 });

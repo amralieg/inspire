@@ -8,7 +8,8 @@ test.after(closeBrowser);
 
 const ME = { me: { userName: OWNER, displayName: 'Owner' }, policies: POLICIED_SOURCE }; // D-SL-11: the access choice shows for a row-filtered source
 const STATE = { ...ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } };
-const WITH_APP = ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Review & build'];
+// REQ-457: How to build is step 1 and Measure is no longer a step, so the step lists and numbers changed.
+const WITH_APP = ['1. How to build', '2. What to deliver', '3. Data & results', '4. Data groups', '5. First run', '6. Where it lives', '7. Review & build'];
 const drafts = (page) => page.evaluate((prefix) => Object.keys(localStorage).filter((k) => k.startsWith(prefix)), WIZARD_DRAFT_PREFIX);
 const draftNote = (page) => page.locator('[data-wizard-draft]');
 const checked = (page, selector) => page.locator(selector).evaluateAll((all) => all.filter((i) => i.checked).map((i) => i.value));
@@ -84,7 +85,8 @@ test('a person\u2019s own picks on every step survive a reload, the wizard reope
     await goToStep(page, 'Data');
     const kept = {};
     await goToStep(page, 'What to deliver');
-    const names = WITH_APP.map((s) => s.replace(/^\d+\.\s*/, ''));
+    // REQ-457: the seeded Advanced choice opens on What to deliver, so the walk starts after How to build.
+    const names = WITH_APP.map((s) => s.replace(/^\d+\.\s*/, '')).filter((s) => s !== 'How to build');
     for (const [i, step] of names.entries()) {
       await onStep(page, step);
       await settleChoices(page);

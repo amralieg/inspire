@@ -17,7 +17,8 @@ test('the wizard starts on What to deliver, with no Use case step: the use case 
   try {
     await goToStep(page, 'Data');
     const labels = await stepLabels(page);
-    assert.equal(labels[0], 'What to deliver', labels.join(' | '));
+    // REQ-457: How to build is the first step, so What to deliver is the second.
+    assert.equal(labels[1], 'What to deliver', labels.join(' | '));
     assert.equal(labels.includes('Use case'), false, 'no Use case step (must-exclude)');
     assert.equal(await page.getByText('Advanced settings', { exact: false }).count(), 0, 'no Advanced settings text on any step (must-exclude)');
     assert.equal(await page.getByRole('heading', { name: 'Is this the use case you want to build?' }).count(), 0, 'the old use case question is gone (must-exclude)');
@@ -44,13 +45,14 @@ test('the stepper is a row of buttons: a finished step ticks, and a step after a
     await drawer.getByRole('button', { name: 'Close details' }).click();
     await page.waitForFunction(() => !document.querySelector('[data-use-case-drawer]'));
     await page.waitForTimeout(300);
-    assert.equal(await stepGo(page, 'stake').count(), 0, 'Measure is not reachable while the goal is empty (must-exclude)');
+    assert.equal(await stepGo(page, 'summary').count(), 0, 'the last step is not reachable while the goal is empty (must-exclude)');
     await page.locator('[data-use-case-details-open]').click();
     await page.getByRole('dialog', { name: /^Use case details: / }).getByLabel('Goal sentence').fill('Forecast billed revenue by district');
     await page.getByRole('button', { name: 'Close details' }).click();
-    await page.waitForFunction(() => document.querySelector('[data-step-go="stake"]'));
-    await stepGo(page, 'stake').click();
-    await onStep(page, 'Measure');
+    await page.waitForFunction(() => document.querySelector('[data-step-go="summary"]'));
+    await stepGo(page, 'summary').click();
+    // REQ-457: Measure is no longer a step, so the stepper test reaches the last step instead.
+    await onStep(page, 'Review & build');
     const ticked = await page.locator('[data-wizard-header] ol li').first().locator('svg').count();
     assert.equal(ticked, 1, 'the finished Data step shows a tick');
     assert.deepEqual(ui.pageErrors, []);

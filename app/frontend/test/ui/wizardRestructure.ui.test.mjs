@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, goToMeasureImpact, goToStep, moneyPart, openFolded, openRow, openUi, shot, POLICIED_SOURCE } from './uiSupport.mjs';
+import { closeBrowser, goToMeasureImpact, goToStep, moneyPart, openFolded, openMeasureSettings, openRow, openUi, shot, POLICIED_SOURCE } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' }, policies: POLICIED_SOURCE }; // D-SL-11: the access choice shows for a row-filtered source
-const STEPS = ['What to deliver', 'Data & results', 'First run', 'Measure', 'Where it lives', 'Review & build'];
+// REQ-457: How to build is the first step and Measure is no longer a step.
+const STEPS = ['How to build', 'What to deliver', 'Data & results', 'First run', 'Where it lives', 'Review & build'];
 const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\. /, '').trim());
 const viewports = [{ width: 1280, height: 800 }, { width: 1440, height: 900 }];
 const snap = async (page, name) => {
@@ -25,13 +26,13 @@ test('the step count reads the same total on every step for a fixed scope', asyn
     const count = async () => (await page.locator('.sr-only', { hasText: /^Step \d+ of \d+$/ }).first().textContent()).trim();
     const totals = [];
     totals.push(await count());
-    for (const step of ['Data & results', 'Measure', 'Where it lives', 'Review & build', 'What to deliver']) {
+    for (const step of ['Data & results', 'Where it lives', 'Review & build', 'What to deliver']) {
       await goToStep(page, step);
       totals.push(await count());
     }
     const all = new Set(totals.map((t) => t.split(' of ')[1]));
     assert.equal(all.size, 1, `the total never changes: ${totals.join(' | ')}`);
-    assert.match(totals[0], /^Step 1 of 6$/, 'What to deliver is step 1 of 6 with the App on: the App panels are one step (REQ-002)');
+    assert.match(totals[0], /^Step 2 of 6$/, 'What to deliver is step 2 of 6 (How to build is 1) with the App on: the App panels are one step (REQ-002)');
   } finally {
     await ui.close();
   }
@@ -53,8 +54,9 @@ test('What to deliver is the first step, Data and results is one page, and Where
     assert.equal(await page.getByRole('region', { name: 'Where the result table lives' }).count(), 1, 'the result table sits on the same page as the data');
     await snap(page, 'restructure-data-results');
 
-    await goToStep(page, 'Measure');
-    const measure = page.getByRole('region', { name: 'Measure' });
+    // REQ-457: the measure settings are in the value dialog now, opened from the value line on the last step.
+    await openMeasureSettings(page);
+    const measure = page.locator('[data-measure-editor]');
     await measure.waitFor();
     assert.equal(await measure.locator('[data-money-rule-editor]').count(), 1, 'Measure holds the money rule editor, so the person defines how value at stake is counted');
     // Value at stake opens one part at a time. The Currency part starts on keeping each currency separate, and it offers the

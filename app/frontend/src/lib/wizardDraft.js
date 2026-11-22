@@ -20,6 +20,39 @@ export function wizardDraftKey({ host = '', inspireDatabase = '', sessionId = ''
   return `${WIZARD_DRAFT_PREFIX}${JSON.stringify([workspaceOf(host), String(inspireDatabase || '').toLowerCase(), String(sessionId ?? ''), id])}`;
 }
 
+// REQ-457a: the remembered "How should I build the App?" choice, per workspace, Inspire database, run and use case (the same tuple as the draft).
+export const BUILD_CHOICE_PREFIX = 'inspire_build_choice:';
+const BUILD_CHOICES = ['standard', 'advanced'];
+
+export function buildChoiceKey(ctx = {}) {
+  const key = wizardDraftKey(ctx);
+  return key ? `${BUILD_CHOICE_PREFIX}${key.slice(WIZARD_DRAFT_PREFIX.length)}` : '';
+}
+
+export function readBuildChoice(ctx, storage) {
+  const store = storageOf(storage);
+  const key = buildChoiceKey(ctx);
+  if (!key || !store) return '';
+  try {
+    const value = store.getItem(key);
+    return BUILD_CHOICES.includes(value) ? value : '';
+  } catch {
+    return '';
+  }
+}
+
+export function writeBuildChoice(ctx, build, storage) {
+  const store = storageOf(storage);
+  const key = buildChoiceKey(ctx);
+  if (!key || !store || !BUILD_CHOICES.includes(build)) return false;
+  try {
+    store.setItem(key, build);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const START_DRAFT_PREFIX = 'inspire_start_draft:';
 export const START_DRAFT_STAMP = 'start:1';
 export const START_DRAFT_STEP = 'launch';
@@ -52,16 +85,16 @@ export function readWizardDraft(key, stamp, storage) {
   }
   const fits = saved && typeof saved === 'object' && saved.version === WIZARD_DRAFT_VERSION && saved.stamp === stamp && saved.spec && typeof saved.spec === 'object' && typeof saved.step === 'string';
   // profile is present only when the draft holds a loaded business profile, the same way writeWizardDraft stores it.
-  if (fits) return { spec: saved.spec, step: saved.step, visited: Array.isArray(saved.visited) ? saved.visited.map(String) : [], ...(saved.profile && typeof saved.profile === 'object' ? { profile: saved.profile } : {}) };
+  if (fits) return { spec: saved.spec, step: saved.step, ...(BUILD_CHOICES.includes(saved.build) ? { build: saved.build } : {}), visited: Array.isArray(saved.visited) ? saved.visited.map(String) : [], ...(saved.profile && typeof saved.profile === 'object' ? { profile: saved.profile } : {}) };
   if (raw) clearWizardDraft(key, store);
   return null;
 }
 
-export function writeWizardDraft(key, { stamp, spec, step, visited = [], profile = null }, storage) {
+export function writeWizardDraft(key, { stamp, spec, step, build = '', visited = [], profile = null }, storage) {
   const store = storageOf(storage);
   if (!key || !store) return false;
   try {
-    store.setItem(key, JSON.stringify({ version: WIZARD_DRAFT_VERSION, stamp, spec, step, visited, ...(profile ? { profile } : {}) }));
+    store.setItem(key, JSON.stringify({ version: WIZARD_DRAFT_VERSION, stamp, spec, step, ...(BUILD_CHOICES.includes(build) ? { build } : {}), visited, ...(profile ? { profile } : {}) }));
     return true;
   } catch {
     return false;

@@ -1183,8 +1183,7 @@ test('every wizard step but the App steps, Deliver with the App and where it goe
     await goToMeasureImpact(page);
     const holdout = page.getByRole('group', { name: 'Measure impact' }).getByRole('checkbox', { name: /^Hold back a share of records/ });
     await holdout.waitFor();
-    await fits('6-measure-impact');
-    await readable('measure impact');
+    // REQ-457: Measure impact is in the value dialog, not a wizard step; its fit and contrast are checked on the dialog in mvpMeasureValue.ui.test.mjs.
     await goToStep(page, 'Run it');
     await fits('6-run-it');
     await readable('run it');

@@ -439,7 +439,7 @@ export function stepHolding(part) {
 export async function onStep(page, part) {
   const label = stepHolding(part);
   try {
-    await page.locator('[aria-current="step"]', { hasText: exactly(label) }).waitFor({ timeout: 15000 });
+    await page.locator('[data-wizard-header] [aria-current="step"]', { hasText: exactly(label) }).waitFor({ timeout: 15000 });
   } catch (e) {
     await dumpFor(page, `onStep "${label}" timed out`);
     const shown = await page.locator('[role="alert"] p').allTextContents();
@@ -518,9 +518,18 @@ export async function toVibes(page) {
   await nextUntil(page, 'Vibes');
 }
 
+// REQ-457: the value dialog covers the wizard; a test that moves on closes it first (Escape), as a person would.
+export async function closeValueDialog(page) {
+  const dialog = page.getByRole('dialog', { name: 'Calculate value at stake' });
+  if (!(await dialog.count())) return;
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'detached', timeout: 15000 });
+}
+
 // The last step is Review & build in Advanced and Build in Standard (REQ-457a).
 export async function toSummary(page) {
-  await page.locator('[aria-current="step"]').waitFor({ timeout: 15000 });
+  await closeValueDialog(page);
+  await page.locator('[data-wizard-header] [aria-current="step"]').waitFor({ timeout: 15000 });
   const labels = await page.locator('[data-wizard-header] ol li').allTextContents();
   await nextUntil(page, labels.some((l) => /^\s*(\d+\.\s*)?Build\s*$/.test(l)) ? 'Build' : 'Review & build');
 }
@@ -530,6 +539,7 @@ const APP_FOLD = { 'App access': 'Who sees which rows', 'Who uses the App': 'Who
   'App features': 'What people can do', 'App pages': 'Pages', 'App look': 'App look' };
 export async function goToStep(page, part) {
   if (part === 'Measure') return openMeasureSettings(page);
+  await closeValueDialog(page);
   await goToStepOnScreen(page, part);
   if (APP_FOLD[part]) await openFolded(page, APP_FOLD[part]);
   // REQ-418: after a first version (Add/Remove/Vibe) the identity choice sits under Advanced settings, closed until opened.
@@ -541,7 +551,8 @@ export async function goToStep(page, part) {
 
 async function goToStepOnScreen(page, part) {
   const label = stepHolding(part);
-  const current = page.locator('[aria-current="step"]');
+  // REQ-457: the value dialog has its own step bar, so the wizard's current step is looked up in the wizard header only.
+  const current = page.locator('[data-wizard-header] [aria-current="step"]');
   await current.waitFor({ timeout: 15000 });
   const labels = await page.locator('[data-wizard-header] ol li').allTextContents();
   const target = labels.findIndex((l) => isStep(l, label));
@@ -802,6 +813,8 @@ export function assertOneBadgeOnDefault(shown, where, { perChoice = false } = {}
   for (const all of sets) assert.ok(all.length <= 1, `${where}: at most one Recommended badge ${perChoice ? 'on each question' : 'on the step'}, has ${JSON.stringify(all)}`);
   for (const { choice, multi, selected, badges } of shown) {
     if (!badges.length) continue;
+    // REQ-457a: How to build opens on the person's remembered choice, which may differ from the recommended one (Standard); the badge still sits on one option.
+    if (choice === 'build') continue;
     if (multi) assert.ok(selected.includes(badges[0]), `${where}: ${choice} starts with its badged option ${badges[0]} ticked, ticked ${JSON.stringify(selected)}`);
     else assert.deepEqual(selected, [badges[0]], `${where}: ${choice} starts on its badged option`);
   }
@@ -840,6 +853,9 @@ export async function goToStorage(page) {
 
 export async function onMoneyPart(page, part) {
   const current = `li[data-money-current] [data-money-part="${part}"]`;
+  // REQ-457: the dialog reopens on the part where it was left, so an earlier part is a folded line with its own Change button.
+  const folded = page.locator(`[data-money-part="${part}"] button`);
+  if (!(await page.locator(current).count()) && (await folded.count())) await folded.first().click();
   for (let i = 0; i < 5 && !(await page.locator(current).count()); i += 1) await page.locator('[data-money-next]').click();
   await page.locator(current).waitFor({ timeout: 15000 });
 }

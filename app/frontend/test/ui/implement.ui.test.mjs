@@ -74,7 +74,8 @@ function submittedSpec(made) {
 test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks the App and Genie Agent, drops the App step while the App is unticked, and All Good, Build it Now launches one run', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, policies: POLICIED_SOURCE });
   const { page, made } = ui;
-  const withApp = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Review & build'];
+  // REQ-457: How to build is step 1 and Measure is no longer a step, so the step lists and numbers changed.
+  const withApp = ['1. How to build', '2. What to deliver', '3. Data & results', '4. First run', '5. Where it lives', '6. Review & build'];
   try {
     await goToStep(page, 'Data');
     await stepsAre(page, withApp);
@@ -94,7 +95,7 @@ test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks
     assert.equal(await page.locator('[data-choice="outputs"]').evaluate((g) => [...g.querySelectorAll('[data-recommended]')].filter((b) => b.closest('[data-choice]') === g).length),
       1, 'exactly one tile is Recommended');
     await page.getByRole('checkbox', { name: /^Agentic App A Databricks/ }).uncheck();
-    await stepsAre(page, ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Review & build']);
+    await stepsAre(page, ['1. How to build', '2. What to deliver', '3. Data & results', '4. First run', '5. Review & build']);
     await page.getByRole('checkbox', { name: /^Agentic App A Databricks/ }).check();
     await stepsAre(page, withApp);
     await goToStep(page, 'Where it lives');
@@ -380,7 +381,7 @@ test('every column role starts as Inspire\'s choice, a picked column is type-che
     await page.locator('[role="alert"]').waitFor();
     assert.ok((await footerErrors(page)).some((e) => e.includes('event date main.s.orders.order_id: pick a DATE or TIMESTAMP column')),
       (await footerErrors(page)).join(' | '));
-    assert.equal(await page.locator('[aria-current="step"]').innerText(), '2. Data & results', 'a wrong type keeps the wizard on Data & results');
+    assert.equal(await page.locator('[aria-current="step"]').innerText(), '3. Data & results', 'a wrong type keeps the wizard on Data & results');
     await role('event date').selectOption('main.s.orders.order_date');
     await role('entity id').selectOption('main.s.orders.order_id');
     await role('event date').selectOption('');
@@ -525,7 +526,7 @@ test('what blocks a step shows in the footer, opens Advanced on the field to fix
     await next(page);
     await page.locator('[role="alert"]').waitFor();
     assert.deepEqual(await footerErrors(page), ['write the goal sentence', 'name the decision owner']);
-    assert.equal(await page.locator('[aria-current="step"]').innerText(), '2. Data & results', 'the goal and decision owner keep the wizard on Data & results');
+    assert.equal(await page.locator('[aria-current="step"]').innerText(), '3. Data & results', 'the goal and decision owner keep the wizard on Data & results');
     assert.equal(await page.locator('[data-use-case-drawer]').count(), 1, 'the goal and decision owner open in Details, where they are typed');
     await page.getByLabel('Goal sentence').fill('Cut churn in the top segment');
     await page.waitForFunction(() => [...document.querySelectorAll('[role="alert"] p')].length === 1);
@@ -2018,7 +2019,7 @@ test('with a Genie Code route, the wizard walks the MVP steps and no note shows'
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   try {
     await goToStep(ui.page, 'Data');
-    await stepsAre(ui.page, ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Review & build']);
+    await stepsAre(ui.page, ['1. How to build', '2. What to deliver', '3. Data & results', '4. First run', '5. Where it lives', '6. Review & build']);
     assert.equal(await ui.page.getByRole('note', { name: GENIE_CODE_OFF_TITLE }).count(), 0);
   } finally {
     await ui.close();
@@ -2168,7 +2169,8 @@ test('the Implement page groups every use case by its state, searches by name, i
     await page.getByText('Not built yet.', { exact: false }).waitFor();
     assert.equal(await page.locator('[data-asset-tiles]').count(), 0);
     await page.getByRole('button', { name: 'Start Use Case MVP with Genie' }).click();
-    await onStep(page, 'What to deliver');
+    // REQ-457: a first MVP with no remembered choice opens on How to build.
+    await onStep(page, 'How to build');
     assert.equal(await page.locator('[data-wizard-header] h2').innerText(), 'Forecast demand');
     await page.getByRole('button', { name: 'Close' }).click();
     await page.locator('[data-implement-overlay]').waitFor({ state: 'detached' });

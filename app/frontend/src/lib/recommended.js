@@ -9,7 +9,13 @@ export const RECOMMENDED = 'Recommended';
 export const STEP_BEST = {
   app_placement: ['heldApp', 'appTarget'],
   app_features: ['appOption', 'replaceEdits'],
+  how: ['build'],
 };
+
+// REQ-457a: the first step recommends the Standard build.
+export function bestBuild() {
+  return pick('standard', 'Fewest choices; every other setting uses the recommended default');
+}
 
 export function oneBestPerStep(best) {
   const out = { ...best };

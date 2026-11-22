@@ -39,7 +39,8 @@ function mountWith(state) {
 async function openMeasure(state) {
   state.puts = [];
   const ui = await openUi('wizard', ME, '', { mount: mountWith(state) });
-  await goToStep(ui.page, 'Measure');
+  // REQ-457: the value line is on the last step now, not on a Measure step.
+  await goToStep(ui.page, 'Review & build');
   const panel = ui.page.locator('[data-mvp-value]');
   await panel.waitFor({ timeout: 15000 });
   return { ui, page: ui.page, panel };
@@ -63,7 +64,7 @@ test('1: a calculated value shows the calculated box, the amount and Edit; there
   } finally { await ui.close(); }
 });
 
-test('2: Edit opens the wizard over the MVP wizard; a stubbed Save updates the box in place and the MVP wizard stays on Measure', async () => {
+test('2: Edit opens the wizard over the MVP wizard; a stubbed Save updates the box in place and the MVP wizard stays on the last step', async () => {
   const state = { answers: { [ID]: answerEntry(yearlyOf()) }, totals: totalsOf(entry('calculated', 2390000)) };
   const { ui, page, panel } = await openMeasure(state);
   try {
@@ -76,8 +77,8 @@ test('2: Edit opens the wizard over the MVP wizard; a stubbed Save updates the b
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await page.waitForFunction(() => document.querySelector('[data-mvp-value] [data-value-amount]')?.textContent.trim() === '$3M', null, { timeout: 15000 });
     assert.equal(state.puts.length, 1);
-    assert.equal(await page.locator('[data-mvp-value]').count(), 1, 'still on the Measure step, no reload');
-    assert.equal(await page.locator('[data-wizard-header] [aria-current="step"]').innerText().then((t) => /Measure/i.test(t)), true, 'the MVP wizard is still on Measure');
+    assert.equal(await page.locator('[data-mvp-value]').count(), 1, 'still on the last step, no reload');
+    assert.equal(await page.locator('[data-wizard-header] [aria-current="step"]').innerText().then((t) => /Review & build/i.test(t)), true, 'the MVP wizard is still on the last step');
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
 });

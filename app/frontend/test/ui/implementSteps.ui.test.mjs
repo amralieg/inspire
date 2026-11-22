@@ -7,7 +7,8 @@ test.after(closeBrowser);
 
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const FULL_MVP_STEPS = ['What to deliver', 'Data & results', 'First run', 'Measure', 'Where it lives', 'Review & build'];
+// REQ-457: How to build is the first step and Measure is no longer a step.
+const FULL_MVP_STEPS = ['How to build', 'What to deliver', 'Data & results', 'First run', 'Where it lives', 'Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const startButton = (page) => page.getByRole('button', { name: BUILD_IT, exact: true });
 const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\. /, ''));
@@ -67,6 +68,8 @@ test('Data & results, Run it and App show the business settings and keep the tec
     for (const label of ['Share of records held back', 'Cron (Quartz)']) await hidden(label);
     await page.getByRole('button', { name: 'Change hold back share', exact: true }).click();
     await shown('Share of records held back');
+    // REQ-457: the measure settings are in the value dialog now; close it before leaving for another step.
+    await page.keyboard.press('Escape');
     await goToStep(page, 'Run it');
     await openFolded(page, 'Schedule');
     await page.getByRole('button', { name: 'Change schedule', exact: true }).click();

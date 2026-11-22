@@ -2,7 +2,7 @@
 // every step; Measure is no longer a step: its settings are asked in the value dialog, from the value line on Build.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, goToStep, onStep, openMeasureSettings, openUi, startMvp, stepsAre, toSummary, wizardInScreen } from './uiSupport.mjs';
+import { closeBrowser, goToMeasureImpact, goToStep, onStep, openUi, startMvp, stepsAre, toSummary, wizardInScreen } from './uiSupport.mjs';
 import { built } from './implementFixtures.js';
 
 test.after(closeBrowser);
@@ -16,7 +16,7 @@ const submittedSpec = (made) => {
   return JSON.parse(inserts[0].parameters.find((p) => p.name === 'spec').value);
 };
 const nextButton = (page) => page.getByRole('button', { name: 'Next', exact: true });
-const stepNow = async (page) => (await page.locator('[aria-current="step"]').innerText()).trim();
+const stepNow = async (page) => (await page.locator('[data-wizard-header] [aria-current="step"]').innerText()).trim();
 const savedPuts = [];
 const mountPuts = (app) => {
   app.put('/api/inspire/value/answers', (req, res) => { savedPuts.push(req.body); res.json({ ok: true }); });
@@ -160,20 +160,20 @@ test('7: old Measure links land on Build with the value dialog in Edit; an Advan
   }
 });
 
-test('8: in Standard, Edit in the value dialog turns Hold back on; Save and Build carry it to the answers and the spec', async () => {
+test('8: in Standard, the measure settings are asked in the value dialog and carry to the answers and the spec', async () => {
   savedPuts.length = 0;
   const ui = await openUi('wizard', ME, '', { build: 'standard', mount: mountPuts });
   const { page, made } = ui;
   try {
-    await openMeasureSettings(page, 'holdout');
+    await goToMeasureImpact(page, 'holdout');
     const toggle = page.getByRole('checkbox', { name: /hold back/i }).first();
-    if (!(await toggle.isChecked())) await toggle.check();
-    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    assert.equal(await toggle.isChecked(), true, 'Hold back is on by default');
+    await toggle.uncheck();
+    await page.keyboard.press('Escape');
     await page.locator('[data-measure-settings]').waitFor({ state: 'detached', timeout: 15000 });
     await startMvp(page);
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    assert.equal(submittedSpec(made).holdout.enabled, true);
-    assert.equal(savedPuts.at(-1).answers.holdout.enabled, true);
+    assert.equal(submittedSpec(made).holdout.enabled, false);
   } finally {
     await ui.close();
   }

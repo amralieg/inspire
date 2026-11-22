@@ -1,7 +1,7 @@
 // REQ-265 (D-AUTO close the gains-without-sign risk): Gains only with no sign picked stops the build with a plain reason on Measure.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, goToStep, onMoneyPart, openUi, profileAt, stubMoney as stub } from './uiSupport.mjs';
+import { closeBrowser, closeValueDialog, goToStep, onMoneyPart, openMeasureSettings, openUi, toSummary, profileAt, stubMoney as stub } from './uiSupport.mjs';
 import { MONEY_PROFILE } from './implementFixtures.js';
 
 test.after(closeBrowser);
@@ -25,13 +25,16 @@ test('REQ-265: Gains only with no sign stops the build, names the reason in plai
     await page.locator('input[name="measure-direction"][data-money-rule-kind="gains"]').check({ force: true });
     await page.locator('[data-money-next]').click();
     await onMoneyPart(page, 'sign');
-    // Walk the Measure decisions to the end, then press the step's Next: the step refuses to go on and names the reason.
+    // Walk the Measure decisions to the end, then close the value dialog (REQ-457: Measure is not a step): the last step names the reason.
     for (let i = 0; i < 10 && await page.locator('[data-money-next]').count(); i += 1) await page.locator('[data-money-next]').first().click();
-    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await closeValueDialog(page);
+    await toSummary(page);
+    await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await page.getByText(REASON).first().waitFor({ timeout: 15000 });
     assert.equal(await page.getByText(REASON).first().isVisible(), true, 'the build refuses with the plain reason on screen');
-    assert.equal(await page.locator('[data-build-now]').isDisabled(), true, 'the build button is off while the sign is missing (must-exclude)');
-    await onMoneyPart(page, 'sign');
+    // REQ-457: Build is on the last step now, so the refusal is the build not starting (no job), not a disabled Build-now button.
+    assert.equal(ui.made.jobs.length, 0, 'no build starts while the sign is missing (must-exclude)');
+    await openMeasureSettings(page, 'sign');
     await page.locator('[data-money-sign-kind="status"]').check();
     await page.locator('[data-money-sign-status-column]').fill('channel');
     await page.locator('[data-money-sign-value]').fill('gain');

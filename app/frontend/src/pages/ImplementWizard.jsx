@@ -4,6 +4,8 @@ import { withStartDeadline } from '../lib/startDeadline';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { moneyPartsOf } from '../lib/moneyParts.js';
+import { measureAnswersOf, measureRows, specWithMeasure } from '../lib/measureSettings.js';
+import BuildChoice from '../components/BuildChoice';
 import { fetchSavedAnswers } from '../lib/calculatedValue';
 import { defaultMoneyRule, moneySummaryOf } from '../lib/moneyDefaults.js';
 import { valueEstimateOf } from '../lib/v130UseCase.js';
@@ -42,7 +44,7 @@ import {
   ownSchemaFallbackNote,
   ownSchemaGrantPermission,
   ownSchemaPickPermission,
-  defaultSpecFromUseCase,
+  defaultSpecFromUseCase, NO_SCOPE_STEPS,
   specFromLatest,
   tablesOf,
   primaryTableOf,
@@ -88,7 +90,7 @@ import {
   appRenamedText,
   widgetValueProblem,
   profileFieldProblem,
-  initialStepId,
+  initialStepId, BUILD_ADVANCED, BUILD_STANDARD, buildOfFocus, opensOnImpact,
   MEASURE_IMPACT_PARTS, impactPartOf, impactPartSummary,
   stepIndexOf,
   lostTablesText,
@@ -262,7 +264,6 @@ import {
   rebuildNeedsChoice,
   APP_BACKEND_GUIDE,
   PER_USER_GUIDE,
-  MEASURE_LABEL,
   withMoneyRule,
   BUILD_IT_LABEL,
   mergeSwaps,
@@ -274,7 +275,7 @@ import {
 } from '../lib/implementWizard';
 import { raisePermissions } from '../lib/permissionBus';
 import {
-  bestAppAccess, bestAppBackend, bestHeldApp, bestAppOption, bestAppPolicy, bestAppTarget, bestFreshness, bestHoldout, bestKpi, bestLook,
+  bestBuild, bestAppAccess, bestAppBackend, bestHeldApp, bestAppOption, bestAppPolicy, bestAppTarget, bestFreshness, bestHoldout, bestKpi, bestLook,
   bestOutput, bestReplaceEdits, isBest,
   bestResultPlace, oneBestPerStep, resultPlaceBlocks,
 } from '../lib/recommended';
@@ -303,7 +304,7 @@ import SamplesCopyOffer from '../components/SamplesCopyOffer';
 import { samplesTarget, validCopyTarget } from '../lib/samplesCopy';
 import { useModal } from '../components/useModal';
 import MvpValuePanel from '../components/MvpValuePanel';
-import { DRAFT_BACK_NOTE, DRAFT_START_OVER, clearWizardDraft, readWizardDraft, draftStampOf, wizardDraftKey, writeWizardDraft } from '../lib/wizardDraft';
+import { DRAFT_BACK_NOTE, DRAFT_START_OVER, clearWizardDraft, readBuildChoice, readWizardDraft, writeBuildChoice, draftStampOf, wizardDraftKey, writeWizardDraft } from '../lib/wizardDraft';
 import {
   FIRST_RUN_TITLE, FIRST_RUN_LABEL, GROUPING_EXAMPLE, GROUPING_PICK, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isFirstRunSetting, isGroupingSetting, isScopeSetting,
   latestRunScope, scopeChanges, scopeStepsOf, scopeValues,
@@ -467,7 +468,15 @@ export default function ImplementWizard({
   const warehouseId = settings.warehouseId;
   const inspireDatabase = settings.inspireDatabase;
   const [mode, setMode] = useState('mvp');
-  const [step, setStep] = useState(() => initialStepId(focus));
+  // REQ-457a: the choice made on the first step is remembered per use case; Standard is the default, a focus on an Advanced-only step needs Advanced.
+  const remembered = useRef(null);
+  if (remembered.current === null) {
+    const first = defaultSpecFromUseCase(uc, { warehouseId, inspireDatabase, sessionId });
+    remembered.current = { ctx: { host: settings.databricksHost, inspireDatabase, sessionId, useCaseId: first.use_case_id } };
+    remembered.current.choice = readBuildChoice(remembered.current.ctx);
+  }
+  const [build, setBuild] = useState(() => buildOfFocus(focus) || remembered.current.choice || BUILD_STANDARD);
+  const [step, setStep] = useState(() => (focus?.step ? initialStepId(focus, 'mvp', null, { ...NO_SCOPE_STEPS, build }) : remembered.current.choice ? 'delivery' : 'how'));
   const [backToSummary, setBackToSummary] = useState(false);
   const [visited, setVisited] = useState([]);
   const [spec, setSpec] = useState(() => defaultSpecFromUseCase(uc, { warehouseId, inspireDatabase, sessionId }));
@@ -479,7 +488,10 @@ export default function ImplementWizard({
   const [advanced, setAdvanced] = useState({ data: false, results: false, fresh: false, delivery: false, app_place: false, app_access: false, app_options: false, app_pages: false, summary: false });
   const [details, setDetails] = useState(false);
   const [moneyPart, setMoneyPart] = useState(0);
-  const openOnImpact = useRef(impactPartOf(focus));
+  // REQ-457: an old Measure link opens the value dialog on Build with the section in Edit, on the part it names.
+  const MEASURE_LINKS = ['measure', 'stake', 'money'];
+  const [measureOpen, setMeasureOpen] = useState(() => (MEASURE_LINKS.includes(focus?.step) || opensOnImpact(focus) ? impactPartOf(focus) || 'method' : ''));
+  const [measureKey, setMeasureKey] = useState(0);
   const [lookView, setLookView] = useState({ tab: 'style', page: 'fix' });
   const toggleAdvanced = (id) => setAdvanced((prev) => ({ ...prev, [id]: !prev[id] }));
   const [columnsByTable, setColumnsByTable] = useState({});
@@ -597,7 +609,7 @@ export default function ImplementWizard({
   const settingsList = useMemo(() => settingsFor(scopeSteps, profileRead), [settingsFor, scopeSteps.grouping, scopeSteps.firstRun, profileRead]); // eslint-disable-line react-hooks/exhaustive-deps
   // REQ-418: the identity choice shows for a source with a row filter or column mask, and under Advanced settings once the App is built (editing).
   const policied = (context?.app_policy_tables || []).length > 0;
-  const stepScope = useMemo(() => ({ ...scopeSteps, settings: settingsList.length > 0, policied, editing: Boolean(context?.latest) }), [scopeSteps.grouping, scopeSteps.firstRun, settingsList.length, policied, context?.latest]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stepScope = useMemo(() => ({ ...scopeSteps, settings: settingsList.length > 0, policied, editing: Boolean(context?.latest), build }), [scopeSteps.grouping, scopeSteps.firstRun, settingsList.length, policied, context?.latest, build]); // eslint-disable-line react-hooks/exhaustive-deps
   const steps = wizardSteps(mode, spec, stepScope);
   const stepIndex = stepIndexOf(steps, step);
   const stepId = steps[stepIndex].id;
@@ -655,14 +667,16 @@ export default function ImplementWizard({
       if (prev.money) return prev;
       const money = answers?.money || defaultMoneyRule(scopeProfile.profile, Boolean(valueEstimateOf(uc)));
       const next = withMoneyRule(prev, money);
-      return !kpiTargetOf(next) && answers?.kpi?.name ? withKpiTarget(next, answers.kpi.name) : next;
+      const withKpi = !kpiTargetOf(next) && answers?.kpi?.name ? withKpiTarget(next, answers.kpi.name) : next;
+      // REQ-457: the saved hold-back lands in the build spec the same way, when the spec has none.
+      return !withKpi.holdout && answers?.holdout ? { ...withKpi, holdout: answers.holdout } : withKpi;
     });
   }, [mode, spec.money, scopeProfile.state, scopeProfile.profile, saved, uc]);
+  // The part a link opens the value dialog on: the money decision to show first (the dialog's editor clears the link once it has mounted).
   useEffect(() => {
-    if (steps[stepIndex].id !== 'stake') return;
-    setMoneyPart(Math.max(0, moneyParts.indexOf(openOnImpact.current)));
-    openOnImpact.current = null;
-  }, [stepIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!measureOpen) return;
+    setMoneyPart(Math.max(0, moneyParts.indexOf(measureOpen === 'impact' ? 'kpi' : measureOpen)));
+  }, [measureOpen, measureKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const resultsOn = shows('results');
   useEffect(() => {
     if (!context || !scopeSteps.grouping || context.latest || groupingDefaulted.current) return;
@@ -773,7 +787,11 @@ export default function ImplementWizard({
         if (!next.config.warehouse_id) next.config.warehouse_id = warehouseId;
         setSpec(next);
         setMissingTables(missing);
-        if (['review', 'summary', 'vibes', 'settings', 'app', 'app_pages', 'app_place', 'app_access', 'app_features', 'app_storage', 'app_look', 'run', 'measure', 'fresh'].includes(focus?.step)) setStep(initialStepId(focus, 'mvp', next));
+        const focusBuild = buildOfFocus(focus) || remembered.current.choice || BUILD_STANDARD;
+        const loadScope = { ...NO_SCOPE_STEPS, editing: Boolean(data.latest), build: focusBuild };
+        if (['review', 'summary', 'vibes', 'settings', 'app', 'app_pages', 'app_place', 'app_access', 'app_features', 'app_storage', 'app_look', 'run', 'measure', 'stake', 'money', 'fresh'].includes(focus?.step) || opensOnImpact(focus)) setStep(initialStepId(focus, 'mvp', next, loadScope));
+        // A remembered Standard choice while changing a built use case goes straight to Build.
+        else if (!focus?.step && remembered.current.choice === BUILD_STANDARD && data.latest) setStep(SUMMARY_STEP.id);
         loadedSpec.current = next;
         draftStamp.current = draftStampOf(data.use_case, data.latest);
         const draft = readWizardDraft(draftKey, draftStamp.current);
@@ -782,7 +800,9 @@ export default function ImplementWizard({
           accessDefaulted.current = true;
           setSpec(draft.spec);
           if (draft.spec.outputs?.app) setPlaceSet('person');
-          if (!focus?.step) setStep(draft.step);
+          // A draft from before REQ-457 has no choice and may hold a Measure step: its Advanced-only step needs Advanced, Measure is now Build.
+          setBuild(draft.build || buildOfFocus({ step: draft.step }) || remembered.current.choice || BUILD_STANDARD);
+          if (!focus?.step) setStep(draft.step === 'stake' ? SUMMARY_STEP.id : draft.step);
           setVisited(draft.visited);
           setDraftBack(true);
         }
@@ -842,8 +862,8 @@ export default function ImplementWizard({
 
   useEffect(() => {
     if (loading || !touched.current || !draftStamp.current) return;
-    writeWizardDraft(draftKey, { stamp: draftStamp.current, spec, step, visited });
-  }, [loading, draftKey, spec, step, visited]);
+    writeWizardDraft(draftKey, { stamp: draftStamp.current, spec, step, build, visited });
+  }, [loading, draftKey, spec, step, build, visited]);
 
   useEffect(() => {
     bodyRef.current?.scrollTo?.(0, 0);
@@ -991,12 +1011,22 @@ export default function ImplementWizard({
     }
   };
 
+  // REQ-457a: the choice is written when the first step is left and on every switch.
+  const chooseBuild = (value) => {
+    setBuild(value);
+    remembered.current.choice = value;
+    writeBuildChoice(remembered.current.ctx, value);
+  };
+  const standard = build === BUILD_STANDARD;
+
   const goNext = async () => {
     setErrors([]);
-    if (stepId === 'stake' && moneyActive < moneyParts.length - 1) { setMoneyPart(moneyActive + 1); return; }
+    if (stepId === 'how') writeBuildChoice(remembered.current.ctx, build);
+    if (stepId === 'how') remembered.current.choice = build;
     const folds = steps[stepIndex].panels;
     // Back to Summary leaves the step at once: the folds it still has are reached from Summary's Change links.
-    if (folds.length > 1 && !backToSummary && foldActive !== folds[folds.length - 1]) {
+    // Standard Look leaves in one Next (REQ-457a: What, Look, Build is three Nexts); blockedBy below still checks every Look section.
+    if (folds.length > 1 && !backToSummary && !(standard && stepId === 'where') && foldActive !== folds[folds.length - 1]) {
       const sectionProblems = (PANEL_SECTIONS[foldActive] || []).flatMap((section) => sectionErrors(section, spec, extras));
       // The footer lists the step's problems live once the step is attempted, so a fixed field clears its line.
       if (sectionProblems.length) { revealProblems(stepId); setAttempted((prev) => ({ ...prev, [stepId]: true })); return; }
@@ -1017,8 +1047,11 @@ export default function ImplementWizard({
     }
     try {
       // The data fold counted the scope when it folded; the results fold cannot change it, so leaving from there counts nothing.
-      if (stepId === 'data' && foldActive !== 'results') await countDataScope();
-      if (resultsOn && resultPlace === 'own') {
+      // Standard has no Data step: leaving What does what leaving Data does in Advanced, so both choices build the same spec.
+      const leavesData = (stepId === 'data' && foldActive !== 'results') || (standard && stepId === 'delivery');
+      if (leavesData) await countDataScope();
+      const resultsLeaving = resultsOn || (standard && stepId === 'delivery');
+      if (resultsLeaving && resultPlace === 'own') {
         const own = resultTableParts(ownTable);
         setSchemaJob({ state: 'running', text: `Creating the use case schema ${own.catalog}.${own.schema} in the background. You can keep going; Build waits for it.` });
         apiPostJson(`/api/inspire/implement/create-schema?${q}`, {
@@ -1039,7 +1072,7 @@ export default function ImplementWizard({
           setOutputCheck(null);
           setSchemaJob({ state: 'failed', text: `${ownSchemaFallbackNote(own.catalog, context?.me?.username)} ${failureReasonOf(e)}` });
         });
-      } else if (resultsOn) {
+      } else if (resultsLeaving) {
         setChecking('Checking you can write the result table');
         writeCheckRun.current = true;
         const check = await apiFetch(outputCheckPath(), { raise: false }).catch((e) => {
@@ -1056,15 +1089,15 @@ export default function ImplementWizard({
       }
       let list = steps;
       let profile = scopeProfile.profile;
-      if (stepId === 'data' && scopeProfile.state === 'loading') {
+      if ((stepId === 'data' || (standard && stepId === 'delivery')) && scopeProfile.state === 'loading') {
         setChecking(PROFILE_WAITING);
         const done = await scopeProfile.wait();
         const doneSteps = scopeStepsOf(done.state, done.profile, ranBefore);
-        list = wizardSteps(mode, spec, { ...doneSteps, settings: settingsFor(doneSteps, done.state === 'ready').length > 0 });
+        list = wizardSteps(mode, spec, { ...doneSteps, settings: settingsFor(doneSteps, done.state === 'ready').length > 0, policied, editing: Boolean(context?.latest), build });
         profile = done.profile;
       }
       const next = list[stepIndexOf(list, nextStepAfter(list, stepId, { backToSummary, visited }))];
-      if (next.id === 'first_run') setSpec((prev) => withProfileDefaults(prev, profile));
+      if (next.id === 'first_run' || (standard && stepId === 'delivery')) setSpec((prev) => withProfileDefaults(prev, profile));
       setStep(next.id);
     } catch (e) {
       setErrors([e.message]);
@@ -1307,7 +1340,7 @@ export default function ImplementWizard({
     setPlaceSet('');
     setVisited([]);
     if (loadedSpec.current) setSpec(loadedSpec.current);
-    setStep(initialStepId(focus, 'mvp', loadedSpec.current));
+    setStep(focus?.step ? initialStepId(focus, 'mvp', loadedSpec.current, stepScope) : remembered.current.choice ? 'delivery' : 'how');
   };
 
   const submit = async () => {
@@ -1485,6 +1518,7 @@ export default function ImplementWizard({
     || (lastStep && accessVerdict !== 'ok' && accessVerdict !== 'refused');
   const palette = (look?.palette_colors || []).find((p) => p.id === spec.outputs.app_look.palette) || null;
   const best = oneBestPerStep({
+    build: bestBuild(),
     output: bestOutput(blocks),
     result: bestResultPlace(placeBlocks, ownSchema?.catalog || resultTableParts(ownTable).catalog),
     freshness: bestFreshness(spec),
@@ -1506,8 +1540,19 @@ export default function ImplementWizard({
     firstRun: scopeSteps.firstRun ? firstRunSummaryText(scopedFirstRun?.state === 'ready' ? scopedFirstRun.profile : scopedProfile, sentScope) : '',
     settings: settingsList.length ? counted(settingsList.length, 'setting') : '',
     dropped: dropped.filter((d) => !spec.outputs[d.id]),
-  }).filter((row) => steps.some((s) => s.id === row.step));
-  const changeStep = (id, part) => { setErrors([]); setBackToSummary(true); openOnImpact.current = MEASURE_IMPACT_PARTS.includes(part) ? part : null; setStep(id); };
+  });
+  const hiddenRow = (row) => !steps.some((x) => x.id === row.step);
+  // A row of a step Standard does not show: its blocking errors, named on the row, from the same step in Advanced.
+  const hiddenErrors = (row) => (hiddenRow(row) ? stepErrors(row.step, spec, { ...extras, scopeSteps: { ...stepScope, build: BUILD_ADVANCED } }, mode) : []);
+  const openMeasure = (part) => { setMoneyPart(Math.max(0, moneyParts.indexOf(part))); setMeasureOpen(part); setMeasureKey((n) => n + 1); };
+  const changeStep = (id, part) => {
+    setErrors([]);
+    if (MEASURE_IMPACT_PARTS.includes(part)) { openMeasure(part); return; }
+    setBackToSummary(true);
+    setStep(id);
+  };
+  // "Change in Advanced": switch to Advanced, keep every choice, and open the step the row belongs to.
+  const changeInAdvanced = (row) => { chooseBuild(BUILD_ADVANCED); changeStep(row.step, row.part); };
   const nextIsSummary = backToSummary && nextStepAfter(steps, stepId, { backToSummary, visited }) === SUMMARY_STEP.id;
 
   const copySamples = async () => {
@@ -1846,6 +1891,8 @@ export default function ImplementWizard({
           </>
         )}
 
+        {stepId === 'how' && mode === 'mvp' && <BuildChoice build={build} onChange={chooseBuild} best={best.build} />}
+
         {stepId === 'delivery' && mode === 'mvp' && (
           <>
             <section className="space-y-2" aria-label={DELIVERY_LABEL}>
@@ -1934,8 +1981,15 @@ export default function ImplementWizard({
                         <p className="ps-7 text-[11px] text-text-secondary">
                           {(spec.outputs.alert_recipients || []).length
                             ? `Emails ${spec.outputs.alert_recipients.join(', ')} when ${alertTriggerText(spec.outputs)}.`
-                            : 'Nobody gets it yet: add an email under Change delivery settings.'}
+                            : standard ? 'Nobody gets it yet: add an email below.' : 'Nobody gets it yet: add an email under Change delivery settings.'}
                         </p>
+                      )}
+                      {on && item.id === 'alert' && standard && (
+                        <div className="ps-7">
+                          <Field label="Email recipients (comma separated)">
+                            <ListInput className={inputCls} separator="," value={spec.outputs.alert_recipients} onChange={(list) => patch('outputs.alert_recipients', list)} />
+                          </Field>
+                        </div>
                       )}
                       {on && item.id === 'alert' && <DigestChoice outputs={spec.outputs} onChange={(checked) => setSpec((prev) => withDigest(prev, checked))} />}
                       {tileChecks.map(([k, v]) => <div key={k} className="ps-7"><CheckLine check={v} label={PREFLIGHT_LABELS[k] || k} /></div>)}
@@ -1955,7 +2009,7 @@ export default function ImplementWizard({
             </section>
 
 
-            {['dashboard', 'genie_space', 'app', 'alert'].some((o) => spec.outputs[o]) && (
+            {!standard && ['dashboard', 'genie_space', 'app', 'alert'].some((o) => spec.outputs[o]) && (
               <Advanced open={advanced.delivery} onToggle={() => toggleAdvanced('delivery')} what="delivery settings" summary="Dashboard name and filters, Genie Agent, App and alert recipients">
                 {spec.outputs.dashboard && (
                   <div className="space-y-2">
@@ -2088,19 +2142,6 @@ export default function ImplementWizard({
           </>
         )}
 
-        {shows('stake') && (
-          <section className="space-y-3" aria-label={MEASURE_LABEL}>
-            <div>
-              <h3 className="text-sm font-semibold text-text-primary">Value at stake</h3>
-              <p className="text-[11px] text-text-secondary">{`Each record is counted in the ${stakeWords(sampleStake)}. Optional: the default already counts it, so Next moves on. Open a section to change it.`}</p>
-            </div>
-            {moneyActive === 0 && <MvpValuePanel uc={uc} sessionId={sessionId} settings={settings} apiFetch={apiFetch} apiPostJson={apiPostJson} />}
-            <StakeQuestions spec={spec} setSpec={setSpec} moneyParts={moneyParts} moneyActive={moneyActive} setMoneyPart={setMoneyPart}
-              profile={scopeProfile.profile} moneyApi={moneyApi.current} kpiOptions={kpiOptions} trackedKpi={trackedKpi} best={best}
-              before={context?.latest ? kpiTargetOf(context.latest.spec_json) : null} />
-          </section>
-        )}
-
         {spec.outputs.app && foldLine('app_place', 'Where it lives', spec.outputs.app_name || 'not named yet')}
         {shows('app_place') && spec.outputs.app && isOpenSection('app_place') && (
           <AppPlacementStep
@@ -2205,6 +2246,12 @@ export default function ImplementWizard({
               <p className="text-[11px] text-text-secondary">{readinessText(readiness, readiness.scope)}</p>
             )}
             <p data-built-sentence="" className="text-sm font-semibold text-text-primary">{builtSentence(spec)}</p>
+            <MvpValuePanel key={measureKey} uc={uc} sessionId={sessionId} settings={settings} apiFetch={apiFetch} apiPostJson={apiPostJson}
+              measure={{ rows: measureRows(spec), values: measureAnswersOf(spec), open: measureOpen,
+                onKeep: (snapshot) => setSpec((prev) => specWithMeasure(prev, snapshot)),
+                editor: <><Spent onMount={() => setMeasureOpen('')} /><StakeQuestions spec={spec} setSpec={setSpec} moneyParts={moneyParts} moneyActive={moneyActive} setMoneyPart={setMoneyPart}
+                  profile={scopeProfile.profile} moneyApi={moneyApi.current} kpiOptions={kpiOptions} trackedKpi={trackedKpi} best={best}
+                  before={context?.latest ? kpiTargetOf(context.latest.spec_json) : null} /></> }} />
             {shows('vibes') && (
               <VibesPanel spec={spec} built={built} live={liveFor} next={(context?.latest?.spec_version ?? 0) + 1} blocks={blocks} onChange={(value) => patch('vibes', value)}
                 onPrevious={(choice) => patch('vibe_previous', choice)} />
@@ -2214,9 +2261,14 @@ export default function ImplementWizard({
                 {summaryRows.map((row) => (
                   <div key={row.id} data-picked-row={row.id} className="contents">
                     <dt className="text-text-tertiary">{row.label}</dt>
-                    <dd data-picked-value="" className="text-text-primary break-words">{row.value}</dd>
+                    <dd data-picked-value="" className="text-text-primary break-words">
+                      {row.value}
+                      {hiddenErrors(row).map((e, i) => <span key={i} data-picked-error="" className="block text-error-fg">{e}</span>)}
+                    </dd>
                     <dd>
-                      {row.step !== SUMMARY_STEP.id && <button type="button" data-picked-change={row.step} className="text-[11px] font-medium text-db-red-fg hover:underline glow-focus outline-offset-2"
+                      {hiddenRow(row) ? <button type="button" data-picked-advanced={row.step} className="text-[11px] font-medium text-db-red-fg hover:underline glow-focus outline-offset-2"
+                        aria-label={`Change ${row.label} in Advanced`} onClick={() => changeInAdvanced(row)}>Change in Advanced</button>
+                      : (row.step !== SUMMARY_STEP.id || row.part) && <button type="button" data-picked-change={row.step} className="text-[11px] font-medium text-db-red-fg hover:underline glow-focus outline-offset-2"
                         aria-label={`Change ${row.label}`} onClick={() => changeStep(row.step, row.part)}>Change</button>}
                     </dd>
                   </div>
@@ -2404,7 +2456,7 @@ export default function ImplementWizard({
             type="button"
             className={`inline-flex items-center gap-1 text-xs text-text-secondary ${stepIndex === 0 ? 'invisible' : ''}`}
             disabled={stepIndex === 0 || busy}
-            onClick={() => { setErrors([]); if (stepId === 'stake' && moneyActive > 0) setMoneyPart(moneyActive - 1); else if (foldPanels.indexOf(foldActive) > 0) openFoldSection(foldPanels[foldPanels.indexOf(foldActive) - 1]); else setStep(steps[stepIndex - 1].id); }}
+            onClick={() => { setErrors([]); if (foldPanels.indexOf(foldActive) > 0) openFoldSection(foldPanels[foldPanels.indexOf(foldActive) - 1]); else setStep(steps[stepIndex - 1].id); }}
           >
             <ChevronLeft size={14} /> Back
           </button>
@@ -2421,13 +2473,13 @@ export default function ImplementWizard({
                 {accessVerdict === 'pending' ? ACCESS_CHECKING : ''}
               </p>
             )}
-            {mode === 'mvp' && stepIndex > 0 && !lastStep && sourceAccessRefused && (
+            {mode === 'mvp' && stepId !== 'how' && !lastStep && sourceAccessRefused && (
               <p data-source-refused="" className="text-[11px] text-warning-fg">{refusedFooterText}</p>
             )}
-            {mode === 'mvp' && stepIndex > 0 && !lastStep && !sourceAccessRefused && defaultsLine && (
+            {mode === 'mvp' && !standard && stepIndex > 1 && !lastStep && !sourceAccessRefused && defaultsLine && (
               <p data-build-defaults="" className="text-[11px] text-text-secondary">{defaultsLine}</p>
             )}
-            {mode === 'mvp' && stepIndex > 0 && !lastStep && !sourceAccessRefused && (
+            {mode === 'mvp' && !standard && stepIndex > 1 && !lastStep && !sourceAccessRefused && (
               <button type="button" data-build-now="" disabled={implementBlocked || steps.some((x) => stepErrors(x.id, spec, extras, mode).length > 0)} onClick={submit}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-db-red-fg border border-db-red/50 disabled:opacity-50">
                 {BUILD_NOW_LABEL}
@@ -2894,6 +2946,12 @@ function ResultTableStep({ table, ownTable, inspireTable, place, note = '', outp
 
 // REQ-432: the Value at stake questions, one decision at a time. The Build wizard and the Calculate dialog on a use case card both
 // render this one component, so the two never ask different questions. `profile` is the table profile (money sample, columns).
+// Runs once when it mounts: the value dialog's editor uses it to spend the link that opened the dialog in Edit.
+function Spent({ onMount }) {
+  useEffect(() => { onMount(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
+
 export function StakeQuestions({ spec, setSpec, moneyParts, moneyActive, setMoneyPart, profile = null, moneyApi = {}, kpiOptions = [], trackedKpi = null, best = {}, before = null }) {
   return (
   <ol aria-label="Money decisions" className="space-y-2">

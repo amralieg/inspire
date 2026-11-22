@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assertOneBadgeOnDefault, choicesShown, closeBrowser, goToMeasureImpact, goToStep, onStep, openFolded, openRow, openUi, settleChoices, POLICIED_SOURCE } from './uiSupport.mjs';
-import { APP_LOOK_TABS, MEASURE_LABEL, WHERE_LABEL } from '../../src/lib/implementWizard.js';
+import { APP_LOOK_TABS, SUMMARY_STEP, WHERE_LABEL } from '../../src/lib/implementWizard.js';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const DATED = [{ column_name: 'order_id', data_type: 'STRING', ordinal_position: 1 }, { column_name: 'order_date', data_type: 'DATE', ordinal_position: 2 }];
@@ -12,7 +12,8 @@ async function auditEveryStep(page, { look = true } = {}) {
   const seen = new Set();
   const labels = (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\.\s*/, '').trim());
   // Measure impact is two decisions on two screens, so the audit visits both (kpi, then holdout).
-  const visits = labels.flatMap((label) => (label === MEASURE_LABEL ? [[label, 'kpi'], [label, 'holdout']] : [[label, null]]));
+  // REQ-457: they now sit in the value dialog opened from the last step, so the last step is the one that visits them.
+  const visits = labels.flatMap((label) => (label === SUMMARY_STEP.label ? [[label, null], [label, 'kpi'], [label, 'holdout']] : [[label, null]]));
   for (const [label, impact] of visits) {
     await goToStep(page, label);
     if (impact) await goToMeasureImpact(page, impact);

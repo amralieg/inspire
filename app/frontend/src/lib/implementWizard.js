@@ -29,7 +29,6 @@ export const NOTEBOOK_MODE_LABEL = 'I will build it myself';
 export const DELIVERY_LABEL = 'What to deliver';
 export const WHERE_LABEL = 'Where it lives';
 export const DATA_RESULTS_LABEL = 'Data & results';
-export const MEASURE_LABEL = 'Measure';
 export const DELIVERY_QUESTION = 'How will people use this use case?';
 export const BUILD_IT_LABEL = 'All Good, Build it Now';
 export const BACK_TO_SUMMARY = 'Back to Summary';
@@ -49,7 +48,13 @@ const DATA_STEP = { id: 'data', label: DATA_RESULTS_LABEL, sections: ['use_case'
 export const GROUPING_STEP = { id: 'grouping', label: 'Data groups', sections: ['grouping'], advanced: [], panels: ['grouping'] };
 // REQ-265: Gains only needs a sign, which is its own Measure screen; a Gains rule with no sign stops the build with this line.
 export const GAINS_SIGN_NEEDED = 'Gains only needs a sign: name the column whose positive values are gains, or the status value that marks a gain.';
-export const MEASURE_STEP = { id: 'stake', label: MEASURE_LABEL, sections: ['money', 'kpi', 'holdout'], advanced: [], panels: ['stake'] };
+// REQ-457 REQ-457a: the first step chooses how the App is built. Standard is What, Look, Build; Advanced keeps every step. Measure is no longer a step:
+// its settings are asked in the value dialog and checked on the last step.
+export const BUILD_STANDARD = 'standard';
+export const BUILD_ADVANCED = 'advanced';
+export const HOW_STEP = { id: 'how', label: 'How to build', sections: [], advanced: [], panels: ['how'] };
+export const BUILD_QUESTION = 'How should I build the App?';
+export const ADVANCED_ONLY_STEPS = ['data', 'grouping', 'first_run'];
 // Measure impact is two decisions, one per screen: the target KPI, then the hold-back (on or off, and its share).
 export const MEASURE_IMPACT_PARTS = ['kpi', 'holdout'];
 // The link key for the whole impact screen (old links and the Measure impact rows open its first decision).
@@ -70,7 +75,7 @@ export const IMPLEMENT_STEPS = [DELIVERY_STEP, DATA_STEP];
 export const APP_STORAGE_LABEL = 'Page storage';
 export const WIZARD_STEPS_MAX = 10;
 
-export const SUMMARY_STEP = { id: 'summary', label: 'Review & build', sections: ['vibes'], advanced: [], panels: ['summary', 'vibes'] };
+export const SUMMARY_STEP = { id: 'summary', label: 'Review & build', sections: ['vibes', 'money', 'kpi', 'holdout'], advanced: [], panels: ['summary', 'vibes'] };
 
 // The first run starts the build, so its schedule sits here too (default: run once now).
 export const FIRST_RUN_STEP = { id: 'first_run', label: 'First run', sections: ['first_run', 'fresh', 'schedule'], advanced: ['fresh', 'schedule'], panels: ['first_run', 'fresh', 'schedule'] };
@@ -86,9 +91,9 @@ export const NOTEBOOK_STEPS = [
 ];
 
 const STEP_ALIASES = {
-  use_case: DATA_STEP.id, choose: DATA_STEP.id, review: SUMMARY_STEP.id, measure: MEASURE_STEP.id, vibes: SUMMARY_STEP.id,
+  use_case: DATA_STEP.id, choose: DATA_STEP.id, review: SUMMARY_STEP.id, measure: SUMMARY_STEP.id, impact: SUMMARY_STEP.id, stake: SUMMARY_STEP.id, kpi: SUMMARY_STEP.id, holdout: SUMMARY_STEP.id, money: SUMMARY_STEP.id, vibes: SUMMARY_STEP.id,
   settings: SUMMARY_STEP.id, app_place: WHERE_STEP.id, app_access: WHERE_STEP.id, app_features: WHERE_STEP.id, app_experience: WHERE_STEP.id, app_storage: WHERE_STEP.id, app_look: WHERE_STEP.id, app: WHERE_STEP.id,
-  results: DATA_STEP.id, app_pages: WHERE_STEP.id, [MEASURE_IMPACT_PART]: MEASURE_STEP.id, fresh: FIRST_RUN_STEP.id, schedule: FIRST_RUN_STEP.id, run: FIRST_RUN_STEP.id,
+  results: DATA_STEP.id, app_pages: WHERE_STEP.id, fresh: FIRST_RUN_STEP.id, schedule: FIRST_RUN_STEP.id, run: FIRST_RUN_STEP.id,
 };
 export const opensOnImpact = (focus) => IMPACT_FOCUS.includes(focus?.step);
 const STEP_FALLBACKS = { [GROUPING_STEP.id]: DATA_STEP.id, [WHERE_STEP.id]: DELIVERY_STEP.id };
@@ -115,17 +120,34 @@ function whereStepFor(scope) {
   return { ...WHERE_STEP, sections: panels, panels, advanced: access && scope?.editing ? ['app_access'] : WHERE_STEP.advanced };
 }
 
+// The sections Advanced checks that Standard's What and Look do not show: Standard's Build step checks them, so a hidden error still blocks the build.
+function standardSteps(spec, scope, where) {
+  const delivery = { ...DELIVERY_STEP, label: 'What', sections: ['use_it', 'alert'], advanced: [] };
+  const look = where.map((w) => ({ ...w, label: 'Look', advanced: [] }));
+  const shown = new Set([...delivery.sections, ...look.flatMap((w) => w.sections)]);
+  const advanced = [DELIVERY_STEP, DATA_STEP, ...(scope?.grouping ? [GROUPING_STEP] : []), firstRunStepOf(scope), ...where, SUMMARY_STEP];
+  const sections = [...new Set([...SUMMARY_STEP.sections, ...advanced.flatMap((s) => s.sections)])].filter((sec) => sec === 'vibes' || !shown.has(sec));
+  return [HOW_STEP, delivery, ...look, { ...SUMMARY_STEP, label: 'Build', sections }];
+}
+
 export function wizardSteps(mode, spec = null, scope = NO_SCOPE_STEPS) {
   if (mode === 'mvp') {
     const app = Boolean(spec?.outputs?.app);
     const joined = joinsApp(spec);
     const step = whereStepFor(scope);
     const where = app ? [{ ...step, sections: joined ? ['app_place'] : step.sections, panels: joined ? ['app_place'] : step.panels }] : [];
-    return [DELIVERY_STEP, DATA_STEP, ...(scope?.grouping ? [GROUPING_STEP] : []), firstRunStepOf(scope), MEASURE_STEP,
+    if (scope?.build === BUILD_STANDARD) return standardSteps(spec, scope, where);
+    return [HOW_STEP, DELIVERY_STEP, DATA_STEP, ...(scope?.grouping ? [GROUPING_STEP] : []), firstRunStepOf(scope),
       ...where, SUMMARY_STEP];
   }
   if (mode === 'notebook') return NOTEBOOK_STEPS;
   throw new Error(`unknown implement mode '${mode}'`);
+}
+
+// A focus that opens an Advanced-only step needs the Advanced choice; null for any other focus.
+export function buildOfFocus(focus) {
+  const asked = STEP_ALIASES[focus?.step] || focus?.step;
+  return ADVANCED_ONLY_STEPS.includes(asked) ? BUILD_ADVANCED : null;
 }
 
 export const BUILD_STEP_IDS = [DELIVERY_STEP.id, WHERE_STEP.id, SUMMARY_STEP.id];
@@ -2704,7 +2726,7 @@ export function pickedSummary(spec, sourceTables = [], more = {}) {
   const joined = joinsApp(spec);
   const placement = APP_PLACEMENTS.find((p) => p.id === outputs.app_placement);
   const row = (id, step, label, value) => ({ id, step, label, value: String(value ?? '') });
-  const impactRow = (id, part, label, value) => ({ ...row(id, MEASURE_STEP.id, label, value), part });
+  const impactRow = (id, part, label, value) => ({ ...row(id, SUMMARY_STEP.id, label, value), part });
   return [
     row('outputs', 'delivery', 'What it builds', buildsText(built)),
     ...((more.dropped || []).length ? [row('dropped', 'delivery', 'Not built', more.dropped.map((d) => `${d.label}: ${d.why}`).join('; '))] : []),
