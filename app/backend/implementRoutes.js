@@ -59,6 +59,7 @@ const VY = require('./lib/valueYearly');
 const VE = require('./lib/valueEstimate');
 const VDC = require('./lib/valueDriversCalc');
 const VA = require('./lib/valueAnswers');
+const VR = require('./lib/valueReview');
 const VCP = require('./lib/valueCasePlan');
 const IV = require('./lib/inspireValue');
 
@@ -2463,12 +2464,27 @@ function registerImplementRoutes(app, deps) {
   const estimateFailure = (err, table) => sqlFailure(err, profileFailures(table || 'the use case table'));
   const answersOf = (req) => (req.body?.answers && typeof req.body.answers === 'object' ? req.body.answers : {});
 
+  // REQ-472 (c): the model reviews the estimate's yearly amount. The number is never changed; a review that fails gives no `review`, never an error.
+  async function estimateReview(req, warehouseId, yearly) {
+    try {
+      const amount = yearly.total && Number.isFinite(yearly.total.amount) ? yearly.total.amount : (yearly.entries || []).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+      const useCase = await planUseCaseOf(req, warehouseId, I.validateUseCaseId(q(req, 'use_case_id')));
+      const anchor = await anchorOf(req, useCase);
+      const got = await reviewOf(req, useCase, anchor, amount, { drivers: [] });
+      if (got.failed) return { review: { approved: false, model: null, reason: got.failed, amount: null, anchor, tuned: false } };
+      const ceiling = anchor ? anchor.high : VALUE_RANGE.high;
+      return { review: { approved: (got.approved || VR.agrees(got.amount, amount)) && amount <= ceiling, model: got.model, reason: got.reason, amount: got.amount, anchor, tuned: false } };
+    } catch {
+      return {};
+    }
+  }
+
   app.post('/api/inspire/value/estimate', requireToken, async (req, res) => {
     const table = String(req.body?.table || '').trim();
     try {
       const warehouseId = warehouseOf(req);
       const yearly = await estimateYearly(req, warehouseId, table, answersOf(req));
-      return res.json({ yearly, disclaimer: VALUE_DISCLAIMER.full });
+      return res.json({ yearly, disclaimer: VALUE_DISCLAIMER.full, ...(await estimateReview(req, warehouseId, yearly)) });
     } catch (err) {
       return sendError(res, estimateFailure(err, table));
     }
@@ -2486,42 +2502,68 @@ function registerImplementRoutes(app, deps) {
   const PLAN_MODEL_TRIES = 4;
   // FX-51 (REQ-448, D50): one use case is worth 100K-100M a year. The prompt says so (it never clamps); a planned value outside it is asked once more.
   const VALUE_RANGE = { low: 100000, high: 100000000 };
-  const outsideRange = (amount) => !Number.isFinite(amount) || amount < VALUE_RANGE.low || amount > VALUE_RANGE.high;
-  const rangeMessages = (messages, retry) => messages.map((m, i) => (i === 0
-    ? { ...m, content: `${m.content}\nOne use case is usually worth ${VALUE_RANGE.low}-${VALUE_RANGE.high} per year in the run's currency: choose the estimates so the total lands in that range, and say in each driver's "why" which driver moves the value into it. Never leave every driver off.` }
-    : i === messages.length - 1 && retry
-      ? { ...m, content: `${m.content}\nYour previous plan gave ${retry.amount} per year, which is ${retry.amount === 0 ? 'zero, and a use case is never worth 0' : retry.amount < VALUE_RANGE.low ? `below ${VALUE_RANGE.low}` : `above ${VALUE_RANGE.high}`}. Plan again so the total is between ${VALUE_RANGE.low} and ${VALUE_RANGE.high} per year.` }
-      : m));
+  const outsideRange = (amount, range = VALUE_RANGE) => !Number.isFinite(amount) || amount < range.low || amount > range.high;
+  // The range the plan is asked to land in: the anchor's when the anchor call answered, else the generic one.
+  const rangeOf = (anchor) => (anchor ? { low: anchor.low, high: anchor.high } : VALUE_RANGE);
+  const rangeMessages = (messages, retry, anchor = null) => {
+    const { low, high } = rangeOf(anchor);
+    const lead = anchor
+      ? `\nThis use case is likely worth about ${anchor.typical} per year (between ${low} and ${high}) in the run's currency${anchor.reason ? `: ${anchor.reason}` : ''}. Choose the estimates so the total lands in that range and near the likely value, and say in each driver's "why" which driver moves the value into it. Never leave every driver off.`
+      : `\nOne use case is usually worth ${low}-${high} per year in the run's currency: choose the estimates so the total lands in that range, and say in each driver's "why" which driver moves the value into it. Never leave every driver off.`;
+    return messages.map((m, i) => (i === 0
+      ? { ...m, content: `${m.content}${lead}` }
+      : i === messages.length - 1 && retry
+        ? { ...m, content: `${m.content}\nYour previous plan gave ${retry.amount} per year, which is ${retry.amount === 0 ? 'zero, and a use case is never worth 0' : retry.amount < low ? `below ${low}` : `above ${high}`}. Plan again so the total is between ${low} and ${high} per year.` }
+        : m));
+  };
   // The yearly the plan gives with its own defaults (what bulk Calculate saves), or null when the plan has no readable amount.
   const defaultYearlyOf = (plan) => {
     const got = VCP.yearlyOf(plan, { currency: 'USD' });
     return got.yearly ? got.yearly.total.amount : null;
   };
 
-  async function modelPlanOf(req, table, columns, groupBy, useCase = null, retry = null) {
-    const without = (reason) => ({ ...VCP.fallbackPlan(columns, groupBy), model_reason: reason });
+  // REQ-472: the one endpoint loop every value model call goes through (plan, anchor, review). { endpoint, got } or { reason }.
+  async function askChatModel(req, messages, maxTokens) {
     try {
       const listed = await jsonOf(dbFetch, req.dbHost, req.dbToken, '/api/2.0/serving-endpoints');
-      if (!listed.ok) return without(`The list of model endpoints answered HTTP ${listed.status || 'error'}.`);
+      if (!listed.ok) return { reason: `The list of model endpoints answered HTTP ${listed.status || 'error'}.` };
       const names = FB.chatEndpoints({}, (listed.data.endpoints || []).map((e) => ({ name: e.name, state: e.state, task: e.task })));
-      if (!names.length) return without('No chat model endpoint is ready in this workspace.');
+      if (!names.length) return { reason: 'No chat model endpoint is ready in this workspace.' };
       // FX-46 (D13/D20): the first listed model may be one the App cannot query or that rejects the call; the next ready ones are tried
       // (at most PLAN_MODEL_TRIES), and a refusal of every one reports the first, which names the grant.
-      let endpoint = '';
-      let got = null;
       let firstFailure = '';
       for (const name of names.slice(0, PLAN_MODEL_TRIES)) {
-        const tried = await invokeChatModel(chatCall(req, req.dbToken), name, { messages: rangeMessages(VCP.planMessages({ table, columns, useCase }), retry), max_tokens: 1500 });
-        if (tried.ok) { endpoint = name; got = tried; break; }
+        const tried = await invokeChatModel(chatCall(req, req.dbToken), name, { messages, max_tokens: maxTokens });
+        if (tried.ok) return { endpoint: name, got: tried };
         firstFailure = firstFailure || modelRefusal(name, tried);
       }
-      if (!got) return without(firstFailure);
-      const plan = VCP.planFrom(got.data, columns, groupBy);
-      const asked = plan.drivers.some((d) => d.on) || plan.metrics.length || plan.case_filter || plan.case_noun !== 'record';
-      return asked ? { ...plan, model: endpoint } : { ...plan, model: null, model_reason: 'The model reply was not a usable plan.' };
+      return { reason: firstFailure };
     } catch (err) {
-      return without('The model could not be reached.');
+      return { reason: 'The model could not be reached.' };
     }
+  }
+
+  async function modelPlanOf(req, table, columns, groupBy, useCase = null, retry = null, anchor = null) {
+    const without = (reason) => ({ ...VCP.fallbackPlan(columns, groupBy), model_reason: reason });
+    const asked = await askChatModel(req, rangeMessages(VCP.planMessages({ table, columns, useCase }), retry, anchor), 1500);
+    if (!asked.got) return without(asked.reason);
+    const plan = VCP.planFrom(asked.got.data, columns, groupBy);
+    const usable = plan.drivers.some((d) => d.on) || plan.metrics.length || plan.case_filter || plan.case_noun !== 'record';
+    return usable ? { ...plan, model: asked.endpoint } : { ...plan, model: null, model_reason: 'The model reply was not a usable plan.' };
+  }
+
+  // REQ-472 (a): the anchor, one model call before the plan; null when the model gives none (the generic range is used then).
+  async function anchorOf(req, useCase) {
+    const asked = await askChatModel(req, VR.anchorMessages({ useCase, businessName: useCase.business_name, range: VALUE_RANGE }), 600);
+    return asked.got ? VR.anchorFrom(asked.got.data, VALUE_RANGE) : null;
+  }
+
+  // REQ-472 (c): one review of `amount` by the model: { approved, amount, reason, model } or { failed: reason }.
+  async function reviewOf(req, useCase, anchor, amount, plan) {
+    const asked = await askChatModel(req, VR.reviewMessages({ useCase, businessName: useCase.business_name, anchor, amount, drivers: VR.onDriversOf(plan) }), 400);
+    if (!asked.got) return { failed: asked.reason };
+    const got = VR.reviewFrom(asked.got.data);
+    return got ? { ...got, model: asked.endpoint } : { failed: `The model ${asked.endpoint} gave no usable review.` };
   }
 
   // FX-34 (D5): the use case the plan is for (name, statement, business value). Unreadable: the id alone, so the plan is still its own.
@@ -2529,10 +2571,35 @@ function registerImplementRoutes(app, deps) {
     try {
       const { catalog, schema } = dbOf(req, splitInspireDatabase);
       const row = await loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sessionIdOf(req), useCaseId);
-      return { id: useCaseId, use_case: (row && (row.user_use_case_name || row.use_case)) || useCaseId, statement: row && row.statement, business_value: row && row.business_value };
+      const business_name = await loadSession(req.dbHost, req.dbToken, warehouseId, catalog, schema, sessionIdOf(req)).then((s) => String((s && s.business_name) || ''), () => '');
+      return { id: useCaseId, use_case: (row && (row.user_use_case_name || row.use_case)) || useCaseId, statement: row && row.statement, business_value: row && row.business_value, business_name };
     } catch {
-      return { id: useCaseId, use_case: useCaseId };
+      return { id: useCaseId, use_case: useCaseId, business_name: '' };
     }
+  }
+
+  // REQ-472 (c) / REQ-474: review the plan's default value; while the reviewer does not approve and names an amount, scale the money inputs to it and
+  // review again (up to REVIEW_ROUNDS reviews). A reviewer that names the plan's own value (within 1%) approves it. Never approved above the cap.
+  async function reviewAndTune(req, useCase, anchor, start) {
+    const made = (approved, extra) => ({ approved, model: null, reason: '', amount: null, anchor, tuned: false, ...extra });
+    let plan = start;
+    let tuned = false;
+    let last = null;
+    for (let round = 0; round < VR.REVIEW_ROUNDS; round += 1) {
+      const current = defaultYearlyOf(plan);
+      const got = await reviewOf(req, useCase, anchor, current, plan);
+      if (got.failed) return { plan, review: made(false, { reason: got.failed, tuned }) };
+      last = got;
+      if (got.approved || VR.agrees(got.amount, current)) {
+        const ceiling = anchor ? anchor.high : VALUE_RANGE.high;
+        return { plan, review: made(current <= ceiling, { model: got.model, reason: got.reason, amount: got.amount, tuned }) };
+      }
+      const next = got.amount > 0 ? VCP.scaleToTarget(plan, got.amount) : null;
+      if (!next) break;
+      plan = next;
+      tuned = true;
+    }
+    return { plan, review: made(false, { model: last && last.model, reason: last ? last.reason : '', amount: last ? last.amount : null, tuned }) };
   }
 
   app.post('/api/inspire/value/case-plan', requireToken, async (req, res) => {
@@ -2547,9 +2614,11 @@ function registerImplementRoutes(app, deps) {
       const dateColumn = VY.dateColumnOf(columns);
       if (!dateColumn) throw I.badRequest('The table has no date column to scale the counts to a year, so Inspire cannot plan a value per year.', 422);
       const useCase = await planUseCaseOf(req, warehouseId, useCaseId);
+      const anchor = await anchorOf(req, useCase);
+      const range = rangeOf(anchor);
       let read = null;
       const planOnce = async (retry) => {
-        const plan = await modelPlanOf(req, table, columns, String(req.body?.group_by || '').trim(), useCase, retry);
+        const plan = await modelPlanOf(req, table, columns, String(req.body?.group_by || '').trim(), useCase, retry, anchor);
         // A retry that keeps the same filter, grouping and metrics reads the same counts: they are not read twice.
         const readKey = JSON.stringify([plan.case_filter, plan.grouping, plan.metrics]);
         if (read && read.key === readKey) return { plan, counted: read.counted };
@@ -2566,16 +2635,26 @@ function registerImplementRoutes(app, deps) {
       let valueCheck = null;
       if (plan.model && counted.days && counted.groups.length) {
         const first = defaultYearlyOf({ ...plan, groups: counted.groups });
-        if (first !== null && outsideRange(first)) {
+        if (first !== null && outsideRange(first, range)) {
           const again = await planOnce({ amount: first });
           const second = again.plan.model && again.counted.days && again.counted.groups.length ? defaultYearlyOf({ ...again.plan, groups: again.counted.groups }) : null;
           if (second !== null) ({ plan, counted } = again);
           const last = second !== null ? second : first;
-          if (outsideRange(last)) valueCheck = { amount: last, low: VALUE_RANGE.low, high: VALUE_RANGE.high };
+          if (outsideRange(last, range)) valueCheck = { amount: last, low: range.low, high: range.high };
         }
       }
       if (!counted.days || !counted.groups.length) throw I.badRequest(`Inspire found no ${plan.case_noun} in ${table} to plan a value on.`, 422);
-      return res.json({ plan: { ...plan, table, date_column: dateColumn, days: counted.days, groups: counted.groups, use_case_id: useCaseId, basis: VCP.PLAN_BASIS, ...(valueCheck ? { value_check: valueCheck } : {}) } });
+      // REQ-472 (c): the model reviews the plan's value and tunes it (up to 3 rounds); a review that could not run, or never approved, sets value_check.
+      let review = null;
+      if (plan.model && defaultYearlyOf({ ...plan, groups: counted.groups }) !== null) {
+        const done = await reviewAndTune(req, useCase, anchor, { ...plan, groups: counted.groups });
+        ({ review } = done);
+        plan = { ...plan, drivers: done.plan.drivers };
+        const final = defaultYearlyOf(done.plan);
+        valueCheck = !review.approved || outsideRange(final, range) ? { amount: final, low: range.low, high: range.high } : null;
+      }
+      const anchored = anchor ? { likely_value: { amount: anchor.typical, currency: 'USD', reason: anchor.reason }, economic_trend: anchor.economic_trend } : {};
+      return res.json({ plan: { ...plan, ...anchored, ...(review ? { review } : {}), table, date_column: dateColumn, days: counted.days, groups: counted.groups, use_case_id: useCaseId, basis: VCP.PLAN_BASIS, ...(valueCheck ? { value_check: valueCheck } : {}) } });
     } catch (err) {
       return sendError(res, estimateFailure(err, table));
     }

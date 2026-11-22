@@ -224,19 +224,45 @@ function yearlyOf(plan, answers) {
       inputs: d.asks.map((ask) => ({ id: ask.id, label: ask.label, kind: ask.kind, source: ask.source,
         value: ask.source === 'data' ? round2(VDC.dataFigure(ask, groups, ((plan.metrics || []).find((m) => m.id === ask.metric) || {}).agg)) : fixed[ask.id] })) });
   }
+  const trendAnswer = answers && answers.economic_trend && typeof answers.economic_trend === 'object' ? answers.economic_trend : null;
+  const trendOption = trendAnswer && trendAnswer.on === true
+    ? (((plan && plan.economic_trend && plan.economic_trend.options) || []).find((o) => o.id === trendAnswer.option) || null) : null;
+  if (trendAnswer && trendAnswer.on === true && !trendOption) errors.economic_trend = `"${trendAnswer.option}" is not an economic trend option of this plan.`;
   if (Object.keys(errors).length) return { errors };
   const sum = parts.reduce((s, p) => s + p.amount, 0);
   const largest = parts.reduce((best, p) => (!best || p.amount > best.amount ? p : best), null);
+  const before = round2((sum * attribution) / 100);
+  const total = trendOption ? round2((before * (100 + trendOption.pct)) / 100) : before;
+  if (trendOption) parts.push({ id: 'economic_trend', label: trendOption.label, pct: trendOption.pct, amount: round2(total - before), per_group: false, inputs: [] });
   const calculated = Boolean(answers && answers.calculated);
   const grouping = (plan.groupings || []).find((g) => g.column === plan.grouping);
   const yearly = {
     verb: largest ? largest.verb : 'VALUE AT STAKE', period: VY.PERIOD, estimated: !calculated, calculated, currency,
-    total: { unit: currency, amount: round2((sum * attribution) / 100) },
+    total: { unit: currency, amount: total },
     parts,
     groups: { grouping_label: grouping ? grouping.label : '', covered: groups.length, of: allGroups.length },
     case_noun: plan.case_noun || 'record', attribution_pct: attribution,
   };
   return { yearly: { ...yearly, check: VP.checkOf(yearly) } };
+}
+
+// REQ-472: the plan with every money estimate input of the ON drivers scaled so its default yearly lands on `target` (the plan carries its groups).
+// Drivers with no money estimate input (priced from the data) stay as they are. Null when the plan has no value to scale or no way to reach the target.
+function scaleToTarget(plan, target, currency = 'USD') {
+  const got = yearlyOf(plan, { currency });
+  if (!got.yearly || !(target > 0)) return null;
+  const attribution = got.yearly.attribution_pct;
+  const scalable = (d) => d.on && d.asks.some((a) => a.source === 'estimate' && a.kind === 'money');
+  const ids = new Set(plan.drivers.filter(scalable).map((d) => d.id));
+  const parts = got.yearly.parts.filter((p) => p.id !== 'economic_trend');
+  const movable = parts.filter((p) => ids.has(p.id)).reduce((s, p) => s + p.amount, 0);
+  const fixed = parts.filter((p) => !ids.has(p.id)).reduce((s, p) => s + p.amount, 0);
+  const factor = movable > 0 && attribution > 0 ? ((target * 100) / attribution - fixed) / movable : 0;
+  if (!(factor > 0)) return null;
+  const drivers = plan.drivers.map((d) => (ids.has(d.id)
+    ? { ...d, asks: d.asks.map((a) => (a.source === 'estimate' && a.kind === 'money' ? { ...a, default: Math.round(a.default * factor * 10000) / 10000 } : a)) }
+    : d));
+  return { ...plan, drivers };
 }
 
 // The count behind C5 `stale`: records per year of the table under the plan's filter, and the days its date column covers.
@@ -258,4 +284,4 @@ function isStale(plan, row) {
   return saved === 0 ? now > 0 : Math.abs(now - saved) / saved > 0.1;
 }
 
-module.exports = { PLAN_BASIS, currentCountSql, isStale, planMessages, planFrom, fallbackPlan, groupedSql, groupsFrom, yearlyOf, GROUP_MIN_RECORDS, GROUP_MAX_GROUPS, DISCLAIMER };
+module.exports = { PLAN_BASIS, currentCountSql, isStale, planMessages, planFrom, fallbackPlan, groupedSql, groupsFrom, yearlyOf, scaleToTarget, GROUP_MIN_RECORDS, GROUP_MAX_GROUPS, DISCLAIMER };

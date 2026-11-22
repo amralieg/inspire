@@ -435,6 +435,27 @@ components:
           properties:
             unit: { type: string }
             amount: { type: number }
+    ValueReview:
+      type: object
+      description: |
+        REQ-472: the model's review of a value (also on the case plan as plan.review, with plan.likely_value and plan.economic_trend). The model first
+        anchors the value (low, high, likely, capped at 1% of the business revenue it estimates), the plan is asked to land inside it, and the model
+        then reviews the plan's default value, which is tuned and reviewed again, up to 3 reviews. A review that could not run is approved false.
+      properties:
+        approved: { type: boolean }
+        model: { type: string, nullable: true }
+        reason: { type: string }
+        amount: { type: number, nullable: true, description: The amount the reviewer would approve }
+        tuned: { type: boolean, description: The plan's money estimates were scaled to the reviewer's amount }
+        anchor:
+          type: object
+          nullable: true
+          properties:
+            low: { type: number }
+            high: { type: number, description: The effective ceiling, never above 1% of business_revenue_estimate }
+            typical: { type: number }
+            business_revenue_estimate: { type: number }
+            reason: { type: string }
     ValueEntry:
       type: object
       required: [kind, unit, amount]
@@ -1495,6 +1516,8 @@ paths:
                   disclaimer: { type: string, description: The full value disclaimer text, shown wherever a value is shown. }
                   yearly:
                     $ref: '#/components/schemas/YearlyValue'
+                  review:
+                    $ref: '#/components/schemas/ValueReview'
         '400':
           description: No answers, or a parameter is missing or malformed
         '422':
