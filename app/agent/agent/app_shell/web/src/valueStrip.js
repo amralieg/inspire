@@ -1,3 +1,4 @@
+import disclaimer from './valueDisclaimer.json' with { type: 'json' };
 import { kpiText, wholeMoney } from './format.js';
 
 export const MORE_USE_CASES = 'More use cases for this business';
@@ -16,8 +17,11 @@ export function valueStripOf(page, data, app, saved = null) {
   const more = app?.review_run || '';
   const savedLine = savedOf(saved);
   if (!kpi && !more && !savedLine) return null;
+  const now = kpi && data ? kpiText(kpi, data.kpis?.[kpi.id]) : '';
+  const hasMoney = (Boolean(now) && now !== 'Not recorded') || Boolean(saved?.lines?.length);
   return {
-    kpi: kpi ? { label: kpi.label, now: data ? kpiText(kpi, data.kpis?.[kpi.id]) : '' } : null,
+    kpi: kpi ? { label: kpi.label, now } : null,
+    disclaimer: hasMoney ? disclaimer.full : '',
     saved: savedLine,
     more: more ? { href: more, inside: app.inside === true } : null,
   };

@@ -7,6 +7,8 @@ import LatestRunBadge from '../components/LatestRunBadge';
 import PortfolioCards, { usePortfolio } from '../components/PortfolioCards';
 import { AllRunsValuePanel, RunValueLine } from '../components/ValueTotalsPanel';
 import { valueQuery } from '../lib/valueLedger';
+import ValueDisclaimer from '../components/ValueDisclaimer';
+import { anyRunValue } from '../lib/valueFooter';
 import { useValueRead } from '../lib/useValueLedger';
 import { makeApiFetch, requestHeaders, responseError } from '../lib/apiClient';
 import { saveBlob } from '../lib/download';
@@ -751,6 +753,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
             </div>
           </div>
         )}
+        {anyRunValue(allTotals) && <ValueDisclaimer footer />}
       </div>
     </div>
   );

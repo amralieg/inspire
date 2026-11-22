@@ -70,6 +70,8 @@ import { liveImpact, rowImpact, targetKpiView, trackedKpiOf } from '../lib/targe
 import { SHOWCASE_ALERT_NOTE, SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOWCASE_NO_MVP, SHOWCASE_OPEN_APP, readOnlyReason } from '../lib/showcase';
 import { buildFilterText } from '../lib/reviewFigures';
 import ValueEstimateLine from '../components/ValueEstimateLine';
+import ValueDisclaimer from '../components/ValueDisclaimer';
+import { anyValued } from '../lib/valueFooter';
 import { useValueRead } from '../lib/useValueLedger';
 import { BuildNextStep, RunValue } from '../components/BuildNext';
 import CalculateValueDialog from '../components/CalculateValueDialog';
@@ -638,6 +640,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
       <div ref={setProgressDock} data-progress-dock="" className="hidden empty:hidden md:flex md:fixed md:top-14 md:end-0 md:z-30 md:h-[calc(100dvh-3.5rem)]" />
       </div>
       </ProgressDock.Provider>
+      {anyValued(valued) && <ValueDisclaimer footer />}
       {calcFor && !readOnly && (
         <CalculateValueDialog key={trackingIdOf(calcFor)} uc={calcFor} table={tableOfUseCase(calcFor)} apiPostJson={apiPostJson} inspireDatabase={settings.inspireDatabase} warehouseId={settings.warehouseId}
           sessionId={sessionId} saved={calculated.byId[trackingIdOf(calcFor)]?.answers || null} version={calculated.byId[trackingIdOf(calcFor)]?.version || null}

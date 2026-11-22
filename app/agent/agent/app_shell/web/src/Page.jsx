@@ -47,6 +47,7 @@ const WorkPage = lazy(() => import('./WorkPage.jsx'));
 const Records = lazy(() => import('./Records.jsx'));
 const MoneyRule = lazy(() => import('./MoneyRule.jsx').then((m) => ({ default: m.MoneyRule })));
 const Runs = lazy(() => import('./Runs.jsx'));
+import { VALUE_DISCLAIMER, showsMoney } from './valueDisclaimer.js';
 const ValueStrip = lazy(() => import('./ValueStrip.jsx'));
 const Alerts = lazy(() => import('./Alerts.jsx'));
 const TrendCards = lazy(() => import('./Trends.jsx'));
@@ -397,6 +398,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
           </SettingGroup>
         </SettingsPanel>
       )}
+      {showsMoney(page, data) && <p className="value-footer" data-value-footer="" role="note">{VALUE_DISCLAIMER}</p>}
     </div>
   );
   return <GenieScope.Provider value={scope}><RetryProvider value={retry}><SharedFailureScope value={shown === 'dashboard' ? failures.shared : ''}><FoldScope pageId={page.id}>{body}</FoldScope></SharedFailureScope></RetryProvider></GenieScope.Provider>;
