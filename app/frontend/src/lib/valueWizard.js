@@ -26,8 +26,9 @@ export function sliderRange(kind, def, typed = 0) {
   else if (kind === 'hours') range = { min: 0, max: Math.max(8, nice(v * 3)), step: 0.25 };
   else if (kind === 'count') range = { min: 0, max: Math.max(10, nice(v * 3)), step: 1 };
   else { const max = nice(v * 3); range = { min: 0, max, step: max >= 1000 ? max / 200 : 1 }; }
+  // A typed value above the max moves the max to the next round number with headroom, never to the typed value itself.
   const t = Number(typed);
-  return Number.isFinite(t) && t > range.max ? { ...range, max: t } : range;
+  return Number.isFinite(t) && t > range.max && kind !== 'pct' ? { ...range, max: nice(t * 2) } : range;
 }
 
 // REQ-451: the unit of one ask, from the plan's own `unit` when it names one, else from its kind and id.
@@ -80,11 +81,13 @@ export const driversOn = (plan, answers) => plan.drivers.filter((d) => answers.d
 export const partOf = (yearly, id) => (yearly?.parts || []).find((p) => p.id === id) || null;
 export const moneyText = (unit, amount) => (Number.isFinite(Number(amount)) ? valueChips([{ kind: 'money', unit: unit || DEFAULT_CURRENCY, amount: Number(amount) }], 1).shown[0]?.text || '' : '');
 export const totalText = (yearly) => (yearly?.total ? moneyText(yearly.total.unit, yearly.total.amount) : '');
-export const countText = (n) => Number(n).toLocaleString('en-US');
+// A count of records, rows or groups is whole.
+export const countText = (n) => Math.round(Number(n)).toLocaleString('en-US');
+export const amountText = (n) => (Number.isFinite(Number(n)) ? Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 }) : '0');
 // Rounded for show; a data figure is the server's value for the groups that are in.
 export const figureText = (kind, value, currency) => {
   const n = Number(value);
   if (!Number.isFinite(n)) return '';
-  return kind === 'money' ? moneyText(currency, n) : kind === 'pct' ? `${n.toFixed(1)}%` : countText(Number(n.toFixed(2)));
+  return kind === 'money' ? moneyText(currency, n) : kind === 'pct' ? `${n.toFixed(1)}%` : kind === 'count' ? countText(n) : Number(n.toFixed(2)).toLocaleString('en-US');
 };
 export const recordsOf = (plan, answers) => (plan.groups || []).filter((g) => !answers.excluded_groups.includes(g.g)).reduce((s, g) => s + Number(g.records_per_year || 0), 0);

@@ -101,6 +101,9 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
   const driver = plan?.drivers.find((d) => page === `driver:${d.id}`);
   const last = page === 'save';
   const anyOn = plan && answers ? driversOn(plan, answers).length > 0 : false;
+  // D21/D24: "Up to date" only when a value exists; a missing one says Calculating; no kind ticked says what to tick.
+  const footerNote = !plan || !answers ? (planState.status === 'error' ? 'No value yet' : 'Calculating...')
+    : !anyOn ? 'Tick a kind of value to calculate.' : preview.status === 'error' ? 'Could not update' : preview.status === 'ready' && preview.yearly ? 'Up to date' : 'Calculating...';
   const body = () => {
     if (planState.status === 'loading' && !plan) return <p role="status" data-wizard-loading="" className="py-8 text-center text-sm text-text-secondary">Reading your data to plan the value.</p>;
     if (planState.status === 'error') {
@@ -135,7 +138,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
     <ModalDialog titleId="calculate-value-title" title={VALUE_LABELS.dialogTitle} onClose={onClose} widthClass="max-w-4xl"
       footer={(
         <>
-          <span data-preview-state={preview.status} className="me-auto text-[12px] text-text-secondary">{plan && answers && preview.status === 'updating' ? 'Updating' : 'Up to date'}</span>
+          <span data-preview-state={preview.status} className="me-auto truncate text-[12px] text-text-secondary">{footerNote}</span>
           {pageIdx > 0 && <button type="button" className={btn} onClick={() => setPageIdx((i) => Math.max(0, i - 1))}>Back</button>}
           {last ? (
             <>
@@ -144,12 +147,13 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
             </>
           ) : (
             <>
-              <button type="button" disabled={busy || !plan || !answers || (page === 'kinds' && !anyOn)} onClick={() => save(false)} className={btn}>Calculate now</button>
+              <button type="button" disabled={busy || !plan || !answers || !anyOn} title={anyOn ? undefined : 'Tick a kind of value first'} onClick={() => save(false)} className={btn}>Calculate now</button>
               <button type="button" disabled={!plan || !answers || (page === 'kinds' && !anyOn)} onClick={() => setPageIdx((i) => Math.min(pages.length - 1, i + 1))} className={primary}>Next</button>
             </>
           )}
         </>
       )}>
+      {/* D23: a fixed frame (header, steps and footer stay put; only this body scrolls) so Next and Save never move under the cursor. */}
       <ol aria-label="Steps" className="flex gap-1 text-[12px]">
         {STEPS.map((name, k) => (
           <li key={name} aria-current={k === mainStep ? 'step' : undefined} className={`flex flex-1 items-center gap-1.5 ${k === mainStep ? 'font-semibold text-text-primary' : 'text-text-secondary'}`}>
@@ -157,8 +161,10 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
           </li>
         ))}
       </ol>
-      {measure && <div hidden={page !== 'data'}><MeasureSettings measure={measure} /></div>}
-      {body()}
+      <div data-wizard-body="" className="h-[min(30rem,calc(100dvh-18rem))] space-y-3 overflow-y-auto overscroll-contain">
+        {measure && <div hidden={page !== 'data'}><MeasureSettings measure={measure} /></div>}
+        {body()}
+      </div>
     </ModalDialog>
   );
 }

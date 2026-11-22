@@ -15,9 +15,10 @@ test('slider ranges: pct 0-100 step 1; hours max(8, 3x) step 0.25; count max(10,
 });
 
 test('a typed value above the range grows the slider max; a value inside keeps it', () => {
-  assert.equal(sliderRange('pct', 60, 250).max, 250);
+  // REQ-450 (D22): the max never jumps to the typed value; it extends with headroom. A percent stays at its own 100 max.
+  assert.equal(sliderRange('pct', 60, 250).max, 100);
   assert.equal(sliderRange('pct', 60, 40).max, 100);
-  assert.equal(sliderRange('money', 45, 100000).max, 100000);
+  assert.ok(sliderRange('money', 45, 100000).max > 100000);
 });
 
 test('no value formula lives in the browser wizard files', () => {

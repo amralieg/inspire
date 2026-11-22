@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
-import { figureText, isBad, sliderRange, unitOf } from '../../lib/valueWizard.js';
+import { amountText, figureText, isBad, sliderRange, unitOf } from '../../lib/valueWizard.js';
 
 // REQ-436: a slider and a number box of one width, synced both ways. A typed value above the range grows the slider.
 const WIDTH = 'w-28';
+const PLAUSIBLE_UPLIFT_PCT = 50;
 
 export function Controls({ ask, value, onChange, range, currency }) {
   const [draft, setDraft] = useState(String(value));
   useEffect(() => { setDraft((d) => (Number(d) === Number(value) && d !== '' ? d : String(value))); }, [value]);
   const r = range || sliderRange(ask.kind, ask.default, value);
   const bad = isBad(ask, draft);
+  const implausible = ask.kind === 'pct' && /uplift/.test(String(ask.id)) && Number(value) > PLAUSIBLE_UPLIFT_PCT;
   const type = (text) => {
     setDraft(text);
     if (!isBad(ask, text)) onChange(Number(text));
@@ -16,8 +18,9 @@ export function Controls({ ask, value, onChange, range, currency }) {
   return (
     <div className="flex flex-col items-end gap-1">
       {/* REQ-450/451: the number follows the slider on every input, with its unit; the server amount follows after the debounce. */}
-      <span data-live-value="" data-unit="" aria-live="off" className="text-sm font-semibold tabular-nums text-text-primary">{`${Number(value) || 0} ${unitOf(ask, currency)}`}</span>
-      <input type="range" aria-label={`${ask.label} slider`} min={r.min} max={Math.max(r.max, Number(value) || 0)} step={r.step} value={Number(value) || 0}
+      <span data-live-value="" data-unit="" aria-live="off" className="text-sm font-semibold tabular-nums text-text-primary">{`${amountText(value)} ${unitOf(ask, currency)}`}</span>
+      {implausible && <span data-plausibility="" role="note" className="max-w-[14rem] text-end text-[11px] text-warning-fg">{`${amountText(value)}% is far above what is usual. Check it before you rely on it.`}</span>}
+      <input type="range" aria-label={`${ask.label} slider`} min={r.min} max={r.max} step={r.step} value={Number(value) || 0}
         onChange={(e) => type(e.target.value)} className={`${WIDTH} m-0 accent-[var(--color-db-red-solid,#c4161c)]`} />
       <input type="number" aria-label={ask.label} min={0} step="any" value={draft} aria-invalid={bad} onChange={(e) => type(e.target.value)}
         className={`${WIDTH} rounded-md border px-2 py-1 text-end text-sm tabular-nums ${bad ? 'border-error bg-error-bg' : 'border-border'}`} />
