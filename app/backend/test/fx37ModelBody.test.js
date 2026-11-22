@@ -8,7 +8,9 @@ const { makeApp, listen } = require('./support/implementApp');
 
 const COLUMNS = [{ column_name: 'region', data_type: 'STRING', ordinal_position: 1 }, { column_name: 'event_date', data_type: 'DATE', ordinal_position: 2 }];
 const SESSION = { business_name: 'Acme', discovery_type: 'Deep', catalogs: 'main', schemas_str: 's', tables_str: 'main.s.t', inspire_database_name: 'main.inspire', generation_path: '/tmp/out', table_scope: JSON.stringify({}) };
-const PLAN = { case_noun: 'order', case_filter: null, groupings: [], metrics: [], drivers: [] };
+// FX-51 (REQ-448): the plan's own default value is 1,000,000 a year, inside the 100K-100M range, so the one range retry never fires and the call count stays 1.
+const PLAN = { case_noun: 'order', case_filter: null, groupings: [], metrics: [], drivers: [{ id: 'revenue_uplift', label: 'Uplift', on: true, why: 'more sales', asks: [
+  { id: 'base_revenue_per_year', source: 'estimate', default: 1000000, why: 'a guess' }, { id: 'uplift_pct', source: 'estimate', default: 100, why: 'a guess' }] }] };
 
 async function planWith(workspace) {
   const made = makeApp({ forwardedToken: 'person-tok', session: SESSION, columns: COLUMNS, workspace,
