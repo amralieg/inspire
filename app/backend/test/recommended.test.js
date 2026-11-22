@@ -123,7 +123,7 @@ test('each wizard step or App sub-section shows one Recommended, the first of it
   const later = H.oneBestPerStep({ ...all, heldApp: null });
   assert.equal(later.appTarget?.id, 'appTarget', 'with no first badge the next question keeps it');
   assert.equal(H.oneBestPerStep({ ...all, appPolicy: pick('domain') }).appPolicy.id, 'domain', 'how Inspire organizes Apps is its own question and keeps its badge');
-  assert.deepEqual(Object.keys(H.STEP_BEST), ['app_placement', 'app_features'], 'each App question that has two ways to pick shows one');
+  assert.deepEqual(Object.keys(H.STEP_BEST), ['app_placement', 'app_features', 'how'], 'each question that has two ways to pick shows one, and How to build recommends Standard');
   const run = H.oneBestPerStep({ freshness: pick('daily'), kpi: pick('kpi'), holdout: pick(true) });
   assert.deepEqual([run.freshness?.id, run.kpi?.id, run.holdout?.id], ['daily', 'kpi', true], 'Run it keeps one badge per question: Measure impact keeps its holdout badge (must-exclude: dropping it)');
   assert.deepEqual(Object.keys(H.STEP_BEST).filter((s) => (H.STEP_BEST[s].filter((k) => H.oneBestPerStep(all)[k]).length !== 1)), [], 'never two (must-exclude)');
