@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PlainMessage } from './TechnicalDetails';
 import ModalDialog from './ModalDialog';
+import BusyNote from './BusyNote';
 import ValueHistory from './ValueHistory';
 import MeasureSettings from './valueWizard/MeasureSettings.jsx';
 import StepSave from './valueWizard/StepSave.jsx';
@@ -107,7 +108,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
   const footerNote = !plan || !answers ? (planState.status === 'error' ? 'No value yet' : 'Calculating...')
     : !anyOn ? 'Tick a kind of value to calculate.' : preview.status === 'error' ? 'Could not update' : preview.status === 'ready' && preview.yearly ? 'Up to date' : 'Calculating...';
   const body = () => {
-    if (planState.status === 'loading' && !plan) return <p role="status" data-wizard-loading="" className="py-8 text-center text-sm text-text-secondary">Reading your data to plan the value.</p>;
+    if (planState.status === 'loading' && !plan) return <BusyNote data-wizard-loading="" className="flex flex-col items-center py-8 text-center text-sm text-text-secondary" text="Reading your data to plan the value." />;
     if (planState.status === 'error') {
       return (
         <div className="space-y-3 py-6 text-center">
@@ -143,7 +144,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
     <ModalDialog titleId="calculate-value-title" title={dialogTitleFor(nameOfUseCase(uc))} onClose={onClose} widthClass="max-w-4xl"
       footer={(
         <>
-          <span data-preview-state={preview.status} className="me-auto truncate text-[12px] text-text-secondary">{footerNote}</span>
+          <span data-preview-state={preview.status} className="me-auto truncate text-[12px] text-text-secondary">{footerNote === 'Calculating...' ? <BusyNote inline text={footerNote} size={12} /> : footerNote}</span>
           {pageIdx > 0 && <button type="button" className={btn} onClick={() => setPageIdx((i) => Math.max(0, i - 1))}>Back</button>}
           {last ? (
             <>

@@ -58,10 +58,10 @@ test('the Calculate value dialog loading state spins in the body and the footer,
     const body = dialog.locator('[data-wizard-loading]');
     await body.waitFor({ timeout: 5000 });
     assert.match(await body.innerText(), /Reading your data to plan the value\./);
-    assert.equal(await body.locator('.animate-spin').count(), 1, 'the body spins');
+    assert.equal(await body.locator('[class*="animate-spin"]').count(), 1, 'the body spins');
     const footer = dialog.locator('[data-preview-state]');
     assert.match(await footer.innerText(), /Calculating/);
-    assert.equal(await footer.locator('.animate-spin').count(), 1, 'the footer spins');
+    assert.equal(await footer.locator('[class*="animate-spin"]').count(), 1, 'the footer spins');
     assert.equal(await dialog.locator('[data-busy-still]').count(), 0, 'no still-working line at 0 s');
     await dialog.locator('[data-busy-still]').first().waitFor({ timeout: 12000 });
     assert.match(await dialog.innerText(), /Still working\. This can take up to a minute\./);

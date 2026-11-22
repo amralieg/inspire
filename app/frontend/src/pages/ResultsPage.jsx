@@ -38,6 +38,7 @@ import {
   Archive,
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
+import BusyNote from '../components/BusyNote';
 import DomainSunburst from '../components/DomainSunburst';
 import PriorityHeatmap from '../components/PriorityHeatmap';
 import { SkeletonCard, SkeletonStats } from '../components/SkeletonLoader';
@@ -1294,7 +1295,7 @@ export default function ResultsPage({
                   </div>
                 ))}
               </div>
-              <p className="text-sm font-medium text-text-primary">Fetching your Inspire runs</p>
+              <BusyNote className="flex flex-col items-center text-sm font-medium text-text-primary" text="Fetching your Inspire runs" />
               <p className="text-xs text-text-tertiary mt-1.5">Connecting to your workspace...</p>
             </div>
           )}
