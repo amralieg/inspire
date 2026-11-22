@@ -112,3 +112,19 @@ export const dragTo = (locator, value) => locator.evaluate((el, v) => {
   el.dispatchEvent(new Event('change', { bubbles: true }));
 }, value);
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Record every value of [data-preview-state] from now on, so a test sees 'updating' even when the reply ends it between two polls (FX-43).
+export async function watchPreviewStates(dialog) {
+  await dialog.evaluate((root) => {
+    const read = () => root.querySelector('[data-preview-state]')?.getAttribute('data-preview-state') || null;
+    const seen = [read()];
+    window.__previewSeen = seen;
+    new MutationObserver(() => { const now = read(); if (now !== seen[seen.length - 1]) seen.push(now); })
+      .observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-preview-state'] });
+  });
+  // Resolves once the recorded states hold 'updating' and then 'ready'; no deadline shorter than the reply.
+  return (timeout = 15000) => dialog.page().waitForFunction(() => {
+    const seen = window.__previewSeen || [];
+    const at = seen.indexOf('updating');
+    return at >= 0 && seen.indexOf('ready', at) > at;
+  }, null, { timeout });
+}

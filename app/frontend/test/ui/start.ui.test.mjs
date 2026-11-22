@@ -59,6 +59,8 @@ test('a run still starting shows on Start as Starting, and opening it follows th
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
     const row = page.locator('[data-run="7001"]');
     await row.waitFor({ timeout: 20000 });
+    // FX-43: let Start settle (its second sessions and portfolio reads land) before the row is read and clicked, as openStart does.
+    await card(page, 'businesses').locator('[data-card-value]').filter({ hasText: /^\d/ }).waitFor({ timeout: 20000 });
     assert.match(await row.innerText(), /Acme[\s\S]*Starting/);
     assert.doesNotMatch(await page.locator('[data-run="42"]').innerText(), /Starting/, 'a run that wrote its rows keeps its own status');
     const runRead = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/run/701', { timeout: 15000 });

@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser } from './uiSupport.mjs';
-import { dragTo, FALLBACK_PLAN, goTo, mountWizard, next, openCard, openWizard, sleep } from './valueWizardSupport.mjs';
+import { dragTo, FALLBACK_PLAN, goTo, mountWizard, next, openCard, openWizard, sleep, watchPreviewStates } from './valueWizardSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -35,12 +35,12 @@ test('W2: on a kind page a slider moves the number box, one preview follows the 
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     previews.length = 0;
     const before = await text(dialog.locator('[data-kind-amount]'));
+    // FX-43: record the states before the drag; a runner starved for 1.5 s still sees 'updating' and then 'ready'.
+    const sawUpdatingThenReady = await watchPreviewStates(dialog);
     await dragTo(slider, 40);
-    // FX-43 repro: a test runner starved for 1.5 s under load looks at the page after the instant mock reply has already ended 'updating'.
     await sleep(1500);
     assert.equal(await box.inputValue(), '40');
-    await dialog.locator('[data-preview-state="updating"]').waitFor({ timeout: 2000 });
-    await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
+    await sawUpdatingThenReady();
     await sleep(400);
     assert.equal(previews.length, 1, 'one preview for one move');
     assert.equal(previews[0].answers.drivers.risk_avoided.inputs.reduction_pct, 40);
