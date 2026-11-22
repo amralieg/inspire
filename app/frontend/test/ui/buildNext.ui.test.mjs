@@ -26,7 +26,7 @@ const USE_CASES = [
   { id: 'N03-U01', use_case: 'Reorder timing', name_with_technique: 'Reorder timing', primary_table: 'main.s.orders', tables_involved: 'main.s.orders', value_estimate: measured(1200), data_evidence: evidence('main.s.orders'), inspire_score: '5' },
 ];
 const STATE = { ...REVIEW_STATE, useCases: USE_CASES, history: [built({ use_case_id: 'N01-U01' })] };
-const PROGRESS = '1 of 5 use cases live, AED 6K at stake covered';
+const PROGRESS = '1 of 6 use cases live, AED 6K at stake covered';
 
 async function openApp(state = STATE) {
   return openUi('app', state, '', { mount });
