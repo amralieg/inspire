@@ -139,8 +139,8 @@ test('ticking the App does not tick the Genie Agent, and the Genie Agent unticks
   const off = w.withOutput(withGenie, 'app', false);
   assert.deepEqual([off.outputs.app, off.outputs.genie_space], [false, true], 'unticking the App leaves the Genie Agent as it is');
   assert.deepEqual(w.withOutput(spec, 'alert', true).outputs.alert_recipients, w.defaultAlertRecipients(spec));
-  assert.deepEqual(w.wizardSteps('mvp', ticked).map((s) => s.id), ['delivery', 'data', 'first_run', 'stake', 'where', 'summary'], 'ticking the App adds one step, Where it lives, which holds the App panels (REQ-002)');
-  assert.deepEqual(w.wizardSteps('mvp', off).map((s) => s.id), ['delivery', 'data', 'first_run', 'stake', 'summary'], 'with Apps unticked no App step shows');
+  assert.deepEqual(w.wizardSteps('mvp', ticked).map((s) => s.id), ['how', 'delivery', 'data', 'first_run', 'where', 'summary'], 'ticking the App adds one step, Where it lives, which holds the App panels (REQ-002)');
+  assert.deepEqual(w.wizardSteps('mvp', off).map((s) => s.id), ['how', 'delivery', 'data', 'first_run', 'summary'], 'with Apps unticked no App step shows');
   assert.deepEqual(w.stepErrors('delivery', ticked), [], 'an App without a Genie Agent has no delivery error (REQ-152)');
 });
 
