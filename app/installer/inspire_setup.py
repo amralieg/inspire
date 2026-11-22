@@ -1819,10 +1819,38 @@ def _plain_list(names, limit=SCAN_SHOWN):
     return ", ".join(names[:limit]) + (f" and {len(names) - limit} more" if len(names) > limit else "")
 
 
+def _leave_out_unmanaged_catalogs(ctx, sp):
+    """FX-47 (REQ-456, REQ-458), All pick only: a catalog the person can neither own nor MANAGE cannot be granted to the App, so it is left out
+    of the App's data catalogs (the App never offers what it cannot read) and listed once with the GRANT its owner runs. A catalog whose
+    rights cannot be read is kept: its grant is tried, and a refusal then stops the install."""
+    if not ctx.get("DATA_ALL_PICKED"):
+        return []
+    left = []
+    for cat in ctx.get("DATA_CATALOGS") or []:
+        if cat == ctx["CATALOG"]:
+            continue
+        try:
+            full, held = _catalog_privileges(ctx, cat)
+        except Exception:
+            continue
+        if not _can_grant(_person_privileges(full, held)):
+            left.append(cat)
+    if left:
+        ctx["DATA_CATALOGS"] = [cat for cat in ctx["DATA_CATALOGS"] if cat not in left]
+        ctx["DATA_ALL_PICKED"] = False  # the App reads the listed catalogs, not every catalog
+        ctx["DATA_LEFT_OUT"] = left
+        print(f"Left out of the App's data catalogs, because you cannot grant on {_plural(len(left), 'catalog')}: {_plain_list(left)}. "
+              "A catalog owner adds each with:")
+        for cat in left:
+            print(_scan_grant(sp, cat))
+    return left
+
+
 def _grant_data_catalogs(ctx, sp):
     """The third setting (REQ-132): the consent line, one read GRANT per picked catalog, and a Permission Required block for refusals.
 
-    A refused grant is never an install failure: the statement is printed, copy-friendly, and the install goes on.
+    A refused grant is printed copy-friendly, then stops the install before the deploy (FX-47, REQ-456, REQ-458): the App never ships
+    without the read access the person asked for. Catalogs the person cannot grant on were already left out by the All pick.
     """
     w, warehouse_id, catalog = ctx["w"], ctx["WAREHOUSE_ID"], ctx["CATALOG"]
     targets = [cat for cat in ctx.get("DATA_CATALOGS") or [] if cat != catalog]
@@ -1843,6 +1871,11 @@ def _grant_data_catalogs(ctx, sp):
         print("Permission Required: ask your admin to grant this permission:")
         for sql in ctx["READ_REFUSED"]:
             print(sql)
+        raise RuntimeError(f"Inspire's App cannot read {_plural(len(failed), 'data catalog')} you picked (first reason: {str(next(iter(failed.values())))[:160]}). "
+                           f"A catalog owner runs {'; '.join(ctx['READ_REFUSED'][:3])}{f' and {len(failed) - 3} more' if len(failed) > 3 else ''}, "
+                           "or you pick other catalogs in the data-catalog setting. "
+                           "Inspire stopped before it deploys the new App version, so the App keeps its last working version. "
+                           "Then run this installer again.")
     return failed
 
 
@@ -2120,6 +2153,7 @@ def step_grant_permissions(ctx):
             print(line)
         shared_ok, shared_said = _shared_output_access(api, ctx["NOTEBOOK_PATH"], sp)
         print(f"  {'' if shared_ok else '⚠️ '}{shared_said}")
+        _leave_out_unmanaged_catalogs(ctx, sp)
         account_failed = _grant_account_users(ctx)
         _grant_data_catalogs(ctx, sp)
         blocking = _blocking_read_grants(failed)
