@@ -970,6 +970,15 @@ export function removeKeptChanges(version) {
   return { remove_kept: [Number(version)] };
 }
 
+// REQ-460: every other use case that holds an asset this use case also holds (the App, dashboard or Genie Agent), once each.
+export function sharedUseCases(live) {
+  const found = new Map();
+  for (const entry of Object.values(live?.shared || {})) {
+    for (const u of Array.isArray(entry?.use_cases) ? entry.use_cases : []) found.set(`${u.session_id}|${u.use_case_id}`, u);
+  }
+  return [...found.values()];
+}
+
 export function uninstallChanges() {
   return { uninstall: true };
 }

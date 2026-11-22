@@ -1841,12 +1841,44 @@ function registerImplementRoutes(app, deps) {
       res.json(await oneBuildAtATime(req, async () => {
         const prepared = await prepareSubmission(req);
         if (GC.needsGenieCode(prepared.spec)) await requireGenieCode(req);
-        return startVersion(req, { ...prepared, rebuildAsIs: req.body?.rebuild_as_is === true });
+        const started = await startVersion(req, { ...prepared, rebuildAsIs: req.body?.rebuild_as_is === true });
+        if (prepared.spec.uninstall && req.body?.uninstall_shared === true) started.shared_uninstalls = await uninstallSharingUseCases(req, prepared);
+        return started;
       }));
     } catch (err) {
       sendError(res, err);
     }
   });
+
+  // REQ-460: the person agreed that uninstalling this use case also uninstalls the use cases that share its App, so each gets its own uninstall version.
+  // A holder that cannot be queued is reported on its own line; it never undoes the uninstall that already started.
+  async function uninstallSharingUseCases(req, { sid, warehouseId, catalog, schema, useCaseId }) {
+    const { shared, shared_error: sharedError } = await sharedOf(req, { sid, warehouseId, catalog, schema, useCaseId });
+    if (sharedError) throw I.badRequest(`Inspire could not check which use cases share this App, so it did not uninstall them: ${sharedError}`, 502);
+    const holders = new Map();
+    for (const name of I.IMPLEMENT_MERGE_OUTPUTS) {
+      for (const h of (shared && shared[name] && shared[name].use_cases) || []) holders.set(`${h.session_id}|${h.use_case_id}`, h);
+    }
+    const results = [];
+    for (const h of holders.values()) {
+      try {
+        const history = await loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, h.session_id, h.use_case_id);
+        const built = I.previousBuilt(history);
+        if (!built) continue;
+        const sub = Object.create(req);
+        Object.defineProperties(sub, {
+          query: { value: { ...req.query, session_id: h.session_id, use_case_id: h.use_case_id } },
+          body: { value: { inspire_database: q(req, 'inspire_database'), warehouse_id: warehouseId,
+            spec: { ...built.spec_json, uninstall: true, based_on_version: built.spec_version } } },
+        });
+        const got = await oneBuildAtATime(sub, async () => startVersion(sub, await prepareSubmission(sub)));
+        results.push({ session_id: h.session_id, use_case_id: h.use_case_id, spec_version: got.spec_version });
+      } catch (err) {
+        results.push({ session_id: h.session_id, use_case_id: h.use_case_id, error: err.message });
+      }
+    }
+    return results;
+  }
 
   async function loadStatus(req) {
     const sid = sessionIdOf(req);

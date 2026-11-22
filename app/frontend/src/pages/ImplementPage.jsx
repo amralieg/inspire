@@ -44,7 +44,7 @@ import {
   assetFiltersFrom, collectRemoval, collectedScope, controlRows, controlTiles, deliveredOutputs, dropCollected, filterByAssets, filterByMvp, heldVersion,
   keptVersions, loadAssetFilters, saveAssetFilters,
   loadCollectedVibes, missingAsks, notDoneLines, rebuildSpec, rebuildingText, rephrasedAsk, removeChanges, removeKeptChanges, rollbackChanges, rollingBackText,
-  saveCollectedVibes, statusWarnings, tryAgainChanges, uninstallChanges, vibeCards, vibeFeaturesLabel,
+  saveCollectedVibes, sharedUseCases, statusWarnings, tryAgainChanges, uninstallChanges, vibeCards, vibeFeaturesLabel,
   carriedStart, trackBuildSubmit, withPendingBuilds,
 } from '../lib/implementControl';
 import {
@@ -1162,14 +1162,15 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
       setSubmitBusy(false);
     }
   };
-  const submitSpec = (next, path = '/api/inspire/implement/submit') => startVersion(path, {
+  const submitSpec = (next, path = '/api/inspire/implement/submit', extra = {}) => startVersion(path, {
+    ...extra,
     inspire_database: settings.inspireDatabase,
     warehouse_id: settings.warehouseId,
     session_id: String(sessionId),
     notebook_path: settings.notebookPath,
     spec: next,
   });
-  const submitNext = (changes) => submitSpec(nextSpecFrom(latest, changes));
+  const submitNext = (changes, extra) => submitSpec(nextSpecFrom(latest, changes), undefined, extra);
 
   const toggleSchedule = () => submitNext({ schedule: { ...(spec.schedule || {}), enabled: !spec.schedule?.enabled } });
   const retryOutput = (name) => submitNext({ retry_outputs: [name] });
@@ -1177,8 +1178,10 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
   const rollbackOutput = (name, version) => submitNext(rollbackChanges(latest, name, version.version, version.vibes));
   const tryAgain = (name, asks) => submitNext(tryAgainChanges(name, asks));
   const removeKept = (version) => submitNext(removeKeptChanges(version));
+  const sharingUseCases = sharedUseCases(live);
   const uninstallAll = async () => {
-    if (!(await submitNext(uninstallChanges()))) return;
+    // REQ-460: confirming the dialog is the agreement to uninstall the use cases that share this App as well.
+    if (!(await submitNext(uninstallChanges(), sharingUseCases.length ? { uninstall_shared: true } : undefined))) return;
     setUninstalling(false);
     setCollected({ at: refreshKey, entries: [] });
     saveCollectedVibes(collectedKey, []);
@@ -2014,6 +2017,13 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
             Inspire deletes the MVP notebook, its job, the build jobs of every version, the dashboard, the Genie Agent, the App, the alert, the App&apos;s Lakebase copy and every version kept live, in a new version of this MVP. A build job that is still running stays until its run ends, and Inspire says so.
           </p>
           <p>The result tables, the history and any notebook Discover wrote for this use case stay. An App, dashboard or Genie Agent that other use cases share stays for them, and Inspire takes this use case&apos;s part out of it.</p>
+          {sharingUseCases.length > 0 && (
+            <div data-uninstall-shared="" className="space-y-1">
+              <p className="font-semibold">Uninstalling this use case also uninstalls the use cases that share its App:</p>
+              <ul className="list-disc ps-5">{sharingUseCases.map((u) => <li key={`${u.session_id}|${u.use_case_id}`}>{u.name || u.use_case_id}</li>)}</ul>
+              <p>Confirming uninstalls all of them.</p>
+            </div>
+          )}
         </ConfirmDialog>
       )}
       {statusError && (
