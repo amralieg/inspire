@@ -68,23 +68,34 @@ test('D28/D39: the header notebook count equals the Notebook chip count', async 
   }
 });
 
-// D38: a running build shows how long it has run and how long a build usually takes.
-test('D38: a build that has run 26 minutes shows the elapsed time and a typical duration', async () => {
-  const started = new Date(Date.now() - 26 * 60 * 1000).toISOString();
-  const building = built({ status: 'building_outputs', status_message: 'building outputs', implement_run_id: '5555555555555555', created_at: started,
-    updated_at: new Date().toISOString(), ...NOTHING_BUILT });
-  const ui = await openUi('implement', { ...STUDIO_STATE, history: [building], implementRun: { run_id: 5555555555555555, state: { life_cycle_state: 'RUNNING' } } });
-  const { page } = ui;
+// D38 (FX-41): a running build shows how long it has run and the median of this workspace's finished builds, never a made-up figure.
+const finishedBuild = (n, minutes) => built({ use_case_id: `N0${n}-U01`, status: 'ready', created_at: '2026-10-25T04:00:00Z',
+  updated_at: new Date(Date.parse('2026-10-25T04:00:00Z') + minutes * 60 * 1000).toISOString() });
+const runningBuild = () => built({ status: 'building_outputs', status_message: 'building outputs', implement_run_id: '5555555555555555',
+  created_at: new Date(Date.now() - 26 * 60 * 1000).toISOString(), updated_at: new Date().toISOString(), ...NOTHING_BUILT });
+async function progressLine(finished) {
+  const ui = await openUi('implement', { ...STUDIO_STATE, history: [runningBuild(), ...finished], implementRun: { run_id: 5555555555555555, state: { life_cycle_state: 'RUNNING' } } });
   try {
-    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    const line = page.locator('[data-progress-line]').first();
+    await ui.page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    const line = ui.page.locator('[data-progress-line]').first();
     await line.waitFor({ timeout: 20000 });
-    const text = await line.innerText();
-    assert.match(text, /Running for 2[67]m/, `the progress line shows the elapsed time (line: ${text})`);
-    assert.match(text, /usually takes/i, 'the progress line shows a typical duration');
+    await ui.page.waitForTimeout(500);
+    return await line.innerText();
   } finally {
     await ui.close();
   }
+}
+
+test('D38: a build that has run 26 minutes shows the elapsed time and the measured median of 4 finished builds', async () => {
+  const text = await progressLine([finishedBuild(2, 10), finishedBuild(3, 12), finishedBuild(4, 14), finishedBuild(5, 30)]);
+  assert.match(text, /Running for 2[67]m/, `the progress line shows the elapsed time (line: ${text})`);
+  assert.match(text, /usually take about 13 min \(median of 4\)/, `the progress line shows the measured median (line: ${text})`);
+});
+
+test('D38: with no finished builds the progress line shows the elapsed time and no typical duration', async () => {
+  const text = await progressLine([]);
+  assert.match(text, /Running for 2[67]m/, `the progress line shows the elapsed time (line: ${text})`);
+  assert.doesNotMatch(text, /usually/i, 'no typical figure without measured builds');
 });
 
 // D37: after the first 401 the page stops polling and offers Reload.
