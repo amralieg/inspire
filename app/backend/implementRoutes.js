@@ -1649,7 +1649,7 @@ function registerImplementRoutes(app, deps) {
     if (spec?.money?.rate_table) await refuseTableTypes(req, warehouseId, [spec.money.rate_table.table], { unknownType: true });
     const [stalled, tables, empty, unsharedBefore] = await Promise.all([stalledOf(req, history[0]), ownerTableChange(req, warehouseId, history, spec, useCase, person),
       emptyDataWarning(req, warehouseId, spec, useCase, chosenTableScopes(spec.data, parseTableScopeText(session.table_scope).scopes)), newAppReads(req, warehouseId, spec, useCase)]);
-    const { unshared, byYou } = await appReadsByPerson(req, warehouseId, unsharedBefore, grant);
+    const { unshared, byYou, commit: grantByPerson } = await appReadsByPerson(req, warehouseId, unsharedBefore, grant);
     const plan = I.planSubmission(history, spec, stalled, { requester: person.username, tableChange: tables.change });
     if (moved) plan.summary.result_table_moved = moved;
     if (tables.change) plan.summary.table_change = tables.change;
@@ -1661,7 +1661,7 @@ function registerImplementRoutes(app, deps) {
     if (unshared.length) {
       plan.summary.app_reads = { tables: unshared.map(({ table, owner }) => ({ table, owner })), owners: I.appReadsOwners(unshared), text: appReadsWarning, ...I.appReadsBlock(unshared) };
     }
-    return { sid, warehouseId, inspire_database, catalog, schema, spec: plan.spec, useCaseId, useCase, session, history, plan, person, warnings, warningDetails };
+    return { sid, warehouseId, inspire_database, catalog, schema, spec: plan.spec, useCaseId, useCase, session, history, plan, person, warnings, warningDetails, grantByPerson };
   }
 
   function withoutSkippedVibes(spec) {
@@ -1703,7 +1703,7 @@ function registerImplementRoutes(app, deps) {
   }
 
   async function newAppReads(req, warehouseId, spec, useCase) {
-    if (!spec.outputs.app || spec.outputs.app_access === 'user') return [];
+    if (!spec.outputs.app || spec.outputs.app_access === 'user' || spec.uninstall) return []; // FX-69c: an uninstall never reads or grants on sources
     const tables = I.sourceTables(spec, I.useCaseTables(useCase)).filter((t) => !I.resultTableNameError(t, 'tables'));
     const token = await appTokenOf(req);
     const rows = await Promise.all(tables.map((t) => accessRowsOf(req, token, warehouseId, t)));
@@ -1717,15 +1717,22 @@ function registerImplementRoutes(app, deps) {
     const token = P.forwardedTokenOf(req);
     if (!unshared.length || !token) return { unshared, byYou: null };
     const rows = await Promise.all(unshared.map((t) => accessRowsOf(req, token, warehouseId, t.table).catch(() => [])));
-    let mine = unshared.filter((t, i) => I.personCanGrant(t.gaps, rows[i]));
-    let left = unshared.filter((t) => !mine.includes(t));
-    if (mine.length && grant) {
+    // FX-69c: a grant targets `me`, the identity Inspire runs as; when it is unknown the person cannot be counted on to cover the table.
+    let mine = unshared.filter((t, i) => t.me && I.personCanGrant(t.gaps, rows[i]));
+    const left = unshared.filter((t) => !mine.includes(t));
+    // FX-69c: with grant on, the GRANT is not run here; `commit` runs it once every other check that can reject the submit has passed.
+    const commit = grant ? async (plan) => {
       const { failed } = await runPersonGrants(req, token, warehouseId, I.appReadsByYou(mine).grant);
       const refused = mine.filter((t) => I.appReadsBlock([t]).grant.some((sql) => failed.some((f) => f.startsWith(`${sql}:`))));
-      mine = mine.filter((t) => !refused.includes(t));
-      left = [...left, ...refused];
-    }
-    return { unshared: left, byYou: mine.length ? I.appReadsByYou(mine, grant) : null };
+      const done = mine.filter((t) => !refused.includes(t));
+      const blocked = [...left, ...refused];
+      if (done.length) plan.summary.app_reads_by_you = I.appReadsByYou(done, true);
+      else delete plan.summary.app_reads_by_you;
+      if (blocked.length) {
+        plan.summary.app_reads = { tables: blocked.map(({ table, owner }) => ({ table, owner })), owners: I.appReadsOwners(blocked), text: I.newAppReadsWarning(blocked), ...I.appReadsBlock(blocked) };
+      }
+    } : null;
+    return { unshared: left, byYou: mine.length ? I.appReadsByYou(mine, false) : null, commit: mine.length ? commit : null };
   }
 
   async function emptyDataWarning(req, warehouseId, spec, useCase, launchScopes = {}) {
@@ -1784,7 +1791,7 @@ function registerImplementRoutes(app, deps) {
     };
   }
 
-  async function startVersion(req, { sid, warehouseId, inspire_database, catalog, schema, spec: planned, useCaseId, session, plan, person, warnings: noted = [], warningDetails = [], rebuildAsIs = false }) {
+  async function startVersion(req, { sid, warehouseId, inspire_database, catalog, schema, spec: planned, useCaseId, session, plan, person, warnings: noted = [], warningDetails = [], rebuildAsIs = false, grantByPerson = null }) {
     I.refuseAppReadsBlocked(plan); // FX-52: never starts a build the App cannot read, Rebuild as is included
     if (!rebuildAsIs) I.refuseUnchanged(plan);
     const { spec, warnings: outputWarnings, moved } = await outputBeforeBuild(req, warehouseId, planned, useCaseId);
@@ -1807,6 +1814,11 @@ function registerImplementRoutes(app, deps) {
       const err = new Error('This run has no saved data sources, so Inspire cannot rebuild it. Start a new run from Start to get them.');
       err.statusCode = 400;
       throw err;
+    }
+    // FX-69c: the person's grants run only now, after every check that can reject the submit, right before the build is queued.
+    if (grantByPerson) {
+      await grantByPerson(plan);
+      I.refuseAppReadsBlocked(plan);
     }
     const createdBy = person.username;
     const table = I.implementTableName(catalog, schema);
