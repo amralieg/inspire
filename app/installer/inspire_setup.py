@@ -1578,8 +1578,8 @@ def _stop_on_refused_account_grants(failed, ctx=None):
     failed = {sql: error for sql, error in failed.items()
               if not (" ON CATALOG `" in sql and f"ON CATALOG `{sql.split(' ON CATALOG `', 1)[1].split('`')[0]}` TO" in refused)}
     if failed:
-        raise RuntimeError(f"New Apps cannot read Build results until account users hold: {'; '.join(list(failed)[:3])}"
-                           f"{f' and {len(failed) - 3} more' if len(failed) > 3 else ''} (first reason: {str(next(iter(failed.values())))[:160]}). "
+        raise RuntimeError(f"New Apps cannot read Build results until account users hold: {'; '.join(failed)}"
+                           f" (first reason: {str(next(iter(failed.values())))[:160]}). "
                            "A catalog owner can run them. Inspire stopped before it deploys the new App version, so the App keeps its last working version. "
                            "Then run this installer again.")
 
@@ -1873,7 +1873,7 @@ def _grant_data_catalogs(ctx, sp):
         for sql in ctx["READ_REFUSED"]:
             print(sql)
         raise RuntimeError(f"Inspire's App cannot read {_plural(len(failed), 'data catalog')} you picked (first reason: {str(next(iter(failed.values())))[:160]}). "
-                           f"A catalog owner runs {'; '.join(ctx['READ_REFUSED'][:3])}{f' and {len(failed) - 3} more' if len(failed) > 3 else ''}, "
+                           f"A catalog owner runs {'; '.join(ctx['READ_REFUSED'])}, "
                            "or you pick other catalogs in the data-catalog setting. "
                            "Inspire stopped before it deploys the new App version, so the App keeps its last working version. "
                            "Then run this installer again.")
@@ -2005,7 +2005,7 @@ def model_endpoints_to_grant(endpoints, matching):
     return list(dict.fromkeys(picks))
 
 
-def grant_model_access(api, w, sp, notebook_text):
+def grant_model_access(api, w, sp, notebook_text, gateway_get=None):
     """CAN_QUERY for the App's service principal on the chat model endpoints the agent would pick. Returns the lines the install prints."""
     try:
         matching = agent_model_matching(notebook_text)
@@ -2017,6 +2017,10 @@ def grant_model_access(api, w, sp, notebook_text):
         return [f"⚠️ not granted: the installer could not list the serving endpoints ({_error_words(exc)}); the App needs CAN_QUERY on a chat model"]
     by_name = {ep.name: ep for ep in endpoints if getattr(ep, "name", None)}
     picks = model_endpoints_to_grant(endpoints, matching)
+    if not picks and gateway_get:
+        lines = _grant_gateway_models(api, gateway_get, sp)
+        if lines:
+            return lines
     if not picks:
         return ["⚠️ not granted: no chat model endpoint is listed for the installer, so the App gets no model access from this install; "
                 "a workspace admin grants CAN_QUERY on a chat model to the App's service principal, or the App shows Permission Required"]
@@ -2065,8 +2069,33 @@ def _grant_usage_on_system_ai(api, sp, name):
     return ", USE CATALOG on system and USE SCHEMA on system.ai ✅"
 
 
-def _grant_system_model(api, sp, name):
-    service = system_model_service(name)
+GATEWAY_MODEL_LISTS = (("/ai-gateway/anthropic/v1/models", "data", "id"), ("/ai-gateway/codex/v1/models", "models", "slug"))
+
+
+def _gateway_system_models(gateway_get):
+    """The system.ai models the Unity Gateway lists (the same two routes app/backend/lib/modelAccess.js reads); empty when none or unreadable."""
+    found = []
+    for path, key, field in GATEWAY_MODEL_LISTS:
+        try:
+            resp = gateway_get("GET", path)
+            items = (resp.json() or {}).get(key) or [] if resp.status_code == 200 else []
+        except Exception:
+            continue
+        found.extend(item[field] for item in items if isinstance(item, dict) and str(item.get(field) or "").startswith("system.ai."))
+    return list(dict.fromkeys(found))
+
+
+def _grant_gateway_models(api, gateway_get, sp):
+    """No serving endpoint is listed but the gateway lists system.ai models: grant the App what the gateway needs (REQ-471)."""
+    services = _gateway_system_models(gateway_get)
+    if not services:
+        return []
+    lines = [_grant_system_model(api, sp, service, service) for service in services]
+    return [f"Model access for the App ({_plural(len(services), 'gateway model')}):"] + lines
+
+
+def _grant_system_model(api, sp, name, service=None):
+    service = service or system_model_service(name)
     if not service:
         return (f"  ⚠️ {name}: not granted (the endpoint has no id and no system model service to grant on); "
                 "a workspace admin grants CAN_QUERY on it, or the App shows Permission Required")
@@ -2074,6 +2103,10 @@ def _grant_system_model(api, sp, name):
     if resp.status_code == 200:
         return f"  {name}: EXECUTE on {service} for the App's service principal ✅" + _grant_usage_on_system_ai(api, sp, name)
     command = f"databricks grants update model_service {service} --json '{{\"changes\": [{{\"principal\": \"{sp}\", \"add\": [\"EXECUTE\"]}}]}}'"
+    if name == service:
+        admin = " ".join([f"GRANT EXECUTE ON MODEL {service} TO `{sp}`;"] + [f"{sql} `{sp}`;" for *_x, sql in UNITY_USAGE_GRANTS])
+        return (f"  ⚠️ {name}: EXECUTE on {service} not granted ({resp.status_code} {resp.text[:100]}); "
+                f"Permission Required: a metastore admin runs {admin} Account users hold EXECUTE on system.ai models by default, so the App may be covered already.")
     return (f"  ⚠️ {name}: EXECUTE on {service} not granted ({resp.status_code} {resp.text[:100]}); "
             f"Permission Required: a metastore admin runs `{command}`. Account users already hold EXECUTE on system.ai models by default, "
             "so the App may be covered already.")
@@ -2150,7 +2183,7 @@ def step_grant_permissions(ctx):
                                    f"Apps that Implement builds read Lakebase: project {lakebase['project']}, catalog `{lakebase['catalog']}` ✅")
         print(f"  {_app_folder_access(api, ctx['APP_FOLDER'], sp)}")
         print(f"  {_assets_folder_access(api, ctx.get('ASSETS_PATH'), sp, ctx['ASSETS_PARENT'])}")
-        for line in grant_model_access(api, w, sp, ctx.get("AGENT_NOTEBOOK_TEXT") or ""):
+        for line in grant_model_access(api, w, sp, ctx.get("AGENT_NOTEBOOK_TEXT") or "", gateway_get=api):
             print(line)
         shared_ok, shared_said = _shared_output_access(api, ctx["NOTEBOOK_PATH"], sp)
         print(f"  {'' if shared_ok else '⚠️ '}{shared_said}")
@@ -2159,9 +2192,8 @@ def step_grant_permissions(ctx):
         _grant_data_catalogs(ctx, sp)
         blocking = _blocking_read_grants(failed)
         if blocking:
-            shown = "; ".join(f"{sql}: {str(error)[:160]}" for sql, error in list(blocking.items())[:3])
-            more = f" and {len(blocking) - 3} more" if len(blocking) > 3 else ""
-            raise RuntimeError(f"{sp} could not be given read access to {_plural(len(blocking), 'grant')}: {shown}{more}. "
+            shown = "; ".join(f"{sql}: {str(error)[:160]}" for sql, error in blocking.items())
+            raise RuntimeError(f"{sp} could not be given read access to {_plural(len(blocking), 'grant')}: {shown}. "
                                "Inspire stopped before it deploys the new App version, so the App keeps its last working version. "
                                "A catalog owner can run the grant, then run this installer again.")
         if not shared_ok:
