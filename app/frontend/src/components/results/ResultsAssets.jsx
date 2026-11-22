@@ -71,7 +71,7 @@ export default function ResultsAssets({
                     </div>
                   </div>
                   {/* Pipeline stages row */}
-                  <div className="flex items-center gap-1 pt-2 border-t border-border overflow-x-auto">
+                  <div className="flex flex-wrap items-center gap-y-1 gap-1 pt-2 border-t border-border">
                     {reviewBarStages.map((stage, i) => (
                       <div key={stage} className="flex items-center shrink-0">
                         <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-success-bg">

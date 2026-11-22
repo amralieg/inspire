@@ -50,7 +50,7 @@ import { RunValuePanel } from '../components/ValueTotalsPanel';
 import { valueQuery } from '../lib/valueLedger';
 import { useValueRead } from '../lib/useValueLedger';
 import LatestRunBadge from '../components/LatestRunBadge';
-import { executiveSummaryOf, runBusiness, runDate, runFigureParts, runFiguresOf } from '../lib/reviewFigures';
+import { executiveSummaryOf, runBusiness, runDate, runFigureParts, runFiguresOf, runsNewestFirst, latestRunId } from '../lib/reviewFigures';
 import {
   NOT_ALIGNED_FILTER,
   compareBestOfBestFirst,
@@ -177,6 +177,7 @@ export default function ResultsPage({
   const [sessionsError, setSessionsError] = useState('');
   const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState(null);
+  const latestId = useMemo(() => latestRunId(sessions), [sessions]);
   const [results, setResults] = useState(null);
   // REQ-126: the steps the run recorded, the same rows the Monitor reads; the Review step bar is built from them.
   const [runSteps, setRunSteps] = useState({ session: '', steps: [] });
@@ -263,6 +264,8 @@ export default function ResultsPage({
   const [view, setView] = useState(() => viewOfSearch(typeof window !== 'undefined' ? window.location.search : ''));
   const showView = useCallback((next) => {
     setView(next);
+    // REQ-444: a view switch lands at the top of the new view, not mid-page where the old one was scrolled.
+    window.scrollTo(0, 0);
     const search = searchWithView(window.location.search, next);
     if (search === window.location.search) return;
     const state = window.history.state && typeof window.history.state === 'object' ? window.history.state : {};
@@ -512,6 +515,7 @@ export default function ResultsPage({
       const q = new URLSearchParams({
         inspire_database: inspireDb,
         warehouse_id: warehouseId,
+        all: '1', // REQ-444: the same list Start counts, not its first 20
       });
       const data = await apiFetch(`/api/inspire/sessions?${q}`);
       const loadedSessions = data.sessions || [];
@@ -743,6 +747,8 @@ export default function ResultsPage({
   }
   // REQ-441: pick cards and calculate their value from the defaults. Not in the demo (no ledger) and not without a database and warehouse.
   const bulkOn = !showcase && Boolean(inspireDb && warehouseId && selectedSessionId);
+  // REQ-444: a selection belongs to the run it was made in; changing the run clears it, so a bulk action never sends another run's ids.
+  useEffect(() => { setBulkPicked(new Set()); }, [selectedSessionId]);
   const bulkIds = filteredUseCases.map((uc) => trackingIdOf(uc)).filter((id) => id && bulkPicked.has(id));
   const setBulkPick = (id, on) => setBulkPicked((prev) => { const next = new Set(prev); if (on) next.add(id); else next.delete(id); return next; });
   const startBulk = () => {
@@ -1209,7 +1215,7 @@ export default function ResultsPage({
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-text-secondary">
               <span data-run-business="">{runBusiness(selectedSession) || displayCleanText(results.business_name) || 'No business name'}</span>
               {runDate(selectedSession) && <span>· Updated {formatSessionDate(runDate(selectedSession))}</span>}
-              <LatestRunBadge session={selectedSession} />
+              <LatestRunBadge session={selectedSession} latest={String(selectedSessionId) === latestId} />
             </p>
             {runValue?.run && (
               <ValueBadge
@@ -1329,7 +1335,7 @@ export default function ResultsPage({
                 <h2 className="text-xs font-semibold text-text-secondary uppercase tracking-[0.18em]">
                   Runs ({sessions.length})
                 </h2>
-                {sessions.map((s) => {
+                {runsNewestFirst(sessions).map((s) => {
                   const selected =
                     String(selectedSessionId) === String(s.session_id);
                   const isFailed = sessionFailed(s);
@@ -1357,7 +1363,7 @@ export default function ResultsPage({
                           <span className="text-sm font-semibold text-text-primary">
                             {runBusiness(s) || 'Session'}
                           </span>
-                          <LatestRunBadge session={s} />
+                          <LatestRunBadge session={s} latest={String(s.session_id) === latestId} />
                         </span>
                         <div className="text-[11px] text-text-secondary flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
                           <span className="flex items-center gap-1">

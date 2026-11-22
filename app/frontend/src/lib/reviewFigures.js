@@ -1,6 +1,7 @@
 import OUTPUT_LABELS from '../../../backend/lib/implementOutputLabels.json' with { type: 'json' };
 import { displayCleanText } from './useCaseFields.js';
 import { qualityBarCountText } from './qualityBarWording.js';
+import { sessionSucceeded } from './monitorState.js';
 
 export const LATEST_RUN_LABEL = 'Latest Run';
 
@@ -171,6 +172,17 @@ export function isLatestRun(session) {
 
 export function runDate(session) {
   return session?.last_updated || session?.completed_on || session?.create_at || '';
+}
+
+const runTime = (session) => { const t = Date.parse(runDate(session)); return Number.isFinite(t) ? t : -Infinity; };
+
+// REQ-444: the Change run list reads newest first by each run's own time, whatever order the server listed them in.
+export const runsNewestFirst = (sessions) => [...(sessions || [])].sort((a, b) => runTime(b) - runTime(a));
+
+// REQ-444: the Latest Run badge goes on the newest completed run, by the same time the list shows and sorts by.
+export function latestRunId(sessions) {
+  const done = runsNewestFirst((sessions || []).filter(sessionSucceeded));
+  return done.length ? String(done[0].session_id) : '';
 }
 
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
