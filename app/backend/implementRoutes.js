@@ -1687,7 +1687,7 @@ function registerImplementRoutes(app, deps) {
     const tables = I.sourceTables(spec, I.useCaseTables(useCase)).filter((t) => !I.resultTableNameError(t, 'tables'));
     const token = await appTokenOf(req);
     const rows = await Promise.all(tables.map((t) => accessRowsOf(req, token, warehouseId, t)));
-    return I.newAppReadsGaps(tables, tables.map((t, i) => (rows[i].length ? I.accessPlan(t, rows[i]) : { gaps: [] })));
+    return I.newAppReadsGaps(tables, tables.map((t, i) => (I.tableExistsIn(rows[i]) ? I.accessPlan(t, rows[i]) : { gaps: [] })));
   }
 
   async function emptyDataWarning(req, warehouseId, spec, useCase, launchScopes = {}) {
