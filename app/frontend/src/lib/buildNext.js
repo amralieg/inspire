@@ -5,6 +5,9 @@ import { parseJson, v130View } from './v130UseCase.js';
 export const NEXT_LIST_COUNT = 3;
 export const NEXT_STEP_COUNT = 2;
 
+// FX-39b: a use case the value totals value (calculated, estimated or measured) with a number; the one amount every screen shows for it.
+export const valuedLine = (v) => Boolean(v && ['calculated', 'estimated', 'measured'].includes(v.status) && v.amount != null && Number.isFinite(Number(v.amount)));
+
 const normalTable = (name) => String(name || '').replace(/`/g, '').trim().toLowerCase();
 
 export function estimateOf(uc) {

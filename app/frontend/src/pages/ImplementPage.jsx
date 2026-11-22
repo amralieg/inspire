@@ -14,7 +14,7 @@ import {
   failureChoices, stoppedChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
   unreliableHold, olderBuildNote, appReadsName, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appObjectsOf, appReadsChoices, appReadsText, appReadsOwners, viewerRows, tableRows, APP_READS_HEADING, APP_READS_CLEARED, protectionStopOf, protectionChoices, abacGrantText, grantGapPermissions, grantFailurePermissions, liveSourceNow, liveProtection, liveReads,
 } from '../lib/implementWizard';
-import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
+import { makeApiFetch, makeApiPostJson, makeApiPutJson } from '../lib/apiClient';
 import { buildUseCaseList } from '../lib/useCaseList';
 import { workspaceJobUrl, workspaceNotebookUrl } from '../lib/workspaceLinks';
 import { reducedMotion } from '../lib/motion';
@@ -71,7 +71,11 @@ import { SHOWCASE_ALERT_NOTE, SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOW
 import { buildFilterText } from '../lib/reviewFigures';
 import ValueEstimateLine from '../components/ValueEstimateLine';
 import { useValueRead } from '../lib/useValueLedger';
-import { BuildNextStep } from '../components/BuildNext';
+import { BuildNextStep, RunValue } from '../components/BuildNext';
+import CalculateValueDialog from '../components/CalculateValueDialog';
+import { tableOfUseCase, useCalculatedValues } from '../lib/calculatedValue';
+import { trackingIdOf } from '../lib/useCaseFields';
+import { valuedLine } from '../lib/buildNext';
 import { grantListKey, raisePermissions } from '../lib/permissionBus';
 
 const OUTPUT_ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: GenieLogo, app: AppWindow, alert: BellRing };
@@ -266,7 +270,7 @@ function RailProgress({ item, progress }) {
   );
 }
 
-function Rail({ groups, listLoading, query, assets = [], mvp = '', assetLabels = [], shownId, progress = {}, estimates = null, onSelect }) {
+function Rail({ groups, listLoading, query, assets = [], mvp = '', assetLabels = [], shownId, progress = {}, estimates = null, valued = null, onSelect }) {
   const mvpWords = mvp === 'live' ? 'a live MVP' : 'an MVP';
   const assetWords = assetLabels.map((label) => `${/^[AEIOU]/.test(label) ? 'an' : 'a'} ${label}`).join(' or ');
   return (
@@ -315,7 +319,9 @@ function Rail({ groups, listLoading, query, assets = [], mvp = '', assetLabels =
                       </span>
                       <OutputIcons latest={item.latest} />
                     </div>
-                    {item.uc && <ValueEstimateLine uc={item.uc} estimate={estimates?.use_cases?.[item.id] ?? null} className="mt-1 line-clamp-2 text-[11px]" />}
+                    {item.uc && (valuedLine(valued?.[item.id])
+                      ? <RunValue row={{ id: item.id, value: valued[item.id] }} />
+                      : <ValueEstimateLine uc={item.uc} estimate={estimates?.use_cases?.[item.id] ?? null} className="mt-1 line-clamp-2 text-[11px]" />)}
                     {building && <RailProgress item={item} progress={progress[item.id]} />}
                   </button>
                 );
@@ -359,8 +365,28 @@ function BuildFilterStrip({ filter, sessionId, onPickRun, onClear }) {
 export default function ImplementPage({ settings, sessionId, focusId = null, focusStep = null, onStepOpened = null, onFocus, onOpenRun = null, demoMvps = null, filter = null, onPickRun, onClearFilter }) {
   const { token, databricksHost, showcase = '' } = settings;
   const readOnly = Boolean(showcase);
-  const apiFetch = useMemo(() => makeApiFetch({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
+  // FX-39b (W16 D37): the first 401 closes this gate; every later read fails at once without a request, so no poller keeps asking, and Reload shows.
+  const [gate, setGate] = useState(null);
+  const { apiFetch, signIn } = useMemo(() => {
+    const read = makeApiFetch({ token, databricksHost, showcase });
+    const state = { expired: null };
+    const fetchGated = async (url, opts) => {
+      if (state.expired) throw state.expired;
+      try {
+        return await read(url, opts);
+      } catch (e) {
+        if (e?.status === 401 && !showcase) {
+          state.expired = e;
+          setGate(state);
+        }
+        throw e;
+      }
+    };
+    return { apiFetch: fetchGated, signIn: state };
+  }, [token, databricksHost, showcase]);
+  const signedOut = gate === signIn;
   const apiPostJson = useMemo(() => makeApiPostJson({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
+  const apiPutJson = useMemo(() => makeApiPutJson({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
   const [useCases, setUseCases] = useState([]);
   const [discoveryType, setDiscoveryType] = useState('');
   const [listLoading, setListLoading] = useState(true);
@@ -396,6 +422,16 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
   // REQ-078: each card reads its rule estimate here, the same route Review and Build next read. A measured figure is never replaced.
   // A showcase or demo run makes no workspace call: its read is skipped, as ChoosePage and ResultsPage skip theirs.
   const estimates = useValueRead(apiFetch, readOnly ? '' : `/api/inspire/value/estimates?${qBase}`, refreshKey);
+  // FX-39b (W16 D27): the value totals are what Review's card and Build next read; the list and the detail show that amount first.
+  const totals = useValueRead(apiFetch, readOnly ? '' : `/api/inspire/value/totals?${qBase}`, refreshKey);
+  const valued = totals?.use_cases || null;
+  const [calcFor, setCalcFor] = useState(null);
+  const calculated = useCalculatedValues({ apiFetch: readOnly ? null : apiFetch, apiPostJson, apiPutJson, inspireDatabase: settings.inspireDatabase, warehouseId: settings.warehouseId, sessionId });
+  const valuesForDialog = useMemo(() => ({
+    ...calculated,
+    run: async (...a) => { const got = await calculated.run(...a); setRefreshKey((n) => n + 1); return got; },
+    undo: async (...a) => { const got = await calculated.undo(...a); setRefreshKey((n) => n + 1); return got; },
+  }), [calculated]);
 
   const fetchUseCases = useCallback(async () => {
     const [res, rows] = await Promise.allSettled([
@@ -469,7 +505,9 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
   useEffect(() => {
     if (!focusStep || !selected?.uc || openedStep.current === `${focusStep}:${selected.id}`) return;
     openedStep.current = `${focusStep}:${selected.id}`;
-    setWizard({ uc: selected.uc, focus: { step: focusStep }, live: false });
+    // REQ-457 (FX-39b): Review's Build next sends 'measure'; the Build wizard has no Measure step, so the value wizard opens.
+    if (focusStep === 'measure') setCalcFor(selected.uc);
+    else setWizard({ uc: selected.uc, focus: { step: focusStep }, live: false });
     onStepOpened?.();
   }, [focusStep, selected]);
   const paneRef = useRef(null);
@@ -499,11 +537,12 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
     onFocus?.(id);
   };
 
-  // Opens the wizard on its Measure step for one use case: the money rule that a value estimate needs (REQ-078).
+  // REQ-457 (FX-39b): a use case with no value yet asks to calculate it and opens the value wizard, the one MvpValuePanel's Calculate value opens.
+  // It never opens the Build wizard.
   const openMeasure = (id) => {
     select(id);
     const item = allItems.find((i) => i.id === id);
-    if (item?.uc) setWizard({ uc: item.uc, focus: { step: 'measure' }, live: false });
+    if (item?.uc) setCalcFor(item.uc);
   };
 
   // REQ-323: a build submitted from a use case's detail (Rebuild, Try again, Change choices) shows as queued at once.
@@ -535,7 +574,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
       <PageHeader summary={summary} loading={listLoading} query={query} onQuery={setQuery} />
       {!listLoading && !listError && <SummaryBanner summary={summary} />}
       {filter && <BuildFilterStrip filter={filter} sessionId={sessionId} onPickRun={onPickRun} onClear={clearFilter} />}
-      {listError && <PlainMessage text={listError} className={ERROR_BOX} onRetry={() => setListVersion((n) => n + 1)} copy />}
+      {listError && !signedOut && <PlainMessage text={listError} className={ERROR_BOX} onRetry={() => setListVersion((n) => n + 1)} copy />}
       {buildNotes.length > 0 && (
         <ul role="note" aria-label="What Inspire changed to start this build" data-build-notes=""
           className="rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 space-y-0.5 text-xs text-warning-fg">
@@ -543,7 +582,13 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
         </ul>
       )}
       {buildNotes.length > 0 && buildDetails.length > 0 && <TechnicalDetails items={buildDetails} />}
-      {railError && <PlainMessage text={railError} className={ERROR_BOX} onRetry={() => loadRail().catch((e) => setRailError(e.message))} copy />}
+      {signedOut && (
+        <div role="alert" data-signed-out="" className={`${ERROR_BOX} flex flex-wrap items-center gap-3`}>
+          <span>Your Databricks sign-in has expired, so Inspire stopped checking. Reload the page to sign in again.</span>
+          <button type="button" onClick={() => globalThis.location.reload()} className="rounded-md border border-error/40 bg-surface px-3 py-1 text-xs font-semibold text-error-fg hover:bg-bg-subtle">Reload</button>
+        </div>
+      )}
+      {railError && !signedOut && <PlainMessage text={railError} className={ERROR_BOX} onRetry={() => loadRail().catch((e) => setRailError(e.message))} copy />}
       <ProgressDock.Provider value={progressDock}>
       <div className="flex flex-col md:flex-row gap-4 md:gap-2 md:flex-1 md:min-h-0">
         <div data-implement-rail="" style={{ '--rail-w': `${railPx}px` }}
@@ -551,7 +596,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
           {!listLoading && <AssetFilters counts={assetCounts} assets={assetFilters} onToggle={toggleAsset} />}
           <Rail groups={groups} listLoading={listLoading} query={query} assets={assetFilters} mvp={mvpFilter}
             assetLabels={assetCounts.filter((entry) => assetFilters.includes(entry.id)).map((entry) => entry.label)}
-            shownId={shownId} progress={progress} estimates={estimates} onSelect={select} />
+            shownId={shownId} progress={progress} estimates={estimates} valued={valued} onSelect={select} />
         </div>
         <PaneResizer width={railPx} onWidth={(width) => setRailPx(paneWidth(RAIL_WIDTH, width))} limits={RAIL_WIDTH} label="Resize the use case list" data-rail-resizer="" className="self-stretch" />
         <section ref={paneRef} aria-label="Use case" className="relative flex-1 min-w-0 space-y-4 md:self-stretch md:min-h-0 md:overflow-y-auto">
@@ -575,6 +620,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
               notebookRunError={rail.notebook_run_error}
               refreshKey={refreshKey}
               valueEstimate={estimates?.use_cases?.[selected.id] ?? null}
+              valueTotal={valued?.[selected.id] ?? null}
               onSetRule={readOnly ? undefined : () => openMeasure(selected.id)}
               collectedKey={scopeOf(selected.id)}
               onProgress={reportProgress}
@@ -591,6 +637,11 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
       <div ref={setProgressDock} data-progress-dock="" className="hidden empty:hidden md:flex md:fixed md:top-14 md:end-0 md:z-30 md:h-[calc(100dvh-3.5rem)]" />
       </div>
       </ProgressDock.Provider>
+      {calcFor && !readOnly && (
+        <CalculateValueDialog key={trackingIdOf(calcFor)} uc={calcFor} table={tableOfUseCase(calcFor)} apiPostJson={apiPostJson} inspireDatabase={settings.inspireDatabase} warehouseId={settings.warehouseId}
+          sessionId={sessionId} saved={calculated.byId[trackingIdOf(calcFor)]?.answers || null} version={calculated.byId[trackingIdOf(calcFor)]?.version || null}
+          values={valuesForDialog} onClose={() => { setCalcFor(null); setRefreshKey((n) => n + 1); }} />
+      )}
       {wizard && !readOnly && (
         <ImplementWizard
           uc={wizard.uc}
@@ -849,7 +900,7 @@ function PartTabs({ assets, picked, onPick }) {
 // REQ-355: the steps a queued build reads: none, so the superseded run's steps never show under the queued row.
 const NO_STEPS = [];
 
-function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson, databricksHost, notebookRunError, refreshKey, collectedKey, valueEstimate = null, onSetRule = null,
+function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson, databricksHost, notebookRunError, refreshKey, collectedKey, valueEstimate = null, valueTotal = null, onSetRule = null,
   onEdit, onOpenRun = null, onBuildQueued = null, onOpenDemoMvp = null, onProgress = null, readOnly = false }) {
   const useCaseId = item.id;
   const yearlyRead = useValueRead(apiFetch, readOnly ? '' : `/api/inspire/value/yearly?${qBase}`, refreshKey);
@@ -1903,7 +1954,9 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           </div>
           {row && <InspireScoreBadge score={row.inspire} />}
         </div>
-        {item.uc && <ValueEstimateLine uc={item.uc} estimate={valueEstimate} onSetRule={onSetRule} />}
+        {item.uc && (valuedLine(valueTotal)
+          ? <RunValue row={{ id: item.id, value: valueTotal }} />
+          : <ValueEstimateLine uc={item.uc} estimate={valueEstimate} onSetRule={onSetRule} />)}
         {built && progress.active && <ProgressLine chip={chip} summary={progress} />}
         <div className={HEADER_ACTIONS}>
           {item.uc && (

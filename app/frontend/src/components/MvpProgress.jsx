@@ -6,7 +6,7 @@ import { splitTechnical } from '../lib/plainText';
 import GenieLogo from './GenieLogo';
 import { IconChip, PANEL_CLASS } from './BuildUi';
 import { ACTION_ROW } from './ImplementControlTower';
-import { progressPercent, stageSteps, stagesRecorded } from '../lib/mvpProgress';
+import { TYPICAL_BUILD, progressPercent, stageSteps, stagesRecorded } from '../lib/mvpProgress';
 import { plural } from '../lib/plural';
 
 const STAGE_LOOK = {
@@ -56,7 +56,7 @@ export function ProgressLine({ chip, summary }) {
   const percent = progressPercent(chip, summary);
   const bar = BAR_TONE[chip?.tone] || BAR_TONE.idle;
   return (
-    <div data-progress-line="" className="flex items-center gap-3 min-w-0">
+    <div data-progress-line="" className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
       <div
         className="relative h-2 flex-1 min-w-24 rounded-full bg-bg-subtle overflow-hidden"
         role="progressbar"
@@ -79,6 +79,7 @@ export function ProgressLine({ chip, summary }) {
       </div>
       <span data-progress-percent="" className="shrink-0 font-mono text-sm font-bold tabular-nums text-text-primary">{percent}%</span>
       {summary.headline && <span data-progress-step="" className="min-w-0 truncate text-[12px] text-text-secondary">{summary.headline}</span>}
+      {summary.active && <span data-progress-elapsed="" className="shrink-0 text-[12px] text-text-secondary">{[summary.span, TYPICAL_BUILD].filter(Boolean).join(' · ')}</span>}
     </div>
   );
 }

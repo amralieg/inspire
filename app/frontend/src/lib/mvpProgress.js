@@ -383,6 +383,9 @@ export function progressPercent(chip, summary) {
   return chip?.tone === 'success' || chip?.tone === 'warning' ? 100 : summary?.percent ?? 0;
 }
 
+// FX-39b (W16 D38): shown next to the time a build has run, so a long build is not mistaken for a hang.
+export const TYPICAL_BUILD = 'A build usually takes 20 to 45 minutes';
+
 export function mvpProgressSummary(stages, latest, { now = Date.now(), stalled = null, repair = null } = {}) {
   const counted = stages.filter((s) => s.state !== 'skipped');
   const settled = counted.filter((s) => ['done', 'warning'].includes(s.state)).length;

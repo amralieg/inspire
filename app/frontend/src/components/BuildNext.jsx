@@ -5,7 +5,7 @@ import { moneyText as boxMoneyText } from './ValueBox';
 import { AppReadAccess } from './AppReadAccess';
 import { PlainMessage } from './TechnicalDetails';
 import { raisePermissions } from '../lib/permissionBus';
-import { buildItems, buildNextOf, moneyText, nextSharingTables } from '../lib/buildNext';
+import { buildItems, buildNextOf, moneyText, nextSharingTables, valuedLine } from '../lib/buildNext';
 import { trackBuildSubmit } from '../lib/implementControl';
 import { appGrantText, moneyRuleColumns, preflightParams, primaryTableOf, specForSibling } from '../lib/implementWizard';
 import { joinSentences } from '../lib/sentences';
@@ -18,7 +18,7 @@ const BUILD_CUSTOM_BUTTON = 'inline-flex h-8 shrink-0 items-center gap-1.5 round
 const VALUED = { calculated: 'calculated', estimated: 'estimated', measured: 'measured' };
 export function RunValue({ row, onMeasure }) {
   const v = row.value;
-  if (v && VALUED[v.status] && Number.isFinite(Number(v.amount)) && v.amount != null) {
+  if (valuedLine(v)) {
     return (
       <p data-value-estimate="value" className="text-xs leading-snug text-text-secondary">
         {`${v.verb || 'Value at stake'}: `}<span data-value-line-amount="" className="font-semibold tabular-nums text-text-primary">{boxMoneyText(v.currency, v.amount)}</span>{` a year (${VALUED[v.status]})`}

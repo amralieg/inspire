@@ -398,7 +398,8 @@ export function buildSummary(items) {
     unmet: unmet.length,
     unmetPublished: unmet.filter(appOf).length,
     failed: inGroup('failed').length,
-    notebooks: list.filter((item) => item.state?.kind === 'notebook' && item.notebook?.state === 'ready').length,
+    // FX-39b (W16 D28/D39): the same test as the Notebook filter chip, so the header and the chip count alike.
+    notebooks: list.filter((item) => itemAssets(item).has('notebook')).length,
     notStarted: list.filter((item) => item.state?.group === 'not_started').length,
     delivered,
   };
