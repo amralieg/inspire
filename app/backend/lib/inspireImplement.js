@@ -3642,6 +3642,28 @@ function appReadsBlock(unshared) {
   return { blocking: true, grant };
 }
 
+// REQ-478, REQ-469: the signed-in person can give Inspire MANAGE on a source when they own or manage it, its schema or its catalog.
+const GRANT_REACH = { catalog: ['catalog'], schema: ['catalog', 'schema'], table: ['catalog', 'schema', 'table'] };
+function personCanGrant(gaps, rows) {
+  const holds = new Set((rows || []).filter((r) => (r.mine === true || str(r.mine).toLowerCase() === 'true')
+    && ['OWNER', 'MANAGE'].includes(privilegeOf(r.privilege))).map((r) => str(r.level).toLowerCase()));
+  return (gaps || []).length > 0 && gaps.every((g) => (GRANT_REACH[g.level] || []).some((level) => holds.has(level)));
+}
+
+// REQ-478, REQ-469: the one info line for sources Inspire shares with the new App using the signed-in person's permissions.
+function appReadsByYou(unshared, done = false) {
+  const tables = (unshared || []).map((t) => t.table);
+  const grant = appReadsBlock(unshared).grant;
+  const names = joinAnd(tables);
+  return { tables, grant, text: done ? `Inspire used your permissions to let the App it makes read ${names}`
+    : `When the build starts, Inspire uses your permissions to let the App it makes read ${names}` };
+}
+
+// Each data owner once, in order, across every gap left.
+function appReadsOwners(unshared) {
+  return [...new Set((unshared || []).flatMap((t) => (t.gaps || []).map((g) => g.owner)).filter(Boolean))];
+}
+
 function refuseAppReadsBlocked(plan) {
   const reads = plan && plan.summary && plan.summary.app_reads;
   if (!reads || !reads.blocking) return;
@@ -3803,6 +3825,8 @@ const USE_CASE_SCHEMA_DATABASE_TAG = 'inspire_database';
 const USE_CASE_SCHEMA_TAGS = [USE_CASE_SCHEMA_SESSION_TAG, USE_CASE_SCHEMA_USE_CASE_TAG, 'inspire_business', USE_CASE_SCHEMA_DATABASE_TAG];
 const USE_CASE_SCHEMA_FACT_OF_TAG = { [USE_CASE_SCHEMA_SESSION_TAG]: 'session', [USE_CASE_SCHEMA_USE_CASE_TAG]: 'useCase', [USE_CASE_SCHEMA_DATABASE_TAG]: 'database' };
 const USE_CASE_SCHEMA_CREATE_RIGHTS = ['OWNER', 'ALL PRIVILEGES', 'CREATE SCHEMA'];
+// REQ-478: the rights on an existing use case schema that let Inspire write there and give a new App access.
+const USE_CASE_SCHEMA_USE_RIGHTS = ['OWNER', 'MANAGE', 'ALL PRIVILEGES'];
 const USE_CASE_SCHEMA_BUILDER_PRIVILEGES = 'USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT, MODIFY, MANAGE';
 
 function useCaseSchemaStatement(catalog, schemas) {
@@ -3817,6 +3841,10 @@ function useCaseSchemaStatement(catalog, schemas) {
       + `AND tag_name IN (${Object.keys(USE_CASE_SCHEMA_FACT_OF_TAG).map((t) => `'${t}'`).join(', ')}) `
       + `UNION ALL SELECT 'right', '', privilege_type FROM ${isc}.catalog_privileges WHERE catalog_name = lower(:c) AND ${mine('grantee')} `
       + `UNION ALL SELECT 'right', '', 'OWNER' FROM ${isc}.catalogs WHERE catalog_name = lower(:c) AND ${mine('catalog_owner')} `
+      // REQ-478: the rights Inspire holds on each candidate schema, so a schema an earlier install left (its owner since gone) is never reused
+      + `UNION ALL SELECT 'schema_right', schema_name, privilege_type FROM ${isc}.schema_privileges WHERE catalog_name = lower(:c) AND schema_name IN (${marks}) AND ${mine('grantee')} `
+      + `UNION ALL SELECT 'schema_right', schema_name, 'OWNER' FROM ${isc}.schemata WHERE catalog_name = lower(:c) AND schema_name IN (${marks}) AND ${mine('schema_owner')} `
+      + "UNION ALL SELECT 'rights', '', '' "
       + "UNION ALL SELECT 'me', '', current_user())",
     parameters: [{ name: 'c', value: str(catalog), type: 'STRING' }, ...names.map((value, i) => ({ name: `s${i}`, value, type: 'STRING' }))],
   };
@@ -3824,13 +3852,22 @@ function useCaseSchemaStatement(catalog, schemas) {
 
 function useCaseSchemaFacts(rows) {
   const facts = { schemas: {}, canCreate: false, me: '' };
+  let rightsRead = false;
+  let managesCatalog = false;
   for (const row of Array.isArray(rows) ? rows : []) {
     const kind = str(row && row.kind);
     const schema = str(row && row.schema_name).toLowerCase();
     if (kind === 'exists') facts.schemas[schema] = { ...facts.schemas[schema], exists: true };
     else if (USE_CASE_SCHEMA_FACT_OF_TAG[kind]) facts.schemas[schema] = { ...facts.schemas[schema], [USE_CASE_SCHEMA_FACT_OF_TAG[kind]]: str(row.value).trim() };
-    else if (kind === 'right' && USE_CASE_SCHEMA_CREATE_RIGHTS.includes(privilegeOf(row.value))) facts.canCreate = true;
+    else if (kind === 'schema_right' && USE_CASE_SCHEMA_USE_RIGHTS.includes(privilegeOf(row.value))) facts.schemas[schema] = { ...facts.schemas[schema], usable: true };
+    else if (kind === 'rights') rightsRead = true;
     else if (kind === 'me') facts.me = str(row.value).trim();
+    if (kind === 'right' && USE_CASE_SCHEMA_CREATE_RIGHTS.includes(privilegeOf(row.value))) facts.canCreate = true;
+    if (kind === 'right' && ['OWNER', 'MANAGE'].includes(privilegeOf(row.value))) managesCatalog = true;
+  }
+  // REQ-478: only a statement that read the schema rights (its 'rights' row) can say a schema is not usable; an older reply says nothing.
+  if (rightsRead) {
+    for (const held of Object.values(facts.schemas)) if (held.exists) held.usable = Boolean(held.usable || managesCatalog);
   }
   return facts;
 }
@@ -3857,7 +3894,14 @@ function useCaseSchemaOwner(held, { inspireDatabase, useCaseId, sessionId }) {
   if (!fact.exists && !fact.session && !fact.database && !fact.useCase) return 'free';
   const sameUseCase = str(fact.useCase).trim().toLowerCase() === str(useCaseId).trim().toLowerCase();
   const sameLineage = fact.database ? fact.database.toLowerCase() === inspireDatabaseKey(inspireDatabase) : str(fact.session) === str(sessionId).trim();
-  return sameUseCase && sameLineage ? 'ours' : 'foreign';
+  if (!(sameUseCase && sameLineage)) return 'foreign';
+  // REQ-478: this use case's schema from an earlier install, where Inspire now holds no right: never reused, never granted on.
+  return fact.usable === false ? 'stranded' : 'ours';
+}
+
+function ownSchemaStrandedNote(schema, next) {
+  const skipped = `${schema} is from an earlier Inspire install that this App cannot write to`;
+  return next ? `${skipped}, so this use case's own schema is ${next}.` : `${skipped}.`;
 }
 
 // REQ-131, REQ-260: the CREATE SCHEMA grant the own-schema fallback needs. The route carries it as the Permission Required entry; the prose names the dialog.
@@ -3891,7 +3935,9 @@ function useCaseSchemaPlace({ inspireDatabase, useCaseId, sessionId, businessNam
     const last = tableParts(candidates[candidates.length - 1]).schema;
     return { ...base, own_table: '', table: fallback, place: 'inspire', create: false, note: ownSchemaAllTakenNote(tableParts(own).schema, last) };
   }
-  const note = table === own ? '' : ownSchemaClashNote(tableParts(own).schema, of(own), tableParts(table).schema, who);
+  const stranded = candidates.slice(0, candidates.indexOf(table)).find((name) => owner(name) === 'stranded');
+  const note = table === own ? '' : stranded ? ownSchemaStrandedNote(tableParts(stranded).schema, tableParts(table).schema)
+    : ownSchemaClashNote(tableParts(own).schema, of(own), tableParts(table).schema, who);
   if (rows != null && facts.canCreate) return { ...base, own_table: table, table, place: 'own', create: true, note };
   const why = unchecked
     ? `Inspire could not check whether the App can create schemas in ${base.catalog} (${unchecked}), so this use case's tables go to the Inspire database schema; pick Its own schema to try.`
@@ -3925,6 +3971,11 @@ function sameTable(a, b) {
 function carriesSharedDefault(table, history, inspireDatabase, useCaseId) {
   return sameTable(table, sharedDefaultResultTable(inspireDatabase, useCaseId))
     && (history || []).some((row) => sameTable(row?.spec_json?.config?.result_table, table));
+}
+
+// REQ-478: a result table Inspire cannot write or open to a new App moves to the Inspire-managed default, with one info line naming it.
+function managedResultMove(table, to) {
+  return { from: plainTable(table), to: plainTable(to), detail: `Inspire writes the result to ${plainTable(to)}, where it can give the new App access` };
 }
 
 function resultTableMove(table, holder, { inspireDatabase, sessionId, useCaseId, history }) {
@@ -4415,6 +4466,11 @@ module.exports = {
   useCaseOwnSchemas,
   useCaseSchemaFacts,
   useCaseSchemaOwner,
+  ownSchemaStrandedNote,
+  managedResultMove,
+  appReadsByYou,
+  appReadsOwners,
+  personCanGrant,
   useCaseSchemaPlace,
   useCaseSchemaTagsSql,
   useCaseSchemaBuilderGrant,

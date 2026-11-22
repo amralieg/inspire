@@ -494,6 +494,19 @@ function registerImplementRoutes(app, deps) {
     return { ...access, safety, ...(model ? { model } : {}), ok: access.write.ok && safety.ok && (!model || model.ok) };
   }
 
+  // REQ-478, REQ-456: a result table the identity Inspire builds as cannot write, or cannot open to the new App, moves to the
+  // Inspire-managed default (the schema the installer made it own) when that one passes, so the build never stops on a permission.
+  async function checkManagedOutput(req, warehouseId, table, useCaseId, needsApp, options = {}, from = table) {
+    const output = await checkOutput(req, warehouseId, table, useCaseId, options);
+    if (output.write.ok && (!needsApp || output.app.ok)) return { output, moved: null };
+    const { inspire_database } = dbOf(req, splitInspireDatabase);
+    const managed = I.defaultResultTable(inspire_database, useCaseId, sessionIdOf(req));
+    if (!managed || I.sameSchema(managed, table)) return { output, moved: null };
+    const there = await checkOutput(req, warehouseId, managed, useCaseId, options);
+    if (!there.ok || !there.app.ok) return { output, moved: null };
+    return { output: there, moved: I.managedResultMove(from, managed) };
+  }
+
   const PREFLIGHT_RECHECK = 'Build still runs, and the build checks this again.';
 
   /**
@@ -1115,9 +1128,10 @@ function registerImplementRoutes(app, deps) {
     try {
       const warehouseId = warehouseOf(req);
       const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
-      const moved = await movedResultTable(req, warehouseId, useCaseId, q(req, 'table'));
-      const output = await checkOutput(req, warehouseId, moved ? moved.to : q(req, 'table'), useCaseId);
-      res.json(moved ? { ...output, result_table_moved: moved } : output);
+      const held = await movedResultTable(req, warehouseId, useCaseId, q(req, 'table'));
+      const checked = await checkManagedOutput(req, warehouseId, held ? held.to : q(req, 'table'), useCaseId, true, {}, q(req, 'table'));
+      const moved = checked.moved || held;
+      res.json(moved ? { ...checked.output, result_table_moved: moved } : checked.output);
     } catch (err) {
       sendError(res, err);
     }
@@ -1201,10 +1215,10 @@ function registerImplementRoutes(app, deps) {
       const outputStage = (async () => {
         try {
           const viewed = [wantsDashboard && 'the dashboard', wantsGenie && 'the Genie Agent'];
-          const moved = await movedResultTable(req, warehouseId, useCaseId, resultTable);
-          const output = await checkOutput(req, warehouseId, moved ? moved.to : resultTable, useCaseId,
-            { principals, warehouseName, viewed, appWarehouse });
-          return { output, outputError: '', moved };
+          const held = await movedResultTable(req, warehouseId, useCaseId, resultTable);
+          const checked = await checkManagedOutput(req, warehouseId, held ? held.to : resultTable, useCaseId, Boolean(appName || mergeApp),
+            { principals, warehouseName, viewed, appWarehouse }, resultTable);
+          return { output: checked.output, outputError: '', moved: checked.moved || held };
         } catch (err) {
           return { output: null, outputError: err.message || String(err), moved: null };
         }
@@ -1436,9 +1450,10 @@ function registerImplementRoutes(app, deps) {
         const { rows } = await useCaseSchemaRows(req, warehouseId, catalog, [schema]);
         found = I.useCaseSchemaFacts(rows).schemas[schema.toLowerCase()] || {};
         const who = { inspireDatabase: dbOf(req, splitInspireDatabase).inspire_database, useCaseId: String(tags.inspire_use_case_id ?? '').trim() };
-        if (I.useCaseSchemaOwner(found, { ...who, sessionId: String(tags.inspire_session_id ?? '').trim() }) === 'foreign') {
-          throw I.badRequest(ownSchemaClashNote(schema, found, '', who), 409);
-        }
+        const held = I.useCaseSchemaOwner(found, { ...who, sessionId: String(tags.inspire_session_id ?? '').trim() });
+        if (held === 'foreign') throw I.badRequest(ownSchemaClashNote(schema, found, '', who), 409);
+        // REQ-478: an earlier install's schema Inspire holds no right on is never reused: the Results step picks the next own schema
+        if (held === 'stranded') throw I.badRequest(I.ownSchemaStrandedNote(schema, ''), 409);
       }
       const ensure = I.useCaseSchemaEnsure(found, tags);
       if (ensure.create) await executeSql(req.dbHost, token, warehouseId, G.createPlaceSql(catalog, schema));
@@ -1592,7 +1607,7 @@ function registerImplementRoutes(app, deps) {
     }
   }
 
-  async function prepareSubmission(req) {
+  async function prepareSubmission(req, { grant = false } = {}) {
     const { sid, warehouseId, inspire_database, catalog, schema, raw, history, legacyAccess, asked } = await askedSpec(req);
     const scopeIssues = I.firstRunScopeIssues(history, asked);
     if (scopeIssues.refused.length) throw I.badRequest(scopeIssues.refused.join('; '));
@@ -1632,8 +1647,9 @@ function registerImplementRoutes(app, deps) {
       if (mergeIssues.length) throw I.badRequest(mergeIssues.join('; '));
     }
     if (spec?.money?.rate_table) await refuseTableTypes(req, warehouseId, [spec.money.rate_table.table], { unknownType: true });
-    const [stalled, tables, empty, unshared] = await Promise.all([stalledOf(req, history[0]), ownerTableChange(req, warehouseId, history, spec, useCase, person),
+    const [stalled, tables, empty, unsharedBefore] = await Promise.all([stalledOf(req, history[0]), ownerTableChange(req, warehouseId, history, spec, useCase, person),
       emptyDataWarning(req, warehouseId, spec, useCase, chosenTableScopes(spec.data, parseTableScopeText(session.table_scope).scopes)), newAppReads(req, warehouseId, spec, useCase)]);
+    const { unshared, byYou } = await appReadsByPerson(req, warehouseId, unsharedBefore, grant);
     const plan = I.planSubmission(history, spec, stalled, { requester: person.username, tableChange: tables.change });
     if (moved) plan.summary.result_table_moved = moved;
     if (tables.change) plan.summary.table_change = tables.change;
@@ -1641,7 +1657,10 @@ function registerImplementRoutes(app, deps) {
     const appReadsWarning = I.newAppReadsWarning(unshared);
     const warnings = [asksWarning, ...readWarnings, empty, appReadsWarning, ...scopeIssues.carried.map((p) => `${I.FIRST_RUN_CARRIED}${p}.`)].filter(Boolean);
     const warningDetails = readDetails || [];
-    if (unshared.length) plan.summary.app_reads = { tables: unshared.map(({ table, owner }) => ({ table, owner })), text: appReadsWarning, ...I.appReadsBlock(unshared) };
+    if (byYou) plan.summary.app_reads_by_you = byYou;
+    if (unshared.length) {
+      plan.summary.app_reads = { tables: unshared.map(({ table, owner }) => ({ table, owner })), owners: I.appReadsOwners(unshared), text: appReadsWarning, ...I.appReadsBlock(unshared) };
+    }
     return { sid, warehouseId, inspire_database, catalog, schema, spec: plan.spec, useCaseId, useCase, session, history, plan, person, warnings, warningDetails };
   }
 
@@ -1691,6 +1710,24 @@ function registerImplementRoutes(app, deps) {
     return I.newAppReadsGaps(tables, tables.map((t, i) => (rows[i].length && !I.schemaNotCreated(rows[i]) ? I.accessPlan(t, rows[i]) : { gaps: [] })));
   }
 
+  // REQ-478, REQ-469: sources the signed-in person owns or manages are shared with the new App with the person's own permissions:
+  // the plan names them in one info line, and the submit grants Inspire MANAGE on them before the build starts, with no click.
+  // Only a source neither Inspire nor the person can grant stays in the list that blocks the build.
+  async function appReadsByPerson(req, warehouseId, unshared, grant) {
+    const token = P.forwardedTokenOf(req);
+    if (!unshared.length || !token) return { unshared, byYou: null };
+    const rows = await Promise.all(unshared.map((t) => accessRowsOf(req, token, warehouseId, t.table).catch(() => [])));
+    let mine = unshared.filter((t, i) => I.personCanGrant(t.gaps, rows[i]));
+    let left = unshared.filter((t) => !mine.includes(t));
+    if (mine.length && grant) {
+      const { failed } = await runPersonGrants(req, token, warehouseId, I.appReadsByYou(mine).grant);
+      const refused = mine.filter((t) => I.appReadsBlock([t]).grant.some((sql) => failed.some((f) => f.startsWith(`${sql}:`))));
+      mine = mine.filter((t) => !refused.includes(t));
+      left = [...left, ...refused];
+    }
+    return { unshared: left, byYou: mine.length ? I.appReadsByYou(mine, grant) : null };
+  }
+
   async function emptyDataWarning(req, warehouseId, spec, useCase, launchScopes = {}) {
     const scope = readinessScope(spec, useCase, launchScopes);
     if (!scope.table || !req.dbToken) return '';
@@ -1727,18 +1764,22 @@ function registerImplementRoutes(app, deps) {
   async function outputBeforeBuild(req, warehouseId, planned, useCaseId) {
     if (!planned.config.result_table) return { spec: planned, warnings: [] };
     let output;
+    let moved = null;
     try {
-      output = await checkOutput(req, warehouseId, planned.config.result_table, useCaseId);
+      ({ output, moved } = await checkManagedOutput(req, warehouseId, planned.config.result_table, useCaseId,
+        Boolean(planned.outputs && planned.outputs.app)));
     } catch (err) {
       if ((err.statusCode && err.statusCode < 500) || I.isReadDenied(err.message) || PM_ERROR.accessDenied(err)) throw err;
       console.warn(`implement output check failed for ${planned.config.result_table}: ${err.message || err}`);
       return { spec: planned, warnings: [`Inspire could not check the result table: ${err.message || err}. The build checks it again.`] };
     }
     if (!output.ok) throw I.badRequest(output.write.ok ? output.safety.detail : output.write.detail, 403);
-    if (output.grant.ok || !planned.sharing.principals.length) return { spec: planned, warnings: [] };
+    const target = moved ? I.withResultTable(planned, moved.to) : planned;
+    if (output.grant.ok || !planned.sharing.principals.length) return { spec: target, warnings: [], moved };
     const who = 'it';
     return {
-      spec: { ...planned, sharing: { ...planned.sharing, principals: [] } },
+      moved,
+      spec: { ...target, sharing: { ...target.sharing, principals: [] } },
       warnings: [`Built without sharing: ${output.grant.detail}. Share ${output.table} once ${who} can.`],
     };
   }
@@ -1746,7 +1787,8 @@ function registerImplementRoutes(app, deps) {
   async function startVersion(req, { sid, warehouseId, inspire_database, catalog, schema, spec: planned, useCaseId, session, plan, person, warnings: noted = [], warningDetails = [], rebuildAsIs = false }) {
     I.refuseAppReadsBlocked(plan); // FX-52: never starts a build the App cannot read, Rebuild as is included
     if (!rebuildAsIs) I.refuseUnchanged(plan);
-    const { spec, warnings: outputWarnings } = await outputBeforeBuild(req, warehouseId, planned, useCaseId);
+    const { spec, warnings: outputWarnings, moved } = await outputBeforeBuild(req, warehouseId, planned, useCaseId);
+    if (moved) plan.summary.result_table_moved = moved;
     const warnings = [...noted, ...outputWarnings];
     // REQ-389: the build reads the scope the person chose on the Data step, not always the Discover run's scope.
     const sessionParams = withChosenTableScope(notebookParamsFromSessionForGenerateRun(session, sid), spec.data);
@@ -1841,7 +1883,7 @@ function registerImplementRoutes(app, deps) {
   app.post('/api/inspire/implement/submit', requireToken, async (req, res) => {
     try {
       res.json(await oneBuildAtATime(req, async () => {
-        const prepared = await prepareSubmission(req);
+        const prepared = await prepareSubmission(req, { grant: true });
         if (GC.needsGenieCode(prepared.spec)) await requireGenieCode(req);
         const started = await startVersion(req, { ...prepared, rebuildAsIs: req.body?.rebuild_as_is === true });
         if (prepared.spec.uninstall && req.body?.uninstall_shared === true) started.shared_uninstalls = await uninstallSharingUseCases(req, prepared);
@@ -1873,7 +1915,7 @@ function registerImplementRoutes(app, deps) {
           body: { value: { inspire_database: q(req, 'inspire_database'), warehouse_id: warehouseId,
             spec: { ...built.spec_json, uninstall: true, based_on_version: built.spec_version } } },
         });
-        const got = await oneBuildAtATime(sub, async () => startVersion(sub, await prepareSubmission(sub)));
+        const got = await oneBuildAtATime(sub, async () => startVersion(sub, await prepareSubmission(sub, { grant: true })));
         results.push({ session_id: h.session_id, use_case_id: h.use_case_id, spec_version: got.spec_version });
       } catch (err) {
         results.push({ session_id: h.session_id, use_case_id: h.use_case_id, error: err.message });

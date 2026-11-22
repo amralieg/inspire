@@ -2190,6 +2190,7 @@ def step_grant_permissions(ctx):
         _leave_out_unmanaged_catalogs(ctx, sp)
         account_failed = _grant_account_users(ctx)
         _grant_data_catalogs(ctx, sp)
+        _grant_data_manage(ctx, sp)
         blocking = _blocking_read_grants(failed)
         if blocking:
             shown = "; ".join(f"{sql}: {str(error)[:160]}" for sql, error in blocking.items())
@@ -2409,6 +2410,78 @@ def _catalog_rights(ctx):
 
 def _person_privileges(full, held):
     return (["OWNER"] if full else []) + sorted(held)
+
+
+MANAGE_ADMIN_HEADER = "An admin still grants these, so Inspire can share all of this data with the Apps it builds:"
+
+
+def _mine_sql(column):
+    return f"(lower({column}) = lower(current_user()) OR is_account_group_member({column}))"
+
+
+def _managed_objects_sql(catalog):
+    """REQ-478: the schemas and tables in one catalog the installer person owns or holds MANAGE on, read as the person."""
+    isc = f"`{catalog}`.information_schema"
+    return (f"SELECT 'schema' AS level, schema_name, '' AS table_name FROM {isc}.schemata "
+            f"WHERE schema_name <> 'information_schema' AND {_mine_sql('schema_owner')} "
+            f"UNION ALL SELECT 'schema', schema_name, '' FROM {isc}.schema_privileges "
+            f"WHERE privilege_type = 'MANAGE' AND schema_name <> 'information_schema' AND {_mine_sql('grantee')} "
+            f"UNION ALL SELECT 'table', table_schema, table_name FROM {isc}.tables "
+            f"WHERE table_schema <> 'information_schema' AND {_mine_sql('table_owner')} "
+            f"UNION ALL SELECT 'table', table_schema, table_name FROM {isc}.table_privileges "
+            f"WHERE privilege_type = 'MANAGE' AND table_schema <> 'information_schema' AND {_mine_sql('grantee')}")
+
+
+def _manage_targets(rows, catalog):
+    """Each owned or managed schema, then each owned or managed table outside those schemas, once and in order."""
+    schemas = list(dict.fromkeys(str(r.get("schema_name") or "") for r in rows if str(r.get("level") or "") == "schema"))
+    inside = {s.lower() for s in schemas}
+    tables = list(dict.fromkeys(f"{r.get('schema_name')}.{r.get('table_name')}" for r in rows
+                                if str(r.get("level") or "") == "table" and str(r.get("schema_name") or "").lower() not in inside))
+    return [("schema", f"{catalog}.{s}") for s in schemas if s] + [("table", f"{catalog}.{t}") for t in tables]
+
+
+def _grant_data_manage(ctx, sp):
+    """REQ-478, REQ-469: MANAGE for Inspire's App on the data it reads, at the highest level the installer person can grant.
+
+    The catalog when the person owns or manages it, else each schema the person owns or manages, else each table. With MANAGE,
+    Inspire shares that data with every App it builds, so no Build waits on a permission. One block lists, in full, the catalogs
+    an admin still grants. It never stops the install: the read grants are already in place.
+    """
+    w, warehouse_id, api = ctx["w"], ctx["WAREHOUSE_ID"], ctx["api"]
+    data = ctx.get("DATA_CATALOGS") or []
+    targets = list(dict.fromkeys(list(ctx.get("READ_GRANTED") or []) + ([ctx["CATALOG"]] if ctx.get("CATALOG") in data else [])))
+    if not targets:
+        return []
+
+    def patch(securable, name):
+        resp = api("PATCH", f"/api/2.1/unity-catalog/permissions/{securable}/{urllib.parse.quote(name)}",
+                   {"changes": [{"principal": sp, "add": ["MANAGE"]}]})
+        return resp.status_code == 200
+
+    admin, counts = [], {"catalog": 0, "schema": 0, "table": 0}
+    for catalog in targets:
+        try:
+            whole = _can_grant(_person_privileges(*_catalog_privileges(ctx, catalog)))
+            if whole:
+                if patch("catalog", catalog):
+                    counts["catalog"] += 1
+                else:
+                    admin.append(catalog)
+                continue
+            for securable, name in _manage_targets(_statement_rows(w, warehouse_id, _managed_objects_sql(catalog)), catalog):
+                if patch(securable, name):
+                    counts[securable] += 1
+        except Exception:
+            pass
+        admin.append(catalog)
+    print(f"  MANAGE for Inspire's App, so it can share your data with the Apps it builds: {_plural(counts['catalog'], 'catalog', 'catalogs')}, "
+          f"{_plural(counts['schema'], 'schema', 'schemas')}, {_plural(counts['table'], 'table', 'tables')} {'✅' if not admin else '⚠️'}")
+    if admin:
+        print(MANAGE_ADMIN_HEADER)
+        for catalog in dict.fromkeys(admin):
+            print(f"GRANT MANAGE ON CATALOG `{catalog}` TO `{sp}`")
+    return list(dict.fromkeys(admin))
 
 
 def _grant_refusal(name, person, held):
