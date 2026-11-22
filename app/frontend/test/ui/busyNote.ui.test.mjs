@@ -31,7 +31,9 @@ async function open() {
   if (!browser) browser = await chromium.launch();
   const page = await browser.newPage();
   // Track every pending timer of the still-working delay, so a test can see that unmount clears it.
-  await page.addInitScript(() => {
+  await page.clock.install({ time: 0 });
+  await page.setContent('<div id="root"></div>');
+  await page.evaluate(() => {
     window.__live = new Set();
     const set = window.setTimeout.bind(window);
     const clear = window.clearTimeout.bind(window);
@@ -42,8 +44,7 @@ async function open() {
     };
     window.clearTimeout = (id) => { window.__live.delete(id); return clear(id); };
   });
-  await page.clock.install();
-  await page.setContent('<div id="root"></div>');
+  await page.clock.pauseAt(1000);
   await page.addScriptTag({ content: code });
   return page;
 }
