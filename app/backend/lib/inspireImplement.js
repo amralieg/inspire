@@ -3093,11 +3093,6 @@ function joinAnd(items) {
   return items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
-// REQ-037: a table with no OWNER fact does not exist (yet), so there is nothing to share and it never blocks a build (the first run creates it).
-function tableExistsIn(rows) {
-  return (Array.isArray(rows) ? rows : []).some((r) => str(r.level).toLowerCase() === 'table' && privilegeOf(r.privilege) === 'OWNER');
-}
-
 function schemaNotCreated(rows) {
   const list = Array.isArray(rows) ? rows : [];
   const owner = (level) => list.some((r) => str(r.level).toLowerCase() === level && privilegeOf(r.privilege) === 'OWNER');
@@ -4465,7 +4460,6 @@ module.exports = {
   newAppReadsGaps,
   newAppReadsWarning,
   appReadsBlock,
-  tableExistsIn,
   refuseAppReadsBlocked,
   discoverUnreadText,
   shareWarnings,
