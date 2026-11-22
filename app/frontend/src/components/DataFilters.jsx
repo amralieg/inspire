@@ -568,7 +568,6 @@ export default function DataFilters({ scope, scopes, tables, listing, onScopes, 
 
   const hits = hitRowsOf(answer.rows, answer.q || '');
   const term = termOf(answer.q || '');
-  const columnNames = hits.filter((hit) => hit.first).length;
   // Every picked table that has a saved scope is listed, so a problem with it is shown where the person can fix it.
   const withFilters = tables.filter((t) => tableScopeOf(scopes, t));
   // The columns of a saved table that Inspire does not read, named as table.column (the person can see them without a search).
@@ -649,7 +648,7 @@ export default function DataFilters({ scope, scopes, tables, listing, onScopes, 
               <p data-search-none className="text-text-secondary">No column name contains &quot;{query.trim()}&quot; in the {plural(tables.length, 'table')} you picked.</p>
             )}
             {hits.length > 0 && (
-              <p className="text-text-secondary">{plural(columnNames, 'column name')} match, in {plural(hits.length, 'table')}.</p>
+              <p className="text-text-secondary">{plural(hits.length, 'column')} in {plural(new Set(hits.map((hit) => hit.table)).size, 'table')} match.</p>
             )}
             {answer.total > answer.rows.length && (
               <p data-hits-capped className="text-text-secondary">

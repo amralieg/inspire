@@ -1,6 +1,6 @@
 import { valueChips } from '../lib/valueLedger';
 import { useState } from 'react';
-import { ratioText, scoreText, summarizePairs } from '../lib/scoreRefine';
+import { scoreText, summarizePairs, timesText } from '../lib/scoreRefine';
 import ValueDisclaimer from './ValueDisclaimer';
 import { PlainMessage } from './TechnicalDetails';
 
@@ -22,8 +22,8 @@ export default function RefineBanner({ view, busy, error, onApply, onUndo, onKee
         <ul className="space-y-1.5 text-sm text-text-primary">
           {shown.map((pair) => (
             <li key={pair.lower.id}>
-              {`${pair.lower.name} (${scoreText(pair.lower.start)}, ${money(pair, pair.lowerAmount)}) is worth ${ratioText(pair.ratio)} ${pair.higher.name} (${scoreText(pair.higher.start)}, ${money(pair, pair.higherAmount)}). `}
-              {`Refine its score to ${scoreText(toOf(pair))} so the order follows the value?`}
+              {`${pair.lower.name} is worth ${money(pair, pair.lowerAmount)} a year, ${timesText(pair.ratio)} times ${pair.higher.name} (${money(pair, pair.higherAmount)} a year). `}
+              {`Its score of ${scoreText(pair.lower.start)} is below ${scoreText(pair.higher.start)}. Refine its score to ${scoreText(toOf(pair))} so the order follows the value?`}
               <span data-refine-preview="" className="ms-2 tabular-nums text-text-secondary">{`${scoreText(pair.lower.start)} → ${scoreText(toOf(pair))}`}</span>
             </li>
           ))}

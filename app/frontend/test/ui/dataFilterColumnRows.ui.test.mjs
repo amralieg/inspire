@@ -64,7 +64,7 @@ test('REQ-384: a search lists matching columns only, each row starts with its co
       'one row per table and column, with the table in the name');
     assert.equal(await page.locator('[data-column-hits] > li').count(), 4, 'the list has one li per match, and no group headers');
     assert.equal(await page.locator('[data-column-hit="order_id"], [data-column-hit="brand"]').count(), 0, 'columns without segment are not listed');
-    assert.match(await page.locator('[data-column-search]').innerText(), /3 column names match, in 4 tables\./, 'the summary counts names and rows');
+    assert.match(await page.locator('[data-column-search]').innerText(), /4 columns in 2 tables match\./, 'the summary counts names and rows');
     assert.match(await page.locator('[data-search-syntax]').innerText(), /Use \* at the start or end/, 'the wildcard hint stays');
   } finally {
     await ui.close();

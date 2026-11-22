@@ -50,9 +50,10 @@ export function refineScores(items) {
 
 // REQ-452: the banner shows a short summary. The biggest gaps come first; a use case is on one line only (as the lower or the higher one),
 // and pairs that share an amount collapse into the first of them. Every other pair is in `more`, behind one control.
-export const REFINE_SHOWN = 3;
+export const REFINE_SHOWN = 5;
 export function summarizePairs(pairs, limit = REFINE_SHOWN) {
   const list = [...(Array.isArray(pairs) ? pairs : [])].sort((a, b) => b.ratio - a.ratio);
+  if (list.length <= limit) return { shown: list, more: [] }; // REQ-444: a short list is shown whole
   const used = new Set();
   const amounts = new Set();
   const shown = [];
@@ -78,5 +79,6 @@ export function withRefinedScores(useCases, refined, idOf) {
 }
 
 export const scoreText = (n) => { const r = Math.round(Number(n) * 100) / 100; return Number.isInteger(r) ? r.toFixed(1) : String(r); };
+export const timesText = (r) => String(Math.round(r * 10) / 10);
 export const ratioText = (r) => `${Math.round(r * 10) / 10}x`;
 export const refineReason = (pair, ratio) => `Refined so the order follows the value: ${pair.lower.name} is worth ${ratio} ${pair.higher.name}.`;
