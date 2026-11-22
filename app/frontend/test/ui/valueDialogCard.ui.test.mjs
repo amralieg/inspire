@@ -101,5 +101,13 @@ test('D24: with no kind ticked Calculate now is off, says what to tick and write
     await calc.waitFor();
     assert.equal(await calc.isDisabled(), false);
     assert.equal(puts.length, 0, 'nothing is written until the user saves');
+    // Untick the kind again on the Save page and step back to Your data: Calculate now is off there too.
+    await goTo(dialog, 'save');
+    for (const box of await dialog.locator('[data-tile] input[type="checkbox"]:checked').all()) await box.click();
+    const back = dialog.getByRole('button', { name: 'Back', exact: true });
+    for (let i = 0; i < 5 && !(await dialog.locator('[data-wizard-page="data"]').count()); i += 1) await back.click();
+    await dialog.locator('[data-wizard-page="data"]').waitFor({ timeout: 15000 });
+    assert.equal(await calc.isDisabled(), true, 'disabled on the Your data page too');
+    assert.equal(puts.length, 0);
   } finally { await ui.close(); }
 });
