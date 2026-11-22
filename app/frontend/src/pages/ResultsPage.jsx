@@ -2196,7 +2196,7 @@ export default function ResultsPage({
             sessionId={selectedSessionId} saved={calculated.byId[trackingIdOf(calcFor)]?.answers || null} version={calculated.byId[trackingIdOf(calcFor)]?.version || null}
             values={valuesForDialog} onClose={closeCalc} />
         )}
-      {bulkHere?.open && <ValueBulkPanel />}
+      {bulkHere?.open && <ValueBulkPanel onEdit={(id) => { const uc = builtUseCases.find((u) => trackingIdOf(u) === id); if (uc) openCalc(uc); }} />}
       {implementUc && selectedSessionId && inspireDb && warehouseId && (
         <ImplementWizard
           uc={implementUc}

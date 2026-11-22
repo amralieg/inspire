@@ -7,12 +7,6 @@ import { bulkSummary, preSkipNote, rangeNote } from '../lib/valueBulk.js';
 const btn = 'rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle disabled:opacity-50';
 // A failed or skipped row carries a sentence: it wraps on its own line under the name instead of squeezing it.
 const wide = (state, check) => state === 'failed' || state === 'skipped' || (state === 'done' && Boolean(check));
-// FX-51: Edit opens the use case's own value editor (its card's pencil) and puts the panel in the background.
-const editFor = (id, hide) => {
-  hide();
-  const cards = [...document.querySelectorAll('[data-use-case-id]')].filter((el) => el.getAttribute('data-use-case-id') === id);
-  cards[0]?.querySelector('[data-value-edit]')?.click();
-};
 const LABELS = { waiting: 'Waiting', working: 'Working', stopped: 'Stopped' };
 
 // REQ-441: the bar above the cards: Select all (the cards shown) and "Calculate value for N".
@@ -36,7 +30,8 @@ export function ValueBulkBar({ shown, selected, onSelectAll, onCalculate, busy =
 
 // REQ-441/443: the progress panel, a view of the app-level run (lib/valueBulkRun). Four run at once; Stop starts no new one.
 // "Run in background", X and Esc hide it while the run goes on; only Stop stops it. When the run is finished, Close removes it.
-export default function ValueBulkPanel() {
+// FX-55: Edit hands the use case id to the page, which opens the same value editor the card's pencil opens, shown or filtered out.
+export default function ValueBulkPanel({ onEdit }) {
   const { run, stop, retry, hide, dismiss } = useValueBulkRun();
   if (!run) return null;
   const { rows, items, running } = run;
@@ -62,7 +57,7 @@ export default function ValueBulkPanel() {
               {r.state === 'done' && r.check && (
                 <span className="inline-flex items-center gap-2">
                   <span dir="auto" data-bulk-check="" className="text-warning-fg">{rangeNote(r.yearly?.total?.unit || r.yearly?.currency, r.check.amount)}</span>
-                  <button type="button" onClick={() => editFor(r.id, hide)} className={btn}>Edit</button>
+                  <button type="button" onClick={() => { hide(); onEdit?.(r.id); }} className={btn}>Edit</button>
                 </span>
               )}
               {r.state === 'failed' && (
