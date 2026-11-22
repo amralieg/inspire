@@ -143,7 +143,7 @@ test('GET /api/inspire/value/estimates: measured use cases are never estimated, 
   const { status, body } = await app.get(`/api/inspire/value/estimates?${QUERY}&session_id=42`);
   assert.equal(status, 200, JSON.stringify(body));
   assert.equal(body.use_cases['N01-U01'], null, 'measured');
-  assert.deepEqual(body.use_cases['N01-U02'], { status: 'no_baseline', app: 'Sales App' }, 'unbuilt sibling takes the App rule, no number');
+  assert.deepEqual(body.use_cases['N01-U02'], { status: 'set_rule' }, 'unbuilt sibling takes no sibling rule (FX-48): set a rule, no number');
   assert.deepEqual(body.use_cases['N05-U01'], { status: 'estimated', app: 'Sales App', currency: 'AED', per_record: 50, baseline: 120, amount: 6000 });
   assert.deepEqual(body.use_cases['N07-U01'], { status: 'set_rule' }, 'no rule in its domain: ask for one, no number');
   assert.deepEqual(body.totals, { estimated: { AED: 6000 } }, 'estimates are totalled apart from measured money');
