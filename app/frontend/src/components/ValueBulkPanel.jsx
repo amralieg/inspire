@@ -1,7 +1,7 @@
 import ModalDialog from './ModalDialog';
 import { PlainMessage } from './TechnicalDetails';
 import { bulkCounts, useValueBulkRun } from '../lib/valueBulkRun';
-import { totalText } from '../lib/valueWizard.js';
+import { reviewLineOf, totalText } from '../lib/valueWizard.js';
 import { bulkSummary, preSkipNote, rangeNote } from '../lib/valueBulk.js';
 
 const btn = 'rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle disabled:opacity-50';
@@ -69,6 +69,7 @@ export default function ValueBulkPanel({ onEdit }) {
               {r.state === 'skipped' && <span>Skipped: {r.reason}</span>}
               {LABELS[r.state] || ''}
             </span>
+            {r.state === 'done' && reviewLineOf(r.review) && <span dir="auto" data-value-review="" className="basis-full text-[12px] text-text-secondary">{reviewLineOf(r.review)}</span>}
           </li>
         ))}
       </ul>

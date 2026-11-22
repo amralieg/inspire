@@ -18,6 +18,7 @@ import ValueEstimateLine from './ValueEstimateLine';
 import ValueBadge from './ValueBadge';
 import CardValueLine from './CardValueLine';
 import ValueHow from './ValueHow';
+import { reviewLineOf } from '../lib/valueWizard.js';
 import { UseCaseNameNotes, UseCaseNameTitle } from './UseCaseNameEditor';
 import { useUseCaseRename } from '../lib/useCaseRename';
 
@@ -55,6 +56,7 @@ function UseCaseCardBody({
   onUndoRefine = null,
   yearly = null,
   valueSummary = null,
+  valueReview = null,
   canCalculate = false,
   onCalculate = null,
   onEdit = null,
@@ -135,6 +137,8 @@ function UseCaseCardBody({
                 <QualityBarReason uc={u} className="mt-1" />
                 {!savedValue && <ValueEstimateLine uc={u} estimate={estimate} onSetRule={onSetRule} className="mt-1" />}
                 <ValueHow yearly={yearly} onOpen={onEdit} />
+                {/* REQ-472 (c): the saved value's model review, the same line the dialog shows. */}
+                {yearly && reviewLineOf(valueReview) && <p role="note" dir="auto" data-value-review="" className="mt-1 text-[12px] text-text-secondary">{reviewLineOf(valueReview)}</p>}
                 {useCaseValue && (
                   <ValueBadge atStake={useCaseValue.at_stake} saved={useCaseValue.saved} measured={useCaseValue.measured} className="mt-2" compact />
                 )}

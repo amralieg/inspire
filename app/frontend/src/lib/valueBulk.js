@@ -32,7 +32,7 @@ export function runBulk({ items, worker, concurrency = VALUE_BULK_WORKERS, onUpd
         inFlight += 1;
         rows[i] = { id: items[i].id, state: 'working' };
         Promise.resolve().then(() => worker(items[i])).then(
-          (got) => { rows[i] = { id: items[i].id, state: 'done', yearly: got?.yearly || got || null, ...(got?.check ? { check: got.check } : {}) }; },
+          (got) => { rows[i] = { id: items[i].id, state: 'done', yearly: got?.yearly || got || null, ...(got?.check ? { check: got.check } : {}), ...(got?.review ? { review: got.review } : {}) }; },
           (err) => {
             // A 422 is deterministic (the use case cannot be estimated from defaults): skipped with the server's reason, no Retry.
             rows[i] = err?.status === 422 ? { id: items[i].id, state: 'skipped', reason: messageOf(err) } : { id: items[i].id, state: 'failed', message: messageOf(err) };
@@ -74,7 +74,8 @@ export const valueWorker = ({ apiPostJson, inspireDatabase, warehouseId, session
   const check = plan.value_check || null;
   const sent = { ...bodyOf(plan, answers, !check).answers, plan: bodyOf(plan, answers, !check).plan };
   const saved = await save(item.id, item.table, sent);
-  return { ...saved, answers: saved.answers || sent, ...(check ? { check } : {}) };
+  // REQ-472 (c): the model review of the plan travels with the row, so the bulk panel shows the same line the dialog shows.
+  return { ...saved, answers: saved.answers || sent, ...(check ? { check } : {}), ...(plan.review ? { review: plan.review } : {}) };
 }, { afterRun: runReviewAfter({ apiPostJson, inspireDatabase, warehouseId, sessionId }) });
 
 // REQ-441: the one line that says what a run did. Rows skipped before the run (items[].skip) are not counted; rows the server skipped (422) are.

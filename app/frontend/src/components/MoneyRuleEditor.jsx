@@ -11,22 +11,8 @@ import { joinSentences } from '../lib/sentences';
 const ISO = /^[A-Z]{3}$/;
 const COLUMN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const EMPTY_PICK = { method: '', amount: '', column: '', expression: '', currencyBy: 'code', code: 'USD', currencyColumn: '', text: '', proposal: null, explanation: '', error: '', used: null };
-const METHODS = [
-  { id: 'rule', label: 'The amount the rule computes', hint: 'Each flagged record counts the amount its own rule works out. Nothing to fill in.' },
-  { id: 'fixed', label: 'A fixed amount for each record', hint: 'Every record is worth the same amount.' },
-  { id: 'lost', label: 'The cost of each lost opportunity (count × value)', hint: 'Counts the records whose status says the opportunity was lost, each worth the amount you set.' },
-  { id: 'column', label: 'A value from a data column', hint: 'The column already holds the amount each record is worth.' },
-  { id: 'equation', label: 'An equation over columns', hint: 'Work the value out from several columns.' },
-  { id: 'describe', label: 'Describe it', hint: 'Write how the value works in your words; Inspire proposes the rule for you to check.' },
-];
-const DIRECTIONS = [
-  { id: 'losses', label: 'Losses only', hint: 'A loss counts; a gain counts as 0.' },
-  { id: 'gains', label: 'Gains only', hint: 'Needs a sign on the next screen: only the gain records count.' },
-  { id: 'net', label: 'Losses and gains, netted', hint: 'Gains and losses cancel out inside each total.' },
-];
 const OFF_RULE = { currency: 'per_currency', off: true };
 const SOURCE_TEXT = { today: 'today’s rate', average: `ECB average, ${AVERAGES.period.from.slice(0, 4)}`, typed: 'typed in', base: 'reporting currency', missing: 'no rate yet, type it in' };
-const DESCRIBE_EXAMPLE = 'Example: Each cancelled booking is worth its ticket_price in the currency column, and a refund counts as 0.';
 
 // A saved rule with no value counts the amount its own rule computes: that is the 'rule' choice, not an empty one.
 // A fixed amount that a rule filters to statuses is the cost of each lost opportunity: the same rule, shown under its own name.
@@ -62,12 +48,6 @@ function valueOf(pick) {
   const compiled = compileExpression(pick.expression);
   if (compiled.problem) problems.push(compiled.problem);
   return { value: { method: 'equation', expression: pick.expression.trim(), ...currency }, problems };
-}
-
-function columnsOf(value) {
-  if (value.method === 'column') return [value.column, value.currency_column].filter(Boolean);
-  if (value.method === 'equation') return [...compileExpression(value.expression).columns || [], value.currency_column].filter(Boolean);
-  return [value.currency_column].filter(Boolean);
 }
 
 // A radio or checkbox sits to the left of its label, on the same row.
@@ -109,15 +89,10 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
       return;
     }
     const { rule, problems: found } = ruleOf(nextDraft);
+    // REQ-473: the value is no longer asked here; the saved one rides along unchecked, so only the questions on screen can block a save.
     const picked = valueOf(effectiveOf(nextPick));
-    const gone = picked.value && columns.length ? columnsOf(picked.value).filter((name) => !columns.includes(name)) : [];
-    const lostNeedsStatuses = nextPick.method === 'lost' && !nextDraft.statuses.trim() ? ['Name the statuses that mean the opportunity was lost, such as lost.'] : [];
-    const all = [...found, ...picked.problems, ...lostNeedsStatuses, ...gone.map((name) => `The column ${name} is not in this table, so the rule cannot use it.`)];
-    setProblems(all);
-    // Gains only chosen on the direction screen: its sign is the next screen, so the movement is kept before the sign is named.
-    const signNext = nextDraft.rule === 'gains' && !nextDraft.sign;
-    const blocking = signNext ? all.filter((p) => !p.startsWith('gains needs a sign')) : all;
-    if (!blocking.length && rule) onChange(picked.value ? { ...rule, value: picked.value } : rule);
+    setProblems(found);
+    if (!found.length && rule) onChange(picked.value ? { ...rule, value: picked.value } : rule);
     else if (value?.off) onChange(null);
   };
   const setDraftPart = (patch) => { const next = { ...draft, ...patch }; setDraft(next); save(next, pick); };

@@ -53,13 +53,13 @@ const trendOf = (trend, old) => {
 // The answers a plan starts with (or a saved shape 2 answers restore): every driver's on flag and estimate defaults.
 export function initialAnswers(plan, saved = null) {
   const keep = saved?.shape === 2 ? saved : null;
-  const groups = new Set((plan.groups || []).map((g) => g.g));
   return {
     shape: 2,
     currency: keep?.currency || DEFAULT_CURRENCY,
     attribution_pct: keep?.attribution_pct ?? ATTRIBUTION.default,
     grouping: plan.grouping,
-    excluded_groups: (keep?.excluded_groups || []).filter((g) => groups.has(g)),
+    // REQ-473: value is over all records; a group left out by an older save has no box to tick it back, so none is left out.
+    excluded_groups: [],
     drivers: Object.fromEntries((plan.drivers || []).map((d) => {
       const old = keep?.drivers?.[d.id];
       return [d.id, { on: old ? Boolean(old.on) : Boolean(d.on),

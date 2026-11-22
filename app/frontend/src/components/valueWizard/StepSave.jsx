@@ -1,23 +1,22 @@
 import { useState } from 'react';
 import { ATTRIBUTION } from '../../lib/valueDrivers.js';
-import { DRIVER_ICONS, countText, moneyText, partOf, totalText } from '../../lib/valueWizard.js';
+import { DRIVER_ICONS, moneyText, partOf, totalText } from '../../lib/valueWizard.js';
 import ValueDisclaimer from '../ValueDisclaimer.jsx';
 import Ask, { Controls } from './Ask.jsx';
 
 const CREDIT = { id: ATTRIBUTION.id, label: ATTRIBUTION.label, kind: 'pct', default: ATTRIBUTION.default };
 
-// REQ-437, step 5: the total on top, five tiles side by side, one editor under them, then groups and credit side by side.
-export default function StepSave({ plan, answers, yearly, calculated, onToggleDriver, onInput, onToggleGroup, onCredit, children }) {
+// REQ-437, step 5: the total on top, five tiles side by side, one editor under them, then the credit. REQ-473: value is over all records, no groups.
+export default function StepSave({ plan, answers, yearly, calculated, onToggleDriver, onInput, onCredit, children }) {
   const [open, setOpen] = useState(null);
   const unit = yearly?.total?.unit;
-  const out = new Set(answers.excluded_groups);
   const opened = plan.drivers.find((d) => d.id === open);
   return (
     <div data-wizard-page="save" className="space-y-2.5">
       <div data-save-total="" className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-bg-subtle px-4 py-2">
         <div><p className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary">{yearly?.verb || 'Value'}</p>
           <p className="text-2xl font-extrabold tabular-nums text-text-primary">{totalText(yearly) || '...'} <span className={`text-[12px] font-semibold ${calculated ? 'text-ok-fg' : 'text-warning-fg'}`}>{calculated ? '(calculated)' : '(estimated)'}</span></p></div>
-        <p className="text-[12px] text-text-secondary">Per year{yearly?.groups ? `, ${yearly.groups.covered} of ${yearly.groups.of} groups` : ''}</p>
+        <p className="text-[12px] text-text-secondary">Per year</p>
       </div>
       <div className="grid grid-cols-5 gap-2">
         {plan.drivers.map((d) => {
@@ -49,16 +48,6 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
         </div>
       )}
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <p className="mb-1 text-[13px] font-semibold text-text-primary">Groups</p>
-          <div className="flex flex-wrap gap-1.5">
-            {plan.groups.map((g) => (
-              <label key={g.g} className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[12px] ${out.has(g.g) ? 'border-border bg-bg-subtle text-text-secondary' : 'border-db-red-solid'}`}>
-                <input type="checkbox" checked={!out.has(g.g)} onChange={() => onToggleGroup(g.g)} />{g.g}<span className="text-[10px] text-text-secondary">{countText(g.records_per_year)}</span>
-              </label>
-            ))}
-          </div>
-        </div>
         <div className="flex items-center gap-3">
           <p className="min-w-0 flex-1 text-[13px] font-semibold text-text-primary">{ATTRIBUTION.label}</p>
           <Controls ask={CREDIT} value={answers.attribution_pct} onChange={onCredit} currency={answers.currency} />

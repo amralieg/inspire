@@ -68,19 +68,20 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
   const edit = (fn) => { setError(''); setAnswers((a) => fn(a)); };
   const setInput = (id, ask, v) => edit((a) => ({ ...a, drivers: { ...a.drivers, [id]: { ...a.drivers[id], inputs: { ...a.drivers[id].inputs, [ask]: v } } } }));
   const toggleDriver = (id) => edit((a) => ({ ...a, drivers: { ...a.drivers, [id]: { ...a.drivers[id], on: !a.drivers[id].on } } }));
-  const toggleGroup = (g) => edit((a) => ({ ...a, excluded_groups: a.excluded_groups.includes(g) ? a.excluded_groups.filter((x) => x !== g) : [...a.excluded_groups, g] }));
   const setTrend = (patch) => edit((a) => ({ ...a, economic_trend: { ...a.economic_trend, ...patch } }));
   const setCredit = (v) => edit((a) => ({ ...a, attribution_pct: v }));
 
-  // One save for both buttons: Save confirms (calculated true); Calculate now keeps the numbers as estimated (calculated false) and jumps to the Save step.
-  const save = async (calculated = true) => {
+  // One save for both buttons: Save confirms and closes; Calculate now keeps the numbers as estimated (calculated false) and jumps to the Save step.
+  // REQ-472 (c): a plan the model review did not approve is saved as an estimate, as its review line says, even from Save.
+  const save = async (confirm = true) => {
     setBusy(true); setError('');
     try {
+      const calculated = confirm && plan.review?.approved !== false;
       const sent = bodyOf(plan, answers, calculated).answers;
       // REQ-457: the measure settings ride along: the wizard's live ones, else the saved ones (initialAnswers drops unknown fields).
       await values.run(useCaseId, table, { ...sent, ...(measure ? measure.values : measureOfSaved(saved)), plan: bodyOf(plan, answers).plan });
       // REQ-449: a confirmed save closes the dialog (the card shows the new value); Calculate now stays on the Save step.
-      if (calculated) { onClose?.(); return; }
+      if (confirm) { onClose?.(); return; }
       setSavedKey(''); setPageIdx(pages.length - 1);
       loadHistory();
     } catch (err) {
@@ -128,7 +129,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
           <p role="note" data-value-range-note="" className="rounded-md border border-warning/40 bg-warning-bg px-3 py-1.5 text-[12px] text-warning-fg">{rangeNote(yearly.total.unit, yearly.total.amount)}</p>
         )}
         {last && (
-          <StepSave plan={plan} answers={answers} yearly={yearly} calculated={calculated} onToggleDriver={toggleDriver} onInput={setInput} onToggleGroup={toggleGroup} onCredit={setCredit}>
+          <StepSave plan={plan} answers={answers} yearly={yearly} calculated={calculated} onToggleDriver={toggleDriver} onInput={setInput} onCredit={setCredit}>
             {preview.status === 'error' && <PlainMessage text={preview.error} role="status" dir="auto" className="text-[12px] text-error-fg" />}
             <ValueHistory history={history} busy={busy} onUndo={undo} />
           </StepSave>

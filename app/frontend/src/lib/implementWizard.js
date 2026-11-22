@@ -46,8 +46,6 @@ export const APP_PANELS = ['app_place', 'app_pages', 'app_access', 'app_features
 const WHERE_STEP = { id: 'where', label: WHERE_LABEL, sections: APP_PANELS, advanced: [], panels: APP_PANELS };
 const DATA_STEP = { id: 'data', label: DATA_RESULTS_LABEL, sections: ['use_case', 'data', 'configure', 'results'], advanced: ['data', 'configure', 'results'], panels: ['data', 'results'] };
 export const GROUPING_STEP = { id: 'grouping', label: 'Data groups', sections: ['grouping'], advanced: [], panels: ['grouping'] };
-// REQ-265: Gains only needs a sign, which is its own Measure screen; a Gains rule with no sign stops the build with this line.
-export const GAINS_SIGN_NEEDED = 'Gains only needs a sign: name the column whose positive values are gains, or the status value that marks a gain.';
 // REQ-457 REQ-457a: the first step chooses how the App is built. Standard is What, Look, Build; Advanced keeps every step. Measure is no longer a step:
 // its settings are asked in the value dialog and checked on the last step.
 export const BUILD_STANDARD = 'standard';
@@ -66,9 +64,15 @@ export const impactPartSummary = (spec, part) => (part === 'kpi' ? (kpiTargetOf(
   : holdoutOf(spec).enabled ? `On, ${holdoutPercentText(spec) || '?'}% kept aside` : 'Off');
 export const impactPartOf = (focus) => (IMPACT_FOCUS.includes(focus?.step) ? (focus.step === 'holdout' ? 'holdout' : 'kpi') : null);
 
+// REQ-473: no screen asks the Gains only sign any more, so a saved Gains only rule with no sign takes the default movement (losses) and builds.
+const signedRule = (money) => {
+  if (!money || money.rule !== 'gains' || money.sign) return money;
+  const { rule: _gains, ...rest } = money;
+  return rest;
+};
 export function withMoneyRule(spec, money) {
   const { money: _previous, ...rest } = spec || {};
-  return money ? { ...rest, money } : rest;
+  return money ? { ...rest, money: signedRule(money) } : rest;
 }
 export const IMPLEMENT_STEPS = [DELIVERY_STEP, DATA_STEP];
 
@@ -1459,7 +1463,8 @@ export function specFromLatest(latest, fallback, assets = {}) {
   const held = specFromHeld(latest);
   const spec = held ? withStoredLeaves(edited, held) : edited;
   if (isSpecMap(spec.config?.widgets)) spec.config = { ...spec.config, widgets: latestRunScope({ ...latest, spec_json: spec }).values };
-  return withSettingsNote(spec, '');
+  const noted = withSettingsNote(spec, '');
+  return noted.money ? withMoneyRule(noted, noted.money) : noted;
 }
 
 const PER_USE_CASE_OUTPUTS = {
@@ -1985,7 +1990,6 @@ export function dataFilterProblems(spec) {
 
 export function sectionErrors(section, spec, extras = {}) {
   const errors = [];
-  if (section === 'money' && spec.money && spec.money.off !== true && spec.money.rule === 'gains' && !spec.money.sign) errors.push(GAINS_SIGN_NEEDED);
   if (section === 'use_case') {
     if (!spec.use_case.goal) errors.push('write the goal sentence');
     if (!spec.use_case.decision_owner) errors.push('name the decision owner');

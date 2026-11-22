@@ -801,7 +801,7 @@ export default function ImplementWizard({
         if (draft) {
           groupingDefaulted.current = true;
           accessDefaulted.current = true;
-          setSpec(draft.spec);
+          setSpec(draft.spec.money ? withMoneyRule(draft.spec, draft.spec.money) : draft.spec);
           if (draft.spec.outputs?.app) setPlaceSet('person');
           // A draft from before REQ-457 has no choice and may hold a Measure step: its Advanced-only step needs Advanced, Measure is now Build.
           setBuild(draft.build || buildOfFocus({ step: draft.step }) || remembered.current.choice || BUILD_STANDARD);

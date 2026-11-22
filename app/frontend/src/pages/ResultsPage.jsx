@@ -1245,7 +1245,7 @@ export default function ResultsPage({
       )}
       {!embedded && results && selectedSessionId && inspireDb && warehouseId && (
         <div className="mb-3">
-          <BuildNextPanel apiFetch={apiFetch} inspireDatabase={inspireDb} warehouseId={warehouseId} sessionId={selectedSessionId} showcase={Boolean(showcase)}
+          <BuildNextPanel apiFetch={apiFetch} inspireDatabase={inspireDb} warehouseId={warehouseId} sessionId={selectedSessionId} showcase={Boolean(showcase)} useCases={builtUseCases}
             onStart={onOpenImplement ? (useCaseId) => onOpenImplement(String(selectedSessionId), useCaseId) : undefined}
             onMeasure={onOpenImplement ? (useCaseId) => onOpenImplement(String(selectedSessionId), useCaseId, 'measure') : undefined} />
         </div>
@@ -2082,6 +2082,7 @@ export default function ResultsPage({
                         estimate={estimates?.use_cases?.[trackingIdOf(uc)] ?? null}
                         yearly={calculated.byId[tid]?.yearly || measuredYearly?.use_cases?.[tid] || null}
                         valueSummary={valueTotals?.use_cases?.[tid] ?? null}
+                        valueReview={calculated.byId[tid]?.answers?.plan?.review || null}
                         canCalculate={Boolean(runValueUrl && tid)}
                         onCalculate={() => openCalc(uc)}
                         onEdit={runValueUrl && tid ? () => openCalc(uc) : undefined}
