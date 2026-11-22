@@ -126,7 +126,7 @@ test('all runs: n_measured and the per-run measured add up', async () => {
 });
 
 // The snapshot of the unchanged /value/yearly reply for the same fake warehouse (taken on the commit before this change).
-const YEARLY_SNAPSHOT = '{"use_cases":{"A":{"verb":"REDUCE COST","period":"Per Year","estimated":true,"entries":[{"kind":"money","unit":"USD","amount":5000000}],"basis":{"sampled_records":100,"eligible_records":10000,"days":73}}},"disclaimer":"This value is a calculation from your data, not a validated business case. A specialist value team must verify and sign off every number before it is shared or used in a decision."}';
+const YEARLY_SNAPSHOT = '{"use_cases":{"A":{"verb":"REDUCE COST","period":"Per Year","estimated":true,"entries":[{"kind":"money","unit":"USD","amount":5000000}],"basis":{"sampled_records":100,"eligible_records":10000,"days":73}}},"disclaimer":"Estimated or calculated value, not a promised value. Databricks does not promise or guarantee this number. Specialist business value teams in your organization must validate every number before it is shared or used in a decision."}';
 test('GET /api/inspire/value/yearly is byte-identical', async () => {
   set({ useCases: ['A'], ledgerBySession: { 42: [stake('A', 10000)] } });
   const { text } = await get(`/api/inspire/value/yearly?${QUERY}&session_id=42`);

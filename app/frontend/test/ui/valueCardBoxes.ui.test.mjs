@@ -200,11 +200,11 @@ const runRow = (session_id, name, usd) => ({ session_id, name, created_at: '2026
   totals: [{ currency: 'USD', amount: usd, calculated: usd / 2, estimated: usd / 2 }] });
 
 test('5: the all-runs panel lists 3 runs and a grand total equal to their sum, and two currencies give two totals', async () => {
-  const runs = [runRow('42', 'Run one', 6700000), runRow('41', 'Run two', 21400000), runRow('50', 'Run three', 9800000)];
-  const one = await openRuns({ runs, all: { totals: [{ currency: 'USD', amount: 37900000, calculated: 18950000, estimated: 18950000 }], n_calculated: 3, n_estimated: 6 } });
+  const runs = [runRow('42', 'Run one', 6700000), runRow('41', 'Run two', 2140000), runRow('50', 'Run three', 9800000)];
+  const one = await openRuns({ runs, all: { totals: [{ currency: 'USD', amount: 3790000, calculated: 1895000, estimated: 1895000 }], n_calculated: 3, n_estimated: 6 } });
   try {
     assert.equal(await one.panel.locator('tr[data-all-runs-row]').count(), 3);
-    assert.equal(await text(one.panel.locator('[data-value-total] [data-total-amount]')), '$37.9M');
+    assert.equal(await text(one.panel.locator('[data-value-total] [data-total-amount]')), '$3.79M');
     assert.equal(await one.panel.locator('[data-value-total] [data-total-amount]').count(), 1);
     assert.deepEqual(one.ui.pageErrors, []);
   } finally { await one.ui.close(); }

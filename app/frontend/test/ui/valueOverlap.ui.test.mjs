@@ -10,12 +10,12 @@ const DEFAULTS = { envSkipsSetupWizard: true, isDatabricksApp: true, databricksH
   inspireDatabase: 'main.inspire', notebookPath: '/Shared/inspire_ai' };
 const REASON = 'Check the numbers: $638.96M a year is above $100M, the top of the usual range for one use case. Most of it is Risk avoided ($547.5M).';
 const TOTALS = {
-  run: { totals: [{ currency: 'USD', amount: 35610000, calculated: 10000000, estimated: 25610000 }], n: 4, n_calculated: 1, n_estimated: 3, n_none: 0,
-    n_shared: 1, excluded: [{ currency: 'USD', amount: 638960000, n: 1 }], by_verb: [{ currency: 'USD', verb: 'AVOID RISK', amount: 35610000 }] },
+  run: { totals: [{ currency: 'USD', amount: 3561000, calculated: 1000000, estimated: 2561000 }], n: 4, n_calculated: 1, n_estimated: 3, n_none: 0,
+    n_shared: 1, excluded: [{ currency: 'USD', amount: 638960000, n: 1 }], by_verb: [{ currency: 'USD', verb: 'AVOID RISK', amount: 3561000 }] },
   use_cases: {
-    'N01-U01': { status: 'calculated', verb: 'AVOID RISK', amount: 10000000, currency: 'USD', overlap: { counted: true, shared_with: ['N01-U02'] } },
-    'N01-U02': { status: 'estimated', verb: 'AVOID RISK', amount: 10000000, currency: 'USD', overlap: { counted: false, with: 'N01-U01', not_counted: 10000000 } },
-    'N01-U03': { status: 'estimated', verb: 'REDUCE COST', amount: 25610000, currency: 'USD' },
+    'N01-U01': { status: 'calculated', verb: 'AVOID RISK', amount: 1000000, currency: 'USD', overlap: { counted: true, shared_with: ['N01-U02'] } },
+    'N01-U02': { status: 'estimated', verb: 'AVOID RISK', amount: 1000000, currency: 'USD', overlap: { counted: false, with: 'N01-U01', not_counted: 1000000 } },
+    'N01-U03': { status: 'estimated', verb: 'REDUCE COST', amount: 2561000, currency: 'USD' },
     'N01-U04': { status: 'estimated', verb: 'AVOID RISK', amount: 638960000, currency: 'USD', counted: false, check: { outside: 'high', reason: REASON } },
   },
 };
@@ -47,7 +47,7 @@ test('the run panel marks shared values, flagged values and what the total leave
     assert.equal(await flagged.getByText('Check the numbers').first().getAttribute('title'), REASON);
     assert.match(await text(panel), /1 estimate outside \$100K to \$100M not counted/);
     assert.match(await text(panel), /1 shared value counted once/);
-    assert.equal(await text(panel.locator('[data-value-run-total]')), 'Run total $35.6M');
+    assert.equal(await text(panel.locator('[data-value-run-total]')), 'Run total $3.56M');
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
 });

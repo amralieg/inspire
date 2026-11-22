@@ -5,15 +5,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { makeApp, listen } = require('./support/implementApp');
 
-const FULL = 'This value is a calculation from your data, not a validated business case. A specialist value team must verify and sign off every number before it is shared or used in a decision.';
+const FULL = 'Estimated or calculated value, not a promised value. Databricks does not promise or guarantee this number. Specialist business value teams in your organization must validate every number before it is shared or used in a decision.';
 
 test('one constant holds the full text, shared by the backend and the App', () => {
   const lib = require('../lib/valueDisclaimer.json');
   assert.equal(lib.full, FULL);
-  assert.equal(lib.short, 'Unverified estimate');
+  assert.equal(lib.short, 'Estimated, not promised. Validate with your business value team.');
   const labels = fs.readFileSync(path.join(__dirname, '../../frontend/src/lib/valueLabels.js'), 'utf8');
   assert.match(labels, /valueDisclaimer\.json/, 'the App reads the same file');
-  assert.ok(!labels.includes('A specialist value team'), 'the App holds no second copy of the words');
+  assert.ok(!labels.includes('Specialist business value teams'), 'the App holds no second copy of the words');
 });
 
 test('the Calculate answer and the measured per-year answer carry the disclaimer', async () => {

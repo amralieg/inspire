@@ -63,9 +63,9 @@ test('Review shows the Build next panel with the live count, the value at stake 
     await panel.waitFor({ timeout: 20000 });
     assert.equal((await panel.locator('[data-build-progress]').innerText()).replace(/\s+/g, ' ').trim(), PROGRESS);
     const order = await panel.locator('[data-build-next-row]').evaluateAll((els) => els.map((el) => el.getAttribute('data-build-next-row')));
-    assert.deepEqual(order, ['N01-U02', 'N02-U01', 'N03-U01']);
+    assert.deepEqual(order, ['N01-U02', 'N02-U01', 'N02-U02']);
     assert.equal(await panel.locator('[data-start-mvp]').count(), 3);
-    assert.equal(await page.locator('[data-build-next-row="N02-U02"]').count(), 0, 'the top three only');
+    assert.equal(await page.locator('[data-build-next-row="N01-U03"]').count(), 0, 'the top three only');
   } finally {
     await ui.close();
   }

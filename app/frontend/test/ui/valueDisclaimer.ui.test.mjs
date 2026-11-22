@@ -8,7 +8,7 @@ import { VALUE_DISCLAIMER, VALUE_DISCLAIMER_SHORT } from '../../src/lib/valueLab
 
 test.after(closeBrowser);
 
-const FULL = 'This value is a calculation from your data, not a validated business case. A specialist value team must verify and sign off every number before it is shared or used in a decision.';
+const FULL = 'Estimated or calculated value, not a promised value. Databricks does not promise or guarantee this number. Specialist business value teams in your organization must validate every number before it is shared or used in a decision.';
 const DEFAULTS = { envSkipsSetupWizard: true, isDatabricksApp: true, databricksHost: 'https://workspace.example.com', warehouseId: 'wh1',
   inspireDatabase: 'main.inspire', notebookPath: '/Shared/inspire_ai' };
 const money = [{ kind: 'money', unit: 'USD', amount: 120000 }];
@@ -28,7 +28,7 @@ const mount = (app) => {
 
 test('the disclaimer is one constant with the agreed words', () => {
   assert.equal(VALUE_DISCLAIMER, FULL);
-  assert.equal(VALUE_DISCLAIMER_SHORT, 'Unverified estimate');
+  assert.equal(VALUE_DISCLAIMER_SHORT, 'Estimated, not promised. Validate with your business value team.');
 });
 
 // REQ-438 v8: the value box has no short line under "Per year"; it carries the full text in its tooltip, and the short line sits in
