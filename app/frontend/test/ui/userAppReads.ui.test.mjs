@@ -85,7 +85,8 @@ test('a user-authorization Build lists the viewer the scope view refuses, with i
     await expandBuild(page);
     await page.getByRole('region', { name: CARD }).waitFor({ timeout: 15000 });
     assert.equal(await dialogOpen(page), false, 'no dialog on load');
-    await page.getByRole('region', { name: CARD }).locator('[data-app-reads-primary="copy"]').click();
+    await page.locator('[data-viewer-rows]').waitFor({ timeout: 15000 });
+    await page.getByRole('region', { name: CARD }).locator('[data-app-reads-choice="copy"]').click();
     await dialog.waitFor({ timeout: 15000 });
     // Both people who may open the App still need grants: bob and the owner all four: MANAGE is not READ METADATA (REQ-417).
     assert.deepEqual(await viewerRowTexts(page), [`Ask your admin to grant ${BOB} access to ${VIEW}`, `Ask your admin to grant ${ME} access to ${VIEW}`]);
@@ -110,7 +111,7 @@ test('a user-authorization Build lists the viewer the scope view refuses, with i
     await page.getByRole('region', { name: CARD }).getByRole('button', { name: 'Check again' }).click();
     await page.getByRole('region', { name: CARD }).locator('[data-app-reads-result="check"]').waitFor({ timeout: 15000 });
     assert.equal(await dialogOpen(page), false, 'a check opens no dialog by itself');
-    await page.getByRole('region', { name: CARD }).locator('[data-app-reads-primary="copy"]').click();
+    await page.getByRole('region', { name: CARD }).locator('[data-app-reads-choice="copy"]').click();
     await page.locator('[data-permission-dialog=""]').waitFor({ timeout: 15000 });
     assert.deepEqual((await listed(page)).sort(), [...grantsTo(ALICE), SELECT_BOB].sort(), 'the check lists the new viewer and bob, still refused');
     // The owner's grants already landed on the first grant, so the owner has no row now.

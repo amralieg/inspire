@@ -886,6 +886,12 @@ export async function goToMeasureImpact(page, part = 'holdout') {
   await page.getByRole('group', { name: part === 'kpi' ? 'Target KPI' : 'Measure impact' }).waitFor();
 }
 
+// REQ-406: opens Permission Required from the See the grant button on the inline App-reads card (the build is expanded first).
+export async function openGrantFromCard(page, { timeout = 8000 } = {}) {
+  await expandBuild(page);
+  await page.locator('[data-app-reads] [data-app-reads-primary="copy"], [data-app-reads] [data-app-reads-choice="copy"]').click({ timeout });
+}
+
 // REQ-406: the Build page never opens Permission Required by itself. A person who cannot grant the App's reads sees the inline card;
 // this helper asserts nothing opened on load, then (with expect) opens the dialog from the card's See the grant button and closes it,
 // so a test that clicks under the full-page dialog starts from a closed one. Without expect it only asserts nothing opened.
@@ -894,8 +900,7 @@ export async function closeOnLoadPermission(page, { timeout = 8000, expect: must
   await page.waitForTimeout(1000);
   if (await dialog.count() > 0) throw new Error('Permission Required opened by itself on load');
   if (!mustOpen) return false;
-  await expandBuild(page);
-  await page.locator('[data-app-reads] [data-app-reads-primary="copy"]').click({ timeout });
+  await openGrantFromCard(page, { timeout });
   await dialog.waitFor({ timeout });
   await dialog.getByRole('button', { name: 'Close' }).click();
   return true;

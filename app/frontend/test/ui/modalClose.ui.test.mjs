@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { STUDIO_STATE, built } from './implementFixtures.js';
-import { closeBrowser, openUi } from './uiSupport.mjs';
+import { closeBrowser, openGrantFromCard, openUi } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -65,6 +65,7 @@ for (const [width, height] of SIZES) {
     try {
       await page.setViewportSize({ width, height });
       const dialog = page.locator('[data-permission-dialog=""]');
+      await openGrantFromCard(page);
       await dialog.waitFor({ timeout: 15000 });
       // A long permission list (the walker's Lakebase CREATE grant) is simulated with a tall block after the statements.
       await page.evaluate(() => {
@@ -105,6 +106,7 @@ test('Tab stays inside Permission Required while it is open, and the modal keeps
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     const dialog = page.locator('[data-permission-dialog=""]');
+    await openGrantFromCard(page);
     await dialog.waitFor({ timeout: 15000 });
     const inside = () => page.evaluate(() => Boolean(document.activeElement?.closest('[data-permission-dialog] [role="dialog"]')));
     for (let i = 0; i < 25; i += 1) {

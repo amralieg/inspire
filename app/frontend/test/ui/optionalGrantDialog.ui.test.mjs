@@ -48,6 +48,8 @@ test('an optional Lakebase grant opens Permission Required labelled optional, wi
   const { page } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor({ timeout: 20000 });
+    // REQ-406: the entry is an inline note on load; the dialog opens from its See the grant button.
+    await page.locator('[data-permission-note]').getByRole('button', { name: 'See the grant', exact: true }).click({ timeout: 15000 });
     const dialog = page.locator('[data-permission-dialog=""]').first();
     await dialog.waitFor({ timeout: 15000 });
     const text = await dialog.innerText();
@@ -84,6 +86,7 @@ test('a required grant still opens Permission Required as a grant the person mus
   try {
     await page.goto(`${page.url().split('#')[0]}#/build/42/N01-U01`).catch(() => {});
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor({ timeout: 20000 });
+    await page.locator('[data-permission-note]').getByRole('button', { name: 'See the grant', exact: true }).click({ timeout: 15000 });
     const dialog = page.locator('[data-permission-dialog=""]').first();
     await dialog.waitFor({ timeout: 15000 });
     // REQ-313: the grant's heading and SQL sit under Advanced; open it so the text reads.
