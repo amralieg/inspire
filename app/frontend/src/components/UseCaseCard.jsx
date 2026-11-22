@@ -42,7 +42,6 @@ function UseCaseCardBody({
   assetLinks = [],
   assetUseCaseId = '',
   assetFlags = null,
-  dbuRead = null,
   isArchived = false,
   onRename,
   liveAppStale = false,
@@ -204,7 +203,7 @@ function UseCaseCardBody({
       </div>
 
       <ImplementCardActions status={implementStatus} onImplement={onImplement} onOpen={onOpenMvp} notebookUrl={notebookUrl} links={assetLinks} />
-      <UseCaseAssets useCaseId={assetUseCaseId} flags={assetFlags} dbus={dbuRead} />
+      <UseCaseAssets useCaseId={assetUseCaseId} flags={assetFlags} />
 
       {expanded && typeof onRename === 'function' && (
         <UseCaseNameNotes name={s(u.user_use_case_name) || s(u.Name)} originalName={s(u.original_name)} onSave={onRename} liveAppStale={liveAppStale} onUpdateLiveApp={onUpdateLiveApp} />

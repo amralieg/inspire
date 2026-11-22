@@ -55,8 +55,8 @@ test('REQ-427: a deleted asset is not counted as built', async () => {
 // REQ-459 (Amr: "Drop DBUs per use case"): the DBU read and everything that only served it are gone.
 test('REQ-459: the usecase-dbus route is gone (404) and the App makes no system.billing read, while the flags still load', async () => {
   await withApp({}, async (url, made) => {
-    const dbus = await get(url, '/api/inspire/implement/usecase-dbus');
-    assert.equal(dbus.status, 404, JSON.stringify(dbus.data));
+    const dbus = await fetch(`${url}/api/inspire/implement/usecase-dbus?${Q}`);
+    assert.equal(dbus.status, 404);
     assert.equal((await get(url, '/api/inspire/implement/usecase-assets')).status, 200);
     assert.equal(made.sqlCalls.filter((c) => /system\.billing/.test(c.sql)).length, 0);
   });

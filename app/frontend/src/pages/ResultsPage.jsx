@@ -458,19 +458,15 @@ export default function ResultsPage({
     if (selectedSessionId) onSessionChange?.(String(selectedSessionId));
   }, [selectedSessionId, onSessionChange]);
 
-  // REQ-427: which assets each use case has (from the tracking rows) and its DBUs (a separate read, so the flags never wait on billing).
+  // REQ-427: which assets each use case has (from the tracking rows); REQ-459: no DBU read.
   const [assetFlags, setAssetFlags] = useState(null);
-  const [dbuRead, setDbuRead] = useState(null);
   useEffect(() => {
     setAssetFlags(null);
-    setDbuRead(null);
-    // The demo has no tracking table and no billing rows (scripts/showcaseRoutes.mjs NOT_IN_DEMO), so it sends neither read.
+    // The demo has no tracking table (scripts/showcaseRoutes.mjs NOT_IN_DEMO), so it sends no read.
     if (!selectedSessionId || !inspireDb || !warehouseId || showcase) return undefined;
     let cancelled = false;
     const q = new URLSearchParams({ inspire_database: inspireDb, warehouse_id: warehouseId, session_id: String(selectedSessionId) });
     apiFetch(`/api/inspire/implement/usecase-assets?${q}`).then((data) => { if (!cancelled) setAssetFlags(data.use_cases || {}); }).catch(() => {});
-    apiFetch(`/api/inspire/implement/usecase-dbus?${q}`).then((data) => { if (!cancelled) setDbuRead(data); })
-      .catch(() => { if (!cancelled) setDbuRead({ state: 'error', use_cases: {} }); });
     return () => { cancelled = true; };
   }, [selectedSessionId, inspireDb, warehouseId, apiFetch, implementRefresh, showcase]);
 
@@ -2072,7 +2068,6 @@ export default function ResultsPage({
                         assetLinks={tid ? cardAssetLinks(implementLatestById[tid] || null) : []}
                         assetUseCaseId={tid || ''}
                         assetFlags={assetFlags && tid ? (assetFlags[tid] || {}) : null}
-                        dbuRead={dbuRead}
                         isArchived={isArchivedUc(uc)}
                         onToggleArchive={selectedSessionId && archiveKeyOf(selectedSessionId, uc) ? () => toggleArchive(archiveKeyOf(selectedSessionId, uc)) : undefined}
                         {...detailPropsFor(uc)}

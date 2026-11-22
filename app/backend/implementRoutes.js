@@ -2021,11 +2021,11 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
-  // REQ-427: both reads use the App's identity (REQ-418), so a person's own grants never change what a use case row shows. The asset flags
-  // come from the tracking table alone; the DBU total is its own read, so a slow or denied billing table never holds the flags back.
+  // REQ-427: the read uses the App's identity (REQ-418), so a person's own grants never change what a use case row shows. The asset flags
+  // come from the tracking table alone (REQ-459: no DBU read).
   async function usecaseRows(req) {
     const { catalog, schema } = dbOf(req, splitInspireDatabase);
-    return { rows: await appRecordOf(req, warehouseOf(req), catalog, schema, sessionIdOf(req), null), warehouseId: warehouseOf(req) };
+    return { rows: await appRecordOf(req, warehouseOf(req), catalog, schema, sessionIdOf(req), null) };
   }
 
   app.get('/api/inspire/implement/usecase-assets', requireToken, async (req, res) => {
@@ -2034,34 +2034,6 @@ function registerImplementRoutes(app, deps) {
       res.set('Cache-Control', 'no-store').json({ use_cases: UA.assetFlagsView(rows) });
     } catch (err) {
       sendError(res, err);
-    }
-  });
-
-  app.get('/api/inspire/implement/usecase-dbus', requireToken, async (req, res) => {
-    try {
-      const { rows, warehouseId } = await usecaseRows(req);
-      const token = await appTokenOf(req);
-      const workspaceId = await UA.workspaceIdOf(dbFetch, req.dbHost, token);
-      const statement = UA.dbuStatement(rows, workspaceId);
-      const none = (state, extra) => res.set('Cache-Control', 'no-store').json({ state, use_cases: UA.dbuView(rows, []), ...extra });
-      if (!statement) return none('none', { message: 'No billing id is recorded for these use cases yet.' });
-      // Never an account-wide total: without this workspace's id the read could count another workspace's jobs.
-      if (!workspaceId) return none('unscoped', { message: 'Inspire cannot tell which workspace this is, so it shows no DBUs.' });
-      let billing;
-      try {
-        billing = await sqlRows(req.dbHost, token, warehouseId, statement);
-      } catch (err) {
-        if (!I.isReadDenied(err && err.message) && !PM_ERROR.accessDenied(err)) throw err;
-        const builder = await loadBuilderPrincipal(req);
-        const principal = builder.applicationId || builder.userName || '';
-        const permission = PM.permissionRequired({ statements: UA.billingGrants(principal), principal, exact: true,
-          why: `The App reads ${UA.BILLING_TABLE} to total the DBUs of each use case, and it cannot read it yet.` });
-        return res.set('Cache-Control', 'no-store').json({ state: 'denied', use_cases: UA.dbuView(rows, []),
-          message: `DBUs need the App to read ${UA.BILLING_TABLE}.`, permissions: permission ? [permission] : [] });
-      }
-      return res.set('Cache-Control', 'no-store').json({ state: 'ok', use_cases: UA.dbuView(rows, billing) });
-    } catch (err) {
-      return sendError(res, err);
     }
   });
 

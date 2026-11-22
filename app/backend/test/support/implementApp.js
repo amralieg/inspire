@@ -478,7 +478,7 @@ function profileSummaryOf(row) {
   return { profile_id: row.profile_id, name: row.name, business_name: row.business_name, updated_by: row.updated_by, updated_at: row.updated_at };
 }
 
-// The workspace id every Databricks response carries in x-databricks-org-id (REQ-427 scopes the billing read with it).
+// The workspace id every Databricks response carries in x-databricks-org-id.
 const ORG_ID = '1234567890123456';
 
 function json(data, status = 200, orgId = ORG_ID) {
