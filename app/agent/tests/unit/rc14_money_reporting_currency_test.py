@@ -79,7 +79,7 @@ def _widget_map(ns, monkeypatch, **widgets):
 def test_a_card_whose_currency_was_assumed_says_so_in_its_label(ns, monkeypatch):
     _widget_map(ns, monkeypatch, currency="AED")
     estimate = _estimate(ns, make_uc("N01-U01", KPIs=[_kpi(ns)], use_case_kind="forecast"))
-    assert estimate["short"] == "AED 2.4K-6K a year (currency assumed: AED (reporting currency))"
+    assert estimate["short"] == "AED 2.4K-6K a year (currency assumed: AED, reporting currency)"
 
 
 def test_a_kpi_in_another_currency_is_converted_to_the_reporting_currency_at_the_app_rate(ns, monkeypatch):
@@ -145,13 +145,13 @@ def test_no_rates_and_no_bundled_averages_is_not_converted_and_does_not_crash(ns
 def test_a_default_reporting_currency_is_named_as_the_default_on_the_card(ns, monkeypatch):
     _widget_map(ns, monkeypatch, currency="USD", currency_default="true")
     estimate = _estimate(ns, make_uc("N01-U01", KPIs=[_kpi(ns)], use_case_kind="forecast"))
-    assert estimate["short"] == "USD 2.4K-6K a year (reporting currency USD (default))", estimate["short"]
+    assert estimate["short"] == "USD 2.4K-6K a year (currency USD, default)", estimate["short"]
 
 
 def test_a_reporting_currency_the_person_chose_is_still_labelled_assumed(ns, monkeypatch):
     _widget_map(ns, monkeypatch, currency="AED", currency_default="false")
     estimate = _estimate(ns, make_uc("N01-U01", KPIs=[_kpi(ns)], use_case_kind="forecast"))
-    assert estimate["short"] == "AED 2.4K-6K a year (currency assumed: AED (reporting currency))"
+    assert estimate["short"] == "AED 2.4K-6K a year (currency assumed: AED, reporting currency)"
 
 
 def test_a_rate_table_feed_keeps_its_table_label_and_its_rates(ns, monkeypatch):
