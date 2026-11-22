@@ -864,12 +864,30 @@ def drop_tables(text: str, genie=None) -> str:
 SAMPLE_LABEL = re.compile(r"\s*\((?:sample-based|sampled|based on a sample)\)|\bsample-based\b", re.I)
 
 
+FROM_TABLE = re.compile(r"\b(?:from|join)\s+([`\w.]+)", re.I)
+
+
+def table_tail(name) -> str:
+    return str(name or "").replace("`", "").rsplit(".", 1)[-1].casefold()
+
+
+def reads_sample(g) -> bool:
+    """True when one Genie count read a sampled slice: run-scoped words in its SQL, or a sampled first-run scope whose own source table
+    (scope.table) the count does not read (it reads a result table, which holds only the sampled records). A count of the scope's own
+    source table, or a scope that names no table, is a whole-table count."""
+    g = g or {}
+    if sql_scope(g.get("sql")) != ALL_ROWS:
+        return True
+    scope = g.get("scope") or {}
+    source = table_tail(scope.get("table"))
+    if scope.get("scope") in (None, "", "all") or not source:
+        return False
+    return any(table_tail(t) != source for t in FROM_TABLE.findall(str(g.get("sql") or "")))
+
+
 def read_sample(genie=None) -> bool:
-    """True only when a Genie count read a run-scoped slice of the data (the scope words the SQL carries), never for a whole-table count."""
-    return any(sql_scope((g or {}).get("sql")) != ALL_ROWS for g in genie or [])
-
-
-FROM_TABLE = re.compile(r"\bfrom\s+([`\w.]+)", re.I)
+    """True only when a Genie count read a sampled slice of the data, never for a whole-table count."""
+    return any(reads_sample(g) for g in genie or [])
 
 
 def counted_line(genie: list) -> str:
