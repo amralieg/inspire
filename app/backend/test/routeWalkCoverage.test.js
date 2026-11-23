@@ -39,6 +39,10 @@ const NOT_WALKED = {
   'GET /api/inspire/value/yearly': 'reads the ledger, specs and source tables with the App\u2019s service principal and changes nothing; valueYearlyRoutes.test.js drives it through the fake warehouse',
   'POST /api/inspire/value/estimate': 'reads one sample of a use case table with the App\u2019s service principal and changes nothing; valueYearlyRoutes.test.js drives it, including the 400 and 422 refusals',
   'POST /api/inspire/value/case-plan': 'reads the use case table once, grouped, with the App\u2019s service principal and changes nothing; valueCasePlanRoutes.test.js drives it, including the model-refused fallback',
+  'POST /api/inspire/value/scope': 'counts the records and the date range of a use case table with the App\u2019s service principal and changes nothing; no non-owner harness row walks it yet, and the route samples prove the policy entry',
+  'POST /api/inspire/value/filter': 'turns a description into a checked filter with a chat model and counts the records it keeps with the App\u2019s service principal, changing nothing; no non-owner harness row walks it yet, and the route samples prove the policy entry',
+  'GET /api/inspire/macro/sources': 'lists the fixed set of public economic sources and fetches nothing; no non-owner harness row walks it yet, and the macro route tests drive it',
+  'GET /api/inspire/macro/series': 'reads a public economic series from the Inspire database cache or an allowed host with the person\u2019s own sign-in; no non-owner harness row walks it yet, and the macro route tests drive it',
   'POST /api/inspire/value/run-review': 'reads the saved Calculate answers, asks a chat model once and appends one review row with the App\u2019s service principal; valueRunReview.test.js drives the review itself',
   'POST /api/inspire/value/preview': 'runs no SQL: pure arithmetic on the plan and answers it is sent; valueCasePlanRoutes.test.js drives it',
   'GET /api/inspire/value/answers': 'reads the latest saved Calculate answers of a session with the App\u2019s service principal and changes nothing; valueAnswersRoutes.test.js drives it through the fake warehouse, including the missing table',
@@ -99,7 +103,7 @@ function missingFromWalk(routes, walked, excluded) {
 
 test('the route list comes from the source of server.js and every route file it mounts', () => {
   const files = mountedFiles(SERVER).map((f) => path.relative(BACKEND, f));
-  assert.deepEqual(files, ['server.js', 'implementRoutes.js', path.join('lib', 'showcase.js')]);
+  assert.deepEqual(files, ['server.js', 'implementRoutes.js', path.join('lib', 'showcase.js'), 'macroRoutes.js']);
   const routes = registeredRoutes(mountedFiles(SERVER));
   for (const key of ['GET /api/run/:runId/cancel', 'POST /api/inspire/implement/rerun', 'ALL /showcase/:id/mvp/:mvp/api/*rest', 'GET {*path}']) {
     assert.ok(routes.has(key), key);
@@ -179,7 +183,7 @@ test('a registration whose path is not a literal, or is built at run time, fails
 
 // REQ-313, REQ-314: every route's failure goes through the shared access mapping (permissionError.js), so a denial is a 403 with the
 // Permission Required payload and never a raw 500 or an echoed error. This gate reads the route files' source.
-const ROUTE_SOURCES = [SERVER, path.join(BACKEND, 'implementRoutes.js')];
+const ROUTE_SOURCES = [SERVER, path.join(BACKEND, 'implementRoutes.js'), path.join(BACKEND, 'macroRoutes.js')];
 const RAW_FAILURE = /res\.status\(\s*500\s*\)|res\.status\([^)]*\)\.json\(\s*\{[^\n]*\b(err|e|error|e1)\.message\b(?![\s\S]{0,0})/;
 
 function rawFailures(text) {
