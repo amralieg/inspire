@@ -260,8 +260,10 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
         <h1>{page.title}</h1>
         {freshness.fresh && (
           <button type="button" className={`fresh-dot${freshness.fresh.overdue ? ' is-late' : ''}${freshness.busy ? ' is-busy' : ''}`} data-fresh-dot onClick={() => freshness.ask()}
-            disabled={freshness.busy || !freshness.fresh.can_refresh} aria-label="Refresh now" title={[dotText, 'Select to refresh now'].filter(Boolean).join('. ')} />
+            disabled={freshness.busy || !freshness.fresh.can_refresh} aria-label="Refresh now" aria-describedby={freshness.busy || freshness.reason ? freshness.why : undefined}
+            title={[dotText, 'Select to refresh now'].filter(Boolean).join('. ')} />
         )}
+        {freshness.fresh?.overdue && !freshness.busy && <b className="fresh-flag">Overdue</b>}
       </div>
       {shown !== 'dashboard' && shown !== 'work' && <p className="ph-sec" data-section-title>{sectionTitle(page, shown)}</p>}
       <p className="ph-q">{page.question}</p>
@@ -281,7 +283,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
           </span>
         </div>
       )}
-      {(freshness.fresh?.active || freshness.reason) && <FreshDetail freshness={freshness} />}
+      <FreshDetail freshness={freshness} />
       <p className="print-only print-filters">Filters: {describeFilters(state, meta?.filters, meta?.columns)}</p>
     </header>
   );
