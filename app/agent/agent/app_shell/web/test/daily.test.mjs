@@ -45,7 +45,6 @@ async function pickCategory(page, value) {
 }
 
 async function openViews(page) {
-  await goSection(page, 'settings');
   await page.getByRole('button', { name: 'Views', exact: true }).click();
   const pop = page.getByRole('dialog', { name: 'Saved views' });
   await pop.waitFor();
@@ -248,8 +247,7 @@ test('save this view, apply it from the Views menu with the address following, a
   const dialog = await saveAs(page, '  Music last quarter ');
   await dialog.waitFor({ state: 'hidden' });
   await toastSays(page, 'Saved the view "Music last quarter"');
-  // REQ-506: Views lives in Settings > Share and follow, so a view saved there records the Settings section.
-  const view = { name: 'Music last quarter', view: 'settings', filters: { r: { run_date: '3m' }, s: { category: ['Music'] } } };
+  const view = { name: 'Music last quarter', view: 'work', filters: { r: { run_date: '3m' }, s: { category: ['Music'] } } };
   assert.deepEqual(await stored(page), { n01_u05: [view] });
 
   await page.getByRole('button', { name: 'Clear filters' }).click();
@@ -342,7 +340,7 @@ test('corrupt saved views in storage are ignored safely and a new save repairs t
   await seed(page, '{not json');
   const dialog = await saveAs(page, 'Fresh');
   await dialog.waitFor({ state: 'hidden' });
-  assert.deepEqual(await stored(page), { n01_u05: [{ name: 'Fresh', view: 'settings', filters: {} }] });
+  assert.deepEqual(await stored(page), { n01_u05: [{ name: 'Fresh', view: 'work', filters: {} }] });
   pop = await openViews(page);
   await pop.getByRole('button', { name: 'Fresh', exact: true }).click();
   await toastSays(page, 'Showing the view "Fresh"');
