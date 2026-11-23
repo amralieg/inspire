@@ -26,7 +26,7 @@ import { formatDuration } from '../lib/formatWhen';
 import { counted } from '../lib/plural';
 import { aiSeesAggregates, discoveryTypeOf } from '../lib/discoveryType';
 import {
-  mergeSteps, monitorFailureChoices, monitorSendText, pollFailure, quietLine, runElapsedMs, runEndedBadly, runFailureText, runStopped, runTitle, viewerLine,
+  mergeSteps, monitorFailureChoices, runEnded, monitorSendText, pollFailure, quietLine, runElapsedMs, runEndedBadly, runFailureText, runStopped, runTitle, viewerLine,
   sessionFailed, sessionFinished, sessionQuietSince, sessionSucceeded, stepCategory, isUnrecordedRefusal, unrecordedWaitOver,
 } from '../lib/monitorState';
 import ChoiceList from '../components/ChoiceList';
@@ -35,6 +35,7 @@ import { COPIED_SEND_TEXT } from '../lib/plainText';
 import { requestHeaders, responseError } from '../lib/apiClient';
 import StopRunControl from '../components/StopRunControl';
 import RunLogPanel from '../components/RunLogPanel';
+import RunStepper from '../components/RunStepper';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
 import { qualityBarCountText } from '../lib/qualityBarWording';
@@ -436,6 +437,8 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
           )}
         </ul>
       )}
+
+      {steps.length > 0 && <RunStepper steps={steps} ended={runEnded(runInfo) || isComplete || isFailed} />}
 
       {/* ═══ Status Card ═══ */}
       <div data-testid="monitor-status" data-status={isWarning ? 'warning' : isCleanComplete ? 'success' : isFailed ? 'failed' : 'active'} className={`border rounded-xl p-5 mb-6 shadow-sm ${
@@ -1108,11 +1111,6 @@ function StepRow({ step, live, searchQuery }) {
           )}
         </div>
         <div className="flex items-center gap-2.5 shrink-0">
-          {step.progress_increment > 0 && (
-            <span className="text-[11px] font-mono text-text-tertiary bg-bg-subtle px-1.5 py-0.5 rounded">
-              +{step.progress_increment}%
-            </span>
-          )}
           <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${style.badge}`}>
             {style.label}
           </span>

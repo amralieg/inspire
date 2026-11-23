@@ -1,19 +1,53 @@
+import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ChevronRight, Download, ExternalLink, Eye, EyeOff, FileText, FolderOpen, Loader2, Sparkles, XCircle } from 'lucide-react';
-import DocumentActions from '../../components/DocumentActions';
 import FilePreview from '../../components/FilePreview';
 import { PlainMessage } from '../../components/TechnicalDetails';
 import { artifactTreeFiles, fileActions, fileExtension, fileSizeText, quickAccessFiles } from '../../lib/artifactFiles';
 import { displayCleanText, findUcForNotebookFilename, hasShippedGenieCode } from '../../lib/useCaseFields';
-import { documentBasePath } from '../../lib/documentActions';
 import { nextStepOf } from '../../lib/runOutcome';
 import { qualityBarCountText } from '../../lib/qualityBarWording';
-import { runBusiness } from '../../lib/reviewFigures';
 import { workspaceWebUiHashPath } from '../../lib/workspaceLinks';
+
+const NEW_DOCS_EVENT = 'inspire:new-docs';
+const newDocsKey = (sessionId) => `inspire:new-docs:${sessionId}`;
+function readNewDocs(sessionId) {
+  try {
+    const list = JSON.parse(window.sessionStorage.getItem(newDocsKey(sessionId)) || '[]');
+    return Array.isArray(list) ? list.filter((p) => typeof p === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+const parentOf = (path) => String(path).replace(/\/[^/]*$/, '');
+
+/** The files the Generate docs wizard saved into this run (marked in sessionStorage by the wizard), and a reload of the listing when it saves more. */
+function useNewDocs(sessionId, generationPath, loadArtifacts, loadFolder) {
+  const [paths, setPaths] = useState(() => readNewDocs(sessionId));
+  useEffect(() => { setPaths(readNewDocs(sessionId)); }, [sessionId]);
+  const onSaved = useCallback((event) => {
+    const detail = (event && event.detail) || {};
+    if (String(detail.sessionId) !== String(sessionId)) return;
+    setPaths(readNewDocs(sessionId).concat(Array.isArray(detail.paths) ? detail.paths.filter((p) => typeof p === 'string') : []));
+    if (generationPath) loadArtifacts(generationPath);
+    const folders = new Set((Array.isArray(detail.paths) ? detail.paths : []).map(parentOf).filter((f) => f && f !== generationPath));
+    folders.forEach((folder) => { if (loadFolder) loadFolder(folder); });
+  }, [sessionId, generationPath, loadArtifacts, loadFolder]);
+  useEffect(() => {
+    window.addEventListener(NEW_DOCS_EVENT, onSaved);
+    return () => window.removeEventListener(NEW_DOCS_EVENT, onSaved);
+  }, [onSaved]);
+  return new Set(paths);
+}
+
+const NewTag = ({ path }) => (
+  <span data-new-doc={path} className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-success-bg text-success-fg">NEW</span>
+);
 
 /** The Assets view of Results: everything the run generated (the run's outcome strip, its files and folders, the document actions, Quick access). Moved from ResultsPage unchanged. */
 export default function ResultsAssets({
   allUseCases, apiFetch, apiPostJson, artifactTree, artifactsExpanded, artifactsLoading, artifactsRootFiles, databricksHost, downloadFile, expandedFolders, generationPath, genieQuickAccessExpanded, inspireDb, isProgressive, lastArtifactsLoadKeyRef, loadArtifacts, loadFolder, noneMeetsBar, openFileInTab, previewData, previewFile, previewFrom, previewLoading, qualityBarCounts, reviewBarStages, runOutcome, selectedSession, selectedSessionId, setArtifactsExpanded, setGenieQuickAccessExpanded, settings, settingsNotebookPath, showcase, toggleFolder, togglePreview,
 }) {
+  const newDocs = useNewDocs(selectedSessionId, generationPath, loadArtifacts, loadFolder);
   return (
     <>
             {/* ═══ Execution Summary Banner ═══ */}
@@ -74,9 +108,8 @@ export default function ResultsAssets({
                   <div className="flex flex-wrap items-center gap-y-1 gap-1 pt-2 border-t border-border">
                     {reviewBarStages.map((stage, i) => (
                       <div key={stage} className="flex items-center shrink-0">
-                        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-success-bg">
-                          <CheckCircle2 size={11} className="text-success-fg shrink-0" />
-                          <span className="text-[10px] font-medium text-success-fg whitespace-nowrap">{stage}</span>
+                        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-neutral-bg">
+                          <span className="text-[10px] font-medium text-neutral-fg whitespace-nowrap">{stage}</span>
                         </div>
                         {i < reviewBarStages.length - 1 && (
                           <span className="text-text-tertiary text-[10px] mx-1 shrink-0">&rarr;</span>
@@ -115,6 +148,7 @@ export default function ResultsAssets({
                             </>
                           )}
                           <span className="text-xs text-text-primary font-mono truncate flex-1">{f.name}</span>
+                          {!isDir && newDocs.has(f.path) && <NewTag path={f.path} />}
                           {fileSizeText(f.file_size) && (
                             <span className="text-[9px] text-text-tertiary">{fileSizeText(f.file_size)}</span>
                           )}
@@ -271,19 +305,11 @@ export default function ResultsAssets({
               );
             })()}
 
-            {generationPath && !showcase && selectedSessionId && (
-              <DocumentActions
-                apiFetch={apiFetch}
-                apiPostJson={apiPostJson}
-                session={{ sessionId: selectedSessionId, inspireDatabase: inspireDb, businessName: runBusiness(selectedSession), outputLanguage: selectedSession?.output_language || '', generationPath: documentBasePath({ generationPath: selectedSession?.generation_path || selectedSession?.widget_values?.generation_path || '', notebookPath: settings?.notebookPath || '' }) }}
-                onFinished={() => loadArtifacts(generationPath)}
-              />
-            )}
-
             {/* Quick Access — always visible, PDF/Excel/CSV files from artifacts */}
             {(() => {
               const artifactFiles = artifactTreeFiles(artifactsRootFiles, artifactTree);
-              const previewableFiles = quickAccessFiles(artifactFiles);
+              const listed = quickAccessFiles(artifactFiles);
+              const previewableFiles = listed.concat(artifactFiles.filter((f) => f && !f.is_directory && newDocs.has(f.path) && !listed.some((g) => g.path === f.path)));
               if (previewableFiles.length === 0) return null;
 
               const EXT_STYLES = {
@@ -304,16 +330,19 @@ export default function ResultsAssets({
                   <div className="flex gap-2 overflow-x-auto scrollbar-hide">
                     {previewableFiles.map((f) => {
                       const ext = fileExtension(f);
-                      const style = EXT_STYLES[ext] || EXT_STYLES.csv;
+                      const style = EXT_STYLES[ext] || EXT_STYLES.xlsx;
                       const isActive = previewFile === f.path && previewFrom === 'quick';
                       return (
                         <div key={f.path} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] border transition-all shrink-0 ${isActive ? 'border-db-red/30 bg-db-red-50' : 'border-border bg-bg-subtle/50 hover:bg-bg-subtle'}`}>
                           <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${style.bg} ${style.text}`}>{ext}</span>
                           <span className="text-text-primary font-medium truncate max-w-[200px]">{f.name}</span>
+                          {newDocs.has(f.path) && <NewTag path={f.path} />}
                           <div className="flex items-center gap-1.5 ms-1 border-s border-border ps-2">
-                            <button type="button" className="text-[10px] text-info-fg hover:text-info-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => togglePreview(f.path, f.name, 'quick')}>
-                              {isActive ? <><EyeOff size={9} /> Hide</> : <><Eye size={9} /> Preview</>}
-                            </button>
+                            {fileActions(f).preview && (
+                              <button type="button" className="text-[10px] text-info-fg hover:text-info-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => togglePreview(f.path, f.name, 'quick')}>
+                                {isActive ? <><EyeOff size={9} /> Hide</> : <><Eye size={9} /> Preview</>}
+                              </button>
+                            )}
                             {fileActions(f).open && (
                               <button type="button" aria-label={`Open ${f.name}`} className="text-[10px] text-success-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => openFileInTab(f.path, f.name)}>
                                 <ExternalLink size={9} /> Open

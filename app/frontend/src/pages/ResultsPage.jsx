@@ -96,7 +96,8 @@ import { liveCountText } from '../lib/liveUseCases';
 import { saveBlob } from '../lib/download';
 import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, csvPreview, fileExtension, fileProblemText, sheetPreview, textPreview, visibleArtifactFiles } from '../lib/artifactFiles';
 import FilePreview from '../components/FilePreview';
-import DocumentActions from '../components/DocumentActions';
+import GenerateDocsDialog from '../components/GenerateDocsDialog';
+import { docLanguageOf, docValuesOf } from '../lib/docgen/docValues';
 import { generationFolder, workspaceNotebookUrl } from '../lib/workspaceLinks';
 import ImplementWizard from './ImplementWizard';
 import CalculateValueDialog from '../components/CalculateValueDialog';
@@ -118,6 +119,7 @@ import { INSPIRE_ENTRY, RESULTS_PENDING_TEXT, noResultsText, resultsReadFailure,
 import ResultsNav from '../components/results/ResultsNav';
 import { DEFAULT_RESULTS_VIEW, searchWithView, viewOfSearch } from '../lib/resultsView';
 import ResultsBusiness from '../components/results/ResultsBusiness';
+import RunStepper from '../components/RunStepper';
 import ResultsAssets from '../components/results/ResultsAssets';
 import { sessionFailed, sessionFinished, sessionSucceeded } from '../lib/monitorState';
 import { placeholderWords } from '../lib/placeholderWords';
@@ -135,16 +137,8 @@ function formatSessionDate(dateStr) {
   } catch { return dateStr.slice(0, 16); }
 }
 
-/* ── Pipeline stages for execution summary ── */
-const PIPELINE_STAGES = [
-  'Setup',
-  'Business Understanding',
-  'Use Case Design',
-  'Domain Mapping',
-  'Prioritization',
-  'Implementation',
-  'Executive Readout',
-];
+/* The Assets run bar's fixed stages; the run stepper above the section tabs carries each phase's real state. */
+const PIPELINE_STAGES = ['Setup', 'Business Understanding', 'Use Case Design', 'Domain Mapping', 'Prioritization', 'Implementation', 'Executive Readout'];
 
 import { BuildNextPanel } from '../components/BuildNext';
 import ValueDisclaimer from '../components/ValueDisclaimer';
@@ -764,6 +758,7 @@ export default function ResultsPage({
   useEffect(() => { setBulkPicked(new Set()); }, [selectedSessionId]);
   const bulkIds = filteredUseCases.map((uc) => trackingIdOf(uc)).filter((id) => id && bulkPicked.has(id));
   const setBulkPick = (id, on) => setBulkPicked((prev) => { const next = new Set(prev); if (on) next.add(id); else next.delete(id); return next; });
+  const [docsOpen, setDocsOpen] = useState(false);
   const startBulk = () => {
     const picked = new Set(bulkIds);
     const items = filteredUseCases.filter((uc) => picked.has(trackingIdOf(uc))).map((uc) => {
@@ -1478,6 +1473,10 @@ export default function ResultsPage({
 
 
 
+          {!isProgressive && runSteps.session === String(selectedSessionId ?? '') && runSteps.steps.length > 0 && (
+            <RunStepper steps={runSteps.steps} ended={Boolean(results?.run_status)} />
+          )}
+
           {/* ═══ Two-Column: sticky sidebar rail; use-case list scrolls independently in the right column ═══ */}
           <div data-browse={view === 'usecases' ? '' : undefined} className={`grid grid-cols-1 gap-5 min-h-0 ${view === 'usecases' ? 'md:grid-cols-[14rem_minmax(0,1fr)]' : ''}`}>
             {/* ── Left Sidebar: stays fixed in viewport while the card list scrolls (sticky + max height) ── */}
@@ -2058,7 +2057,7 @@ export default function ResultsPage({
               <RefineBanner {...refineBanner} />
               {bulkOn && bulkHere && <ValueBulkProgress />}
               {bulkOn && filteredUseCases.length > 0 && (
-                <ValueBulkBar shown={filteredUseCases.filter((uc) => trackingIdOf(uc)).length} selected={bulkIds.length} onCalculate={startBulk} busy={Boolean(bulkRun.run?.running)}
+                <ValueBulkBar shown={filteredUseCases.filter((uc) => trackingIdOf(uc)).length} selected={bulkIds.length} onCalculate={startBulk} onGenerate={() => setDocsOpen(true)} busy={Boolean(bulkRun.run?.running)}
                   onSelectAll={(on) => setBulkPicked(on ? new Set(filteredUseCases.map((uc) => trackingIdOf(uc)).filter(Boolean)) : new Set())} />
               )}
 
@@ -2233,6 +2232,16 @@ export default function ResultsPage({
             sessionId={selectedSessionId} saved={calculated.byId[trackingIdOf(calcFor)]?.answers || null} version={calculated.byId[trackingIdOf(calcFor)]?.version || null}
             values={valuesForDialog} onClose={closeCalc} />
         )}
+      {docsOpen && bulkIds.length > 0 && (
+        <GenerateDocsDialog
+          useCases={filteredUseCases.filter((uc) => bulkIds.includes(trackingIdOf(uc)))}
+          values={docValuesOf({ byId: calculated.byId, totals: valueTotals })}
+          businessName={runBusiness(selectedSession)} language={docLanguageOf(selectedSession)} folder={generationPath}
+          apiPostJson={apiPostJson} inspireDatabase={inspireDb} warehouseId={warehouseId} sessionId={selectedSessionId}
+          onSaved={() => loadArtifacts(generationPath)}
+          onGoToAssets={() => { setDocsOpen(false); showView('assets'); }}
+          onClose={() => setDocsOpen(false)} />
+      )}
       {bulkHere?.open && <ValueBulkPanel onEdit={(id) => { const uc = builtUseCases.find((u) => trackingIdOf(u) === id); if (uc) openCalc(uc); }} />}
       {implementUc && selectedSessionId && inspireDb && warehouseId && (
         <ImplementWizard

@@ -195,6 +195,8 @@ const ROUTE_POLICY = {
   'GET /api/inspire/feedback': tracked('read feedback'),
   'POST /api/inspire/ack': tracked('acknowledge a step'),
   'POST /api/inspire/feedback': tracked('send feedback'),
+  'POST /api/inspire/docs/save': tracked("save a document the Generate docs wizard made into the run's Assets folder"),
+  'POST /api/inspire/docs/translate': tracked('translate the selected use case texts for a document language'),
   'POST /api/inspire/sync-genie-flags': managers('change the Genie flags of use cases'),
   'POST /api/inspire/usecase-name': managers('rename a use case'),
   'DELETE /api/inspire/session': { rule: 'launcher', action: 'delete it', target: sessionTarget, identity: 'app', why: GATED },

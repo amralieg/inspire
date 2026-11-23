@@ -60,6 +60,8 @@ const SAMPLES = [
   { key: 'POST /api/inspire/ack', rule: 'any', method: 'POST', path: '/api/inspire/ack', body: {} },
   { key: 'POST /api/inspire/usecase-name', rule: 'managers', method: 'POST', path: '/api/inspire/usecase-name', body: {} },
   { key: 'POST /api/inspire/feedback', rule: 'any', method: 'POST', path: '/api/inspire/feedback', body: {} },
+  { key: 'POST /api/inspire/docs/save', rule: 'any', method: 'POST', path: '/api/inspire/docs/save', body: {} },
+  { key: 'POST /api/inspire/docs/translate', rule: 'any', method: 'POST', path: '/api/inspire/docs/translate', body: {} },
   { key: 'POST /api/inspire/profiles', rule: 'any', method: 'POST', path: '/api/inspire/profiles', body: { name: '', spec: {} } },
   { key: 'POST /api/auth/sp-token', rule: 'any', method: 'POST', path: '/api/auth/sp-token', body: {} },
   { key: 'POST /api/setup/verify', rule: 'managers', method: 'POST', path: '/api/setup/verify', body: {} },
