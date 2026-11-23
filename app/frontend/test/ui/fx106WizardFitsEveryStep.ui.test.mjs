@@ -1,9 +1,9 @@
-// REQ-496b (FX-106): every step of the value wizard fits the dialog body (no scroll) at 1440x900 and 1280x800 with the largest live content:
+// REQ-496b (FX-106), REQ-507: every step of the 8-step value wizard fits the dialog body (no scroll) at 1440x900 and 1280x800 with the largest live content:
 // all 5 drivers on with long names and 5 inputs each (data and estimate), 3 market factors, the review note, History with 2 versions.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser } from './uiSupport.mjs';
-import { PLAN, fakeYearly, goTo, mountWizard, next, openCard } from './valueWizardSupport.mjs';
+import { PLAN, fakeYearly, mountWizard, next, openCard, saveFrom } from './valueWizardSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -35,8 +35,9 @@ const measure = (page) => page.evaluate(() => {
   const body = dlg.querySelector('[data-wizard-body]');
   const inView = (el) => { const r = el?.getBoundingClientRect(); return Boolean(r && r.top >= 0 && r.bottom <= window.innerHeight); };
   const tick = [...dlg.querySelectorAll('input[type=checkbox]')].find((c) => /accept these terms/.test(c.closest('label')?.textContent || ''));
+  const approve = [...dlg.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Approve story and save');
   const pg = dlg.querySelector('[data-wizard-page]')?.getAttribute('data-wizard-page');
-  return { pg, scroll: body.scrollHeight, client: body.clientHeight, tick: inView(tick), save: inView(dlg.querySelector('[data-save-button]')), hasTick: Boolean(tick) };
+  return { pg, scroll: body.scrollHeight, client: body.clientHeight, tick: inView(tick), approve: inView(approve), hasTick: Boolean(tick) };
 });
 
 for (const [width, height] of [[1440, 900], [1280, 800]]) {
@@ -48,27 +49,30 @@ for (const [width, height] of [[1440, 900], [1280, 800]]) {
       const dialog = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
       await dialog.waitFor();
       const seen = [];
-      for (let i = 0; i < 12; i += 1) {
+      for (let i = 0; i < 24; i += 1) {
         await dialog.locator('[data-wizard-page]').first().waitFor();
-        await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-        if (await dialog.locator('[data-wizard-page="save"]').count()) {
-          await dialog.locator('[data-value-review]').waitFor({ timeout: 15000 });
-          await page.waitForFunction(() => document.querySelectorAll('[data-history-row]').length === 2, null, { timeout: 15000 }).catch(() => {});
-        }
+        const at = await dialog.locator('[data-wizard-page]').first().getAttribute('data-wizard-page');
+        if (!at.startsWith('scope:') && at !== 'filter') await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
         seen.push(await measure(page));
-        if (seen[seen.length - 1].pg === 'save') break;
+        if (at === 'story:approve') break;
         await next(dialog);
       }
-      for (const s of seen) console.log(`step ${s.pg} ${width}x${height}: scrollHeight ${s.scroll} clientHeight ${s.client}${s.pg === 'save' ? ` tick ${s.tick} save ${s.save}` : ''}`);
+      await saveFrom(dialog);
+      await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
+      await dialog.locator('[data-value-review]').waitFor({ timeout: 15000 });
+      await page.waitForFunction(() => document.querySelectorAll('[data-history-row]').length === 2, null, { timeout: 15000 });
+      seen.push(await measure(page));
+      for (const s of seen) console.log(`step ${s.pg} ${width}x${height}: scrollHeight ${s.scroll} clientHeight ${s.client}${s.pg === 'story:approve' ? ` tick ${s.tick} approve ${s.approve}` : ''}`);
       const pages = seen.map((s) => s.pg);
-      assert.ok(pages.includes('factors'), `factors step reached: ${pages}`);
+      assert.deepEqual(pages.filter((p) => !p.startsWith('driver:')), ['scope:facts', 'scope:choice', 'filter', 'kinds', 'economics:ramp', 'economics:cost', 'macro:offer', 'factors',
+        'story:draft', 'story:params', 'story:approve', 'save'], `every step reached: ${pages}`);
       assert.equal(pages.filter((p) => p.startsWith('driver:')).length, 5, `5 driver pages: ${pages}`);
       assert.equal(pages[pages.length - 1], 'save');
       const bad = seen.filter((s) => s.scroll > s.client + 1).map((s) => `${s.pg}: ${s.scroll} > ${s.client}`);
       assert.deepEqual(bad, [], `steps that scroll at ${width}x${height}`);
-      const last = seen[seen.length - 1];
-      assert.equal(last.tick, true, 'tick in view');
-      assert.equal(last.save, true, 'Accept and save in view');
+      const approval = seen.find((s) => s.pg === 'story:approve');
+      assert.equal(approval.tick, true, 'tick in view');
+      assert.equal(approval.approve, true, 'Approve story and save in view');
     } finally { await ui.close(); }
   });
 }

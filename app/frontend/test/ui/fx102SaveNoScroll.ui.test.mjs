@@ -1,8 +1,8 @@
-// REQ-496b (FX-102): the Save step has no body scroll with live content: the review note, History with two versions, 3 drivers on with long input names.
+// REQ-496b (FX-102), REQ-507: the approval and Save steps have no body scroll with live content: the review note, History with two versions, 3 drivers on with long input names.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser } from './uiSupport.mjs';
-import { PLAN, fakeYearly, goTo, mountWizard, openCard } from './valueWizardSupport.mjs';
+import { PLAN, fakeYearly, goTo, mountWizard, openCard, saveFrom } from './valueWizardSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -27,32 +27,40 @@ const mountLive = (app) => {
 };
 
 for (const [width, height] of [[1440, 900], [1280, 800]]) {
-  test(`N${width}: the Save step with the review note and History does not scroll at ${width}x${height}, tick and Accept and save in view`, async () => {
+  test(`N${width}: the approval and Save steps with the review note and History do not scroll at ${width}x${height}, tick, Approve story and save and Close in view`, async () => {
     const { ui, card, page } = await openCard(mountLive);
     try {
       await page.setViewportSize({ width, height });
       await card.getByRole('button', { name: 'Edit value' }).click();
       const dialog = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
       await dialog.waitFor();
-      await goTo(dialog, 'save');
-      await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-      await dialog.locator('[data-value-review]').waitFor({ timeout: 15000 });
-      await page.waitForFunction(() => document.querySelectorAll('[data-history-row]').length === 2, null, { timeout: 15000 }).catch(() => {});
-      const fit = await page.evaluate(() => {
+      const measure = () => page.evaluate(() => {
         const dlg = document.querySelector('[role=dialog]');
         const body = dlg.querySelector('[data-wizard-body]');
         const inView = (el) => { const r = el?.getBoundingClientRect(); return Boolean(r && r.top >= 0 && r.bottom <= window.innerHeight); };
+        const button = (name) => [...dlg.querySelectorAll('button')].find((b) => b.textContent.trim() === name);
         const tick = [...dlg.querySelectorAll('input[type=checkbox]')].find((c) => /accept these terms/.test(c.closest('label')?.textContent || ''));
-        return { scroll: body.scrollHeight, client: body.clientHeight, tick: inView(tick), save: inView(dlg.querySelector('[data-save-button]')),
+        return { scroll: body.scrollHeight, client: body.clientHeight, tick: inView(tick), approve: inView(button('Approve story and save')), close: inView(button('Close')),
           on: dlg.querySelectorAll('[data-accept-summary] li').length, review: Boolean(dlg.querySelector('[data-value-review]')), history: dlg.querySelectorAll('[data-history-row]').length };
       });
+      await goTo(dialog, 'story:approve');
+      await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
+      const approval = await measure();
+      console.log(`approval step body ${width}x${height}: scrollHeight ${approval.scroll} clientHeight ${approval.client}`);
+      assert.ok(approval.scroll <= approval.client + 1, `approval body scrolls: ${approval.scroll} > ${approval.client}`);
+      assert.equal(approval.tick, true, 'tick in view');
+      assert.equal(approval.approve, true, 'Approve story and save in view');
+      await saveFrom(dialog);
+      await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
+      await dialog.locator('[data-value-review]').waitFor({ timeout: 15000 });
+      await page.waitForFunction(() => document.querySelectorAll('[data-history-row]').length === 2, null, { timeout: 15000 });
+      const fit = await measure();
       console.log(`save-step body ${width}x${height}: scrollHeight ${fit.scroll} clientHeight ${fit.client}`);
       assert.equal(fit.on, 3, '3 drivers on');
       assert.equal(fit.review, true, 'review note present');
       assert.equal(fit.history, 2, 'two history rows in the fixture');
       assert.ok(fit.scroll <= fit.client + 1, `body scrolls: ${fit.scroll} > ${fit.client}`);
-      assert.equal(fit.tick, true, 'tick in view');
-      assert.equal(fit.save, true, 'Accept and save in view');
+      assert.equal(fit.close, true, 'Close in view');
     } finally { await ui.close(); }
   });
 }
