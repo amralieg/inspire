@@ -392,6 +392,8 @@ export async function openApp(browser, base, info, { width = 1440, height = 900,
       return json(200, { state: 'done', text, sql: 'SELECT category, SUM(loss) FROM t GROUP BY 1',
         columns: [{ name: 'category', type: 'STRING' }, { name: 'loss', type: 'DOUBLE' }], rows: [{ category: 'Books', loss: 300000 }], truncated: false });
     }
+    // REQ-484: the value counter read (shell_core.value_counter); an App with no value basis answers { shown: false } and the page shows nothing
+    if (path === 'value/counter') return json(200, { shown: false });
     return json(404, { error: 'no route' });
   };
   await page.route('**/api/**', async (route) => {
@@ -430,6 +432,8 @@ export async function openBundle(browser, bundle, props, routes = {}, { width = 
     if (path === '__fence') return route.fulfill({ status: 204 });
     if (routes[path]) return routes[path]({ route, json });
     if (path === 'agent/status') return json(200, GENIE_ONLY);
+    // REQ-484: the value counter read (shell_core.value_counter); an App with no value basis answers { shown: false } and the page shows nothing
+    if (path === 'value/counter') return json(200, { shown: false });
     return json(404, { error: 'no route' });
   });
   const html = `<!doctype html><html><head><style>${bundle.css}</style></head><body><div id="root"></div>`
