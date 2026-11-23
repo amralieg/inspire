@@ -5,7 +5,6 @@ import { infographicSvg, briefPagesSvg } from './docgen/docSvg.js';
 import { resolveTheme } from './docgen/docStyles.js';
 import { trackingIdOf } from './useCaseFields.js';
 
-const MAX_PNG_BYTES = 70000;
 const toBytes = async (v) => (v instanceof Blob ? new Uint8Array(await v.arrayBuffer()) : v instanceof ArrayBuffer ? new Uint8Array(v) : v);
 
 export function toBase64(bytes) {
@@ -56,12 +55,8 @@ function modelFor({ businessName, useCases, values, options, language, ids, tran
 async function makeFile(file, m, theme, options) {
   if (file.kind === 'infographic') {
     const svg = infographicSvg(m, theme);
-    let png = await svgToPng(svg);
-    // A picture over the save size is drawn smaller until it fits (down to half size); the PDF keeps the full picture.
-    if (file.ext === 'png') {
-      for (let scale = 0.85; png.bytes.length > MAX_PNG_BYTES && scale >= 0.5; scale -= 0.15) png = await svgToPng(svg, scale);
-      return png.bytes;
-    }
+    // One PDF of all selected, the picture at full size.
+    const png = await svgToPng(svg);
     const { pdfFromImages } = await import('./docgen/pdfDoc.js');
     return pdfFromImages([png]);
   }

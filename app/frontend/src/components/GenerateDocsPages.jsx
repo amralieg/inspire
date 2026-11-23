@@ -5,7 +5,7 @@ import { DOCUMENT_LANGUAGE_CHOICES } from '../constants/documentLanguages.js';
 
 // REQ-503: the wizard's pages. Each is one short screen; the dialog shows one at a time.
 const KIND_INFO = {
-  infographic: { label: 'Infographic', hint: 'One picture of all selected use cases, as PNG and PDF', Icon: ImageIcon },
+  infographic: { label: 'Infographic', hint: 'One picture of all selected use cases, as one PDF', Icon: ImageIcon },
   pptx: { label: 'PowerPoint', hint: 'A deck: cover, summary, a slide per use case', Icon: Presentation },
   pdf: { label: 'PDF brief', hint: 'A cover and a page per use case', Icon: FileText },
   xlsx: { label: 'Excel', hint: 'One sheet, a row per use case', Icon: FileSpreadsheet },

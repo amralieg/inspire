@@ -46,7 +46,7 @@ export function defaultDocOptions(language = 'English') {
 
 const safe = (s) => String(s ?? '').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
 
-// Infographic: always one PNG + one PDF of all selected. PowerPoint and the PDF brief follow the layout. Excel: one. Repeated per language.
+// Infographic: always one PDF of all selected (no PNG). PowerPoint and the PDF brief follow the layout. Excel: one. Repeated per language.
 export function planFiles(options, useCases) {
   const ids = (useCases || []).map((u, i) => trackingIdOf(u) || String(i + 1));
   const kinds = options.kinds || [];
@@ -63,7 +63,7 @@ export function planFiles(options, useCases) {
   };
   for (const language of options.languages || []) {
     for (const kind of kinds) {
-      if (kind === 'infographic') { push(kind, 'png', 'infographic', ids, language); push(kind, 'pdf', 'infographic', ids, language); }
+      if (kind === 'infographic') push(kind, 'pdf', 'infographic', ids, language);
       else if (kind === 'xlsx') push(kind, 'xlsx', 'use_cases', ids, language);
       else if (kind === 'pptx' || kind === 'pdf') {
         const stem = kind === 'pptx' ? 'deck' : 'brief';
