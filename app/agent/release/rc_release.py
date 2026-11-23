@@ -197,6 +197,49 @@ def notes_of(sources):
             f"install the latest release.")
 
 
+def final_notes_problems(text, tag):
+    """What a final release's written notes lack: the title, a Changes bullet, Known issues and Install."""
+    lines = text.strip().splitlines()
+    if not lines:
+        return ["the notes file is empty"]
+    found = []
+    if lines[0].strip() != f"# Inspire {tag}":
+        found.append(f"the first line is not '# Inspire {tag}'")
+    heads = [line.strip() for line in lines]
+    if "## Changes" not in heads:
+        found.append("no '## Changes' section")
+    else:
+        body = []
+        for line in lines[heads.index("## Changes") + 1:]:
+            if line.startswith("## "):
+                break
+            body.append(line)
+        if not any(line.startswith("- ") for line in body):
+            found.append("'## Changes' has no '- ' line")
+    for head in ("## Known issues", "## Install"):
+        if head not in heads:
+            found.append(f"no '{head}' section")
+    return found
+
+
+def notes_text(args, sources):
+    """The notes file when one is given, else the generated line (a release candidate only)."""
+    return pathlib.Path(args.notes_file).read_text(encoding="utf-8") if args.notes_file else notes_of(sources)
+
+
+def require_final_notes(args):
+    if "-rc." in args.tag:
+        return
+    if not args.notes_file:
+        raise SystemExit(f"rc_release: final release {args.tag} needs --notes-file with the written notes (title, Changes, Known issues, Install)")
+    path = pathlib.Path(args.notes_file)
+    if not path.is_file():
+        raise SystemExit(f"rc_release: --notes-file {path} is not a file")
+    problems = final_notes_problems(path.read_text(encoding="utf-8"), args.tag)
+    if problems:
+        raise SystemExit(f"rc_release: the notes for {args.tag} are not complete: {'; '.join(problems)}")
+
+
 def title_of(tag):
     return f"Inspire {tag}" if "-rc." not in tag else f"Inspire {tag} (release candidate)"
 
@@ -216,11 +259,15 @@ def publish(args, work, sources):
     listed = run(["gh", "release", "list", "--repo", REPO, "--limit", "100", "--json", "tagName,isPrerelease,isLatest"], env=env, network=True)
     existing = {r["tagName"]: r for r in json.loads(listed or "[]")}
     if args.tag not in existing:
+        notes = ["--notes-file", str(args.notes_file)] if args.notes_file else ["--notes", notes_of(sources)]
         run(["gh", "release", "create", args.tag, "--repo", REPO, "--target", args.target or "main", "--prerelease", "--latest=false",
-             "--title", title_of(args.tag), "--notes", notes_of(sources)], env=env, network=True)
+             "--title", title_of(args.tag), *notes], env=env, network=True)
         say(f"pre-release {args.tag} created on {REPO}")
     elif not existing[args.tag]["isPrerelease"] or existing[args.tag]["isLatest"]:
         raise SystemExit(f"rc_release: {args.tag} exists and is not a pre-release that is not latest; refusing to touch it")
+    elif args.notes_file:
+        run(["gh", "release", "edit", args.tag, "--repo", REPO, "--notes-file", str(args.notes_file)], env=env, network=True)
+        say(f"notes of the existing pre-release {args.tag} updated from {args.notes_file}")
     local = {pathlib.Path(f).name: f"sha256:{sha256_file(f)}" for f in files}
     remote = remote_digests(args.tag, env)
     for name in sorted(set(remote) - set(local)):
@@ -320,6 +367,8 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="build and leak-scan only, and compare with --compare-to")
     parser.add_argument("--compare-to", default="", help="a release tag whose files the build is compared with by sha256")
     parser.add_argument("--defer-from", default="", help="a release tag; files with a sha256 on it wait for a server-side fill")
+    parser.add_argument("--notes-file", type=pathlib.Path, default=None,
+                        help="the written release notes; required for a final tag, optional for a release candidate")
     parser.add_argument("--target", default="", help="the full commit SHA the new tag points at; defaults to main")
     args = parser.parse_args()
     rc_settings.require_tools(S, files=("leak_scan",), commands=("net_wait",))
@@ -328,6 +377,7 @@ def main():
     for tag in (args.tag, args.compare_to, args.defer_from):
         if tag and not TAG.fullmatch(tag):
             raise SystemExit(f"rc_release: {tag} is not vN.N.N-rc.N with single digits")
+    require_final_notes(args)
     work = W22 / (args.work or (f"{args.tag}-dry" if args.dry_run else args.tag))
     if args.skip_build:
         sources = json.loads((work / "sources.json").read_text(encoding="utf-8"))
@@ -335,7 +385,7 @@ def main():
         raise SystemExit("rc_release: --assets names the assets folder a build copies; only --skip-build runs without it")
     else:
         sources = build(args, work)
-    hits = leak_scan(work / "release", notes_of(sources))
+    hits = leak_scan(work / "release", notes_text(args, sources))
     if hits:
         raise SystemExit(f"rc_release: {len(hits)} leak hit(s); nothing published")
     if args.compare_to:
