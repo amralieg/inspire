@@ -169,8 +169,21 @@ export function meetsQualityBarOf(uc) {
 const CHECK_CODE_IN_PARENS = /\s*\((?:score:[a-z_]+|[A-Z]{1,2}\d{1,2}|[a-z]+(?:_[a-z]+)+|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)\)/g;
 const RAW_CHECK_CODE = /:?\s*\bQ\d_[RT]\d+_[A-Z_]+(?::[^\s;,]*)?/g;
 
+// FX-87 (REQ-485): "(a_b=10,c_d=10)" is a column list with counts; business users read "(2 columns, such as a b, hold only 10 values each)".
+const COLUMN_COUNTS = /\(\s*([A-Za-z][\w.]*=\d+(?:\s*,\s*[A-Za-z][\w.]*=\d+)*)\s*\)/g;
+const TRAILING_CHECK_NAME = /\s*;\s*[A-Za-z][A-Za-z ]*\bchecks?\s*$/i;
+const spaced = (name) => name.replace(/_/g, ' ');
+function columnCountsText(list) {
+  const pairs = list.split(',').map((p) => p.trim().split('='));
+  const counts = [...new Set(pairs.map(([, n]) => n))];
+  const each = counts.length === 1 ? `only ${counts[0]} values${pairs.length > 1 ? ' each' : ''}` : 'too few values';
+  if (pairs.length === 1) return `${spaced(pairs[0][0])} holds ${each}`;
+  return `${pairs.length} columns, such as ${spaced(pairs[0][0])}, hold ${each}`;
+}
+
 export function plainReason(text) {
-  return String(text ?? '').replace(CHECK_CODE_IN_PARENS, '').replace(RAW_CHECK_CODE, '')
+  return String(text ?? '').replace(COLUMN_COUNTS, (_m, list) => `(${columnCountsText(list)})`).replace(TRAILING_CHECK_NAME, '')
+    .replace(CHECK_CODE_IN_PARENS, '').replace(RAW_CHECK_CODE, '')
     .replace(/\s{2,}/g, ' ').replace(/\s+([,;:])/g, '$1').replace(/(?:[,;:]\s*)+$/, '').replace(/\bby$/, 'by a quality check').trim();
 }
 
