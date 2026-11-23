@@ -141,7 +141,7 @@ test('D34 Advanced: Build with these choices closes the wizard while the build s
       const now = page.locator('[data-build-now]');
       await page.waitForFunction(() => { const b = document.querySelector('[data-build-now]'); return b && !b.disabled; }, null, { timeout: 30000 });
       await now.click();
-      await page.locator('[data-implement-overlay]').waitFor({ state: 'detached', timeout: 5000 });
+      await page.getByText('Starting your build').waitFor({ state: 'visible', timeout: 5000 });
       hold.release();
       if (fail) {
         await page.getByRole('alert').filter({ hasText: 'The build could not start.' }).waitFor({ timeout: 15000 });
@@ -163,7 +163,7 @@ test('D34 Standard: the final Build button closes the wizard while the build sta
   try {
     await next(page).click();
     await startMvp(page);
-    await page.locator('[data-implement-overlay]').waitFor({ state: 'detached', timeout: 5000 });
+    await page.getByText('Starting your build').waitFor({ state: 'visible', timeout: 5000 });
     hold.release();
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor({ timeout: 20000 });
   } finally {

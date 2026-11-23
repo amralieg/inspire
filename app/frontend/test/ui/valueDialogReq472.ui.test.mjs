@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, goToStep, openUi, stubMoney } from './uiSupport.mjs';
-import { PLAN, mountWizard, next, openCard, sleep } from './valueWizardSupport.mjs';
+import { PLAN, goTo, mountWizard, next, openCard, sleep } from './valueWizardSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -115,6 +115,7 @@ test('D6: Economic trend: unticked with the likely option preselected, ticking s
   const { ui, card, page } = await openCard(mountWizard({ previews, planReply: { plan } }));
   try {
     const dialog = await open(page, card);
+    await goTo(dialog, 'factors');
     const section = dialog.locator('[data-economic-trend]');
     await section.waitFor({ timeout: 15000 });
     const include = section.getByRole('checkbox', { name: 'Include economic trend' });

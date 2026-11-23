@@ -23,7 +23,7 @@ test('C1: on the first page Calculate now sends one PUT with calculated false an
     assert.equal(puts[0].answers.calculated, false);
     for (const d of PLAN.drivers) assert.deepEqual(puts[0].answers.drivers[d.id].inputs, defaultsOf(d), `${d.id} keeps its default numbers`);
     await dialog.locator('[data-save-total]').filter({ hasText: /\$/ }).waitFor({ timeout: 15000 });
-    assert.match(await text(dialog.locator('[data-save-total]')), /\(estimated\)/, 'the save page does not claim it was confirmed');
+    assert.match(await text(dialog.locator('[data-save-total]')), /Provisional estimate/, 'the save page does not claim it was confirmed');
   } finally { await ui.close(); }
 });
 
@@ -52,7 +52,8 @@ test('C3: the Save page has no Calculate now button, and Save there sends calcul
     await goTo(dialog, 'save');
     assert.equal(await calcNow(dialog).count(), 0);
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await dialog.getByLabel('I have read and accept these terms').check();
+    await dialog.getByRole('button', { name: 'Accept and save', exact: true }).click();
     await dialog.waitFor({ state: 'hidden', timeout: 5000 }); // REQ-449: Save closes the dialog
     assert.equal(puts.length, 1);
     assert.equal(puts[0].answers.calculated, true);
@@ -79,7 +80,8 @@ test('C5: after Save confirms the numbers, Back and Calculate now with no change
   try {
     const dialog = await openWizard(page, card);
     await goTo(dialog, 'save');
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await dialog.getByLabel('I have read and accept these terms').check();
+    await dialog.getByRole('button', { name: 'Accept and save', exact: true }).click();
     await dialog.waitFor({ state: 'hidden', timeout: 5000 }); // REQ-449: Save closes the dialog; reopen it and keep the numbers as estimated
     await card.getByRole('button', { name: 'Edit value' }).click();
     const again = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });

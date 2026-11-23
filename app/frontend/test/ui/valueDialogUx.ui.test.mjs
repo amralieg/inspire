@@ -19,18 +19,20 @@ test('U1 (REQ-449): Save closes the dialog within 2 s and the card shows the sav
     await dialog.locator('[data-ask="cost_per_hour"] input[type=number]').fill('60');
     await goTo(dialog, 'save');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await dialog.getByLabel('I have read and accept these terms').check();
+    await dialog.getByRole('button', { name: 'Accept and save', exact: true }).click();
     await dialog.waitFor({ state: 'hidden', timeout: 2000 });
     assert.equal(puts.length, 1);
     await card.locator('[data-value-yearly] [data-value-amount]').waitFor({ timeout: 5000 });
-    assert.match(await text(card.locator('[data-value-yearly] [data-value-qualifier]')), /calculated/);
+    assert.match(await text(card.locator('[data-value-yearly] [data-value-qualifier]')), /Reviewed calculation/);
   } finally { await ui.close(); }
   const failing = await openCard(mountWizard({ putReply: { status: 500, body: { error: 'The warehouse refused the write.' } } }));
   try {
     const dialog = await openWizard(failing.page, failing.card);
     await goTo(dialog, 'save');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await dialog.getByLabel('I have read and accept these terms').check();
+    await dialog.getByRole('button', { name: 'Accept and save', exact: true }).click();
     await dialog.getByRole('alert').filter({ hasText: 'The warehouse refused the write.' }).waitFor({ timeout: 5000 });
     assert.equal(await dialog.isVisible(), true, 'a failed save keeps the dialog open');
   } finally { await failing.ui.close(); }

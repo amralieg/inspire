@@ -44,7 +44,7 @@ test('B6: History lists the versions and Undo restores the earlier one on the ca
     await dialog.getByRole('button', { name: 'Undo' }).click();
     await page.waitForFunction(() => document.querySelector('[data-value-yearly] [data-value-amount]')?.textContent.includes('777'), null, { timeout: 15000 });
     assert.equal(posts[0].use_case_id, 'N01-U01');
-    assert.equal(await amount(card), '$777K (Provisional estimate)');
+    assert.equal(await amount(card), '$777K Provisional estimate');
   } finally { await ui.close(); }
 });
 
@@ -57,13 +57,14 @@ test('B8: a server 400 shows its one line in the box and keeps the typed numbers
     await goTo(dialog, 'driver:time_saved');
     await dialog.locator('[data-ask="cost_per_hour"] input[type=number]').fill('321');
     await goTo(dialog, 'save');
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await dialog.getByLabel('I have read and accept these terms').check();
+    await dialog.getByRole('button', { name: 'Accept and save', exact: true }).click();
     const alert = dialog.getByRole('alert');
     await alert.waitFor({ timeout: 15000 });
     assert.match(await alert.innerText(), /AED but the answer currency is USD/);
     assert.equal(puts.length, 1, 'the save was sent once');
     assert.equal(puts[0].answers.drivers.time_saved.inputs.cost_per_hour, 321, 'the typed number is kept');
-    assert.equal(await amount(card), '$777K (Provisional estimate)', 'the card keeps its last value');
+    assert.equal(await amount(card), '$777K Provisional estimate', 'the card keeps its last value');
   } finally { await ui.close(); }
 });
 

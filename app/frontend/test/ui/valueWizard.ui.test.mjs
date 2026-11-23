@@ -103,8 +103,9 @@ test('W4: Save sends PUT shape 2 with calculated true and the box label changes 
     const dialog = await openWizard(page, card);
     await goTo(dialog, 'save');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-    assert.match(await text(dialog.locator('[data-save-total]')), /\(estimated\)/);
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    assert.match(await text(dialog.locator('[data-save-total]')), /Provisional estimate/);
+    await dialog.getByLabel('I have read and accept these terms').check();
+    await dialog.getByRole('button', { name: 'Accept and save', exact: true }).click();
     await dialog.waitFor({ state: 'hidden', timeout: 5000 }); // REQ-449: a confirmed save closes the dialog
     await card.locator('[data-value-qualifier]').getByText('Reviewed calculation').waitFor({ timeout: 15000 });
     assert.equal(puts.length, 1);
