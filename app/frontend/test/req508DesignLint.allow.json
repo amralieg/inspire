@@ -1,0 +1,18 @@
+{
+  "_about": "REQ-508 design lint allow-list. Builders never edit this file. Each entry names a file and the reason it may break a rule.",
+  "orphan": [
+    { "file": "components/HeroScene3D.jsx", "reason": "F33 orphan (0 importers); delete pending Amr's yes" },
+    { "file": "components/LanguageBrowser.jsx", "reason": "F33 orphan (0 importers); delete pending Amr's yes" },
+    { "file": "components/RunStatus.jsx", "reason": "F33 orphan (0 importers); delete pending Amr's yes" },
+    { "file": "components/ScoreGauge.jsx", "reason": "F33 orphan (0 importers); delete pending Amr's yes" },
+    { "file": "components/SettingsPanel.jsx", "reason": "F33 orphan (0 importers); delete pending Amr's yes" },
+    { "file": "components/TableBrowser.jsx", "reason": "F33 orphan (0 importers); delete pending Amr's yes" },
+    { "file": "components/ValueDrivers.jsx", "reason": "F33 orphan (0 importers); delete pending Amr's yes" },
+    { "file": "components/ValueSplit.jsx", "reason": "F33 orphan (0 importers); delete pending Amr's yes" }
+  ],
+  "raw-colour": [
+    { "file": "pages/LandingPage.jsx", "reason": "Amr's decision: decorative effects stay on Landing only; its hero palette is drawn on canvas/SVG" },
+    { "file": "components/ParticleField.jsx", "reason": "Landing-only canvas effect; canvas needs literal colours" },
+    { "file": "components/Celebration.jsx", "reason": "canvas-confetti takes literal colours" }
+  ]
+}
