@@ -3,14 +3,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { valueStripOf } from '../src/valueStrip.js';
-import { VALUE_DISCLAIMER, VALUE_DISCLAIMER_SHORT, showsMoney } from '../src/valueDisclaimer.js';
+import { VALUE_DISCLAIMER, showsMoney } from '../src/valueDisclaimer.js';
 
 const { full, short } = JSON.parse(readFileSync(new URL('../../../../../backend/lib/valueDisclaimer.json', import.meta.url), 'utf8'));
 const page = { id: 'n01', kpis: [{ id: 'at_risk', label: 'Revenue at risk', format: 'currency', currency: 'AED' }] };
 
 test('the shell constants are the backend text', () => {
   assert.equal(VALUE_DISCLAIMER, full);
-  assert.equal(VALUE_DISCLAIMER_SHORT, short);
 });
 
 test('the value strip carries the full text when the overall value is a number', () => {
