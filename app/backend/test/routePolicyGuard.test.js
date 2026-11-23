@@ -12,7 +12,7 @@ const { SAMPLES } = require('./support/routeSamples');
 
 const realFetch = globalThis.fetch;
 const backend = path.join(__dirname, '..');
-const sources = ['server.js', 'implementRoutes.js', ...fileNames(path.join(backend, 'lib')).filter((f) => f.endsWith('.js')).map((f) => `lib/${f}`)];
+const sources = ['server.js', 'implementRoutes.js', 'macroRoutes.js', ...fileNames(path.join(backend, 'lib')).filter((f) => f.endsWith('.js')).map((f) => `lib/${f}`)];
 const sourceText = (rel) => fs.readFileSync(path.join(backend, rel), 'utf8');
 const scannedRoutes = () => sources.flatMap((rel) => P.changingRoutesInSource(sourceText(rel)).map((r) => ({ ...r, file: rel })));
 const everyRoute = () => sources.flatMap((rel) => P.routesInSource(sourceText(rel)).map((r) => ({ ...r, file: rel })));
