@@ -63,7 +63,7 @@ test('REQ-099: the scenario Save on the Scenarios tab shows a spinner and Saving
   const { page, context } = await open('scenario_lab.json', { ...scenarioRoutes([], []), 'scenario/save': () => new Promise(() => {}) });
   try {
     await EXAMPLES['scenario_lab.json'].ready(page);
-    await page.locator('[data-rail="work"]').click();
+    await page.locator('[data-mode="screen"]').click();
     const form = page.locator('[data-scenario-save]');
     await form.waitFor({ timeout: 20000 });
     await form.getByRole('textbox', { name: 'Name this scenario' }).fill('Price up 8%');

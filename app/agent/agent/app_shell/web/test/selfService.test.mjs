@@ -9,6 +9,7 @@ const CLOCK = new Date('2026-10-27T09:30:00Z');
 const AS_OF = String((CLOCK.getTime() - 5000) * 1000);
 const label = (n) => `Item number ${n} with a long descriptive name`;
 
+const DASH = '#/n01_u05/dashboard'; // REQ-506: a use case opens on Work, so the dashboard tests ask for it
 let served;
 let browser;
 before(async () => { served = await serveDist(); browser = await chromium.launch(); });
@@ -77,7 +78,7 @@ function pageFailingOnce(errors) {
 
 test('a chart that could not load offers Try again, which reads the page again and draws the chart', async () => {
   const flaky = pageFailingOnce({ 'chart:pareto': 'the warehouse is stopped' });
-  const { page, context } = await openApp(browser, served.base, appInfo(), { routes: { page: flaky.route } });
+  const { page, context } = await openApp(browser, served.base, appInfo(), { hash: DASH, routes: { page: flaky.route } });
   const card = page.locator('[data-card="pareto"]');
   await card.locator('.tile-err').waitFor();
   const retry = card.locator('.tile-err [data-retry]');
@@ -91,7 +92,7 @@ test('a chart that could not load offers Try again, which reads the page again a
 test('a key number that could not load reads again on Try again', async () => {
   const kpi = Object.keys(pageData({}).kpis)[0];
   const flaky = pageFailingOnce({ [`kpi:${kpi}`]: 'the warehouse is stopped' });
-  const { page, context } = await openApp(browser, served.base, appInfo(), { ready: '.kpi .tile-err', routes: { page: flaky.route } });
+  const { page, context } = await openApp(browser, served.base, appInfo(), { hash: DASH, ready: '.kpi .tile-err', routes: { page: flaky.route } });
   await page.locator('.kpi .tile-err [data-retry]').first().click();
   await page.waitForFunction(() => !document.querySelector('.kpi .tile-err'));
   assert.equal(flaky.reads.length, 2);
@@ -101,7 +102,7 @@ test('a key number that could not load reads again on Try again', async () => {
 test('a page whose data could not load reads again on Try again and shows its key numbers', async () => {
   const reads = [];
   const { page, context } = await openApp(browser, served.base, appInfo(), {
-    ready: '.tile-err',
+    hash: DASH, ready: '.tile-err',
     routes: {
       page: ({ route, json }) => {
         const body = route.request().postDataJSON();
@@ -119,7 +120,7 @@ test('a page whose data could not load reads again on Try again and shows its ke
 });
 
 test('an error that carries a grant offers Copy what to send with the sentence and the grant', async () => {
-  const { page, context } = await openApp(browser, served.base, appInfo(), { errors: { 'chart:pareto': DENIED } });
+  const { page, context } = await openApp(browser, served.base, appInfo(), { hash: DASH, errors: { 'chart:pareto': DENIED } });
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: served.base });
   const card = page.locator('[data-card="pareto"]');
   await card.locator('.tile-err').waitFor();
@@ -170,7 +171,7 @@ test('a record action that failed on the server offers Try again in its message,
   });
   await page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length > 0 && document.querySelector('.list-tools'));
   await page.getByRole('checkbox', { name: `Select ${label(1)}` }).check();
-  await page.getByRole('button', { name: 'Mark done…' }).click();
+  await page.getByRole('button', { name: 'Resolve', exact: true }).click();
   await page.locator('.pop button[type="submit"]').click();
   await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'The SQL warehouse did not answer in time');
   const again = page.locator('.toast .toast-a button', { hasText: 'Try again' });
@@ -192,7 +193,7 @@ test('a refused record action offers no Try again, because it would fail the sam
   });
   await page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length > 0 && document.querySelector('.list-tools'));
   await page.getByRole('checkbox', { name: `Select ${label(1)}` }).check();
-  await page.getByRole('button', { name: 'Mark done…' }).click();
+  await page.getByRole('button', { name: 'Resolve', exact: true }).click();
   await page.locator('.pop button[type="submit"]').click();
   await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'You may not change these records');
   assert.equal(await page.locator('.toast .toast-a button', { hasText: 'Try again' }).count(), 0);
@@ -200,7 +201,7 @@ test('a refused record action offers no Try again, because it would fail the sam
   await context.close();
 });
 
-test('an Ask Genie question that failed offers Try again, which asks the same question again and shows the answer', async () => {
+test('a Genie question that failed offers Try again, which asks the same question again and shows the answer', async () => {
   const asks = [];
   let polls = 0;
   const info = appInfo();
@@ -218,7 +219,7 @@ test('an Ask Genie question that failed offers Try again, which asks the same qu
     },
   });
   await page.goto(`${served.base}#/${info.pages[0].id}`);
-  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
+  await page.locator('[data-mode="genie"]').click(); // REQ-506: Genie is a mode, not an Ask Genie button
   await page.getByLabel('Your question').fill('Which category lost the most?');
   await page.getByRole('button', { name: 'Send' }).click();
   const err = page.locator('.g-err').first();

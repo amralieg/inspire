@@ -8,6 +8,8 @@ let browser;
 before(async () => { served = await serveDist(); browser = await chromium.launch(); });
 after(async () => { await browser?.close(); served?.close(); });
 
+// REQ-506: no side rail; Runs is an owner item of the avatar menu.
+const owned = (info) => ({ ...info, pages: info.pages.map((p) => ({ ...p, is_owner: true })) });
 const CARD = 'This App is waiting for access to this data. Ask your data owner to grant it.';
 const RAW = 'PERMISSION_DENIED: User does not have SELECT on loss_desk_out_summary';
 const run = { run_id: 'u3', job_run_id: null, url: '', started: '2026-10-25T06:04:00.000Z', ended: '2026-10-25T06:05:00.000Z', duration_s: 60, status: 'done',
@@ -15,8 +17,9 @@ const run = { run_id: 'u3', job_run_id: null, url: '', started: '2026-10-25T06:0
 
 test('a refused summary read on Runs keeps the plain sentence inline, the runs listed, and the raw refusal under Details', async () => {
   const routes = { runs: ({ json }) => json(200, { runs: [run], total: 1, offset: 0, limit: 20, job: null, errors: { summary: CARD }, detail: RAW, can_run: false }) };
-  const { page, context, seen } = await openApp(browser, served.base, appInfo({}, 1, {}), { routes, clock: Date.parse('2026-10-27T09:30:00Z') });
-  await page.locator('[data-rail="runs"]').click();
+  const { page, context, seen } = await openApp(browser, served.base, owned(appInfo({}, 1, {})), { routes, clock: Date.parse('2026-10-27T09:30:00Z') });
+  await page.locator('[data-avatar-menu] button').first().click();
+  await page.getByRole('menuitem', { name: 'Runs' }).click();
   await page.getByText(CARD).waitFor();
   assert.equal(await page.locator('[data-technical-details]').count(), 1, 'one Details block for the raw refusal');
   assert.equal(await page.locator('[data-technical-details] pre').textContent(), RAW, 'the raw refusal is available under Details');
