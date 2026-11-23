@@ -1,4 +1,4 @@
-// REQ-449/450/451 (W16 D21-D24): the Calculate dialog shows whole counts, formatted money, a stable frame and no write of $0.
+// REQ-449/450/451 (W16 D21-D24), REQ-507: the Calculate dialog shows whole counts, formatted money, a stable frame and no write of $0.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser } from './uiSupport.mjs';
@@ -17,8 +17,8 @@ test('D21: a record count is a whole number', async () => {
   const { ui, card, page } = await openCard(mountWizard({ planReply: { plan: FRACTIONAL } }));
   try {
     const dialog = await openWizard(page, card);
-    await goTo(dialog, 'data');
-    const figure = dialog.locator('[data-records-per-year]');
+    await goTo(dialog, 'driver:time_saved');
+    const figure = dialog.locator('[data-ask="events_per_year"] [data-from-data]');
     await figure.waitFor({ timeout: 15000 });
     const t = await flat(figure);
     assert.match(t, /71,56[12]/);
@@ -30,7 +30,7 @@ test('D21: the footer says Calculating until a value exists, never Up to date', 
   const slow = await openCard(mountWizard({ previewDelay: 2500 }));
   try {
     const dialog = await openWizard(slow.page, slow.card);
-    await dialog.locator('[data-wizard-page="kinds"]').waitFor({ timeout: 15000 });
+    await goTo(dialog, 'kinds');
     assert.match(await flat(dialog.locator('[data-preview-state]')), /^Calculating\.\.\.$/);
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     assert.match(await flat(dialog.locator('[data-preview-state]')), /^Up to date$/);
@@ -38,6 +38,7 @@ test('D21: the footer says Calculating until a value exists, never Up to date', 
   const failed = await openCard(mountWizard({ planReply: { status: 500, body: { error: 'no plan' } } }));
   try {
     const dialog = await openWizard(failed.page, failed.card);
+    await goTo(dialog, 'kinds');
     await dialog.getByRole('alert').first().waitFor({ timeout: 15000 });
     assert.doesNotMatch(await flat(dialog.locator('[data-preview-state]')), /Up to date/);
   } finally { await failed.ui.close(); }
@@ -60,26 +61,30 @@ test('D22: money is formatted, an implausible uplift is noted and the slider ran
   } finally { await ui.close(); }
 });
 
-test('D23: the dialog and its buttons stay put at every step, and group counts are whole', async () => {
+test('D23: the dialog and its buttons stay put at every step, and the counts from your data are whole', async () => {
   const { ui, card, page } = await openCard(mountWizard({ planReply: { plan: FRACTIONAL } }));
   try {
     const dialog = await openWizard(page, card);
-    await dialog.locator('[data-wizard-page="kinds"]').waitFor({ timeout: 15000 });
+    await dialog.locator('[data-wizard-page="scope:facts"]').waitFor({ timeout: 15000 });
     const boxes = [];
     const nextBtn = dialog.getByRole('button', { name: 'Next', exact: true });
-    for (let i = 0; i < 12; i += 1) {
+    for (let i = 0; i < 24; i += 1) {
+      // Settle: the same box twice, 150 ms apart (the dialog's open animation and the page fade end).
+      for (let k = 0, last = ''; k < 20; k += 1) { const now = JSON.stringify(await dialog.boundingBox()); if (now === last) break; last = now; await new Promise((r) => setTimeout(r, 150)); }
       const d = await dialog.boundingBox();
       const n = (await nextBtn.count()) ? await nextBtn.boundingBox() : null;
-      boxes.push({ page: await dialog.locator('[data-wizard-page]').first().getAttribute('data-wizard-page'), y: d.y, h: d.height, w: d.width, ny: n?.y, nx: n?.x });
-      if (await dialog.locator('[data-wizard-page="groups"]').count()) {
-        assert.doesNotMatch(await flat(dialog.locator('[data-wizard-page="groups"]')), /\d\.\d+ a year/);
+      const pg = await dialog.locator('[data-wizard-page]').first().getAttribute('data-wizard-page');
+      boxes.push({ page: pg, y: d.y, h: d.height, w: d.width, ny: n?.y, nx: n?.x });
+      if (pg.startsWith('driver:')) {
+        for (const t of await dialog.locator('[data-ask="events_per_year"] [data-from-data]').allInnerTexts()) assert.doesNotMatch(t.replace(/\s+/g, ' '), /\d\.\d+/, `whole count at ${pg}`);
       }
       if (!(await nextBtn.count())) break;
       await next(dialog);
     }
-    assert.ok(boxes.length >= 4, 'walked every step');
+    assert.deepEqual(boxes.map((b) => b.page), ['scope:facts', 'scope:choice', 'filter', 'kinds', 'driver:risk_avoided', 'driver:time_saved', 'driver:revenue_uplift',
+      'economics:ramp', 'economics:cost', 'story:draft', 'story:params', 'story:approve'], 'walked every step');
     for (const b of boxes) {
-      assert.equal(b.y, boxes[0].y, `dialog top at ${b.page}`);
+      assert.equal(b.y, boxes[0].y, `dialog top at ${b.page}: ${JSON.stringify(boxes)}`);
       assert.equal(b.h, boxes[0].h, `dialog height at ${b.page}`);
       assert.equal(b.w, boxes[0].w, `dialog width at ${b.page}`);
     }
@@ -87,27 +92,29 @@ test('D23: the dialog and its buttons stay put at every step, and group counts a
   } finally { await ui.close(); }
 });
 
-test('D24: with no kind ticked Calculate now is off, says what to tick and writes nothing', async () => {
+test('D24: with no kind ticked Next is off, says what to tick and writes nothing; ticking one turns it on, unticking it turns it off again', async () => {
   const puts = [];
   const { ui, card, page } = await openCard(mountWizard({ puts, planReply: { plan: ALL_OFF } }));
   try {
     const dialog = await openWizard(page, card);
-    const calc = dialog.getByRole('button', { name: 'Calculate now', exact: true });
-    await dialog.locator('[data-wizard-page="kinds"]').waitFor({ timeout: 15000 });
-    assert.equal(await calc.isDisabled(), true, 'disabled on the kinds page');
+    const nextBtn = dialog.getByRole('button', { name: 'Next', exact: true });
+    await goTo(dialog, 'kinds');
+    assert.equal(await nextBtn.isDisabled(), true, 'disabled on the kinds page');
     assert.match(await flat(dialog), /Tick a kind of value/);
     assert.equal(puts.length, 0);
     await dialog.getByRole('checkbox').first().click();
-    await calc.waitFor();
-    assert.equal(await calc.isDisabled(), false);
-    assert.equal(puts.length, 0, 'nothing is written until the user saves');
-    // Untick the kind again on the Save page and step back to Your data: Calculate now is off there too.
-    await goTo(dialog, 'save');
-    for (const box of await dialog.locator('[data-tile] input[type="checkbox"]:checked').all()) await box.click();
+    await nextBtn.waitFor();
+    assert.equal(await nextBtn.isDisabled(), false);
+    assert.equal(puts.length, 0, 'nothing is written until the user approves');
+    // Step on to the Ramp page, back to the kinds, untick the kind again: Next is off there too.
+    await goTo(dialog, 'economics:ramp');
+    assert.equal(puts.length, 0);
     const back = dialog.getByRole('button', { name: 'Back', exact: true });
-    for (let i = 0; i < 5 && !(await dialog.locator('[data-wizard-page="data"]').count()); i += 1) await back.click();
-    await dialog.locator('[data-wizard-page="data"]').waitFor({ timeout: 15000 });
-    assert.equal(await calc.isDisabled(), true, 'disabled on the Your data page too');
+    for (let i = 0; i < 6 && !(await dialog.locator('[data-wizard-page="kinds"]').count()); i += 1) await back.click();
+    await dialog.locator('[data-wizard-page="kinds"]').waitFor({ timeout: 15000 });
+    await dialog.getByRole('checkbox').first().click();
+    assert.equal(await nextBtn.isDisabled(), true, 'disabled on the kinds page again');
+    assert.match(await flat(dialog), /Tick a kind of value/);
     assert.equal(puts.length, 0);
   } finally { await ui.close(); }
 });
