@@ -45,7 +45,7 @@ import { SkeletonCard, SkeletonStats } from '../components/SkeletonLoader';
 import { DataAccessBadge, InsightsGrid, SidebarFilterPanel } from '../components/ResultsInsights';
 import { usePortfolio } from '../components/PortfolioCards';
 import UseCaseCard from '../components/UseCaseCard';
-import { RunValueLine, RunValuePanel } from '../components/ValueTotalsPanel';
+import { AllRunsValuePanel, RunValueLine, RunValuePanel } from '../components/ValueTotalsPanel';
 import { valueQuery } from '../lib/valueLedger';
 import { STATUS_LABELS } from '../lib/valueLabels';
 import { useValueRead } from '../lib/useValueLedger';
@@ -317,6 +317,10 @@ export default function ResultsPage({
   const [valueTick, setValueTick] = useState(0);
   const totalsUrl = runValueUrl ? runValueUrl.replace('/api/inspire/value?', '/api/inspire/value/totals?') : '';
   const valueTotals = useValueRead(apiFetch, totalsUrl, implementRefresh * 1000 + valueTick);
+  // FX-104 (REQ-487, REQ-488): the Change run list reads the same all-runs totals the Start page reads: a value box per run and the all-runs number.
+  const allRunsUrl = inspireDb && warehouseId && !showcase && !embedded ? `/api/inspire/value/totals?${valueQuery(inspireDb, warehouseId)}` : '';
+  const allTotals = useValueRead(apiFetch, allRunsUrl, valueTick);
+  const runValueOf = (sid) => (allTotals?.runs || []).find((r) => String(r.session_id) === String(sid))?.run_value || null;
 
   const resultsDiscoveryType = results?.discovery_type || '';
   const feedbackBusiness = useMemo(() => {
@@ -1334,6 +1338,8 @@ export default function ResultsPage({
 
             {/* Session list (button-style) */}
             {sessions.length > 0 && (
+              <>
+              {allTotals?.all && <AllRunsValuePanel reply={allTotals} />}
               <div className="space-y-2" role="group" aria-label="Runs">
                 <h2 className="text-xs font-semibold text-text-secondary uppercase tracking-[0.18em]">
                   Runs ({sessions.length})
@@ -1375,6 +1381,7 @@ export default function ResultsPage({
                           </span>
                           {figures.length > 0 && <span data-run-figures="">{figures.join(' · ')}</span>}
                         </div>
+                        {allTotals && <RunValueLine value={runValueOf(s.session_id)} className="mt-2" />}
                       </div>
                       <span
                         className={`text-[10px] px-2.5 py-1 rounded-full font-semibold border tabular-nums ${
@@ -1395,6 +1402,7 @@ export default function ResultsPage({
                   );
                 })}
               </div>
+              </>
             )}
         </div>
       )}
