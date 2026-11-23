@@ -2,6 +2,8 @@ import { PlainMessage } from '../TechnicalDetails';
 import { DRIVER_ICONS, countText, likelyLineOf, moneyText, partOf, recordsOf, totalText } from '../../lib/valueWizard.js';
 import Ask from './Ask.jsx';
 import FormulaLine from './FormulaLine.jsx';
+import ValueChart from './ValueChart.jsx';
+import ConfidenceMeter from './ConfidenceMeter.jsx';
 
 const opTexts = { '=': 'is', '!=': 'is not', '>': 'is above', '>=': 'is at least', '<': 'is below', '<=': 'is at most', is_not_null: 'is filled' };
 const filterText = (f) => (f?.column ? ` where ${f.column} ${opTexts[f.op] || f.op}${f.op === 'is_not_null' ? '' : ` ${f.value}`}` : '');
@@ -97,6 +99,8 @@ export function StepKind({ driver, answers, yearly, onInput, status, error }) {
             onChange={(v) => onInput(driver.id, a.id, v)} />
         ))}
       </div>
+      <ValueChart yearly={stale ? null : yearly} currentId={driver.id} />
+      <ConfidenceMeter pct={answers.attribution_pct} />
     </div>
   );
 }
