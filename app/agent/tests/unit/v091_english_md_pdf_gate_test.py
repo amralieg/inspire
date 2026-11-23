@@ -24,10 +24,10 @@ def _notebook_body():
     return (Path(__file__).resolve().parents[2] / "agent" / "dbx_inspire_ai_agent.ipynb").read_text()
 
 
-def test_vibe_lang_force_pdf_sentinel_present(ns):
+def test_vibe_lang_force_pdf_sentinel_is_gone(ns):
     body = _notebook_body()
-    assert "[VIBE-LANG FORCE-PDF FIRED]" in body, \
-        "must emit [VIBE-LANG FORCE-PDF FIRED] when PDF was forced (not user-selected)"
+    assert "[VIBE-LANG FORCE-PDF FIRED]" not in body, \
+        "FX-116: the force-PDF branch is removed, so its sentinel must not be emitted"
 
 
 def test_md_and_csv_are_scheduled_for_every_language_gated_only_by_docs_only(ns):

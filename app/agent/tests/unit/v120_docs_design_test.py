@@ -142,16 +142,10 @@ def test_json_catalog_saves_the_domain_prose_under_the_domain_name(docs):
 
 
 def writer_label_keys(ns):
-    from _agentload import agent_source
-    source = agent_source()
-    start = source.index("    _DOC_COLORS = {")
-    end = source.index("    _PYTHON_PACKAGE_LOCK = threading.Lock()")
-    block = source[start:end]
-    keys = set(re.findall(r'\bT\(\s*"([a-z_0-9]+)"', block)) | set(re.findall(r"_doc_text\(t, \"([a-z_0-9]+)\"", block))
-    keys |= set(re.findall(r'"((?:doc|value_mode)_[a-z_0-9]+)"', block))
-    for name in ("_USE_CASE_VIEW_ELITE",):
-        keys |= {key for key, _ in getattr(ns["DatabricksInspire"], name)}
-    return sorted(keys)
+    """FX-116: the PDF and deck writers are gone, so the document labels are the doc_ and value_mode_ keys the remaining
+    Markdown and CSV catalogs read from the translation table."""
+    english = ns["TranslationService"].ENGLISH_TRANSLATIONS
+    return sorted(k for k in english if k.startswith(("doc_", "value_mode_")))
 
 
 def test_every_document_label_exists_in_all_23_languages_with_its_placeholders(docs):

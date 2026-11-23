@@ -40,13 +40,13 @@ def written_names(obj):
     return [str(p).rsplit("/", 1)[-1] for p in obj.w_client.workspace.files]
 
 
-def test_a_documents_only_run_writes_the_catalogs_and_no_use_case_work(docs, monkeypatch):
+def test_a_documents_only_run_writes_no_document_and_no_use_case_work(docs, monkeypatch):
+    """FX-116: the job no longer makes documents, so a documents-only run writes no PDF, deck, workbook or notebook."""
     obj = documents_only_run(docs, monkeypatch)
     obj.run()
     names = written_names(obj)
-    assert [n for n in names if n.endswith(".md")] == ["Acme-dbx_inspire.md"], names
-    assert [n for n in names if n.endswith(".csv")] == ["Acme-dbx_inspire.csv"], names
     assert not [n for n in names if n.endswith((".pdf", ".pptx", ".xlsx", ".ipynb"))], names
+    assert not [n for n in names if n.startswith("Acme-dbx_inspire")], names
 
 
 def test_a_model_that_refuses_temperature_or_structured_output_is_never_sent_either(docs):

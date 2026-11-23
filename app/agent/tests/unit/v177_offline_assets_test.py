@@ -116,18 +116,18 @@ def test_a_package_already_loaded_from_elsewhere_is_refused_with_a_restart(fresh
 
 
 def test_a_native_package_is_picked_for_this_machine_and_python_and_refused_for_another(fresh_ns, tmp_path):
-    version = fresh_ns["INSPIRE_ASSET_WHEELS"]["lxml"]
-    entries = [{"kind": "python", "name": "lxml", "version": version, "data": wheel({f"lxml/{m}.so": m}), "machine": m, "python": "3.12"}
+    version = fresh_ns["INSPIRE_ASSET_WHEELS"]["psycopg-binary"]
+    entries = [{"kind": "python", "name": "psycopg-binary", "version": version, "data": wheel({f"psycopg_binary/{m}.so": m}), "machine": m, "python": "3.12"}
                for m in ("aarch64", "x86_64")]
     root = tmp_path / "assets"
     make_assets(fresh_ns, root, entries)
     pick = lambda machine: fresh_ns["InspireAssets"](str(root), local=str(tmp_path / machine), machine=machine)
-    assert pick("amd64").entry("python", "lxml", version, python="3.12")["file"] == "python/lxml-cp312-x86_64.whl"
-    assert pick("arm64").entry("python", "lxml", version, python="3.12")["file"] == "python/lxml-cp312-aarch64.whl"
-    with pytest.raises(fresh_ns["InspireAssetError"], match=r"manifest\.json lists no lxml for ppc64le and Python 3\.12"):
-        pick("ppc64le").entry("python", "lxml", version, python="3.12")
-    with pytest.raises(fresh_ns["InspireAssetError"], match=r"lists no lxml for aarch64 and Python 3\.11"):
-        pick("aarch64").entry("python", "lxml", version, python="3.11")
+    assert pick("amd64").entry("python", "psycopg-binary", version, python="3.12")["file"] == "python/psycopg-binary-cp312-x86_64.whl"
+    assert pick("arm64").entry("python", "psycopg-binary", version, python="3.12")["file"] == "python/psycopg-binary-cp312-aarch64.whl"
+    with pytest.raises(fresh_ns["InspireAssetError"], match=r"manifest\.json lists no psycopg-binary for ppc64le and Python 3\.12"):
+        pick("ppc64le").entry("python", "psycopg-binary", version, python="3.12")
+    with pytest.raises(fresh_ns["InspireAssetError"], match=r"lists no psycopg-binary for aarch64 and Python 3\.11"):
+        pick("aarch64").entry("python", "psycopg-binary", version, python="3.11")
 
 
 def test_both_clis_come_from_local_copies_of_the_assets_with_no_download(fresh_ns, tmp_path, monkeypatch):

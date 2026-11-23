@@ -365,16 +365,16 @@ def test_data_access_statement_follows_the_discovery_type(agent_ns):
     model = deep._document_model("English", t, {}, v130_portfolio(), "Acme")
     _title, items = deep._doc_disclaimer(model, t)
     assert "aggregates from the tables in scope, 7 in total" in items[0] and "No data rows were sent to the AI" in items[0]
-    assert model["method_steps"][0] == t["doc_method_1_deep"] and model["guide_lead_key"] == "doc_guide_lead_deep"
+    assert "method_steps" not in model and "guide_lead_key" not in model, "FX-116: the PDF method and guide sections are gone"
     standard = make_inspire(agent_ns, discovery_type="Standard", deep_evidence=None)
     model = standard._document_model("English", t, {}, {"Sales": [make_uc("N01-U01")]}, "Acme")
     _title, items = standard._doc_disclaimer(model, t)
     assert items[0] == t["doc_data_access_none"] and "aggregates" not in " ".join(items)
-    assert model["method_steps"][0] == t["doc_method_1"] and model["guide_lead_key"] == "doc_guide_lead"
+    assert "method_steps" not in model and "guide_lead_key" not in model
     nothing_read = make_inspire(agent_ns, discovery_type="Deep",
                                 deep_evidence=types.SimpleNamespace(summary=lambda: {"tables_read_count": 0}))
     model = nothing_read._document_model("English", t, {}, {"Sales": [make_uc("N01-U01")]}, "Acme")
-    assert model["method_steps"][0] == t["doc_method_1"], "Deep wording only when a table was actually read"
+    assert "method_steps" not in model
     legacy = make_inspire(agent_ns, discovery_type="Deep", deep_evidence=None)
     legacy._loaded_catalog_meta = {key: None for key in legacy._V130_CATALOG_KEYS}
     model = legacy._document_model("English", t, {}, {"Sales": [make_uc("N01-U01")]}, "Acme")
