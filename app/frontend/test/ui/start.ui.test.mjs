@@ -568,9 +568,10 @@ test('REQ-078 REQ-448 Start: one totals read feeds every run card and the value 
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
     const card = page.locator('[data-run="42"] [data-run-value] [data-run-value-total]');
     await card.waitFor({ timeout: 20000 });
-    const row = page.locator('[data-value-all-panel] [data-all-runs-row="42"] [data-run-value-total]');
-    await row.waitFor({ timeout: 20000 });
-    assert.equal((await card.innerText()).trim(), (await row.innerText()).trim(), 'the run card says what the value panel says for the run');
+    const panelTotal = page.locator('[data-value-all-panel] [data-total-amount]').first();
+    await panelTotal.waitFor({ timeout: 20000 });
+    assert.equal(await page.locator('[data-value-all-panel] [data-all-runs-row]').count(), 0, 'no per-run table in the all-runs panel');
+    assert.equal((await card.innerText()).trim(), (await panelTotal.innerText()).trim(), 'the run card says what the value panel says for the run');
     assert.match((await card.innerText()).trim(), /12/, 'the run card shows the run value');
     // REQ-434: the run value carries the short disclaimer.
     assert.equal(await page.locator('[data-run="42"] [data-run-value] [data-value-disclaimer]').count(), 1);

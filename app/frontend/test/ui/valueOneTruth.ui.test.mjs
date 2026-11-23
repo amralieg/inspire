@@ -44,9 +44,9 @@ test('2a: the Start bars, the Start panel, the run card, the Review header and t
     const { page } = start;
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
-    const bars = page.locator('[data-value-all-panel] [data-all-runs-row="42"] [data-run-value-total]');
-    await bars.waitFor({ timeout: 20000 });
-    assert.equal(await text(bars), '$9.2M', 'Start bars');
+    const panelTotal = page.locator('[data-value-all-panel] [data-total-amount]').first();
+    await panelTotal.waitFor({ timeout: 20000 });
+    assert.equal(await page.locator('[data-value-all-panel] [data-all-runs-row]').count(), 0, 'no per-run table in the all-runs panel');
     assert.equal(await text(page.locator('[data-value-all-panel] [data-total-amount]').first()), '$9.2M', 'Start panel');
     const card = page.locator('[data-run="42"] [data-run-value] [data-run-value-total]');
     await card.waitFor({ timeout: 20000 });

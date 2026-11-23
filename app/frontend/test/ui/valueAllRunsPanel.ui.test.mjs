@@ -12,7 +12,7 @@ const dir = mkdtempSync(path.join(os.tmpdir(), 'all-runs-'));
 const outfile = path.join(dir, 'panel.cjs');
 await build({
   stdin: {
-    contents: "export { createElement } from 'react'; export { renderToStaticMarkup } from 'react-dom/server'; export { AllRunsValuePanel, RunValuePanel } from './src/components/ValueTotalsPanel.jsx'; export { moneyText } from './src/components/ValueBox.jsx';",
+    contents: "export { createElement } from 'react'; export { renderToStaticMarkup } from 'react-dom/server'; export { AllRunsValuePanel, RunValuePanel, RunValueLine } from './src/components/ValueTotalsPanel.jsx'; export { moneyText } from './src/components/ValueBox.jsx';",
     resolveDir: root, loader: 'jsx', sourcefile: 'entry.jsx',
   },
   bundle: true, platform: 'node', format: 'cjs', outfile, logLevel: 'silent', jsx: 'automatic', loader: { '.css': 'empty' },
@@ -42,17 +42,19 @@ test('the all-runs panel has no By run bar or legend', () => {
   const out = html();
   assert.doesNotMatch(out, /data-bar-legend="By run"/);
   assert.doesNotMatch(out, />By run</);
-  assert.match(out, /data-bar-legend="Calculated vs estimated"/);
+  assert.doesNotMatch(out, /data-bar-legend="Calculated vs estimated"/);
   assert.match(out, /ALL RUNS/);
 });
 
-test('the run table has three columns and a calculated total is green, an estimated one amber, an empty one grey', () => {
+test('the all-runs panel has no per-run table; each run total lives in its run-value box, green when calculated, amber when estimated, grey when empty', () => {
   const out = html();
-  assert.equal((out.match(/<th /g) || []).length, 3);
-  const row = (id) => out.split(`data-all-runs-row="${id}"`)[1].split('</tr>')[0];
-  assert.match(row('1'), /data-run-value-state="calculated"/);
-  assert.match(row('2'), /data-run-value-state="estimated"/);
-  const empty = row('3');
-  assert.match(empty, /data-run-value-state="not-calculated"/);
-  assert.match(empty, /text-text-tertiary[^>]*>Not calculated</);
+  assert.equal((out.match(/<th /g) || []).length, 0);
+  assert.doesNotMatch(out, /data-all-runs-row/);
+  const box = (run) => bundle.renderToStaticMarkup(bundle.createElement(bundle.RunValueLine, { value: run.run_value }));
+  const [calc, est, none] = REPLY.runs.map(box);
+  assert.match(calc, /data-run-value-box/);
+  assert.match(calc, /data-run-value-state="calculated"/);
+  assert.match(est, /data-run-value-state="estimated"/);
+  assert.match(none, /data-run-value-state="not-calculated"/);
+  assert.match(none, /text-text-tertiary[^>]*>Not calculated</);
 });

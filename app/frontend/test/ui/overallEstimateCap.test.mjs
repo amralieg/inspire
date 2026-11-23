@@ -32,5 +32,6 @@ test('when the panel covers the latest runs only, it says so', () => {
 test('when every run is covered, the panel names no cap', () => {
   const html = render({ truncated: false });
   assert.doesNotMatch(html, /Showing the newest/);
-  assert.match(html, /data-run-value-total/);
+  assert.match(html, /data-total-amount/);
+  assert.doesNotMatch(html, /data-all-runs-row/, 'no per-run table in the all-runs panel');
 });
