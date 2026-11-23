@@ -60,6 +60,7 @@ const { isMetricViewType, metricViewSkipLine, probeTableTypes, tableTypeOfDescri
 const { createSourceAccess } = require('./lib/sourceAccess');
 const { withBusyRetry } = require('./lib/busyRetry');
 const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase');
+const { registerMacroRoutes } = require('./macroRoutes');
 const { loadSessionList, loadSessionOverviews, sessionListCap, SESSION_LIST_CAP } = require('./lib/reviewFigures');
 const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../frontend/src/lib/liveUseCases.js');
 const { isInspireOwnName, isInspireOwnSchema } = require('../frontend/src/lib/inspireOwnObjects.js');
@@ -3327,6 +3328,8 @@ const implementApi = registerImplementRoutes(app, {
   runDefaults: () => ({ inspireDatabase: DEFAULT_INSPIRE_DB, warehouseId: DEFAULT_WAREHOUSE_ID }),
   appToken: appOwnToken,
 });
+
+registerMacroRoutes(app, { requireToken, executeSql, sqlResultToObjects, fetchImpl: fetch, now: () => new Date() });
 
 /**
  * Sync Route 1 flags to Delta while selecting (debounced in UI). Same SQL as generate-genie minus the job.
