@@ -2946,6 +2946,8 @@ class Shell:
                 return 200, self.money(headers, query.get("page"))
             if route == ("GET", "value/counter"):
                 return 200, self.value_counter(headers, query.get("page"))
+            if route == ("GET", "value/leaders"):
+                return 200, self.value_leaders(headers, query.get("page"))
             if route == ("POST", "money/assumption"):
                 return 200, self.change_assumption(headers, data)
             if route == ("GET", "feedback"):
@@ -4304,13 +4306,60 @@ class Shell:
         row = rows[0] if rows else {}
         cases = lambda key: int(shell_sql.as_number(row.get(key)) or 0)
         per, amount = basis["per_case"], basis["amount"]
-        mine = {"cases": cases("mine_n"), "value": cases("mine_n") * per} if person else None
+        worth = lambda key, n: v if (v := shell_sql.as_number(row.get(key))) is not None else n * per
+        mine = {"cases": cases("mine_n"), "value": worth("mine_v", cases("mine_n"))} if person else None
         badges, upcoming = value_badges(mine, amount)
         return {"shown": True, "case_noun": basis.get("case_noun") or "record", "per_case": per, "amount": amount, "cases_per_year": basis["cases_per_year"],
                 "currency": basis["currency"], "status": basis["status"], "cases_from": basis.get("cases_from") or "", "saved_at": str(basis.get("saved_at") or ""),
-                "mine": mine, "team": {"cases": cases("team_n"), "value": cases("team_n") * per},
+                "mine": mine, "team": {"cases": cases("team_n"), "value": worth("team_v", cases("team_n"))},
                 "streak_weeks": value_streak(row.get("weeks"), self.now().date()) if person else 0, "badges": badges, "next_badge": upcoming,
                 "disclaimer": basis["disclaimer"]}
+
+    def value_leaders(self, headers: dict, ident) -> dict:
+        """REQ-506: who resolved the most value here. The viewer sees their own name; everyone else is User 1, User 2 (no other name or email)."""
+        page = self.page(ident)
+        basis = shell_sql.value_basis_clean((self.settings.get("value_basis") or {}).get(page["id"]))
+        if basis is None or not page.get("result_table"):
+            return {"shown": False}
+        try:
+            since = shell_sql.utc_micros(inspire_parse_time(self.settings.get("built_at")))
+        except ValueError:
+            return {"shown": False, "warning": "the App has no go-live date, so the leaderboard has no start"}
+        email = str(headers.get("x-forwarded-email") or "").strip().lower()
+        try:
+            ws, who = self.workspace(headers)
+            fields = self.table_fields(ws, who, page)
+            if not self.keeps_actions(ws, who, page, fields):
+                return {"shown": False}
+            sql, params = shell_sql.value_leaders_query(page, {f["name"] for f in fields}, since, self.history_for(ws, who, page, fields))
+            rows = self.run(ws, who, sql, params, 1000)["rows"]
+        except QueryError as error:
+            return {"shown": False, "warning": f"the leaderboard could not be read: {shell_sql.error_text(error)}"}
+        per = basis["per_case"]
+        people = {}
+        for row in rows:
+            closer = str(row.get("closer") or "").strip().lower()
+            if "@" not in closer:
+                continue
+            n = int(shell_sql.as_number(row.get("records")) or 0)
+            v = shell_sql.as_number(row.get("value"))
+            kept = people.setdefault(closer, [0, 0.0])
+            kept[0] += n
+            kept[1] += v if v is not None else n * per
+        ranked = sorted(people.items(), key=lambda kv: (-kv[1][1], -kv[1][0], kv[0]))
+        shown_name = str(headers.get("x-forwarded-preferred-username") or "").strip() or email.split("@")[0]
+        others, board, mine = 0, [], None
+        for rank, (closer, (n, v)) in enumerate(ranked, 1):
+            is_me = bool(email) and closer == email
+            if is_me:
+                mine = {"rank": rank, "value": v, "records": n}
+            else:
+                others += 1
+            board.append({"rank": rank, "name": shown_name if is_me else f"User {others}", "value": v, "records": n, "me": is_me})
+        top = board[:10]
+        if mine and mine["rank"] > 10:
+            top.append(board[mine["rank"] - 1])
+        return {"shown": True, "currency": basis["currency"], "people": len(board), "me": mine or {"rank": None, "value": 0, "records": 0}, "leaders": top}
 
     def change_assumption(self, headers: dict, data: dict) -> dict:
         page = self.page(data.get("page"))

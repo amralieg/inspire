@@ -25,3 +25,11 @@ export function counterTitle(data) {
   return `${data.disclaimer.full} Based on ${data.status} value of ${wholeMoney(data.amount, cur)} a year over ${cases} ${data.case_noun}s `
     + `(${data.cases_from}), so ${perCase(data.per_case, cur)} per ${data.case_noun} resolved; saved in Inspire on ${data.saved_at}.`;
 }
+
+// REQ-506: the chip next to the user's name, "+$3,000" and "#2 of 9". Nothing here makes a number up.
+export function chipLines(counter, leaders) {
+  if (!counter || !counter.shown) return { value: 'Value not set', rank: '', set: false };
+  const value = `+${wholeMoney(counter.mine ? counter.mine.value : 0, counter.currency)}`;
+  const rank = leaders && leaders.shown && leaders.me && leaders.me.rank ? `#${leaders.me.rank} of ${leaders.people}` : '';
+  return { value, rank, set: true };
+}
