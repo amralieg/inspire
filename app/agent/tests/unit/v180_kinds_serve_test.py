@@ -212,7 +212,7 @@ def test_an_older_json_catalog_derives_the_kind_in_docs_only_mode(ns):
     assert use_cases[0]["use_case_kind"] == "forecast" and use_cases[0]["value_source"]
 
 
-def test_csv_and_excel_columns_carry_the_kind_family_and_lines_in_english(ns):
+def test_csv_columns_carry_the_kind_family_and_lines_in_english(ns):
     obj = make_inspire(ns)
     columns = obj._export_columns(False)
     headers = [header for header, _get, _numeric in columns]
@@ -227,7 +227,7 @@ def test_csv_and_excel_columns_carry_the_kind_family_and_lines_in_english(ns):
     assert bare["Use Case Kind"] == "" and bare["What we serve"] == ""
 
 
-def test_the_csv_and_excel_description_is_the_subtitle_with_the_technique(ns):
+def test_the_csv_description_is_the_subtitle_with_the_technique(ns):
     """REQ-175: the Description column carries the subtitle (outcome, technique, scope). The name is the name alone."""
     uc = forecast_uc(**{"Analytics Technique": "Causal Impact"})
     bare = make_uc("N01-U02", **{"Analytics Technique": ""})
@@ -304,34 +304,14 @@ def test_the_document_view_has_the_kind_fact_and_a_what_you_get_block_first(ns):
     assert "kind" not in [k for k, _l, _v in plain["facts"]] and plain["value_facts"] == []
 
 
-def test_pdf_markdown_and_deck_show_the_3_lines(ns, monkeypatch):
-    import sys
-    from v120_docs_geometry_support import pptx_geometry_violations
-    captured = []
-
-    class HTML:
-        def __init__(self, string=None, **kwargs):
-            captured.append(string)
-
-        def write_pdf(self, path, font_config=None):
-            with open(path, "wb") as handle:
-                handle.write(b"%PDF-1.4 fake")
-    monkeypatch.setitem(sys.modules, "weasyprint", types.SimpleNamespace(HTML=HTML))
+def test_markdown_shows_the_3_lines(ns):
     obj = make_inspire(ns)
-    t = _labels(ns)
     uc = kinded(ns, forecast_uc())
-    obj.generate_catalog_pdf("English", "en", t, {"Executive": "<p>Exec</p>"}, {"Sales": [uc]}, "Acme")
-    assert "<h5>What you get</h5>" in captured[-1] and "A forecast cockpit for Regional supply planner" in captured[-1]
     obj._generate_markdown_catalog("English", "en", {"Sales": [uc]}, {"Executive": "Exec"}, "Acme")
     text = next(data for path, data in obj.w_client.workspace.files.items() if path.endswith(".md"))
     text = text.decode("utf-8") if isinstance(text, bytes) else str(text)
     assert "**What you get:**" in text and "- What we serve: A forecast cockpit" in text
     assert "**Use Case Kind:** Forecast \u00b7 Predict" in text
-    model = obj._document_model("English", t, {"Executive": "<p>Exec</p>"}, {"Sales": [uc]}, "Acme")
-    prs, archetypes = obj._build_presentation_deck(model, t)
-    assert "uc_value" in archetypes and pptx_geometry_violations(prs) == []
-    texts = " ".join(s.text_frame.text for slide in prs.slides for s in slide.shapes if s.has_text_frame)
-    assert "How it works: Forecasting: past values" in texts
 
 
 @pytest.mark.parametrize("language", ["Arabic", "Japanese", "French"])

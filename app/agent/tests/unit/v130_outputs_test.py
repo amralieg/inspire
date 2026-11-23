@@ -4,14 +4,11 @@ notebooks and the step payload; customer terminology renames what people read an
 the data-access statement follows the discovery type (and keeps the old wording for catalogs written before
 v1.3.0); Inspire-written KPI names and proposed key results are translated, the customer's own wording is not;
 catalogs written before v1.3.0 render exactly as before."""
-import base64
 import datetime
 import decimal
-import io
 import json
 import os
 import re
-import sys
 import types
 
 import pytest
@@ -40,25 +37,8 @@ TREE = {
 
 @pytest.fixture
 def docs(agent_ns, monkeypatch):
-    cls = agent_ns["DatabricksInspire"]
     monkeypatch.setattr(agent_ns["workspace"], "ImportFormat", types.SimpleNamespace(AUTO="AUTO"), raising=False)
-    monkeypatch.setattr(cls, "_DOC_FONT_FILES", {}, raising=False)
     return agent_ns
-
-
-@pytest.fixture
-def captured_html(monkeypatch):
-    captured = []
-
-    class HTML:
-        def __init__(self, string=None, **kwargs):
-            captured.append(string)
-
-        def write_pdf(self, path, font_config=None):
-            with open(path, "wb") as handle:
-                handle.write(b"%PDF-1.4 fake")
-    monkeypatch.setitem(sys.modules, "weasyprint", types.SimpleNamespace(HTML=HTML))
-    return captured
 
 
 def labels(ns, language="English"):
@@ -427,65 +407,6 @@ def test_docs_only_load_restores_the_run_level_metadata(fresh_ns):
     assert obj.strategy_tree == TREE and obj.strategy_coverage == {"entries": []}
 
 
-def test_pdf_has_the_value_block_and_a_linked_foundations_section(docs, captured_html):
-    obj = v130_obj(docs)
-    obj.generate_catalog_pdf("English", "en", labels(docs), {"Executive": "<p>Exec</p>"}, v130_portfolio(), "Acme")
-    html = captured_html[-1]
-    assert '<div class="val">' in html and "Repeat purchase rate (\u2191 %): baseline 23.40" in html
-    assert 'id="sec-foundations"' in html and '<a href="#uc-N01-U02">N01-U02</a>' in html
-    assert "sales.customer_id = customers.customer_id" in html
-    assert html.index('id="sec-foundations"') < html.index('id="sec-roadmap"')
-    assert 'href="#sec-foundations"' in html, "the contents page lists the section"
-
-
-def test_legacy_pdf_has_no_value_block_or_foundations_section(docs, captured_html):
-    obj = make_inspire(docs)
-    obj.generate_catalog_pdf("English", "en", labels(docs), {"Executive": "<p>Exec</p>"}, {"Sales": [make_uc("N01-U01")]}, "Acme")
-    html = captured_html[-1]
-    assert '<div class="val">' not in html and "sec-foundations" not in html
-
-
-def test_deck_adds_a_value_slide_per_card_and_a_foundations_slide(docs):
-    from v120_docs_geometry_support import pptx_geometry_violations
-    obj = v130_obj(docs)
-    t = labels(docs)
-    model = obj._document_model("English", t, {"Executive": "<p>Exec</p>"}, v130_portfolio(), "Acme")
-    prs, archetypes = obj._build_presentation_deck(model, t)
-    cards = [i for i, kind in enumerate(archetypes) if kind == "uc_card"]
-    assert cards and all(archetypes[i + 1] == "uc_value" for i in cards)
-    assert archetypes.index("foundations") == archetypes.index("roadmap") - 1
-    assert all(archetypes[i] != archetypes[i - 1] or archetypes[i] in obj._DOC_PPTX_SERIES for i in range(1, len(archetypes)))
-    assert pptx_geometry_violations(prs) == []
-    texts = [" ".join(s.text_frame.text for s in slide.shapes if s.has_text_frame) for slide in prs.slides]
-    value_slide = texts[cards[0] + 1]
-    assert "Lift basket size on repeat visits" in value_slide and "Fewer manual reorders" in value_slide
-    legacy = make_inspire(docs)
-    model = legacy._document_model("English", t, {}, {"Sales": [make_uc("N01-U01")]}, "Acme")
-    _prs, archetypes = legacy._build_presentation_deck(model, t)
-    assert "uc_value" not in archetypes and "foundations" not in archetypes
-
-
-@pytest.mark.parametrize("language", ["Arabic", "Japanese", "Hindi", "Tamil", "French"])
-def test_value_and_foundation_slides_hold_their_geometry_in_long_and_rtl_scripts(docs, language):
-    from v120_docs_geometry_support import pptx_geometry_violations
-    obj = v130_obj(docs)
-    t = labels(docs, language)
-    written = value_uc("N01-U01", **{"Inspire Score": 9.0})
-    translated = dict(written, _translation_status="partial", _untranslated_fields=[],
-                      _key_results_translated="Lift basket size on repeat visits " * 3)
-    grouped = {"Sales": [translated, value_uc("N01-U02", aligned=("S2.1",), **{"Inspire Score": 6.3})]}
-    model = obj._document_model(language, t, {"Executive": "<p>Exec</p>"}, grouped, "Acme")
-    prs, archetypes = obj._build_presentation_deck(model, t)
-    assert pptx_geometry_violations(prs) == []
-    assert "uc_value" in archetypes and "foundations" in archetypes
-    texts = [shape.text_frame.text for slide in prs.slides for shape in slide.shapes if shape.has_text_frame]
-    assert not [text for text in texts if re.search(r"\{(value|days|date|tables)\}", text)]
-    view = obj._use_case_view(model["ranked"][0], model, t)
-    assert "kpis" in view["untranslated"], "the Inspire-written KPI name without a translation is flagged"
-    assert "expected_key_results" not in view["untranslated"]
-    assert t["kpis"] in view["notice"]
-
-
 def test_markdown_lists_value_facts_and_the_foundations_table(docs):
     obj = v130_obj(docs)
     obj._generate_markdown_catalog("English", "en", v130_portfolio(), {"Executive": "Exec"}, "Acme")
@@ -495,31 +416,6 @@ def test_markdown_lists_value_facts_and_the_foundations_table(docs):
     assert "**Measures:**\n- Repeat purchase rate" in text
     assert "## Shared data foundations" in text and "| F1 | customers, sales" in text
     assert "2: N01-U01, N01-U02 |" in text
-
-
-def test_foundations_sheet_rows(agent_ns):
-    obj = v130_obj(agent_ns)
-    headers, rows = obj._foundations_export_table()
-    assert headers == ["ID", "Tables", "Joins", "Use cases unlocked", "Use Case IDs", "Summed Inspire Score"]
-    assert rows == [["F1", "main.s.customers, main.s.sales",
-                     "main.s.sales.customer_id = main.s.customers.customer_id (foreign key)", 2, "N01-U01, N01-U02", 15.3]]
-    obj.data_foundations = []
-    assert obj._foundations_export_table() == ([], [])
-
-
-def test_excel_workbook_gets_a_foundations_sheet(agent_ns, monkeypatch):
-    openpyxl = pytest.importorskip("openpyxl")
-    obj = v130_obj(agent_ns)
-    saved = {}
-
-    def save(self, local_path, workspace_path, logger, language):
-        with open(local_path, "rb") as handle:
-            saved["data"] = handle.read()
-    monkeypatch.setattr(agent_ns["DatabricksInspire"], "_save_excel", save, raising=False)
-    obj._generate_use_case_excel("English", "en", v130_portfolio())
-    book = openpyxl.load_workbook(io.BytesIO(saved["data"]))
-    assert book.sheetnames == ["Use Cases", "Foundations"]
-    assert [c.value for c in next(book["Foundations"].iter_rows(max_row=1))][:2] == ["ID", "Tables"]
 
 
 def test_genie_objective_lists_kpis_key_results_and_the_kpi_queries(agent_ns):

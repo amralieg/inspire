@@ -1,58 +1,14 @@
-"""v1.2.0 INTEGRATION-7: a PDF render that cannot crash the process, honest pointers to where generated content lives,
-one truncation policy for every row-keyed LLM answer.
-
-S1 WeasyPrint before 70.0 releases its Fontconfig configuration twice: `FontConfiguration.__init__` wraps the config
-   in `ffi.gc(..., FcConfigDestroy)` and also calls `FcConfigDestroy` once Pango holds it, so freeing the font map
-   reads and frees memory that is already gone. The agent builds one `FontConfiguration` per PDF, so the whole
-   Python process could segfault. The Inspire assets pin WeasyPrint 70.0 or later and the loader refuses another copy
-   already loaded (v177_offline_assets_test), and the geometry harness keeps the real module importable while it renders.
+"""v1.2.0 INTEGRATION-7: honest pointers to where generated content lives, one truncation policy for every row-keyed LLM
+answer. (The WeasyPrint render-safety checks went with the PDF writer in FX-116.)
 """
-import importlib
-import importlib.util
 import os
-import subprocess
 import sys
-import textwrap
-import types
 
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from v120_artifacts_support import make_inspire
-from v120_docs_geometry_support import pdf_layout
-
-HAS_WEASYPRINT = importlib.util.find_spec("weasyprint") is not None
-
-
-@pytest.mark.skipif(sys.platform != "darwin" or not os.path.exists("/usr/lib/libgmalloc.dylib") or not HAS_WEASYPRINT,
-                    reason="Guard Malloc is a macOS allocator and WeasyPrint must be installed")
-def test_the_installed_weasyprint_frees_a_font_configuration_without_touching_freed_memory():
-    script = textwrap.dedent("""
-        import gc
-        import weasyprint
-        from weasyprint.text.fonts import FontConfiguration
-        for _ in range(2):
-            config = FontConfiguration()
-            weasyprint.HTML(string="<p style='font-family:sans-serif'>Fontconfig lifecycle</p>").write_pdf(font_config=config)
-            del config
-            gc.collect()
-        print("freed", weasyprint.__version__)
-    """)
-    env = dict(os.environ, DYLD_INSERT_LIBRARIES="/usr/lib/libgmalloc.dylib")
-    completed = subprocess.run([sys.executable, "-X", "faulthandler", "-c", script], capture_output=True, text=True,
-                               env=env, timeout=300)
-    assert completed.returncode == 0, (completed.returncode, completed.stderr[-2000:])
-    assert completed.stdout.startswith("freed ")
-
-
-@pytest.mark.skipif(not HAS_WEASYPRINT, reason="WeasyPrint is not installed")
-def test_the_geometry_harness_renders_while_a_fake_weasyprint_is_installed_and_restores_it(monkeypatch):
-    fake = types.SimpleNamespace(HTML=None)
-    monkeypatch.setitem(sys.modules, "weasyprint", fake)
-    document = pdf_layout("<html><body><table><tr><td>cell</td></tr></table><p>text</p></body></html>")
-    assert len(document.pages) == 1
-    assert sys.modules["weasyprint"] is fake
 
 
 TRANSLATE_HEADER = ["No", "Name", "Business Domain", "Subdomain", "type", "Analytics Technique", "Statement", "Solution",
