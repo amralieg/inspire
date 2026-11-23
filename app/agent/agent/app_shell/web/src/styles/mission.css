@@ -13,6 +13,8 @@
 .av-menu{position:absolute;inset-inline-end:0;top:calc(100% + 8px);z-index:60;min-width:220px;display:flex;flex-direction:column;gap:2px;padding:6px;border-radius:12px;border:1px solid var(--line);background:var(--card);box-shadow:0 12px 32px -8px rgba(0,0,0,.28)}
 .av-i{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border:0;border-radius:8px;background:none;color:var(--ink);text-align:start;text-decoration:none;cursor:pointer}
 .av-i:hover:not(:disabled){background:var(--well)}
+.av-i[aria-current="page"]{background:var(--well);font-weight:650}
+.av-n2{margin-inline-start:auto;color:var(--muted);font-size:12px}
 .av-i:disabled{opacity:.5;cursor:default}
 .welcome{display:flex;flex-direction:column;gap:14px;margin:20px auto 0;max-width:720px;padding:22px 24px;border-radius:16px;border:1px solid var(--brand-bd);background:var(--brand-wash)}
 .welcome-k{margin:0;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--brand-ink)}
