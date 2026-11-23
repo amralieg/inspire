@@ -643,7 +643,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
       </ProgressDock.Provider>
       {anyValued(valued) && <ValueDisclaimer footer />}
       {calcFor && !readOnly && (
-        <CalculateValueDialog key={trackingIdOf(calcFor)} uc={calcFor} table={tableOfUseCase(calcFor)} apiPostJson={apiPostJson} inspireDatabase={settings.inspireDatabase} warehouseId={settings.warehouseId}
+        <CalculateValueDialog key={trackingIdOf(calcFor)} uc={calcFor} table={tableOfUseCase(calcFor)} apiPostJson={apiPostJson} apiFetch={apiFetch} inspireDatabase={settings.inspireDatabase} warehouseId={settings.warehouseId}
           sessionId={sessionId} saved={calculated.byId[trackingIdOf(calcFor)]?.answers || null} version={calculated.byId[trackingIdOf(calcFor)]?.version || null}
           values={valuesForDialog} onClose={() => { setCalcFor(null); setRefreshKey((n) => n + 1); }} />
       )}

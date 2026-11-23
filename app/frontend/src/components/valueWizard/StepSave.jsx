@@ -68,8 +68,8 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
           })}
         </ul>
         <div className="flex flex-wrap items-baseline justify-between gap-x-4">
-          <p>Credit given to this use case: <span className="font-semibold">{Number(answers.attribution_pct ?? 100)}%</span>
-            {yearly?.confidence != null && yearly.confidence !== '' && <span className="ms-4">Confidence: <span className="font-semibold">{String(yearly.confidence)}</span></span>}</p>
+          <p>Share caused by this use case: <span className="font-semibold">{Number(answers.attribution_pct ?? 100)}%</span>
+            {answers.confidence && <span className="ms-4">Confidence: <span className="font-semibold capitalize">{answers.confidence}</span></span>}</p>
           <p className="font-semibold">{yearly?.verb || 'Value'} per year: {totalText(yearly) || '...'} ({statusLabel(calculated)})</p>
         </div>
       </div>

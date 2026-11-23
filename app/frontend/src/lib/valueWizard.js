@@ -74,13 +74,16 @@ function factorAnswers(plan, keep) {
   }));
 }
 
+// REQ-507 L7: the share caused by this use case starts at 60 (the confidence is its own answer, apart from it).
+export const SHARE_DEFAULT = 60;
+
 // The answers a plan starts with (or a saved shape 2 answers restore): every driver's on flag and estimate defaults.
 export function initialAnswers(plan, saved = null) {
   const keep = saved?.shape === 2 ? saved : null;
   return {
     shape: 2,
     currency: keep?.currency || DEFAULT_CURRENCY,
-    attribution_pct: keep?.attribution_pct ?? ATTRIBUTION.default,
+    attribution_pct: keep?.attribution_pct ?? SHARE_DEFAULT,
     grouping: plan.grouping,
     // REQ-473: value is over all records; a group left out by an older save has no box to tick it back, so none is left out.
     excluded_groups: [],
@@ -91,6 +94,11 @@ export function initialAnswers(plan, saved = null) {
     })),
     ...(plan.economic_trend ? { economic_trend: trendOf(plan.economic_trend, keep?.economic_trend) } : {}),
     ...(factorsOf(plan).length ? { economic_factors: factorAnswers(plan, keep) } : {}),
+    // REQ-507 L7: the data scope, the ramp and cost, the story and the confidence (Low/Medium/High) a reopened value keeps.
+    ...(keep?.scope ? { scope: keep.scope } : {}),
+    economics: keep?.economics ? keep.economics : { ramp_pct: [40, 80, 100] },
+    ...(keep?.story ? { story: keep.story } : {}),
+    ...(keep?.confidence ? { confidence: keep.confidence } : {}),
     calculated: false,
   };
 }
@@ -98,7 +106,11 @@ export function initialAnswers(plan, saved = null) {
 export const carryAnswers = (plan, previous) => {
   const fresh = initialAnswers(plan);
   const drivers = Object.fromEntries(Object.entries(fresh.drivers).map(([id, d]) => [id, previous.drivers[id] ? { on: previous.drivers[id].on, inputs: { ...d.inputs, ...previous.drivers[id].inputs } } : d]));
-  return { ...fresh, currency: previous.currency, attribution_pct: previous.attribution_pct, drivers, ...(previous.economic_trend && fresh.economic_trend ? { economic_trend: trendOf(plan.economic_trend, previous.economic_trend) } : {}),
+  // The story approval is cleared because the numbers moved; its text and owners stay.
+  const story = previous.story ? { ...previous.story, approved: false } : undefined;
+  return { ...fresh, currency: previous.currency, attribution_pct: previous.attribution_pct, drivers,
+    ...(previous.scope ? { scope: previous.scope } : {}), ...(previous.economics ? { economics: previous.economics } : {}),
+    ...(previous.confidence ? { confidence: previous.confidence } : {}), ...(story ? { story } : {}), ...(previous.economic_trend && fresh.economic_trend ? { economic_trend: trendOf(plan.economic_trend, previous.economic_trend) } : {}),
     ...(fresh.economic_factors ? { economic_factors: factorAnswers(plan, previous) } : {}) };
 };
 
@@ -108,7 +120,8 @@ export const bodyOf = (plan, answers, calculated = false) => ({
   answers: { ...answers, calculated },
 });
 // The answers have a stable key, so the same numbers never send a second preview.
-export const answersKey = (answers) => JSON.stringify({ ...answers, calculated: false });
+// The story and the confidence move no amount, so they are not part of the key (typing an owner must not ask the server again).
+export const answersKey = (answers) => JSON.stringify({ ...answers, story: undefined, confidence: undefined, calculated: false });
 
 export const driversOn = (plan, answers) => plan.drivers.filter((d) => answers.drivers[d.id]?.on);
 export const partOf = (yearly, id) => (yearly?.parts || []).find((p) => p.id === id) || null;

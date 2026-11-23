@@ -47,7 +47,7 @@ export default function MvpValuePanel({ uc, sessionId, settings, apiFetch, apiPo
       {!none && <ValueDisclaimer className="mt-2" />}
       {status === 'measured' && measure && <div className="mt-3"><MeasureSettings measure={measure} /></div>}
       {calc && (
-        <CalculateValueDialog uc={uc} table={tableOfUseCase(uc)} apiPostJson={apiPostJson} inspireDatabase={inspireDatabase} warehouseId={warehouseId}
+        <CalculateValueDialog uc={uc} table={tableOfUseCase(uc)} apiPostJson={apiPostJson} apiFetch={apiFetch} inspireDatabase={inspireDatabase} warehouseId={warehouseId}
           sessionId={sessionId} saved={saved?.answers || null} version={saved?.version || null} values={values} measure={measure} onClose={() => setCalc(false)} />
       )}
     </section>
