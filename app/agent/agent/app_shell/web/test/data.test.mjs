@@ -380,8 +380,10 @@ test('a page with its own statuses offers its choices and saves the picked one i
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
   assert.deepEqual(await drawer.locator('select[name="action_choice"] option').allInnerTexts(), ['New', 'Reprice', 'Keep the price', 'Drop the item', 'Wrong flag']);
+  // REQ-506: the first closing choice is Resolve, the next sits in the Not an issue place, the rest under More.
+  await drawer.getByRole('button', { name: 'More', exact: true }).click();
   assert.deepEqual(await drawer.locator('[data-choice]').evaluateAll((b) => b.map((x) => [x.dataset.choice, x.innerText.trim()])),
-    [['keep', 'Keep the price'], ['drop', 'Drop the item'], ['wrong', 'Wrong flag']]);
+    [['keep', 'Resolve'], ['wrong', 'Wrong flag'], ['drop', 'Drop the item']]);
   await drawer.locator('select[name="action_choice"]').selectOption('drop');
   await drawer.getByRole('button', { name: 'Save action' }).click();
   await until(() => calls.acts.length === 1);
@@ -919,7 +921,7 @@ test('Undo after Mark done reopens the record in its prior state', async () => {
   await until(() => undos.length === 1);
   assert.deepEqual(undos[0], { page: 'n01_u05', batch_id: batch });
   await page.waitForFunction(() => /^Undone: /.test(document.querySelector('.toast .toast-t')?.textContent || ''));
-  await page.locator('.cell-t').first().click();
+  // REQ-506: Undo opens the restored record in the drawer again.
   await panel.locator('.dr-act').waitFor();
   assert.equal(await panel.locator('.done').count(), 0, 'the record is open again, not closed');
   assert.equal(await panel.locator('[data-act="done"]').count(), 1, 'Resolve is back, so the record is in its prior state');
