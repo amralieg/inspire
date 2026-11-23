@@ -9,7 +9,8 @@ const FEEDBACK_STATUSES = ['new', 'vibe', 'closed'];
 const FEEDBACK_ROWS = 200;
 const FEEDBACK_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const CHAT_TASK = 'llm/v1/chat';
-const VIBE_MAX_TOKENS = 1200;
+// D-aws-05 / FX-101: room for a reasoning model's JSON answer; its thinking counts against max_tokens, so a small budget cuts the reply before its JSON.
+const JSON_ANSWER_MAX_TOKENS = 4000;
 const SUMMARY_CHARS = 4000;
 const FEEDBACK_TEXT_CHARS = 2000;
 const FEEDBACK_COLUMNS = ['feedback_id', 'section', 'record_key', 'text', 'filters', 'reported_by', 'reported_at', 'status', 'vibe_text', 'handled_by', 'handled_at'];
@@ -205,7 +206,7 @@ function vibeDraftOf(data) {
 module.exports = {
   FEEDBACK_COLUMNS,
   FEEDBACK_STATUSES,
-  VIBE_MAX_TOKENS,
+  JSON_ANSWER_MAX_TOKENS,
   chatEndpoint,
   chatEndpoints,
   replyContent,

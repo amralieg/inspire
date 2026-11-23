@@ -2238,7 +2238,7 @@ function registerImplementRoutes(app, deps) {
       ]);
       const statuses = Object.fromEntries(Object.entries(ctx.before.asset_status || {}).map(([k, v]) => [k, v && typeof v === 'object' ? v.state || v.status || '' : v]));
       const messages = FB.vibePrompt({ useCaseId: ctx.useCaseId, useCase, page, vibes: specVibeAsks(spec), statuses, feedback });
-      const got = await invokeChatModel(chatCall(req, token), endpoint, { messages, max_tokens: FB.VIBE_MAX_TOKENS });
+      const got = await invokeChatModel(chatCall(req, token), endpoint, { messages, max_tokens: FB.JSON_ANSWER_MAX_TOKENS });
       if (!got.ok) throw I.badRequest(`the model ${endpoint} did not answer: ${got.data.message || got.data.error || `HTTP ${got.status}`}`, 502);
       return res.json({ ...FB.vibeDraftOf(got.data), feedback_id: id, model: endpoint });
     } catch (err) {
@@ -2602,11 +2602,10 @@ function registerImplementRoutes(app, deps) {
     }
   }
 
-  // FX-101: a reasoning model's thinking counts against max_tokens; the live plan needed 1681 in all, so 1500 cut it mid-JSON.
-  const PLAN_MAX_TOKENS = 4000;
+  // FX-101: a reasoning model's thinking counts against max_tokens; the live plan needed 1681 in all, so 1500 cut it mid-JSON (D-aws-05: every JSON call uses FB.JSON_ANSWER_MAX_TOKENS).
   async function modelPlanOf(req, table, columns, groupBy, useCase = null, retry = null, anchor = null) {
     const without = (reason) => ({ ...VCP.fallbackPlan(columns, groupBy), model_reason: reason });
-    const asked = await askChatModel(req, rangeMessages(VCP.planMessages({ table, columns, useCase }), retry, anchor), PLAN_MAX_TOKENS);
+    const asked = await askChatModel(req, rangeMessages(VCP.planMessages({ table, columns, useCase }), retry, anchor), FB.JSON_ANSWER_MAX_TOKENS);
     if (!asked.got) return without(asked.reason);
     const plan = VCP.planFrom(asked.got.data, columns, groupBy);
     const usable = plan.drivers.some((d) => d.on) || plan.metrics.length || plan.case_filter || plan.case_noun !== 'record';
@@ -2615,13 +2614,13 @@ function registerImplementRoutes(app, deps) {
 
   // REQ-472 (a): the anchor, one model call before the plan; null when the model gives none (the generic range is used then).
   async function anchorOf(req, useCase) {
-    const asked = await askChatModel(req, VR.anchorMessages({ useCase, businessName: useCase.business_name, range: VALUE_RANGE }), 600);
+    const asked = await askChatModel(req, VR.anchorMessages({ useCase, businessName: useCase.business_name, range: VALUE_RANGE }), FB.JSON_ANSWER_MAX_TOKENS);
     return asked.got ? VR.anchorFrom(asked.got.data, VALUE_RANGE) : null;
   }
 
   // REQ-472 (c): one review of `amount` by the model: { approved, amount, reason, model } or { failed: reason }.
   async function reviewOf(req, useCase, anchor, amount, plan) {
-    const asked = await askChatModel(req, VR.reviewMessages({ useCase, businessName: useCase.business_name, anchor, amount, drivers: VR.onDriversOf(plan) }), 400);
+    const asked = await askChatModel(req, VR.reviewMessages({ useCase, businessName: useCase.business_name, anchor, amount, drivers: VR.onDriversOf(plan) }), FB.JSON_ANSWER_MAX_TOKENS);
     if (!asked.got) return { failed: asked.reason };
     const got = VR.reviewFrom(asked.got.data);
     return got ? { ...got, model: asked.endpoint } : { failed: `The model ${asked.endpoint} gave no usable review.` };
@@ -2812,7 +2811,7 @@ function registerImplementRoutes(app, deps) {
       const businessName = (cases.find((c) => c.business_name) || {}).business_name || '';
       const anchor = await anchorOf(req, { id: cases[0].id, use_case: cases[0].name, business_name: businessName });
       const review = await VR.reviewRun({ businessName, revenue: anchor ? anchor.business_revenue_estimate : 0, useCases: cases,
-        ask: async (messages) => { const asked = await askChatModel(req, messages, 800); return asked.got ? asked.got.data : null; } });
+        ask: async (messages) => { const asked = await askChatModel(req, messages, FB.JSON_ANSWER_MAX_TOKENS); return asked.got ? asked.got.data : null; } });
       const saved = { ai_checked: review.ai_checked, reason: review.reason, scales: review.scales };
       await executeSql(req.dbHost, req.dbToken, warehouseId, VA.createSql(table));
       const version = await nextVersion(req, warehouseId, table, sid, VR.RUN_REVIEW_ID);
@@ -3003,7 +3002,7 @@ function registerImplementRoutes(app, deps) {
       if (!text || text.length > MD.DESCRIBE_MAX_CHARS || !columns.length) throw I.badRequest('Describe how the value of each record works, in up to ' + MD.DESCRIBE_MAX_CHARS + ' characters, and name the table.');
       const endpoint = await appModelOf(req, token, {}, 'turn the description into a value; choose the value by hand');
       const messages = MD.describeMessages({ text, columns, currencyColumn: String(req.body?.currency_column ?? '') });
-      const got = await invokeChatModel(chatCall(req, token), endpoint, { messages, max_tokens: 400 });
+      const got = await invokeChatModel(chatCall(req, token), endpoint, { messages, max_tokens: FB.JSON_ANSWER_MAX_TOKENS });
       if (!got.ok) throw I.badRequest(`the model ${endpoint} did not answer: ${got.data.message || got.data.error || `HTTP ${got.status}`}`, 502);
       const described = MD.parseDescription(got.data, columns);
       if (described.problems.length) return res.status(422).json({ error: joinSentences(...described.problems), problems: described.problems, model: endpoint });
