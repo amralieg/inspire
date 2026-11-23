@@ -12,7 +12,7 @@ function EffectBar({ pct, f, on }) {
   const width = Math.min(50, (Math.abs(pct) / widest) * 50);
   const tone = pct < 0 ? 'bg-error' : 'bg-ok';
   return (
-    <div data-factor-bar="" role="img" aria-label={`Effect ${signed(pct)}`} className={`relative h-2.5 w-full rounded-full bg-bg-subtle ${on ? '' : 'opacity-40'}`}>
+    <div data-factor-bar="" role="img" aria-label={`Effect ${signed(pct)}`} className={`relative h-2.5 w-full rounded-full bg-bg-subtle ${on ? '' : 'grayscale'}`}>
       <span className="absolute inset-y-0 start-1/2 w-px bg-border" />
       <span className={`absolute inset-y-0 rounded-full ${tone}`} style={pct < 0 ? { right: '50%', width: `${width}%` } : { left: '50%', width: `${width}%` }} />
     </div>

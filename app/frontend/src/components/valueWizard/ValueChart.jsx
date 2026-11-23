@@ -1,6 +1,6 @@
 import { moneyText } from '../../lib/valueWizard.js';
 
-const COLORS = ['bg-db-red-solid', 'bg-ok', 'bg-warning', 'bg-text-secondary', 'bg-error'];
+const COLORS = ['bg-db-red', 'bg-ok', 'bg-warning', 'bg-text-secondary', 'bg-error'];
 
 // REQ-495: one bar per part of the yearly total, sized against the biggest part. The amounts are the server's.
 export default function ValueChart({ yearly, currentId }) {

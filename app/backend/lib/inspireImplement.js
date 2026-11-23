@@ -3699,7 +3699,7 @@ function appAccessMessage(table, gaps) {
   const shared = gaps.length && gaps.every((g) => IMPLEMENT_TRAVERSE_PRIVILEGES.includes(g.privilege))
     ? `, or give all account users the same access, which ${one ? 'opens' : 'open'} no data by ${one ? 'itself' : 'themselves'}`
     : '';
-  return `a new App could not read the result table: it needs access ${places} that Inspire cannot give it. `
+  return `a new App could not read the result table: it needs ${one ? 'this access' : 'access'} ${places} that Inspire cannot give it. `
     + `Ask your data owner to give the App that access: the details for your admin are in Permission Required${shared}; or choose a result table in a catalog and schema Inspire manages`;
 }
 
