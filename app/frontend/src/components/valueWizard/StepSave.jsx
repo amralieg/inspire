@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ATTRIBUTION } from '../../lib/valueDrivers.js';
-import { AlertTriangle } from 'lucide-react';
+import TermsHeading from '../value/TermsHeading';
 import { DRIVER_ICONS, driversOn, figureText, moneyText, partOf, totalText } from '../../lib/valueWizard.js';
 import { VALUE_DISCLAIMER, statusLabel } from '../../lib/valueLabels';
 import Ask, { Controls } from './Ask.jsx';
@@ -75,7 +75,7 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
       </div>
       <div data-accept-terms="" className="rounded-lg border-2 border-warning bg-warning-bg px-3 py-1">
         <div className="flex flex-wrap items-center justify-between gap-x-4">
-          <p className="flex items-center gap-1.5 text-[13px] font-semibold text-warning-fg"><AlertTriangle aria-label="Warning" role="img" size={16} className="shrink-0" />Terms and conditions</p>
+          <TermsHeading />
           <label className="flex cursor-pointer items-center gap-2 text-[13px] font-semibold text-text-primary">
             <input type="checkbox" checked={accepted} onChange={(e) => onAccept?.(e.target.checked)} className="h-4 w-4" />
             I have read and accept these terms
