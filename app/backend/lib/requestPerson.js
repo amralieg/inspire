@@ -5,7 +5,7 @@ const FROM_HEADERS = 'forwarded_headers';
 const FROM_FORWARDED_TOKEN = 'forwarded_token';
 const FROM_REQUEST_TOKEN = 'request_token';
 const FROM_SERVICE_PRINCIPAL = 'service_principal';
-const ONLY_SERVICE_PRINCIPAL = 'this request names no signed-in person, only the App\u2019s own service principal';
+const ONLY_SERVICE_PRINCIPAL = 'this request names no signed-in person, only the App itself';
 
 function headerText(req, name) {
   const raw = req && req.headers ? req.headers[name] : undefined;

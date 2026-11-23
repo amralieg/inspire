@@ -3441,7 +3441,7 @@ function sampleCopyTakenMessage(copy, source) {
 
 function abacUnreadableSentence(label, { app = false } = {}) {
   const name = str(label).trim();
-  const who = app ? `The App's service principal ${name}` : (name || 'The build');
+  const who = app ? 'The App' : (name || 'The build');
   return `${who} cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them`;
 }
 
@@ -3474,13 +3474,13 @@ function discoverUnreadText(offer) {
 function appUnreadableMessage(offer, job = 'build') {
   const words = APP_READ_JOBS[job] || APP_READ_JOBS.build;
   const one = offer.tables.length === 1;
-  const app = offer.app.name && offer.app.name !== offer.app.id ? `${offer.app.name} (application id ${offer.app.id})` : `with application id ${offer.app.id}`;
+  const app = offer.app.name && offer.app.name !== offer.app.id ? ` ${offer.app.name}` : '';
   const count = one ? 'a source table' : `${offer.tables.length} source tables`;
   // REQ-418: the App's service principal reads for every person, so the message names the App's read, never the person's own access.
-  const head = `${words.who} cannot read ${count}: ${words.runs} as the App service principal ${app}, and the App cannot read `
+  const head = `${words.who} cannot read ${count}: ${words.runs} as the App${app}, and the App cannot read `
     + `${one ? 'this table' : 'these tables'}`;
   if (!offer.grants.length) return `${head}, and Inspire finds no missing grant to name: ask your data owner why the App cannot read ${one ? 'it' : 'them'}`;
-  return `${head}. ${offer.can_grant ? words.grant : 'Ask your data owner to run the commands'}: the exact commands are in Permission Required`;
+  return `${head}. ${offer.can_grant ? words.grant : 'Ask your data owner to give the App access'}: the details for your admin are in Permission Required`;
 }
 
 const APP_READ_GRANT = /^GRANT (USE CATALOG|USE SCHEMA|SELECT|READ METADATA) ON (CATALOG|SCHEMA|TABLE) (`[^`]+`(?:\.`[^`]+`){0,2}) TO `([^`]+)`$/;
@@ -3678,20 +3678,20 @@ function gapList(gaps) {
 function accessGapMessage(who, gaps) {
   const it = gaps.length === 1 ? 'it' : 'them';
   return `${who} may not be able to read the result table: Inspire cannot grant ${gaps.length === 1 ? 'this access' : 'these accesses'}, because it `
-    + `neither owns nor holds MANAGE on ${it}. If ${who} does not have ${it} yet, ask your data owner to grant ${it}: the commands are in Permission Required`;
+    + `does not manage ${it}. If ${who} does not have ${it} yet, ask your data owner to give ${it} access: the details for your admin are in Permission Required`;
 }
 
 function appAccessPermission(gaps, me = '') {
   const principal = me ? `\`${me}\`` : 'the identity Inspire runs as';
   const statements = gaps.map((g) => `GRANT MANAGE ON ${g.level.toUpperCase()} ${g.object} TO ${principal}`); // PERMISSION_DIALOG
-  return { statements, principal: me || 'the identity Inspire runs as', why: 'The new App needs MANAGE to share this table, so Inspire can give it read access.' };
+  return { statements, principal: me || 'the identity Inspire runs as', why: 'Inspire needs to manage this table so it can give the new App read access.' };
 }
 
 function appAccessMessage(table, gaps) {
   // REQ-456: when USE CATALOG on the catalog is the only gap, another table location cannot help; name the statement and the installer
   if (gaps.length && gaps.every((g) => g.level === 'catalog' && g.privilege === 'USE CATALOG')) {
-    return `a new App could not read the result table: its service principal needs USE CATALOG on the catalog, which account users do not hold. `
-      + `Ask the catalog owner to run: ${newAppsCatalogGrant(tableParts(table).catalog)} (it opens no data by itself), or run the Inspire installer again: it grants this access`;
+    return `a new App could not read the result table: it cannot open the catalog yet. `
+      + `Ask your Databricks admin to run the Inspire installer again (it opens no data by itself), or choose a result table in a catalog and schema Inspire manages`;
   }
   const one = gaps.length === 1;
   // the places the grant is missing on, in plain words (the App tile names them the same way)
@@ -3699,9 +3699,8 @@ function appAccessMessage(table, gaps) {
   const shared = gaps.length && gaps.every((g) => IMPLEMENT_TRAVERSE_PRIVILEGES.includes(g.privilege))
     ? `, or give all account users the same access, which ${one ? 'opens' : 'open'} no data by ${one ? 'itself' : 'themselves'}`
     : '';
-  return `a new App could not read the result table: its service principal needs ${gaps.length === 1 ? 'this access' : 'these accesses'}, which not all `
-    + `account users have, and Inspire can grant ${one ? 'it' : 'them'} only with MANAGE or ownership. `
-    + `Ask your data owner to grant ${one ? 'it' : 'them'} ${places}: the commands are in Permission Required${shared}; or choose a result table in a catalog and schema Inspire manages`;
+  return `a new App could not read the result table: it needs access ${places} that Inspire cannot give it. `
+    + `Ask your data owner to give the App that access: the details for your admin are in Permission Required${shared}; or choose a result table in a catalog and schema Inspire manages`;
 }
 
 function principalNames(principals) {
