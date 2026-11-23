@@ -15,7 +15,8 @@ const sessions = REVIEW_SESSIONS.map((s) => (s.session_id === '42' ? { ...s, gen
 const STATE = { ...REVIEW_STATE, sessions };
 
 const nav = (page) => page.getByRole('navigation', { name: 'Results sections' });
-const item = (page, name) => nav(page).getByRole('button', { name: new RegExp(`^${name}\\b`) });
+const item = (page, name) => nav(page).getByRole('tab', { name: new RegExp(`^${name}\\b`) });
+const rail = (page) => page.locator('[data-results-nav-body]');
 const list = (page) => page.getByRole('region', { name: 'Use case list' });
 const cards = (page) => list(page).locator('[aria-expanded]');
 const summary = (page) => page.locator('[data-executive-summary]');
@@ -40,9 +41,10 @@ test('Results lands on Use cases: the nav lists Use cases, Business and Assets i
     assert.equal(await item(page, 'Assets').getAttribute('aria-current'), null);
     assert.match(await item(page, 'Use cases').innerText(), /6/, 'Use cases carries its count');
     assert.equal(await cards(page).count(), 6);
-    const under = nav(page).locator('li', { has: page.locator('[data-results-nav-item="usecases"]') });
-    assert.equal(await under.getByRole('button', { name: /^Domains\b/ }).count(), 1, 'the Domains tree is under Use cases');
-    assert.equal(await under.getByRole('button', { name: /^Supply\b/ }).count(), 1);
+    assert.equal(await item(page, 'Use cases').getAttribute('aria-selected'), 'true', 'the open tab is selected');
+    assert.equal(await rail(page).count(), 1, 'the rail sits under the tabs, in the Use cases view');
+    assert.equal(await rail(page).getByRole('button', { name: /^Domains\b/ }).count(), 1, 'the Domains tree is under the tabs, in the Use cases view');
+    assert.equal(await rail(page).getByRole('button', { name: /^Supply\b/ }).count(), 1);
     assert.equal(await summary(page).count(), 0);
     assert.equal(await figures(page).count(), 0);
     assert.equal(await download(page, 'Acme-catalog.pdf').count(), 0);
@@ -56,8 +58,8 @@ test('the Domains tree folds and unfolds, and a domain narrows the cards', async
   const ui = await open();
   const { page } = ui;
   try {
-    const toggle = nav(page).getByRole('button', { name: /^Domains\b/ });
-    const supply = nav(page).getByRole('button', { name: /^Supply\b/ });
+    const toggle = rail(page).getByRole('button', { name: /^Domains\b/ });
+    const supply = rail(page).getByRole('button', { name: /^Supply\b/ });
     assert.equal(await toggle.getAttribute('aria-expanded'), 'true', 'open by default');
     await toggle.click();
     assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
@@ -85,7 +87,8 @@ test('Business shows the executive summary, the figure tiles and the MVPs group,
     assert.equal(await cards(page).count(), 0);
     assert.equal(await list(page).count(), 0);
     assert.equal(await download(page, 'Acme-catalog.pdf').count(), 0);
-    assert.equal(await nav(page).getByRole('button', { name: /^Domains\b/ }).count(), 0, 'the Domains tree shows only with Use cases');
+    assert.equal(await rail(page).count(), 0, 'the rail shows only with Use cases');
+    assert.equal(await page.getByRole('button', { name: /^Domains\b/ }).count(), 0, 'the Domains tree shows only with Use cases');
     await mvps(page).getByRole('button', { name: /^MVPs started/ }).click();
     assert.equal(await item(page, 'Use cases').getAttribute('aria-current'), 'page');
     assert.equal(await cards(page).count(), 1, 'the MVP filter is applied on the cards');
@@ -151,7 +154,7 @@ test('at 390 px the nav is a row of 3 tabs above the content and no view scrolls
     assert.ok(tabs.every((b) => b.y + b.height <= cardTop), 'tabs sit above the cards');
     const sideways = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
     assert.equal(await sideways(), true, 'Use cases');
-    const fold = nav(page).getByRole('button', { name: /^Domains\b/ });
+    const fold = rail(page).getByRole('button', { name: /^Domains\b/ });
     if ((await fold.getAttribute('aria-expanded')) !== 'true') await fold.click();
     assert.equal(await sideways(), true, 'Use cases with the Domains fold open');
     await item(page, 'Business').click();
@@ -171,7 +174,7 @@ test('REQ-444: at 390 px the Domains fold starts open (aria-expanded true) and f
   const { page } = ui;
   try {
     await nav(page).waitFor();
-    const fold = nav(page).getByRole('button', { name: /^Domains\b/ });
+    const fold = rail(page).getByRole('button', { name: /^Domains\b/ });
     assert.equal(await fold.getAttribute('aria-expanded'), 'true');
     await fold.click();
     assert.equal(await fold.getAttribute('aria-expanded'), 'false');
@@ -181,18 +184,20 @@ test('REQ-444: at 390 px the Domains fold starts open (aria-expanded true) and f
   }
 });
 
-test('right to left, the side panel sits on the right of the content', async () => {
+test('right to left, the rail sits on the right of the content, under the tabs', async () => {
   const ui = await open();
   const { page } = ui;
   try {
     await page.evaluate(() => { document.documentElement.dir = 'rtl'; });
-    const side = await nav(page).boundingBox();
+    const tabsBox = await nav(page).boundingBox();
+    const side = await rail(page).boundingBox();
+    assert.ok(tabsBox.y + tabsBox.height <= side.y + 1, 'the rail sits under the tabs');
     const content = await list(page).boundingBox();
-    assert.ok(side.x >= content.x + content.width - 1, `nav ${JSON.stringify(side)} vs list ${JSON.stringify(content)}`);
+    assert.ok(side.x >= content.x + content.width - 1, `rail ${JSON.stringify(side)} vs list ${JSON.stringify(content)}`);
     await page.evaluate(() => { document.documentElement.dir = 'ltr'; });
-    const sideLtr = await nav(page).boundingBox();
+    const sideLtr = await rail(page).boundingBox();
     const contentLtr = await list(page).boundingBox();
-    assert.ok(sideLtr.x + sideLtr.width <= contentLtr.x + 1, 'left to right the panel is on the left');
+    assert.ok(sideLtr.x + sideLtr.width <= contentLtr.x + 1, 'left to right the rail is the left column');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

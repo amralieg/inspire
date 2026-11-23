@@ -1470,7 +1470,7 @@ export default function ResultsPage({
 
 
           {/* ═══ Two-Column: sticky sidebar rail; use-case list scrolls independently in the right column ═══ */}
-          <div data-browse={view === 'usecases' ? '' : undefined} className="flex flex-col md:flex-row md:items-stretch gap-5 min-h-0">
+          <div data-browse={view === 'usecases' ? '' : undefined} className={`grid grid-cols-1 gap-5 min-h-0 ${view === 'usecases' ? 'md:grid-cols-[14rem_minmax(0,1fr)]' : ''}`}>
             {/* ── Left Sidebar: stays fixed in viewport while the card list scrolls (sticky + max height) ── */}
             <ResultsNav view={view} onView={showView} useCaseCount={allUseCases.length}
               stickyClass={embedded ? 'top-4 md:max-h-[min(32rem,72vh)]' : 'top-20 md:max-h-[calc(100dvh-5rem)]'}>

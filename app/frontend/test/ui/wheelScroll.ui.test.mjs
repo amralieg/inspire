@@ -81,7 +81,7 @@ test('the mouse wheel scrolls the Results use case list and its side filters to 
     await list.locator('[aria-expanded]').first().waitFor({ timeout: 20000 });
     const scroller = list.locator('xpath=ancestor-or-self::*[contains(@class,"overflow-y-auto")][1]');
     await wheelScrolls(page, scroller, () => list.locator('[aria-expanded]').last(), { name: 'Results use case list' });
-    const side = page.locator('[data-browse] > div').first();
+    const side = page.locator('[data-browse] > [data-results-nav-body]');
     await wheelScrolls(page, side, () => side.locator('[data-wheel-copy]').last(), { name: 'Results side filters', ...copies(side, ':scope > :first-child', 20) });
     assert.deepEqual(ui.pageErrors, []);
   } finally {
