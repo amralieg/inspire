@@ -2229,7 +2229,7 @@ export default function ResultsPage({
       )}
 
         {calcFor && (
-          <CalculateValueDialog key={trackingIdOf(calcFor)} uc={calcFor} table={tableOfUseCase(calcFor)} apiPostJson={apiPostJson} inspireDatabase={inspireDb} warehouseId={warehouseId}
+          <CalculateValueDialog key={trackingIdOf(calcFor)} uc={calcFor} table={tableOfUseCase(calcFor)} apiPostJson={apiPostJson} apiFetch={apiFetch} inspireDatabase={inspireDb} warehouseId={warehouseId}
             sessionId={selectedSessionId} saved={calculated.byId[trackingIdOf(calcFor)]?.answers || null} version={calculated.byId[trackingIdOf(calcFor)]?.version || null}
             values={valuesForDialog} onClose={closeCalc} />
         )}

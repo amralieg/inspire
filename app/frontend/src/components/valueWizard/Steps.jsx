@@ -3,7 +3,6 @@ import { DRIVER_ICONS, countText, likelyLineOf, moneyText, partOf, recordsOf, to
 import Ask from './Ask.jsx';
 import FormulaLine from './FormulaLine.jsx';
 import ValueChart from './ValueChart.jsx';
-import ConfidenceMeter from './ConfidenceMeter.jsx';
 
 const opTexts = { '=': 'is', '!=': 'is not', '>': 'is above', '>=': 'is at least', '<': 'is below', '<=': 'is at most', is_not_null: 'is filled' };
 const filterText = (f) => (f?.column ? ` where ${f.column} ${opTexts[f.op] || f.op}${f.op === 'is_not_null' ? '' : ` ${f.value}`}` : '');
@@ -78,7 +77,6 @@ export function StepKind({ driver, answers, yearly, onInput, status, error }) {
       <div className="min-w-0 space-y-1.5 lg:col-start-2 lg:row-start-2">
         <FormulaLine driver={driver} answers={answers} yearly={yearly} status={status} />
         <ValueChart yearly={stale ? null : yearly} currentId={driver.id} />
-        <ConfidenceMeter pct={answers.attribution_pct} />
       </div>
       <div className="grid grid-cols-1 gap-1.5 lg:col-start-1 lg:row-start-2">
         {driver.asks.map((a) => (
