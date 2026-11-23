@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, openUi, totalsQueryMissing } from './uiSupport.mjs';
-import { PLAN, fakeYearly, goTo } from './valueWizardSupport.mjs';
+import { PLAN, fakeYearly, goTo, mountScopeRoutes, saveFrom } from './valueWizardSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -21,6 +21,7 @@ const totalsOf = (e) => ({ run: { totals: [], n: 1, n_calculated: 0, n_estimated
 
 function mountWith(state) {
   return (app) => {
+    mountScopeRoutes(app);
     app.get('/api/inspire/value/totals', (req, res) => totalsQueryMissing(req, res) || res.json(state.totals));
     app.get('/api/inspire/value/answers', (_req, res) => res.json({ answers: state.answers || {} }));
     app.post('/api/inspire/value/case-plan', (_req, res) => res.json({ plan: PLAN }));
@@ -63,7 +64,7 @@ test('2: a calculated value shows the amount, Edit and the pencil; Edit opens th
     assert.equal(await panel.locator('[data-value-edit]').count(), 1);
     await button(panel, 'Edit').click();
     await dialog.waitFor();
-    await goTo(dialog, 'data');
+    await goTo(dialog, 'scope:facts');
     const section = dialog.locator('[data-measure-settings]');
     await section.waitFor();
     assert.equal(await section.locator('[data-measure-row]').count(), 5);
@@ -77,7 +78,7 @@ test('3: Edit shows the editor and changes the spec; Keep restores the opening v
   const { ui, page, panel, dialog } = await openPanel(calculated());
   try {
     await button(panel, 'Edit').click();
-    await goTo(dialog, 'data');
+    await goTo(dialog, 'scope:facts');
     await dialog.locator('[data-measure-edit]').click();
     const editor = dialog.locator('[data-measure-editor]');
     await editor.waitFor();
@@ -92,17 +93,18 @@ test('3: Edit shows the editor and changes the spec; Keep restores the opening v
   } finally { await ui.close(); }
 });
 
-test('4: Save sends one PUT with the toggled holdout and the panel money', async () => {
+test('4: Approve story and save sends one PUT with the toggled holdout and the panel money', async () => {
   const state = calculated();
   const { ui, panel, dialog } = await openPanel(state);
   try {
     await button(panel, 'Edit').click();
-    await goTo(dialog, 'data');
+    await goTo(dialog, 'scope:facts');
     await dialog.locator('[data-measure-edit]').click();
     await dialog.locator('[data-measure-editor]').getByLabel('Hold back').check();
-    await goTo(dialog, 'save');
+    await goTo(dialog, 'story:approve');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-    await button(dialog, 'Save').click();
+    await saveFrom(dialog);
+    await button(dialog, 'Close').last().click();
     await dialog.waitFor({ state: 'detached' });
     assert.equal(state.puts.length, 1);
     assert.equal(state.puts[0].answers.holdout.enabled, true);
@@ -111,16 +113,17 @@ test('4: Save sends one PUT with the toggled holdout and the panel money', async
   } finally { await ui.close(); }
 });
 
-test('5: without a measure prop the dialog shows no measure section and Save carries the saved money through', async () => {
+test('5: without a measure prop the dialog shows no measure section and Approve story and save carries the saved money through', async () => {
   const state = calculated();
   const { ui, panel, dialog } = await openPanel(state, '&step=nomeasure');
   try {
     await button(panel, 'Edit').click();
     await dialog.waitFor();
     assert.equal(await dialog.locator('[data-measure-settings]').count(), 0);
-    await goTo(dialog, 'save');
+    await goTo(dialog, 'story:approve');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-    await button(dialog, 'Save').click();
+    await saveFrom(dialog);
+    await button(dialog, 'Close').last().click();
     await dialog.waitFor({ state: 'detached' });
     assert.equal(state.puts.length, 1);
     assert.deepEqual(state.puts[0].answers.money, MONEY);
@@ -143,7 +146,7 @@ test('7: measure.open "holdout" opens the dialog on mount with the section in Ed
   const { ui, dialog } = await openPanel(calculated(), '&step=open-holdout');
   try {
     await dialog.waitFor({ timeout: 15000 });
-    await goTo(dialog, 'data');
+    await goTo(dialog, 'scope:facts');
     await dialog.locator('[data-measure-editor]').waitFor();
     assert.equal(await dialog.locator('[data-measure-edit]').getAttribute('aria-checked'), 'true');
     assert.deepEqual(ui.pageErrors, []);

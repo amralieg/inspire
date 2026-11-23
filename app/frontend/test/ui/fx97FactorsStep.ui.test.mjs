@@ -59,13 +59,14 @@ test('X2: a cost-only plan has no factors step even when the plan lists factors'
   const { ui, card, page } = await openCard(mountWith({ ...COST_ONLY, economic_factors: FACTORS }));
   try {
     const dialog = await openWizard(page, card);
-    await dialog.locator('[data-wizard-page="kinds"]').waitFor({ timeout: 15000 });
+    await goTo(dialog, 'kinds');
     const seen = [];
-    for (let i = 0; i < 12; i += 1) {
+    for (let i = 0; i < 24; i += 1) {
       seen.push(await dialog.locator('[data-wizard-page]').first().getAttribute('data-wizard-page'));
-      if (seen.at(-1) === 'save') break;
+      if (seen.at(-1) === 'story:approve') break;
       await dialog.getByRole('button', { name: 'Next', exact: true }).click();
     }
+    assert.equal(seen.at(-1), 'story:approve', seen.join());
     assert.ok(!seen.includes('factors'), seen.join());
   } finally { await ui.close(); }
 });
@@ -74,7 +75,7 @@ test('X3: step 1 no longer carries the economic trend block, and an old stored t
   const { ui, card, page } = await openCard(mountWith({ ...PLAN, economic_trend: TREND }));
   try {
     const dialog = await openWizard(page, card);
-    await dialog.locator('[data-wizard-page="kinds"]').waitFor({ timeout: 15000 });
+    await goTo(dialog, 'kinds');
     assert.equal(await dialog.locator('[data-economic-trend]').count(), 0);
     await goTo(dialog, 'factors');
     assert.equal(await dialog.locator('[data-factor]').count(), 1);

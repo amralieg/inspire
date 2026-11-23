@@ -1,5 +1,5 @@
 // FX-96 (REQ-492, REQ-495): the value dialog draws each formula as boxes joined by signs into a result box, charts the parts of the yearly total,
-// and shows how confident the user is in the value.
+// and asks how confident the user is in the value (REQ-507: a Low/Medium/High question on the Ramp and cost step).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser } from './uiSupport.mjs';
@@ -45,7 +45,7 @@ test('V1 (REQ-492): one box per input, signs between them, and a result box equa
   } finally { await ui.close(); }
 });
 
-test('V2 (REQ-495): the chart has one bar per part of the yearly total, and the confidence meter shows the percent', async () => {
+test('V2 (REQ-495): the chart has one bar per part of the yearly total, and the confidence is a Low/Medium/High question with no meter', async () => {
   const { ui, card, page } = await openCard(mountWizard());
   try {
     const dialog = await openWizard(page, card);
@@ -54,10 +54,14 @@ test('V2 (REQ-495): the chart has one bar per part of the yearly total, and the 
     await chart.waitFor({ timeout: 15000 });
     await chart.locator('[data-chart-bar]').first().waitFor({ timeout: 15000 });
     assert.equal(await chart.locator('[data-chart-bar]').count(), 3, 'three kinds are on');
-    const meter = dialog.locator('[data-confidence-meter]');
-    assert.match(await text(meter), /Your confidence in this value/);
-    assert.match(await text(meter), /100%/);
-    assert.equal(await meter.locator('[role="meter"]').getAttribute('aria-valuenow'), '100');
+    assert.equal(await dialog.locator('[data-confidence-meter]').count(), 0, 'the confidence is no longer a meter');
+    await goTo(dialog, 'economics:cost');
+    const confidence = dialog.getByRole('radiogroup', { name: 'How confident are you in this value?' });
+    assert.match(await text(confidence), /How confident are you in this value\?.*Low.*Medium.*High/);
+    assert.equal(await confidence.getByRole('radio').count(), 3);
+    await confidence.getByRole('radio', { name: 'High' }).check();
+    assert.equal(await confidence.getByRole('radio', { name: 'High' }).isChecked(), true);
+    assert.equal(await dialog.locator('[role="meter"]').count(), 0);
   } finally { await ui.close(); }
 });
 

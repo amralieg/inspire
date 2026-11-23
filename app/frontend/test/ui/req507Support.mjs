@@ -2,7 +2,7 @@
 // The scope, filter and macro routes are registered before mountWizard's, so they win; the preview adds yearly.projection the way L2 does.
 import { PLAN, fakeYearly, mountWizard } from './valueWizardSupport.mjs';
 
-export const FACTS = { table: 'main.sales.orders', rows: 3412880, dated_rows: 3400840, first: '2019-01-01', last: '2026-09-30', date_column: 'created_at',
+export const FACTS = { table: 'main.sales.orders', rows: 3412880, dated_rows: 3400840, first: '2019-01-01', last: '2026-09-30', date_column: 'created_at', noun: 'review case',
   date_candidates: [{ column: 'created_at', first: '2019-01-01', last: '2026-09-30' }, { column: 'shipped_at', first: '2019-01-03', last: '2026-10-02' }] };
 export const FILTER_OK = {
   scope: { phrase: 'Exclude cancelled and test records', filters: [{ column: 'status', op: 'not in', values: ['cancelled', 'test'] }, { column: 'channel', op: '!=', values: ['test'] }],
