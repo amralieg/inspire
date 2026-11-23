@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { GenieMark, Icon } from './icons.jsx';
-import { agentAsk, agentFeedback, agentPrepare, agentStatus, agentTurn, askGenie, explainGenie, getFreshness, retryable, undoRecords, waitingOf, writeRecord } from './api.js';
+import { agentAsk, agentBriefing, agentFeedback, agentPrepare, agentStatus, agentTurn, askGenie, explainGenie, getFreshness, getPage, retryable, undoRecords, waitingOf, writeRecord } from './api.js';
 import { POLL_MS, latestRunText, stepText } from './freshness.js';
 import WaitingForAccess from './WaitingForAccess.jsx';
 import { reducedMotion } from './theme.js';
@@ -13,6 +13,7 @@ import { BUSY_TITLE, explainBody } from './explain.js';
 import { GENIE_DEFAULT, GENIE_MIN, clampGenie, genieMax, keyWidth, rememberGenieWidth, storedGenieWidth } from './genieWidth.js';
 import { GENIE_ASK, agentIntro, genieAnswer, genieKey, genieOf, genieOn, paceText } from './genieAsk.js';
 import { AGENT_CHANGED, suggestions } from './agentView.js';
+import { AGENT_ACTION_IDS } from './agentBlocks.js';
 import { AgentExtras, AgentSteps, RecordOffers, StepsDetails, confirmWrite } from './AgentParts.jsx';
 import { runWrite } from './saving.jsx';
 import { pageDecides } from './records.js';
@@ -374,7 +375,7 @@ function Typing({ message, onTick }) {
 }
 
 // What the typed blocks need from the chat: ask a follow-up, prepare and write a record change (always the server's prepared body), open a record.
-function blocksCtx(genie, message, page) {
+function blocksCtx(genie, message, page, extra) {
   const k = message.k || genie.key;
   const changed = () => window.dispatchEvent(new CustomEvent(AGENT_CHANGED, { detail: { pageId: k } }));
   const write = async (c) => {
@@ -383,7 +384,7 @@ function blocksCtx(genie, message, page) {
     return result;
   };
   return {
-    page, turnId: message.turn_id, ask: (q) => genie.ask(q), openRecord: (key) => genie.openRecord(k, key), rate: (r) => genie.rate(k, message.n, r),
+    ...extra, page, turnId: message.turn_id, ask: (q) => genie.ask(q), openRecord: (key) => genie.openRecord(k, key), rate: (r) => genie.rate(k, message.n, r),
     prepare: async (action, keys, values) => (await agentPrepare({ page: k, action, record_keys: keys, ...values })).confirm,
     resolve: async (key) => {
       const { confirm } = await agentPrepare({ page: k, action: 'done', record_keys: [key] });
@@ -403,15 +404,37 @@ function blocksCtx(genie, message, page) {
   };
 }
 
-export function Answer({ message, url, onTick, genie, page = null, rating = true }) {
+// What typed blocks draw from: a chart block reads its data from the page, a ticket block offers the briefing's actions.
+function useBlockData(blocks, page, app, themeKey) {
+  const [data, setData] = useState({ charts: null, ticketActions: [] });
+  const wantsCharts = !!page && blocks.some((b) => b.type === 'chart');
+  const wantsActions = !!page && blocks.some((b) => b.type === 'ticket' || b.type === 'carousel');
+  const pageId = page?.id;
+  useEffect(() => {
+    if (!wantsCharts) return undefined;
+    let live = true;
+    getPage(pageId, {}).then((d) => { if (live) setData((s) => ({ ...s, charts: d?.charts || {} })); }).catch(() => { if (live) setData((s) => ({ ...s, charts: {} })); });
+    return () => { live = false; };
+  }, [wantsCharts, pageId]);
+  useEffect(() => {
+    if (!wantsActions) return undefined;
+    let live = true;
+    agentBriefing(pageId).then((b) => { if (live) setData((s) => ({ ...s, ticketActions: (b?.actions || []).filter((x) => AGENT_ACTION_IDS.includes(x)) })); }).catch(() => {});
+    return () => { live = false; };
+  }, [wantsActions, pageId]);
+  return { app, themeKey, charts: data.charts, ticketActions: data.ticketActions };
+}
+
+export function Answer({ message, url, onTick, genie, page = null, rating = true, app = null, themeKey = '' }) {
   const a = message.answer;
   const blocks = a.blocks || [];
+  const blockData = useBlockData(blocks, page, app, themeKey);
   const words = String(a.text || '').split(/(\s+)/).length;
   const done = blocks.length > 0 || message.shown >= words;
   return (
     <div className="msg-b">
       {!done && <AgentSteps steps={message.steps} />}
-      {blocks.length > 0 ? <Blocks blocks={blocks} ctx={blocksCtx(genie, message, page)} /> : <Typing message={message} onTick={onTick} />}
+      {blocks.length > 0 ? <Blocks blocks={blocks} ctx={blocksCtx(genie, message, page, blockData)} /> : <Typing message={message} onTick={onTick} />}
       {done && a.rows?.length > 0 && (
         <div className="msg-t">
           <DataTable label="Genie's answer" columns={answerColumns(a)} rows={a.rows} />
@@ -451,7 +474,7 @@ function recordOf(thread, m) {
   return asked?.about?.recordKey ? { recordKey: asked.about.recordKey, label: asked.about.label || asked.about.recordKey } : null;
 }
 
-export default function GeniePanel({ app, genie, page, pages, onPick, onClose, tabs = null, full = false, fact = '' }) {
+export default function GeniePanel({ app, genie, page, pages, onPick, onClose, tabs = null, full = false, fact = '', themeKey = '' }) {
   const log = useRef(null);
   const input = useRef(null);
   const panel = useRef(null);
@@ -541,7 +564,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
             <span className="msg-av"><GenieMark size={14} /></span>
             {m.state === 'running' && <div className="msg-b"><span className="g-step"><span className="dots"><i /><i /><i /></span>{progressLabel(m.step)}…</span><Pace since={m.n} /></div>}
             {m.state === 'failed' && <div className="msg-b">{m.waiting ? <WaitingForAccess waiting={m.waiting} compact /> : m.calm ? <PlainNote text={m.error} className="note" role="status" data-calm /> : <PlainNote text={m.error} className="g-err" onRetry={genie.canRetry?.(genie.key, m.n) ? () => genie.retry(genie.key, m.n) : null} />}</div>}
-            {m.state === 'done' && <Answer message={m} url={info.url} onTick={tick} genie={genie} page={home} />}
+            {m.state === 'done' && <Answer message={m} url={info.url} onTick={tick} genie={genie} page={home} app={app} themeKey={themeKey} />}
             {m.state === 'done' && !m.agent && recordOf(thread, m) && home && app.options?.decisions && pageDecides(home) && (
               <div className="msg-b"><RecordOffers message={{ k: genie.key, n: m.n, confirm: m.confirm, offerError: m.offerError,
                 offers: { rows: [{ record_key: recordOf(thread, m).recordKey, label: recordOf(thread, m).label, status: '' }] } }} genie={genie} /></div>

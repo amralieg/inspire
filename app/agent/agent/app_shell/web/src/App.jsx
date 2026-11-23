@@ -234,7 +234,7 @@ function Shell({ app, onRefreshSiblings }) {
   const showScreen = () => { if (page) window.location.hash = sectionHash(page.id, 'work'); };
   const welcomed = !!page && !!prefs.welcomed[page.id];
   const welcome = (choice) => { update((p) => ({ ...p, welcomed: { ...p.welcomed, [page.id]: true } })); if (choice === 'genie') showGenie(); else showScreen(); };
-  const genieProps = { app, genie, page, pages: shown, onPick: go, fact: page ? topFact(page, tourFacts[page.id]) : '' };
+  const genieProps = { app, genie, page, pages: shown, onPick: go, themeKey, fact: page ? topFact(page, tourFacts[page.id]) : '' };
 
   return (
     <GenieState.Provider value={genieState}>
