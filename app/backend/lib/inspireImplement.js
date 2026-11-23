@@ -2443,6 +2443,7 @@ function filterClause(filter, index) {
   const col = quoteColumn(filter.column);
   const op = str(filter.op).toLowerCase();
   if (op === 'is null') return { sql: `${col} IS NULL`, params: [] };
+  if (op === 'is not null') return { sql: `${col} IS NOT NULL`, params: [] };
   const values = (Array.isArray(filter.values) ? filter.values : []).map((v) => str(v));
   const params = values.map((v, i) => ({ name: `f${index}_${i}`, value: v, type: 'STRING' }));
   const refs = params.map((p) => `:${p.name}`);
@@ -4396,6 +4397,7 @@ module.exports = {
   groupReasonStatement,
   groupEmptyReason,
   scopeWhere,
+  filterClause,
   GROUP_COUNT_MAX_COLUMNS,
   GROUP_COUNT_LIMIT,
   readinessFromRow,

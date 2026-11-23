@@ -61,6 +61,7 @@ const VDC = require('./lib/valueDriversCalc');
 const VA = require('./lib/valueAnswers');
 const VR = require('./lib/valueReview');
 const VCP = require('./lib/valueCasePlan');
+const VS = require('./lib/valueScope');
 const IV = require('./lib/inspireValue');
 
 function sendError(res, err) {
@@ -2613,8 +2614,8 @@ function registerImplementRoutes(app, deps) {
   }
 
   // REQ-472 (a): the anchor, one model call before the plan; null when the model gives none (the generic range is used then).
-  async function anchorOf(req, useCase) {
-    const asked = await askChatModel(req, VR.anchorMessages({ useCase, businessName: useCase.business_name, range: VALUE_RANGE }), FB.JSON_ANSWER_MAX_TOKENS);
+  async function anchorOf(req, useCase, records) {
+    const asked = await askChatModel(req, VR.anchorMessages({ useCase, businessName: useCase.business_name, records, range: VALUE_RANGE }), FB.JSON_ANSWER_MAX_TOKENS);
     const anchor = asked.got ? VR.anchorFrom(asked.got.data, VALUE_RANGE) : null;
     if (!anchor || !anchor.economic_factors.length || anchor.economic_factors.length >= VR.FACTOR_MIN) return anchor; // 0 factors: the model judged none relevant
     // D-uae-03b: 1 to 3 factors; one more ask for distinct ones, and the anchor factors stay when it fails.
@@ -2666,6 +2667,8 @@ function registerImplementRoutes(app, deps) {
     return { plan, review: made(false, { model: last && last.model, reason: last ? last.reason : '', amount: last ? last.amount : null, tuned }) };
   }
 
+  const currencyOf = (v) => (/^[A-Za-z]{3}$/.test(String(v ?? '').trim()) ? String(v).trim().toUpperCase() : 'USD');
+
   app.post('/api/inspire/value/case-plan', requireToken, async (req, res) => {
     const table = String(req.body?.table || '').trim();
     try {
@@ -2678,19 +2681,37 @@ function registerImplementRoutes(app, deps) {
       const dateColumn = VY.dateColumnOf(columns);
       if (!dateColumn) throw I.badRequest('The table has no date column to scale the counts to a year, so Inspire cannot plan a value per year.', 422);
       const useCase = await planUseCaseOf(req, warehouseId, useCaseId);
-      const anchor = await anchorOf(req, useCase);
+      // REQ-507: the scope the person chose (checked again here). Its population is counted before the anchor, so the anchor sees the records.
+      let chosen = null;
+      let scopedPopulation = null;
+      let records;
+      if (req.body?.scope !== undefined && req.body?.scope !== null) {
+        const checked = VS.checkScope(req.body.scope, columns);
+        if (!checked.ok) throw I.badRequest(checked.reason);
+        chosen = checked.scope;
+        const countSql = VCP.currentCountSql(GP, scopes, { case_filter: null, scope: chosen, table, date_column: dateColumn });
+        scopedPopulation = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, countSql.sql, countSql.parameters, { rowLimit: 1, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }))[0] || {};
+        const perYear = VY.extrapolate({ amount: Number(scopedPopulation.records), sampled: 1, eligible: 1, days: Number(scopedPopulation.days) });
+        records = perYear === null ? undefined : perYear;
+      }
+      const anchor = await anchorOf(req, useCase, records);
       const range = rangeOf(anchor);
       let read = null;
       const planOnce = async (retry) => {
-        const plan = await modelPlanOf(req, table, columns, String(req.body?.group_by || '').trim(), useCase, retry, anchor);
+        let plan = await modelPlanOf(req, table, columns, String(req.body?.group_by || '').trim(), useCase, retry, anchor);
+        // The model's filter is only a suggestion once the person has chosen a scope: it is returned, never applied.
+        if (chosen) plan = { ...plan, suggested_filter: plan.case_filter, case_filter: null, scope: chosen };
         // A retry that keeps the same filter, grouping and metrics reads the same counts: they are not read twice.
         const readKey = JSON.stringify([plan.case_filter, plan.grouping, plan.metrics]);
         if (read && read.key === readKey) return { plan, counted: read.counted };
         const made = VCP.groupedSql(GP, scopes, plan, table, dateColumn);
         const rows = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters, { rowLimit: VCP.GROUP_MAX_GROUPS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }));
         // The records and the days come from the whole filtered table (the C5 count), never from the grouped rows.
-        const countSql = VCP.currentCountSql(GP, scopes, { ...plan, table, date_column: dateColumn });
-        const population = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, countSql.sql, countSql.parameters, { rowLimit: 1, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }))[0] || {};
+        let population = scopedPopulation;
+        if (!population) {
+          const countSql = VCP.currentCountSql(GP, scopes, { ...plan, table, date_column: dateColumn });
+          population = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, countSql.sql, countSql.parameters, { rowLimit: 1, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }))[0] || {};
+        }
         read = { key: readKey, counted: VCP.groupsFrom(rows, plan, population) };
         return { plan, counted: read.counted };
       };
@@ -2717,8 +2738,81 @@ function registerImplementRoutes(app, deps) {
         const final = defaultYearlyOf(done.plan);
         valueCheck = !review.approved || outsideRange(final, range) ? { amount: final, low: range.low, high: range.high } : null;
       }
-      const anchored = anchor ? { likely_value: { amount: anchor.typical, currency: 'USD', reason: anchor.reason }, economic_trend: anchor.economic_trend, economic_factors: anchor.economic_factors || [] } : {};
+      const anchored = anchor ? { likely_value: { amount: anchor.typical, currency: currencyOf(req.body?.currency), reason: anchor.reason }, economic_trend: anchor.economic_trend, economic_factors: anchor.economic_factors || [] } : {};
       return res.json({ plan: { ...plan, ...anchored, ...(review ? { review } : {}), table, date_column: dateColumn, days: counted.days, groups: counted.groups, use_case_id: useCaseId, basis: VCP.PLAN_BASIS, ...(valueCheck ? { value_check: valueCheck } : {}) } });
+    } catch (err) {
+      return sendError(res, estimateFailure(err, table));
+    }
+  });
+
+  // REQ-507: the records found, before any money. The table's rows and the range of its date columns, read through the Data Filters; no model, no money.
+  async function scopeBaseOf(req) {
+    const table = String(req.body?.table || '').trim();
+    const warehouseId = warehouseOf(req);
+    I.validateUseCaseId(q(req, 'use_case_id'));
+    if (!table) throw I.badRequest('Name the use case table to find the records of.');
+    const scopes = await launchScopesOf(req, warehouseId, req.body?.table_scope);
+    await refuseMetricView(req, warehouseId, table);
+    const columns = GP.scopedColumns(await I.readPickedTable(table, () => sqlRows(req.dbHost, req.dbToken, warehouseId, I.columnsStatement(table))), scopes, table);
+    const dates = columns.filter((c) => /^(date|timestamp)/i.test(String(c.data_type || '')));
+    const asked = String(req.body?.date_column ?? '').trim();
+    if (asked && !dates.some((c) => c.column_name === asked)) throw I.badRequest(`"${asked.slice(0, 80)}" is not a date column of ${table}.`);
+    const dateColumn = asked || VY.dateColumnOf(columns) || null;
+    return { table, warehouseId, scopes, columns, dates, dateColumn };
+  }
+  async function factsOf(req, base) {
+    const made = VS.factsSql(GP, base.scopes, base.table, base.dates, base.dateColumn);
+    const rows = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, base.warehouseId, made.sql, made.parameters, { rowLimit: 1, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }));
+    return VS.factsFrom(rows[0], base.dates, base.dateColumn);
+  }
+
+  app.post('/api/inspire/value/scope', requireToken, async (req, res) => {
+    const table = String(req.body?.table || '').trim();
+    try {
+      const base = await scopeBaseOf(req);
+      return res.json({ facts: { table: base.table, ...(await factsOf(req, base)) } });
+    } catch (err) {
+      return sendError(res, estimateFailure(err, table));
+    }
+  });
+
+  // REQ-507: a plain-English filter becomes structure (column, op, values and a relative window), checked against the columns and compiled with
+  // bound values. The model never writes SQL; a structured body (the builder, the "Last 12 months" card) skips the model and passes the same checks.
+  app.post('/api/inspire/value/filter', requireToken, async (req, res) => {
+    const table = String(req.body?.table || '').trim();
+    try {
+      const base = await scopeBaseOf(req);
+      const phrase = String(req.body?.phrase ?? '').replace(/\s+/g, ' ').trim().slice(0, 500);
+      const structured = req.body?.filters !== undefined || req.body?.window !== undefined;
+      let picked;
+      if (structured) {
+        const filters = VS.checkFilters(req.body.filters, base.columns);
+        const window = filters.ok ? VS.checkWindow(req.body.window, base.columns) : filters;
+        if (!filters.ok || !window.ok) throw I.badRequest((filters.ok ? window : filters).reason);
+        picked = { filters: filters.filters, window: window.window, unmatched: [...filters.unmatched, ...window.unmatched] };
+      } else {
+        if (!phrase) throw I.badRequest('Say which records to keep, in your own words.');
+        const useCase = await planUseCaseOf(req, base.warehouseId, I.validateUseCaseId(q(req, 'use_case_id')));
+        const asked = await askChatModel(req, VS.filterMessages({ useCase, table: base.table, columns: base.columns, phrase, dateColumn: base.dateColumn || '' }), FB.JSON_ANSWER_MAX_TOKENS);
+        if (!asked.got) return res.json({ scope: null, builder: true, reason: asked.reason || 'The model could not be reached.' });
+        const got = VS.filterFrom(asked.got.data, base.columns);
+        if (!got.ok) return res.status(422).json({ error: got.reason });
+        picked = got;
+      }
+      const facts = base.dates.length ? await factsOf(req, base) : null;
+      let window = null;
+      if (picked.window) {
+        const lastDay = facts && (facts.date_candidates.find((c) => c.column === picked.window.column) || {}).last;
+        window = lastDay ? VS.resolveWindow(picked.window, lastDay) : null;
+        if (!window) throw I.badRequest(`${picked.window.column} has no dates, so there is no last day to count back from.`, 422);
+      }
+      const scope = { filters: picked.filters, window };
+      const made = VS.scopeCountSql(GP, base.scopes, base.table, scope);
+      const row = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, base.warehouseId, made.sql, made.parameters, { rowLimit: 1, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }))[0] || {};
+      const counted = { rows_before: Number(row.rows_before) || 0, rows_after: Number(row.rows_after) || 0 };
+      const noun = String(req.body?.case_noun ?? '').replace(/[^A-Za-z ]/g, '').trim().slice(0, 40).toLowerCase() || 'record';
+      return res.json({ scope: { phrase, ...scope, ...counted, first: window ? window.start : (facts ? facts.first : null), last: window ? window.end : (facts ? facts.last : null) },
+        echo: VS.echoOf({ ...scope, ...counted }, noun), unmatched: picked.unmatched, sql: made.sql });
     } catch (err) {
       return sendError(res, estimateFailure(err, table));
     }
@@ -2746,6 +2840,13 @@ function registerImplementRoutes(app, deps) {
     return `\`${catalog}\`.\`${schema}\`.\`__inspire_value_answers\``;
   };
   const savedBy = (req) => String(req.headers['x-forwarded-email'] || req.headers['x-forwarded-preferred-username'] || '').trim();
+  // REQ-507: an approved story carries who approved it and when, stamped here; whatever the browser sent for them is never kept.
+  const storyStamped = (req, answers) => {
+    const story = answers.story;
+    if (!story || typeof story !== 'object' || Array.isArray(story)) return answers;
+    const { approved_by: _by, approved_at: _at, ...rest } = story;
+    return { ...answers, story: story.approved === true ? { ...rest, approved_by: savedBy(req), approved_at: new Date().toISOString() } : rest };
+  };
   const readAnswers = async (req, warehouseId, made) => {
     try {
       return sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters));
@@ -2777,7 +2878,7 @@ function registerImplementRoutes(app, deps) {
     }
     const counted = new Map();
     const countOf = (plan) => {
-      const key = JSON.stringify([plan.table, plan.date_column, plan.case_filter]);
+      const key = JSON.stringify([plan.table, plan.date_column, plan.case_filter, plan.scope || null]);
       if (!counted.has(key)) {
         counted.set(key, (async () => {
           try {
@@ -2847,7 +2948,7 @@ function registerImplementRoutes(app, deps) {
       const sid = String(sessionIdOf(req));
       const table = answersTable(req);
       const useCaseId = q(req, 'use_case_id');
-      const answers = answersOf(req);
+      const answers = storyStamped(req, answersOf(req));
       const yearly = answers.shape === 2 ? shape2Yearly(answers.plan, answers)
         : await estimateYearly(req, warehouseId, asked, answers).catch((err) => { throw estimateFailure(err, asked); });
       await executeSql(req.dbHost, req.dbToken, warehouseId, VA.createSql(table));
