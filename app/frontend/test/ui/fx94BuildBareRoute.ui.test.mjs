@@ -44,15 +44,15 @@ test('#/build with nothing built shows a plain message and a button to Review', 
 });
 
 test('#/build with a failed read shows a plain error and Retry, and Retry reads again', async () => {
-  let calls = 0;
+  let failing = true; // other pages read the list too, so the read fails until Retry is shown, not just once
   const ui = await openBare((app) => app.get('/api/inspire/sessions', (_req, res) => {
-    calls += 1;
-    if (calls === 1) return res.status(500).json({ error: 'The workspace did not answer.' });
+    if (failing) return res.status(500).json({ error: 'The workspace did not answer.' });
     return res.json({ sessions: [] });
   }));
   try {
-    const retry = ui.page.getByRole('button', { name: /Retry/ }).first();
+    const retry = ui.page.locator('[data-retry]').first();
     await retry.waitFor({ timeout: 10000 });
+    failing = false;
     await retry.click();
     await ui.page.getByText('No builds yet', { exact: false }).waitFor({ timeout: 10000 });
   } finally {
