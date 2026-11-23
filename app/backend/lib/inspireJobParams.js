@@ -4,7 +4,7 @@ const { parseStrategicContext, validateStrategy } = require('../../frontend/src/
 const { scopesFromObject, serializeTableScopes, scopeKeyOf } = require('../../frontend/src/lib/tableScope.js');
 const { relationshipsFromObject } = require('../../frontend/src/lib/tableRelationships.js');
 
-const INSPIRE_AGENT_VERSION = 'v1.6.0';
+const INSPIRE_AGENT_VERSION = 'v1.6.1';
 /** The release a person sees: the installer stamps INSPIRE_RELEASE_TAG (e.g. v1.5.3-rc.2) into app.yaml; the package version is the fallback. */
 const INSPIRE_RELEASE_TAG_PATTERN = /^v\d\.\d\.\d(-rc\.\d)?$/;
 function inspireReleaseLabel(env = process.env) {
