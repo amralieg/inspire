@@ -294,6 +294,11 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     <>
     <div className={`page ${busy && data ? 'is-busy' : ''}`} style={hueVars(page.hue || 'blue')} aria-busy={busy} data-page-section={shown} data-app-style={style?.id}>
       {head}
+      {shown !== 'settings' && !(shown === 'work' && mode.id === 'explore') && (
+        <div className="mode-tools ph-tools" data-section-tools>
+          <PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />
+        </div>
+      )}
       {shown === 'dashboard' && (
         <Dashboard app={app} page={page} meta={meta} state={state} onState={onState} view={view} onView={onView} hubPage={hubPage} laidOut={laidOut} work={work}
           onRetry={retry} onRetryMeta={onRetryMeta} onRetrySummary={onRetrySummary}
