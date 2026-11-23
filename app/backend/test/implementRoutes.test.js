@@ -1272,7 +1272,7 @@ test('an Implement page re-run runs without a dropped secondary table and refuse
     // REQ-418: a read the App is denied is a grant the App can be given (Permission Required), not a missing table.
     assert.deepEqual(got.data.missing_tables, [], 'a denied read is not a missing table');
     assert.deepEqual(got.data.app_unreadable.tables, ['main.s.orders']);
-    assert.match(got.data.error, /^the build cannot read a source table: builds run as the App service principal inspire-manual .*and the App cannot read this table/);
+    assert.match(got.data.error, /^the build cannot read a source table: builds run as the App inspire-manual, and the App cannot read this table/);
     assert.ok(!made.fetches.some((f) => f.path === '/api/2.1/jobs/run-now'));
   });
 });

@@ -112,7 +112,7 @@ test('no App service principal or no forwarded sign-in shares nothing and falls 
   const nobody = workspace(folders);
   const got = await plan(nobody, DEFAULTED, { appId: '' });
   assert.deepEqual([got.folder, got.warnings], ['/Shared/demos', [SHARED_SENTENCE]]);
-  assert.match(got.details[0], /it knows no App service principal to share with$/);
+  assert.match(got.details[0], /it knows no App to share with$/);
   assert.deepEqual(permissionCalls(nobody), []);
   assert.equal(nobody.model.folders[OWN], undefined);
 });

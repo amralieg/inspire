@@ -772,20 +772,20 @@ test('a grant statement renders one need for one principal, as the agent does', 
 test('access gap messages match the agent word for word, and name the Permission Required dialog instead of inline GRANT SQL (REQ-260)', () => {
   assert.equal(I.accessGapMessage('bob@x', [GAP_CATALOG]),
     'bob@x may not be able to read the result table: Inspire cannot grant this access, because it '
-    + 'neither owns nor holds MANAGE on it. If bob@x does not have it yet, ask your data owner to grant it: the commands are in Permission Required');
+    + 'does not manage it. If bob@x does not have it yet, ask your data owner to give it access: the details for your admin are in Permission Required');
   assert.equal(I.accessGapMessage('bob@x', [GAP_CATALOG, { ...GAP_SCHEMA, owner: '' }]),
-    'bob@x may not be able to read the result table: Inspire cannot grant these accesses, because it neither owns nor holds MANAGE on them. If bob@x does not have them yet, '
-    + 'ask your data owner to grant them: the commands are in Permission Required');
+    'bob@x may not be able to read the result table: Inspire cannot grant these accesses, because it does not manage them. If bob@x does not have them yet, '
+    + 'ask your data owner to give them access: the details for your admin are in Permission Required');
   assert.equal(I.appAccessMessage(ACCESS_TABLE, [GAP_CATALOG, GAP_SCHEMA], 'inspire-sp'),
-    'a new App could not read the result table: its service principal needs these accesses, which not all account users have, and Inspire can grant them only '
-    + 'with MANAGE or ownership. Ask your data owner to grant them on the catalog and on the schema: the commands are in Permission Required, or give all account users the same access, '
+    'a new App could not read the result table: it needs access on the catalog and on the schema that Inspire cannot give it. '
+    + 'Ask your data owner to give the App that access: the details for your admin are in Permission Required, or give all account users the same access, '
     + 'which open no data by themselves; or choose a result table in a catalog and schema Inspire manages');
-  // REQ-456: a catalog-only USE CATALOG gap names the exact GRANT and the installer, and no longer sends the person to another result table
+  // REQ-456 / REQ-478: a catalog-only gap tells the person to ask the admin to run the installer again, with no GRANT SQL in the prose
   const catalogOnly = I.appAccessMessage(ACCESS_TABLE, [GAP_CATALOG]);
-  assert.ok(catalogOnly.includes('GRANT USE CATALOG ON CATALOG `main` TO `account users`'));
-  assert.doesNotMatch(catalogOnly, /choose a result table/);
+  assert.ok(catalogOnly.includes('it cannot open the catalog yet. Ask your Databricks admin to run the Inspire installer again (it opens no data by itself)'));
+  assert.doesNotMatch(catalogOnly, /GRANT /);
   const withSelect = I.appAccessMessage(ACCESS_TABLE, [GAP_CATALOG, { ...NEED_SELECT, owner: 'data-eng' }]);
-  assert.ok(withSelect.includes('Ask your data owner to grant them on the catalog and on the table: the commands are in Permission Required; or choose'));
+  assert.ok(withSelect.includes('Ask your data owner to give the App that access: the details for your admin are in Permission Required; or choose'));
   assert.ok(!withSelect.includes('give all account users'), 'SELECT for every account user would open the data, so it is never offered');
   for (const message of [I.accessGapMessage('bob@x', [GAP_CATALOG]), I.appAccessMessage(ACCESS_TABLE, [GAP_CATALOG, GAP_SCHEMA], 'inspire-sp')]) {
     assert.doesNotMatch(message, /GRANT /, 'a GRANT is never in the prose (REQ-260)');

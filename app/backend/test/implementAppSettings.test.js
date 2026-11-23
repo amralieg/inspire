@@ -130,7 +130,7 @@ test('a notebook without the App shell pin, a shell file that is missing or not 
 });
 
 test('an App needs its access chosen: a missing or unknown app_access is an error, and per-user keeps record decisions and turns alerts off', () => {
-  const choose = "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal)";
+  const choose = "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself)";
   const missing = check({ app_access: undefined });
   assert.ok(missing.errors.includes(choose), JSON.stringify(missing.errors));
   assert.ok(check({ app_access: '' }).errors.includes(choose));

@@ -63,13 +63,13 @@ for (const c of CASES.source_tables) {
     assert.equal(offer.can_grant, c.can_grant);
     assert.deepEqual(offer.app, CASES.app);
     const text = I.appUnreadableMessage(offer);
-    assert.match(text, new RegExp(`${CASES.app.name} \\(application id ${CASES.app.id}\\)`));
+    assert.match(text, new RegExp(`builds run as the App ${CASES.app.name}, and the App cannot read this table`));
     assert.doesNotMatch(text, /swap/i);
     // REQ-131, REQ-260: the SQL is never in the prose; the App raises it as the Permission Required entry (sourceAccess carries it)
     for (const sql of c.grants) assert.ok(!text.includes(sql), `must-exclude: ${sql}`);
     assert.doesNotMatch(text, /GRANT /);
-    assert.match(text, c.can_grant ? /Use Let Inspire read these tables/ : c.grants.length ? /Ask your data owner to run/ : /no missing grant/);
-    if (c.grants.length) assert.match(text, /the exact commands are in Permission Required$/);
+    assert.match(text, c.can_grant ? /Use Let Inspire read these tables/ : c.grants.length ? /Ask your data owner to give the App access/ : /no missing grant/);
+    if (c.grants.length) assert.match(text, /the details for your admin are in Permission Required$/);
   });
 }
 
@@ -134,7 +134,7 @@ test('context splits a table only the App cannot read from a missing table and n
     // REQ-408: the offer's copy is schema level (the read grants of the schema); the table statements stay in Grant.
     assert.deepEqual(offer.grants, ['GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`', 'GRANT SELECT ON SCHEMA `main`.`s` TO `app-sp-id`', 'GRANT READ METADATA ON SCHEMA `main`.`s` TO `app-sp-id`']);
     assert.equal(offer.can_grant, true);
-    assert.match(offer.text, /builds run as the App service principal inspire-manual \(application id app-sp-id\)/);
+    assert.match(offer.text, /builds run as the App inspire-manual, and the App cannot read this table/);
     assert.doesNotMatch(offer.text, /swap/i);
   });
 });
@@ -157,9 +157,9 @@ test('a rerun the App cannot read refuses with the named App reason, never the s
   await withApp({ ...overrides, history: [BUILT] }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/rerun?${Q}`, { method: 'POST', body: { overrides: {} } });
     assert.equal(got.status, 409, JSON.stringify(got.data));
-    assert.match(got.data.error, /the build cannot read a source table: builds run as the App service principal inspire-manual/);
+    assert.match(got.data.error, /the build cannot read a source table: builds run as the App inspire-manual, and the App cannot read this table/);
     assert.doesNotMatch(got.data.error.split('. Ask your data owner')[0], /main\.s\.orders/);
-    assert.match(got.data.error, /Ask your data owner to run the commands: the exact commands are in Permission Required$/);
+    assert.match(got.data.error, /Ask your data owner to give the App access: the details for your admin are in Permission Required$/);
     assert.doesNotMatch(got.data.error, /GRANT /, 'no GRANT in the refusal prose (REQ-260)');
     assert.deepEqual(got.data.app_unreadable.permissions[0].statements, [
       'GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`', 'GRANT SELECT ON SCHEMA `main`.`s` TO `app-sp-id`', 'GRANT READ METADATA ON SCHEMA `main`.`s` TO `app-sp-id`'], 'the dialog payload asks at schema level (REQ-408)');
@@ -180,8 +180,8 @@ test('plan and submit refuse a build the App cannot read with the named App reas
       await withApp(overrides, async (url, made) => {
         const got = await call(url, `/api/inspire/implement/${route}`, { method: 'POST', body });
         assert.equal(got.status, 409, `${route}: ${JSON.stringify(got.data)}`);
-        assert.match(got.data.error, /^the build cannot read a source table: builds run as the App service principal inspire-manual \(application id app-sp-id\)/);
-        assert.match(got.data.error, canGrant ? /Use Let Inspire read these tables to run: the exact commands are in Permission Required$/ : /Ask your data owner to run the commands: the exact commands are in Permission Required$/);
+        assert.match(got.data.error, /^the build cannot read a source table: builds run as the App inspire-manual, and the App cannot read this table/);
+        assert.match(got.data.error, canGrant ? /Use Let Inspire read these tables to run: the details for your admin are in Permission Required$/ : /Ask your data owner to give the App access: the details for your admin are in Permission Required$/);
         assert.doesNotMatch(got.data.error, /GRANT /, 'no GRANT in the App refusal prose (REQ-260)');
         assert.ok(got.data.app_unreadable.permissions[0].statements.some((g) => g.startsWith('GRANT USE SCHEMA')), 'the dialog payload carries the GRANT (must-keep)');
         assert.doesNotMatch(got.data.error, /swap/i);
@@ -233,7 +233,7 @@ test('on a route that runs as the person, Let Inspire read these tables probes a
 
 test('Discover names its own job when the App cannot read a table', () => {
   const offer = I.appReadGrantsOffer(['main.s.orders'], [I.accessPlan('main.s.orders', PERSON_READS, 'app-sp-id')], { name: 'inspire', id: 'app-sp-id' });
-  assert.match(I.appUnreadableMessage(offer, 'discover'), /^Discover cannot read a source table: Discover runs as the App service principal inspire/);
+  assert.match(I.appUnreadableMessage(offer, 'discover'), /^Discover cannot read a source table: Discover runs as the App inspire, and the App cannot read this table/);
   assert.match(I.appUnreadableMessage(offer), /^the build cannot read/);
 });
 
@@ -243,7 +243,7 @@ test('Let Inspire read these tables refuses with 403 and grants nothing when the
   await withApp(overrides, async (url) => {
     const got = await call(url, `/api/inspire/implement/grant-access?${Q}&kind=source_tables`, { method: 'POST', body: { tables: ['main.s.orders'] } });
     assert.equal(got.status, 403, JSON.stringify(got.data));
-    assert.match(got.data.error, /Ask your data owner to run/);
+    assert.match(got.data.error, /Ask your data owner to give the App access/);
     assert.equal(got.data.app_unreadable.can_grant, false);
     assert.deepEqual(got.data.app_unreadable.app, { name: 'inspire-manual', id: 'app-sp-id' });
     assert.deepEqual(grants, []);
