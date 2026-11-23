@@ -311,6 +311,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     return <Suspense fallback={null}><WaitingForAccess waiting={waitingFor} onCheck={() => { recheck(); setNonce((n) => n + 1); }} /></Suspense>;
   }
   const body = (
+    <>
     <div className={`page ${busy && data ? 'is-busy' : ''}`} style={hueVars(page.hue || 'blue')} aria-busy={busy} data-page-section={shown} data-app-style={style?.id}>
       {head}
       {shown === 'dashboard' && (
@@ -398,8 +399,9 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
           </SettingGroup>
         </SettingsPanel>
       )}
-      {showsMoney(page, data) && <p className="value-footer" data-value-footer="" role="note">{VALUE_DISCLAIMER}</p>}
     </div>
+    {showsMoney(page, data) && <p className="value-footer" data-value-footer="" role="note">{VALUE_DISCLAIMER}</p>}
+    </>
   );
   return <GenieScope.Provider value={scope}><RetryProvider value={retry}><SharedFailureScope value={shown === 'dashboard' ? failures.shared : ''}><FoldScope pageId={page.id}>{body}</FoldScope></SharedFailureScope></RetryProvider></GenieScope.Provider>;
 }
