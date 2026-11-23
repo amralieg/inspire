@@ -3,12 +3,16 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-@theme {
+@theme static {
   /* Databricks brand */
-  --color-db-red: #FF3621;
-  --color-db-red-hover: #FF4A36;
-  --color-db-red-solid: #D92E1B;
-  --color-db-red-solid-hover: #CC2A19;
+  --color-primary: var(--t-primary);
+  --color-primary-hover: var(--t-primary-hover);
+  --color-primary-subtle: var(--t-primary-subtle);
+  --color-primary-fg: #FFFFFF;
+  --color-db-red: var(--color-primary);
+  --color-db-red-hover: var(--color-primary-hover);
+  --color-db-red-solid: var(--color-primary);
+  --color-db-red-solid-hover: var(--color-primary-hover);
   --color-db-red-50: rgba(255, 54, 33, 0.08);
   --color-db-red-100: rgba(255, 54, 33, 0.15);
   --color-db-red-fg: var(--t-db-red-fg);
@@ -37,17 +41,59 @@
   --color-warning: #EAB308;
   --color-warning-bg: var(--t-warning-bg);
   --color-warning-fg: var(--t-warning-fg);
-  --color-error: #EF4444;
+  --color-danger: #EF4444;
+  --color-danger-bg: var(--t-danger-bg);
+  --color-danger-fg: var(--t-danger-fg);
+  --color-error: var(--color-danger);
   --color-error-solid: #DC2626;
-  --color-error-bg: var(--t-error-bg);
-  --color-error-fg: var(--t-error-fg);
+  --color-error-bg: var(--color-danger-bg);
+  --color-error-fg: var(--color-danger-fg);
+  --color-ok: var(--color-success);
+  --color-ok-bg: var(--color-success-bg);
+  --color-ok-fg: var(--color-success-fg);
+  --color-neutral: var(--t-neutral);
+  --color-neutral-bg: var(--t-neutral-bg);
+  --color-neutral-fg: var(--t-neutral-fg);
   --color-info: #3B82F6;
   --color-info-bg: var(--t-info-bg);
   --color-info-fg: var(--t-info-fg);
+
+  /* Type scale (size / line-height) */
+  --text-caption: 12px; --text-caption--line-height: 16px;
+  --text-body-sm: 13px; --text-body-sm--line-height: 20px;
+  --text-body: 14px; --text-body--line-height: 22px;
+  --text-title-sm: 16px; --text-title-sm--line-height: 24px;
+  --text-title: 18px; --text-title--line-height: 26px;
+  --text-h2: 22px; --text-h2--line-height: 30px;
+  --text-h1: 28px; --text-h1--line-height: 36px;
+  --text-display: 40px; --text-display--line-height: 48px;
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-e1: 0 1px 2px rgb(0 0 0 / 6%);
+  --shadow-e2: 0 4px 12px rgb(0 0 0 / 8%);
+  --shadow-e3: 0 12px 32px rgb(0 0 0 / 12%);
+
+  /* Layers */
+  --z-index-nav: 30;
+  --z-index-drawer: 40;
+  --z-index-overlay: 50;
+  --z-index-dialog: 51;
+  --z-index-toast: 60;
 }
 
 /* ═══ Light theme (default) ═══ */
 :root {
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 280ms;
+  --ease-out: cubic-bezier(.16,1,.3,1);
+  --ease-in: cubic-bezier(.4,0,1,1);
+  --w-page: 1200px;
+  --w-narrow: 720px;
+
   --t-surface: #FFFFFF;
   --t-bg: #F7F7F8;
   --t-bg-subtle: #EEEFF1;
@@ -64,12 +110,18 @@
 
   --t-success-bg: rgba(34, 197, 94, 0.10);
   --t-warning-bg: rgba(234, 179, 8, 0.10);
-  --t-error-bg: rgba(239, 68, 68, 0.10);
+  --t-danger-bg: rgba(239, 68, 68, 0.10);
   --t-info-bg: rgba(59, 130, 246, 0.10);
+  --t-neutral: #71717A;
+  --t-neutral-bg: #F4F4F5;
+  --t-neutral-fg: #3F3F46;
+  --t-primary: #E8311B;
+  --t-primary-hover: #D42A15;
+  --t-primary-subtle: #FEF2F1;
 
   --t-success-fg: #166534;
   --t-warning-fg: #854D0E;
-  --t-error-fg: #B91C1C;
+  --t-danger-fg: #B91C1C;
   --t-info-fg: #1D4ED8;
   --t-db-red-fg: #B42318;
 
@@ -96,14 +148,20 @@
   --t-text-tertiary: #8A8A95;
   --t-text-disabled: #3F3F46;
 
-  --t-success-bg: rgba(34, 197, 94, 0.1);
-  --t-warning-bg: rgba(234, 179, 8, 0.1);
-  --t-error-bg: rgba(239, 68, 68, 0.1);
-  --t-info-bg: rgba(59, 130, 246, 0.1);
+  --t-success-bg: rgba(34, 197, 94, 0.16);
+  --t-warning-bg: rgba(234, 179, 8, 0.16);
+  --t-danger-bg: rgba(239, 68, 68, 0.16);
+  --t-info-bg: rgba(59, 130, 246, 0.16);
+  --t-neutral: #A1A1AA;
+  --t-neutral-bg: #27272A;
+  --t-neutral-fg: #E4E4E7;
+  --t-primary: #FF4A33;
+  --t-primary-hover: #FF6A55;
+  --t-primary-subtle: rgba(255, 74, 51, 0.12);
 
   --t-success-fg: #22C55E;
   --t-warning-fg: #EAB308;
-  --t-error-fg: #F87171;
+  --t-danger-fg: #F87171;
   --t-info-fg: #60A5FA;
   --t-db-red-fg: #FF6B57;
 
@@ -559,10 +617,49 @@ textarea::placeholder {
   to { opacity: 0; transform: translateY(-8px); }
 }
 .page-enter {
-  animation: pageEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation: pageEnter var(--dur-slow) var(--ease-out) backwards;
 }
 .page-exit {
-  animation: pageExit 0.2s ease-in both;
+  animation: pageExit var(--dur-fast) var(--ease-in) both;
+}
+
+/* Overlay and panel motion (Calm Console) */
+@keyframes dialogEnter {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes drawerEnter {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes tabPanelEnter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fadeShort {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.dialog-enter {
+  animation: dialogEnter var(--dur-base) var(--ease-out) backwards;
+}
+.drawer-enter {
+  animation: drawerEnter 220ms var(--ease-out) backwards;
+}
+.tab-panel-enter {
+  animation: tabPanelEnter var(--dur-base) linear backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+  }
+  .dialog-enter,
+  .drawer-enter,
+  .tab-panel-enter {
+    animation: fadeShort 60ms linear backwards;
+  }
 }
 
 /* Scroll progress ring */
