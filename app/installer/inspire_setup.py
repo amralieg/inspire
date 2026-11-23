@@ -1262,6 +1262,9 @@ def step_create_app_and_find_sp(ctx):
     elif scopes:
         print(f"App user scopes: ✅ {', '.join(scopes)}")
 
+    ctx["APP_USERS_SUMMARY"] = _app_users_access(api, app_name)
+    print(f"  {ctx['APP_USERS_SUMMARY']}")
+
     compute_ready = False
     start_requested = False
     said = ""
@@ -2247,6 +2250,8 @@ def step_render_done(ctx):
     print(f"  Assets:      {ctx.get('ASSETS_PATH') or 'NOT INSTALLED'}")
     if ctx.get("USER_SCOPES_NOTE"):
         print(f"  Sign-in:     {ctx['USER_SCOPES_NOTE']}")
+    if ctx.get("APP_USERS_SUMMARY"):
+        print(f"  App access:  {ctx['APP_USERS_SUMMARY']}")
     if ctx.get("LAKEBASE_SUMMARY"):
         print(f"  Lakebase:    {ctx['LAKEBASE_SUMMARY']}")
     if ctx.get("GENIE_CODE_SUMMARY"):
@@ -2263,6 +2268,25 @@ def step_render_done(ctx):
         <p style="color:#aaa;font-size:12px;margin-top:14px">{new_address}</p>
         </div>"""
     )
+
+
+def _app_users_access(api, app_name):
+    """REQ-502: PATCH adds the users group to the App's permissions, so the installer keeps Can Manage. Never raises."""
+    manual = (f"A person with Can Manage on it can open Compute → Apps → {app_name} → Permissions and give the users group Can Use")
+    try:
+        resp = api("PATCH", f"/api/2.0/permissions/apps/{app_name}",
+                   {"access_control_list": [{"group_name": "users", "permission_level": "CAN_USE"}]})
+        if resp.status_code == 200:
+            return f"CAN_USE on the App {app_name} for the users group, so every workspace user can open it: ✅"
+        try:
+            body = json.loads(resp.text)
+            words = " ".join(str(body.get(k)) for k in ("error_code", "message") if isinstance(body, dict) and body.get(k))
+        except Exception:
+            words = ""
+        error = _error_words(words or f"HTTP {resp.status_code} {resp.text[:160]}")
+    except Exception as exc:
+        error = _error_words(exc)
+    return f"⚠️ Workspace users cannot open the App {app_name} yet ({error}). {manual}"
 
 
 def _assets_folder_access(api, assets_path, sp, assets_parent=ASSETS_PARENT):
