@@ -15,6 +15,7 @@ import { BOOT_TIMEOUT_TEXT, bootRead } from './lib/apiClient';
 import { PlainMessage } from './components/TechnicalDetails';
 import { showcaseSettings, showcasesFrom, staysInShowcase } from './lib/showcase';
 import PermissionHost from './components/PermissionHost';
+import BuildStarting from './components/BuildStarting';
 import { ValueBulkRunProvider } from './lib/valueBulkRun';
 
 const noop = () => {};
@@ -32,6 +33,7 @@ const GenerateDataPage = lazy(LATER_PAGES.generate);
 const MonitorPage = lazy(LATER_PAGES.monitor);
 const ResultsPage = lazy(LATER_PAGES.results);
 const ImplementPage = lazy(LATER_PAGES.implement);
+const BareBuildPage = lazy(() => import('./pages/BareBuildPage'));
 const RunPage = lazy(LATER_PAGES.run);
 
 function preloadLaterPages() {
@@ -508,6 +510,7 @@ export default function App() {
     <div className="min-h-screen bg-bg text-text-primary relative">
       {!bare && <ParticleField count={40} />}
       <PermissionHost />
+      <BuildStarting />
 
       {!bare && page !== 'landing' && page !== 'loading' && page !== 'setup' && (
         <Header
@@ -643,6 +646,12 @@ export default function App() {
               onPickRun={pickBuildRun}
               onClearFilter={clearBuildFilter}
             />
+          </ErrorBoundary>
+        )}
+
+        {page === 'implement' && !implementSessionId && (
+          <ErrorBoundary key="implement-bare">
+            <BareBuildPage settings={pageSettings} onPick={pickBuildRun} onReview={() => nav(REVIEW_TAB)} />
           </ErrorBoundary>
         )}
 

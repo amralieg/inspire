@@ -19,7 +19,7 @@ import TabStrip, { tabPanel } from '../components/TabStrip';
 import AppSample, { paletteVars, pv } from '../components/AppSample';
 import { generationFolder, sharedFolderWarning } from '../lib/workspaceLinks';
 import { catalogRow } from '../lib/useCaseFacets';
-import { insideMoveNote, trackBuildSubmit } from '../lib/implementControl';
+import { beginStartingBuild, endStartingBuild, insideMoveNote, trackBuildSubmit } from '../lib/implementControl';
 import {
   GENIE_CODE_OFF_TITLE,
   genieCodeOff,
@@ -523,7 +523,7 @@ export default function ImplementWizard({
   const [dropped, setDropped] = useState([]);
   const [busy, setBusy] = useState(false);
   // REQ-457: while the build start is answered the dialog is out of the way, so the progress behind it shows; a failed start brings it back with the reason.
-  const [starting, setStarting] = useState(false);
+  const submitted = useRef(false);
   const [plan, setPlan] = useState(null);
   const [planError, setPlanError] = useState('');
   const [appUnreadable, setAppUnreadable] = useState(null);
@@ -1351,9 +1351,10 @@ export default function ImplementWizard({
 
   const submit = async () => {
     setErrors([]);
-    if (blockedBy(stepId)) return;
+    if (blockedBy(stepId) || submitted.current) return;
+    submitted.current = true;
     setBusy(true);
-    setStarting(true);
+    beginStartingBuild(sent.use_case_id);
     try {
       const data = await trackBuildSubmit(sent, () => withStartDeadline((signal) => apiPostJson('/api/inspire/implement/submit', {
         inspire_database: inspireDatabase,
@@ -1366,10 +1367,11 @@ export default function ImplementWizard({
       clearWizardDraft(draftKey);
       onImplemented(data);
     } catch (e) {
+      submitted.current = false;
+      endStartingBuild();
       setErrors([e.message]);
     } finally {
       setBusy(false);
-      setStarting(false);
     }
   };
 
@@ -1600,8 +1602,6 @@ export default function ImplementWizard({
   };
 
   const toggleOutput = (id, checked) => setSpec((prev) => withOutput(prev, id, checked, context?.assets));
-
-  if (starting) return null;
 
   return (
     <Overlay title={title} uc={uc} steps={steps} stepsReady={!loading && scopeReady} step={stepIndex} part={foldPanels.length > 1 && !(standard && stepId === 'where') ? { at: foldPanels.indexOf(foldActive) + 1, of: foldPanels.length } : null} reach={reach} done={done} onGo={goTo} onDetails={() => setDetails(true)}

@@ -2047,7 +2047,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
           {collectError && <PlainMessage text={collectError} className={`${ERROR_BOX} shrink-0`} />}
           {tileRow}
           {!readOnly && <ReportedIssues issues={issues} locked={locked ? lockedReason || 'Wait for this run to finish' : ''} onDraft={openFeatures} />}
-          <MvpProgress stages={stages} summary={progress} chip={chip} reason={reason} reasonDetails={missing.length || edited ? '' : statusDetails(latest)} toneClass={toneClass} version={latest?.spec_version} sorted={sorted}
+          <MvpProgress useCaseId={useCaseId} stages={stages} summary={progress} chip={chip} reason={reason} reasonDetails={missing.length || edited ? '' : statusDetails(latest)} toneClass={toneClass} version={latest?.spec_version} sorted={sorted}
             stop={stop} logRef={logRef} view={progressView} warnings={statusWarnings(latest).length} attention={needsAttention ? attention : null}
             diagnostics={diagnostics}>
             <VibeChecklist checklist={checklist} assets={latest?.asset_status} readOnly={readOnly} locked={locked} lockedReason={lockedReason} busy={submitBusy}
