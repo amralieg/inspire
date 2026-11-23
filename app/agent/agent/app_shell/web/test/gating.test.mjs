@@ -5,6 +5,11 @@ import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { SRC, TABLE, appInfo, fileNames, chartsDrawn, goRail, openApp, serveDist } from './harness.mjs';
 
+// REQ-506: the Ask Genie button is the Genie side of the Screen | Genie switch, and Genie fills the page.
+const openGenieMode = async (page) => {
+  await page.locator('[data-mode-switch] [data-mode="genie"]').click();
+  await page.locator('[data-genie-full]').waitFor({ state: 'visible' });
+};
 const ALL_ON = { modify: true, replace_edits: true, decisions: true };
 const DATA_DOWNLOAD = /csv|download (the )?(data|answer)/i;
 let served;
@@ -21,7 +26,7 @@ after(async () => {
 });
 
 async function askOnce(page) {
-  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
+  await openGenieMode(page);
   await page.getByRole('button', { name: 'Which category lost the most to discounts last quarter?' }).click();
   await page.waitForFunction(() => !document.querySelector('.cursor') && document.querySelector('.msg-sql'), null, { timeout: 15000 });
 }

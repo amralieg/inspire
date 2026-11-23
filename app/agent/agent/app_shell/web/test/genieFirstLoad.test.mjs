@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { DECIDE, NO_JOB, TABLE, appInfo, openApp, serveDist } from './harness.mjs';
 
+// REQ-506: no side rail; a section opens by its hash.
+const goSection = (page, section) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, section);
 let served;
 let browser;
 
@@ -39,12 +41,12 @@ test('REQ-092: a Genie panel closed in this session stays closed after a docking
   try {
     await page.locator('.genie-btn').waitFor({ timeout: 20000 });
     await page.locator('.genie-btn').click();
-    await page.locator('[data-rail="dashboard"]').click();
+    await goSection(page, 'dashboard');
     await page.locator('aside.genie.is-open').waitFor({ timeout: 10000 });
     await page.locator('aside.genie button[aria-label="Close Ask Genie"]').click();
     await page.locator('aside.genie.is-open').waitFor({ state: 'detached', timeout: 10000 });
-    await page.locator('[data-rail="work"]').click();
-    await page.locator('[data-rail="dashboard"]').click();
+    await goSection(page, 'work');
+    await goSection(page, 'dashboard');
     await page.waitForTimeout(1500);
     assert.equal(await genieOpen(page), 0, 'a close made in this session is not undone when the Work tab docks and undocks Genie');
   } finally {

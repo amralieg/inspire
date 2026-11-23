@@ -5,6 +5,8 @@ import { actBody, ASK_GROUPS, OWN_CHOICES, OWN_STATUSES, TABLE, appInfo, askAudi
 import { closedRows, estimatedFigure, figuresOf, heldShare, holdoutOffText, holdoutView, measuredFigure, promisedView, reportedFigure, wrongFigure } from '../src/impact.js';
 import { actionForm, actionProblem, actionValues, doneText, statusLabel } from '../src/records.js';
 
+// REQ-506: no side rail; a section opens by its hash.
+const goSection = (page, section) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, section);
 let served;
 let browser;
 before(async () => { served = await serveDist(); browser = await chromium.launch(); });
@@ -187,10 +189,10 @@ test('a one use case App opens on its dashboard, Performance shows its Impact, a
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Price-loss decision desk');
   assert.equal(await page.locator('[data-rail="dashboard"]').getAttribute('aria-current'), 'page');
   assert.ok(await page.locator('[data-switcher]').isDisabled());
-  await page.locator('[data-rail="performance"]').click();
+  await goSection(page, 'performance');
   await page.waitForFunction(() => document.querySelectorAll('.imp').length === 1);
   assert.equal(await page.evaluate(() => window.location.hash), '#/n01_u05/performance');
-  await page.locator('[data-rail="dashboard"]').click();
+  await goSection(page, 'dashboard');
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Price-loss decision desk');
   for (const old of ['#/impact', '#/results']) {
     await page.goto(`${served.base}${old}`);
@@ -267,7 +269,7 @@ test('closing a record from its panel reloads the things to fix, so the tab coun
   await page.goto(`${served.base}#/n01_u05/dashboard`);
   const count = page.locator('[data-tile="fix"] .kpi-v');
   await count.filter({ hasText: /^2$/ }).waitFor();
-  await page.locator('[data-rail="work"]').click();
+  await goSection(page, 'work');
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
@@ -277,7 +279,7 @@ test('closing a record from its panel reloads the things to fix, so the tab coun
   await until(() => calls.acts.length === 1);
   await until(() => hub.length > loads);
   assert.ok(hub.length > loads, 'a close reloads the things to fix');
-  await page.locator('[data-rail="dashboard"]').click();
+  await goSection(page, 'dashboard');
   await count.filter({ hasText: /^1$/ }).waitFor({ timeout: 5000 });
   assert.deepEqual(seen.errors, []);
   await context.close();

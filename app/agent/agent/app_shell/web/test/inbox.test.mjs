@@ -5,6 +5,8 @@ import { DECIDE, FILTERS, PERSON, TABLE, appInfo, lister, openApp, prefsFirst, s
 import { MY_KEY } from '../src/prefs.js';
 import { DUE_DAYS, failedRuns, inboxAsks, inboxGroups, inboxOn } from '../src/inbox.js';
 
+// REQ-506: no side rail; a section opens by its hash.
+const goSection = (page, section) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, section);
 let served;
 let browser;
 before(async () => { served = await serveDist(); browser = await chromium.launch(); });
@@ -165,7 +167,7 @@ test('each inbox item opens the page where it gets dealt with', async () => {
   await page.locator('[data-inbox-item="fix"]').click();
   await page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/work') && window.location.hash.includes('tab=open'));
   await until(() => JSON.stringify(seen.records.at(-1)?.column_filters || {}).includes('Act now'));
-  await page.locator('[data-rail="inbox"]').click();
+  await goSection(page, 'inbox');
   await page.locator('[data-inbox-item="run:j6"]').click();
   await page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/runs'));
   const toggle = page.locator('button.runs-tog[aria-expanded="true"]');
@@ -173,11 +175,11 @@ test('each inbox item opens the page where it gets dealt with', async () => {
   assert.equal(await toggle.count(), 1, 'only the failed run picked in the inbox is open');
   assert.match(await toggle.getAttribute('aria-label'), /Oct 21/);
   await page.locator('.run-err').getByText('A table this use case reads is missing').waitFor();
-  await page.locator('[data-rail="inbox"]').click();
+  await goSection(page, 'inbox');
   await page.locator('[data-inbox-item="report:f1"]').click();
   await page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/settings'));
   await page.locator('[data-feedback-item="f1"]').waitFor();
-  await page.locator('[data-rail="inbox"]').click();
+  await goSection(page, 'inbox');
   await page.locator('[data-inbox-group="due"] [data-inbox-item="R003"]').click();
   await page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/work') && window.location.hash.includes('rec=R003'));
   await page.locator('[data-dock="record"] dialog.drawer').waitFor();

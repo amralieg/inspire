@@ -7,6 +7,8 @@ import { chromium } from 'playwright';
 import { HISTORY, PERSON, TABLE, appInfo, openApp, reportIssue, serveDist, toastSays, until } from './harness.mjs';
 import { FEEDBACK_CHARS, feedbackProblem, feedbackStatusText } from '../src/feedback.js';
 
+// REQ-506: no side rail; a section opens by its hash.
+const goSection = (page, section) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, section);
 const ASSETS = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'assets');
 
 let served;
@@ -96,7 +98,7 @@ test('the Settings section holds Feedback with a Report an issue button, picks t
 test('Report an issue is offered on every page type; a page with a results table opens the form, and an older App without a reports table says where to send the report', async () => {
   const bare = await openApp(browser, served.base, appInfo(), { hash: '#/n01_u05/settings', ready: '[data-group="look"]' });
   await bare.page.locator('[data-group="feedback"]').waitFor();
-  await bare.page.locator('[data-rail="dashboard"]').click();
+  await goSection(bare.page, 'dashboard');
   await bare.page.locator('.ph h1').waitFor();
   await reportIssue(bare.page);
   await bare.page.locator('[data-feedback-note]').waitFor();
@@ -104,7 +106,7 @@ test('Report an issue is offered on every page type; a page with a results table
   await bare.context.close();
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), {});
   await page.locator('[data-head-more]').waitFor({ state: 'attached' });
-  await page.locator('[data-rail="runs"]').click();
+  await goSection(page, 'runs');
   await page.waitForFunction(() => window.location.hash === '#/n01_u05/runs');
   await page.locator('[data-section-title]', { hasText: 'Runs' }).waitFor();
   await reportIssue(page);

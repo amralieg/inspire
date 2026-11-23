@@ -46,16 +46,28 @@ function genieRoutes() {
   return { calls, routes, hold: (on) => { hold = on; } };
 }
 
-const open = (info, options) => openApp(browser, served.base, info, options);
+// The App lands on Work; these walks start on the dashboard, where the charts are, and move to Work with the hash.
+const open = (info, options) => openApp(browser, served.base, info, { hash: `#/${info.pages[0].id}/dashboard`, ...options });
+const goSection = (page, id) => page.evaluate((to) => { location.hash = `#/${location.hash.split('/')[1].split('?')[0]}/${to}`; }, id);
 const ready = (page) => page.waitForFunction((n) => [...document.querySelectorAll('[data-card]')].filter((c) => c.querySelector('canvas')).length === n
   && document.querySelectorAll('section.card--table tbody tr').length >= 2, 4);
 const readyWork = async (page) => {
-  await page.locator('[data-rail="work"]').click();
+  await goSection(page, 'work');
   await page.waitForFunction(() => document.querySelectorAll('[data-work] .card--list tbody tr').length > 0);
 };
 const askButton = (within, name) => within.getByRole('button', { name: `Ask Genie about ${name}`, exact: true });
 
+// Sending a question opens Genie full height in place of the page. The next ask goes back to the section it started from.
+async function back(page) {
+  if (await page.locator('[data-genie-full]').count()) {
+    await page.evaluate(() => { location.hash = window.__home; });
+    await page.waitForFunction(() => !document.querySelector('[data-genie-full]') && document.querySelector('[data-card], [data-work], [data-section]')
+      && !document.querySelector('.skel, [aria-busy="true"]'), null, { timeout: 15000 });
+  } else await page.evaluate(() => { window.__home = location.hash; });
+}
+
 async function ask(page, calls, name, typed, within = page) {
+  await back(page);
   await askButton(within, name).first().click();
   const box = page.locator('form.ask-box');
   await box.waitFor();
@@ -160,6 +172,7 @@ test('a plan line asks Genie about its own record, the plan sends its lines, and
   const todo = await ask(page, calls, 'What to do now');
   assert.equal(todo.kind, 'text');
   assert.match(todo.context.hint, /^Start with Oat bar/);
+  await back(page);
   await page.evaluate(() => {
     document.querySelector('[data-section="todo"] .ask-genie').remove();
     document.querySelector('[data-plan-row="K2"] .row-ask').remove();
@@ -171,6 +184,7 @@ test('a plan line asks Genie about its own record, the plan sends its lines, and
 });
 
 async function askAbout(page, calls, chart, item) {
+  await back(page);
   await askButton(page.locator('[data-card]'), chart).first().click();
   const box = page.locator('form.ask-box');
   await box.waitFor();
@@ -223,7 +237,7 @@ test('the forecast fan asks Genie as a forecast series, and a chart with no item
   assert.equal(fan.kind, 'series');
   assert.equal(fan.question, SUGGESTIONS.series[0]);
   assert.ok(fan.context.row_count > 0);
-  await page.keyboard.press('Escape');
+  await back(page);
   await askButton(page, 'Demand with its forecast range').first().click();
   await page.locator('form.ask-box').getByRole('combobox').waitFor({ state: 'detached' });
   assert.equal(await page.locator('form.ask-box').getByRole('combobox').count(), 0);
@@ -234,6 +248,7 @@ test('the forecast fan asks Genie as a forecast series, and a chart with no item
   await flow.example.ready(opened2.page);
   const slow = await ask(opened2.page, flow.calls, 'Slowest steps');
   assert.equal(slow.kind, 'chart');
+  await back(opened2.page);
   await askButton(opened2.page, 'Slowest steps').first().click();
   await opened2.page.locator('form.ask-box').getByRole('combobox').waitFor({ state: 'detached' });
   assert.equal(await opened2.page.locator('form.ask-box').getByRole('combobox').count(), 0);
@@ -275,6 +290,7 @@ test('a promotion effect card sends its lift, range and return, the decide list 
   assert.deepEqual([list.context.row_count, list.context.rows[0]], [4, { Name: 'Spring bundle', Lift: 12, Return: 140, 'Sales added': 90000,
     Suggested: 'Scale it: strong net lift', Reasons: 'spend fell; visits fell' }]);
   const before = calls.explain.length;
+  await back(page);
   await page.locator('.choice-row').filter({ hasText: 'Flash sale' }).getByRole('button', { name: 'Ask Genie about Flash sale' }).click();
   await page.locator('.g-chip-t').waitFor();
   assert.equal(await page.locator('.g-chip-t').innerText(), 'About: Flash sale');
@@ -292,9 +308,12 @@ test('a segment card sends its size, value, profile and members waiting, and the
   assert.equal(segment.context.hint, 'Shops weekly, big baskets');
   assert.deepEqual(segment.context.fields, { 'Segment id': 'S2', Segment: 'Lapsing families', Customers: 380, 'Value per customer': 640,
     Profile: 'Shops weekly, big baskets', 'Suggested treatment': 'Win-back offer', 'Members waiting': 2, Suggested: 'Win-back offer' });
+  await back(one.page);
+  await one.page.waitForFunction(() => !/Counting/.test(document.querySelector('[data-segment="S2"] [data-seg-open]')?.textContent || 'Counting'));
   assert.match(await one.page.locator('[data-segment="S2"] [data-seg-open]').innerText(), /^2 of 380 members/);
   const all = await ask(one.page, segments.calls, 'Segments', undefined, one.page.locator('section:has([data-segment])'));
   assert.deepEqual([all.kind, all.context.row_count], ['table', 4]);
+  await back(one.page);
   await one.page.locator('[data-segment="S2"] [data-treatment="Win-back offer"]').click();
   await one.page.locator('[data-segment="S2"] [data-treated="Win-back offer"]').waitFor();
   const treated = await ask(one.page, segments.calls, 'Lapsing families');
@@ -366,12 +385,13 @@ test('each element kind opens a small box and sends Genie its own data, the page
   await box.waitFor({ state: 'detached' });
 
   const kpi = await ask(page, calls, 'Loss to discounts', '  Why is it this high?  ');
-  const value = await page.locator('.kpi').first().locator('.kpi-v').innerText();
-  assert.deepEqual(kpi, { kind: 'kpi', page: 'n01_u05', title: 'Loss to discounts', conversation_id: '', question: 'Why is it this high?',
-    context: { hint: kpi.context.hint, fields: { Now: value }, filters } });
   const bubble = page.locator('.msg--you').last();
   assert.equal(await bubble.locator('p').innerText(), 'Why is it this high?');
   assert.match(await bubble.innerText(), /Loss to discounts/);
+  await back(page);
+  const value = await page.locator('.kpi').first().locator('.kpi-v').innerText();
+  assert.deepEqual(kpi, { kind: 'kpi', page: 'n01_u05', title: 'Loss to discounts', conversation_id: '', question: 'Why is it this high?',
+    context: { hint: kpi.context.hint, fields: { Now: value }, filters } });
 
   const items = await ask(page, calls, 'Items on the list', 'Is this many normal?');
   assert.deepEqual(Object.keys(items.context.fields), ['Now'], 'a key number with no earlier value sends no change');
@@ -389,6 +409,7 @@ test('each element kind opens a small box and sends Genie its own data, the page
 
   const row = await ask(page, calls, 'Books', 'Why this one?');
   assert.deepEqual([row.kind, row.title, row.context.fields], ['record', 'Books', { Category: 'Books', Loss: 300000, Comment: 'Steady' }]);
+  await back(page);
   assert.equal(await page.locator('dialog[open]').count(), 0, 'asking about a row never opens it');
 
   const controls = await ask(page, calls, 'Filters', 'What do these leave out?');
@@ -396,6 +417,7 @@ test('each element kind opens a small box and sends Genie its own data, the page
   assert.deepEqual([controls.context.fields.Category, controls.context.fields.Channel, controls.context.fields.Region], ['All', 'All', 'All']);
   assert.ok(controls.context.fields['Run date']);
 
+  await back(page);
   assert.equal(await page.locator('.story .ask-genie, .story button:has-text("Ask Genie")').count(), 0, 'the header summary carries no second Ask Genie');
 
   const note = await ask(page, calls, 'How to read this page', 'Where do I start?');
@@ -441,13 +463,14 @@ test('while Genie answers the box cannot send and says why, and it sends again o
   await page.locator('form.ask-box .sugg').first().click();
   await until(() => calls.explain.length === 1);
   await page.locator('aside.genie .g-step').waitFor();
+  await back(page);
   await askButton(page, 'Loss rate').click();
   const send = page.locator('form.ask-box').getByRole('button', { name: 'Ask Genie' });
   await page.locator('form.ask-box').getByRole('textbox').fill('And the month before?');
   assert.deepEqual([await send.isDisabled(), await send.getAttribute('title')], [true, BUSY_TITLE]);
   assert.ok(await page.locator('form.ask-box .sugg').evaluateAll((els) => els.every((e) => e.disabled)));
   hold(false);
-  await page.locator('.msg-sql').waitFor({ timeout: 15000 });
+  await page.waitForFunction(() => [...document.querySelectorAll('form.ask-box .sugg')].every((b) => !b.disabled), null, { timeout: 15000 });
   await send.click();
   await until(() => calls.explain.length === 2);
   assert.equal(calls.explain[1].question, 'And the month before?');
@@ -459,12 +482,13 @@ test('with no Genie space Ask Genie opens the panel on the existing message and 
   const { page, seen, context } = await open(appInfo({ genie: null, genie_note: 'The Genie Agent did not build.' }, 1, CHANGES), { routes });
   await ready(page);
   for (const name of ['Loss to discounts', 'Where the loss sits', 'Filters', 'Books']) {
+    await back(page);
     await askButton(page, name).click();
     await page.locator('aside.genie .g-off').waitFor();
     assert.match(await page.locator('aside.genie .g-off').innerText(), /The Genie Agent did not build\./);
     assert.equal(await page.locator('form.ask-box').count(), 0, `${name}: no box while Genie is off`);
-    await page.getByRole('button', { name: 'Close Ask Genie' }).click();
-    await page.locator('aside.genie').waitFor({ state: 'detached' });
+    await back(page);
+    assert.equal(await page.locator('aside.genie').count(), 0, `${name}: leaving Genie closes the panel`);
   }
   assert.equal(calls.explain.length, 0);
   assert.deepEqual(seen.asks, []);

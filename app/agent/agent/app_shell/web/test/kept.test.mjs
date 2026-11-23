@@ -5,6 +5,8 @@ import { PERSON, TABLE, appInfo, openApp, pageData, serveDist } from './harness.
 import { NOT_IN_RUN, changeBadge, keptText, missingSince, notInRunText } from '../src/records.js';
 import { STATES, closedRows } from '../src/impact.js';
 
+// REQ-506: no side rail; a section opens by its hash.
+const goSection = (page, section) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, section);
 let served;
 let browser;
 before(async () => { served = await serveDist(); browser = await chromium.launch(); });
@@ -87,7 +89,7 @@ test('the inbox tags the kept record you own and leaves the others as they are',
     return base.records(call);
   };
   const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: { ...base, records }, hash: '#/n01_u05/work' });
-  await page.locator('[data-rail="inbox"]').click();
+  await goSection(page, 'inbox');
   const assigned = page.locator('[data-inbox-group="assigned"] [data-inbox-item]');
   await assigned.nth(1).waitFor();
   const tags = await assigned.evaluateAll((all) => all.map((b) => [b.querySelector('bdi').textContent, b.querySelector('.chg-b--missing')?.textContent || '']));

@@ -7,6 +7,8 @@ import { chromium } from 'playwright';
 import { actBody, DECIDE, ROWS, SRC, TABLE, appInfo, bundleEntry, openApp, openBundle, scrollsAsked, serveDist, steadyBox, tracked, until, watchScrolls } from './harness.mjs';
 import { dashboardRoutes, evaluated, explainerRoutes, fanRows, forecastRoutes, monitorRoutes, plannerRoutes, scenarioRoutes } from './exampleRoutes.mjs';
 
+// REQ-506: no side rail; a section opens by its hash.
+const goSection = (page, section) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, section);
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ASSETS = join(HERE, '..', 'dist', 'assets');
 const KINDS = JSON.parse(readFileSync(join(HERE, '..', '..', 'kinds.json'), 'utf8'));
@@ -559,7 +561,7 @@ test('accepting a suggested action takes one click on a row, or one click for th
   const { page, seen, context } = await openApp(browser, base, info, { routes });
   await page.locator('[data-step="accept"]').waitFor();
   assert.match(await page.locator('[data-step="accept"]').innerText(), /Accept the suggested action where you agree/);
-  await page.locator('[data-rail="work"]').click();
+  await goSection(page, 'work');
   await page.locator('[data-accept="R001"]').waitFor();
   assert.equal(await page.locator('[data-accept="R002"]').count(), 0, 'a record already in progress has nothing left to accept');
   await page.locator('[data-accept="R001"]').click();

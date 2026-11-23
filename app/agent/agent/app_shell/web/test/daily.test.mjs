@@ -4,6 +4,13 @@ import { chromium } from 'playwright';
 import { appInfo, chartsDrawn, framed, idle, moved, openApp, pickCase, serveDist, steadyBox, TABLE, toastSays, until } from './harness.mjs';
 import { LINK_STALE, UNKNOWN_PAGE, VIEWS_KEY, VIEW_STALE, decodeFilters, encodeFilters, parseHash } from '../src/links.js';
 
+// REQ-506: no side rail; a section opens by its hash.
+const goSection = (page, section) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, section);
+// REQ-506: the Ask Genie button is the Genie side of the Screen | Genie switch, and Genie fills the page.
+const openGenieMode = async (page) => {
+  await page.locator('[data-mode-switch] [data-mode="genie"]').click();
+  await page.locator('[data-genie-full]').waitFor({ state: 'visible' });
+};
 let served;
 let base;
 let browser;
@@ -38,6 +45,7 @@ async function pickCategory(page, value) {
 }
 
 async function openViews(page) {
+  await goSection(page, 'settings');
   await page.getByRole('button', { name: 'Views', exact: true }).click();
   const pop = page.getByRole('dialog', { name: 'Saved views' });
   await pop.waitFor();
@@ -63,7 +71,7 @@ test('a link restores the filters once the filter list has loaded, and the first
   assert.deepEqual(seen.pages.map((p) => p.filters), [{ run_date: { from: '2026-08-01', to: '2026-10-15' }, category: ['Music', 'Books'] }]);
   assert.deepEqual(await page.locator('.chip').allInnerTexts(), ['Category: Music', 'Category: Books']);
   assert.equal(await page.locator('.fld--range select').inputValue(), '3m');
-  assert.equal(hashOf(page), `#/n01_u05/dashboard?f=${f}`);
+  assert.equal(hashOf(page), `#/n01_u05/work?f=${f}`);
   assert.equal(await page.locator('.toast').count(), 0);
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -72,9 +80,8 @@ test('a link restores the filters once the filter list has loaded, and the first
 test('an old view link opens its section, the rail keeps the filters in the address, and filters update the address without adding history entries', async () => {
   const { page, seen, context } = await openAt('#/n01_u05?v=runs', appInfo({}, 1, TABLE));
   await page.locator('.runs .runs-tbl').waitFor();
-  assert.equal(await page.locator('[data-rail="runs"]').getAttribute('aria-current'), 'page');
-  assert.equal(hashOf(page), '#/n01_u05/runs');
-  await page.locator('[data-rail="dashboard"]').click();
+    assert.equal(hashOf(page), '#/n01_u05/runs');
+  await goSection(page, 'dashboard');
   await page.locator('.kpi-v').first().waitFor();
   assert.equal(hashOf(page), '#/n01_u05/dashboard');
   await until(() => seen.pages.length > 0);
@@ -85,7 +92,7 @@ test('an old view link opens its section, the rail keeps the filters in the addr
   await page.waitForFunction(() => location.hash.includes('f='));
   assert.deepEqual(linkOf(page), { r: { run_date: '6m' }, s: { category: ['Music'] } });
   assert.equal(await page.evaluate(() => history.length), entries, 'filters add no history entry');
-  await page.locator('[data-rail="runs"]').click();
+  await goSection(page, 'runs');
   await page.waitForFunction(() => location.hash.startsWith('#/n01_u05/runs?f='));
   assert.deepEqual(linkOf(page), { r: { run_date: '6m' }, s: { category: ['Music'] } });
   await page.goBack();
@@ -102,7 +109,7 @@ test('an old link or a saved view that names the removed Trend tab opens Things 
   const { page, seen, context } = await openAt(`#/n01_u05?v=trend&f=${f}`, appInfo({}, 1, TABLE), { routes });
   await toastSays(page, LINK_STALE);
   assert.equal(await page.locator('[role="tab"]').count(), 0);
-  assert.equal(await page.locator('[data-rail="dashboard"]').getAttribute('aria-current'), 'page');
+  assert.match(hashOf(page), /^#\/n01_u05\/work/, 'the removed Trend tab opens the default section');
   await page.waitForFunction(() => document.querySelectorAll('.chip').length === 1);
   assert.deepEqual(await page.locator('.chip').allInnerTexts(), ['Category: Music']);
   await page.waitForFunction(() => !location.hash.includes('v='));
@@ -113,7 +120,7 @@ test('an old link or a saved view that names the removed Trend tab opens Things 
   await pop.getByRole('button', { name: 'Old trend', exact: true }).click();
   await toastSays(page, VIEW_STALE);
   await page.waitForFunction(() => [...document.querySelectorAll('.chip')].map((c) => c.textContent).join() === 'Category: Books');
-  assert.equal(await page.locator('[data-rail="dashboard"]').getAttribute('aria-current'), 'page');
+  assert.match(hashOf(page), /^#\/n01_u05\/work/, 'the removed Trend tab opens the default section');
   assert.deepEqual(linkOf(page), { s: { category: ['Books'] } });
   assert.deepEqual(asked, [], 'nothing asks for the removed trend');
   assert.deepEqual(seen.errors, []);
@@ -143,7 +150,7 @@ test('a malformed link opens the page with its defaults and the same notice, nev
     await until(() => seen.pages.length > 0);
     await page.waitForSelector('.kpi-v');
     assert.deepEqual(seen.pages.at(-1).filters, TWELVE, label);
-    assert.equal(hashOf(page), '#/n01_u05/dashboard', label);
+    assert.equal(hashOf(page), '#/n01_u05/work', label);
     assert.equal(await page.locator('.chip').count(), 0, label);
     assert.deepEqual(seen.errors, [], label);
     await context.close();
@@ -156,24 +163,24 @@ test('old links work under every layout setting, and #/home opens the dashboard 
     await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
     await until(() => seen.pages.some((p) => p.page === 'n02_u01'));
     await page.waitForTimeout(300);
-    assert.equal(hashOf(page), '#/n02_u01/dashboard', layout);
+    assert.equal(hashOf(page), '#/n02_u01/work', layout);
     assert.equal(await page.locator('.toast').count(), 0, layout);
     assert.deepEqual(seen.errors, [], layout);
     await context.close();
   }
   const { page, seen, context } = await openAt('#/home', appInfo({ layout: 'home' }, 2));
-  await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
-  await page.locator('[data-page-section="dashboard"]').waitFor();
+  await page.waitForFunction(() => location.hash === '#/n01_u05/work');
+  await page.locator('[data-page-section="work"]').waitFor();
   assert.equal(await page.locator('.toast').count(), 0);
   await pickCase(page, 'Second desk 1');
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
   await page.locator('.fld--range select').selectOption('3m');
-  await page.waitForFunction(() => location.hash.startsWith('#/n02_u01/dashboard?f='));
+  await page.waitForFunction(() => location.hash.startsWith('#/n02_u01/work?f='));
   await page.reload();
-  await page.waitForSelector('.kpi-v');
+  await page.waitForSelector('[data-page-section="work"]');
   await page.waitForFunction(() => document.querySelector('.fld--range select')?.value === '3m');
   await page.evaluate(() => { location.hash = '#/home'; });
-  await page.waitForFunction(() => location.hash.startsWith('#/n02_u01/dashboard'));
+  await page.waitForFunction(() => location.hash.startsWith('#/n02_u01/work'));
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -188,16 +195,16 @@ test('a new link pasted into the open page applies, and Back returns to the filt
   await idle(page);
   assert.deepEqual(seen.pages.at(-1).filters, { run_date: { from: '2026-05-01', to: '2026-10-15' }, region: ['North'] });
   await page.evaluate(() => { location.hash = '#/n01_u05'; });
-  await page.waitForFunction((h) => location.hash === h, `#/n01_u05/dashboard?f=${f}`);
-  await page.locator('[data-page-section="dashboard"]').waitFor();
+  await page.waitForFunction((h) => location.hash === h, `#/n01_u05/work?f=${f}`);
+  await page.locator('[data-page-section="work"]').waitFor();
   assert.equal(await page.locator('.chip').count(), 1, 'a bare link to the open page keeps its filters');
   await pickCase(page, 'Second desk 1');
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
-  await page.waitForFunction(() => location.hash === '#/n02_u01/dashboard');
+  await page.waitForFunction(() => location.hash === '#/n02_u01/work');
   await page.goBack();
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk');
   await page.waitForFunction(() => document.querySelector('.fld--range select')?.value === '6m');
-  assert.equal(hashOf(page), `#/n01_u05/dashboard?f=${f}`);
+  assert.equal(hashOf(page), `#/n01_u05/work?f=${f}`);
   assert.deepEqual(await page.locator('.chip').allInnerTexts(), ['Region: North']);
   assert.equal(await page.locator('.toast').count(), 0);
   assert.deepEqual(seen.errors, []);
@@ -208,23 +215,24 @@ test('a link to an unknown page opens the App with a notice instead of breaking'
   const f = encodeFilters({ s: { category: ['Music'] } });
   let { page, seen, context } = await openAt(`#/gone_page?f=${f}`, appInfo({ layout: 'sidebar' }, 2), { ready: '.pg-h h1' });
   await toastSays(page, UNKNOWN_PAGE);
-  await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
+  await page.waitForFunction(() => location.hash === '#/n01_u05/work');
   assert.equal(await page.locator('.main h1').innerText(), 'Price-loss decision desk');
-  const rails = await page.locator('[data-rail]').evaluateAll((all) => all.map((r) => r.dataset.rail));
-  assert.deepEqual(rails.filter((r) => r === 'feedback' || r === 'reports'), [], 'Feedback and Reported issues sit in Settings, not on the rail');
-  assert.ok(rails.includes('settings'), 'Settings stays on the rail');
+  await page.locator('[data-avatar-menu] .av-b').click();
+  const items = await page.locator('[data-avatar-menu] [role="menuitem"]').allInnerTexts();
+  assert.deepEqual(items.filter((r) => /^(Feedback|Reported issues)$/.test(r.trim())), [], 'Feedback and Reported issues sit in Settings, not in the avatar menu');
+  assert.ok(items.some((r) => /Settings/.test(r)), 'Settings stays in the avatar menu');
   assert.deepEqual(seen.errors, []);
   await context.close();
 
   ({ page, seen, context } = await openAt('#/gone_page', appInfo({ layout: 'home' }, 2), { ready: '.pg-h h1' }));
   await toastSays(page, UNKNOWN_PAGE);
-  await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
+  await page.waitForFunction(() => location.hash === '#/n01_u05/work');
   assert.deepEqual(seen.errors, []);
   await context.close();
 
   ({ page, seen, context } = await openAt('#/gone_page', appInfo({ layout: 'sidebar' }, 1), {}));
   await toastSays(page, UNKNOWN_PAGE);
-  await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
+  await page.waitForFunction(() => location.hash === '#/n01_u05/work');
   assert.equal(await page.locator('.ph h1').innerText(), 'Price-loss decision desk');
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -245,7 +253,7 @@ test('save this view, apply it from the Views menu with the address following, a
 
   await page.getByRole('button', { name: 'Clear filters' }).click();
   await page.locator('.fld--range select').selectOption('12m');
-  await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
+  await page.waitForFunction(() => location.hash === '#/n01_u05/work');
   await page.getByRole('button', { name: 'Views', exact: true }).focus();
   await page.keyboard.press('Enter');
   pop = page.getByRole('dialog', { name: 'Saved views' });
@@ -355,10 +363,10 @@ test('a saved view whose filters went stale applies what it can and says so', as
 
 test('the browser print keeps the title, the filters in words and the data date while hiding the controls', async () => {
   const f = encodeFilters({ s: { category: ['Music', 'Vinyl'] } });
-  const { page, seen, context } = await openAt(`#/n01_u05?f=${f}`, appInfo({ layout: 'sidebar' }, 2));
+  const { page, seen, context } = await openAt(`#/n01_u05/dashboard?f=${f}`, appInfo({ layout: 'sidebar' }, 2));
   await toastSays(page, LINK_STALE);
   await page.waitForFunction(chartsDrawn, 4);
-  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
+  await openGenieMode(page);
   await page.locator('.genie').waitFor();
   assert.equal(await page.locator('.print-filters').isVisible(), false, 'the filters in words are for paper only');
   assert.equal(await page.getByRole('button', { name: 'Print' }).count(), 0, 'printing is the browser\'s own command');
@@ -399,9 +407,9 @@ test('the browser print keeps the title, the filters in words and the data date 
   assert.equal(report.fits, true);
 
   await page.emulateMedia({ media: 'screen' });
-  await page.locator('[data-rail="settings"]').click();
+  await goSection(page, 'settings');
   await page.getByRole('button', { name: 'Switch to dark theme' }).click();
-  await page.locator('[data-rail="dashboard"]').click();
+  await goSection(page, 'dashboard');
   await page.emulateMedia({ media: 'print' });
   const adjust = await page.evaluate(() => { const cs = getComputedStyle(document.documentElement); return cs.printColorAdjust || cs.webkitPrintColorAdjust; });
   assert.equal(adjust, 'exact', 'a dark page prints its own colours instead of light text on white paper');
@@ -411,7 +419,7 @@ test('the browser print keeps the title, the filters in words and the data date 
 
 test('at 1280 with a long use-case title beside a narrower page, the title wraps and the update note and Refresh now stay on its line', async () => {
   const { page, seen, context } = await openApp(browser, base, appInfo({ layout: 'tabs' }, 2), { width: 1280, height: 800 });
-  await page.goto(`${base}#/n01_u05`);
+  await page.goto(`${base}#/n01_u05/dashboard`);
   await page.waitForFunction(chartsDrawn, 4);
   await page.evaluate(() => {
     document.querySelector('.pg-h h1').textContent = 'Price-loss decision desk for the Northeast and Mid-Atlantic regional sales teams, reviewed weekly';
@@ -430,7 +438,7 @@ test('at 1280 with a long use-case title beside a narrower page, the title wraps
 
 test('on a phone the page tools shrink to labelled icons and the page still fits', async () => {
   const { page, seen, context } = await openApp(browser, base, appInfo({ layout: 'tabs' }, 2), { width: 375 });
-  await page.goto(`${base}#/n01_u05`);
+  await page.goto(`${base}#/n01_u05/dashboard`);
   await page.waitForFunction(chartsDrawn, 4);
   const tools = await page.evaluate(() => [...document.querySelectorAll('.ph-tools .btn')].filter((b) => b.getClientRects().length > 0 && !b.closest('.head-more-menu')).map((b) => {
     const r = b.getBoundingClientRect();

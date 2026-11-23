@@ -3,6 +3,13 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { appInfo, ASK_GROUPS, askAudit, chartsDrawn, goRail, idle, myWorkOf, openApp, pickCase, serveDist, TABLE, until } from './harness.mjs';
 import { wholeMoney } from '../src/format.js';
+// REQ-506: no side rail; a section opens by its hash.
+const goSection = (page, section) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, section);
+// REQ-506: the Ask Genie button is the Genie side of the Screen | Genie switch, and Genie fills the page.
+const openGenieMode = async (page) => {
+  await page.locator('[data-mode-switch] [data-mode="genie"]').click();
+  await page.locator('[data-genie-full]').waitFor({ state: 'visible' });
+};
 import {
   DEFAULT_VIEW, dueText, isMine, moneyText, nothingText, ownerName, pickReason, reasonFilters,
   sortThings, totals, useCaseState, viewRows, viewWords,
@@ -178,12 +185,12 @@ test('on a use case page the AI reason narrows the list too, a row asks Genie ab
   await page.goto(`${served.base}#/n01_u05/dashboard`);
   await page.waitForFunction(() => document.querySelectorAll('[data-bars="by_reason"] .hb').length === 3);
   await page.locator('[data-bars="by_reason"] .hb', { hasText: 'Price below cost' }).click();
-  await page.locator('[data-rail="work"]').click();
+  await goSection(page, 'work');
   await until(() => seen.records.at(-1)?.ai?.ai_cat_driver?.[0] === 'Price below cost');
   assert.deepEqual(seen.records.at(-1).ai, { ai_cat_driver: ['Price below cost'] });
-  await page.locator('[data-rail="dashboard"]').click();
+  await goSection(page, 'dashboard');
   await page.locator('[data-bars="by_reason"] .hb.is-on').click();
-  await page.locator('[data-rail="work"]').click();
+  await goSection(page, 'work');
   await until(() => Object.keys(seen.records.at(-1)?.ai || { x: 1 }).length === 0);
   await page.waitForFunction(() => document.querySelectorAll('[data-work] .card--table tbody tr').length);
   const list = page.locator('.card--table');
@@ -234,7 +241,7 @@ test("Genie's answer table shows each zip code as written and each count in full
   const { page, seen, context } = await openApp(browser, served.base, withJoined(), { width: 1440, routes });
   await page.goto(`${served.base}#/n01_u05`);
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk');
-  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
+  await openGenieMode(page);
   await page.getByLabel('Your question').fill('Which 5 pickup zip codes have the most trips?');
   await page.getByRole('button', { name: 'Send' }).click();
   const table = page.locator('aside.genie .msg-t table');
@@ -258,7 +265,7 @@ test("an answer whose table could not load says so in plain words with the code 
   const { page, seen, context } = await openApp(browser, served.base, withJoined(), { width: 1440, routes });
   await page.goto(`${served.base}#/n01_u05`);
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk');
-  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
+  await openGenieMode(page);
   await page.getByLabel('Your question').fill('Which pickup zip has the most trips?');
   await page.getByRole('button', { name: 'Send' }).click();
   const box = page.locator('aside.genie [data-result-error]');
@@ -278,7 +285,7 @@ test('each use case keeps its own Genie chat with its own Genie Agent, and a pag
   const { page, seen, context } = await openApp(browser, served.base, withJoined(), { width: 1440, routes: pageGenie() });
   await page.goto(`${served.base}#/n01_u05`);
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk');
-  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
+  await openGenieMode(page);
   const ask = async (text) => { await page.getByLabel('Your question').fill(text); await page.getByRole('button', { name: 'Send' }).click(); };
   await ask('Which items lose the most?');
   await page.locator('.msg--genie', { hasText: 'Answer from n01_u05' }).waitFor({ timeout: 15000 });
@@ -366,7 +373,7 @@ test('a use case dashboard leads with its area, title, AI summary, four tiles, t
   assert.equal(await page.locator('[data-page-section="dashboard"] .card--list').count(), 0, 'the records sit in Work, not on the dashboard');
   assert.equal(await page.locator('.story').count(), 0);
   assert.equal(await page.locator('.ph-q').count(), 0);
-  await page.locator('[data-rail="settings"]').click();
+  await goSection(page, 'settings');
   const notify = page.locator('[data-settings]').getByRole('link', { name: 'Notify me' });
   assert.equal(await notify.getAttribute('href'), 'https://example.com/sql/alerts');
   assert.equal(await notify.getAttribute('target'), '_blank');
@@ -617,7 +624,7 @@ test('every card, key number and row on Performance and on a Runs view shows a v
   assert.equal(calls.explain.length, 0);
   await page.goto(`${served.base}#/n01_u05/dashboard`);
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk');
-  await page.locator('[data-rail="runs"]').click();
+  await goSection(page, 'runs');
   await page.locator('.runs-tbl tbody tr').first().waitFor();
   const runs = await page.evaluate(askAudit, ASK_GROUPS);
   assert.deepEqual([runs.missing, runs.hidden, runs.counts.row], [[], [], 2], 'the Runs view: 0 missing, 0 hidden');
