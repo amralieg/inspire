@@ -265,6 +265,9 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       </div>
       <p className="ph-q">{page.question}</p>
       {headKpi && <p className="ph-kpi" data-head-kpi=""><span>{headKpi.label}</span> <b>{headKpi.value}</b></p>}
+      {shown === 'dashboard' && !hubPage && page.promised?.estimate && (
+        <p className="ph-value ph-chip" data-value-estimate="">{valueLine(page.promised.estimate)} <button type="button" className="link" onClick={() => go('settings')}>How it is measured in Settings</button></p>
+      )}
       {shown === 'dashboard' && (
         <div className="ph-meta">
           <Icon name="calendar" size={13} />
