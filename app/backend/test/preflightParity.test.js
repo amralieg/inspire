@@ -55,7 +55,7 @@ test('a source the App cannot read the metadata of is refused before the build i
   assert.equal(got.status, 200, JSON.stringify(got.data));
   assert.equal(got.data.ok, false, 'the build stops before it starts');
   const detail = got.data.checks.sources.detail;
-  assert.match(detail, /^The App's service principal riverside-assets cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them\. The build cannot read a source table: /, detail);
+  assert.match(detail, /^The App cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them\. The build cannot read a source table: /, detail);
   assert.doesNotMatch(detail, /\. the build /, 'the second sentence starts with a capital, never a fragment');
   // REQ-131, REQ-260: the sentence names no GRANT; the App grant action is the check's Permission Required entry (must-keep)
   assert.doesNotMatch(detail, /GRANT /, 'no GRANT in the detail (must-exclude)');
@@ -127,5 +127,5 @@ test('the App-side refusal for an unreadable policy opens with the same sentence
     appMe: { applicationId: 'app-sp-2', displayName: 'riverside-assets' },
     workspace: ({ token, path }) => (token !== PERSON && /^\/api\/2\.1\/unity-catalog\/policies\/table\//.test(path)
       ? [{ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403] : undefined) }));
-  assert.equal(got.data.app_unreadable.text.startsWith("The App's service principal riverside-assets cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them. "), true, got.data.app_unreadable.text);
+  assert.equal(got.data.app_unreadable.text.startsWith("The App cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them. "), true, got.data.app_unreadable.text);
 });

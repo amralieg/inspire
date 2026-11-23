@@ -198,6 +198,11 @@ assert "Databricks refused to create the catalog \x60inspire_lakebase\x60 on the
 patched = [p for p in patched if "/postgres/" not in p[1]]
 shared_calls = [p for p in patched if "/Shared/demos" in p[1] or p[1] == "/api/2.0/permissions/directories/99" or p[1] == "/api/2.0/workspace/mkdirs" and p[2] == {"path": "/Shared/demos"}]
 patched = [p for p in patched if p not in shared_calls]
+# REQ-478: MANAGE on the data catalog the person can grant on is one Unity Catalog permissions PATCH for the App's service principal, nothing else
+data_manage = [p for p in patched if "/unity-catalog/permissions/" in p[1]]
+assert data_manage == [("PATCH", "/api/2.1/unity-catalog/permissions/catalog/sales", {"changes": [{"principal": "SP", "add": ["MANAGE"]}]})], data_manage
+assert "MANAGE for Inspire's App, so it can share your data with the Apps it builds: 1 catalog, 0 schemas, 0 tables \u2705" in said, said
+patched = [p for p in patched if p not in data_manage]
 assert patched == [("PATCH", "/api/2.0/permissions/sql/warehouses/wh", manage),
                    ("PATCH", "/api/2.0/permissions/database-projects/inspire-apps", manage),
                    ("GET", "/api/2.0/workspace/get-status?path=/Shared/inspire-ai", None),
@@ -714,7 +719,7 @@ text = open(notebook, encoding="utf-8").read()
 print(json.dumps({"union": ns["app_user_scopes"](text), "inspire": ns["inspire_app_scopes"](text), "own": list(ns["INSPIRE_APP_OWN_SCOPES"])}))
 `;
 
-test('the Inspire App asks for the notebook scopes plus apps, so a manager own token can read who manages it, and the installer grants the App nothing on itself', (t) => {
+test('the Inspire App asks for the notebook scopes plus apps, so a manager own token can read who manages it, and the installer writes the App permissions only to give the users group CAN_USE (REQ-502)', (t) => {
   if (spawnSync('python3', ['--version']).status !== 0) {
     t.skip('python3 is not installed');
     return;
@@ -733,8 +738,17 @@ test('the Inspire App asks for the notebook scopes plus apps, so a manager own t
   assert.match(installer, /ctx\["APP_USER_SCOPES"\] = inspire_app_scopes\(/);
   const touchesAppPermissions = /permissions\/apps\//;
   const readsAppPermissions = /api\(\s*"GET"\s*,\s*f?"[^"]*permissions\/apps\/[^"]*"\s*\)/g;
-  const changesAppPermissions = (source) => touchesAppPermissions.test(source.replace(readsAppPermissions, ''));
-  assert.equal(changesAppPermissions(installer), false, 'the installer never changes the permissions of an App');
+  // REQ-502: the one allowed write is a PATCH whose whole body is the users group at CAN_USE
+  const usersCanUse = /api\(\s*"PATCH"\s*,\s*f"\/api\/2\.0\/permissions\/apps\/\{app_name\}"\s*,\s*\{\s*"access_control_list"\s*:\s*\[\s*\{\s*"group_name"\s*:\s*"users"\s*,\s*"permission_level"\s*:\s*"CAN_USE"\s*\}\s*\]\s*\}\s*\)/g;
+  const changesAppPermissions = (source) => touchesAppPermissions.test(source.replace(readsAppPermissions, '').replace(usersCanUse, ''));
+  assert.equal(changesAppPermissions(installer), false, 'the installer changes the permissions of an App only to give the users group CAN_USE');
+  assert.match(installer, usersCanUse, 'the users group CAN_USE grant is present');
+  const grantUsers = (level, extra = '') => `api("PATCH", f"/api/2.0/permissions/apps/{app_name}", {"access_control_list": [{"group_name": "users", "permission_level": "${level}"}${extra}]})`;
+  assert.equal(changesAppPermissions(grantUsers('CAN_USE')), false, 'the approved users CAN_USE grant is allowed');
+  assert.equal(changesAppPermissions(grantUsers('CAN_MANAGE')), true, 'users at CAN_MANAGE is caught');
+  assert.equal(changesAppPermissions(grantUsers('CAN_USE', ', {"service_principal_name": "SP", "permission_level": "CAN_MANAGE"}')), true, 'an extra principal is caught');
+  assert.equal(changesAppPermissions('api("PATCH", f"/api/2.0/permissions/apps/{app_name}", {"access_control_list": [{"service_principal_name": "SP", "permission_level": "CAN_USE"}]})'), true, 'a service principal grant is caught');
+  assert.equal(changesAppPermissions(grantUsers('CAN_USE').replace('"PATCH"', '"PUT"')), true, 'a PUT is caught');
   assert.match('api("PATCH", f"/api/2.0/permissions/apps/{app_name}", grant)', touchesAppPermissions, 'the check catches a self-grant');
   assert.equal(changesAppPermissions('api("PATCH", f"/api/2.0/permissions/apps/{app_name}", grant)'), true, 'a PATCH on the App permissions is caught');
   assert.equal(changesAppPermissions('api("PUT", f"/api/2.0/permissions/apps/{app_name}", acl)'), true, 'a PUT on the App permissions is caught');
