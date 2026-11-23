@@ -14,14 +14,14 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
   const unit = yearly?.total?.unit;
   const opened = plan.drivers.find((d) => d.id === open);
   return (
-    <div data-wizard-page="save" className="space-y-2">
+    <div data-wizard-page="save" className="space-y-1">
       <div data-save-total="" className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-bg-subtle px-4 py-1">
         <div><p className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary">{yearly?.verb || 'Value'}</p>
           <p className="text-2xl font-extrabold tabular-nums text-text-primary">{totalText(yearly) || '...'}</p></div>
         <p className="text-[12px] text-text-secondary">Per year<br /><span className={`text-[12px] font-semibold ${calculated ? 'text-ok-fg' : 'text-warning-fg'}`}>{statusLabel(calculated)}</span></p>
         <div className="ms-auto flex items-center gap-3">
           <p className="text-[13px] font-semibold text-text-primary">{ATTRIBUTION.label}</p>
-          <Controls ask={CREDIT} value={answers.attribution_pct} onChange={onCredit} currency={answers.currency} />
+          <Controls row ask={CREDIT} value={answers.attribution_pct} onChange={onCredit} currency={answers.currency} />
         </div>
       </div>
       <div className="grid grid-cols-5 gap-2">
@@ -29,15 +29,15 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
           const on = Boolean(answers.drivers[d.id]?.on);
           const part = partOf(yearly, d.id);
           return (
-            <div key={d.id} data-tile={d.id} className={`flex min-h-[64px] flex-col gap-0.5 rounded-lg border px-2.5 py-1 ${open === d.id ? 'border-db-red-solid ring-1 ring-db-red-solid' : 'border-border'} ${on ? '' : 'bg-bg-subtle text-text-tertiary'}`}>
+            <div key={d.id} data-tile={d.id} className={`flex min-h-[64px] flex-col gap-0 rounded-lg border px-2.5 py-0.5 ${open === d.id ? 'border-db-red-solid ring-1 ring-db-red-solid' : 'border-border'} ${on ? '' : 'bg-bg-subtle text-text-tertiary'}`}>
               <div className="flex items-start gap-1.5">
                 <input type="checkbox" aria-label={`Include ${d.label}`} checked={on} onChange={() => onToggleDriver(d.id)} className="mt-0.5" />
                 <span aria-hidden="true">{DRIVER_ICONS[d.id] || ''}</span>
-                <span className="min-w-0 flex-1 text-[12px] font-semibold leading-tight">{d.label}</span>
+                <span className="min-w-0 flex-1 text-[12px] font-semibold leading-[1.15]">{d.label}</span>
               </div>
               <p className="mt-auto text-base font-extrabold tabular-nums">{on ? (part ? <>{moneyText(unit, part.amount)}<span className="text-[10px] font-normal text-text-secondary"> a year</span></> : '...') : 'off'}</p>
               <button type="button" disabled={!on} onClick={() => setOpen(open === d.id ? null : d.id)} aria-expanded={open === d.id}
-                className="text-start text-[12px] font-semibold text-db-red-solid disabled:opacity-40">Edit numbers</button>
+                className="text-start text-[12px] font-semibold leading-tight text-db-red-solid disabled:opacity-40">Edit numbers</button>
             </div>
           );
         })}
@@ -54,9 +54,9 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
           </div>
         </div>
       )}
-      <div data-accept-summary="" className="rounded-lg border border-border px-3 py-1 text-[11px] leading-snug text-text-primary">
-        <p className="mb-0.5 text-[12px] font-semibold">Every number in this value</p>
-        <ul className="grid grid-cols-[repeat(auto-fit,minmax(15rem,1fr))] gap-x-4 gap-y-0.5">
+      <div data-accept-summary="" className="rounded-lg border border-border px-3 py-1 text-[12px] leading-[1.15] text-text-primary">
+        <p className="text-[12px] font-semibold">Every number in this value</p>
+        <ul className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-x-4 gap-y-0">
           {driversOn(plan, answers).map((d) => {
             const part = partOf(yearly, d.id);
             return (
@@ -67,19 +67,21 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
             );
           })}
         </ul>
-        <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4">
           <p>Credit given to this use case: <span className="font-semibold">{Number(answers.attribution_pct ?? 100)}%</span>
             {yearly?.confidence != null && yearly.confidence !== '' && <span className="ms-4">Confidence: <span className="font-semibold">{String(yearly.confidence)}</span></span>}</p>
           <p className="font-semibold">{yearly?.verb || 'Value'} per year: {totalText(yearly) || '...'} ({statusLabel(calculated)})</p>
         </div>
       </div>
       <div data-accept-terms="" className="rounded-lg border-2 border-warning bg-warning-bg px-3 py-1">
-        <p className="flex items-center gap-1.5 text-[13px] font-semibold text-warning-fg"><AlertTriangle aria-label="Warning" role="img" size={16} className="shrink-0" />Terms and conditions</p>
-        <p data-value-disclaimer="" role="note" className="mt-0.5 text-[12px] leading-snug text-text-primary">{VALUE_DISCLAIMER}</p>
-        <label className="mt-1.5 flex cursor-pointer items-center gap-2 text-[13px] font-semibold text-text-primary">
-          <input type="checkbox" checked={accepted} onChange={(e) => onAccept?.(e.target.checked)} className="h-4 w-4" />
-          I have read and accept these terms
-        </label>
+        <div className="flex flex-wrap items-center justify-between gap-x-4">
+          <p className="flex items-center gap-1.5 text-[13px] font-semibold text-warning-fg"><AlertTriangle aria-label="Warning" role="img" size={16} className="shrink-0" />Terms and conditions</p>
+          <label className="flex cursor-pointer items-center gap-2 text-[13px] font-semibold text-text-primary">
+            <input type="checkbox" checked={accepted} onChange={(e) => onAccept?.(e.target.checked)} className="h-4 w-4" />
+            I have read and accept these terms
+          </label>
+        </div>
+        <p data-value-disclaimer="" role="note" className="text-[12px] leading-snug text-text-primary">{VALUE_DISCLAIMER}</p>
       </div>
       {children}
     </div>

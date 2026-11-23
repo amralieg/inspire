@@ -5,7 +5,7 @@ import { amountText, figureText, isBad, sliderRange, unitOf } from '../../lib/va
 const WIDTH = 'w-28';
 const PLAUSIBLE_UPLIFT_PCT = 50;
 
-export function Controls({ ask, value, onChange, range, currency }) {
+export function Controls({ ask, value, onChange, range, currency, row = false }) {
   const [draft, setDraft] = useState(String(value));
   useEffect(() => { setDraft((d) => (Number(d) === Number(value) && d !== '' ? d : String(value))); }, [value]);
   const r = range || sliderRange(ask.kind, ask.default, value);
@@ -16,7 +16,7 @@ export function Controls({ ask, value, onChange, range, currency }) {
     if (!isBad(ask, text)) onChange(Number(text));
   };
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className={row ? 'flex flex-wrap items-center justify-end gap-x-2 gap-y-1' : 'flex flex-col items-end gap-1'}>
       {/* REQ-450/451: the number follows the slider on every input, with its unit; the server amount follows after the debounce. */}
       <span data-live-value="" data-unit="" aria-live="off" className="text-sm font-semibold tabular-nums text-text-primary">{`${amountText(value)} ${unitOf(ask, currency)}`}</span>
       {implausible && <span data-plausibility="" role="note" className="max-w-[14rem] text-end text-[11px] text-warning-fg">{`${amountText(value)}% is far above what is usual. Check it before you rely on it.`}</span>}

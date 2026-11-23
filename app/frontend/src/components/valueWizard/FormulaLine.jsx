@@ -10,9 +10,9 @@ export default function FormulaLine({ driver, answers, yearly, status }) {
   const amount = status === 'error' || !part ? 'Not set' : moneyText(yearly?.total?.unit, part.amount);
   const currency = answers.currency || yearly?.currency;
   return (
-    <div className="min-w-0 space-y-1.5">
+    <div className="min-w-0 space-y-1">
       {amount !== 'Not set' && <FormulaDiagram driver={driver} inputs={answers.drivers[driver.id]?.inputs} part={part} currency={currency} amount={amount} />}
-    <p data-formula-line="" className="rounded-md border border-border bg-bg-subtle px-3 py-1.5 text-[13px] tabular-nums text-text-primary">
+    <p data-formula-line="" className="rounded-md border border-border bg-bg-subtle px-3 py-1 text-[13px] tabular-nums text-text-primary">
       {longer ? <span className="text-warning-fg">{text}</span> : `${text} = ${amount}${amount === 'Not set' ? '' : ' a year'}`}
     </p>
     </div>

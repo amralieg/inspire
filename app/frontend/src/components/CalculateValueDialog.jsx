@@ -126,7 +126,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
     return (
       <>
         {!plan.model && <p role="note" data-fallback-notice="" className="rounded-md border border-warning/40 bg-warning-bg px-3 py-1.5 text-[12px] text-warning-fg">{plan.model_reason ? noModelNotice(plan.model_reason) : FALLBACK_NOTICE}</p>}
-        {(page === 'kinds' || last) && reviewLineOf(plan.review) && <p role="note" data-value-review="" title={last ? reviewLineOf(plan.review) : undefined} className={`rounded-md border border-border bg-bg-subtle px-3 py-1.5 text-[12px] text-text-secondary${last ? ' truncate' : ''}`}>{reviewLineOf(plan.review)}</p>}
+        {(page === 'kinds' || last) && reviewLineOf(plan.review) && <p role="note" data-value-review="" title={last ? reviewLineOf(plan.review) : undefined} className={`rounded-md border border-border bg-bg-subtle px-3 py-1 text-[12px] text-text-secondary${last ? ' truncate' : ''}`}>{reviewLineOf(plan.review)}</p>}
         {page === 'data' && <StepData plan={plan} answers={answers} />}
         {page === 'kinds' && <StepKinds plan={plan} answers={answers} onToggle={toggleDriver} />}
         {page === 'factors' && <StepFactors plan={plan} answers={answers} yearly={yearly} onFactor={setFactor} status={preview.status} error={preview.error} />}
@@ -173,7 +173,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
           </li>
         ))}
       </ol>
-      <div data-wizard-body="" className="h-[min(34rem,calc(100dvh-18rem))] space-y-3 overflow-y-auto overscroll-contain">
+      <div data-wizard-body="" className="h-[min(44rem,calc(100dvh-15rem))] space-y-2 overflow-y-auto overscroll-contain">
         {measure && <div hidden={page !== 'data'}><MeasureSettings measure={measure} /></div>}
         {body()}
       </div>

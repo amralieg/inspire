@@ -8,7 +8,7 @@ export default function ValueChart({ yearly, currentId }) {
   if (!parts.length) return null;
   const max = Math.max(...parts.map((p) => Math.abs(Number(p.amount))), 1);
   return (
-    <section data-value-chart="" aria-label="What makes the yearly total" className="min-w-0 space-y-1 rounded-lg border border-border px-3 py-2">
+    <section data-value-chart="" aria-label="What makes the yearly total" className="min-w-0 space-y-0.5 rounded-lg border border-border px-3 py-1.5">
       <h4 className="text-[12px] font-semibold text-text-primary">What makes the yearly total</h4>
       {parts.map((p, k) => (
         <div key={p.id} data-chart-bar={p.id} className="flex items-center gap-2 text-[12px]">
