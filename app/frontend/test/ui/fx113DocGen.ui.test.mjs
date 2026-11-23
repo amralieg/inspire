@@ -64,15 +64,15 @@ test('options: the 4 kinds, the content blocks and Excel columns from the wirefr
 
 test('planFiles: one file for all vs one per use case, one set per language, safe unique names', () => {
   const one = planFiles({ ...defaultDocOptions('English'), businessName: 'Acme Air' }, UCS);
-  assert.deepEqual(one.map((f) => f.ext), ['png', 'pdf', 'pptx', 'pdf', 'xlsx']);
+  assert.deepEqual(one.map((f) => f.ext), ['pdf', 'pptx', 'pdf', 'xlsx']);
   assert.ok(one.every((f) => f.useCaseIds.length === 3 && f.language === 'English'));
   const each = planFiles({ ...defaultDocOptions('English'), layout: 'each', businessName: 'Acme Air' }, UCS);
   assert.equal(each.filter((f) => f.kind === 'pptx').length, 3);
   assert.equal(each.filter((f) => f.kind === 'pdf').length, 3);
   assert.ok(each.filter((f) => f.kind === 'pptx').every((f) => f.useCaseIds.length === 1));
-  assert.equal(each.filter((f) => f.kind === 'infographic').length, 2, 'the infographic is always one (PNG + PDF) of all selected');
+  assert.equal(each.filter((f) => f.kind === 'infographic').length, 1, 'the infographic is always one PDF of all selected');
   const two = planFiles({ ...defaultDocOptions('English'), languages: ['English', 'Arabic'], businessName: 'Acme / Air <x>' }, UCS);
-  assert.equal(two.length, 10);
+  assert.equal(two.length, 8);
   const names = two.map((f) => f.name);
   assert.equal(new Set(names).size, names.length, 'names are unique');
   assert.ok(names.every((n, i) => /^[A-Za-z0-9._-]+$/.test(n) && n.endsWith(`.${two[i].ext}`)), names.join(' '));
