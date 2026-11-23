@@ -2602,9 +2602,11 @@ function registerImplementRoutes(app, deps) {
     }
   }
 
+  // FX-101: a reasoning model's thinking counts against max_tokens; the live plan needed 1681 in all, so 1500 cut it mid-JSON.
+  const PLAN_MAX_TOKENS = 4000;
   async function modelPlanOf(req, table, columns, groupBy, useCase = null, retry = null, anchor = null) {
     const without = (reason) => ({ ...VCP.fallbackPlan(columns, groupBy), model_reason: reason });
-    const asked = await askChatModel(req, rangeMessages(VCP.planMessages({ table, columns, useCase }), retry, anchor), 1500);
+    const asked = await askChatModel(req, rangeMessages(VCP.planMessages({ table, columns, useCase }), retry, anchor), PLAN_MAX_TOKENS);
     if (!asked.got) return without(asked.reason);
     const plan = VCP.planFrom(asked.got.data, columns, groupBy);
     const usable = plan.drivers.some((d) => d.on) || plan.metrics.length || plan.case_filter || plan.case_noun !== 'record';

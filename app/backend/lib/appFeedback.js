@@ -178,7 +178,8 @@ function vibePrompt({ useCaseId, useCase, page, vibes, statuses, feedback }) {
 function replyContent(data) {
   const choice = data && Array.isArray(data.choices) ? data.choices[0] : null;
   const content = choice && choice.message ? choice.message.content : null;
-  if (Array.isArray(content)) return content.map((p) => str(p && (p.text ?? p))).join('');
+  // FX-101: a reasoning model answers with a list whose first part is a reasoning block (no text); only the text parts are the reply.
+  if (Array.isArray(content)) return content.map((p) => (typeof p === 'string' ? p : p && typeof p.text === 'string' && (p.type === undefined || p.type === 'text') ? p.text : '')).join('');
   return str(content);
 }
 
