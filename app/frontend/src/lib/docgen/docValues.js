@@ -1,6 +1,7 @@
 // FX-114 (REQ-503): the App's value ledger and run totals mapped onto the doc model's `values` contract, and the wizard's default language.
 // Pure. No invented growth: the projection stays empty until saved answers carry one (REQ-507), so a document shows the one-year value only.
 import { moneyText } from '../valueWizard.js';
+import { valueFromSaved } from './docModel.js';
 
 const finite = (v) => (v !== null && v !== '' && v !== undefined && Number.isFinite(Number(v)) ? Number(v) : null);
 
@@ -14,7 +15,9 @@ function fromLedger(entry) {
   const factors = sum > 0 ? parts.map((p) => ({ name: p.name, share: p.amount / sum })) : [];
   const top = factors.length ? factors.reduce((a, b) => (b.share > a.share ? b : a)) : null;
   const story = top ? `${moneyText(currency, amount)} a year, mostly from ${top.name} (${Math.round(top.share * 100)}%).` : '';
-  return { amount, currency, status: y.calculated === true ? 'calculated' : 'estimated', story, yearly: [], factors };
+  // REQ-507 L8: a saved story (approved or not; docModel shows only an approved one) and the saved projection win.
+  const saved = valueFromSaved(entry);
+  return { amount, currency, status: y.calculated === true ? 'calculated' : 'estimated', story: entry.answers?.story || story, yearly: saved?.yearly || [], factors };
 }
 
 function fromTotals(entry) {
