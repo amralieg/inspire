@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { DECIDE, PERSON, ROWS, SUMMARY, TABLE, appInfo, goRail, lister, openApp, serveDist, tracked } from './harness.mjs';
+import { DECIDE, PERSON, ROWS, SUMMARY, TABLE, appInfo, lister, openApp, serveDist, tracked } from './harness.mjs';
 import { dropCopies, fillWithCopies, wheelScrolls } from '../../../../../frontend/test/ui/wheelScroll.mjs';
 
 let served;
@@ -19,6 +19,10 @@ after(async () => {
 
 const MANY = Array.from({ length: 6 }, (_, k) => ROWS.map((r) => ({ ...r, record_key: `${r.record_key}-${k}`, _inspire_key: `${r._inspire_key}-${k}`, entity_id: `${r.entity_id}-${k}` }))).flat();
 const copies = (region, item, n) => ({ fill: () => fillWithCopies(region, item, n), unfill: () => dropCopies(region) });
+const goMenu = async (page, name) => {
+  await page.locator('[data-avatar-menu] button').first().click();
+  await page.getByRole('menuitem', { name }).click();
+};
 const html = (page) => page.locator('html');
 const real = (errors) => errors.filter((e) => !/Failed to load resource/.test(e));
 
@@ -29,11 +33,12 @@ const RUNS = { runs: Array.from({ length: 20 }, (_, i) => run(i)), total: 20, of
 
 async function open(hash, routes = {}) {
   const info = appInfo({ ...DECIDE, use_case_owners: { n01_u05: [PERSON] } }, 2, TABLE);
+  for (const p of info.pages) p.is_owner = true;
   const all = tracked({ records: lister(MANY, { actions: true, changes: true, summary: SUMMARY }), runs: ({ json }) => json(200, RUNS), ...routes }).routes;
   return openApp(browser, served.base, info, { width: 1280, height: 800, routes: all, hash, ready: '[data-page-section], [data-performance]' });
 }
 
-test('the mouse wheel scrolls the Work list, the record drawer, and the side rail to their last item at 1280x800 and 1024x700', async () => {
+test('the mouse wheel scrolls the Work list, the record drawer, and the use case switcher list to their last item at 1280x800 and 1024x700', async () => {
   const { page, seen, context } = await open('#/n01_u05/work');
   const rows = page.locator('.card--table tbody tr');
   await rows.nth(20).waitFor();
@@ -48,8 +53,11 @@ test('the mouse wheel scrolls the Work list, the record drawer, and the side rai
   await page.locator('dialog.drawer[open]').waitFor({ state: 'detached' }).catch(() => null);
 
   await page.setViewportSize({ width: 1280, height: 800 });
-  const side = page.locator('nav.side, .side').first();
-  await wheelScrolls(page, side, () => side.locator('[data-wheel-copy]').last(), { name: 'side rail', ...copies(side, '[data-rail]', 12) });
+  await page.locator('[data-switcher]').click();
+  const cases = page.locator('#switch-list');
+  await cases.waitFor();
+  await wheelScrolls(page, cases, () => cases.locator('[data-wheel-copy]').last(), { name: 'use case switcher', ...copies(cases, ':scope > *', 12) });
+  await page.keyboard.press('Escape');
 
   assert.deepEqual(real(seen.errors), []);
   await context.close();
@@ -61,12 +69,12 @@ test('the mouse wheel scrolls the Performance, Runs and Settings sections to the
   await perf.locator('[data-promised-delivered]').waitFor({ timeout: 15000 });
   await wheelScrolls(page, html(page), () => perf.locator('[data-wheel-copy]').last(), { name: 'Performance', over: () => perf, ...copies(perf, ':scope > *', 3) });
 
-  await goRail(page, 'runs');
+  await goMenu(page, /^Runs/);
   const runs = page.locator('.runs .runs-tbl');
   await runs.waitFor();
   await wheelScrolls(page, html(page), () => runs.locator('tbody tr').last(), { name: 'Runs timeline', over: () => runs });
 
-  await goRail(page, 'settings');
+  await goMenu(page, 'Settings');
   const settings = page.locator('[data-settings]');
   await settings.waitFor();
   await wheelScrolls(page, html(page), () => settings.locator('[data-wheel-copy]').last(), { name: 'Settings', over: () => settings, ...copies(settings, ':scope > [data-group]', 6) });

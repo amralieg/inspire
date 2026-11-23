@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { CURRENT, DECIDE, NO_JOB, ROWS, TABLE, actBody, appInfo, goRail, openApp, serveDist, until } from './harness.mjs';
+import { CURRENT, DECIDE, NO_JOB, ROWS, TABLE, actBody, appInfo, openApp, serveDist, until } from './harness.mjs';
 
 // REQ-289 (REQ-057, REQ-223, REQ-257): Reopen on closed rows and in the drawer, Unassign on owned rows and in the drawer,
 // and the App build time in the header next to the data refresh time.
@@ -66,7 +66,6 @@ async function openWork(example, { closed = null, row = null, freshness = null }
 test('a closed merged row on Work offers Reopen beside its Unmerge, and Reopen writes the open status through records/act', async () => {
   const { page, writes, context } = await openWork('examples/entity_matching.json', { closed: WITH_BATCH, row: { ...ROWS[0], ...WITH_BATCH } });
   try {
-    await goRail(page, 'work');
     const first = page.locator('.card--table tbody tr').first();
     await first.locator('[data-row-undo]').waitFor({ timeout: 20000 });
     assert.equal((await first.locator('[data-row-undo]').innerText()).trim(), 'Unmerge', 'the undo keeps the kind\'s own word');
@@ -85,7 +84,6 @@ test('a closed merged row on Work offers Reopen beside its Unmerge, and Reopen w
 test('a closed row with no undo on Work offers Reopen on the row and in the drawer, and the drawer Reopen writes the open status', async () => {
   const { page, writes, context } = await openWork('examples/monitor_triage.json', { closed: CLOSED, row: { ...ROWS[0], ...CLOSED } });
   try {
-    await goRail(page, 'work');
     const first = page.locator('.card--table tbody tr').first();
     await first.locator('[data-row-reopen]').waitFor({ timeout: 20000 });
     assert.equal(await first.locator('[data-row-undo]').count(), 0, 'nothing to undo, so the row offers Reopen alone');
@@ -105,7 +103,6 @@ test('a closed row with no undo on Work offers Reopen on the row and in the draw
 test('an owned open row on Work offers Unassign, which clears the owner through records/act and changes nothing else', async () => {
   const { page, writes, context } = await openWork('examples/monitor_triage.json', { row: ROWS[1] });
   try {
-    await goRail(page, 'work');
     const owned = page.locator('.card--table tbody tr', { has: page.locator('[data-row-unassign]') }).first();
     await owned.locator('[data-row-unassign]').waitFor({ timeout: 20000 });
     assert.equal((await owned.locator('[data-row-unassign]').innerText()).trim(), 'Unassign', 'the decided word for clearing an owner (REQ-223)');
@@ -121,7 +118,6 @@ test('an owned open row on Work offers Unassign, which clears the owner through 
 test('the drawer of an owned open record has Unassign beside its owner, and clears the owner', async () => {
   const { page, writes, context } = await openWork('examples/monitor_triage.json', { row: { ...ROWS[1], _inspire_owner: OWNER } });
   try {
-    await goRail(page, 'work');
     await page.locator('.card--table tbody tr').nth(1).locator('.cell-t').click();
     const drawer = page.locator('dialog[open]');
     await drawer.locator('[data-unassign]').waitFor({ timeout: 15000 });

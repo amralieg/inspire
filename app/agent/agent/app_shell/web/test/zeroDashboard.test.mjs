@@ -18,7 +18,7 @@ const FLAT = () => {
 
 test('a page whose rule finds nothing shows one plain panel in place of the flat charts,', async () => {
   const { page, seen, context } = await openApp(browser, base, appInfo({ layout: 'sidebar' }, 1), {
-    routes: { page: ({ json }) => json(200, FLAT()) }, hash: '#/n01_u05',
+    routes: { page: ({ json }) => json(200, FLAT()) }, hash: '#/n01_u05/dashboard',
   });
   await page.waitForSelector('[data-zero-state]', { timeout: 15000 });
   assert.equal(await page.locator('[data-zero-state] h2').innerText(), ZERO_TITLE);
@@ -33,7 +33,7 @@ test('the zero panel reads the rows the run checked, and shows no count when the
   for (const [rows_checked, shown] of [[3333, 'This run checked 3,333 records and found nothing to act on'], [null, '']]) {
     const data = FLAT();
     const { page, seen, context } = await openApp(browser, base, appInfo({ layout: 'sidebar' }, 1), {
-      routes: { page: ({ json }) => json(200, { ...data, zero_state: { ...data.zero_state, rows_checked } }) }, hash: '#/n01_u05',
+      routes: { page: ({ json }) => json(200, { ...data, zero_state: { ...data.zero_state, rows_checked } }) }, hash: '#/n01_u05/dashboard',
     });
     await page.waitForSelector('[data-zero-state]', { timeout: 15000 });
     assert.equal(await page.locator('[data-zero-state] h2').innerText(), ZERO_TITLE);
@@ -45,7 +45,7 @@ test('the zero panel reads the rows the run checked, and shows no count when the
 });
 
 test('a page whose rule still finds exceptions draws its charts and shows no panel', async () => {
-  const { page, seen, context } = await openApp(browser, base, appInfo({ layout: 'sidebar' }, 1), { hash: '#/n01_u05' });
+  const { page, seen, context } = await openApp(browser, base, appInfo({ layout: 'sidebar' }, 1), { hash: '#/n01_u05/dashboard' });
   await page.waitForSelector('[data-card] canvas', { timeout: 15000 });
   assert.equal(await page.locator('[data-zero-state]').count(), 0);
   assert.deepEqual(seen.errors, []);

@@ -35,7 +35,7 @@ async function visibleText(page) {
 }
 
 test('the Dashboard KPIs and zero panel say the run checked 583 records, and never Not recorded or No rows match', async () => {
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({ ...DECIDE }), { routes: ROUTES(zeroPage()), hash: '#/n01_u05' });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({ ...DECIDE }), { routes: ROUTES(zeroPage()), hash: '#/n01_u05/dashboard' });
   await page.waitForSelector('[data-zero-state]', { timeout: 15000 });
   const text = await visibleText(page);
   assert.ok(text.includes(SAYS), 'the zero panel names what the run did');
