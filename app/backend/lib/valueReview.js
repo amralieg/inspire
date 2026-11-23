@@ -35,14 +35,32 @@ function anchorMessages({ useCase, businessName, records, range }) {
   const system = [
     'You anchor the yearly value of one use case before it is planned. Answer with one JSON object and nothing else:',
     '{"low": number, "high": number, "typical": number, "business_revenue_estimate": number, "reason": "one line",',
-    ' "economic_trend": null or {"likely": "option id", "options": [{"id": "snake_case_id", "label": "text", "pct": number, "why": "one line"}]}}',
+    ' "economic_factors": [{"id": "snake_case_id", "label": "text", "why": "one line", "likely_pct": number, "min_pct": number, "max_pct": number}]}',
     `low, high and typical are the yearly value in the run's currency (typical is the likely value); the generic range is ${range.low}-${range.high}, and one use case is worth at most 1% of what the whole business earns in a year.`,
     'business_revenue_estimate is your best estimate of the yearly revenue of the business named below (0 when you cannot tell).',
-    'economic_trend is null unless the use case is sensitive to the macro economy; then give 2-4 options you name for it (for example a growing market and a bear market), each with pct, the change to the value in percent between -50 and 50, and set likely to the option you expect.',
+    'economic_factors lists 0 to 6 outside signals that move the revenue this use case can win, only the ones relevant to this use case (an empty list when none is). Each is a kind of market or customer signal you name for it, for example a consumer confidence index, a customer satisfaction score, demand in the market, or prices of what customers buy.',
+    'For each, pct is the change to that revenue in percent, between -50 and 50: min_pct is the worst downturn, max_pct the best uplift, likely_pct what you expect now (between them). The user can override every one.',
   ].join('\n');
   const lines = useCaseLines(useCase, businessName);
   if (Number.isFinite(records) && records > 0) lines.push(`Records per year in the use case table: ${Math.round(records)}`);
   return [{ role: 'system', content: system }, { role: 'user', content: lines.join('\n') }];
+}
+
+// FX-97: up to 6 market and customer factors, each a bounded change of the revenue part; anything unusable is dropped.
+const FACTOR_MAX = 6;
+function factorsFrom(raw) {
+  const out = [];
+  for (const f of Array.isArray(raw) ? raw : []) {
+    if (!f || typeof f !== 'object' || !OPTION_ID.test(String(f.id)) || out.some((x) => x.id === f.id)) continue;
+    const clamp = (n) => Math.max(-TREND_LIMIT, Math.min(TREND_LIMIT, n));
+    const [lo, hi, likely] = [num(f.min_pct), num(f.max_pct), num(f.likely_pct)];
+    if (![lo, hi, likely].every(Number.isFinite)) continue;
+    const min = Math.min(clamp(lo), clamp(hi));
+    const max = Math.max(clamp(lo), clamp(hi));
+    out.push({ id: String(f.id), label: text(f.label, 60) || String(f.id).replace(/_/g, ' '), why: text(f.why, 200), likely_pct: Math.max(min, Math.min(max, clamp(likely))), min_pct: min, max_pct: max });
+    if (out.length === FACTOR_MAX) break;
+  }
+  return out;
 }
 
 function trendFrom(raw) {
@@ -71,7 +89,7 @@ function anchorFrom(data, range) {
   const effectiveLow = Math.min(Math.max(1, low), effectiveHigh);
   return {
     low: effectiveLow, high: effectiveHigh, typical: Math.min(effectiveHigh, Math.max(effectiveLow, typical)),
-    business_revenue_estimate: revenueKnown, reason: text(got.reason, 300), economic_trend: trendFrom(got.economic_trend),
+    business_revenue_estimate: revenueKnown, reason: text(got.reason, 300), economic_trend: trendFrom(got.economic_trend), economic_factors: factorsFrom(got.economic_factors),
   };
 }
 
@@ -167,4 +185,4 @@ function savedReviewOf(answerRows, versionOf) {
   return r && typeof r === 'object' && r.scales ? { ai_checked: Boolean(r.ai_checked), reason: text(r.reason, 300), scales: r.scales } : null;
 }
 
-module.exports = { RUN_SHARE, CASE_CEILING, RUN_REVIEW_ID, runReviewMessages, runReviewFrom, reviewRun, savedReviewOf, REVIEW_ROUNDS, capOf, anchorMessages, anchorFrom, trendFrom, reviewMessages, reviewFrom, onDriversOf, agrees, round2 };
+module.exports = { RUN_SHARE, CASE_CEILING, RUN_REVIEW_ID, runReviewMessages, runReviewFrom, reviewRun, savedReviewOf, REVIEW_ROUNDS, capOf, anchorMessages, anchorFrom, trendFrom, factorsFrom, reviewMessages, reviewFrom, onDriversOf, agrees, round2 };

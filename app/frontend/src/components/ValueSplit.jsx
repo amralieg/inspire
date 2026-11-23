@@ -1,4 +1,4 @@
-import { VALUE_LABELS, yearlyHeadline } from '../lib/valueLabels';
+import { VALUE_LABELS, statusLabel, yearlyHeadline } from '../lib/valueLabels';
 import { DATA_TAG, DRIVER_TAG, totalTextOf } from '../lib/valueDrivers';
 import { valueChips } from '../lib/valueLedger.js';
 import ValueDisclaimer from './ValueDisclaimer';
@@ -31,7 +31,7 @@ export default function ValueSplit({ yearly }) {
         ))}
       </ul>
       <p data-split-share="" className="text-[12px] text-text-secondary">{`Share of this value the use case earns: ${yearly.attribution_pct ?? 100}%`}</p>
-      <p data-split-total="" className="flex justify-between text-sm font-bold text-text-primary"><span>Total per year (estimated)</span><span className="tabular-nums">{totalTextOf(yearly)}</span></p>
+      <p data-split-total="" className="flex justify-between text-sm font-bold text-text-primary"><span>{`Total per year (${statusLabel(yearly.calculated)})`}</span><span className="tabular-nums">{totalTextOf(yearly)}</span></p>
       <ValueDisclaimer />
     </section>
   );

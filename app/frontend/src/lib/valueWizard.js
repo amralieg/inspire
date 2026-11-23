@@ -50,6 +50,30 @@ const trendOf = (trend, old) => {
   return { on: Boolean(old?.on), option: ids.includes(old?.option) ? old.option : trend.likely };
 };
 
+// FX-97: the market and customer factors of a plan (the old single economic_trend of a stored plan reads as one factor bounded by its options).
+export function factorsOf(plan) {
+  if (Array.isArray(plan?.economic_factors) && plan.economic_factors.length) return plan.economic_factors;
+  const options = plan?.economic_trend?.options || [];
+  if (!options.length) return [];
+  const pcts = options.map((o) => Number(o.pct));
+  const likely = options.find((o) => o.id === plan.economic_trend.likely) || options[0];
+  return [{ id: 'economic_trend', label: 'Economic trend', why: likely.why || '', likely_pct: Number(likely.pct), min_pct: Math.min(...pcts), max_pct: Math.max(...pcts) }];
+}
+// Factors apply to the revenue part only, so the step exists only while a revenue kind is on.
+export const isRevenueDriver = (d) => d?.id === 'revenue_uplift' || d?.verb === 'GROW REVENUE';
+export const showsFactors = (plan, answers) => factorsOf(plan).length > 0 && driversOn(plan, answers).some(isRevenueDriver);
+const clampPct = (f, v) => Math.max(Number(f.min_pct), Math.min(Number(f.max_pct), Number(v)));
+// Each factor starts unticked at the AI's likely pct; a saved choice wins (kept inside the bounds); a trend ticked in an older save carries over.
+function factorAnswers(plan, keep) {
+  return Object.fromEntries(factorsOf(plan).map((f) => {
+    const old = keep?.economic_factors?.[f.id];
+    const legacy = f.id === 'economic_trend' && !old && keep?.economic_trend?.on
+      ? (plan.economic_trend.options || []).find((o) => o.id === keep.economic_trend.option) : null;
+    const pct = Number.isFinite(Number(old?.pct)) && old?.pct !== null && old?.pct !== '' ? clampPct(f, old.pct) : legacy ? clampPct(f, legacy.pct) : clampPct(f, f.likely_pct);
+    return [f.id, { on: Boolean(old?.on) || Boolean(legacy), pct }];
+  }));
+}
+
 // The answers a plan starts with (or a saved shape 2 answers restore): every driver's on flag and estimate defaults.
 export function initialAnswers(plan, saved = null) {
   const keep = saved?.shape === 2 ? saved : null;
@@ -66,6 +90,7 @@ export function initialAnswers(plan, saved = null) {
         inputs: Object.fromEntries(estimateAsks(d).map((a) => [a.id, Number.isFinite(Number(old?.inputs?.[a.id])) && old?.inputs?.[a.id] !== undefined ? Number(old.inputs[a.id]) : a.default])) }];
     })),
     ...(plan.economic_trend ? { economic_trend: trendOf(plan.economic_trend, keep?.economic_trend) } : {}),
+    ...(factorsOf(plan).length ? { economic_factors: factorAnswers(plan, keep) } : {}),
     calculated: false,
   };
 }
@@ -73,7 +98,8 @@ export function initialAnswers(plan, saved = null) {
 export const carryAnswers = (plan, previous) => {
   const fresh = initialAnswers(plan);
   const drivers = Object.fromEntries(Object.entries(fresh.drivers).map(([id, d]) => [id, previous.drivers[id] ? { on: previous.drivers[id].on, inputs: { ...d.inputs, ...previous.drivers[id].inputs } } : d]));
-  return { ...fresh, currency: previous.currency, attribution_pct: previous.attribution_pct, drivers, ...(previous.economic_trend && fresh.economic_trend ? { economic_trend: trendOf(plan.economic_trend, previous.economic_trend) } : {}) };
+  return { ...fresh, currency: previous.currency, attribution_pct: previous.attribution_pct, drivers, ...(previous.economic_trend && fresh.economic_trend ? { economic_trend: trendOf(plan.economic_trend, previous.economic_trend) } : {}),
+    ...(fresh.economic_factors ? { economic_factors: factorAnswers(plan, previous) } : {}) };
 };
 
 // The plan as sent: each driver's on flag follows the answers, so the server and the page agree on what is counted.

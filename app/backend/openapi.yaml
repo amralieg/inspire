@@ -438,7 +438,8 @@ components:
     ValueReview:
       type: object
       description: |
-        REQ-472: the model's review of a value (also on the case plan as plan.review, with plan.likely_value and plan.economic_trend). The model first
+        REQ-472: the model's review of a value (also on the case plan as plan.review, with plan.likely_value and plan.economic_factors: 0 to 6 market and customer factors, each {id, label, why, likely_pct, min_pct, max_pct}, a bounded
+        change of the revenue part of the value only; plan.economic_trend is the older single-trend shape and still reads as one factor). The model first
         anchors the value (low, high, likely, capped at 1% of the business revenue it estimates), the plan is asked to land inside it, and the model
         then reviews the plan's default value, which is tuned and reviewed again, up to 3 reviews. A review that could not run is approved false.
       properties:

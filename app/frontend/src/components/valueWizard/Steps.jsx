@@ -35,10 +35,8 @@ export function StepData({ plan, answers }) {
   );
 }
 
-// REQ-472 (d): step 1, every factor with an Include box, then (REQ-474) the economic trend and the AI's likely value.
-export function StepKinds({ plan, answers, onToggle, onTrend }) {
-  const trend = plan.economic_trend;
-  const mine = answers.economic_trend;
+// REQ-472 (d): step 1, every kind of value with an Include box, then (REQ-474) the AI's likely value. FX-97: the economic trend lives on its own step.
+export function StepKinds({ plan, answers, onToggle }) {
   const likely = likelyLineOf(plan.likely_value);
   return (
     <div data-wizard-page="kinds" className="space-y-2">
@@ -58,22 +56,6 @@ export function StepKinds({ plan, answers, onToggle, onTrend }) {
           );
         })}
       </div>
-      {trend && mine && (
-        <section data-economic-trend="" aria-label="Economic trend" className="space-y-1.5 rounded-lg border border-border px-3 py-2">
-          <h4 className="text-[13px] font-semibold text-text-primary">Economic trend</h4>
-          <label className="flex items-center gap-2 text-[13px] text-text-primary">
-            <input type="checkbox" checked={mine.on} onChange={() => onTrend({ on: !mine.on })} />Include economic trend
-          </label>
-          <div role="radiogroup" aria-label="Economic trend option" className="space-y-1">
-            {(trend.options || []).map((o) => (
-              <label key={o.id} className={`flex items-start gap-2 text-[12px] ${mine.on ? 'text-text-primary' : 'text-text-secondary'}`}>
-                <input type="radio" name="economic-trend-option" checked={mine.option === o.id} onChange={() => onTrend({ option: o.id })} className="mt-0.5" />
-                <span><b>{o.label}</b> {Number(o.pct)}%{o.why ? `, ${o.why}` : ''}</span>
-              </label>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }
