@@ -126,7 +126,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
     return (
       <>
         {!plan.model && <p role="note" data-fallback-notice="" className="rounded-md border border-warning/40 bg-warning-bg px-3 py-1.5 text-[12px] text-warning-fg">{plan.model_reason ? noModelNotice(plan.model_reason) : FALLBACK_NOTICE}</p>}
-        {(page === 'kinds' || last) && reviewLineOf(plan.review) && <p role="note" data-value-review="" className="rounded-md border border-border bg-bg-subtle px-3 py-1.5 text-[12px] text-text-secondary">{reviewLineOf(plan.review)}</p>}
+        {(page === 'kinds' || last) && reviewLineOf(plan.review) && <p role="note" data-value-review="" title={last ? reviewLineOf(plan.review) : undefined} className={`rounded-md border border-border bg-bg-subtle px-3 py-1.5 text-[12px] text-text-secondary${last ? ' truncate' : ''}`}>{reviewLineOf(plan.review)}</p>}
         {page === 'data' && <StepData plan={plan} answers={answers} />}
         {page === 'kinds' && <StepKinds plan={plan} answers={answers} onToggle={toggleDriver} />}
         {page === 'factors' && <StepFactors plan={plan} answers={answers} yearly={yearly} onFactor={setFactor} status={preview.status} error={preview.error} />}
