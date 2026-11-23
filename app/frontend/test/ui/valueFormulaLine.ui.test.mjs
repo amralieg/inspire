@@ -1,5 +1,5 @@
 // REQ-476, REQ-475 (formula visual): every ON driver shows a live formula line built from its own inputs, in the dialog and on the Save
-// page; an invalid input shows "—" (never the old amount) and names the input; hours that make the task longer say so in words; help shows.
+// page; an invalid input shows "Not set" (never the old amount) and names the input; hours that make the task longer say so in words; help shows.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser } from './uiSupport.mjs';
@@ -60,7 +60,7 @@ test('F2: changing the cost of an hour changes the line and the amount together'
   } finally { await ui.close(); }
 });
 
-test('F3: an invalid input shows "—" for the amount and the line, never the old amount, and names the input', async () => {
+test('F3: an invalid input shows "Not set" for the amount and the line, never the old amount, and names the input', async () => {
   const { ui, card, page } = await openCard(mount(SAVED, []));
   try {
     const dialog = await openWizard(page, card);
@@ -69,8 +69,8 @@ test('F3: an invalid input shows "—" for the amount and the line, never the ol
     await dialog.locator('[data-ask="cost_per_hour"] input[type=number]').fill('5000');
     await dialog.getByRole('alert').filter({ hasText: 'Cost of one hour of work' }).waitFor({ timeout: 15000 });
     assert.doesNotMatch(await text(dialog.locator('[data-kind-amount]')), /\$1\.\d+M/);
-    assert.match(await text(dialog.locator('[data-kind-amount]')), /—/);
-    assert.match(await text(dialog.locator('[data-formula-line]')), /= —/);
+    assert.match(await text(dialog.locator('[data-kind-amount]')), /Not set/);
+    assert.match(await text(dialog.locator('[data-formula-line]')), /= Not set/);
     assert.doesNotMatch(await text(dialog.locator('[data-run-total]')), /\$1\.\d+M/, 'the running total is not stale either');
   } finally { await ui.close(); }
 });
