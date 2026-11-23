@@ -1,12 +1,24 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { appInfo, goRail, openApp, reportIssue, serveDist } from './harness.mjs';
+import { appInfo, openApp, serveDist } from './harness.mjs';
 
 let served;
 let browser;
 before(async () => { served = await serveDist(); browser = await chromium.launch(); });
 after(async () => { await browser?.close(); served?.close(); });
+
+// REQ-506: no side rail and no header menu. Settings is an item of the avatar menu, and Report an issue is in its Feedback group.
+const goSettings = async (page) => {
+  await page.locator('[data-avatar-menu] button').first().click();
+  await page.getByRole('menuitem', { name: 'Settings' }).click();
+};
+const reportIssue = async (page) => {
+  await goSettings(page);
+  const group = page.locator('[data-group="feedback"]');
+  await group.waitFor();
+  await group.getByRole('button', { name: 'Report an issue', exact: true }).click();
+};
 
 const READY = { ready: true, note: '', where: 'Your report goes to the owner of this use case, who sees it on its Build page in Inspire.' };
 const NOT_READY = { ready: false, note: 'Reports cannot be saved for this App yet. Send the report to the owner of this use case, or through Inspire\'s Build page for it.', where: '' };
@@ -40,10 +52,7 @@ test('Report an issue in Settings shows the same note on an App that cannot keep
   info.pages[0].reports = NOT_READY;
   info.pages[0].is_owner = false;
   const { page, context } = await openApp(browser, served.base, info);
-  await goRail(page, 'settings');
-  const group = page.locator('[data-group="feedback"]');
-  await group.waitFor();
-  await group.getByRole('button', { name: 'Report an issue', exact: true }).click();
+  await reportIssue(page);
   await page.locator('.pop [data-feedback-note]').waitFor();
   assert.equal(await page.locator('.pop [data-feedback-form]').count(), 0);
   await context.close();
