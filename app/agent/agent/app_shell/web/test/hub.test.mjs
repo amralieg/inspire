@@ -1,7 +1,9 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { appInfo, ASK_GROUPS, askAudit, chartsDrawn, goRail, idle, myWorkOf, openApp, pickCase, serveDist, TABLE, until } from './harness.mjs';
+import { appInfo, ASK_GROUPS, askAudit, chartsDrawn, idle, myWorkOf, openApp, pickCase, serveDist, TABLE, until } from './harness.mjs';
+// REQ-506: no side rail; a section opens by its hash.
+const goRail = (page, id) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, id);
 import { wholeMoney } from '../src/format.js';
 // REQ-506: no side rail; a section opens by its hash.
 const goSection = (page, section) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, section);

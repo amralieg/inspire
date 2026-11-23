@@ -1,7 +1,9 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { DECIDE, appInfo, goRail, openApp, serveDist } from './harness.mjs';
+import { DECIDE, appInfo, openApp, serveDist } from './harness.mjs';
+// REQ-506: no side rail; a section opens by its hash.
+const goRail = (page, id) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, id);
 
 let served;
 let base;

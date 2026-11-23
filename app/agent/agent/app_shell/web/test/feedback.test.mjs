@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { HISTORY, PERSON, TABLE, appInfo, openApp, reportIssue, serveDist, toastSays, until } from './harness.mjs';
+import { HISTORY, PERSON, TABLE, appInfo, openApp, serveDist, toastSays, until } from './harness.mjs';
 import { FEEDBACK_CHARS, feedbackProblem, feedbackStatusText } from '../src/feedback.js';
 
 // REQ-506: no side rail; a section opens by its hash.
@@ -41,12 +41,18 @@ test('the limits read the same as the server: 2,000 characters counted by letter
   assert.deepEqual(['new', 'vibe', 'closed', 'other'].map(feedbackStatusText), ['New', 'Turned into vibe', 'Closed', '']);
 });
 
+// REQ-506: Report an issue sits in Settings (Share and follow), not in a header menu.
+const reportIssue = async (page) => {
+  await goSection(page, 'settings');
+  await page.locator('[data-feedback-open]').click();
+};
+
 test('Report an issue on Work sends the section, the filters and the open record', async () => {
   const sent = [];
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { hash: '#/n01_u05/work', ready: '.cell-t', routes: { ...feedbackRoutes(sent), 'records/history': ({ json }) => json(200, HISTORY) } });
   await page.locator('.cell-t').first().click();
-  await page.locator('[data-dock="record"] dialog.drawer').waitFor();
-  await page.locator('[data-head-more] > summary').click();
+  await page.locator('dialog.drawer').waitFor();
+  await goSection(page, 'settings');
   await page.locator('[data-feedback-open]').click();
   const form = page.locator('.pop [data-feedback-form]');
   await form.waitFor();
@@ -98,17 +104,12 @@ test('the Settings section holds Feedback with a Report an issue button, picks t
 test('Report an issue is offered on every page type; a page with a results table opens the form, and an older App without a reports table says where to send the report', async () => {
   const bare = await openApp(browser, served.base, appInfo(), { hash: '#/n01_u05/settings', ready: '[data-group="look"]' });
   await bare.page.locator('[data-group="feedback"]').waitFor();
-  await goSection(bare.page, 'dashboard');
-  await bare.page.locator('.ph h1').waitFor();
   await reportIssue(bare.page);
   await bare.page.locator('[data-feedback-note]').waitFor();
   assert.equal(await bare.page.locator('[data-feedback-form]').count(), 0);
   await bare.context.close();
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), {});
-  await page.locator('[data-head-more]').waitFor({ state: 'attached' });
-  await goSection(page, 'runs');
-  await page.waitForFunction(() => window.location.hash === '#/n01_u05/runs');
-  await page.locator('[data-section-title]', { hasText: 'Runs' }).waitFor();
+  await page.locator('.ph h1').waitFor();
   await reportIssue(page);
   await page.locator('[data-feedback-form]').waitFor();
   assert.deepEqual(seen.errors, []);

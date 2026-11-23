@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
-import { SRC, TABLE, appInfo, fileNames, chartsDrawn, goRail, openApp, serveDist } from './harness.mjs';
+import { SRC, TABLE, appInfo, fileNames, chartsDrawn, openApp, serveDist } from './harness.mjs';
 
 // REQ-506: the Ask Genie button is the Genie side of the Screen | Genie switch, and Genie fills the page.
 const openGenieMode = async (page) => {
   await page.locator('[data-mode-switch] [data-mode="genie"]').click();
   await page.locator('[data-genie-full]').waitFor({ state: 'visible' });
 };
+const goSection = (page, section) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, section);
 const ALL_ON = { modify: true, replace_edits: true, decisions: true };
 const DATA_DOWNLOAD = /csv|download (the )?(data|answer)/i;
 let served;
@@ -41,25 +42,25 @@ test('a per-user App shows no download and no chart export anywhere', async () =
   const info = appInfo({ auth: 'user', options: { ...ALL_ON, decisions: false } }, 1, TABLE);
   assert.deepEqual([info.options.decisions, info.image_export, info.options.modify], [false, false, true]);
   assert.equal('download' in info.options, false);
-  const { page, seen, context } = await openApp(browser, served.base, info);
+  const { page, seen, context } = await openApp(browser, served.base, info, { hash: '#/n01_u05/dashboard' });
   const asked = watchDownloads(page);
   await page.waitForFunction(chartsDrawn, 4);
   assert.equal(await page.getByRole('button', { name: /Download/ }).count(), 0);
   assert.equal(await page.getByRole('button', { name: /^Export / }).count(), 0);
   await askOnce(page);
   assert.equal(await page.getByRole('button', { name: DATA_DOWNLOAD }).count(), 0);
-  await goRail(page, 'work');
+  await goSection(page, 'work');
   await page.locator('[data-work] .card--table tbody tr').first().waitFor();
   assert.equal(await page.getByRole('button', { name: /Download/ }).count(), 0, 'the list on Work offers no download either');
   assert.deepEqual(asked, []);
-  await goRail(page, 'settings');
+  await goSection(page, 'settings');
   assert.match(await page.locator('[data-settings] .auth').textContent(), /Your view/);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
 
 test('a shared-view App with every option on exports images but never the data', async () => {
-  const on = await openApp(browser, served.base, appInfo({ options: ALL_ON }, 1, TABLE));
+  const on = await openApp(browser, served.base, appInfo({ options: ALL_ON }, 1, TABLE), { hash: '#/n01_u05/dashboard' });
   const asked = watchDownloads(on.page);
   await on.page.waitForFunction(chartsDrawn, 4);
   assert.equal(await on.page.getByRole('button', { name: DATA_DOWNLOAD }).count(), 0);

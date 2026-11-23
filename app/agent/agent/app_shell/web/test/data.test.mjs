@@ -274,7 +274,7 @@ test('in a per-user App with decisions on the list offers the tracker, and a bul
   assert.equal(await page.locator('.impact').count(), 1);
   await page.getByRole('checkbox', { name: `Select ${LABEL}` }).check();
   await page.getByRole('checkbox', { name: 'Select Item number 2 with a long descriptive name' }).check();
-  await page.getByRole('button', { name: 'Assign to…' }).click();
+  await fromMore(page, 'Assign to…');
   await page.locator('input[name="bulk_owner"]').fill(OTHER);
   await page.getByRole('button', { name: 'Assign 2 records' }).click();
   await until(() => calls.acts.length === 1);
@@ -377,7 +377,7 @@ test('a page with its own statuses offers its choices and saves the picked one i
   const { calls, routes } = tracked();
   const { page, context } = await open(info, routes, { clock: new Date('2026-10-27T09:30:00Z'), hash: '#/n01_u05/work', ready: '.cell-t' });
   await page.locator('.cell-t').first().click();
-  const drawer = page.locator('[data-dock="record"] dialog.drawer');
+  const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
   assert.deepEqual(await drawer.locator('select[name="action_choice"] option').allInnerTexts(), ['New', 'Reprice', 'Keep the price', 'Drop the item', 'Wrong flag']);
   assert.deepEqual(await drawer.locator('[data-choice]').evaluateAll((b) => b.map((x) => [x.dataset.choice, x.innerText.trim()])),
@@ -520,7 +520,7 @@ test('row checkboxes feed one bulk call to assign or set status, and conflicts a
   assert.equal(await page.locator('.bulk b').innerText(), '2 selected:');
   assert.equal(await page.locator('.card--table tbody tr.is-picked').count(), 2);
   assert.equal(await page.locator('dialog.drawer[open]').count(), 0, 'ticking a row does not open its drawer');
-  await page.getByRole('button', { name: 'Assign to…' }).click();
+  await fromMore(page, 'Assign to…');
   await page.locator('input[name="bulk_owner"]').fill(OTHER);
   const lists = seen.records.length;
   await page.getByRole('button', { name: 'Assign 2 records' }).click();
@@ -532,7 +532,7 @@ test('row checkboxes feed one bulk call to assign or set status, and conflicts a
   await page.waitForFunction(() => !document.querySelector('.bulk'));
   await page.getByRole('checkbox', { name: 'Select every record on this page' }).check();
   assert.equal(await page.locator('.bulk b').innerText(), '25 selected:');
-  await page.getByRole('button', { name: 'Set status…' }).click();
+  await fromMore(page, 'Set status…');
   await page.locator('select[name="bulk_choice"]').selectOption('Not an issue');
   const apply = page.getByRole('button', { name: 'Set status of 25 records' });
   assert.equal(await apply.isDisabled(), true);
@@ -582,6 +582,20 @@ window.asked = [];
 window.addEventListener('inspire:genie-ask', (e) => window.asked.push(e.detail));
 createRoot(document.getElementById('root')).render(h(ToastProvider, null, h(Records, { ...window.props, onExplain: (kind, title, context) => { window.explained.push({ kind, title, context }); return window.answer; } })));
 `;
+
+// REQ-506: bulk actions beyond Resolve, Not an issue and Later sit under More; the drawer shows Resolve, Not an issue and Later and keeps the rest under More.
+const fromMore = async (page, name) => {
+  await page.locator('.bulk [data-act="more"]').click();
+  await page.getByRole('menuitem', { name }).click();
+};
+const drawerActions = async (panel) => {
+  const open = (await panel.locator('.dr-acts > button:not([data-act="more"])').allInnerTexts()).map((t) => t.trim().replace(/^Resolve.*/, 'Resolve'));
+  const more = panel.locator('.dr-acts [data-act="more"]');
+  if ((await more.getAttribute('aria-expanded')) !== 'true') await more.click();
+  const all = [...open, ...(await panel.getByRole('menuitem').allInnerTexts()).map((t) => t.trim())].sort();
+  await more.click();
+  return all;
+};
 
 async function recordsBundle() {
   const entry = { name: 'records-entry', resolveId: (id) => (id === 'records-entry' ? '\0records-entry' : null), load: (id) => (id === '\0records-entry' ? ENTRY : null) };
@@ -752,9 +766,7 @@ test('the record panel shows the saving with its formula, why the AI flagged it,
   assert.deepEqual(await panel.locator('.panel-b > section h3').allInnerTexts(),
     ['Could save', 'Why it is flagged', 'How sure the AI is', 'Next best action', 'Action', 'Ask Genie about this', 'Details', 'History']);
   assert.match(await panel.locator('.hist-i').first().innerText(), /No value changed\./, 'a new AI reason is never shown as a business change');
-  assert.deepEqual(await footerActions(panel), ['Mark done', 'Not an issue', 'Could not fix', 'Snooze…', 'Draft message', 'Ask Genie to fix'].sort(), 'every drawer action can be reached');
-  assert.deepEqual(await panel.getByLabel('Give to someone').locator('option').allInnerTexts(),
-    [`With ${PERSON}`, 'Clear the owner', `Give to ${OTHER}`, 'Someone else…'], 'an owned record can be given away or its owner cleared');
+  assert.deepEqual(await drawerActions(panel), ['Resolve', 'Not an issue', 'Could not fix', 'Later', 'Draft message', 'Ask Genie to fix', 'Clear the owner', 'Give to someone…', 'Set status'].sort(), 'every drawer action can be reached');
   const ask = panel.getByRole('region', { name: 'Ask Genie about this' });
   assert.deepEqual(await ask.locator('.sugg').allInnerTexts(), ['Show the history of this item', 'Are there others like this?', 'What happens if we do nothing?']);
   await ask.getByRole('button', { name: 'Are there others like this?' }).click();
@@ -766,7 +778,7 @@ test('the record panel shows the saving with its formula, why the AI flagged it,
   assert.deepEqual((await page.evaluate(() => window.asked)).at(-1), { pageId: 'n01_u05', recordKey: 'R001', label: LABEL, question: '' });
   await page.locator('.cell-t').first().click();
   await panel.locator('.dr-act').waitFor();
-  await panel.getByRole('button', { name: 'Mark done' }).click();
+  await panel.locator('[data-act="done"]').click();
   await until(() => calls.acts.length === 1);
   assert.deepEqual(calls.acts[0], { page: 'n01_u05', record_keys: ['R001'], values: { action_status: 'Done' }, seen: { R001: '102' } });
   await page.waitForFunction(() => !document.querySelector('dialog.drawer[open]'), null, { timeout: 5000 });
@@ -777,10 +789,12 @@ test('the record panel shows the saving with its formula, why the AI flagged it,
   assert.ok(toastBox.height <= 90, `Mark done's toast reads in one or two lines, got ${Math.round(toastBox.height)}px tall`);
   await page.locator('.cell-t').first().click();
   await panel.locator('.dr-act').waitFor();
-  await panel.getByLabel('Give to someone').selectOption(`Give to ${OTHER}`);
+  await panel.locator('input[name="action_owner"]').fill(OTHER);
+  await panel.getByRole('button', { name: 'Save action' }).click();
   await until(() => calls.acts.length === 2);
-  assert.deepEqual(calls.acts[1].values, { action_owner: OTHER });
-  await panel.getByLabel('Give to someone').selectOption('Someone else…');
+  assert.equal(calls.acts[1].values.action_owner, OTHER);
+  await panel.locator('.dr-acts [data-act="more"]').click();
+  await panel.getByRole('menuitem', { name: 'Give to someone…' }).click();
   assert.equal(await page.evaluate(() => document.activeElement?.name), 'action_owner');
   assert.equal(calls.acts.length, 2, 'picking someone else only moves to the owner field');
   assert.deepEqual(errors, []);
@@ -808,14 +822,16 @@ test('an in-place Explain stays in the Why block and is not echoed into the Geni
   const info = appInfo(DECIDE, 1, TABLE);
   const routes = Object.fromEntries(Object.entries(panelRoutes({})).map(([path, handler]) => [path, ({ route }) => handler(route)]));
   const { page, context, seen } = await open(info, { ...routes, 'genie/explain': ({ json }) => json(200, { conversation_id: 'c1', message_id: 'm1', question: 'Explain' }) },
-    { genie: 'open', hash: '#/n01_u05/work' });
+    { hash: '#/n01_u05/work' });
   await page.locator('.cell-t').first().click();
-  await page.locator('dialog.drawer[open] .dr-act, aside.genie .dr-act').first().waitFor();
+  await page.locator('dialog.drawer[open] .dr-act').first().waitFor();
   await page.getByRole('region', { name: 'Why it is flagged' }).getByRole('button', { name: 'Explain' }).click();
   await page.locator('[data-explained]').first().waitFor();
-  await page.locator('[data-dock-tab="genie"]').click();
+  await page.keyboard.press('Escape');
+  await page.locator('[data-mode-switch] [data-mode="genie"]').click();
+  await page.locator('[data-genie-full]').waitFor({ state: 'visible' });
   await page.waitForTimeout(800);
-  const thread = await page.locator('aside.genie .g-log').innerText();
+  const thread = await page.locator('[data-genie-full] .g-log').innerText();
   assert.ok(!thread.includes('Explain “'), `the Genie thread shows no in-place Explain, got: ${thread.slice(0, 120)}`);
   assert.deepEqual(seen.errors.filter((e) => !/404|Failed to load resource/.test(e)), []);
   await context.close();
@@ -836,13 +852,13 @@ test('the record panel has one action form and one note box, one primary action,
   const tops = await Promise.all(['action_owner', 'action_due'].map((n) => panel.locator(`[name="${n}"]`).boundingBox().then((b) => b.y)));
   tops.push((await panel.locator('select[name="action_choice"]').boundingBox()).y);
   assert.ok(Math.max(...tops) - Math.min(...tops) < 3, `Owner, Status and Due sit on one row, tops ${tops.join(', ')}`);
-  assert.deepEqual(await panel.locator('.panel-f > .btn--pri').allInnerTexts(), ['Mark done'], 'one primary action');
-  const shortRow = await panel.locator('.panel-f > button:not([data-act=more])').evaluateAll((els) => els.map((e) => e.innerText));
-  assert.deepEqual(shortRow.sort(), ['Mark done', 'Not an issue', 'Snooze…'].sort(), 'the short row holds Not an issue and Snooze, the More menu holds the rest');
+  assert.deepEqual((await panel.locator('.dr-acts > .btn--pri').allInnerTexts()).map((t) => t.trim().replace(/^Resolve.*/, 'Resolve')), ['Resolve'], 'one primary action');
+  const shortRow = await panel.locator('.dr-acts button:not([data-act=more])').evaluateAll((els) => els.map((e) => e.innerText.trim().replace(/^Resolve.*/, 'Resolve')));
+  assert.deepEqual(shortRow.sort(), ['Resolve', 'Not an issue', 'Later'].sort(), 'the short row holds Not an issue and Later, the More menu holds the rest');
   assert.equal(await panel.getByRole('button', { name: 'More' }).count(), 1);
   await panel.getByRole('button', { name: 'More' }).click();
-  assert.ok((await panel.locator('.panel-f').innerText()).includes('Could not fix'), 'Could not fix is reachable under More');
-  assert.ok((await panel.locator('.panel-f').innerText()).includes('Ask Genie to fix'), 'Ask Genie to fix is reachable under More');
+  assert.ok((await panel.getByRole('menuitem').allInnerTexts()).includes('Could not fix'), 'Could not fix is reachable under More');
+  assert.ok((await panel.getByRole('menuitem').allInnerTexts()).includes('Ask Genie to fix'), 'Ask Genie to fix is reachable under More');
   assert.deepEqual(on.errors, []);
   await on.context.close();
 });
@@ -897,7 +913,7 @@ test('Undo after Mark done reopens the record in its prior state', async () => {
   const panel = page.locator('dialog.drawer[open]');
   await page.locator('.cell-t').first().click();
   await panel.locator('.dr-act').waitFor();
-  await panel.getByRole('button', { name: 'Mark done' }).click();
+  await panel.locator('[data-act="done"]').click();
   await page.waitForFunction(() => !document.querySelector('dialog.drawer[open]'), null, { timeout: 5000 });
   await page.locator('.toast.is-on .toast-a button', { hasText: 'Undo' }).click();
   await until(() => undos.length === 1);
@@ -906,7 +922,7 @@ test('Undo after Mark done reopens the record in its prior state', async () => {
   await page.locator('.cell-t').first().click();
   await panel.locator('.dr-act').waitFor();
   assert.equal(await panel.locator('.done').count(), 0, 'the record is open again, not closed');
-  assert.equal(await panel.getByRole('button', { name: 'Mark done' }).count(), 1, 'Mark done is back, so the record is in its prior state');
+  assert.equal(await panel.locator('[data-act="done"]').count(), 1, 'Resolve is back, so the record is in its prior state');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

@@ -1,10 +1,8 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { DECIDE, NO_JOB, TABLE, appInfo, openApp, serveDist } from './harness.mjs';
+import { NO_JOB, appInfo, openApp, serveDist } from './harness.mjs';
 
-// REQ-506: no side rail; a section opens by its hash.
-const goSection = (page, section) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, section);
 let served;
 let browser;
 
@@ -18,37 +16,26 @@ after(async () => {
   served?.close();
 });
 
-const genieOpen = (page) => page.locator('aside.genie.is-open').count();
+const genieOpen = (page) => page.locator('[data-genie-full]').count();
+const openGenieMode = async (page) => {
+  await page.locator('[data-mode-switch] [data-mode="genie"]').click();
+  await page.locator('[data-genie-full]').waitFor({ state: 'visible' });
+};
 
-test('the Ask Genie panel opens on the first load of a browser session, and a close holds across a reload', async () => {
+// REQ-506: Genie no longer opens as a panel on first load. A browser session lands on Work, Genie is the other side of the Screen | Genie switch, and a switch back to Screen holds across a reload.
+test('a browser session lands on Work with Genie closed, and Screen chosen after Genie holds across a reload', async () => {
   const { page, context } = await openApp(browser, served.base, appInfo(), { genie: 'open' });
   try {
-    await page.locator('aside.genie.is-open').waitFor({ timeout: 20000 });
-    assert.equal(await genieOpen(page), 1, 'the panel is open on the first load');
-    await page.locator('aside.genie button[aria-label="Close Ask Genie"]').click();
-    await page.locator('aside.genie.is-open').waitFor({ state: 'detached', timeout: 10000 });
+    await page.locator('[data-mode-switch]').waitFor({ timeout: 20000 });
+    assert.equal(await genieOpen(page), 0, 'Genie is not open on the first load');
+    await openGenieMode(page);
+    assert.equal(await genieOpen(page), 1, 'Genie opens from the switch');
+    await page.locator('[data-mode-switch] [data-mode="screen"]').click();
+    await page.locator('[data-genie-full]').waitFor({ state: 'detached', timeout: 10000 });
     await page.reload();
     await page.locator('[data-ready], .fatal').first().waitFor({ state: 'attached', timeout: 60000 });
     await page.waitForTimeout(1500);
-    assert.equal(await genieOpen(page), 0, 'a close made in this session holds after a reload');
-  } finally {
-    await context.close();
-  }
-});
-
-test('REQ-092: a Genie panel closed in this session stays closed after a docking cycle on the Work tab', async () => {
-  const { page, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { genie: 'open', hash: '#/n01_u05/work' });
-  try {
-    await page.locator('.genie-btn').waitFor({ timeout: 20000 });
-    await page.locator('.genie-btn').click();
-    await goSection(page, 'dashboard');
-    await page.locator('aside.genie.is-open').waitFor({ timeout: 10000 });
-    await page.locator('aside.genie button[aria-label="Close Ask Genie"]').click();
-    await page.locator('aside.genie.is-open').waitFor({ state: 'detached', timeout: 10000 });
-    await goSection(page, 'work');
-    await goSection(page, 'dashboard');
-    await page.waitForTimeout(1500);
-    assert.equal(await genieOpen(page), 0, 'a close made in this session is not undone when the Work tab docks and undocks Genie');
+    assert.equal(await genieOpen(page), 0, 'a switch back to Screen holds after a reload');
   } finally {
     await context.close();
   }
@@ -57,22 +44,24 @@ test('REQ-092: a Genie panel closed in this session stays closed after a docking
 const ACTIVE = { run_id: '9', result: 'running', state: 'running', started: new Date(Date.now() - 60000).toISOString(), stage: 'Running the use case', stage_index: 2, stage_total: 5, rows_done: null, rows_total: null, percent: null, eta_s: null, silent_since: null, source: 'marker' };
 const LAST = { run_id: '8', status: 'done', started: new Date(Date.now() - 3600000).toISOString(), ended: new Date(Date.now() - 3000000).toISOString(), trigger: 'refresh', by: '' };
 
-test('REQ-092: the Genie panel opens on first load with the build step on top while a build runs', async () => {
+test('REQ-092: the Genie panel shows the build step on top when opened while a build runs', async () => {
   const { page, context } = await openApp(browser, served.base, appInfo(), { genie: 'open', routes: { freshness: ({ json }) => json(200, { ...NO_JOB, has_job: true, active: ACTIVE }) } });
   try {
-    const line = page.locator('aside.genie [data-build-status]');
+    await openGenieMode(page);
+    const line = page.locator('[data-genie-full] [data-build-status]');
     await line.waitFor({ timeout: 20000 });
     assert.match(await line.innerText(), /Step 2 of 5: Running the use case/, 'the panel says which build step is running');
-    assert.equal(await page.locator('aside.genie .g-h + [data-build-status]').count(), 1, 'the line sits right under the panel header');
+    assert.equal(await page.locator('[data-genie-full] .g-h + [data-build-status]').count(), 1, 'the line sits right under the panel header');
   } finally {
     await context.close();
   }
 });
 
-test('REQ-092: after a build finishes, the Genie panel on first load says how the latest run ended', async () => {
+test('REQ-092: after a build finishes, the Genie panel says how the latest run ended when opened', async () => {
   const { page, context } = await openApp(browser, served.base, appInfo(), { genie: 'open', routes: { freshness: ({ json }) => json(200, { ...NO_JOB, has_job: true, last_run: LAST, last_success: LAST }) } });
   try {
-    const line = page.locator('aside.genie [data-build-status]');
+    await openGenieMode(page);
+    const line = page.locator('[data-genie-full] [data-build-status]');
     await line.waitFor({ timeout: 20000 });
     assert.match(await line.innerText(), /^Latest run/, 'the panel says how the latest run ended');
   } finally {

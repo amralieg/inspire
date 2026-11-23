@@ -1,7 +1,14 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { FILTERS, appInfo, goRail, openApp, reportIssue, serveDist } from './harness.mjs';
+import { FILTERS, appInfo, openApp, serveDist } from './harness.mjs';
+// REQ-506: no side rail; a section opens by its hash.
+const goRail = (page, id) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, id);
+// REQ-506: Report an issue sits in Settings (Share and follow).
+const reportIssue = async (page) => {
+  await page.evaluate(() => { location.hash = `#/${location.hash.split('/')[1]}/settings`; });
+  await page.locator('[data-feedback-open]').click();
+};
 
 let served;
 let browser;
