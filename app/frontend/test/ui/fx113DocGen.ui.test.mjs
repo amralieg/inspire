@@ -134,7 +134,7 @@ test('buildPptx: a real deck with a cover, a summary, a slide per use case, ever
 test('buildXlsx: the chosen columns in the chosen order, one row per use case, value is a number', async () => {
   const out = await buildXlsx(model(), ['name', 'value', 'inspire_score']);
   const buf = Buffer.from(out instanceof Uint8Array ? out : new Uint8Array(await out.arrayBuffer()));
-  const rows = await readXlsx(buf);
+  const rows = (await readXlsx(buf))[0].data;
   const labels = ['name', 'value', 'inspire_score'].map((id) => EXCEL_COLUMNS.find((c) => c.id === id).label);
   assert.deepEqual(rows[0], labels);
   assert.equal(rows.length, 4);
