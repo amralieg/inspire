@@ -39,4 +39,5 @@ export function citationLine(series) {
   return [c.name, c.indicator, c.country, years, `fetched ${dateText(c.fetched_at || series?.fetched_at)}`, c.licence].filter(Boolean).join(', ');
 }
 
-export const blockedLine = (reply) => (reply?.blocked ? String(reply.message || '') : '');
+// The App nests a blocked host inside the series ({series: {blocked, message}}); a top-level {blocked, message} is read too.
+export const blockedLine = (reply) => { const b = reply?.series?.blocked ? reply.series : reply; return b?.blocked ? String(b.message || '') : ''; };

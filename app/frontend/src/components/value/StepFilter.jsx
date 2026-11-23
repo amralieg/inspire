@@ -61,7 +61,7 @@ export default function StepFilter({ facts, scope, onScope, post }) {
             return (
               <li key={`${text}-${i}`} data-predicate="" className="inline-flex items-center gap-1 rounded-full border border-border bg-bg-subtle ps-3 pe-1 text-[12px]">
                 {text}
-                <button type="button" aria-label={`Remove ${text}`} disabled={busy} onClick={() => remove(i)} className="h-6 w-6 rounded-full hover:bg-surface">×</button>
+                <button type="button" aria-label={`Remove ${text}`} disabled={busy} onClick={() => remove(i)} className="inline-flex h-6 w-6 items-center justify-center rounded-full hover:bg-surface"><svg aria-hidden="true" viewBox="0 0 12 12" className="h-3 w-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2 2l8 8M10 2l-8 8" /></svg></button>
               </li>
             );
           })}
