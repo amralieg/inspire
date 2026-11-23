@@ -61,6 +61,7 @@ const VDC = require('./lib/valueDriversCalc');
 const VA = require('./lib/valueAnswers');
 const VR = require('./lib/valueReview');
 const VCP = require('./lib/valueCasePlan');
+const { projectionOf } = require('./lib/valueProjection');
 const VS = require('./lib/valueScope');
 const IV = require('./lib/inspireValue');
 
@@ -2822,7 +2823,21 @@ function registerImplementRoutes(app, deps) {
   const shape2Yearly = (plan, answers) => {
     const got = VCP.yearlyOf(plan && typeof plan === 'object' ? plan : {}, answers && typeof answers === 'object' ? answers : {});
     if (got.errors) throw Object.assign(I.badRequest(Object.values(got.errors)[0]), { errorMap: got.errors });
-    return got.yearly;
+    // REQ-507 L2: likely is the server total; low/high re-run the same maths with every ticked factor at its own min/max (pct is clamped to the bounds).
+    const given = answers && typeof answers === 'object' ? answers : {};
+    const ticked = Object.entries(given.economic_factors && typeof given.economic_factors === 'object' ? given.economic_factors : {}).filter(([, a]) => a && a.on === true);
+    const at = (pct) => {
+      if (!ticked.length) return got.yearly.total.amount;
+      const r = VCP.yearlyOf(plan, { ...given, economic_factors: { ...given.economic_factors, ...Object.fromEntries(ticked.map(([id, a]) => [id, { ...a, pct }])) } });
+      return r.yearly ? r.yearly.total.amount : got.yearly.total.amount;
+    };
+    let projection;
+    try {
+      projection = projectionOf({ gross: { low: at(-1e6), likely: got.yearly.total.amount, high: at(1e6) }, ...(given.economics && typeof given.economics === 'object' ? given.economics : {}) });
+    } catch (err) {
+      throw I.badRequest(`Ramp and cost: ${err.message}`);
+    }
+    return { ...got.yearly, projection };
   };
   const sendShape2Error = (res, err) => (err && err.errorMap ? res.status(400).json({ error: err.message, errors: err.errorMap }) : sendError(res, err));
 
