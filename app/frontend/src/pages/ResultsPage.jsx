@@ -119,6 +119,7 @@ import { INSPIRE_ENTRY, RESULTS_PENDING_TEXT, noResultsText, resultsReadFailure,
 import ResultsNav from '../components/results/ResultsNav';
 import { DEFAULT_RESULTS_VIEW, searchWithView, viewOfSearch } from '../lib/resultsView';
 import ResultsBusiness from '../components/results/ResultsBusiness';
+import RunStepper from '../components/RunStepper';
 import ResultsAssets from '../components/results/ResultsAssets';
 import { sessionFailed, sessionFinished, sessionSucceeded } from '../lib/monitorState';
 import { placeholderWords } from '../lib/placeholderWords';
@@ -136,16 +137,8 @@ function formatSessionDate(dateStr) {
   } catch { return dateStr.slice(0, 16); }
 }
 
-/* ── Pipeline stages for execution summary ── */
-const PIPELINE_STAGES = [
-  'Setup',
-  'Business Understanding',
-  'Use Case Design',
-  'Domain Mapping',
-  'Prioritization',
-  'Implementation',
-  'Executive Readout',
-];
+/* The Assets run bar's fixed stages; the run stepper above the section tabs carries each phase's real state. */
+const PIPELINE_STAGES = ['Setup', 'Business Understanding', 'Use Case Design', 'Domain Mapping', 'Prioritization', 'Implementation', 'Executive Readout'];
 
 import { BuildNextPanel } from '../components/BuildNext';
 import ValueDisclaimer from '../components/ValueDisclaimer';
@@ -1479,6 +1472,10 @@ export default function ResultsPage({
 
 
 
+
+          {!isProgressive && runSteps.session === String(selectedSessionId ?? '') && runSteps.steps.length > 0 && (
+            <RunStepper steps={runSteps.steps} ended={Boolean(results?.run_status)} />
+          )}
 
           {/* ═══ Two-Column: sticky sidebar rail; use-case list scrolls independently in the right column ═══ */}
           <div data-browse={view === 'usecases' ? '' : undefined} className={`grid grid-cols-1 gap-5 min-h-0 ${view === 'usecases' ? 'md:grid-cols-[14rem_minmax(0,1fr)]' : ''}`}>
