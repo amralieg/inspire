@@ -40,8 +40,11 @@ export function ValueChip({ page }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     let live = true;
-    getValueCounter(page.id).then((c) => { if (live) setCounter(c); }).catch(() => { if (live) setCounter(null); });
-    getValueLeaders(page.id).then((l) => { if (live) setLeaders(l); }).catch(() => { if (live) setLeaders(null); });
+    getValueCounter(page.id).then((c) => {
+      if (!live) return;
+      setCounter(c);
+      if (c && c.shown) getValueLeaders(page.id).then((l) => { if (live) setLeaders(l); }).catch(() => { if (live) setLeaders(null); });
+    }).catch(() => { if (live) setCounter(null); });
     return () => { live = false; };
   }, [page.id]);
   const lines = chipLines(counter, leaders);

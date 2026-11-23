@@ -3,48 +3,37 @@ import { WAITING_FOR_ACCESS_CODE, filtersFailure, getApp, getDefaults, getFilter
 import { applyTheme, hueVars, rememberPalette, storedPalette } from './theme.js';
 import { apiValues, initialFilterState } from './filters.js';
 import { AGENT_OPEN, EMPTY_LOOK, applyActions, changesView, visibleOf, topFact } from './agentView.js';
-import { GenieMark, Icon } from './icons.jsx';
+import { Icon } from './icons.jsx';
 import { NoAccessScope, PlainNote, RetryProvider, ToastProvider, useToast } from './ui.jsx';
 import Page from './Page.jsx';
 import WaitingForAccess from './WaitingForAccess.jsx';
 import { isQueue, pageSections } from './Layouts.jsx';
 import { hasPlan, pageMode, performanceOn, sectionTitle } from './modes.js';
 import ModeView from './ModeView.jsx';
-import AgentPage from './AgentPage.jsx';
-import { inboxOn } from './inbox.js';
 import { asideNotice } from './setAside.js';
 import SetAside from './SetAside.jsx';
 const Admin = lazy(() => import('./Admin.jsx'));
 import { ADMIN_ROUTE } from './admin.js';
 import GeniePanel, { useGenie } from './Genie.jsx';
+import Welcome from './Welcome.jsx';
+import AvatarMenu from './AvatarMenu.jsx';
+import { ValueChip } from './ValueCounter.jsx';
 import { GenieScope, GenieState } from './AskGenie.jsx';
-import { DockContext, DockTabs, RecordDock } from './Dock.jsx';
-import Switcher, { UseCases } from './Switcher.jsx';
+import Switcher from './Switcher.jsx';
 import { LINK_STALE, UNKNOWN_PAGE, canonicalHash, parseHash, sectionHash, staleSection, unknownRoute, withRecord, workRecordHash } from './links.js';
 import { MyViewProvider, useMyView } from './MyView.jsx';
 import { windowParams } from './prefs.js';
 import { DEFAULT_VIEW, visiblePages } from './hub.js';
 import logo from './databricks-logo.png?inline';
-import { integer } from './format.js';
 import { markTourSeen, tourDue, tourKey } from './tourStart.js';
 import { HelpContext } from './SectionHelp.jsx';
 import { styleOfPage } from './kinds.js';
+import './styles/mission.css';
 
 const Tour = lazy(() => import('./Tour.jsx'));
 const Performance = lazy(() => import('./Performance.jsx'));
 
 const THEME_KEY = 'inspire-app-theme';
-const GENIE_CLOSED = 'inspire-genie-closed';
-const genieClosedThisSession = () => { try { return window.sessionStorage.getItem(GENIE_CLOSED) === '1'; } catch { return false; } };
-const rememberGenie = (open) => { try { window.sessionStorage.setItem(GENIE_CLOSED, open ? '0' : '1'); } catch { /* private mode opens it on every load */ } };
-const RAIL_ICONS = { dashboard: 'grid', inbox: 'bell', work: 'check', plan: 'trend', performance: 'trend', runs: 'history', alerts: 'bell', impact: 'trend', settings: 'sliders', agent: 'send' };
-
-function initials(user) {
-  const source = user?.name || user?.email || '';
-  const parts = source.split(/[@.\s_-]+/).filter(Boolean);
-  return (parts.slice(0, 2).map((p) => p[0]).join('') || '?').toUpperCase();
-}
-
 function useFavicon() {
   useLayoutEffect(() => {
     const link = document.querySelector('link[rel="icon"]') || document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'icon' }));
@@ -86,40 +75,10 @@ function useHub(pages, asked) {
   return { hub, error, summaries, load, summarize };
 }
 
-// D-NOAGENT (Amr 2026-11-16, reaffirmed REQ-392): the Agent page is fully off for every experience: no nav item, no landing,
-// and a deep link to #/<page>/agent falls back to the dashboard. The Agent page code stays; flip this to true to show it again.
-const AGENT_PAGE_SHOWN = false;
-// The Agent page is on for agentic and both (a classic ui App has none) when AGENT_PAGE_SHOWN is set.
-const agentOn = (app) => AGENT_PAGE_SHOWN && (app?.experience === 'agentic' || app?.experience === 'both');
-
-function railOf(app, page) {
-  const inbox = inboxOn(app, page);
-  const sections = agentOn(app) ? ['agent', ...pageSections(app, page)] : pageSections(app, page);
-  const all = inbox ? [sections[0], 'inbox', ...sections.slice(1)] : sections;
-  const at = 1 + (sections.includes('work') ? 1 : 0) + (sections.includes('plan') ? 1 : 0) + (inbox ? 1 : 0);
-  return [...all.slice(0, at), ...(performanceOn(app) ? ['performance'] : []), ...all.slice(at)];
-}
-
-function SectionRail({ sections, on, onGo, open, page, counts = {}, alerting }) {
-  const top = sections.filter((s) => s !== 'settings');
-  const toured = (s) => (s === 'runs' && alerting && !sections.includes('alerts') ? 'alerts' : ['performance', 'alerts', 'runs', 'settings'].includes(s) ? s : undefined);
-  const item = (s) => (
-    <button key={s} type="button" className={`nav-i rail-i ${on === s ? 'is-on' : ''}`} onClick={() => onGo(s)} aria-current={on === s ? 'page' : undefined} data-rail={s}
-      data-tour={toured(s)}
-      aria-label={counts[s] != null ? `${sectionTitle(page, s)} (${integer(counts[s])})` : undefined}>
-      <span className="nav-ic"><Icon name={RAIL_ICONS[s]} size={15} /></span>
-      <span className="nav-t"><b>{sectionTitle(page, s)}</b></span>
-      {counts[s] != null && <small className="rail-n" data-count={counts[s]}>{integer(counts[s])}</small>}
-    </button>
-  );
-  return (
-    <nav className={`side rail ${open ? 'is-open' : ''}`} aria-label={page ? `Sections of ${page.title}` : 'Sections'} style={hueVars(page?.hue || 'blue')}>
-      {top.map(item)}
-      <span className="sp" />
-      {sections.includes('settings') && <div className="rail-foot">{item('settings')}</div>}
-    </nav>
-  );
-}
+// REQ-506: no side rail. The sections a person can reach by link or from the avatar menu; Work is home and Genie is its own screen.
+const railOf = (app, page) => [...pageSections(app, page), ...(performanceOn(app) ? ['performance'] : []), 'genie'];
+const HOME_ROUTES = ['', 'home', 'overview'];
+const OLD_SECTION = /^(#\/[^/?]+)\/(?:inbox|agent)(?=[?]|$)/;
 
 function Shell({ app, onRefreshSiblings }) {
   const [theme, setTheme] = useState(() => {
@@ -132,10 +91,13 @@ function Shell({ app, onRefreshSiblings }) {
   known.current = { pages, last: prefs.last };
   const missed = useRef('');
   const resolve = useCallback(() => {
-    const before = window.location.hash;
+    const before = window.location.hash.replace(OLD_SECTION, '$1');
     if (unknownRoute(parseHash(before).route, known.current.pages)) missed.current = UNKNOWN_PAGE;
-    const next = canonicalHash(before, { pages: known.current.pages, last: known.current.last, sectionsOf: (p) => railOf(app, p), queueOf: (p) => pageMode(p).queue,
-      landingOf: (p) => (app.experience === 'agentic' && railOf(app, p).includes('agent') ? 'agent' : '') });
+    const canon = (hash) => canonicalHash(hash, { pages: known.current.pages, last: known.current.last, sectionsOf: (p) => railOf(app, p), queueOf: (p) => pageMode(p).queue,
+      landingOf: (p) => (pageMode(p).queue && railOf(app, p).includes('work') ? 'work' : '') });
+    let next = canon(before);
+    if (HOME_ROUTES.includes(parseHash(before).route) && next) next = canon(`#/${encodeURIComponent(parseHash(next).route)}`) || next;
+    if (!next && before !== window.location.hash) next = before;
     if (next) window.history.replaceState(window.history.state, '', next);
     if (next && staleSection(before, next)) missed.current = LINK_STALE;
     return parseHash(window.location.hash);
@@ -172,12 +134,6 @@ function Shell({ app, onRefreshSiblings }) {
       };
     },
   }), []);
-  const [navOpen, setNavOpen] = useState(false);
-  const [railCounts, setRailCounts] = useState({});
-  const [genieOpen, setGenieOpenNow] = useState(() => !genieClosedThisSession());
-  const setGenieOpen = (open) => { rememberGenie(open); setGenieOpenNow(open); };
-  const [dockSlot, setDockSlot] = useState(null);
-  const [showing, setShowing] = useState(false);
   const [view, setView] = useState(DEFAULT_VIEW);
   const [touring, setTouring] = useState('');
   const [tourFacts, setTourFacts] = useState({});
@@ -185,17 +141,12 @@ function Shell({ app, onRefreshSiblings }) {
   const admin = route === ADMIN_ROUTE;
   const page = pages.find((p) => p.id === route) || (admin ? pages.find((p) => p.id === prefs.last) || pages[0] : null);
   const aside = asideNotice(page);
-  const section = admin ? '' : (link.section === 'performance' && !performanceOn(app)) || (link.section === 'plan' && !(page && hasPlan(page)))
-    || (link.section === 'agent' && !agentOn(app)) ? 'dashboard' : link.section;
+  const section = admin ? '' : (link.section === 'performance' && !performanceOn(app)) || (link.section === 'plan' && !(page && hasPlan(page))) ? 'dashboard' : link.section;
   const sectionsHere = page ? railOf(app, page) : [];
-  const inboxOff = railCounts.page === page?.id && railCounts.inboxOff;
-  const rail = sectionsHere.filter((s) => !(s === 'alerts' && sectionsHere.includes('runs')) && !(s === 'inbox' && inboxOff));
   const mode = pageMode(page);
-  const working = !admin && section === 'work' && !!page && mode.queue;
   const fullChat = !admin && section === 'work' && !!page && mode.id === 'ask';
-  const dock = working ? prefs.dock : '';
-  const setDock = useCallback((next) => update((p) => ({ ...p, dock: next })), [update]);
-  const openGenie = () => (fullChat ? null : working ? setDock('genie') : setGenieOpen(true));
+  const genieFull = !admin && section === 'genie' && !!page;
+  const openGenie = () => { if (page && !fullChat && !genieFull) window.location.hash = sectionHash(page.id, 'genie'); };
   const genie = useGenie(app, page ? page.id : '', openGenie, agentView);
   const genieState = useMemo(() => ({ app, busy: genie.busy }), [app, genie.busy]);
   const { hub, error: hubError, summaries, load: loadHub, summarize } = useHub(pages, JSON.stringify(windowParams(prefs)));
@@ -232,13 +183,6 @@ function Shell({ app, onRefreshSiblings }) {
   useEffect(() => {
     document.title = admin ? `Admin · ${app.title}` : page ? `${page.title} · ${app.title}` : app.title;
   }, [page, admin, app.title]);
-  useEffect(() => {
-    if (!navOpen) return undefined;
-    const key = (e) => { if (e.key === 'Escape') setNavOpen(false); };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
-  }, [navOpen]);
-
   const requested = useRef(new Set());
   const loadMeta = useCallback((id) => {
     if (requested.current.has(id)) return;
@@ -256,19 +200,16 @@ function Shell({ app, onRefreshSiblings }) {
   const retryMeta = useCallback((id) => { requested.current.delete(id); loadMeta(id); }, [loadMeta]);
   useEffect(() => { if (page && !aside) loadMeta(page.id); }, [page, aside, loadMeta]);
 
-  const leave = () => { setNavOpen(false); document.querySelector('.main')?.focus(); };
+  const leave = () => { document.querySelector('.main')?.focus(); };
   const go = (id) => { window.location.hash = `#/${encodeURIComponent(id)}`; leave(); };
   const goSection = (s) => {
     const f = parseHash(window.location.hash).f;
     if (page) window.location.hash = sectionHash(page.id, s, new URLSearchParams(f && link.route === page.id ? { f } : {}));
-    if (navOpen) leave();
   };
   const openRecord = (pageId, key) => {
     const target = pages.find((p) => p.id === pageId);
-    if (target && isQueue(target)) {
-      setDock('record');
-      window.location.hash = workRecordHash(pageId, key);
-    } else window.location.hash = withRecord(`#/${encodeURIComponent(pageId)}`, key);
+    if (target && isQueue(target)) window.location.hash = workRecordHash(pageId, key);
+    else window.location.hash = withRecord(`#/${encodeURIComponent(pageId)}`, key);
     leave();
   };
   const perfScope = useMemo(() => ({ page: page?.id || '', filters: '' }), [page?.id]);
@@ -288,76 +229,56 @@ function Shell({ app, onRefreshSiblings }) {
   const setPageState = (id) => (next) => setStates((s) => ({ ...s, [id]: next }));
   const setPageLook = (id) => (change) => setLooks((l) => ({ ...l, [id]: change(l[id] || EMPTY_LOOK) }));
   const themeKey = `${palette}:${theme}:${app.style}`;
-  const crumb = page ? [page.domain, page.subdomain].filter(Boolean).join(' › ') : '';
   const chrome = { palette, built: app.palette, theme, onPalette: choosePalette, onTheme: toggleTheme };
-  const genieShown = fullChat || (working ? dock === 'genie' : genieOpen);
-  const toggleGenie = () => (fullChat ? document.querySelector('[data-genie-full] .g-in input')?.focus() : working ? setDock(dock === 'genie' ? '' : 'genie') : setGenieOpen(!genieOpen));
-  const dockValue = useMemo(() => (working ? { slot: dockSlot, tab: dock, onTab: setDock, onShowing: setShowing } : null), [working, dockSlot, dock, setDock]);
-  const tabs = working ? <DockTabs tab={dock} onTab={setDock} /> : null;
-  const wasWorking = useRef(working);
-  useEffect(() => {
-    if (wasWorking.current === working) return;
-    wasWorking.current = working;
-    if (working && genieOpen) {
-      setDock('genie');
-      setGenieOpenNow(false);
-    } else if (!working && prefs.dock === 'genie' && !genieClosedThisSession()) {
-      setGenieOpenNow(true);
-    }
-  }, [working]);
+  const showGenie = () => { if (page) window.location.hash = sectionHash(page.id, 'genie'); };
+  const showScreen = () => { if (page) window.location.hash = sectionHash(page.id, 'work'); };
+  const welcomed = !!page && !!prefs.welcomed[page.id];
+  const welcome = (choice) => { update((p) => ({ ...p, welcomed: { ...p.welcomed, [page.id]: true } })); if (choice === 'genie') showGenie(); else showScreen(); };
   const genieProps = { app, genie, page, pages: shown, onPick: go, fact: page ? topFact(page, tourFacts[page.id]) : '' };
 
   return (
     <GenieState.Provider value={genieState}>
-    <DockContext.Provider value={dockValue}>
     <HelpContext.Provider value={startHelp}>
     <div className="stage">
       <div className="app" data-ready="" data-layout={app.layout} data-density={prefs.density} data-app-style={styleOfPage(page)?.id}>
         <header className="top">
-          <button className="ibtn menu-btn" onClick={() => setNavOpen(!navOpen)} aria-label="Open the sections" aria-expanded={navOpen}><Icon name="menu" size={18} /></button>
-          <button className="mark" onClick={() => go('')} aria-label={`${app.title}, home`} title={crumb ? `${app.title}\n${crumb}` : app.title}>
-            <span className="mark-tile logo"><img src={logo} alt="Databricks" width="22" height="22" /></span>
-            <span className="mark-t"><b>{app.title}</b><small>{crumb || app.subtitle || `${pages.length} use case${pages.length === 1 ? '' : 's'} · built by Inspire`}</small></span>
-          </button>
+          <Switcher pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={() => { loadHub(); onRefreshSiblings?.(); }} siblings={app.siblings || []} />
           <span className="sp" />
-          <Switcher pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} />
-          <span className="sp" />
-          <button className="genie-btn" data-tour="genie" onClick={toggleGenie} aria-expanded={genieShown} aria-label="Ask Genie"><GenieMark size={15} /><span>Ask Genie</span></button>
-          <UseCases pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={() => { loadHub(); onRefreshSiblings?.(); }} siblings={app.siblings || []} />
-          {(app.user.email || app.user.name) && <span className="avatar" title={app.user.email || app.user.name} aria-hidden="true">{initials(app.user)}</span>}
-          {page && !admin && <button type="button" className="ibtn tour-top" onClick={takeTour} disabled={!page.tour} data-tour-top aria-label="Take the guided tour again" title="Take the guided tour again"><Icon name="info" size={16} /></button>}
+          {page && !admin && (
+            <div className="mode-switch" role="group" aria-label="How to work" data-mode-switch>
+              <button type="button" className="mode-b" data-mode="screen" aria-pressed={!genieFull} onClick={showScreen}>Screen</button>
+              <button type="button" className="mode-b" data-mode="genie" aria-pressed={genieFull} onClick={showGenie}>Genie</button>
+            </div>
+          )}
+          <span className="top-value" data-top-value>{page && !admin && <ValueChip page={page} />}</span>
+          <AvatarMenu user={app.user} chrome={chrome} page={page} app={app} sections={sectionsHere} onSection={goSection} onTour={takeTour} canTour={!!page?.tour && !admin} />
         </header>
         <div className="body">
-          {page && <SectionRail sections={rail} on={section === 'alerts' && !rail.includes('alerts') ? 'runs' : section} onGo={goSection} open={navOpen} page={page}
-            counts={railCounts.page === page.id ? railCounts : {}} alerting={!!app.alerting?.on} />}
-          {navOpen && <div className="scrim" onClick={() => setNavOpen(false)} />}
           <main className="main" tabIndex={-1}>
             <NoAccessScope key={page ? `page:${page.id}` : admin ? 'admin' : 'home'} app={app}>
             <RetryProvider value={loadHub}>
             {admin && <Suspense fallback={null}><Admin /></Suspense>}
             {!admin && !page && hubWaiting && <WaitingForAccess waiting={hubWaiting.detail} onCheck={loadHub} />}
             {!admin && page && aside && <SetAside text={aside} />}
+            {!admin && page && !aside && section === 'work' && !welcomed && <Welcome page={page} onChoose={welcome} />}
             {!admin && page && !aside && section === 'performance' && (
               <GenieScope.Provider value={perfScope}>
                 <ModeView key={page.id} mode={mode.id} part="Performance" app={app} page={page} genie={genie}
                   fallback={<Performance key={page.id} app={app} page={page} summary={summaries[page.id]} onRecord={openRecord} onExplain={explain} genieBusy={genie.busy} />} />
               </GenieScope.Provider>
             )}
-            {!admin && page && !aside && section === 'agent' && <AgentPage key={page.id} app={app} page={page} onRecord={openRecord} themeKey={themeKey} />}
             {!admin && page && !aside && section === 'plan' && <ModeView key={page.id} mode={mode.id} part="Plan" app={app} page={page} />}
-            {!admin && page && !aside && section !== 'performance' && section !== 'agent' && section !== 'plan' && (
+            {genieFull && !aside && <div className="genie-full" data-genie-full=""><GeniePanel {...genieProps} onClose={showScreen} /></div>}
+            {!admin && page && !aside && section !== 'performance' && section !== 'plan' && section !== 'genie' && (
               <Page key={page.id} app={app} page={page} meta={metas[page.id]} state={states[page.id]} onState={setPageState(page.id)} look={looks[page.id] || EMPTY_LOOK}
                 onLook={setPageLook(page.id)} themeKey={themeKey} onAsk={ask} onExplain={explain} genieBusy={genie.busy} hubEntry={hub?.pages?.[page.id]}
                 summary={summaries[page.id]} view={view} onView={setView} genie={genie} section={section} tab={link.tab} focus={link.focus} chrome={chrome}
-                onCounts={setRailCounts} onRecord={openRecord} onRetryMeta={() => retryMeta(page.id)} onRetrySummary={() => summarize(page.id)}
+                onRecord={openRecord} onRetryMeta={() => retryMeta(page.id)} onRetrySummary={() => summarize(page.id)}
                 onTour={page.tour ? takeTour : null} onTourFacts={keepFacts} />
             )}
             </RetryProvider>
             </NoAccessScope>
           </main>
-          {working && dock === 'genie' && <GeniePanel {...genieProps} tabs={tabs} onClose={() => setDock('')} />}
-          {working && dock === 'record' && <RecordDock tabs={tabs} onSlot={setDockSlot} onClose={() => setDock('')} empty={!showing} />}
-          {!working && !fullChat && genieOpen && <GeniePanel {...genieProps} onClose={() => setGenieOpen(false)} />}
         </div>
         {page && (helping || touring === page.id) && page.tour && (
           <Suspense fallback={null}>
@@ -368,7 +289,6 @@ function Shell({ app, onRefreshSiblings }) {
       </div>
     </div>
     </HelpContext.Provider>
-    </DockContext.Provider>
     </GenieState.Provider>
   );
 }

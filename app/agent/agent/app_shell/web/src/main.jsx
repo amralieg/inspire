@@ -9,6 +9,7 @@ import './styles/data.css';
 import './styles/chrome.css';
 import './styles/ops.css';
 import './styles/money.css';
+import './styles/value.css';
 import './styles/impact.css';
 import './styles/alerts.css';
 import './styles/blocks.css';
