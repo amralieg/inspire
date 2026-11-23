@@ -64,6 +64,7 @@ const VCP = require('./lib/valueCasePlan');
 const { projectionOf } = require('./lib/valueProjection');
 const VS = require('./lib/valueScope');
 const IV = require('./lib/inspireValue');
+const { docFileProblem } = require('./lib/docFiles');
 
 function sendError(res, err) {
   return PM_ERROR.sendFailure(res, PM_ERROR.failureStatus(err), (err && err.message) || String(err), err && err.details, err && err.denial);
@@ -3548,6 +3549,83 @@ function registerImplementRoutes(app, deps) {
       });
     } catch (err) {
       sendError(res, err);
+    }
+  });
+
+  // FX-115 (REQ-503): the two routes behind the Generate docs wizard. The browser makes every file; the App saves it into the run's own Assets
+  // folder with its own token (the check is docFileProblem), and translates the selected use case texts through the App's model.
+  const DOC_LANGUAGE = /^[\p{L}][\p{L} ()\-]{0,59}$/u;
+  const DOC_TEXT_KEYS = 2000;
+  const DOC_TEXT_CHARS = 20000;
+  const DOC_BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
+
+  app.post('/api/inspire/docs/save', requireToken, async (req, res) => {
+    try {
+      const token = appReadToken(req);
+      const sid = sessionIdOf(req);
+      const warehouseId = warehouseOf(req);
+      const { catalog, schema } = dbOf(req, splitInspireDatabase);
+      const encoded = String(req.body?.content_base64 || '');
+      if (!DOC_BASE64.test(encoded)) throw I.badRequest('content_base64 must be base64.');
+      const bytes = Buffer.from(encoded, 'base64');
+      const folder = String(req.body?.folder || '');
+      const name = String(req.body?.name || '');
+      const session = await loadSession(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid);
+      const refused = docFileProblem({ generationPath: session && session.generation_path, folder, name, bytes });
+      if (refused) throw I.badRequest(refused.error, refused.status);
+      const dir = folder.trim().split('/').filter((x) => x && x !== '.').join('/');
+      const target = `/${dir}/${name}`;
+      const volume = target.startsWith('/Volumes/');
+      const saved = volume
+        ? await dbFetch(req.dbHost, token, `/api/2.0/fs/files${target.split('/').map(encodeURIComponent).join('/')}?overwrite=true`, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body: bytes })
+        : await dbFetch(req.dbHost, token, '/api/2.0/workspace/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: target, format: 'AUTO', content: encoded, overwrite: true }) });
+      if (!saved.ok) {
+        const why = await saved.text().catch(() => '');
+        if (PM_ERROR.accessDenied(why)) throw Object.assign(new Error('The App cannot write into this run’s Assets folder.'), { statusCode: 403 });
+        throw I.badRequest(`The file could not be saved (HTTP ${saved.status}).`, 502);
+      }
+      return res.json({ path: target, name, size: bytes.length });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/inspire/docs/translate', requireToken, async (req, res) => {
+    try {
+      appReadToken(req);
+      sessionIdOf(req);
+      const language = String(req.body?.language || '').trim();
+      if (!DOC_LANGUAGE.test(language)) throw I.badRequest('language must be a language name, such as Arabic.');
+      const texts = req.body?.texts;
+      const keys = texts && typeof texts === 'object' && !Array.isArray(texts) ? Object.keys(texts) : [];
+      if (!keys.length) throw I.badRequest('texts must name at least one text to translate.');
+      if (keys.length > DOC_TEXT_KEYS) throw I.badRequest(`texts has more than ${DOC_TEXT_KEYS} entries.`);
+      if (keys.some((k) => typeof texts[k] !== 'string')) throw I.badRequest('every text must be a string.');
+      if (keys.some((k) => texts[k].length > DOC_TEXT_CHARS)) throw I.badRequest(`a text is over ${DOC_TEXT_CHARS} characters.`, 413);
+      if (/^english$/i.test(language)) return res.json({ language, texts });
+      const messages = [
+        { role: 'system', content: `You translate short business texts into ${language}. Reply with one JSON object that has exactly the same keys as the input, each value the translation of that text. Keep names, numbers, product names and acronyms as they are. If the user's input names a wording or term to use, that explicit input wins. Reply with JSON only.` },
+        { role: 'user', content: JSON.stringify(texts) },
+      ];
+      const asked = await askChatModel(req, messages, FB.JSON_ANSWER_MAX_TOKENS);
+      if (!asked.got) throw I.badRequest(`No model could translate: ${asked.reason}`, 503);
+      const reply = asked.got.data && asked.got.data.choices && asked.got.data.choices[0] && asked.got.data.choices[0].message;
+      const raw = String((reply && reply.content) || '');
+      let parsed = null;
+      try {
+        const body = /\{[\s\S]*\}/.exec(raw);
+        parsed = body ? JSON.parse(body[0]) : null;
+      } catch (_) { parsed = null; }
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw I.badRequest('The model gave no usable translation.', 502);
+      const out = {};
+      const untranslated = [];
+      for (const k of keys) {
+        if (typeof parsed[k] === 'string' && parsed[k].trim()) out[k] = parsed[k];
+        else { out[k] = texts[k]; untranslated.push(k); }
+      }
+      return res.json({ language, texts: out, ...(untranslated.length ? { untranslated } : {}) });
+    } catch (err) {
+      return sendError(res, err);
     }
   });
 

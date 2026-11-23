@@ -335,8 +335,8 @@ components:
               example: fact_sales,dim_customer
             generate_choices:
               type: string
-              description: 'Comma-separated document artifacts from `09_generation_options`; valid values are `PDF Catalog`, `Presentation` and `Excel`. An empty value means no documents in this run; create them later from Review. Genie generation is controlled by operation mode and `13_generate_genie_code_for`.'
-              example: PDF Catalog,Presentation
+              description: 'Comma-separated generation choices a run was started with. Runs made before the documents moved to the App list their document artifacts here (`PDF Catalog`, `Presentation`, `Excel`); a run now always writes the use cases.'
+              example: use cases
             generation_path:
               type: string
               description: Workspace path for generated output artifacts
@@ -2194,6 +2194,100 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/PersonSignInRequired'
+
+  /api/inspire/docs/save:
+    post:
+      tags: [Results]
+      summary: Save a document the Generate docs wizard made (REQ-503)
+      description: |
+        Saves one file (png, pdf, pptx or xlsx) into the run's own generation path or a folder under it, with the App's token.
+        The name must be a plain file name, the bytes must match the extension, and the file is at most 8 MB.
+        A folder outside the run is refused (403), a wrong type or bytes with 415, an oversize file with 413.
+      parameters:
+        - $ref: '#/components/parameters/DatabricksHost'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inspire_database, warehouse_id, session_id, folder, name, content_base64]
+              properties:
+                inspire_database: {type: string, example: workspace._inspire}
+                warehouse_id: {type: string}
+                session_id: {type: string, example: '3333333333333333333'}
+                folder: {type: string, description: The generation path of the run, or a folder under it}
+                name: {type: string, example: Acme_infographic.pdf}
+                content_base64: {type: string}
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  path: {type: string}
+                  name: {type: string}
+                  size: {type: integer}
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        '403':
+          description: The folder is outside the run
+        '413':
+          description: The file is over the size limit
+        '415':
+          description: The type or the bytes are not allowed
+        '401':
+          $ref: '#/components/responses/PersonSignInRequired'
+
+  /api/inspire/docs/translate:
+    post:
+      tags: [Results]
+      summary: Translate use case texts for a document language (REQ-503)
+      description: |
+        One call to the App's model translates every text. English is returned unchanged with no model call.
+        A key the model drops keeps its source text and is listed in `untranslated`. Answers 503 when no model is available.
+      parameters:
+        - $ref: '#/components/parameters/DatabricksHost'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inspire_database, warehouse_id, session_id, language, texts]
+              properties:
+                inspire_database: {type: string, example: workspace._inspire}
+                warehouse_id: {type: string}
+                session_id: {type: string, example: '3333333333333333333'}
+                language: {type: string, example: Arabic}
+                texts: {type: object, additionalProperties: {type: string}, description: At most 2000 texts of at most 20000 characters}
+      responses:
+        '200':
+          description: Translated texts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  language: {type: string}
+                  texts: {type: object, additionalProperties: {type: string}}
+                  untranslated: {type: array, items: {type: string}}
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        '413':
+          description: A text is too long
+        '503':
+          description: No model is available
         '401':
           $ref: '#/components/responses/PersonSignInRequired'
 

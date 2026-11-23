@@ -3761,8 +3761,9 @@ function holdsLevel(acl, identities, groups, levels) {
 function appAccessCheck(table, warehouse) {
   const parts = [table, warehouse].filter(Boolean);
   const failed = parts.filter((c) => !c.ok);
+  const permission = failed.find((c) => c.permission)?.permission; // the stable signal that access is missing, whatever the wording of detail
   return failed.length
-    ? { ok: false, detail: failed.map((c) => c.detail).join('; ') }
+    ? { ok: false, detail: failed.map((c) => c.detail).join('; '), ...(permission ? { permission } : {}) }
     : { ok: true, detail: parts.map((c) => c.detail).join('; ') };
 }
 
