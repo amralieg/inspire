@@ -8,12 +8,29 @@ export const isRtl = (language) => RTL_LANGUAGES.includes(language);
 const clean = (v) => String(v ?? '').trim();
 const tablesOf = (uc) => clean(fieldOf(uc, 'Tables Involved', 'tables_involved')).split(/[,;\n]+/).map((t) => t.trim()).filter(Boolean);
 
+export const STORY_NOT_APPROVED = 'Story not approved yet';
+const storyText = (story) => {
+  if (story && typeof story === 'object') return story.approved && story.include_in_docs && clean(story.text) ? clean(story.text) : STORY_NOT_APPROVED;
+  return clean(story);
+};
+
+// A saved wizard entry ({answers, yearly}) as the doc model value, or null when there is no saved value.
+export function valueFromSaved(saved) {
+  const total = saved?.yearly?.total;
+  if (!saved || !total || !Number.isFinite(Number(total.amount))) return null;
+  const a = saved.answers || {};
+  return {
+    amount: Number(total.amount), currency: a.currency || total.unit || 'USD', status: a.calculated ? 'calculated' : 'estimated',
+    story: a.story, yearly: saved.yearly.projection?.years || [],
+  };
+}
+
 function valueOf(raw) {
   if (!raw || !Number.isFinite(Number(raw.amount))) return null;
   const amount = Number(raw.amount);
   const currency = raw.currency || 'USD';
   return {
-    amount, currency, status: raw.status || 'estimated', story: clean(raw.story), text: moneyText(currency, amount),
+    amount, currency, status: raw.status || 'estimated', story: storyText(raw.story), text: moneyText(currency, amount),
     yearly: Array.isArray(raw.yearly) ? raw.yearly : [], factors: Array.isArray(raw.factors) ? raw.factors : [],
   };
 }
