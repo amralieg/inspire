@@ -11,7 +11,7 @@ const wide = (state, check) => state === 'failed' || state === 'skipped' || (sta
 const LABELS = { waiting: 'Waiting', working: 'Working', stopped: 'Stopped' };
 
 // REQ-441: the bar above the cards: Select all (the cards shown) and "Calculate value for N".
-export function ValueBulkBar({ shown, selected, onSelectAll, onCalculate, busy = false }) {
+export function ValueBulkBar({ shown, selected, onSelectAll, onCalculate, onGenerate = null, busy = false }) {
   const all = shown > 0 && selected === shown;
   return (
     <div data-value-bulk-bar="" className="mb-2 flex flex-wrap items-center gap-3 text-xs text-text-secondary">
@@ -23,6 +23,12 @@ export function ValueBulkBar({ shown, selected, onSelectAll, onCalculate, busy =
         <button type="button" onClick={onCalculate} disabled={busy} title={busy ? 'A value calculation is running. Wait for it to finish or stop it first.' : undefined}
           className="rounded-md bg-db-red-solid hover:bg-db-red-solid-hover px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed">
           Calculate value for {selected}
+        </button>
+      )}
+      {selected >= 1 && onGenerate && (
+        <button type="button" onClick={onGenerate}
+          className="rounded-md border border-db-red-solid px-3 py-1.5 text-xs font-semibold text-db-red-fg hover:bg-db-red-50">
+          ✦ Generate docs
         </button>
       )}
     </div>
