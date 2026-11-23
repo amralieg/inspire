@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { appInfo, FILTERS, goRail, idle, LOST, NO_JOB, openApp, said, saidAll, serveDist, SILENT, steadyBox, TABLE, until } from './harness.mjs';
+import { appInfo, FILTERS, idle, LOST, NO_JOB, openApp, said, saidAll, serveDist, SILENT, steadyBox, TABLE, until } from './harness.mjs';
 import {
   BUSY, RUN_STATES, activeState, agoText, bannerText, couldSaveRunFormula, coveredText, errorText, foundText, groupingText, lastRunNote, lastRunText, lastedText,
   progressText, runBars, runFlag, runState, runsPageText, spanText, stampText, toastTone, triggerText,
@@ -41,11 +41,14 @@ function jobRoutes(first, onRefresh) {
   return { state, routes };
 }
 
-const open = (routes, options = {}, info = appInfo()) => openApp(browser, served.base, info, { clock: NOW, ...options, routes });
-const banner = (page) => page.locator('.ph .fresh');
+const OPEN = '#/n01_u05/dashboard';
+const RUNS = '#/n01_u05/runs';
+const open = (routes, options = {}, info = appInfo()) => openApp(browser, served.base, info, { clock: NOW, hash: OPEN, ...options, routes });
+const banner = (page) => page.locator('.ph [data-fresh-dot]');
+const dotSays = async (page) => ((await banner(page).getAttribute('title')) || '').replace(/\. Select to refresh now$/, '');
 const PUBLISHED = ' · App published Oct 26, 10:00 AM UTC'; // REQ-257 D-UPDATED: the App build time shows beside the refresh time
 const detail = (page) => page.locator('.ph .fresh-d');
-const throughs = async (page) => (`${await page.locator('.top').innerText()} ${await page.locator('.ph').innerText()}`.match(/data through/gi) || []).length;
+const throughs = async (page) => (`${await page.locator('.top').innerText()} ${await page.locator('.ph').innerText()} ${(await banner(page).getAttribute('title')) || ''}`.match(/data through/gi) || []).length;
 
 test('the header says when the use case was last updated, from the newest successful run', () => {
   assert.equal(bannerText(IDLE, NOW), 'Data refreshed Oct 27, 07:30 AM UTC · data through Oct 26, 2026');
@@ -161,13 +164,21 @@ test('the header says when the use case was last updated, with Refresh now besid
   const { routes } = jobRoutes(IDLE, () => {});
   const { page, seen, context } = await open(routes);
   await banner(page).waitFor();
-  assert.equal(await banner(page).locator('.fresh-t').innerText(), `Data refreshed Oct 27, 07:30 AM UTC${PUBLISHED}`);
-  assert.match(await page.locator('.ph-meta').innerText(), /^Data through Oct 15, 2026(: the source has no newer rows)? · /);
-  assert.equal(await throughs(page), 1);
+  assert.equal(await dotSays(page), `Data refreshed Oct 27, 07:30 AM UTC${PUBLISHED}`);
   const button = page.getByRole('button', { name: 'Refresh now' });
   assert.equal(await button.isEnabled(), true);
-  assert.equal(await banner(page).evaluate((el) => el.classList.contains('fresh--late')), false);
+  assert.equal(await banner(page).evaluate((el) => el.classList.contains('is-late')), false);
   assert.equal(await page.locator('.fresh-why').count(), 0);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('the header says how far the data goes in a line of its own beside the update time', async () => {
+  const { routes } = jobRoutes(IDLE, () => {});
+  const { page, seen, context } = await open(routes);
+  await banner(page).waitFor();
+  assert.match(await page.locator('.ph-meta').innerText(), /^Data through Oct 15, 2026(: the source has no newer rows)? · /);
+  assert.equal(await throughs(page), 1);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -176,17 +187,26 @@ test('an overdue use case says Overdue in amber next to when it was updated', as
   const { routes } = jobRoutes({ ...IDLE, overdue: true }, () => {});
   const { page, seen, context } = await open(routes);
   await banner(page).waitFor();
-  assert.equal(await banner(page).evaluate((el) => el.classList.contains('fresh--late')), true);
-  assert.equal(await page.locator('.ph .fresh .fresh-flag').innerText(), 'Overdue');
-  const colors = await page.locator('.ph .fresh .fresh-flag').evaluate((el) => {
+  assert.equal(await banner(page).evaluate((el) => el.classList.contains('is-late')), true);
+  const colors = await banner(page).evaluate((el) => {
     const probe = document.createElement('span');
-    probe.style.background = 'var(--amber-bg)';
-    el.appendChild(probe);
+    probe.style.background = 'var(--amber-line)';
+    el.parentElement.appendChild(probe);
     const amber = getComputedStyle(probe).backgroundColor;
     probe.remove();
-    return { flag: getComputedStyle(el).backgroundColor, amber };
+    return { dot: getComputedStyle(el).backgroundColor, amber };
   });
-  assert.equal(colors.flag, colors.amber);
+  assert.equal(colors.dot, colors.amber, 'the dot turns amber when the use case is overdue');
+  assert.equal(await dotSays(page), `Data refreshed Oct 27, 07:30 AM UTC${PUBLISHED}`);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('an overdue use case says the word Overdue next to when it was updated', async () => {
+  const { routes } = jobRoutes({ ...IDLE, overdue: true }, () => {});
+  const { page, seen, context } = await open(routes);
+  await banner(page).waitFor();
+  assert.equal(await page.locator('.ph .fresh-flag').innerText(), 'Overdue');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -201,9 +221,21 @@ test('when the person may not refresh, the button is disabled and the reason sho
     const plain = reason.replace(' GET /api/2.2/jobs/runs/list answered HTTP 403:', '');
     assert.equal(await page.locator('.fresh-why').innerText(), plain);
     assert.equal(await page.locator('.fresh-why').isVisible(), true);
-    const described = await button.getAttribute('aria-describedby');
-    assert.equal(await page.locator(`#${described}`).innerText(), plain);
     assert.equal(await page.locator('[data-technical-details] pre').count(), reason === REFUSED ? 1 : 0);
+    assert.deepEqual(seen.errors, []);
+    await context.close();
+  }
+});
+
+test('a Refresh now that is off points to the reason it is off, through aria-describedby', async () => {
+  const off = [{ ...IDLE, can_refresh: false, reason: ONLY_ADMIN }, { ...IDLE, can_refresh: false, reason: REFUSED },
+    { ...NO_JOB, last_success: { run_id: 'u3', started: '2026-10-24T06:00:00Z', ended: null, trigger: null, by: null }, data_through: '2026-10-24' }];
+  for (const fresh of off) {
+    const { routes } = jobRoutes(fresh, () => {});
+    const { page, seen, context } = await open(routes, {}, appInfo({ auth: 'user' }));
+    await banner(page).waitFor();
+    const described = await page.getByRole('button', { name: 'Refresh now' }).getAttribute('aria-describedby');
+    assert.equal(await page.locator(`#${described}`).innerText(), fresh.reason.replace(' GET /api/2.2/jobs/runs/list answered HTTP 403:', ''));
     assert.deepEqual(seen.errors, []);
     await context.close();
   }
@@ -214,12 +246,21 @@ test('a page without a job shows when its result table changed, and Refresh now 
   const { state, routes } = jobRoutes(fresh, () => {});
   const { page, seen, context } = await open(routes);
   await banner(page).waitFor();
-  assert.equal(await banner(page).locator('.fresh-t').innerText(), `Data refreshed Oct 24, 06:00 AM UTC${PUBLISHED}`);
-  assert.equal(await throughs(page), 1);
+  assert.equal(await dotSays(page), `Data refreshed Oct 24, 06:00 AM UTC${PUBLISHED}`);
   const button = page.getByRole('button', { name: 'Refresh now' });
   assert.equal(await button.isDisabled(), true);
-  assert.equal(await page.locator(`#${await button.getAttribute('aria-describedby')}`).innerText(), NO_JOB.reason);
+  assert.equal(await page.locator('.fresh-why').innerText(), NO_JOB.reason);
   assert.equal(state.posts.length, 0);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('a page without a job says how far its data goes once', async () => {
+  const fresh = { ...NO_JOB, last_success: { run_id: 'u3', started: '2026-10-24T06:00:00Z', ended: null, trigger: null, by: null }, data_through: '2026-10-24' };
+  const { routes } = jobRoutes(fresh, () => {});
+  const { page, seen, context } = await open(routes);
+  await banner(page).waitFor();
+  assert.equal(await throughs(page), 1);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -229,9 +270,9 @@ test('a page without a date filter, or whose filters fail, says how far the data
     const { routes } = jobRoutes(IDLE, () => {});
     const { page, seen, context } = await open({ ...routes, filters });
     await banner(page).waitFor();
-    await page.waitForFunction(() => !/Reading the data range/.test(document.querySelector('.ph-meta')?.textContent || 'Reading the data range'));
-    assert.equal(await banner(page).locator('.fresh-t').innerText(), `Data refreshed Oct 27, 07:30 AM UTC · data through Oct 26, 2026${PUBLISHED}`);
-    assert.doesNotMatch(await page.locator('.ph-meta').innerText(), /data through|Reading the data range/i);
+    await page.waitForFunction(() => /data through/.test(document.querySelector('.ph [data-fresh-dot]')?.title || ''));
+    assert.equal(await dotSays(page), `Data refreshed Oct 27, 07:30 AM UTC · data through Oct 26, 2026${PUBLISHED}`);
+    assert.doesNotMatch(await page.locator('.ph').innerText(), /Reading the data range/i);
     assert.equal(await throughs(page), 1);
     assert.deepEqual(real(seen.errors), []);
     await context.close();
@@ -239,9 +280,9 @@ test('a page without a date filter, or whose filters fail, says how far the data
 });
 
 test('the default page with no job and no run says it was not updated and why it cannot be', async () => {
-  const { page, seen, context } = await openApp(browser, served.base, appInfo());
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(), { hash: OPEN });
   await banner(page).waitFor();
-  assert.equal(await banner(page).locator('.fresh-t').innerText(), `Data not refreshed yet${PUBLISHED}`);
+  assert.equal(await dotSays(page), `Data not refreshed yet${PUBLISHED}`);
   assert.equal(await page.getByRole('button', { name: 'Refresh now' }).isDisabled(), true);
   assert.equal(await page.locator('.fresh-why').innerText(), NO_JOB.reason);
   await page.emulateMedia({ media: 'print' });
@@ -261,20 +302,18 @@ test('Refresh now starts the job, says it is refreshing all the data, then reloa
   await page.getByRole('button', { name: 'Refresh now' }).click();
   await page.locator('.ph .fresh-d [data-progress]').waitFor();
   assert.deepEqual(state.posts, [{ page: 'n01_u05' }]);
-  assert.equal(await page.locator('.fresh-busy b').innerText(), 'Waiting for the refresh to start');
-  assert.equal(await page.locator('.fresh-busy').getAttribute('data-tone'), 'progress');
+  assert.equal(await page.locator('.ph .fresh-run').getAttribute('data-run-state'), 'queued');
   assert.equal(await page.locator('.ph .fresh-d [data-progress]').innerText(), 'waiting in the queue for under a minute');
-  assert.equal(await page.locator('.fresh-t').count(), 0, 'while it runs the header says it is refreshing, not when it last updated');
+  assert.equal(await banner(page).evaluate((el) => el.classList.contains('is-busy')), true, 'while it runs the header says it is refreshing, not when it last updated');
   const button = page.getByRole('button', { name: 'Refresh now' });
   assert.equal(await button.isDisabled(), true, 'Refresh now stays in place, off, while the refresh runs');
-  assert.equal(await page.locator(`#${await button.getAttribute('aria-describedby')}`).getAttribute('role'), 'status');
-  assert.equal(await banner(page).getByRole('link').count(), 0);
+  assert.equal(await page.locator('.ph .fresh-d').getByRole('link').count(), 0);
   state.fresh = { ...state.fresh, active: { ...queued, state: 'running', result: 'running', started: '2026-10-27T09:27:00Z' }, typical_s: 300 };
   const polls = state.polls;
   await page.clock.fastForward(10000);
   await until(() => state.polls > polls);
   await page.waitForFunction(() => /^running for 3 min, usually about 5 min$/.test(document.querySelector('.fresh-d [data-progress]')?.textContent || ''));
-  assert.equal(await page.locator('.fresh-busy b').innerText(), 'Refreshing all the data');
+  assert.equal(await page.locator('.ph .fresh-run').getAttribute('data-run-state'), 'running');
   const loads = seen.pages.length;
   const done = { ...queued, trigger: 'manual', started: '2026-10-27T09:27:00Z', ended: '2026-10-27T09:30:05Z', result: 'succeeded', state: 'terminated', message: '' };
   state.fresh = { ...IDLE, last_success: done, last_run: done, run_url: done.url };
@@ -282,7 +321,7 @@ test('Refresh now starts the job, says it is refreshing all the data, then reloa
   await page.locator('.toast.is-on').waitFor();
   assert.equal(await page.locator('.toast .toast-t').innerText(), 'Refreshed');
   await until(() => seen.pages.length > loads);
-  assert.equal(await banner(page).locator('.fresh-t').innerText(), `Data refreshed Oct 27, 09:30 AM UTC${PUBLISHED}`);
+  assert.equal(await dotSays(page), `Data refreshed Oct 27, 09:30 AM UTC${PUBLISHED}`);
   assert.equal(await page.getByRole('button', { name: 'Refresh now' }).isEnabled(), true);
   const stopped = state.polls;
   await page.clock.fastForward(30000);
@@ -296,7 +335,7 @@ test('a refresh that fails says why', async () => {
   const active = { run_id: '9000', state: 'running', result: 'running', started: '2026-10-27T09:29:00Z', by: ME, url: `${JOB_URL}/runs/9000` };
   const { state, routes } = jobRoutes({ ...IDLE, active, can_refresh: false, reason: 'busy' }, () => {});
   const { page, seen, context } = await open(routes);
-  await page.locator('.fresh-busy').waitFor();
+  await page.locator('.ph .fresh-run').waitFor();
   const loads = seen.pages.length;
   const failed = { ...active, state: 'terminated', result: 'failed', message: 'Table not found', ended: '2026-10-27T09:30:02Z' };
   state.fresh = { ...IDLE, last_run: failed, run_url: failed.url };
@@ -304,11 +343,18 @@ test('a refresh that fails says why', async () => {
   await page.locator('.toast.is-on').waitFor();
   assert.equal(await page.locator('.toast').innerText(), 'The latest run failed: Table not found');
   assert.equal(await page.locator('.toast').evaluate((el) => el.classList.contains('toast--error')), true);
-  assert.equal(await page.locator('.fresh-note').innerText(), 'The latest run failed: Table not found');
-  assert.equal(await page.locator('.fresh-note').getAttribute('data-tone'), 'bad');
-  assert.equal(await banner(page).locator('.fresh-t').innerText(), `Data refreshed Oct 27, 07:30 AM UTC${PUBLISHED}`, 'the failed run is not the update');
+  assert.equal(await dotSays(page), `Data refreshed Oct 27, 07:30 AM UTC${PUBLISHED}`, 'the failed run is not the update');
   await idle(page);
   assert.equal(seen.pages.length, loads, 'a failed refresh changed no data, so the page does not reload');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('a run that succeeded is the update itself, with no note about how it ended', async () => {
+  const { page, seen, context } = await open({ freshness: ({ json }) => json(200, { ...IDLE, last_run: { ...LAST } }) });
+  await banner(page).waitFor();
+  assert.equal(await detail(page).locator('.fresh-note').count(), 0, 'a run that succeeded is the update itself');
+  assert.equal(await dotSays(page), `Data refreshed Oct 27, 07:30 AM UTC${PUBLISHED}`);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -329,12 +375,8 @@ test('the header names how the latest run ended for every end the server sends, 
   for (const [run, text, tone] of ends) {
     state.fresh = { ...IDLE, last_run: run };
     await page.reload();
-    await banner(page).locator('.fresh-t').waitFor();
-    if (!text) {
-      assert.equal(await detail(page).locator('.fresh-note').count(), 0, 'a run that succeeded is the update itself');
-      assert.equal(await banner(page).locator('.fresh-t').innerText(), tone);
-      continue;
-    }
+    await banner(page).waitFor();
+    if (!text) continue;
     const note = detail(page).locator('.fresh-note');
     assert.equal(await note.innerText(), text, run.result);
     assert.equal(await note.getAttribute('data-tone'), tone, `${run.result} reads as ${tone}`);
@@ -381,7 +423,34 @@ test('every state a refresh can be in has one heading, one tone and at most one 
   assert.doesNotMatch(keys.map((k) => RUN_STATES[k].heading).join(' '), /[\u2013\u2014]/);
 });
 
-test('while a run is on, the header says what is true: progress in green, a quiet run in amber with its one action, and the data it shows as a plain fact', async () => {
+test('while a run is on, the header names its state in a heading, with a tone: progress in green, a quiet run in amber, never red', async () => {
+  const running = { run_id: '9', state: 'running', result: 'running', started: '2026-10-27T09:27:00Z', by: SAM, url: `${JOB_URL}/runs/9` };
+  const quietJob = { ...running, silent_since: '2026-10-27T09:08:20Z', message: SILENT.message, percent: null, eta_s: null };
+  const cases = [
+    [running, 'running', 'Refreshing all the data', 'progress'],
+    [{ ...running, state: 'queued', result: 'queued', started: '2026-10-27T09:29:40Z' }, 'queued', 'Waiting for the refresh to start', 'progress'],
+    [quietJob, 'quiet', 'The refresh has gone quiet', 'warn'],
+    [SILENT, 'quiet', 'The refresh has gone quiet', 'warn'],
+  ];
+  const state = { fresh: IDLE };
+  const { page, seen, context } = await open({ freshness: ({ json }) => json(200, state.fresh) });
+  for (const [active, key, heading, tone] of cases) {
+    state.fresh = { ...IDLE, active, can_refresh: false, reason: 'busy' };
+    await page.reload();
+    const busy = page.locator('.ph .fresh-busy');
+    await detail(page).locator('[data-progress]').waitFor();
+    assert.deepEqual([await busy.getAttribute('data-run-state'), await busy.locator('b').innerText(), await busy.getAttribute('data-tone')], [key, heading, tone]);
+    const ink = await busy.locator('b').evaluate(paints);
+    assert.equal(ink.color, tone === 'warn' ? ink.amber : ink.green, `${key}: the heading tone`);
+    assert.notEqual(ink.color, ink.danger, `${key} is never red`);
+    const described = await page.getByRole('button', { name: 'Refresh now' }).getAttribute('aria-describedby');
+    assert.equal(await page.locator(`#${described}`).getAttribute('role'), 'status');
+  }
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('while a run is on, the header says what is true: a quiet run with its one action, and the data it shows as a plain fact', async () => {
   const running = { run_id: '9', state: 'running', result: 'running', started: '2026-10-27T09:27:00Z', by: SAM, url: `${JOB_URL}/runs/9` };
   const quietJob = { ...running, silent_since: '2026-10-27T09:08:20Z', message: SILENT.message, percent: null, eta_s: null };
   const cases = [
@@ -395,13 +464,9 @@ test('while a run is on, the header says what is true: progress in green, a quie
   for (const [active, key, heading, tone, action] of cases) {
     state.fresh = { ...IDLE, active, can_refresh: false, reason: 'busy' };
     await page.reload();
-    const busy = banner(page).locator('.fresh-busy');
     const more = detail(page);
     await more.locator('[data-progress]').waitFor();
-    assert.deepEqual([await busy.getAttribute('data-run-state'), await busy.locator('b').innerText(), await busy.getAttribute('data-tone')], [key, heading, tone]);
-    const ink = await busy.locator('b').evaluate(paints);
-    assert.equal(ink.color, tone === 'warn' ? ink.amber : ink.green, `${key}: the heading tone`);
-    assert.notEqual(ink.color, ink.danger, `${key} is never red`);
+    assert.equal(await more.locator('.fresh-run').getAttribute('data-run-state'), key);
     const fact = more.locator('.fresh-asof');
     assert.equal(await fact.innerText(), 'Until it finishes you see the data of the update on Oct 27, 07:30 AM UTC');
     const plain = await fact.evaluate(paints);
@@ -435,9 +500,18 @@ test('a click that loses the race to another refresh shows who started it', asyn
   await page.locator('.toast.is-on').waitFor();
   assert.equal(await page.locator('.toast').innerText(), message);
   await page.locator('.ph .fresh-d [data-progress]').waitFor();
-  assert.equal(await page.locator('.fresh-busy').getAttribute('title'), `Started by ${DANA}`);
   assert.equal(await page.locator('.ph .fresh-d [data-progress]').innerText(), 'running for 16 min');
   assert.equal(state.posts.length, 1);
+  assert.deepEqual(real(seen.errors), []);
+  await context.close();
+});
+
+test('a click that loses the race says who started the refresh, on the running state', async () => {
+  const running = { run_id: '8000', state: 'running', result: 'running', started: '2026-10-27T09:14:00Z', by: DANA, url: `${JOB_URL}/runs/8000` };
+  const { routes } = jobRoutes({ ...IDLE, active: running, can_refresh: false, reason: 'busy' }, () => {});
+  const { page, seen, context } = await open(routes);
+  await page.locator('.ph .fresh-d [data-progress]').waitFor();
+  assert.equal(await page.locator('.fresh-busy').getAttribute('title'), `Started by ${DANA}`);
   assert.deepEqual(real(seen.errors), []);
   await context.close();
 });
@@ -446,16 +520,33 @@ test('a freshness call that fails leaves the header as it was', async () => {
   const routes = { freshness: ({ json }) => json(502, { error: 'warehouse stopped' }) };
   const { page, seen, context } = await open(routes);
   await idle(page);
-  assert.equal(await page.locator('.fresh').count(), 0);
+  assert.equal(await page.locator('[data-fresh-dot]').count(), 0);
+  assert.deepEqual(real(seen.errors), []);
+  await context.close();
+});
+
+test('a freshness call that fails still leaves the data through line in the header', async () => {
+  const { page, seen, context } = await open({ freshness: ({ json }) => json(502, { error: 'warehouse stopped' }) });
+  await idle(page);
   assert.match(await page.locator('.ph-meta').innerText(), /Data through/);
   assert.deepEqual(real(seen.errors), []);
   await context.close();
 });
 
+const PHONE_FRESH = [{ ...IDLE, overdue: true, can_refresh: false, reason: REFUSED },
+  { ...IDLE, active: { run_id: '9', result: 'running', state: 'running', started: '2026-10-27T09:00:00Z', by: SAM, url: `${JOB_URL}/runs/9` } },
+  { ...IDLE, last_run: { run_id: '7', result: 'failed', started: '2026-10-27T09:00:00Z', message: 'x'.repeat(30) + ' SPARK_JOB_CANCELLED '.repeat(6), url: `${JOB_URL}/runs/7` } }];
+
 test('on a phone the banner, the reason and the button wrap without sideways scroll', async () => {
-  for (const fresh of [{ ...IDLE, overdue: true, can_refresh: false, reason: REFUSED },
-    { ...IDLE, active: { run_id: '9', result: 'running', state: 'running', started: '2026-10-27T09:00:00Z', by: SAM, url: `${JOB_URL}/runs/9` } },
-    { ...IDLE, last_run: { run_id: '7', result: 'failed', started: '2026-10-27T09:00:00Z', message: 'x'.repeat(30) + ' SPARK_JOB_CANCELLED '.repeat(6), url: `${JOB_URL}/runs/7` } }]) {
+  await phoneFits(PHONE_FRESH.slice(0, 2));
+});
+
+test('on a phone the note about a failed latest run wraps without sideways scroll', async () => {
+  await phoneFits(PHONE_FRESH.slice(2));
+});
+
+async function phoneFits(list) {
+  for (const fresh of list) {
     const { routes } = jobRoutes(fresh, () => {});
     const { page, seen, context } = await open(routes, { width: 375, height: 800 });
     await detail(page).waitFor();
@@ -474,7 +565,7 @@ test('on a phone the banner, the reason and the button wrap without sideways scr
     assert.deepEqual(seen.errors, []);
     await context.close();
   }
-});
+}
 
 function fits() {
   const out = [...document.querySelectorAll('.fresh, .fresh *, .fresh-d, .fresh-d *')].filter((el) => {
@@ -511,8 +602,7 @@ const history = (extra) => ({ runs: [FAILED, SCHEDULED, OLD], total: 3, offset: 
 async function openRuns(data, info = appInfo({}, 1, TABLE), options = {}) {
   const asked = { offsets: [] };
   const routes = { runs: ({ json, url }) => { asked.offsets.push(url.searchParams.get('offset')); return json(200, typeof data === 'function' ? data(url) : data); }, ...options.routes };
-  const opened = await openApp(browser, served.base, info, { ...options, routes });
-  await goRail(opened.page, 'runs');
+  const opened = await openApp(browser, served.base, info, { hash: RUNS, ...options, routes });
   await opened.page.locator('.runs .runs-tbl').waitFor();
   return { ...opened, asked };
 }
@@ -520,11 +610,29 @@ async function openRuns(data, info = appInfo({}, 1, TABLE), options = {}) {
 const texts = (locator) => locator.evaluateAll((els) => els.map((el) => el.textContent));
 const mainRows = (page) => page.locator('.runs-tbl > tbody > tr:not(.runs-d)');
 
+test('the Runs menu item shows how many runs there are, and keeps the count from the newest runs while you page', async () => {
+  const all = Array.from({ length: 45 }, (_, i) => run({ run_id: `r${44 - i}`, started: new Date(Date.UTC(2026, 9, 27) - i * 86400000).toISOString(), to_fix: 44 - i }));
+  const info = appInfo({}, 1, TABLE);
+  info.pages.forEach((p) => { p.is_owner = true; });
+  const { page, seen, context } = await openRuns((url) => {
+    const offset = Number(url.searchParams.get('offset'));
+    return history({ runs: all.slice(offset, offset + 20), total: 45, offset });
+  }, info);
+  await page.locator('[data-avatar-menu] button').first().click();
+  assert.deepEqual(await texts(page.getByRole('menuitem', { name: /^Runs/ }).locator('small')), ['45']);
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Older runs' }).click();
+  await page.waitForFunction(() => document.querySelector('.runs .pager-n')?.textContent === 'Runs 21 to 40 of 45');
+  await page.locator('[data-avatar-menu] button').first().click();
+  assert.deepEqual(await texts(page.getByRole('menuitem', { name: /^Runs/ }).locator('small')), ['45']);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
 test('the Runs tab lists each run: when, how it ended, who started it, what it covered and what it found', async () => {
   const { page, seen, context, asked } = await openRuns(history());
   assert.deepEqual(asked.offsets, ['0'], 'the page reads the runs once, and the tab reuses them');
   assert.equal(await page.locator('[role="tab"]').count(), 0);
-  assert.deepEqual(await texts(page.locator('[data-rail="runs"] small')), ['3'], 'there are 3 runs');
   assert.equal(await page.locator('.runs .card-h p').innerText(), 'Newest first. Click a run to see the tables it used. Refresh now updates all the data.');
   assert.deepEqual(await texts(page.locator('.runs-tbl > thead th')), ['Details', 'When', 'Status', 'Started by', 'What it covered', 'Records', 'To fix', 'Could save', 'Ask Genie']);
   assert.equal(await mainRows(page).count(), 3);
@@ -612,8 +720,7 @@ test('the Runs tab starts with a To fix per run chart: oldest run on the left, n
 test('the To fix per run chart shows a placeholder while the runs load, says when no run wrote a count, and is left out before the first run', async () => {
   let release;
   const held = new Promise((resolve) => { release = resolve; });
-  const slow = await openApp(browser, served.base, appInfo({}, 1, TABLE), { clock: NOW, routes: { runs: async ({ json }) => { await held; return json(200, history()); } } });
-  await slow.page.locator('[data-rail="runs"]').click();
+  const slow = await openApp(browser, served.base, appInfo({}, 1, TABLE), { clock: NOW, hash: RUNS, routes: { runs: async ({ json }) => { await held; return json(200, history()); } } });
   await slow.page.locator(`${TO_FIX} .chart-skel`).waitFor();
   assert.equal(await slow.page.locator(`${TO_FIX} .explain-btn`).count(), 0, 'nothing to explain while it loads');
   release();
@@ -732,7 +839,6 @@ test('the Runs tab pages twenty runs at a time, newest first', async () => {
   await newer.click();
   await page.waitForFunction(() => document.querySelector('.runs .pager-n')?.textContent === 'Runs 21 to 40 of 45');
   assert.deepEqual(asked.offsets, ['0', '20', '40', '20']);
-  assert.deepEqual(await texts(page.locator('[data-rail="runs"] small')), ['45'], 'the Runs button keeps the count from the newest runs while you page');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -752,11 +858,10 @@ test('the Runs tab says what could not load and still lists what it has', async 
 test('before the first run the Runs tab says so, and a page with no job and no results table says why it has no runs', async () => {
   let opened = await openRuns(history({ runs: [], total: 0 }));
   assert.equal(await opened.page.locator('.runs .more').innerText(), 'The job has not run yet.');
-  assert.deepEqual(await texts(opened.page.locator('[data-rail="runs"] small')), ['0']);
   assert.deepEqual(opened.seen.errors, []);
   await opened.context.close();
   opened = await openRuns(history({ runs: [], total: 0, job: null }), appInfo());
-  assert.equal(await opened.page.locator('[data-rail="runs"]').getAttribute('aria-current'), 'page');
+  assert.equal(await opened.page.locator('.runs').count(), 1, 'the Runs screen is open');
   assert.equal(await opened.page.locator('.runs .more').innerText(), 'This use case has no job and keeps no results table, so it has no runs to show.');
   assert.deepEqual(opened.seen.errors, []);
   await opened.context.close();
@@ -778,7 +883,6 @@ test('Refresh now shows the new run in the Runs tab when it starts and again whe
   await until(() => asked.offsets.length === 2);
   await page.waitForFunction(() => document.querySelectorAll('.runs-tbl > tbody > tr').length === 2);
   assert.match(await mainRows(page).first().innerText(), /waiting for under a minute\s+Waiting to start\s+Refresh now/);
-  assert.deepEqual(await texts(page.locator('[data-rail="runs"] small')), ['2']);
   const loads = seen.pages.length;
   const ended = { ...queued, state: 'terminated', result: 'failed', message: 'Cluster did not start', ended: '2026-10-27T09:31:00Z' };
   live.runs = [run({ job_run_id: '9000', status: 'failed', trigger: 'refresh', by: ME, started: queued.started, duration_s: 60, error: ended.message, error_code: 'no_compute' }), SCHEDULED];
@@ -795,14 +899,19 @@ test('Refresh now shows the new run in the Runs tab when it starts and again whe
   await context.close();
 });
 
-test('the section is part of the link: the Runs rail item writes it, Dashboard clears it, and an old ?v=runs link opens Runs', async () => {
-  const { page, seen, context } = await openRuns(history());
+test('the section is part of the link: the Runs menu item writes it, Screen clears it, and an old ?v=runs link opens Runs', async () => {
+  const info = appInfo({}, 1, TABLE);
+  info.pages.forEach((p) => { p.is_owner = true; });
+  const { page, seen, context } = await openApp(browser, served.base, info, { hash: OPEN, routes: { runs: ({ json }) => json(200, history()) } });
+  await page.locator('[data-avatar-menu] button').first().click();
+  await page.getByRole('menuitem', { name: /^Runs/ }).click();
   await page.waitForFunction(() => location.hash === '#/n01_u05/runs');
-  await page.locator('[data-rail="dashboard"]').click();
-  await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
-  await page.locator('.kpi-v').first().waitFor();
+  await page.locator('.runs .runs-tbl').waitFor();
+  await page.locator('[data-mode="screen"]').click();
+  await page.waitForFunction(() => location.hash === '#/n01_u05/work');
+  await page.locator('.runs').waitFor({ state: 'detached' });
   await page.evaluate(() => { location.hash = '#/n01_u05?v=runs'; });
-  await page.waitForFunction(() => location.hash === '#/n01_u05/runs' && document.querySelector('[data-rail="runs"]')?.getAttribute('aria-current') === 'page');
+  await page.waitForFunction(() => location.hash === '#/n01_u05/runs');
   await page.locator('.runs .runs-tbl').waitFor();
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -811,7 +920,8 @@ test('the section is part of the link: the Runs rail item writes it, Dashboard c
   await plain.page.evaluate(() => { location.hash = '#/n01_u05?v=trend'; });
   await plain.page.locator('.toast.is-on').waitFor();
   assert.equal(await plain.page.locator('.toast').innerText(), 'Some filters in this link no longer apply');
-  await plain.page.waitForFunction(() => location.hash === '#/n01_u05/dashboard' && document.querySelector('[data-rail="runs"]')?.getAttribute('aria-current') !== 'page');
+  assert.equal(await plain.page.evaluate(() => location.hash), '#/n01_u05/dashboard');
+  assert.equal(await plain.page.locator('.runs').count(), 0);
   assert.deepEqual(plain.seen.errors, []);
   await plain.context.close();
 });
@@ -824,7 +934,7 @@ test('on a phone the Runs tab scrolls its own table, never the page', async () =
     wrap: document.querySelector('.runs .tbl-wrap').scrollWidth > document.querySelector('.runs .tbl-wrap').clientWidth }));
   assert.equal(fit.scroll, 0);
   assert.equal(fit.wrap, true, 'the wide table scrolls inside its card');
-  const views = await steadyBox(page, page.getByRole('button', { name: 'Views', exact: true }));
+  const views = await steadyBox(page, page.locator('[data-avatar-menu] button').first());
   assert.ok(views.x >= 0 && views.x + views.width <= 376);
   assert.deepEqual(seen.errors, []);
   await context.close();
