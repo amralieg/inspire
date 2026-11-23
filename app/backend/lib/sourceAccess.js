@@ -120,7 +120,7 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     const message = I.appUnreadableMessage(offer, job);
     // REQ-131, REQ-260: the exact GRANT statements travel as the Permission Required entry the App raises; the prose names the dialog
     const permissions = offer.grants.length ? [permissionRequired({ statements: offer.grants, principal: who.id, wholeCatalogs: scope.wholeCatalogs || [],
-      why: "Inspire reads these source tables with the App's service principal, the same for every person." })] : [];
+      why: 'Inspire reads these source tables as the App, the same for every person.' })] : [];
     const opener = policyLost.length ? `${I.abacUnreadableSentence(who.name || who.id, { app: true })}. ${message.charAt(0).toUpperCase()}${message.slice(1)}` : message;
     const text = opener + (builtIn.length ? `. ${I.builtInSampleMessage(builtIn)}` : '');
     // A table the App cannot read that a grant can cover is an offer, not a missing table (REQ-418: the App's own read decides).
@@ -220,10 +220,10 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
   // never the Inspire host's identity: grants on a built App's data go to the App that reads them.
   async function builtAppIdentity(req, token, appName) {
     const resp = await dbFetch(req.dbHost, token, `/api/2.0/apps/${encodeURIComponent(appName)}`);
-    if (!resp.ok) throw I.badRequest(`Inspire could not read the App ${appName} (HTTP ${resp.status}), so it cannot tell which service principal reads its data.`, 502);
+    if (!resp.ok) throw I.badRequest(`Inspire could not read the App ${appName} (HTTP ${resp.status}), so it cannot tell what reads its data. Try again in a minute.`, 502);
     const app = parseExactJson((await resp.text()) || '{}');
     const id = String(app.service_principal_client_id || '').trim();
-    if (!id) throw I.badRequest(`The App ${appName} has no service principal yet, so Inspire grants it nothing.`, 409);
+    if (!id) throw I.badRequest(`The App ${appName} is not ready yet, so Inspire has not given it access. Try again in a minute.`, 409);
     return { id, name: String(app.service_principal_name || '') };
   }
 

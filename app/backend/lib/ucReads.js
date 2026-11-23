@@ -490,7 +490,7 @@ const directoryId = (got) => (got.ok && String(got.data.object_type || '').toUpp
 function ownFolderCall(dbFetch, req, folder, appId) {
   const token = P.personTokenOf(req);
   if (!token || !appId || !folder || folder !== ownFolderOf(RP.forwardedPerson(req.headers))) {
-    return { refusal: [`Inspire did not change ${folder || 'your folder'}: ${!token ? 'no sign-in of yours reached the App' : 'it knows no App service principal to share with'}`, grantLine(appId, '<folder id>')] };
+    return { refusal: [`Inspire did not change ${folder || 'your folder'}: ${!token ? 'no sign-in of yours reached the App' : 'it knows no App to share with'}`, grantLine(appId, '<folder id>')] };
   }
   return { call: (p, options) => answer(dbFetch, req.dbHost, token, p, options).catch((err) => ({ ok: false, status: err.status || 502, data: { message: whyOf(err) } })) };
 }
