@@ -25,7 +25,7 @@ import { CASE_PLAN_ROUTE, FALLBACK_NOTICE, noModelNotice, bodyOf, carryAnswers, 
 const messageOf = (err) => String(err?.message || err || 'The value could not be saved.');
 const STEPS = ['Data', 'Filter', 'Kinds', 'Each value', 'Ramp and cost', 'Market data', 'Story', 'Save'];
 const btn = 'rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle disabled:opacity-50';
-const primary = 'rounded-md bg-db-red-solid hover:bg-db-red-solid-hover px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50';
+const primary = 'rounded-md border border-transparent bg-db-red-solid hover:bg-db-red-solid-hover px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50';
 const SCOPE_PAGES = ['scope:facts', 'scope:choice', 'filter'];
 const withoutChoice = ({ choice, ...rest }) => rest; // eslint-disable-line no-unused-vars
 // A reopened value keeps the scope it was saved with; which card it was is read back from its structure.
@@ -275,7 +275,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
     <ModalDialog titleId="calculate-value-title" title={dialogTitleFor(nameOfUseCase(uc))} onClose={onClose} widthClass="max-w-4xl"
       footer={(
         <>
-          <span data-preview-state={preview.status} className="me-auto truncate text-[12px] text-text-secondary">{footerNote === 'Calculating...' ? <BusyNote inline text={footerNote} size={12} /> : footerNote}</span>
+          <span data-preview-state={preview.status} className="me-auto min-h-[34px] truncate text-[12px] leading-[34px] text-text-secondary">{footerNote === 'Calculating...' ? <BusyNote inline text={footerNote} size={12} /> : footerNote}</span>
           {trail.length > 0 && !(last && busy) && <button type="button" className={btn} onClick={back}>Back</button>}
           {last ? (
             <button type="button" onClick={onClose} className={primary}>Close</button>
