@@ -116,6 +116,8 @@ export const next = (dialog) => dialog.getByRole('button', { name: 'Next', exact
 // Click Next until the wizard shows the page (scope:facts, scope:choice, filter, kinds, driver:<id>, economics:ramp, economics:cost, macro:offer, factors,
 // story:draft, story:params, story:approve). The Save page has no Next: reach it with saveFrom.
 export async function goTo(dialog, page) {
+  // REQ-507: the Save page is reached through the approval (one PUT), so goTo 'save' walks to story:approve and approves.
+  if (page === 'save') { await goTo(dialog, 'story:approve'); await saveFrom(dialog); return; }
   for (let i = 0; i < 24; i += 1) {
     // Settle first: while the case plan loads no page is shown, and a Next click then would skip the target. A plan error shows an alert instead of a page: stop there.
     await dialog.locator('[data-wizard-page], [role="alert"]').first().waitFor({ timeout: 15000 });
