@@ -38,12 +38,30 @@ function anchorMessages({ useCase, businessName, records, range }) {
     ' "economic_factors": [{"id": "snake_case_id", "label": "text", "why": "one line", "likely_pct": number, "min_pct": number, "max_pct": number}]}',
     `low, high and typical are the yearly value in the run's currency (typical is the likely value); the generic range is ${range.low}-${range.high}, and one use case is worth at most 1% of what the whole business earns in a year.`,
     'business_revenue_estimate is your best estimate of the yearly revenue of the business named below (0 when you cannot tell).',
-    'economic_factors lists 0 to 6 outside signals that move the revenue this use case can win, only the ones relevant to this use case (an empty list when none is). Each is a kind of market or customer signal you name for it, for example a consumer confidence index, a customer satisfaction score, demand in the market, or prices of what customers buy.',
+    'economic_factors lists 4 to 6 outside signals that move the revenue this use case can win, only the ones relevant to this use case (an empty list when none is). Each is a kind of market or customer signal you name for it, for example a consumer confidence index, a customer satisfaction score, demand in the market, or prices of what customers buy.',
     'For each, pct is the change to that revenue in percent, between -50 and 50: min_pct is the worst downturn, max_pct the best uplift, likely_pct what you expect now (between them). The user can override every one.',
   ].join('\n');
   const lines = useCaseLines(useCase, businessName);
   if (Number.isFinite(records) && records > 0) lines.push(`Records per year in the use case table: ${Math.round(records)}`);
   return [{ role: 'system', content: system }, { role: 'user', content: lines.join('\n') }];
+}
+
+// D-uae-03b: the anchor named fewer than 4 factors; ask once more for further distinct ones, naming those already chosen.
+const FACTOR_MIN = 4;
+function factorTopUpMessages({ useCase, businessName, have }) {
+  const system = [
+    'You name further outside signals for one use case. Answer with one JSON object and nothing else:',
+    '{"economic_factors": [{"id": "snake_case_id", "label": "text", "why": "one line", "likely_pct": number, "min_pct": number, "max_pct": number}]}',
+    `economic_factors lists ${FACTOR_MIN - have.length} to ${FACTOR_MAX - have.length} more market or customer signals that move the revenue this use case can win, relevant to this use case and different from these ids already chosen: ${have.map((x) => x.id).join(', ')}. For example a consumer confidence index, a customer satisfaction score, demand in the market, or prices of what customers buy.`,
+    'pct is the change to that revenue in percent, between -50 and 50: min_pct is the worst downturn, max_pct the best uplift, likely_pct what you expect now (between them).',
+  ].join('\n');
+  return [{ role: 'system', content: system }, { role: 'user', content: useCaseLines(useCase, businessName).join('\n') }];
+}
+
+// The anchor factors first, then the top-up ones; factorsFrom drops repeats and caps at FACTOR_MAX.
+function factorsWithTopUp(have, data) {
+  const got = jsonOf(data);
+  return factorsFrom([...have, ...(got && Array.isArray(got.economic_factors) ? got.economic_factors : [])]);
 }
 
 // FX-97: up to 6 market and customer factors, each a bounded change of the revenue part; anything unusable is dropped.
@@ -185,4 +203,4 @@ function savedReviewOf(answerRows, versionOf) {
   return r && typeof r === 'object' && r.scales ? { ai_checked: Boolean(r.ai_checked), reason: text(r.reason, 300), scales: r.scales } : null;
 }
 
-module.exports = { RUN_SHARE, CASE_CEILING, RUN_REVIEW_ID, runReviewMessages, runReviewFrom, reviewRun, savedReviewOf, REVIEW_ROUNDS, capOf, anchorMessages, anchorFrom, trendFrom, factorsFrom, reviewMessages, reviewFrom, onDriversOf, agrees, round2 };
+module.exports = { RUN_SHARE, CASE_CEILING, RUN_REVIEW_ID, runReviewMessages, runReviewFrom, reviewRun, savedReviewOf, REVIEW_ROUNDS, capOf, anchorMessages, anchorFrom, FACTOR_MIN, factorTopUpMessages, factorsWithTopUp, trendFrom, factorsFrom, reviewMessages, reviewFrom, onDriversOf, agrees, round2 };

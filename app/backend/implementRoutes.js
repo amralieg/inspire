@@ -2615,7 +2615,11 @@ function registerImplementRoutes(app, deps) {
   // REQ-472 (a): the anchor, one model call before the plan; null when the model gives none (the generic range is used then).
   async function anchorOf(req, useCase) {
     const asked = await askChatModel(req, VR.anchorMessages({ useCase, businessName: useCase.business_name, range: VALUE_RANGE }), FB.JSON_ANSWER_MAX_TOKENS);
-    return asked.got ? VR.anchorFrom(asked.got.data, VALUE_RANGE) : null;
+    const anchor = asked.got ? VR.anchorFrom(asked.got.data, VALUE_RANGE) : null;
+    if (!anchor || !anchor.economic_factors.length || anchor.economic_factors.length >= VR.FACTOR_MIN) return anchor; // 0 factors: the model judged none relevant
+    // D-uae-03b: 1 to 3 factors; one more ask for distinct ones, and the anchor factors stay when it fails.
+    const more = await askChatModel(req, VR.factorTopUpMessages({ useCase, businessName: useCase.business_name, have: anchor.economic_factors }), FB.JSON_ANSWER_MAX_TOKENS);
+    return more.got ? { ...anchor, economic_factors: VR.factorsWithTopUp(anchor.economic_factors, more.got.data) } : anchor;
   }
 
   // REQ-472 (c): one review of `amount` by the model: { approved, amount, reason, model } or { failed: reason }.
