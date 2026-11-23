@@ -3,12 +3,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser } from './uiSupport.mjs';
-import { goTo, mountWizard, openCard, openWizard } from './valueWizardSupport.mjs';
+import { fakeYearly, goTo, mountWizard, openCard, openWizard } from './valueWizardSupport.mjs';
 
 test.after(closeBrowser);
 
 const norm = (s) => s.replace(/\s+/g, ' ').trim();
 const OLD = /\((estimated|calculated)\)/;
+// The shared mock answers every PUT as calculated; this one answers as the server does: calculated only when the body says so.
+const mountSaving = (opts = {}) => (app) => {
+  app.put('/api/inspire/value/answers', (req, res) => {
+    opts.puts?.push(req.body);
+    const { answers } = req.body;
+    res.json({ version: 3, yearly: fakeYearly({ plan: answers.plan, answers }, { calculated: Boolean(answers.calculated) }), disclaimer: 'x' });
+  });
+  mountWizard(opts)(app);
+};
 
 test('N1: the Save step has no vertical scroll in the dialog body at 1280x800, with the tick and the Save button in view', async () => {
   const { ui, card, page } = await openCard(mountWizard({}));
@@ -29,7 +38,7 @@ test('N1: the Save step has no vertical scroll in the dialog body at 1280x800, w
 });
 
 test('N2: a value saved with Calculate now reads Provisional estimate, on the Save step and on the card, and never (estimated)', async () => {
-  const { ui, card, page } = await openCard(mountWizard({}));
+  const { ui, card, page } = await openCard(mountSaving());
   try {
     const dialog = await openWizard(page, card);
     await dialog.locator('[data-wizard-page="kinds"]').waitFor({ timeout: 15000 });
@@ -52,7 +61,7 @@ test('N2: a value saved with Calculate now reads Provisional estimate, on the Sa
 
 test('N3: a value saved with Accept and save reads Reviewed calculation on the card and never (calculated)', async () => {
   const puts = [];
-  const { ui, card, page } = await openCard(mountWizard({ puts }));
+  const { ui, card, page } = await openCard(mountSaving({ puts }));
   try {
     const dialog = await openWizard(page, card);
     await goTo(dialog, 'save');

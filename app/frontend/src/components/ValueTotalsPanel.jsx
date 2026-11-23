@@ -4,6 +4,7 @@ import { ValueCheckNote } from './ValueCheckNote';
 import ValueDisclaimer from './ValueDisclaimer';
 import { valueChips } from '../lib/valueLedger';
 import { plural as pluralOf } from '../lib/plural';
+import { STATUS_LABELS, statusCounts, statusLabelOf } from '../lib/valueLabels';
 
 // REQ-439: a total box, a calculated vs estimated bar, a second bar, and a table. Used for one run and for all runs.
 // Amounts are per currency; two currencies show two totals, never one converted number.
@@ -74,11 +75,11 @@ const TEAL = '#0d9488';
 const split = (totals) => totals.flatMap((t) => {
   const tag = totals.length > 1 ? ` ${t.currency}` : '';
   const part = (name, f, color) => ({ name: `${name}${tag}`, value: Number(t[f]) || 0, text: moneyText(t.currency, Number(t[f]) || 0), color });
-  return [part('Calculated', 'calculated', GREEN), part('Estimated', 'estimated', AMBER), ...(Number(t.measured) > 0 ? [part('Measured', 'measured', TEAL)] : [])];
+  return [part(STATUS_LABELS.calculated, 'calculated', GREEN), part(STATUS_LABELS.estimated, 'estimated', AMBER), ...(Number(t.measured) > 0 ? [part('Measured', 'measured', TEAL)] : [])];
 });
 
 const PILL = { calculated: 'bg-success-bg text-success-fg', measured: 'bg-success-bg text-success-fg', estimated: 'bg-warning-bg text-warning-fg', not_estimated: 'bg-warning-bg text-warning-fg' };
-const STATUS = { calculated: 'calculated', measured: 'measured', estimated: 'estimated', no_data: 'no data', not_estimated: 'not estimated' };
+const STATUS = { calculated: STATUS_LABELS.calculated.toLowerCase(), measured: 'measured', estimated: STATUS_LABELS.estimated.toLowerCase(), no_data: 'no data', not_estimated: 'not estimated' };
 
 const plural = (n, one, many) => (n === 1 ? one : many);
 
@@ -104,13 +105,13 @@ export function RunValuePanel({ run, useCases, nameOf, onRow }) {
       <h2 className="text-base font-bold text-text-primary">Business value this run&apos;s use cases could realize</h2>
       <p className="text-[12px] text-text-secondary">The sum of every use case&apos;s value in this run. Use cases with no value yet add nothing.</p>
       <div className="mt-3 flex flex-wrap items-start gap-4">
-        <TotalBox label="BUSINESS VALUE" totals={run.totals || []} sub={`${run.n_calculated} calculated · ${run.n_estimated} estimated`} />
+        <TotalBox label="BUSINESS VALUE" totals={run.totals || []} sub={statusCounts(run.n_calculated, run.n_estimated)} />
         <div className="min-w-0 flex-1">
           <RunValueKinds value={run} className="text-[12px] text-text-secondary" />
-          <Bar parts={split(run.totals || [])} label="Calculated vs estimated" />
+          <Bar parts={split(run.totals || [])} label={`${STATUS_LABELS.calculated}s vs ${STATUS_LABELS.estimated.toLowerCase()}s`} />
           <Bar parts={byVerb} label="By kind of value" />
           <CountNotes run={run} />
-          <p className="mt-2 text-[11px] text-text-secondary">{`${run.n} use cases · ${run.n_calculated} calculated · ${run.n_estimated} estimated · ${run.n_none} not worked out yet`}</p>
+          <p className="mt-2 text-[11px] text-text-secondary">{`${run.n} use cases · ${statusCounts(run.n_calculated, run.n_estimated)} · ${run.n_none} not worked out yet`}</p>
         </div>
       </div>
       <table className="mt-3 w-full text-[12px]">
@@ -150,7 +151,7 @@ export function AllRunsValuePanel({ reply }) {
       <h2 className="text-base font-bold text-text-primary">Business value across all runs</h2>
       {reply.truncated && <p className="text-[12px] text-text-secondary">{`Showing the newest ${reply.cap || (reply.runs || []).length} runs only.`}</p>}
       <div className="mt-3 flex flex-wrap items-start gap-4">
-        <TotalBox label="ALL RUNS" totals={all.totals || []} sub={`${all.n_calculated ?? 0} calculated · ${all.n_estimated ?? 0} estimated`} />
+        <TotalBox label="ALL RUNS" totals={all.totals || []} sub={statusCounts(all.n_calculated ?? 0, all.n_estimated ?? 0)} />
         <div className="min-w-0 flex-1">
           <RunValueKinds value={all} className="text-[12px] text-text-secondary" />
         </div>
@@ -195,7 +196,7 @@ export function RunValueTotal({ value, red = false }) {
 export function RunValueLine({ value, label = 'Business value at stake', className = '' }) {
   const totals = value?.totals || [];
   const calculated = Number(value?.n_calculated) > 0 && !(Number(value?.n_estimated) > 0);
-  const n = value ? `${value.n_calculated ?? 0} calculated · ${value.n_estimated ?? 0} estimated` : '';
+  const n = value ? statusCounts(value.n_calculated ?? 0, value.n_estimated ?? 0) : '';
   return (
     <div data-run-value="" className={`text-[11px] text-text-secondary ${className}`}>
       <div data-run-value-box="" className="inline-flex min-w-[8rem] flex-col rounded-lg border-2 border-db-red-solid bg-surface px-3 py-1.5">
@@ -203,7 +204,7 @@ export function RunValueLine({ value, label = 'Business value at stake', classNa
         <span className="text-[18px] font-extrabold tabular-nums"><RunValueTotal value={value} red /></span>
         {totals.length > 0 && (
           <span className="inline-flex items-center gap-1 text-[10px]">
-            <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full" style={{ background: calculated ? GREEN : AMBER }} />{calculated ? 'calculated' : 'estimated'}
+            <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full" style={{ background: calculated ? GREEN : AMBER }} />{statusLabelOf(calculated ? 'calculated' : 'estimated').toLowerCase()}
             <span>{`(${n})`}</span>
           </span>
         )}

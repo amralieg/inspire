@@ -47,6 +47,7 @@ import { usePortfolio } from '../components/PortfolioCards';
 import UseCaseCard from '../components/UseCaseCard';
 import { RunValueLine, RunValuePanel } from '../components/ValueTotalsPanel';
 import { valueQuery } from '../lib/valueLedger';
+import { STATUS_LABELS } from '../lib/valueLabels';
 import { useValueRead } from '../lib/useValueLedger';
 import LatestRunBadge from '../components/LatestRunBadge';
 import { executiveSummaryOf, runBusiness, runDate, runFigureParts, runFiguresOf, runsNewestFirst, latestRunId } from '../lib/reviewFigures';
@@ -1919,12 +1920,12 @@ export default function ResultsPage({
                     value={filterValue}
                     onChange={(e) => setFilterValue(e.target.value)}
                     aria-label="Value"
-                    title="Filter by whether the value at stake is calculated"
+                    title="Filter by whether the value at stake is a reviewed calculation"
                     className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth min-w-[9rem]"
                   >
                     <option value="all">Value: All</option>
-                    <option value="calculated">Value: Calculated</option>
-                    <option value="not_calculated">Value: Not calculated</option>
+                    <option value="calculated">{`Value: ${STATUS_LABELS.calculated}`}</option>
+                    <option value="not_calculated">Value: Not reviewed</option>
                   </select>
 
                   {/* Sort */}
@@ -2014,7 +2015,7 @@ export default function ResultsPage({
                     )}
                     {filterValue !== 'all' && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
-                        {filterValue === 'calculated' ? 'Value calculated' : 'Value not calculated'}
+                        {filterValue === 'calculated' ? `Value: ${STATUS_LABELS.calculated}` : 'Value: Not reviewed'}
                         <button type="button" aria-label="Clear the Value filter" onClick={() => setFilterValue('all')} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}

@@ -10,13 +10,14 @@ import { buildItems, buildNextOf, moneyText, nextSharingTables, valuedLine } fro
 import { trackBuildSubmit } from '../lib/implementControl';
 import { appGrantText, moneyRuleColumns, preflightParams, primaryTableOf, specForSibling } from '../lib/implementWizard';
 import { joinSentences } from '../lib/sentences';
+import { STATUS_LABELS } from '../lib/valueLabels';
 
 const BUILD_NOW_BUTTON = 'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-white bg-db-red-solid shadow-sm shadow-db-red/20 hover:bg-db-red-solid-hover disabled:opacity-70';
 const BUILD_CUSTOM_BUTTON = 'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-xs font-semibold text-text-primary hover:bg-bg-subtle';
 
 // REQ-078: a sibling shows its own estimate from its domain's money rule, or asks for a rule (the same route and line as Review).
 // FX-34 (REQ-448, W16 D12): a use case the value totals already value shows that amount, the one its card shows.
-const VALUED = { calculated: 'calculated', estimated: 'estimated', measured: 'measured' };
+const VALUED = { calculated: STATUS_LABELS.calculated, estimated: STATUS_LABELS.estimated, measured: 'measured' };
 export function RunValue({ row, onMeasure }) {
   const v = row.value;
   if (valuedLine(v)) {

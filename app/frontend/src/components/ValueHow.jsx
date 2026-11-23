@@ -20,7 +20,7 @@ export default function ValueHow({ yearly, onOpen }) {
   const unit = yearly.total?.unit || yearly.currency;
   const g = yearly.groups;
   const who = yearly.calculated
-    ? `calculated by ${yearly.saved_by || 'a person'}${yearly.saved_at ? ` at ${new Date(yearly.saved_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}${yearly.version ? ` (version ${yearly.version})` : ''}`
+    ? `reviewed and accepted by ${yearly.saved_by || 'a person'}${yearly.saved_at ? ` at ${new Date(yearly.saved_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}${yearly.version ? ` (version ${yearly.version})` : ''}`
     : "Inspire's first estimate; nobody has checked the numbers yet";
   return (
     <div className="mt-1.5" onClick={stop} onKeyDown={stop}>

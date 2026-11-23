@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pencil } from 'lucide-react';
 import { valueChips } from '../lib/valueLedger';
-import { VALUE_DISCLAIMER, threeDigits } from '../lib/valueLabels';
+import { VALUE_DISCLAIMER, statusLabel, threeDigits } from '../lib/valueLabels';
 import { ValueCheckNote } from './ValueCheckNote.jsx';
 
 // REQ-438: the value box beside the Inspire score box on a card. Same size as the score box. States: none, estimated, calculated,
@@ -56,8 +56,8 @@ function useCountUp(target) {
 }
 
 const TAGS = {
-  calculated: ['✓ CHECKED', 'border-success/40 bg-success-bg text-success-fg'],
-  estimated: ['ESTIMATE', 'border-warning/40 bg-warning-bg text-warning-fg'],
+  calculated: ['✓ REVIEWED', 'border-success/40 bg-success-bg text-success-fg'],
+  estimated: ['PROVISIONAL', 'border-warning/40 bg-warning-bg text-warning-fg'],
   measured: ['MEASURED', 'border-success/40 bg-success-bg text-success-fg'],
   stale: ['DATA CHANGED', 'border-warning/40 bg-warning-bg text-warning-fg'],
 };
@@ -110,7 +110,7 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
       className={`${BOX} ${edge} bg-surface ${pulse ? 'animate-pulse' : ''}`}>
       <span data-value-verb="" className="text-[11px] tracking-wide text-text-primary">{m.verb}</span>
       <span data-value-amount="" className={`text-[22px] font-extrabold tabular-nums ${amt}`}>{text}</span>
-      <span data-value-qualifier="" className="text-[10px] text-text-secondary">{m.state === 'measured' ? '(measured)' : m.calculated ? '(calculated)' : '(estimated)'}</span>
+      <span data-value-qualifier="" className="text-[10px] text-text-secondary">{m.state === 'measured' ? '(measured)' : statusLabel(m.calculated)}</span>
       <span data-value-period="" className="text-[10px] text-text-secondary">Per year</span>
       {!readOnly && onEdit && m.state !== 'measured' && (
         <button type="button" data-value-edit="" aria-label="Edit value" title="Edit value" onClick={(e) => { e.stopPropagation(); onEdit(); }}
