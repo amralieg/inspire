@@ -185,7 +185,7 @@ export function RunValueTotal({ value, red = false }) {
   // Green when the total is calculated, amber when any of it is only estimated.
   const calculated = Number(value?.n_calculated) > 0 && !(Number(value?.n_estimated) > 0);
   return (
-    <span data-run-value-total="" data-run-value-state={calculated ? 'calculated' : 'estimated'} className={red ? 'text-db-red-fg' : calculated ? 'text-success-fg' : 'text-warning-fg'}>
+    <span data-run-value-total="" data-run-value-state={calculated ? 'calculated' : 'estimated'} className={red ? 'text-white' : calculated ? 'text-success-fg' : 'text-warning-fg'}>
       {totals.map((t) => moneyText(t.currency, t.amount)).join(' + ')}
       {value?.review && value.review.ai_checked === false && <span data-run-not-ai-checked="" className="ms-1 text-[10px] font-normal text-text-secondary">Not checked by AI</span>}
     </span>
@@ -199,12 +199,12 @@ export function RunValueLine({ value, label = 'Business value at stake', classNa
   const n = value ? statusCounts(value.n_calculated ?? 0, value.n_estimated ?? 0) : '';
   return (
     <div data-run-value="" className={`text-[11px] text-text-secondary ${className}`}>
-      <div data-run-value-box="" className="inline-flex min-w-[8rem] flex-col rounded-lg border-2 border-db-red-solid bg-surface px-3 py-1.5">
-        <span className="font-semibold uppercase tracking-wide text-text-primary">{label}</span>
+      <div data-run-value-box="" className={`inline-flex min-w-[8rem] flex-col rounded-lg border-2 px-3 py-1.5 ${totals.length > 0 ? 'border-db-red-solid bg-db-red-solid text-white' : 'border-dashed border-db-red-solid bg-surface'}`}>
+        <span className={`font-semibold uppercase tracking-wide ${totals.length > 0 ? 'text-white' : 'text-text-primary'}`}>{label}</span>
         <span className="text-[18px] font-extrabold tabular-nums"><RunValueTotal value={value} red /></span>
         {totals.length > 0 && (
-          <span className="inline-flex items-center gap-1 text-[10px]">
-            <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full" style={{ background: calculated ? GREEN : AMBER }} />{statusLabelOf(calculated ? 'calculated' : 'estimated').toLowerCase()}
+          <span className="inline-flex items-center gap-1 text-[10px] text-white">
+            <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full ring-2 ring-white" style={{ background: calculated ? GREEN : AMBER }} />{statusLabelOf(calculated ? 'calculated' : 'estimated').toLowerCase()}
             <span>{`(${n})`}</span>
           </span>
         )}

@@ -27,7 +27,7 @@ export default function ResultsNav({ view, onView, useCaseCount, stickyClass = '
     <>
       <div className="col-span-full min-w-0">
         <nav aria-label="Results sections" data-results-nav="">
-          <ul role="tablist" aria-label="Results sections" onKeyDown={onKeyDown} className="grid grid-cols-3 gap-1.5 sm:flex sm:max-w-xl">
+          <ul role="tablist" aria-label="Results sections" onKeyDown={onKeyDown} className="grid grid-cols-3 gap-1.5 sm:mx-auto sm:flex sm:max-w-xl sm:justify-center">
             {RESULTS_VIEWS.map(({ id, label }) => {
               const Icon = ICONS[id];
               const current = view === id;
