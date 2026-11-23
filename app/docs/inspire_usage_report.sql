@@ -68,7 +68,7 @@ warehouse_keys AS (
   SELECT DISTINCT ws.account_id, j.workspace_id, 'warehouse' AS kind, w.warehouse_id AS id, CAST(NULL AS STRING) AS run_type
   FROM jobs_latest j
   JOIN ws ON j.workspace_id = ws.workspace_id
-  LATERAL VIEW explode(split(coalesce(try_element_at(j.tags, 'dbx_inspire_ai_warehouse_id'), ''), ',')) w AS warehouse_id
+  LATERAL VIEW explode(split(coalesce(try_element_at(j.tags, 'dbx_inspire_ai_warehouse_id'), ''), '[ ,]+')) w AS warehouse_id
   WHERE coalesce(w.warehouse_id, '') <> ''
 ),
 billed AS (

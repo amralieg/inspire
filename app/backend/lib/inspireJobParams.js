@@ -336,10 +336,10 @@ function inspireTagCloud() {
 function inspireTagValueMax() {
   return TAG_CLOUD_VALUE_MAX[tagCloud] ?? TAG_UNKNOWN_VALUE_MAX;
 }
-const TAG_LIST_SEP = ',';
+const TAG_LIST_SEP = ' ';
 const TAG_ITEM_BAD = /[^A-Za-z0-9+=.:@_-]/g;
 const RESOURCE_TAG_RULES = {
-  job: { keyBad: /[^A-Za-z0-9._-]/g, keyMax: TAG_KEY_MAX, value: /^[\w+\-=.,:@]*$/, valueBad: /[^A-Za-z0-9+=.,:@_-]/g, get valueMax() { return inspireTagValueMax(); } },
+  job: { keyBad: /[^A-Za-z0-9._-]/g, keyMax: TAG_KEY_MAX, value: /^[\w +\-=.:/@]*$/, valueBad: /[^A-Za-z0-9+=.:/@_ -]/g, get valueMax() { return inspireTagValueMax(); } },
   uc: { keyBad: /[^A-Za-z0-9_]/g, keyMax: 256, value: /^[\s\S]*$/, valueBad: null, valueMax: 256 },
 };
 
