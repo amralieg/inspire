@@ -57,11 +57,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
   const asked = useRef({ key: '', promise: null });
   const planKey = useRef('');
   const post = (route, body) => apiPostJson(route, { ...base, ...body });
-  // The App returns a blocked host inside the series ({series: {blocked, message}}); the Market data step reads it at the top of the reply.
-  const get = useCallback(async (route, query) => {
-    const r = await apiFetch(`${route}?${new URLSearchParams(query || {}).toString()}`);
-    return r?.series?.blocked ? { blocked: true, host: r.series.host, message: r.series.message } : r;
-  }, [apiFetch]);
+  const get = useCallback((route, query) => apiFetch(`${route}?${new URLSearchParams(query || {}).toString()}`), [apiFetch]);
 
   // The records found come first; one request per try, even when the effect runs twice (React strict mode).
   useEffect(() => {
