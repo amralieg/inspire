@@ -41,8 +41,9 @@ export function RunValue({ row, onMeasure }) {
 }
 
 // The demo has no value ledger, so its cards send no estimate read (showcase).
+// REQ-497 FX-103: refreshKey moves when a value is saved, so the row reads the saved status again (Reviewed calculation after Accept and save).
 // D-uae-06: `listed` is the use case list the page shows; the count and the rows come from it, so the header never counts a different pass.
-export function useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, showcase = false, listed = null) {
+export function useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, showcase = false, listed = null, refreshKey = 0) {
   const [state, setState] = useState({ got: null, error: '' });
   useEffect(() => {
     if (!sessionId || !inspireDatabase || !warehouseId) return undefined;
@@ -56,7 +57,7 @@ export function useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, 
       })
       .catch((err) => { if (!cancelled) setState({ got: null, error: String(err?.message || err) }); });
     return () => { cancelled = true; };
-  }, [apiFetch, inspireDatabase, warehouseId, sessionId, showcase]);
+  }, [apiFetch, inspireDatabase, warehouseId, sessionId, showcase, refreshKey]);
   // FX-63c: the rows follow the list the page shows without a second read, so a new list identity never refetches.
   // An absent list (null or undefined) falls back to the run's own use cases; an empty one is shown as empty.
   const { got, error } = state;
@@ -91,8 +92,8 @@ function StartButton({ id, onStart }) {
   );
 }
 
-export function BuildNextPanel({ apiFetch, inspireDatabase, warehouseId, sessionId, onStart, onMeasure = null, showcase = false, useCases = null }) {
-  const { rows, error } = useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, showcase, useCases);
+export function BuildNextPanel({ apiFetch, inspireDatabase, warehouseId, sessionId, onStart, onMeasure = null, showcase = false, useCases = null, refreshKey = 0 }) {
+  const { rows, error } = useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, showcase, useCases, refreshKey);
   const plan = useMemo(() => (rows ? buildNextOf(rows) : null), [rows]);
   if (error) return <p role="alert" data-build-next-error="" className="text-[12px] text-error-fg">Inspire could not load the next use cases: {error}</p>;
   if (!plan || plan.total === 0) return null;
@@ -121,8 +122,8 @@ export function BuildNextPanel({ apiFetch, inspireDatabase, warehouseId, session
   );
 }
 
-export function BuildNextStep({ apiFetch, apiPostJson, inspireDatabase, warehouseId, sessionId, notebookPath = '', focusId, live, caseOf, onBuilt, onBuildCustom, onQueued = null, onMeasure = null, showcase = false }) {
-  const { rows, liveSpecs, error } = useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, showcase);
+export function BuildNextStep({ apiFetch, apiPostJson, inspireDatabase, warehouseId, sessionId, notebookPath = '', focusId, live, caseOf, onBuilt, onBuildCustom, onQueued = null, onMeasure = null, showcase = false, refreshKey = 0 }) {
+  const { rows, liveSpecs, error } = useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, showcase, null, refreshKey);
   const next = useMemo(() => (rows && live ? nextSharingTables(rows, focusId) : []), [rows, live, focusId]);
   const [builds, setBuilds] = useState({});
   if (!live || error || !next.length) return null;
