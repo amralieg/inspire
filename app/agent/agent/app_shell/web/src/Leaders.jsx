@@ -9,8 +9,8 @@ export default function Leaders({ data, onClose }) {
       {rows.length === 0 && <p className="value-board-empty">No resolved records yet</p>}
       {rows.map((r) => (
         <div key={r.rank} className="value-leader" data-leader="" {...(r.me ? { 'data-me': '' } : {})}>
-          <span className="value-leader-rank">{r.rank}</span>
-          <span className="value-leader-name">{r.name}</span>
+          <span className="value-leader-rank">{r.rank}</span>{' '}
+          <span className="value-leader-name">{r.name}</span>{' '}
           <span className="value-leader-value">{wholeMoney(r.value, data.currency)}</span>
         </div>
       ))}
