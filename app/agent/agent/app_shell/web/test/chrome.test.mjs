@@ -4,11 +4,10 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { appInfo, bundleEntry, chartsDrawn, idle, NO_JOB, openApp, openBundle, pageData, resizeTo, sent, serveDist, steadyBox, TABLE, until } from './harness.mjs';
+import { appInfo, bundleEntry, chartsDrawn, idle, NO_JOB, openApp, openBundle, pageData, sent, serveDist, TABLE, until } from './harness.mjs';
 import { ratio } from './contrast.test.mjs';
 import { SERIES_TOKENS, themeTokens } from '../src/tokens.js';
 import { EXPLAIN_CONTEXT_CHARS, EXPLAIN_ROWS, chartContext, chartRow, cutText, explainBody, filterWords } from '../src/explain.js';
-import { GENIE_DEFAULT, GENIE_MIN, MAIN_MIN, clampGenie, genieMax, keyWidth } from '../src/genieWidth.js';
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
 const PALETTES = JSON.parse(readFileSync(join(SRC, 'palettes.json'), 'utf8'));
@@ -61,7 +60,8 @@ after(async () => {
   served?.close();
 });
 
-const open = (info, options) => openApp(browser, served.base, info, options);
+// REQ-506: Work is home now and the charts live on the dashboard section, so these tests start there.
+const open = (info, options) => openApp(browser, served.base, info, { hash: `#/${info.pages[0].id}/dashboard`, ...options });
 
 const COLOR_OF = (id) => {
     const c = document.querySelector(`[data-card="${id}"] canvas`);
@@ -121,17 +121,23 @@ function menuColors(page) {
 
 const lowContrast = (pairs) => pairs.filter((p) => ratio(p.fg, p.bg) < 4.5).map((p) => `${p.where} is ${ratio(p.fg, p.bg).toFixed(2)}:1 (${p.fg} on ${p.bg})`);
 const colors = (page) => page.getByRole('radiogroup', { name: 'Colors' });
+// REQ-506: the side rail is gone; sections open by their hash and the theme switch is in the avatar menu.
+const goSection = (page, section) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, section);
 async function toSettings(page) {
-  await page.locator('[data-rail="settings"]').click();
+  await goSection(page, 'settings');
   await colors(page).waitFor();
 }
 async function toDashboard(page) {
-  await page.locator('[data-rail="dashboard"]').click();
+  await goSection(page, 'dashboard');
   await page.waitForFunction(chartsDrawn, 4);
+}
+async function toggleTheme(page, to) {
+  await page.locator('[data-avatar-menu] .av-b').click();
+  await page.getByRole('menuitem', { name: `Switch to ${to} theme` }).click();
 }
 async function darkTheme(page) {
   await toSettings(page);
-  await page.getByRole('button', { name: 'Switch to dark theme' }).click();
+  await toggleTheme(page, 'dark');
 }
 
 test('Settings lists the 13 palettes with their series colors, marks the one in use and the one built, and the top bar has no palette button', async () => {
@@ -225,7 +231,7 @@ test('the palette text in Settings passes 4.5:1 in light and dark, and the check
   const { page, seen, context } = await open(appInfo({ palette: 'vivid' }));
   await toSettings(page);
   for (const theme of ['light', 'dark']) {
-    if (theme === 'dark') await page.getByRole('button', { name: 'Switch to dark theme' }).click();
+    if (theme === 'dark') await toggleTheme(page, 'dark');
     const pairs = await menuColors(page);
     assert.equal(pairs.length, 14, theme);
     assert.deepEqual(lowContrast(pairs), [], theme);
@@ -238,181 +244,27 @@ test('the palette text in Settings passes 4.5:1 in light and dark, and the check
   await context.close();
 });
 
-test('the Genie window resizes by drag, keys, double-click and the maximize button, within 320 pixels and 60% of the window', async () => {
-  const { page, seen, context } = await open(appInfo(), { width: 1440, height: 900 });
-  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
-  const panel = page.locator('aside.genie');
-  const handle = page.getByRole('separator', { name: 'Resize Ask Genie' });
-  const width = () => panel.evaluate((el) => Math.round(el.getBoundingClientRect().width));
-  const now = () => handle.getAttribute('aria-valuenow');
-  assert.deepEqual([await handle.getAttribute('aria-orientation'), await now(), await handle.getAttribute('aria-valuemin'), await handle.getAttribute('aria-valuemax')],
-    ['vertical', '400', '320', '864']);
-  assert.equal(await width(), 400);
-  const geometry = await page.evaluate(() => {
-    const r = (sel) => document.querySelector(sel).getBoundingClientRect();
-    const [aside, edge, grip] = [r('aside.genie'), r('.g-resize'), r('.g-grip')];
-    return { full: [edge.top === aside.top, edge.height === aside.height], straddles: edge.left < aside.left && edge.right > aside.left,
-      grip: [grip.width, grip.height], gripMiddle: [grip.top + grip.height / 2 - (aside.top + aside.height / 2), grip.left + grip.width / 2 - aside.left].map((d) => Math.abs(d) <= 1),
-      cursor: getComputedStyle(document.querySelector('.g-resize')).cursor, shown: getComputedStyle(document.querySelector('.g-grip')).borderTopColor };
-  });
-  assert.deepEqual(geometry, { full: [true, true], straddles: true, grip: [8, 44], gripMiddle: [true, true], cursor: 'col-resize', shown: rgbOf('light', 'faint') });
-  await handle.focus();
-  await page.keyboard.press('ArrowLeft');
-  assert.deepEqual([await now(), await width()], ['432', 432]);
-  await page.keyboard.press('ArrowRight');
-  await page.keyboard.press('ArrowRight');
-  assert.equal(await now(), '368');
-  await page.keyboard.press('Home');
-  assert.equal(await now(), '320');
-  await page.keyboard.press('End');
-  assert.deepEqual([await now(), await width()], ['864', 864]);
-  await handle.dblclick();
-  assert.deepEqual([await now(), await width()], ['400', 400]);
-  const box = await steadyBox(page, handle);
-  await page.mouse.move(box.x + box.width / 2, box.y + 200);
-  await page.mouse.down();
-  assert.equal(await handle.getAttribute('class'), 'g-resize is-dragging');
-  await page.mouse.move(box.x + box.width / 2 - 150, box.y + 200, { steps: 6 });
-  await page.mouse.up();
-  assert.equal(await handle.getAttribute('class'), 'g-resize');
-  assert.deepEqual([await now(), await width()], ['550', 550]);
-  assert.equal(await stored(page, 'inspire-app-genie-width'), '550');
-  await page.mouse.move(box.x - 150 + box.width / 2, box.y + box.height - 12);
-  await page.mouse.down();
-  await page.mouse.move(box.x - 150 + box.width / 2 - 100, box.y + box.height - 12, { steps: 4 });
-  await page.mouse.up();
-  assert.deepEqual([await now(), await width()], ['650', 650], 'the whole height of the edge drags, not only the grip');
-  await page.mouse.move(box.x - 250 + box.width / 2, box.y + 200);
-  await page.mouse.down();
-  await page.mouse.move(box.x + 900, box.y + 200, { steps: 4 });
-  await page.mouse.up();
-  assert.equal(await now(), '320', 'a drag past the edge stops at the least width');
-  const max = page.getByRole('button', { name: 'Maximize Ask Genie' });
-  assert.equal(await max.getAttribute('aria-pressed'), 'false');
-  await max.click();
-  assert.deepEqual([await max.getAttribute('aria-pressed'), await width()], ['true', 864]);
-  await max.click();
-  assert.deepEqual([await max.getAttribute('aria-pressed'), await width()], ['false', 320]);
-  await page.reload();
-  await page.waitForSelector('.kpi-v');
-  await page.locator('aside.genie.is-open').waitFor({ timeout: 10000 });
-  assert.equal(await width(), 320, 'the width is remembered, and the panel stays open after a reload as the person left it in the session (REQ-092)');
-  await handle.focus();
-  await page.keyboard.press('End');
-  await resizeTo(page, 1000);
-  assert.deepEqual([await handle.getAttribute('aria-valuemax'), await now(), await width()], ['600', '600', 600]);
-  assert.equal(await page.getByRole('button', { name: 'Maximize Ask Genie' }).getAttribute('aria-pressed'), 'true');
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('on a phone the Genie window stays full screen with no resize handle', async () => {
-  const { page, seen, context } = await open(appInfo(), { width: 390, height: 844 });
-  await page.evaluate(() => localStorage.setItem('inspire-app-genie-width', '900'));
-  await page.reload();
-  await page.waitForSelector('.kpi-v');
-  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
-  await page.locator('aside.genie').waitFor();
-  const m = await page.evaluate(() => ({
-    panel: Math.round(document.querySelector('aside.genie').getBoundingClientRect().width),
-    stage: Math.round(document.querySelector('.stage').getBoundingClientRect().width),
-    scroll: document.documentElement.scrollWidth - window.innerWidth,
-  }));
-  assert.deepEqual(m, { panel: m.stage, stage: 390, scroll: 0 });
-  assert.equal(await page.getByRole('separator', { name: 'Resize Ask Genie' }).isVisible(), false);
-  assert.equal(await page.getByRole('button', { name: 'Maximize Ask Genie' }).isVisible(), false);
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('the resize grip shows at rest and turns the brand color on hover and focus, with 3:1 contrast in light and dark', async () => {
-  const { page, seen, context } = await open(appInfo(), { width: 1440, height: 900 });
-  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
-  const handle = page.getByRole('separator', { name: 'Resize Ask Genie' });
-  const read = (want) => {
-    const solid = (c) => c.replace(/^rgba\((\d+), (\d+), (\d+), 1\)$/, 'rgb($1, $2, $3)');
-    const grip = getComputedStyle(document.querySelector('.g-grip'));
-    const got = { edge: solid(grip.borderTopColor), fill: solid(grip.backgroundColor), dots: solid(grip.backgroundImage.match(/rgba?\([^)]+\)/)[0]),
-      line: solid(getComputedStyle(document.querySelector('.g-resize'), '::before').backgroundColor),
-      behind: [getComputedStyle(document.querySelector('.stage')).backgroundColor, getComputedStyle(document.querySelector('.g-log')).backgroundColor] };
-    return !want || JSON.stringify([got.edge, got.fill, got.dots, got.line]) === JSON.stringify(want) ? got : false;
-  };
-  const settled = async (want, label) => {
-    const got = await page.waitForFunction(read, want, { timeout: 3000 }).then((h) => h.jsonValue()).catch(() => page.evaluate(read, null));
-    assert.deepEqual([got.edge, got.fill, got.dots, got.line], want, label);
-    return got;
-  };
-  for (const theme of ['light', 'dark']) {
-    if (theme === 'dark') await darkTheme(page);
-    await page.mouse.move(20, 600);
-    await handle.evaluate((el) => el.blur());
-    const rest = await settled([rgbOf(theme, 'faint'), rgbOf(theme, 'card'), rgbOf(theme, 'muted'), 'rgba(0, 0, 0, 0)'], theme);
-    for (const bg of rest.behind) assert.ok(ratio(hexOf(rest.edge), hexOf(bg)) >= 3, `${theme}: the grip edge ${rest.edge} on ${bg}`);
-    assert.ok(ratio(hexOf(rest.dots), hexOf(rest.fill)) >= 3, `${theme}: the grip dots`);
-    for (const how of ['hover', 'focus']) {
-      if (how === 'hover') await handle.hover();
-      else {
-        await page.mouse.move(20, 600);
-        await page.keyboard.press('Shift');
-        await handle.focus();
-      }
-      const on = await settled([rgbOf(theme, 'btn-bg'), rgbOf(theme, 'btn-bg'), rgbOf(theme, 'btn-fg'), rgbOf(theme, 'brand')], `${theme} ${how}`);
-      for (const bg of on.behind) {
-        assert.ok(ratio(hexOf(on.fill), hexOf(bg)) >= 3, `${theme} ${how}: the grip ${on.fill} on ${bg}`);
-        assert.ok(ratio(hexOf(on.line), hexOf(bg)) >= 3, `${theme} ${how}: the edge line ${on.line} on ${bg}`);
-      }
-      assert.ok(ratio(hexOf(on.dots), hexOf(on.fill)) >= 3, `${theme} ${how}: the grip dots`);
-    }
-  }
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-const sideways = (page) => page.evaluate(() => {
-  const main = document.querySelector('.main');
-  const edge = main.getBoundingClientRect().right;
-  const scrolls = (el) => {
-    for (let at = el.parentElement; at && at !== main; at = at.parentElement) if (getComputedStyle(at).overflowX !== 'visible') return true;
-    return false;
-  };
-  const out = [...main.querySelectorAll('*')].filter((e) => e.getClientRects().length && e.getBoundingClientRect().right > edge + 1 && !scrolls(e));
-  return { page: document.documentElement.scrollWidth - window.innerWidth, main: main.scrollWidth - main.clientWidth, out: out.map((e) => e.className || e.tagName),
-    width: Math.round(main.getBoundingClientRect().width), container: getComputedStyle(main).containerName,
-    charts: getComputedStyle(document.querySelector('.charts')).gridTemplateColumns.split(' ').length };
-});
-
-test('with Genie at its widest the page beside it reflows with nothing cut off, and keeps its own layout while Genie is closed or laid over it', async () => {
-  for (const [vw, layout, genie] of [[1440, 'sidebar', 864], [1280, 'sidebar', 768], [1920, 'sidebar', 1152], [1440, 'tabs', 864]]) {
-    const where = `${vw} ${layout}`;
-    const { page, seen, context } = await open(appInfo({ layout }, 2, TABLE), { width: vw, height: 900 });
-    await page.goto(`${served.base}#/n01_u05`);
-    await page.waitForFunction(chartsDrawn, 4);
-    const closed = await sideways(page);
-    assert.deepEqual([closed.page, closed.out, closed.container], [0, [], 'main'], where);
-    await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
-    const handle = page.getByRole('separator', { name: 'Resize Ask Genie' });
-    assert.equal(await handle.getAttribute('aria-valuemax'), String(genie), where);
-    await handle.focus();
-    await page.keyboard.press('End');
-    await page.waitForFunction((w) => Math.round(document.querySelector('aside.genie').getBoundingClientRect().width) === w, genie);
-    await page.waitForFunction(chartsDrawn, 4);
-    await page.waitForFunction(() => { const m = document.querySelector('.main'); return m.scrollWidth <= m.clientWidth; }, null, { timeout: 10000 });
-    const wide = await sideways(page);
-    assert.deepEqual([wide.page, wide.main, wide.out, wide.container, wide.charts], [0, 0, [], 'app main', 1], where);
-    assert.ok(wide.width >= MAIN_MIN, `${where}: the page beside Genie is ${wide.width} pixels`);
+// REQ-506: the Genie window is gone from the App; Genie mode is the whole page, so there is nothing to resize. The resize, grip and reflow-beside-Genie tests
+// (window resizes by drag/keys/double-click/maximize; resize grip contrast; page reflows beside Genie at its widest) have no equivalent and were deleted.
+// was: 'on a phone the Genie window stays full screen with no resize handle'
+test('Genie mode fills the page on a desktop and on a phone, with no resize handle, no maximize button and no sideways scroll', async () => {
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
+    const { page, seen, context } = await open(appInfo(), { width, height, hash: '#/n01_u05/work' });
+    await page.evaluate(() => localStorage.setItem('inspire-app-genie-width', '900'));
+    await page.reload();
+    await page.locator('[data-mode-switch] [data-mode="genie"]').click();
+    await page.locator('[data-genie-full]').waitFor({ state: 'visible' });
+    const m = await page.evaluate(() => {
+      const full = document.querySelector('[data-genie-full]').getBoundingClientRect();
+      const main = document.querySelector('.main').getBoundingClientRect();
+      return { fills: Math.abs(full.width - main.width) <= 2, scroll: document.documentElement.scrollWidth - window.innerWidth };
+    });
+    assert.deepEqual(m, { fills: true, scroll: 0 }, `${width}: Genie fills the page`);
+    assert.equal(await page.getByRole('separator', { name: 'Resize Ask Genie' }).isVisible(), false, `${width}: no resize handle`);
+    assert.equal(await page.getByRole('button', { name: 'Maximize Ask Genie' }).isVisible(), false, `${width}: no maximize button`);
     assert.deepEqual(seen.errors, []);
     await context.close();
   }
-  const { page, seen, context } = await open(appInfo({ layout: 'sidebar' }, 2, TABLE), { width: 1000, height: 900 });
-  await page.goto(`${served.base}#/n01_u05`);
-  await page.waitForFunction(chartsDrawn, 4);
-  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
-  await page.getByRole('separator', { name: 'Resize Ask Genie' }).focus();
-  await page.keyboard.press('End');
-  const over = await sideways(page);
-  assert.deepEqual([over.page, over.container], [0, 'main'], 'a Genie window laid over the page leaves its layout alone');
-  assert.deepEqual(seen.errors, []);
-  await context.close();
 });
 
 function explainRoutes(question = 'The exact question the App sent.') {
@@ -461,10 +313,12 @@ test('Explain on a chart sends what the chart drew with the filters in words, an
   await bubble.locator('summary').click();
   assert.equal(await bubble.locator('summary').innerText(), 'What the App sent Genie');
   assert.equal(await bubble.locator('pre').innerText(), 'The exact question the App sent.');
+  // REQ-506: Genie fills the page, so the chart buttons are only on screen again after going back to the dashboard; the answer keeps running meanwhile.
+  await toDashboard(page);
   const states = await buttons.evaluateAll((els) => els.map((e) => [e.disabled, e.title]));
   assert.deepEqual(states, Array(4).fill([true, 'Genie is still answering']));
   release();
-  await page.locator('.msg-sql').waitFor({ timeout: 15000 });
+  await page.waitForFunction(() => [...document.querySelectorAll('.explain-btn')].every((b) => !b.disabled), null, { timeout: 15000 });
   assert.deepEqual(await buttons.evaluateAll((els) => els.map((e) => e.disabled)), [false, false, false, false]);
   await page.getByRole('button', { name: 'Explain Loss to discounts by month' }).click();
   await until(() => calls.explain.length === 2);
@@ -507,7 +361,7 @@ test('the To fix per run chart explains the runs it drew, oldest first, without 
   routes.runs = ({ json }) => json(200, { runs: [run('81', '2026-10-17T06:00:00Z', 12), run('80', '2026-09-26T06:00:00Z', null), run('79', '2026-09-15T06:00:00Z', 20)],
     total: 3, offset: 0, limit: 20, job: null, errors: {} });
   const { page, seen, context } = await open(appInfo({}, 1, TABLE), { routes, clock: Date.parse('2026-10-27T09:30:00Z') });
-  await page.locator('[data-rail="runs"]').click();
+  await goSection(page, 'runs'); // REQ-506: no side rail
   await page.locator('[data-bars="to_fix_runs"] .vb-c').first().waitFor();
   await page.locator('[data-card="run_timeline"] canvas').waitFor();
   assert.deepEqual(await page.locator('.explain-btn').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label'))), ['Explain Run timeline', 'Explain To fix per run']);
@@ -519,7 +373,7 @@ test('the To fix per run chart explains the runs it drew, oldest first, without 
   assert.deepEqual(seen.errors, []);
   await context.close();
   const off = await open(appInfo({ genie: null, genie_note: 'The Genie Agent did not build.' }, 1, TABLE), { routes });
-  await off.page.locator('[data-rail="runs"]').click();
+  await goSection(off.page, 'runs'); // REQ-506: no side rail
   await off.page.locator('[data-bars="to_fix_runs"] .vb-c').first().waitFor();
   assert.equal(await off.page.locator('.explain-btn').count(), 0, 'no Explain while Ask Genie is off');
   await off.context.close();
