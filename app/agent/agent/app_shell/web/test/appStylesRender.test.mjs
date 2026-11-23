@@ -56,7 +56,8 @@ for (const [style, kindId] of Object.entries(WHO)) {
       const { page, seen, context } = await openKind(kindId, { width, height, changes });
       try {
         await page.locator(`.page[data-app-style="${style}"]`).waitFor({ timeout: 20000 });
-        assert.equal((await page.locator('.style-kicker').first().textContent()).trim(), LABEL[style], 'the kicker names the style');
+        // The one-line style kicker is gone from the 2-line header; the style is carried by the App root and the page.
+        assert.equal(await page.locator(`.app[data-app-style="${style}"]`).count(), 1, `the App root names the ${LABEL[style]} style`);
         await page.screenshot({ path: join(SHOTS, `${style}-${width}x${height}.png`) });
         assert.deepEqual(errorsOf(seen), [], 'no console errors');
       } finally {
@@ -70,12 +71,12 @@ function exampleRecords(kindId) {
   return JSON.parse(readFileSync(join(APP_SHELL, exampleOf(kindId)), 'utf8')).records;
 }
 
-test('a map without coordinates draws as its league fallback and says so in the kicker', async () => {
+test('a map without coordinates draws as its league fallback and the App root says so', async () => {
   const { page, seen, context } = await openKind(WHO.map);
   try {
     await page.locator('.page[data-app-style="league"]').waitFor({ timeout: 20000 });
     assert.equal(await page.locator('.page[data-app-style="map"]').count(), 0, 'no map style without coordinates');
-    assert.equal((await page.locator('.style-kicker').first().textContent()).trim(), LABEL.league);
+    assert.equal(await page.locator('.app[data-app-style="league"]').count(), 1, `the App root names the ${LABEL.league} style`);
     assert.deepEqual(errorsOf(seen), [], 'no console errors');
   } finally {
     await context.close();
@@ -104,7 +105,7 @@ for (const style of ['cockpit', 'graph']) {
     test(`Ask Genie stays readable over the ${style} style at ${width}x${height}`, async () => {
       const { page, seen, context } = await openKind(WHO[style], { width, height });
       try {
-        await page.locator('.genie-btn').click();
+        await page.locator('[data-mode-switch] [data-mode="genie"]').click();
         await page.locator('aside.genie').waitFor({ timeout: 20000 });
         const { ratio, background, color } = await contrastOf(page);
         assert.ok(ratio >= 4.5, `contrast ${ratio.toFixed(2)} of text ${color} on ${background} is below 4.5`);

@@ -19,6 +19,15 @@ const USAGE = {
   people: [{ who: PERSON, counts: counts(11, 0, 0, 1, 0, 2), pages: ['Price-loss desk'], total: 14, last: '2026-10-23T08:00:00Z' }],
 };
 const usageRoute = (status, body, asked) => ({ 'admin/usage': ({ json }) => { asked.push(status); return json(status, body); } });
+// REQ-506: the side rail is gone; the avatar menu is the one menu that could list Admin, so it is what these tests read.
+const menuItems = async (page) => {
+  await page.locator('[data-avatar-menu] button').first().click();
+  const menu = page.getByRole('menu');
+  await menu.waitFor({ state: 'visible' });
+  const items = (await menu.getByRole('menuitem').allInnerTexts()).map((t) => t.trim());
+  await page.keyboard.press('Escape');
+  return items;
+};
 const goAdmin = async (page) => {
   await page.goto(`${served.base}#/${ADMIN_ROUTE}`);
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Admin');
@@ -42,7 +51,7 @@ test('the usage view counts each kind of change per use case and per person, in 
 test('an owner opens Admin from its link and reads the usage, and the menu never lists Admin', async () => {
   const asked = [];
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 2, TABLE), { routes: usageRoute(200, USAGE, asked) });
-  const before = await page.locator('nav.side').innerText();
+  const before = (await menuItems(page)).join(' | ');
   assert.ok(!/Admin/.test(before), 'Admin is hidden from the menu');
   await goAdmin(page);
   await page.locator('.tbl--usage').first().waitFor();
@@ -56,7 +65,7 @@ test('an owner opens Admin from its link and reads the usage, and the menu never
   const person = await page.locator('section[aria-label="By person"] tbody tr').first().locator('td').allInnerTexts();
   assert.deepEqual(person, [PERSON, 'Price-loss desk', '11', '0', '0', '1', '0', '2', '14', 'Oct 23, 2026']);
   assert.equal(await page.evaluate(() => document.title), 'Admin · Pricing desk');
-  assert.ok(!/Admin/.test(await page.locator('nav.side').innerText()), 'opening Admin does not add it to the menu');
+  assert.ok(!/Admin/.test((await menuItems(page)).join(' | ')), 'opening Admin does not add it to the menu');
   assert.deepEqual(asked, [200]);
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -98,7 +107,7 @@ test('Admin says when the usage could not load, and when nobody changed anything
   await quiet.context.close();
 });
 
-test('an owner sees the Admin link in Settings and it opens Admin, while the top bar and the rail never list Admin', async () => {
+test('an owner sees the Admin link in Settings and in the avatar menu and both open Admin, while the top bar never lists Admin', async () => {
   const owner = appInfo({ use_case_owners: { n01_u05: [PERSON] } }, 2, TABLE);
   assert.equal(owner.is_owner, true, 'the server signed the person in as an owner');
   assert.ok(!('admin' in owner), 'the App info never carries the owner it names');
@@ -110,7 +119,12 @@ test('an owner sees the Admin link in Settings and it opens Admin, while the top
   assert.equal(await link.getAttribute('href'), `#/${ADMIN_ROUTE}`);
   assert.equal(await page.locator('[data-settings] a.admin-link').count(), 1, 'one link, in Settings');
   assert.equal(await page.locator('.top a.admin-link').count(), 0, 'the top bar never lists Admin');
-  assert.ok(!/Admin/.test(await page.locator('nav.side').innerText()), 'the rail never lists Admin');
+  const owned = page.locator('[data-avatar-menu]');
+  await owned.locator('button').first().click();
+  const inMenu = page.getByRole('menuitem', { name: 'Admin' });
+  assert.equal(await inMenu.count(), 1, 'an owner finds Admin in the avatar menu');
+  assert.equal(await inMenu.getAttribute('href'), `#/${ADMIN_ROUTE}`);
+  await page.keyboard.press('Escape');
   await link.click();
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Admin');
   await page.locator('.tbl--usage').first().waitFor();
@@ -125,11 +139,11 @@ test('someone who is not an owner never sees the Admin link, so Admin stays hidd
   assert.equal(other.is_owner, false, 'the server did not sign this person in as an owner');
   for (const info of [other, { ...other, is_owner: undefined }, { ...other, is_owner: 'true', admin: true }]) {
     const { page, context } = await openApp(browser, served.base, info, { hash: '#/n01_u05/settings' });
-    await page.locator('.top .mark').waitFor();
+    await page.locator('.top [data-switcher]').waitFor();
     await page.locator('[data-settings] [data-auth]').waitFor();
     assert.equal(await page.locator('a.admin-link').count(), 0);
     assert.ok(!/Admin/.test(await page.locator('.top').innerText()), 'nothing in the top bar names Admin');
-    assert.ok(!/Admin/.test(await page.locator('nav.side').innerText()));
+    assert.ok(!/Admin/.test((await menuItems(page)).join(' | ')), 'nor does the avatar menu');
     await context.close();
   }
 });

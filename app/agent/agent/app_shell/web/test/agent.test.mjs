@@ -114,8 +114,15 @@ function agentRoutes(turn = DONE_TURN, extra = {}) {
   return { calls, acted, routes };
 }
 
+// REQ-506: the "Ask Genie" button is gone; the Screen | Genie switch opens Genie full height.
+async function openGenie(page) {
+  await page.locator('.card--table tbody tr').first().waitFor({ state: 'visible' }); // the Work list has read its rows before the pane replaces it
+  await page.locator('[data-mode-switch] [data-mode="genie"]').click();
+  await page.locator('[data-genie-full]').waitFor({ state: 'visible' });
+}
+
 async function askAgent(page, question) {
-  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
+  await openGenie(page);
   const box = page.getByRole('textbox', { name: 'Your question' });
   await box.fill(question);
   await page.getByRole('button', { name: 'Send' }).click();
@@ -178,7 +185,7 @@ test('without a chat model the panel says so and asks the Genie Agent as before'
   const routes = { 'agent/status': ({ json }) => json(200, { mode: 'genie', note, page: 'n01_u05', genie: true, model: '' }) };
   const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes });
   try {
-    await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
+    await openGenie(page);
     await page.locator('[data-agent-note]').getByText(note).waitFor();
     await page.getByRole('textbox', { name: 'Your question' }).fill('Which category lost the most?');
     await page.getByRole('button', { name: 'Send' }).click();
@@ -331,10 +338,10 @@ test('a next step changes the page through the view, says what changed, and can 
   }
 });
 
-test('opening Ask Genie shows the page top fact and three one-tap next steps', async () => {
+test('opening Genie shows the page top fact and three one-tap next steps', async () => {
   const { page, context } = await openApp(browser, served.base, appInfo({ ...DECIDE }), { routes: agentRoutes().routes, hash: '#/n01_u05/work' });
   try {
-    await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
+    await openGenie(page);
     const fact = page.locator('.genie [data-fact]');
     await fact.waitFor();
     assert.match(await fact.innerText(), /^[^:]+: .+/);
