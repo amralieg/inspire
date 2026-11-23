@@ -14,6 +14,7 @@ export default function Header({
   canResults,
   canImplement,
   canRun,
+  navReady = true,
   releaseTag = '',
 }) {
   const { theme, toggle } = useTheme();
@@ -46,7 +47,7 @@ export default function Header({
 
           {/* Navigation */}
           <nav className="flex min-w-0 items-center gap-0.5 overflow-x-auto">
-            {NAV.map((item) => {
+            {navReady && NAV.map((item) => {
               const active = page === item.id || (item.id === 'choose' && START_PAGES.includes(page));
               const can = enabled[item.id];
               return (

@@ -502,7 +502,7 @@ export default function App() {
 
   const canLaunch = true;
   const canMonitor = inDemo || Boolean(sessionId || runId);
-  const [hasResults, setHasResults] = useState(false);
+  const [hasResults, setHasResults] = useState(null);
   const { token: apiToken, databricksHost: apiHost, inspireDatabase: apiDb, warehouseId: apiWh } = settings;
   useEffect(() => {
     if (inDemo || !apiDb || !apiWh || page === 'loading' || page === 'setup') return undefined;
@@ -513,7 +513,9 @@ export default function App() {
       .catch(() => { if (!cancelled) setHasResults(false); });
     return () => { cancelled = true; };
   }, [inDemo, apiToken, apiHost, apiDb, apiWh, page]);
-  const canResults = inDemo || hasResults;
+  const canResults = inDemo || hasResults === true;
+  // The steps appear once the saved-run check has answered, so Review and Run never flash locked for a person who has finished runs.
+  const navReady = inDemo || hasResults !== null || !apiDb || !apiWh;
   const bare = page === 'run' && runFull;
 
   return (
@@ -532,6 +534,7 @@ export default function App() {
           canMonitor={canMonitor}
           canResults={canResults}
           canRun={canResults}
+          navReady={navReady}
           canImplement={Boolean(implementSessionId)}
           releaseTag={releaseTag}
         />
