@@ -144,10 +144,11 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
   const setOwner = (id, text) => edit((a) => ({ ...a, story: { ...a.story, owners: { ...a.story?.owners, [id]: text } } }));
 
   // The one save: Approve story and save. REQ-472 (c): a plan the model review did not approve is saved as an estimate, as its review line says.
-  const save = async (final) => {
+  // REQ-442/497: Calculate now is the same save with calculated false (a Provisional estimate), from any page before the Save step.
+  const save = async (final, accepted = true) => {
     setBusy(true); setError('');
     try {
-      const confirmed = plan.review?.approved !== false;
+      const confirmed = accepted && plan.review?.approved !== false;
       const sent = bodyOf(plan, final, confirmed).answers;
       // REQ-457: the measure settings ride along: the wizard's live ones, else the saved ones (initialAnswers drops unknown fields).
       await values.run(useCaseId, table, { ...sent, ...(measure ? measure.values : measureOfSaved(saved)), plan: bodyOf(plan, final).plan });
@@ -163,6 +164,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
     setAnswers(final);
     return save(final);
   };
+  const calculateNow = () => save(answers, false);
   const undo = async () => {
     setBusy(true); setError('');
     try {
@@ -208,6 +210,8 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
   const scopeDone = scope?.choice && (scope.choice !== 'filter' || Number.isFinite(Number(scope.rows_after)));
   const nextOff = busy || (page === 'scope:facts' && !facts) || (page === 'scope:choice' && !scope?.choice) || (page === 'filter' && !scopeDone)
     || (!SCOPE_PAGES.includes(page) && !ready) || (page === 'kinds' && !anyOn);
+  const calcOff = busy || !ready || !anyOn;
+  const calcWhy = !ready ? 'Finish the Data and Filter steps first' : !anyOn ? 'Tick a kind of value first' : 'Save these numbers as a provisional estimate';
   const money = !SCOPE_PAGES.includes(page);
   // D21/D24: "Up to date" only when a value exists; a missing one says Calculating; no kind ticked says what to tick. No money before the Data step is done.
   const footerNote = !money ? '' : !ready ? (planState.status === 'error' ? 'No value yet' : 'Calculating...')
@@ -275,8 +279,11 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
           {trail.length > 0 && !(last && busy) && <button type="button" className={btn} onClick={back}>Back</button>}
           {last ? (
             <button type="button" onClick={onClose} className={primary}>Close</button>
-          ) : page !== 'story:approve' && (
-            <button type="button" disabled={nextOff} onClick={onNext} className={primary}>Next</button>
+          ) : (
+            <>
+              <button type="button" disabled={calcOff} title={calcWhy} onClick={calculateNow} className={btn}>Calculate now</button>
+              {page !== 'story:approve' && <button type="button" disabled={nextOff} onClick={onNext} className={primary}>Next</button>}
+            </>
           )}
         </>
       )}>
