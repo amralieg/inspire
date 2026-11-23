@@ -1,0 +1,120 @@
+// FX-114 (REQ-503): makes each planned document in the browser and saves it into the run's Assets folder through the App.
+// The PowerPoint, Excel and PDF writers load here with import(), only when a person generates, so the main bundle does not carry them.
+import { buildDocModel } from './docgen/docModel.js';
+import { infographicSvg, briefPagesSvg } from './docgen/docSvg.js';
+import { resolveTheme } from './docgen/docStyles.js';
+import { trackingIdOf } from './useCaseFields.js';
+
+const MAX_PNG_BYTES = 70000;
+const toBytes = async (v) => (v instanceof Blob ? new Uint8Array(await v.arrayBuffer()) : v instanceof ArrayBuffer ? new Uint8Array(v) : v);
+
+export function toBase64(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+// An SVG string drawn to a PNG: the width and height are the SVG's own.
+export async function svgToPng(svg, scale = 1) {
+  const [, w, h] = /width="(\d+)" height="(\d+)"/.exec(svg) || [];
+  const natural = { w: Number(w) || 1200, h: Number(h) || 800 };
+  const width = Math.round(natural.w * scale); const height = Math.round(natural.h * scale);
+  const img = new Image();
+  const loaded = new Promise((resolve, reject) => { img.onload = resolve; img.onerror = () => reject(new Error('The picture could not be drawn.')); });
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  await loaded;
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = height;
+  canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+  const dataUrl = canvas.toDataURL('image/png');
+  return { dataUrl, width, height, bytes: Uint8Array.from(atob(dataUrl.split(',')[1]), (c) => c.charCodeAt(0)) };
+}
+
+// The texts a second language needs: per use case, its name, statement, solution and value story.
+export const textsToTranslate = (useCases, values) => {
+  const texts = {};
+  for (const uc of useCases) {
+    const id = trackingIdOf(uc);
+    const m = buildDocModel({ useCases: [uc], values, options: {} }).useCases[0];
+    for (const [k, v] of [['name', m.name], ['statement', m.statement], ['solution', m.solution], ['story', m.value?.story]]) if (v) texts[`${id}|${k}`] = v;
+  }
+  return texts;
+};
+
+function modelFor({ businessName, useCases, values, options, language, ids, translated }) {
+  const picked = useCases.filter((uc) => ids.includes(trackingIdOf(uc)));
+  const m = buildDocModel({ businessName, useCases: picked, values, options: { ...options, languages: [language] } });
+  if (!translated) return m;
+  m.useCases.forEach((u) => {
+    const t = (k) => translated[`${u.id}|${k}`];
+    u.name = t('name') || u.name; u.statement = t('statement') || u.statement; u.solution = t('solution') || u.solution;
+    if (u.value && t('story')) u.value = { ...u.value, story: t('story') };
+  });
+  return m;
+}
+
+async function makeFile(file, m, theme, options) {
+  if (file.kind === 'infographic') {
+    const svg = infographicSvg(m, theme);
+    let png = await svgToPng(svg);
+    // A picture over the save size is drawn smaller until it fits (down to half size); the PDF keeps the full picture.
+    if (file.ext === 'png') {
+      for (let scale = 0.85; png.bytes.length > MAX_PNG_BYTES && scale >= 0.5; scale -= 0.15) png = await svgToPng(svg, scale);
+      return png.bytes;
+    }
+    const { pdfFromImages } = await import('./docgen/pdfDoc.js');
+    return pdfFromImages([png]);
+  }
+  if (file.kind === 'pdf') {
+    const pages = await Promise.all(briefPagesSvg(m, theme).map((s) => svgToPng(s)));
+    const { pdfFromImages } = await import('./docgen/pdfDoc.js');
+    return pdfFromImages(pages);
+  }
+  if (file.kind === 'pptx') { const { buildPptx } = await import('./docgen/pptxDoc.js'); return buildPptx(m, theme); }
+  const { buildXlsx } = await import('./docgen/xlsxDoc.js');
+  return toBytes(await buildXlsx(m, options.columns));
+}
+
+// onFile(name, state, message): state is working, done or failed. Returns the saved paths.
+export async function generateDocs({ plan, options, useCases, values, businessName, folder, post, inspireDatabase, warehouseId, sessionId, onFile }) {
+  const theme = resolveTheme(options.style, options.palette, options.customColor);
+  const where = { inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId) };
+  const saved = [];
+  for (const language of options.languages) {
+    const files = plan.filter((f) => f.language === language);
+    let translated = null;
+    if (language !== 'English') {
+      try {
+        const res = await post('/api/inspire/docs/translate', { ...where, language, texts: textsToTranslate(useCases, values) });
+        translated = res?.texts || {};
+      } catch (e) {
+        files.forEach((f) => onFile(f.name, 'failed', e?.message || 'The translation failed.'));
+        continue;
+      }
+    }
+    for (const file of files) {
+      onFile(file.name, 'working');
+      try {
+        const m = modelFor({ businessName, useCases, values, options, language, ids: file.useCaseIds, translated });
+        const bytes = await toBytes(await makeFile(file, m, theme, options));
+        await post('/api/inspire/docs/save', { ...where, folder, name: file.name, content_base64: toBase64(bytes) });
+        saved.push(`${folder}/${file.name}`);
+        onFile(file.name, 'done');
+      } catch (e) {
+        onFile(file.name, 'failed', e?.message || 'The file could not be made.');
+      }
+    }
+  }
+  return saved;
+}
+
+// The saved paths are marked new for Assets: kept for the session, merged with earlier ones, and announced to the page.
+export function markNewDocs(sessionId, paths) {
+  if (!paths.length) return;
+  const key = `inspire:new-docs:${sessionId}`;
+  let before = [];
+  try { before = JSON.parse(sessionStorage.getItem(key) || '[]'); } catch { before = []; }
+  const merged = [...new Set([...(Array.isArray(before) ? before : []), ...paths])];
+  try { sessionStorage.setItem(key, JSON.stringify(merged)); } catch { /* storage full or blocked: the event still tells the page */ }
+  window.dispatchEvent(new CustomEvent('inspire:new-docs', { detail: { sessionId: String(sessionId), paths } }));
+}

@@ -55,5 +55,7 @@ export async function buildPptx(m, theme) {
   roll.addText(`${m.total.nWithValue} of ${m.total.n} use cases have a calculated value.`, { x: 0.8, y: 3.1, w: 11.7, h: 0.6, fontSize: 18, color: muted, fontFace: face, align });
   if (has(m, 'disclaimer')) roll.addText('Estimates are AI-generated from your data and strategy. Treat them as a starting point.', { x: 0.8, y: 6.6, w: 11.7, h: 0.4, fontSize: 12, color: muted, fontFace: face, align });
 
+  // In the browser a blob is the one output pptxgenjs compresses (a byte-array output is stored as is, about 25% larger); Node has no zip blob.
+  if (typeof window !== 'undefined') return new Uint8Array(await (await pptx.exportPresentation({ compression: true })).arrayBuffer());
   return new Uint8Array(await pptx.write({ outputType: 'uint8array' }));
 }
