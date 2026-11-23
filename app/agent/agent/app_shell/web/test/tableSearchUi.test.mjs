@@ -14,7 +14,7 @@ test('the Explore table has a search box that narrows its rows, and clearing it 
   const asked = [];
   const { page, seen, context } = await openApp(browser, served.base, info, { routes: dashboardRoutes(asked) });
   const id = info.pages[0].id;
-  await page.locator('[data-rail]').first().waitFor();
+  await page.locator('[data-avatar-menu]').first().waitFor();
   await page.evaluate((p) => { window.location.hash = `#/${p}/work`; }, id);
   await page.locator('[data-mode-work="explore"] tbody tr').first().waitFor();
   const rows = page.locator('[data-mode-work="explore"] tbody tr');
@@ -44,7 +44,7 @@ test('a capped table sends its search to the server, and shows the rows the serv
   };
   const { page: browserPage, seen, context } = await openApp(browser, served.base, info, { routes: { page } });
   const id = info.pages[0].id;
-  await browserPage.locator('[data-rail]').first().waitFor();
+  await browserPage.locator('[data-avatar-menu]').first().waitFor();
   await browserPage.evaluate((p) => { window.location.hash = `#/${p}/work`; }, id);
   await browserPage.locator('[data-mode-work="explore"] tbody tr').first().waitFor();
   await browserPage.locator('[data-table-search]').first().fill('tea');
