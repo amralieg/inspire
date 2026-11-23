@@ -15,6 +15,7 @@ import { BOOT_TIMEOUT_TEXT, bootRead } from './lib/apiClient';
 import { PlainMessage } from './components/TechnicalDetails';
 import { showcaseSettings, showcasesFrom, staysInShowcase } from './lib/showcase';
 import PermissionHost from './components/PermissionHost';
+import BuildStarting from './components/BuildStarting';
 import { ValueBulkRunProvider } from './lib/valueBulkRun';
 
 const noop = () => {};
@@ -508,6 +509,7 @@ export default function App() {
     <div className="min-h-screen bg-bg text-text-primary relative">
       {!bare && <ParticleField count={40} />}
       <PermissionHost />
+      <BuildStarting />
 
       {!bare && page !== 'landing' && page !== 'loading' && page !== 'setup' && (
         <Header

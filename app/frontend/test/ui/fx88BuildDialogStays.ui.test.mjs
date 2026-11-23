@@ -4,7 +4,8 @@ import { BUILD_IT, closeBrowser, openUi, toSummary, until } from './uiSupport.mj
 import { REVIEW_STATE } from './reviewFixtures.js';
 import { built } from './implementFixtures.js';
 
-test.after(closeBrowser);
+// A fresh browser and server for each test: a build submitted in one test must not show as built in the next.
+test.afterEach(closeBrowser);
 
 // REQ-486: the final Build click keeps the dialog on screen, with a spinner and "Starting your build", until the Build page shows the build.
 const DEFAULTS = { envSkipsSetupWizard: true, isDatabricksApp: true, databricksHost: 'https://workspace.example.com', warehouseId: 'wh1',
@@ -17,14 +18,15 @@ const USE_CASES = [
   { id: 'N01-U02', name_with_technique: 'Forecast weekly orders', primary_table: 'main.s.orders', tables_involved: 'main.s.orders', value_estimate: measured(9000), data_evidence: evidence('main.s.orders'), inspire_score: '8.1' },
 ];
 const BUILD_STATE = { ...REVIEW_STATE, useCases: USE_CASES, history: [built({ use_case_id: 'N01-U01' })] };
-const STATE = REVIEW_STATE;
+// No build exists yet, so the wizard never says "Nothing changed since version 1" (the harness plans every card as its one fixture use case).
+const STATE = { ...REVIEW_STATE, history: [] };
 const SUBMIT_MS = 2500;
 const HISTORY_MS = 4000;
 const STARTING = '[data-build-starting]';
 // Same as startMvp, with a longer wait for the access check under load.
 async function startMvp(page) {
   await toSummary(page);
-  await page.waitForFunction((label) => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === label && !b.disabled), BUILD_IT, { timeout: 60000 });
+  await page.waitForFunction((label) => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === label && !b.disabled), BUILD_IT, { timeout: 30000 });
   await page.getByRole('button', { name: BUILD_IT, exact: true }).click();
 }
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -53,11 +55,11 @@ function mounter(log, { fail = false } = {}) {
   };
 }
 
-async function openResultsWizard(log, opts) {
-  const ui = await openUi('app', STATE, '', { mount: mounter(log, opts), build: null });
+async function openResultsWizard(log, opts, which = 0) {
+  const ui = await openUi('app', structuredClone(STATE), '', { mount: mounter(log, opts), build: null });
   const { page } = ui;
   await page.goto(`${page.url().split('#')[0]}#/review/42`).catch(() => {});
-  const start = page.getByRole('region', { name: 'Use case list' }).getByRole('button', { name: 'Start Use Case MVP with Genie' }).first();
+  const start = page.getByRole('region', { name: 'Use case list' }).getByRole('button', { name: 'Start Use Case MVP with Genie' }).nth(which);
   await start.waitFor({ timeout: 30000 });
   await start.click();
   await page.getByRole('dialog', { name: /Start Use Case MVP/ }).waitFor({ timeout: 20000 });
@@ -66,7 +68,7 @@ async function openResultsWizard(log, opts) {
 
 test('REQ-486 Results: the dialog stays with "Starting your build" and a spinner until the Build page shows the build', async () => {
   const log = { submits: [], answered: false, historyAnswered: false };
-  const ui = await openResultsWizard(log);
+  const ui = await openResultsWizard(log, {}, 0);
   const { page } = ui;
   try {
     await startMvp(page);
@@ -76,11 +78,9 @@ test('REQ-486 Results: the dialog stays with "Starting your build" and a spinner
     assert.ok(await starting.locator('.animate-spin').count() >= 1, 'a: with a spinner');
     assert.equal(log.answered, false, 'a: this is before the submit answered');
     await until(() => log.answered, 'the submit answers', 20000);
-    assert.equal(log.historyAnswered, false);
     assert.equal(await starting.isVisible(), true, 'b: still shown after the submit answered, before the Build page has its progress');
-    await page.locator('[data-progress-card]').waitFor({ timeout: 30000 });
-    await starting.waitFor({ state: 'detached', timeout: 5000 });
-    assert.equal(log.historyAnswered, true, 'c: gone only once the Build page shows the build');
+    const gone = await page.waitForFunction(() => (document.querySelector('[data-build-starting]') ? false : { card: Boolean(document.querySelector('[data-progress-card]')) }), null, { timeout: 30000, polling: 20 });
+    assert.deepEqual(await gone.jsonValue(), { card: true }, 'c: gone only once the Build page shows this build (the pending entry counts)');
     assert.equal(log.submits.length, 1);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -90,7 +90,7 @@ test('REQ-486 Results: the dialog stays with "Starting your build" and a spinner
 
 test('REQ-486 Results: the Build button cannot submit twice', async () => {
   const log = { submits: [], answered: false, historyAnswered: false };
-  const ui = await openResultsWizard(log);
+  const ui = await openResultsWizard(log, {}, 0);
   const { page } = ui;
   try {
     await page.waitForFunction((label) => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === label), BUILD_IT, { timeout: 1 }).catch(() => null);
@@ -106,7 +106,7 @@ test('REQ-486 Results: the Build button cannot submit twice', async () => {
 
 test('REQ-486 Results: a failing submit keeps the dialog and shows the error, with no starting cover left over', async () => {
   const log = { submits: [], answered: false, historyAnswered: false };
-  const ui = await openResultsWizard(log, { fail: true });
+  const ui = await openResultsWizard(log, { fail: true }, 0);
   const { page } = ui;
   try {
     await startMvp(page);
@@ -121,7 +121,7 @@ test('REQ-486 Results: a failing submit keeps the dialog and shows the error, wi
 
 test('REQ-486 Build page: the dialog stays until the progress of this build is in view', async () => {
   const log = { submits: [], answered: false, historyAnswered: false };
-  const ui = await openUi('app', BUILD_STATE, '', { mount: mounter(log), build: null });
+  const ui = await openUi('app', structuredClone(BUILD_STATE), '', { mount: mounter(log), build: null });
   const { page } = ui;
   try {
     await page.goto(`${page.url().split('#')[0]}#/build/42/N01-U01`).catch(() => {});
@@ -134,10 +134,11 @@ test('REQ-486 Build page: the dialog stays until the progress of this build is i
     await starting.waitFor({ timeout: 1000 });
     assert.match(await starting.innerText(), /Starting your build/);
     await until(() => log.answered, 'the submit answers', 20000);
-    assert.equal(await starting.isVisible(), true, 'still shown after the submit answered');
-    await page.locator('[data-progress-card]').waitFor({ timeout: 30000 });
-    await starting.waitFor({ state: 'detached', timeout: 5000 });
-    assert.equal(log.historyAnswered, true);
+    const gone = await page.waitForFunction(() => (document.querySelector('[data-build-starting]') ? false
+      : { card: Boolean(document.querySelector('[data-progress-card]')), page: window.location.hash }), null, { timeout: 30000, polling: 20 });
+    const seen = await gone.jsonValue();
+    assert.equal(seen.card, true, 'gone only once the progress of this build is in view');
+    assert.match(seen.page, /\/build\/42\/N01-U02/, 'and the Build page is on the use case that was built');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

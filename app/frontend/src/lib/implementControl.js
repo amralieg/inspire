@@ -289,6 +289,29 @@ export function forgetBuildPending(useCaseId) {
   if (PENDING_BUILDS.delete(String(useCaseId))) savePendingBuilds();
 }
 
+// REQ-486: the build the person just submitted and whose Build page has not shown its progress yet. One full-screen "Starting your build" cover
+// (components/BuildStarting.jsx) stays up from the final click until the Build page shows that use case's progress, across the page change.
+const STARTING_BUILD_MS = 120000;
+let STARTING_BUILD = null;
+const STARTING_LISTENERS = new Set();
+const setStartingBuild = (next) => { STARTING_BUILD = next; for (const listen of STARTING_LISTENERS) listen(); };
+export const startingBuild = () => STARTING_BUILD;
+export function subscribeStartingBuild(listen) {
+  STARTING_LISTENERS.add(listen);
+  return () => STARTING_LISTENERS.delete(listen);
+}
+export function beginStartingBuild(useCaseId, now = Date.now()) {
+  setStartingBuild({ id: String(useCaseId ?? ''), at: now });
+}
+// No id ends whatever is starting (a failed submit); an id ends only that use case's cover.
+export function endStartingBuild(useCaseId = null) {
+  if (STARTING_BUILD && (useCaseId === null || String(useCaseId) === STARTING_BUILD.id)) setStartingBuild(null);
+}
+// The cover expires, so a Build page that never shows the progress can never trap the screen.
+export function expireStartingBuild(now = Date.now()) {
+  if (STARTING_BUILD && now - STARTING_BUILD.at > STARTING_BUILD_MS) setStartingBuild(null);
+}
+
 // REQ-323: the one wrapper every build submit goes through (wizard, Build next, Rebuild, Try again, Change choices, Results). The queued build is
 // stored the moment the person submits, not when the server answers: the answer can take about a minute, and a reload during that wait must still show it.
 // A failed submit takes its placeholder back out.

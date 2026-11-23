@@ -1,4 +1,4 @@
-import { createContext, useContext, useId } from 'react';
+import { createContext, useContext, useEffect, useId } from 'react';
 import { AlertTriangle, ArrowRight, Check, CheckCircle2, Circle, Loader2, PanelRightOpen, X, XCircle } from 'lucide-react';
 import DrawerShell from './DrawerShell';
 import TechnicalDetails, { PlainMessage } from './TechnicalDetails';
@@ -8,6 +8,7 @@ import { IconChip, PANEL_CLASS } from './BuildUi';
 import { ACTION_ROW } from './ImplementControlTower';
 import { progressPercent, stageSteps, stagesRecorded } from '../lib/mvpProgress';
 import { plural } from '../lib/plural';
+import { endStartingBuild } from '../lib/implementControl';
 
 const STAGE_LOOK = {
   done: { Icon: Check, chip: 'bg-success-bg text-success-fg ring-1 ring-inset ring-success/40', words: 'done' },
@@ -163,9 +164,11 @@ function Heading({ title, active, tone, line, lineClass }) {
 }
 
 export default function MvpProgress({
-  stages, summary, chip, reason, reasonDetails = '', toneClass, version, sorted = null, stop = null, logRef = null, view, warnings = 0, attention = null, diagnostics = null, children,
+  useCaseId = null, stages, summary, chip, reason, reasonDetails = '', toneClass, version, sorted = null, stop = null, logRef = null, view, warnings = 0, attention = null, diagnostics = null, children,
 }) {
   const panelId = useId();
+  // REQ-486: this use case's progress is on screen, so the "Starting your build" cover can go.
+  useEffect(() => { if (useCaseId) endStartingBuild(useCaseId); }, [useCaseId]);
   const dock = useContext(ProgressDock);
   const headline = summary.headline || chip?.label || '';
   const title = `Build progress${version ? ` · v${version}` : ''}`;
