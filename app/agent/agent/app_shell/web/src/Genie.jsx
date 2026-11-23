@@ -8,6 +8,7 @@ import { integer } from './format.js';
 import { answerColumns, progressLabel } from './genieAnswerView.js';
 import DataTable from './DataTable.jsx';
 import Markdown from './Markdown.jsx';
+import Blocks from './AgentBlocks.jsx';
 import { BUSY_TITLE, explainBody } from './explain.js';
 import { GENIE_DEFAULT, GENIE_MIN, clampGenie, genieMax, keyWidth, rememberGenieWidth, storedGenieWidth } from './genieWidth.js';
 import { GENIE_ASK, agentIntro, genieAnswer, genieKey, genieOf, genieOn, paceText } from './genieAsk.js';
@@ -55,7 +56,7 @@ function elementView(body) {
 
 function agentAnswer(turn) {
   const g = turn.genie || {};
-  return { text: turn.answer || '', sql: g.sql || '', columns: g.columns || [], rows: g.rows || [], truncated: !!g.truncated };
+  return { text: turn.answer || '', sql: g.sql || '', columns: g.columns || [], rows: g.rows || [], truncated: !!g.truncated, blocks: turn.blocks || [] };
 }
 
 export function useGenie(app, current, onOpen, view = null) {
@@ -119,7 +120,7 @@ export function useGenie(app, current, onOpen, view = null) {
     const history = historyOf(all.current[k] || []);
     edit(k, (t) => [...t, { n: n - 1, who: 'you', ...you }, { n, k, who: 'genie', agent: true, state: 'running', step: 'Reading your question', steps: [] }]);
     const seen = viewNow.current?.context(k) || {};
-    const body = { page: k, question: you.text, conversation_id: conversations.current[k] || '', history,
+    const body = { page: k, question: you.text, surface: 'agent', conversation_id: conversations.current[k] || '', history,
       view: { ...(seen.view || {}), ...(extra.element ? { element: extra.element } : {}) }, visible: seen.visible || [],
       ...(extra.about ? { record_key: extra.about.recordKey } : {}) };
     try {
@@ -372,14 +373,45 @@ function Typing({ message, onTick }) {
   return <Markdown text={words.slice(0, shown).join('')} cursor={typing} />;
 }
 
-export function Answer({ message, url, onTick, genie, rating = true }) {
+// What the typed blocks need from the chat: ask a follow-up, prepare and write a record change (always the server's prepared body), open a record.
+function blocksCtx(genie, message, page) {
+  const k = message.k || genie.key;
+  const changed = () => window.dispatchEvent(new CustomEvent(AGENT_CHANGED, { detail: { pageId: k } }));
+  const write = async (c) => {
+    const result = await writeRecord(c.route.split('/')[1], c.body);
+    changed();
+    return result;
+  };
+  return {
+    page, turnId: message.turn_id, ask: (q) => genie.ask(q), openRecord: (key) => genie.openRecord(k, key), rate: (r) => genie.rate(k, message.n, r),
+    prepare: async (action, keys, values) => (await agentPrepare({ page: k, action, record_keys: keys, ...values })).confirm,
+    resolve: async (key) => {
+      const { confirm } = await agentPrepare({ page: k, action: 'done', record_keys: [key] });
+      return write(confirm);
+    },
+    confirm: async (c, patch) => {
+      patch({ state: 'saving', error: '' });
+      try { patch({ state: 'saved', result: await write(c) }); } catch (e) { patch({ state: 'ask', error: e.message }); }
+    },
+    undo: async (c, patch) => {
+      try {
+        await undoRecords({ page: c.body.page, batch_id: c.result.batch_id });
+        changed();
+        patch({ state: 'undone', error: '' });
+      } catch (e) { patch({ error: e.message }); }
+    },
+  };
+}
+
+export function Answer({ message, url, onTick, genie, page = null, rating = true }) {
   const a = message.answer;
+  const blocks = a.blocks || [];
   const words = String(a.text || '').split(/(\s+)/).length;
-  const done = message.shown >= words;
+  const done = blocks.length > 0 || message.shown >= words;
   return (
     <div className="msg-b">
       {!done && <AgentSteps steps={message.steps} />}
-      <Typing message={message} onTick={onTick} />
+      {blocks.length > 0 ? <Blocks blocks={blocks} ctx={blocksCtx(genie, message, page)} /> : <Typing message={message} onTick={onTick} />}
       {done && a.rows?.length > 0 && (
         <div className="msg-t">
           <DataTable label="Genie's answer" columns={answerColumns(a)} rows={a.rows} />
@@ -509,7 +541,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
             <span className="msg-av"><GenieMark size={14} /></span>
             {m.state === 'running' && <div className="msg-b"><span className="g-step"><span className="dots"><i /><i /><i /></span>{progressLabel(m.step)}…</span><Pace since={m.n} /></div>}
             {m.state === 'failed' && <div className="msg-b">{m.waiting ? <WaitingForAccess waiting={m.waiting} compact /> : m.calm ? <PlainNote text={m.error} className="note" role="status" data-calm /> : <PlainNote text={m.error} className="g-err" onRetry={genie.canRetry?.(genie.key, m.n) ? () => genie.retry(genie.key, m.n) : null} />}</div>}
-            {m.state === 'done' && <Answer message={m} url={info.url} onTick={tick} genie={genie} />}
+            {m.state === 'done' && <Answer message={m} url={info.url} onTick={tick} genie={genie} page={home} />}
             {m.state === 'done' && !m.agent && recordOf(thread, m) && home && app.options?.decisions && pageDecides(home) && (
               <div className="msg-b"><RecordOffers message={{ k: genie.key, n: m.n, confirm: m.confirm, offerError: m.offerError,
                 offers: { rows: [{ record_key: recordOf(thread, m).recordKey, label: recordOf(thread, m).label, status: '' }] } }} genie={genie} /></div>

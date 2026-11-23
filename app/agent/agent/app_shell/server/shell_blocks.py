@@ -4,10 +4,13 @@ The planner calls render_answer with a list of blocks. validate() keeps only whi
 reference (record keys, chart ids, KPI ids, columns, action ids) against what the person can see on this page,
 and returns the clean blocks plus the problems it found. Nothing here reads a workspace: the caller passes in the
 readable record keys, so the rules stay testable without one.
+
+Genie answers in these blocks with few words: text only to explain, compare to weigh 2-4 options side by side,
+resolve to close one record with one click, ticket and carousel for records, and the rest for choices, lists and charts.
 """
 import re
 
-BLOCK_TYPES = ("text", "ticket", "carousel", "actions", "choice", "multi_select", "table", "chart", "kpi", "email", "feedback")
+BLOCK_TYPES = ("text", "ticket", "carousel", "actions", "choice", "multi_select", "table", "chart", "kpi", "email", "feedback", "compare", "resolve")
 MAX_BLOCKS = 8
 MAX_ITEMS = 30
 # The chart a kind of use case shows: outliers on a control chart, forecasts on a band, segments as bars or a donut.
@@ -17,6 +20,9 @@ LABEL_CHARS = 160
 WHY_CHARS = 400
 ID_CHARS = 128
 ASK_CHARS = 400
+COMPARE_OPTIONS = 4
+COMPARE_FACTS = 6
+FACT_CHARS = 80
 TAG = re.compile(r"<[^>]*>")
 EMAIL_ADDRESS = re.compile(r"[^\s@]+@[^\s@]+")
 
@@ -85,6 +91,25 @@ def choices(raw, cap: int, problems: list, what: str) -> list:
     if len(items) > cap:
         problems.append(f"a {what} takes at most {cap} {'option' if cap == 1 else 'options'}")
     return out
+
+
+def compare_facts(raw) -> list:
+    out = []
+    for fact in raw if isinstance(raw, list) else []:
+        if isinstance(fact, dict) and plain(fact.get("label"), FACT_CHARS) and plain(fact.get("value"), FACT_CHARS):
+            out.append({"label": plain(fact.get("label"), FACT_CHARS), "value": plain(fact.get("value"), FACT_CHARS)})
+    return out[:COMPARE_FACTS]
+
+
+def compare(raw, problems: list):
+    options = []
+    for item in choices(raw, COMPARE_OPTIONS, problems, "compare"):
+        source = next((o for o in raw.get("options") if isinstance(o, dict) and ident(o.get("id")) == item["id"]), {})
+        options.append(dict(item, facts=compare_facts(source.get("facts"))))
+    if len(options) < 2:
+        problems.append("a compare needs at least 2 options, so it is left out")
+        return None
+    return {"type": "compare", "title": plain(raw.get("title"), LABEL_CHARS), "options": options}
 
 
 def block(raw, ctx: dict, problems: list):
@@ -156,6 +181,15 @@ def block(raw, ctx: dict, problems: list):
                 "copyable": True}
     if kind == "feedback":
         return {"type": "feedback"}
+    if kind == "compare":
+        return compare(raw, problems)
+    if kind == "resolve":
+        key = record_key_ok(raw.get("record_key"), keys)
+        if not key:
+            problems.append("a resolve names a record the person cannot see, so it is left out")
+            return None
+        return {"type": "resolve", "record_key": key, "label": plain(raw.get("label"), LABEL_CHARS) or key,
+                "value_at_stake": plain(raw.get("value_at_stake"), 40), "status": plain(raw.get("status"), 60)}
     return unknown(kind)
 
 
@@ -191,6 +225,10 @@ def text_of(blocks: list) -> str:
             parts.append(b["markdown"])
         elif b["type"] == "ticket":
             parts.append(f"{b['label']}: {b['why']}".strip(": "))
+        elif b["type"] == "compare":
+            parts.append(b["title"])
+        elif b["type"] == "resolve":
+            parts.append(b["label"])
         elif b["type"] == "kpi":
             parts.append(f"{b['kpi_id']} {b['value']}".strip())
         elif b["type"] == "email":
