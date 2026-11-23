@@ -173,7 +173,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
           </li>
         ))}
       </ol>
-      <div data-wizard-body="" className="h-[min(30rem,calc(100dvh-18rem))] space-y-3 overflow-y-auto overscroll-contain">
+      <div data-wizard-body="" className="h-[min(34rem,calc(100dvh-18rem))] space-y-3 overflow-y-auto overscroll-contain">
         {measure && <div hidden={page !== 'data'}><MeasureSettings measure={measure} /></div>}
         {body()}
       </div>
