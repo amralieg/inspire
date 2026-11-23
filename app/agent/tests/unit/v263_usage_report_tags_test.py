@@ -73,8 +73,8 @@ def test_every_asset_combination_names_its_assets_warehouses_and_backend(ns, app
     tags = ns["implement_asset_tags"](assets, status, endpoint_name, warehouse="wh-cfg", app_warehouse="wh-app")
     want = _expected(app_name, dashboard, genie, alert, endpoint)
     assert set(tags) <= set(ns["JobLauncher"].ASSET_TAG_KEYS)
-    assert set(tags.get("dbx_inspire_ai_assets", "").split(",")) - {""} == want["assets"]
-    assert tags.get("dbx_inspire_ai_warehouse_id", "").split(",") == want["warehouses"] if want["warehouses"] else "dbx_inspire_ai_warehouse_id" not in tags
+    assert set(tags.get("dbx_inspire_ai_assets", "").split(" ")) - {""} == want["assets"]
+    assert tags.get("dbx_inspire_ai_warehouse_id", "").split(" ") == want["warehouses"] if want["warehouses"] else "dbx_inspire_ai_warehouse_id" not in tags
     assert tags.get("dbx_inspire_ai_backend") == want["backend"]
     assert all(JOB_TAG_VALUE.fullmatch(v) and len(v) <= 255 for v in tags.values())
 
@@ -92,7 +92,7 @@ def test_the_update_payload_carries_the_same_tags_for_every_combination(ns, app_
     [update] = updates
     tags = update["new_settings"]["tags"]
     assert tags["team"] == "growth"
-    assert set(tags.get("dbx_inspire_ai_assets", "").split(",")) - {""} == want["assets"]
+    assert set(tags.get("dbx_inspire_ai_assets", "").split(" ")) - {""} == want["assets"]
     assert tags.get("dbx_inspire_ai_backend") == want["backend"]
     assert ("dbx_inspire_ai_warehouse_id" in tags) == bool(want["warehouses"])
 
@@ -104,7 +104,7 @@ def test_a_rebuild_that_deletes_the_dashboard_removes_its_tag_and_the_warehouse_
     inst._implement_tag_job_assets("N01-U01", 77, first[0], first[1], "", "wh-cfg", "wh-app")
     [built] = api.updates()
     assert built["new_settings"]["tags"]["dbx_inspire_ai_dashboard_id"] == "d1"
-    assert built["new_settings"]["tags"]["dbx_inspire_ai_warehouse_id"] == "wh-app,wh-cfg"
+    assert built["new_settings"]["tags"]["dbx_inspire_ai_warehouse_id"] == "wh-app wh-cfg"
     api.tags = dict(built["new_settings"]["tags"])
     rebuilt = ({"app": "churn-desk"}, {"app": {"state": "ready", "backend": "delta"}})
     _tagger(ns, api)._implement_tag_job_assets("N01-U01", 77, rebuilt[0], rebuilt[1], "", "wh-cfg", "wh-app")
