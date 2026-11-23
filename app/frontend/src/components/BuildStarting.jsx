@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Loader2 } from 'lucide-react';
-import BodyPortal from './BodyPortal';
+import ModalDialog from './ModalDialog';
 import { expireStartingBuild, startingBuild, subscribeStartingBuild } from '../lib/implementControl';
 
 export const STARTING_TEXT = 'Starting your build';
@@ -20,14 +20,16 @@ export default function BuildStarting() {
   if (!current) return null;
   const waited = now - at;
   return (
-    <BodyPortal>
-      <div data-build-starting="" role="status" aria-live="polite" className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4">
-        <div className="flex max-w-sm flex-col items-center gap-3 rounded-xl border border-border bg-surface px-8 py-6 text-center shadow-elevated">
+    <ModalDialog titleId="build-starting-title" title={STARTING_TEXT} onClose={undefined} dismissible={false} widthClass="max-w-sm"
+      overlayAttrs={{ 'data-build-starting': '', role: 'status', 'aria-live': 'polite' }}
+      header={(
+        <div className="flex flex-col items-center gap-3 px-8 pt-6 text-center">
           <Loader2 size={28} className="animate-spin text-db-red-fg" aria-hidden="true" />
-          <p className="text-sm font-semibold text-text-primary">{STARTING_TEXT}</p>
-          {waited > SLOW_MS && <p data-build-starting-slow="" className="text-xs text-text-secondary">{STARTING_SLOW_TEXT}</p>}
+          <h2 id="build-starting-title" className="text-sm font-semibold text-text-primary">{STARTING_TEXT}</h2>
         </div>
-      </div>
-    </BodyPortal>
+      )} bare>
+      {waited > SLOW_MS && <p data-build-starting-slow="" className="px-8 pb-6 pt-3 text-center text-xs text-text-secondary">{STARTING_SLOW_TEXT}</p>}
+      {waited <= SLOW_MS && <div className="pb-6" />}
+    </ModalDialog>
   );
 }
