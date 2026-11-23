@@ -22,15 +22,15 @@ def test_a_below_bar_reason_never_shows_an_internal_code(agent_ns, code):
 
 def test_each_decision_readiness_miss_reads_as_its_own_plain_reason(agent_ns):
     text = agent_ns["DatabricksInspire"]._below_bar_gate_text
-    assert text("Q5", "Q5_T4_NO_MEASURABLE_OUTCOME") == "it names no measurable outcome it would move"
-    assert text("Q5", "Q5_T4_ONE_OFF") == "it answers a one-off question, not a decision made again and again"
-    assert text("Q5", "Q5_T4_TOO_FEW_ITEMS:5<20") == "it leaves too few items to act on each cycle (5<20)"
-    assert text("Q5", "Q5_T2_RESTATES_COLUMN:is_late") == "the answer it promises is already in a column (is late)"
+    assert text("Q5", "Q5_T4_NO_MEASURABLE_OUTCOME") == "it names no measurable outcome it would move; decision readiness check"
+    assert text("Q5", "Q5_T4_ONE_OFF") == "it answers a one-off question, not a decision made again and again; decision readiness check"
+    assert text("Q5", "Q5_T4_TOO_FEW_ITEMS:5<20") == "it leaves too few items to act on each cycle (5<20); decision readiness check"
+    assert text("Q5", "Q5_T2_RESTATES_COLUMN:is_late") == "the answer it promises is already in a column (is late); decision readiness check"
 
 
 def test_a_name_style_flag_is_not_read_as_an_empty_table(agent_ns):
     cls = agent_ns["DatabricksInspire"]
-    assert cls._below_bar_gate_text("Q5", "Q5_R20_NAME_STYLE:verb") == "its name does not follow the naming rules"
+    assert cls._below_bar_gate_text("Q5", "Q5_R20_NAME_STYLE:verb") == "its name does not follow the naming rules; decision readiness check"
     assert "has no rows" in cls._below_bar_gate_text("Q3", "Q3_R20_EMPTY_PRIMARY_TABLE:main.s.orders")
 
 
