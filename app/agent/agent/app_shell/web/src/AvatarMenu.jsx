@@ -26,11 +26,17 @@ export default function AvatarMenu({ user, chrome, page, app, sections, onSectio
     window.addEventListener('mousedown', away);
     return () => { window.removeEventListener('keydown', key); window.removeEventListener('mousedown', away); };
   }, [open]);
+  // The tour points at the Runs, Alerts and Performance entries, which only exist while the menu is open: it opens the menu for those steps.
+  useEffect(() => {
+    const step = (e) => setOpen(OWNER_SECTIONS.includes(e.detail) && sections.includes(e.detail));
+    window.addEventListener('inspire:tour-step', step);
+    return () => window.removeEventListener('inspire:tour-step', step);
+  }, [sections]);
   const owner = app?.is_owner === true || page?.is_owner === true;
   const pick = (run) => () => { setOpen(false); run(); };
   const on = section === 'alerts' && sections.includes('runs') && !sections.includes('alerts') ? 'runs' : section;
   const place = (s) => (
-    <button key={s} type="button" role="menuitem" className="av-i" aria-current={on === s ? 'page' : undefined} onClick={pick(() => onSection(s))}>
+    <button key={s} type="button" role="menuitem" className="av-i" data-tour={s === 'settings' ? undefined : s} aria-current={on === s ? 'page' : undefined} onClick={pick(() => onSection(s))}>
       <Icon name={ICONS[s]} size={15} />{sectionTitle(page, s)}{counts[s] != null && <small className="av-n2" data-count={counts[s]}>{integer(counts[s])}</small>}
     </button>
   );

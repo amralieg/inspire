@@ -37,12 +37,14 @@ export default function Tour({ tour, help = null, facts, queue, section, onSecti
   const end = useCallback(() => {
     if (ended.current) return;
     ended.current = true;
+    window.dispatchEvent(new CustomEvent('inspire:tour-step', { detail: '' }));
     const { section: from, focus } = started.current;
     if (from && from !== section) onSection(from);
     onEnd();
     const mark = focus?.getAttributeNames?.().find((n) => n.startsWith('data-'));
     const back = (tries) => {
-      const el = focus?.isConnected ? focus : mark ? document.querySelector(`[${mark}]`) : null;
+      // The Take the tour entry sits in the closed avatar menu, and closes once picked, so focus goes back to the menu button.
+      const el = focus?.isConnected && focus !== document.body ? focus : (mark ? document.querySelector(`[${mark}]`) : null) || document.querySelector('[data-avatar-menu] .av-b');
       if (el && typeof el.focus === 'function') el.focus();
       else if (tries > 0) setTimeout(() => back(tries - 1), 50);
       else document.querySelector('.main')?.focus();
@@ -63,6 +65,7 @@ export default function Tour({ tour, help = null, facts, queue, section, onSecti
   const step = steps[at];
   useEffect(() => {
     if (!step) return undefined;
+    window.dispatchEvent(new CustomEvent('inspire:tour-step', { detail: step.anchor }));
     const wanted = step.el ? null : tourSection(step.anchor, tour, queue);
     if (wanted && wanted !== section) {
       onSection(wanted);
