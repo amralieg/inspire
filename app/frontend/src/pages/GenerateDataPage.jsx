@@ -15,6 +15,8 @@ import { DEMO_GENERATED_TABLES, DEMO_KIND_SIGNAL_TABLES, demoSchemaError, demoTa
 import { DISCOVERY_BADGE, DISCOVERY_MODE_TEXT, DISCOVERY_RECOMMENDED, DISCOVERY_TYPE_VALID } from '../lib/discoveryType';
 import TechnicalDetails from '../components/TechnicalDetails';
 import { PlainMessage } from '../components/TechnicalDetails';
+import PageHeader from '../components/ui/PageHeader';
+import Button from '../components/ui/Button';
 import { withStartDeadline } from '../lib/startDeadline';
 
 function demoTablesLine(tables) {
@@ -83,7 +85,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-10">
+    <div className="max-w-[var(--w-page)] mx-auto px-6 py-10">
       <button
         type="button"
         onClick={onBack}
@@ -93,30 +95,23 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
         Back
       </button>
 
-      <div className="flex items-start gap-4 mb-8">
-        <div className="w-12 h-12 rounded-xl bg-db-red/10 flex items-center justify-center shrink-0">
-          <Sparkles size={24} className="text-db-red-fg" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary tracking-tight">I don&apos;t have data</h1>
-          <p className="text-sm text-text-secondary mt-1 leading-relaxed">
-            Describe the demo you need. Inspire writes and runs the code that builds <strong>{plural(demoTablesTotal(), 'table')}</strong> of
-            made-up data, each with a description, in the catalog of your Inspire database{inspireDatabase ? <> (<code className="font-mono text-xs">{inspireDatabase.split('.')[0]}</code>)</> : ''}.
-            Inspire then finds use cases in those tables.
-          </p>
-        </div>
-      </div>
+      <PageHeader className="mb-8" icon={Sparkles} title="I don't have data"
+        subtitle={<>
+          Describe the demo you need. Inspire writes and runs the code that builds <strong>{plural(demoTablesTotal(), 'table')}</strong> of
+          made-up data, each with a description, in the catalog of your Inspire database{inspireDatabase ? <> (<code className="font-mono text-xs">{inspireDatabase.split('.')[0]}</code>)</> : ''}.
+          Inspire then finds use cases in those tables.
+        </>} />
 
       {!canCallApi && (
-        <div className="mb-6 p-4 rounded-lg border border-warning/30 bg-warning-bg flex gap-3">
-          <AlertCircle size={18} className="text-warning-fg shrink-0 mt-0.5" />
+        <div className="mb-6 max-w-2xl p-4 rounded-lg border border-warning/30 bg-warning-bg flex gap-3">
+          <AlertCircle size={16} className="text-warning-fg shrink-0 mt-0.5" />
           <p className="text-sm text-text-secondary">
             Connect your workspace first in Workspace setup.
           </p>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6 bg-surface border border-border rounded-xl p-6 shadow-sm">
+      <form onSubmit={handleSubmit} className="max-w-2xl space-y-6 bg-surface border border-border rounded-xl p-6 shadow-sm">
         <div>
           <label className="flex items-center gap-2 text-xs font-bold text-text-primary mb-2">
             <Building2 size={14} className="text-text-tertiary" />
@@ -147,7 +142,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
             className="w-full px-4 py-3 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth resize-y min-h-[120px]"
             required
           />
-          <p className="text-[11px] text-text-tertiary mt-1.5">
+          <p className="text-xs text-text-tertiary mt-1.5">
             Inspire makes {plural(DEMO_GENERATED_TABLES, 'table')} from your description and adds {plural(DEMO_KIND_SIGNAL_TABLES, 'table')} that every kind of use case needs.
           </p>
           <TechnicalDetails className="mt-1" items={[
@@ -169,7 +164,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
             aria-invalid={Boolean(demoSchemaError(demoSchema))}
             className="w-full px-4 py-2.5 text-sm font-mono border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth"
           />
-          <p className={`text-[11px] mt-1.5 ${demoSchemaError(demoSchema) ? 'text-error-fg' : 'text-text-tertiary'}`}>
+          <p className={`text-xs mt-1.5 ${demoSchemaError(demoSchema) ? 'text-error-fg' : 'text-text-tertiary'}`}>
             {demoSchemaError(demoSchema) || 'Leave it empty and Inspire names a new schema after the business and the run.'}
           </p>
         </div>
@@ -183,9 +178,9 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
                 <span className="flex items-center gap-2 text-xs font-semibold text-text-primary">
                   <input type="radio" name="demo-discovery" value={mode} checked={discoveryType === mode} onChange={() => setDiscoveryType(mode)} />
                   {mode}
-                  {mode === DISCOVERY_RECOMMENDED && <span data-discovery-badge={mode} className="ms-1 rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-fg">{DISCOVERY_BADGE}</span>}
+                  {mode === DISCOVERY_RECOMMENDED && <span data-discovery-badge={mode} className="ms-1 rounded-full bg-success-bg px-2 py-0.5 text-xs font-semibold text-success-fg">{DISCOVERY_BADGE}</span>}
                 </span>
-                <span className="block text-[10px] text-text-tertiary leading-snug mt-1">{DISCOVERY_MODE_TEXT[mode]}</span>
+                <span className="block text-xs text-text-tertiary leading-snug mt-1">{DISCOVERY_MODE_TEXT[mode]}</span>
               </label>
             ))}
           </div>
@@ -226,23 +221,19 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={submitting || !canCallApi}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-db-red-solid text-white font-semibold text-sm hover:bg-db-red-solid-hover disabled:opacity-50 disabled:cursor-not-allowed transition-smooth"
-        >
+        <Button type="submit" disabled={submitting || !canCallApi} className="w-full py-3">
           {submitting ? (
             <>
-              <Loader2 size={18} className="animate-spin" />
+              <Loader2 size={16} className="animate-spin" />
               Starting the run…
             </>
           ) : (
             <>
               Generate data &amp; run Inspire
-              <ArrowRight size={18} />
+              <ArrowRight size={16} />
             </>
           )}
-        </button>
+        </Button>
       </form>
     </div>
   );

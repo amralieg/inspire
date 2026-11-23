@@ -2,7 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { normalizeDatabricksHost } from '../lib/normalizeDatabricksHost';
 import { responseError } from '../lib/apiClient';
 import { PlainMessage } from '../components/TechnicalDetails';
+import PageHeader from '../components/ui/PageHeader';
+import Button from '../components/ui/Button';
 import {
+  Settings,
   Key,
   Server,
   Upload,
@@ -128,14 +131,10 @@ export default function ConfigPage({ settings, update, onConfigured }) {
   const step3Done = step2Done && Boolean(notebookPath);
 
   return (
-    <div>
+    <div className="mx-auto w-full max-w-[var(--w-page)]">
       {/* Page header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-text-primary">Configure</h1>
-        <p className="text-sm text-text-secondary mt-1">
-          Connect to your Databricks workspace and set up the Inspire AI notebook.
-        </p>
-      </div>
+      <PageHeader className="mb-8" icon={Settings} title="Configure"
+        subtitle="Connect to your Databricks workspace and set up the Inspire AI notebook." />
 
       {/* Steps */}
       <div className="space-y-6">
@@ -320,10 +319,9 @@ export default function ConfigPage({ settings, update, onConfigured }) {
                   placeholder={DEFAULT_WORKSPACE_NOTEBOOK_PATH}
                 />
       </div>
-      <button
+      <Button
                 onClick={publish}
                 disabled={publishStatus === 'loading' || !username}
-                className="px-4 py-2 text-sm font-medium rounded-md bg-db-red-solid text-white hover:bg-db-red-solid-hover disabled:opacity-50 disabled:cursor-not-allowed transition-smooth flex items-center gap-2"
               >
                 {publishStatus === 'loading' ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -331,7 +329,7 @@ export default function ConfigPage({ settings, update, onConfigured }) {
                   <Upload size={14} />
                 )}
                 Publish
-      </button>
+      </Button>
     </div>
 
             {/* Publish status */}
@@ -354,14 +352,10 @@ export default function ConfigPage({ settings, update, onConfigured }) {
 
       {/* Continue button */}
       <div className="mt-8 flex justify-end">
-        <button
-          onClick={onConfigured}
-          disabled={!isReady}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-db-red-solid text-white text-sm font-semibold rounded-lg hover:bg-db-red-solid-hover disabled:opacity-40 disabled:cursor-not-allowed transition-smooth shadow-sm"
-        >
+        <Button size="md" onClick={onConfigured} disabled={!isReady} className="px-5 py-2.5">
           Get Started
           <ArrowRight size={16} />
-        </button>
+        </Button>
       </div>
       </div>
     );
