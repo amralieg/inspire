@@ -1,0 +1,19 @@
+/* REQ-506 lane 2: the 2-line page header, the Overview strip, the Resolve button and the More menu. */
+.ph .pg-h{align-items:center}
+.ph .ph-kpi{margin:6px 0 0;font-size:14.5px;color:var(--muted)}
+.ph .ph-kpi b{color:var(--ink,inherit);font-size:18px;font-weight:700;margin-left:4px}
+.fresh-dot{flex:none;width:12px;height:12px;padding:0;border-radius:50%;border:0;background:var(--green-line,#2e9e5b);cursor:pointer}
+.fresh-dot.is-late{background:var(--amber-line,#d9962b)}
+.fresh-dot.is-busy{background:var(--blue-line,#3b7de0);animation:fresh-pulse 1.2s ease-in-out infinite}
+.fresh-dot:disabled{cursor:default}
+@keyframes fresh-pulse{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.fresh-dot.is-busy{animation:none}}
+.ov{margin:0 0 12px}
+.ov-t{display:inline-flex;align-items:center;gap:6px;padding:4px 2px;border:0;background:none;color:var(--muted);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.ov-t:hover{color:inherit}
+.dr-acts{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.more-m{position:relative;display:inline-block}
+.more-menu{position:absolute;z-index:30;right:0;top:calc(100% + 4px);min-width:200px;display:flex;flex-direction:column;padding:4px;background:var(--surface,#fff);border:1px solid var(--line,#d8dce3);border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.16)}
+.more-i{text-align:left;padding:8px 10px;border:0;border-radius:6px;background:none;color:inherit;font:inherit;font-size:13.5px;cursor:pointer}
+.more-i:hover:not(:disabled),.more-i:focus-visible{background:var(--hover,rgba(0,0,0,.06))}
+.more-i:disabled{opacity:.5;cursor:default}

@@ -11,6 +11,7 @@ import { Tiles } from './Kpis.jsx';
 import { BarsCard } from './ChartCard.jsx';
 import DataTable, { RowDetails, columnOf } from './DataTable.jsx';
 import { PlainNote, Skeleton, SoWhat, useRetry } from './ui.jsx';
+import './styles/pagework.css';
 import { ZeroPanel } from './ZeroPanel.jsx';
 import { checkedNote, cutoffNote, zeroRule } from './zeroState.js';
 const MoneyCard = lazy(() => import('./Money.jsx'));
@@ -68,6 +69,23 @@ function hubTiles(page, entry, summary, fix, user, stale, onFix) {
       ...savedTile(entry ? [[page.id, entry]] : [], [page], { [page.id]: summary }, 'saved', null) },
   ];
   return stale ? tiles.slice(2) : tiles;
+}
+
+// REQ-506: the page numbers, folded into one strip above the Work list. It reuses the Dashboard's own tiles, never a second KPI card.
+export function Overview({ app, page, hubPage, entry, live, summary, view, onFix, kpisCard }) {
+  const [open, setOpen] = useState(true);
+  const status = useCaseState(entry || live.data, summary);
+  const current = live.data || entry;
+  const { fix } = hubView(page, current, summary, view, app.user);
+  const body = !hubPage ? kpisCard : status.kind === 'wait' ? null : <Tiles tiles={hubTiles(page, current, summary, fix, app.user, status.kind === 'stale', onFix)} loading={!current} />;
+  return (
+    <section className="ov" data-overview="" aria-label="Overview">
+      <button type="button" className="ov-t" data-overview-toggle="" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <Icon name={open ? 'down' : 'right'} size={14} />Overview
+      </button>
+      <div className="ov-b" hidden={!open}>{body}</div>
+    </section>
+  );
 }
 
 function reasonBars(rows, page) {

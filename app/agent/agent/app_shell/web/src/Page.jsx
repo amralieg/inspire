@@ -10,13 +10,13 @@ import { DEFAULT_TAB, buildHash, describeFilters, fixThis, parseHash, sectionHas
 import { Block } from './Blocks.jsx';
 import { blockPlan, gridSpans, slotsOf, withBlocks } from './blocks.js';
 import { Icon } from './icons.jsx';
-import Kpis, { Story } from './Kpis.jsx';
+import Kpis, { kpiValue } from './Kpis.jsx';
 import ChartCard from './ChartCard.jsx';
 import { ReviewLink, hubExplain, reviewItem } from './Home.jsx';
 import { genieOn } from './genieAsk.js';
 import PageLink, { usePageAddress } from './PageLink.jsx';
-import { FreshBar, FreshDetail, runCounts, useFreshness, useRuns, useTrends } from './Freshness.jsx';
-import { backendText, dataThroughText, lastRunText, latestRunText, stampText } from './freshness.js';
+import { FreshDetail, runCounts, useFreshness, useRuns, useTrends } from './Freshness.jsx';
+import { bannerText, lastRunText, latestRunText, stampText } from './freshness.js';
 import SettingsPanel, { SettingGroup, useSettings } from './Settings.jsx';
 import { paletteItems } from './Palette.jsx';
 import { FoldScope, useMyView } from './MyView.jsx';
@@ -28,9 +28,7 @@ import { GenieScope } from './AskGenie.jsx';
 import { SharedFailureScope } from './PageFailure.jsx';
 import { pageFailures } from './failures.js';
 import { FIX_TIERS, hubView, reasonFilters, useCaseState } from './hub.js';
-import { inboxOn } from './inbox.js';
-import { useInbox } from './Inbox.jsx';
-import Dashboard, { NO_SLOTS, TableCard, chartSlots, hubChartsOnTop } from './Dashboard.jsx';
+import Dashboard, { NO_SLOTS, Overview, TableCard, chartSlots, hubChartsOnTop } from './Dashboard.jsx';
 import { RetryProvider, Skeleton } from './ui.jsx';
 import ModeView from './ModeView.jsx';
 import { pageMode, sectionTitle } from './modes.js';
@@ -38,17 +36,14 @@ import { contractOf, styleOfPage } from './kinds.js';
 import { tourFacts } from './tourStart.js';
 import { KPI_TARGET, MEASURES, kpiGap, kpiGapText, promisedView, valueLine } from './impact.js';
 
-const FeedbackButton = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackButton })));
 const FeedbackSettings = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackSettings })));
 const PromisedDelivered = lazy(() => import('./Performance.jsx').then((m) => ({ default: m.PromisedDelivered })));
-const InboxSection = lazy(() => import('./InboxSection.jsx'));
 const WaitingForAccess = lazy(() => import('./WaitingForAccess.jsx'));
 const WorkPage = lazy(() => import('./WorkPage.jsx'));
 const Records = lazy(() => import('./Records.jsx'));
 const MoneyRule = lazy(() => import('./MoneyRule.jsx').then((m) => ({ default: m.MoneyRule })));
 const Runs = lazy(() => import('./Runs.jsx'));
 import { VALUE_DISCLAIMER, showsMoney } from './valueDisclaimer.js';
-const ValueStrip = lazy(() => import('./ValueStrip.jsx'));
 const Alerts = lazy(() => import('./Alerts.jsx'));
 const TrendCards = lazy(() => import('./Trends.jsx'));
 const Waiting = ({ height = 180 }) => <section className="card" role="status" aria-label="Loading"><Skeleton height={height} /></section>;
@@ -135,8 +130,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const work = isQueue(page);
   const mode = pageMode(page);
   const sections = pageSections(app, page);
-  const inboxHere = inboxOn(app, page);
-  const views = inboxHere ? [...sections, 'inbox'] : sections;
+  const views = sections;
   const shown = views.includes(section) ? section : 'dashboard';
   const hubPage = !laidOut && listed && !!(live.data?.tracked || live.data?.empty || hubEntry?.tracked || hubEntry?.empty || !live.done);
   const entry = live.data || hubEntry;
@@ -164,19 +158,13 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const trends = useTrends(page.id, `${nonce}:${runNonce}`, trendsOn);
   const focused = tabbed ? focus : '';
   const counted = useRef({});
-  const firstRuns = useRef(null);
   if (runs.data?.offset === 0) {
     counted.current = runCounts(runs.data);
-    firstRuns.current = runs.data;
   }
   const runTotal = counted.current.runs;
   const [runOpen, setRunOpen] = useState('');
   const fixCount = work && entry?.tracked ? hubView(page, entry, summary, view, app.user).fix.length : null;
-  const inboxRuns = !runsOn || runs.error ? { runs: [], can_run: false } : firstRuns.current;
-  const inbox = useInbox({ app, page, fix: fixCount, runs: inboxRuns, nonce, on: inboxHere });
-  const inboxCount = inbox?.ready && !inbox.off ? inbox.count : undefined;
-  const inboxOff = !!inbox?.off;
-  useEffect(() => { onCounts?.({ page: page.id, runs: runTotal, inbox: inboxCount, inboxOff }); }, [page.id, runTotal, inboxCount, inboxOff, onCounts]);
+  useEffect(() => { onCounts?.({ page: page.id, runs: runTotal }); }, [page.id, runTotal, onCounts]);
   const unreliable = hubPage && !!useCaseState(entry, summary).unreliable;
   const failures = pageFailures(page, data, error);
   const loading = !data && !failures.whole;
@@ -201,14 +189,6 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     const next = fixThis(page, meta?.columns?.list, state, view, opts);
     go('work', { tab: tabbed ? next.tab : '', state: next.state, sort: next.sort, focus: tabbed ? next.focus : '' });
   } : null;
-  const openInbox = (item) => {
-    if (item.kind === 'fix') fix?.({ tiers: FIX_TIERS });
-    else if (item.kind === 'run') {
-      setRunOpen(item.run);
-      go('runs');
-    } else if (item.kind === 'report') go('settings');
-    else onRecord?.(page.id, item.key);
-  };
   const trendChart = page.charts.find((c) => c.x?.kind === 'time') || page.charts[0];
   const onTop = hubPage && hubChartsOnTop(hubEntry, live, summary);
   const more = onTop ? page.charts.filter((c) => c !== trendChart) : page.charts;
@@ -270,40 +250,22 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const kpiGapLine = kpiRun?.kpi_name ? `${kpiRun.kpi_name}: ${kpiGapText(kpiGap({ latest: kpiRun.kpi_latest, target: kpiTarget, direction: kpiRun.kpi_direction }), kpiRun.kpi_unit)}` : '';
   const report = { section: feedbackSectionOf(shown), filters: describeFilters(state, meta?.filters, meta?.columns), recordKey: opened };
   const style = styleOfPage(page);
+  const headKpi = page.kpis[0]
+    ? { label: page.kpis[0].label, value: data ? kpiValue(page.kpis[0], data.kpis?.[page.kpis[0].id]) : '\u2026' }
+    : fixCount != null ? { label: 'To fix', value: String(fixCount) } : null;
+  const dotText = freshness.fresh ? bannerText(freshness.fresh, freshness.now, !!meta && !runDate?.high, app.built_at || '') : '';
   const head = (
     <header className="ph" data-tour="decision">
-      {style && <p className="style-kicker" data-app-style-label>{style.label}</p>}
       <div className={freshness.busy ? 'pg-h is-refreshing' : 'pg-h'}>
         <h1>{page.title}</h1>
-        <div className="ph-tools" data-section-tools>
-          <FreshBar freshness={freshness}>
-            {shown !== 'settings' && <PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />}
-            <details className="head-more" data-head-more>
-              <summary className="btn top-ic" aria-label="More actions"><Icon name="dots" size={14} /><span>More</span></summary>
-              <div className="head-more-menu"><Suspense fallback={null}><FeedbackButton pageId={page.id} context={report} sections={sections} reports={page.reports} /></Suspense></div>
-            </details>
-          </FreshBar>
-        </div>
+        {freshness.fresh && (
+          <button type="button" className={`fresh-dot${freshness.fresh.overdue ? ' is-late' : ''}${freshness.busy ? ' is-busy' : ''}`} data-fresh-dot onClick={() => freshness.ask()}
+            disabled={freshness.busy || !freshness.fresh.can_refresh} aria-label="Refresh now" title={[dotText, 'Select to refresh now'].filter(Boolean).join('. ')} />
+        )}
       </div>
-      {!hubPage && <Suspense fallback={null}><ValueStrip page={page} data={data} app={app} /></Suspense>}
-      {shown !== 'dashboard' && <p className="ph-sec" data-section-title>{sectionTitle(page, shown)}</p>}
-      {shown === 'dashboard' && !hubPage && <p className="ph-q">{page.question}</p>}
-      {shown === 'dashboard' && !hubPage && page.promised?.estimate && (
-        <p className="ph-value ph-chip" data-value-estimate="">{valueLine(page.promised.estimate)} <button type="button" className="link" onClick={() => go('settings')}>How it is measured in Settings</button></p>
-      )}
-      {shown === 'dashboard' && !hubPage && data && <Story page={page} data={data.kpis} />}
-      {shown === 'dashboard' && (
-        <div className="ph-meta">
-          <Icon name="calendar" size={13} />
-          <span>
-            {[runDate?.high ? dataThroughText(runDate.high, new Date().toISOString().slice(0, 10)) : meta ? '' : 'Reading the data range',
-              page.sponsor ? `sponsor ${page.sponsor}` : '', app.built_at ? `built ${dayLabel(app.built_at.slice(0, 10))}` : '',
-              backendText(app.backend)]
-              .filter(Boolean).join(' · ')}
-          </span>
-        </div>
-      )}
-      <FreshDetail freshness={freshness} />
+      <p className="ph-q">{page.question}</p>
+      {headKpi && <p className="ph-kpi" data-head-kpi=""><span>{headKpi.label}</span> <b>{headKpi.value}</b></p>}
+      {(freshness.fresh?.active || freshness.reason) && <FreshDetail freshness={freshness} />}
       <p className="print-only print-filters">Filters: {describeFilters(state, meta?.filters, meta?.columns)}</p>
     </header>
   );
@@ -330,16 +292,18 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
             </Suspense>
           ) : null} />
       )}
-      {shown === 'inbox' && <Suspense fallback={<Waiting />}><InboxSection page={page} inbox={inbox} onOpen={openInbox} /></Suspense>}
       {shown === 'work' && !mode.queue && (
         <ModeView mode={mode.id} part="Work" app={app} page={page} meta={meta} state={state} onState={onState} ready={ready} tableCard={tableCard} genie={genie}
           views={<PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />} notify={notifyButton} onGo={(to) => go(to)}
           onRun={freshness.ask} running={freshness.busy} />
       )}
       {shown === 'work' && mode.queue && (
+        <Overview app={app} page={page} hubPage={hubPage} entry={hubEntry} live={live} summary={summary} view={view} onFix={fix} kpisCard={kpisOf(page.kpis)} />
+      )}
+      {shown === 'work' && mode.queue && (
         <Suspense fallback={<Waiting />}>        <WorkPage meta={meta} state={state} onState={onState} onRetryMeta={onRetryMeta} pageId={page.id} reasons={reasonFilters(entry, summary)} plan={plan} tab={tabNow} choices={choices}
           counts={queue?.data?.status_counts} onTab={(id) => go('work', { tab: id, focus: focused })} focus={focused} onClearFocus={() => go('work', { tab: tabNow })}>
-          {records({ ready: ready && (!listed || live.done), tab: tabNow || undefined, focus: focused || undefined, docked: true, section: 'records', onTab: (id) => go('work', { tab: id }) })}
+          {records({ ready: ready && (!listed || live.done), tab: tabNow || undefined, focus: focused || undefined, section: 'records', onTab: (id) => go('work', { tab: id }) })}
         </WorkPage></Suspense>
       )}
       {shown === 'runs' && (
