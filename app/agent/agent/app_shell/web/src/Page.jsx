@@ -263,6 +263,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
             disabled={freshness.busy || !freshness.fresh.can_refresh} aria-label="Refresh now" title={[dotText, 'Select to refresh now'].filter(Boolean).join('. ')} />
         )}
       </div>
+      {shown !== 'dashboard' && shown !== 'work' && <p className="ph-sec" data-section-title>{sectionTitle(page, shown)}</p>}
       <p className="ph-q">{page.question}</p>
       {headKpi && <p className="ph-kpi" data-head-kpi=""><span>{headKpi.label}</span> <b>{headKpi.value}</b></p>}
       {shown === 'dashboard' && !hubPage && page.promised?.estimate && (
