@@ -17,6 +17,7 @@ import {
 import ValueEstimateLine from './ValueEstimateLine';
 import ValueBadge from './ValueBadge';
 import CardValueLine from './CardValueLine';
+import { boxModel } from './ValueBox';
 import ValueHow from './ValueHow';
 import { reviewLineOf } from '../lib/valueWizard.js';
 import { UseCaseNameNotes, UseCaseNameTitle } from './UseCaseNameEditor';
@@ -75,6 +76,8 @@ function UseCaseCardBody({
   const kind = v130?.kind || null;
   const rename = useUseCaseRename(titlePlain, onRename);
   // FX-38b (REQ-453, W16 D24): once a value is saved the box is the only value on the card; the older estimate text goes.
+  // FX-87 (REQ-485): one value call to action: with the Calculate box on the card, the "Set a money rule" line goes.
+  const showsCalculate = canCalculate && ['none', 'not_estimated'].includes(boxModel({ yearly, summary: valueSummary }).state);
   const savedValue = Boolean(yearly?.total || (Array.isArray(yearly?.entries) && yearly.entries.length));
 
   return (
@@ -135,7 +138,7 @@ function UseCaseCardBody({
                   </p>
                 )}
                 <QualityBarReason uc={u} className="mt-1" />
-                {!savedValue && <ValueEstimateLine uc={u} estimate={estimate} onSetRule={onSetRule} className="mt-1" />}
+                {!savedValue && !(showsCalculate && estimate?.status === 'set_rule') && <ValueEstimateLine uc={u} estimate={estimate} onSetRule={onSetRule} className="mt-1" />}
                 <ValueHow yearly={yearly} onOpen={onEdit} />
                 {/* REQ-472 (c): the saved value's model review, the same line the dialog shows. */}
                 {yearly && reviewLineOf(valueReview) && <p role="note" dir="auto" data-value-review="" className="mt-1 text-[12px] text-text-secondary">{reviewLineOf(valueReview)}</p>}

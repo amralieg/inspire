@@ -7,7 +7,7 @@ import { NAME_TEXT_CLASS } from '../lib/useCaseRename';
 export function UseCaseNameTitle({ text, rename }) {
   const { editing, value, busy, error, setField, blur, commit, leave } = rename;
   // REQ-453: the pencil follows the last word of the name, inline, so it never sits at the far edge of the card.
-  if (!editing) return <span className="min-w-0"><h3 dir="auto" className={`${NAME_TEXT_CLASS} inline`}>{text}</h3><UseCaseRenameButton text={text} rename={rename} /></span>;
+  if (!editing) return <span className="min-w-0"><h3 dir="auto" className={`${NAME_TEXT_CLASS} inline ${rename.canRename ? 'pe-7' : ''}`}>{text}</h3><UseCaseRenameButton text={text} rename={rename} overlap /></span>;
   return (
     <span className="flex flex-col gap-1 min-w-0 flex-1 basis-full sm:basis-auto" data-use-case-name-editor="">
       <span className="inline-flex items-center gap-2 min-w-0">
@@ -38,11 +38,12 @@ export function UseCaseNameTitle({ text, rename }) {
   );
 }
 
-export function UseCaseRenameButton({ text, rename }) {
+// overlap (FX-87): the title keeps 1.5rem of end padding and the pencil sits in it (negative start margin), so it can never wrap onto a line of its own.
+export function UseCaseRenameButton({ text, rename, overlap = false }) {
   if (!rename.canRename || rename.editing) return null;
   return (
     <button type="button" aria-label={`Rename ${text}`} title="Rename this use case" onClick={(e) => { e.stopPropagation(); rename.start(e); }} onKeyDown={(e) => e.stopPropagation()}
-      className="ms-1 inline-flex shrink-0 align-middle rounded-md p-1 text-text-tertiary hover:text-text-primary hover:bg-bg-subtle transition-smooth">
+      className={`${overlap ? '-ms-6' : 'ms-1'} inline-flex shrink-0 align-middle rounded-md p-1 text-text-tertiary hover:text-text-primary hover:bg-bg-subtle transition-smooth`}>
       <Pencil size={14} aria-hidden />
     </button>
   );

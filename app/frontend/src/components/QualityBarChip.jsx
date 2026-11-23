@@ -26,7 +26,7 @@ export function QualityBarReason({ uc, className = '' }) {
   const reason = belowBarLabelFromUseCase(uc);
   if (!reason) return null;
   return (
-    <p data-testid="quality-bar-reason" className={`text-xs text-warning-fg leading-snug ${className}`}>
+    <p data-testid="quality-bar-reason" className={`text-xs text-warning-fg leading-snug break-words ${className}`}>
       Why it is below your bar: {reason}
     </p>
   );
