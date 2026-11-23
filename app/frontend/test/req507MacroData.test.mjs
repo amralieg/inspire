@@ -13,10 +13,10 @@ const SOURCES = [
   { id: 'marketplace', name: 'Databricks Marketplace', licence: 'per listing', configured: false },
   { id: 'oecd', name: 'OECD', licence: 'OECD T&C' },
 ];
-const SERIES = { source: 'worldbank', indicator: 'NE.CON.PRVT.KD.ZG', country: 'ARE', unit: '%', fetched_at: '2026-11-23T10:00:00.000Z',
+const SERIES = { source: 'worldbank', indicator: 'NE.CON.PRVT.KD.ZG', country: 'USA', unit: '%', fetched_at: '2026-11-23T10:00:00.000Z',
   points: [...[2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025].map((y, i) => ({ period: String(y), value: i + 1, forecast: false })),
     { period: '2026', value: 3, forecast: true }, { period: '2027', value: 3.5, forecast: true }],
-  citation: { name: 'World Bank', indicator: 'NE.CON.PRVT.KD.ZG', country: 'ARE', url: 'https://api.worldbank.org/v2/x', licence: 'CC BY 4.0', fetched_at: '2026-11-23T10:00:00.000Z' } };
+  citation: { name: 'World Bank', indicator: 'NE.CON.PRVT.KD.ZG', country: 'USA', url: 'https://api.worldbank.org/v2/x', licence: 'CC BY 4.0', fetched_at: '2026-11-23T10:00:00.000Z' } };
 
 test('L5: the routes, and the source cards in the approved order with Marketplace first', () => {
   assert.equal(MD.SOURCES_ROUTE, '/api/inspire/macro/sources');
@@ -26,13 +26,13 @@ test('L5: the routes, and the source cards in the approved order with Marketplac
 });
 
 test('L5: the series query carries only the picked source, indicator, country and where to cache it', () => {
-  const q = new URLSearchParams(MD.seriesQuery({ source: 'worldbank', indicator: 'NE.CON.PRVT.KD.ZG', country: 'ARE', inspire_database: 'main.inspire', warehouse_id: 'wh1', url: 'https://evil.example.com' }));
+  const q = new URLSearchParams(MD.seriesQuery({ source: 'worldbank', indicator: 'NE.CON.PRVT.KD.ZG', country: 'USA', inspire_database: 'main.inspire', warehouse_id: 'wh1', url: 'https://evil.example.com' }));
   assert.deepEqual([...q.keys()].sort(), ['country', 'indicator', 'inspire_database', 'source', 'warehouse_id']);
   assert.equal(q.get('indicator'), 'NE.CON.PRVT.KD.ZG');
 });
 
 test('L5: the citation names source, indicator, country, the years of history, the fetch date and the licence', () => {
-  assert.equal(MD.citationLine(SERIES), 'World Bank, NE.CON.PRVT.KD.ZG, ARE, 2016-2025, fetched 23 Nov 2026, CC BY 4.0');
+  assert.equal(MD.citationLine(SERIES), 'World Bank, NE.CON.PRVT.KD.ZG, USA, 2016-2025, fetched 23 Nov 2026, CC BY 4.0');
 });
 
 test('L5: chart points keep history and forecast apart, oldest first, numbers only', () => {

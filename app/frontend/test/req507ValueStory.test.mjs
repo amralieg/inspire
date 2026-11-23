@@ -18,7 +18,7 @@ const PLAN = { drivers: [{ id: 'risk_avoided', label: 'Losses avoided', asks: [
   { id: 'incidents_per_year', label: 'Incidents a year', kind: 'count', source: 'data', metric: 'records' },
   { id: 'cost_per_incident', label: 'Cost per incident', kind: 'money', source: 'estimate', default: 120 },
   { id: 'reduction_pct', label: 'Reduction', kind: 'pct', source: 'estimate', default: 30 }] }],
-  economic_factors: [{ id: 'gdp_growth', label: 'Real GDP growth', likely_pct: 3, min_pct: 1.9, max_pct: 9.1, source: { name: 'IMF', indicator: 'NGDP_RPCH', country: 'ARE', fetched_at: '2026-11-23T10:00:00.000Z', url: 'https://www.imf.org/x' } }] };
+  economic_factors: [{ id: 'gdp_growth', label: 'Real GDP growth', likely_pct: 3, min_pct: 1.9, max_pct: 9.1, source: { name: 'IMF', indicator: 'NGDP_RPCH', country: 'USA', fetched_at: '2026-11-23T10:00:00.000Z', url: 'https://www.imf.org/x' } }] };
 const ANSWERS = { currency: 'USD', drivers: { risk_avoided: { on: true, inputs: { cost_per_incident: 150, reduction_pct: 30 } } }, economics: INPUT.economics };
 const YEARLY = { parts: [{ id: 'risk_avoided', label: 'Losses avoided', inputs: [
   { id: 'incidents_per_year', label: 'Incidents a year', kind: 'count', source: 'data', value: 4000 },
@@ -64,7 +64,7 @@ test('L6: every parameter is listed once with its source tag: Data from the rows
   assert.equal(by.cost_per_incident.source, 'you');
   assert.equal(by.reduction_pct.source, 'ai');
   assert.equal(by.gdp_growth.source, 'public');
-  assert.match(by.gdp_growth.note || '', /IMF, NGDP_RPCH, ARE/);
+  assert.match(by.gdp_growth.note || '', /IMF, NGDP_RPCH, USA/);
   for (const id of ['ramp_pct', 'build_cost', 'run_cost_per_year']) assert.equal(by[id]?.source, 'you', id);
   assert.ok(params.every((p) => 'owner' in p), 'each row can carry an owner');
   assert.equal(new Set(params.map((p) => p.id)).size, params.length);

@@ -16,10 +16,10 @@ export const SOURCES = [
   { id: 'imf', name: 'IMF', licence: 'IMF terms', terms: 'Inspire only computes with this data; it is never used to train a model' },
   { id: 'oecd', name: 'OECD', licence: 'OECD T&C' }, { id: 'eurostat', name: 'Eurostat', licence: 'EU reuse' }, { id: 'undata', name: 'UN Data', licence: 'UNdata terms' },
 ];
-export const SERIES = { source: 'worldbank', indicator: 'NE.CON.PRVT.KD.ZG', country: 'ARE', unit: '%', fetched_at: '2026-11-23T10:00:00.000Z',
+export const SERIES = { source: 'worldbank', indicator: 'NE.CON.PRVT.KD.ZG', country: 'USA', unit: '%', fetched_at: '2026-11-23T10:00:00.000Z',
   points: [...[2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025].map((y, i) => ({ period: String(y), value: i + 1, forecast: false })),
     { period: '2026', value: 3, forecast: true }, { period: '2027', value: 3.5, forecast: true }],
-  citation: { name: 'World Bank', indicator: 'NE.CON.PRVT.KD.ZG', country: 'ARE', url: 'https://api.worldbank.org/v2/x', licence: 'CC BY 4.0', fetched_at: '2026-11-23T10:00:00.000Z' } };
+  citation: { name: 'World Bank', indicator: 'NE.CON.PRVT.KD.ZG', country: 'USA', url: 'https://api.worldbank.org/v2/x', licence: 'CC BY 4.0', fetched_at: '2026-11-23T10:00:00.000Z' } };
 export const FACTOR_PLAN = { ...PLAN, economic_factors: [{ id: 'consumer_demand', label: 'Consumer demand', why: 'Spending moves revenue', likely_pct: 2, min_pct: -3, max_pct: 6 }] };
 
 // The L2 projection for a preview (default ramp 40/80/100; with no costs it is gross only).

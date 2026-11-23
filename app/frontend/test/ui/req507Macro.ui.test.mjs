@@ -40,17 +40,17 @@ test('R507-M2: a picked series is fetched through the App, drawn with history an
     const dialog = await openWizard(page, card);
     await toSeries(dialog);
     await dialog.locator('[data-macro-source="worldbank"]').click();
-    await dialog.getByRole('textbox', { name: 'Country' }).fill('ARE');
+    await dialog.getByRole('textbox', { name: 'Country' }).fill('USA');
     await dialog.getByRole('textbox', { name: 'Indicator' }).fill('NE.CON.PRVT.KD.ZG');
     await dialog.getByRole('button', { name: 'Get series' }).click();
     await dialog.locator('[data-wizard-page="macro:factor"]').waitFor({ timeout: 15000 });
     const asked = calls.find((c) => c.route === 'macro-series');
     assert.equal(asked.query.source, 'worldbank');
-    assert.equal(asked.query.country, 'ARE');
+    assert.equal(asked.query.country, 'USA');
     assert.equal(asked.query.factor_id, 'consumer_demand');
     assert.equal(await dialog.locator('[data-macro-chart] [data-macro-history]').count(), 1);
     assert.equal(await dialog.locator('[data-macro-chart] [data-macro-forecast]').count(), 1);
-    assert.equal(await textOf(dialog.locator('[data-macro-citation]')), 'World Bank, NE.CON.PRVT.KD.ZG, ARE, 2016-2025, fetched 23 Nov 2026, CC BY 4.0');
+    assert.equal(await textOf(dialog.locator('[data-macro-citation]')), 'World Bank, NE.CON.PRVT.KD.ZG, USA, 2016-2025, fetched 23 Nov 2026, CC BY 4.0');
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
 });
@@ -63,7 +63,7 @@ test('R507-M3: the elasticity slider asks the server again; the factor is saved 
     const dialog = await openWizard(page, card);
     await toSeries(dialog);
     await dialog.locator('[data-macro-source="worldbank"]').click();
-    await dialog.getByRole('textbox', { name: 'Country' }).fill('ARE');
+    await dialog.getByRole('textbox', { name: 'Country' }).fill('USA');
     await dialog.getByRole('textbox', { name: 'Indicator' }).fill('NE.CON.PRVT.KD.ZG');
     await dialog.getByRole('button', { name: 'Get series' }).click();
     await dialog.locator('[data-wizard-page="macro:factor"]').waitFor({ timeout: 15000 });
@@ -78,7 +78,7 @@ test('R507-M3: the elasticity slider asks the server again; the factor is saved 
     await dialog.getByRole('button', { name: 'Approve story and save' }).click();
     for (let i = 0; i < 50 && !puts.length; i += 1) await new Promise((r) => setTimeout(r, 100));
     const factor = puts[0].answers.plan.economic_factors.find((f) => f.id === 'consumer_demand');
-    assert.deepEqual(factor.source, { name: 'World Bank', indicator: 'NE.CON.PRVT.KD.ZG', country: 'ARE', fetched_at: SERIES.fetched_at, url: SERIES.citation.url });
+    assert.deepEqual(factor.source, { name: 'World Bank', indicator: 'NE.CON.PRVT.KD.ZG', country: 'USA', fetched_at: SERIES.fetched_at, url: SERIES.citation.url });
     assert.equal(factor.elasticity, 0.5);
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
@@ -91,7 +91,7 @@ test('R507-M4: a blocked host shows the plain message and lets the person keep t
     const dialog = await openWizard(page, card);
     await toSeries(dialog);
     await dialog.locator('[data-macro-source="worldbank"]').click();
-    await dialog.getByRole('textbox', { name: 'Country' }).fill('ARE');
+    await dialog.getByRole('textbox', { name: 'Country' }).fill('USA');
     await dialog.getByRole('textbox', { name: 'Indicator' }).fill('NE.CON.PRVT.KD.ZG');
     await dialog.getByRole('button', { name: 'Get series' }).click();
     await dialog.locator('[data-macro-blocked]').waitFor({ timeout: 15000 });

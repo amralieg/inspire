@@ -18,11 +18,11 @@ const MR = (() => {
 
 const NOW = new Date('2026-11-23T10:00:00Z');
 const WB_REPLY = [{ page: 1, pages: 1, per_page: 100, total: 3 }, [
-  { indicator: { id: 'NE.CON.PRVT.KD.ZG' }, countryiso3code: 'ARE', date: '2025', value: 4.1 },
-  { indicator: { id: 'NE.CON.PRVT.KD.ZG' }, countryiso3code: 'ARE', date: '2024', value: 3.2 },
-  { indicator: { id: 'NE.CON.PRVT.KD.ZG' }, countryiso3code: 'ARE', date: '2023', value: 2.7 },
+  { indicator: { id: 'NE.CON.PRVT.KD.ZG' }, countryiso3code: 'USA', date: '2025', value: 4.1 },
+  { indicator: { id: 'NE.CON.PRVT.KD.ZG' }, countryiso3code: 'USA', date: '2024', value: 3.2 },
+  { indicator: { id: 'NE.CON.PRVT.KD.ZG' }, countryiso3code: 'USA', date: '2023', value: 2.7 },
 ]];
-const QUERY = 'source=worldbank&indicator=NE.CON.PRVT.KD.ZG&country=ARE&inspire_database=main.inspire&warehouse_id=wh1';
+const QUERY = 'source=worldbank&indicator=NE.CON.PRVT.KD.ZG&country=USA&inspire_database=main.inspire&warehouse_id=wh1';
 
 function appWith({ cacheRows = [], fetchReply = WB_REPLY } = {}) {
   const sqlCalls = [];
@@ -59,8 +59,8 @@ async function get(made, route) {
     await srv.close();
   }
 }
-const cached = (fetchedAt) => ['2023', '2024', '2025'].map((period, i) => ({ source: 'worldbank', indicator: 'NE.CON.PRVT.KD.ZG', country: 'ARE', period,
-  value: String([2.7, 3.2, 4.1][i]), unit: '%', fetched_at: fetchedAt, citation_url: 'https://api.worldbank.org/v2/country/ARE/indicator/NE.CON.PRVT.KD.ZG', licence: 'CC BY 4.0' }));
+const cached = (fetchedAt) => ['2023', '2024', '2025'].map((period, i) => ({ source: 'worldbank', indicator: 'NE.CON.PRVT.KD.ZG', country: 'USA', period,
+  value: String([2.7, 3.2, 4.1][i]), unit: '%', fetched_at: fetchedAt, citation_url: 'https://api.worldbank.org/v2/country/USA/indicator/NE.CON.PRVT.KD.ZG', licence: 'CC BY 4.0' }));
 
 test('L3 routes: registerMacroRoutes is exported and server.js mounts it', () => {
   assert.equal(typeof MR.registerMacroRoutes, 'function');
@@ -125,9 +125,9 @@ test('L3 routes: with factor_id the reply carries the factor from macroFactor (t
 
 test('L3 routes security: an unknown source, a URL-shaped indicator or a bad Inspire database is a 400 before any fetch or SQL', async () => {
   for (const q of [
-    'source=https://evil.example.com&indicator=X&country=ARE&inspire_database=main.inspire&warehouse_id=wh1',
-    'source=worldbank&indicator=..%2F..%2Fx%3Fy%3D%40evil.example.com&country=ARE&inspire_database=main.inspire&warehouse_id=wh1',
-    'source=worldbank&indicator=NE.CON.PRVT.KD.ZG&country=ARE&inspire_database=main.inspire%60%3B%20DROP%20TABLE%20x&warehouse_id=wh1',
+    'source=https://evil.example.com&indicator=X&country=USA&inspire_database=main.inspire&warehouse_id=wh1',
+    'source=worldbank&indicator=..%2F..%2Fx%3Fy%3D%40evil.example.com&country=USA&inspire_database=main.inspire&warehouse_id=wh1',
+    'source=worldbank&indicator=NE.CON.PRVT.KD.ZG&country=USA&inspire_database=main.inspire%60%3B%20DROP%20TABLE%20x&warehouse_id=wh1',
   ]) {
     const made = appWith();
     const got = await get(made, `/api/inspire/macro/series?${q}`);
