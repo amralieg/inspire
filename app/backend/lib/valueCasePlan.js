@@ -185,6 +185,41 @@ function groupsFrom(rows, plan, population) {
 // ---- the yearly (C4) ----
 const dataAsksOf = (driver) => driver.asks.filter((a) => a.source === 'data');
 
+const isRevenuePart = (p) => p.id === 'revenue_uplift' || p.verb === VERBS.revenue_uplift;
+const isFactorPart = (p) => p.id === 'economic_trend' || /^factor_/.test(p.id);
+const FACTOR_LIMIT = 50;
+// FX-97: the plan's factors (the old single economic_trend of a stored plan reads as one factor bounded by its options).
+function factorsOfPlan(plan) {
+  if (plan && Array.isArray(plan.economic_factors) && plan.economic_factors.length) return plan.economic_factors.filter((f) => f && ID_SHAPE.test(String(f.id)));
+  const options = plan && plan.economic_trend && Array.isArray(plan.economic_trend.options) ? plan.economic_trend.options : [];
+  if (!options.length) return [];
+  const pcts = options.map((o) => Number(o.pct));
+  const likely = options.find((o) => o.id === plan.economic_trend.likely) || options[0];
+  return [{ id: 'economic_trend', label: 'Economic trend', why: likely.why || '', likely_pct: Number(likely.pct), min_pct: Math.min(...pcts), max_pct: Math.max(...pcts) }];
+}
+// The ticked factors of the answers as {id, label, pct}, each pct clamped to the factor's own bounds. An unknown factor or option is an error.
+function factorEffects(plan, answers, errors) {
+  const effects = [];
+  const asked = answers && answers.economic_factors && typeof answers.economic_factors === 'object' ? answers.economic_factors : {};
+  const known = factorsOfPlan(plan);
+  for (const [id, a] of Object.entries(asked)) {
+    if (!a || a.on !== true) continue;
+    const f = known.find((x) => x.id === id);
+    if (!f) { errors.economic_factors = `"${id}" is not a market or customer factor of this plan.`; continue; }
+    const lo = Math.max(-FACTOR_LIMIT, Number(f.min_pct));
+    const hi = Math.min(FACTOR_LIMIT, Number(f.max_pct));
+    const raw = Number.isFinite(Number(a.pct)) && a.pct !== '' && a.pct !== null ? Number(a.pct) : Number(f.likely_pct);
+    effects.push({ id: id === 'economic_trend' ? id : `factor_${id}`, label: f.label, pct: Math.max(lo, Math.min(hi, raw)) });
+  }
+  const old = answers && answers.economic_trend && typeof answers.economic_trend === 'object' ? answers.economic_trend : null;
+  if (old && old.on === true && !(asked.economic_trend && typeof asked.economic_trend === 'object')) {
+    const option = ((plan && plan.economic_trend && plan.economic_trend.options) || []).find((o) => o.id === old.option);
+    if (!option) errors.economic_trend = `"${old.option}" is not an economic trend option of this plan.`;
+    else effects.push({ id: 'economic_trend', label: option.label, pct: Number(option.pct) });
+  }
+  return effects;
+}
+
 // { yearly } or { errors: { <driver id | 'currency'>: message } }. Pure arithmetic: no SQL.
 function yearlyOf(plan, answers) {
   const drivers = Array.isArray(plan && plan.drivers) ? plan.drivers.filter((d) => DEF.drivers.some((x) => x.id === d.id) && Array.isArray(d.asks)) : [];
@@ -220,16 +255,20 @@ function yearlyOf(plan, answers) {
       inputs: d.asks.map((ask) => ({ id: ask.id, label: ask.label, kind: ask.kind, source: ask.source,
         value: ask.source === 'data' ? round2(VDC.dataFigure(ask, groups, ((plan.metrics || []).find((m) => m.id === ask.metric) || {}).agg)) : fixed[ask.id] })) });
   }
-  const trendAnswer = answers && answers.economic_trend && typeof answers.economic_trend === 'object' ? answers.economic_trend : null;
-  const trendOption = trendAnswer && trendAnswer.on === true
-    ? (((plan && plan.economic_trend && plan.economic_trend.options) || []).find((o) => o.id === trendAnswer.option) || null) : null;
-  if (trendAnswer && trendAnswer.on === true && !trendOption) errors.economic_trend = `"${trendAnswer.option}" is not an economic trend option of this plan.`;
+  // FX-97: market and customer factors move the revenue part only (after the credit share); a plan with no revenue kind on ignores them.
+  const revenue = parts.filter(isRevenuePart).reduce((s, p) => s + p.amount, 0);
+  const effects = revenue > 0 ? factorEffects(plan, answers, errors) : [];
   if (Object.keys(errors).length) return { errors };
   const sum = parts.reduce((s, p) => s + p.amount, 0);
   const largest = parts.reduce((best, p) => (!best || p.amount > best.amount ? p : best), null);
   const before = round2((sum * attribution) / 100);
-  const total = trendOption ? round2((before * (100 + trendOption.pct)) / 100) : before;
-  if (trendOption) parts.push({ id: 'economic_trend', label: trendOption.label, pct: trendOption.pct, amount: round2(total - before), per_group: false, inputs: [] });
+  const revenueShare = (revenue * attribution) / 100;
+  let total = before;
+  for (const e of effects) {
+    const amount = round2((revenueShare * e.pct) / 100);
+    total = round2(total + amount);
+    parts.push({ id: e.id, label: e.label, pct: e.pct, amount, per_group: false, inputs: [] });
+  }
   const calculated = Boolean(answers && answers.calculated);
   const grouping = (plan.groupings || []).find((g) => g.column === plan.grouping);
   const yearly = {
@@ -250,7 +289,7 @@ function scaleToTarget(plan, target, currency = 'USD') {
   const attribution = got.yearly.attribution_pct;
   const scalable = (d) => d.on && d.asks.some((a) => a.source === 'estimate' && a.kind === 'money');
   const ids = new Set(plan.drivers.filter(scalable).map((d) => d.id));
-  const parts = got.yearly.parts.filter((p) => p.id !== 'economic_trend');
+  const parts = got.yearly.parts.filter((p) => !isFactorPart(p));
   const movable = parts.filter((p) => ids.has(p.id)).reduce((s, p) => s + p.amount, 0);
   const fixed = parts.filter((p) => !ids.has(p.id)).reduce((s, p) => s + p.amount, 0);
   const factor = movable > 0 && attribution > 0 ? ((target * 100) / attribution - fixed) / movable : 0;

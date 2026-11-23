@@ -2712,7 +2712,7 @@ function registerImplementRoutes(app, deps) {
         const final = defaultYearlyOf(done.plan);
         valueCheck = !review.approved || outsideRange(final, range) ? { amount: final, low: range.low, high: range.high } : null;
       }
-      const anchored = anchor ? { likely_value: { amount: anchor.typical, currency: 'USD', reason: anchor.reason }, economic_trend: anchor.economic_trend } : {};
+      const anchored = anchor ? { likely_value: { amount: anchor.typical, currency: 'USD', reason: anchor.reason }, economic_trend: anchor.economic_trend, economic_factors: anchor.economic_factors || [] } : {};
       return res.json({ plan: { ...plan, ...anchored, ...(review ? { review } : {}), table, date_column: dateColumn, days: counted.days, groups: counted.groups, use_case_id: useCaseId, basis: VCP.PLAN_BASIS, ...(valueCheck ? { value_check: valueCheck } : {}) } });
     } catch (err) {
       return sendError(res, estimateFailure(err, table));
