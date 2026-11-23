@@ -54,6 +54,31 @@ export default function HarnessApp({ open, nest, discoveryType, step = '', run =
   );
 }
 
+// REQ-510 L1: the shared More menu on its own. The glob keeps the harness bundle building before the file exists (the test then fails on
+// "MoreMenu missing", not on a bundle error).
+const MORE_MENU = Object.values(import.meta.glob('../../src/components/ui/MoreMenu.jsx', { eager: true }))[0]?.default || null;
+function MoreMenuHarness() {
+  const [picked, setPicked] = useState([]);
+  if (!MORE_MENU) return <p data-more-menu-missing="">MoreMenu missing</p>;
+  const MoreMenu = MORE_MENU;
+  const push = (what) => setPicked((prev) => [...prev, what]);
+  return (
+    <ThemeProvider>
+      <div className="p-6 flex items-center gap-3">
+        <button type="button">Main action</button>
+        <MoreMenu items={[
+          { label: 'Download profile', onSelect: () => push('download') },
+          { label: 'Go to Build', onSelect: () => push('build') },
+          { label: 'Not now', onSelect: () => push('off'), disabled: true },
+          { label: 'Delete run', onSelect: () => push('delete'), danger: true },
+        ]} />
+        <MoreMenu label="More for Acme" items={[{ label: 'Quick view', onSelect: () => push('quick') }]} />
+      </div>
+      <output aria-label="More picks" className="sr-only">{picked.join(',')}</output>
+    </ThemeProvider>
+  );
+}
+
 function LandingHarness() {
   const [clicks, setClicks] = useState([]);
   const push = (what) => setClicks((prev) => [...prev, what]);
@@ -84,6 +109,7 @@ function HarnessContent({ open, discoveryType, step, run }) {
       </ThemeProvider>
     );
   }
+  if (open === 'moreMenu') return <MoreMenuHarness />;
   if (open === 'grid') return step === 'bidi' ? <BidiGridHarness /> : <GridHarness wide={step === 'wide'} />;
   if (open === 'header') {
     return (
