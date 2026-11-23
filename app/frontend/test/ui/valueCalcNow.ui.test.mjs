@@ -3,12 +3,26 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser } from './uiSupport.mjs';
 import { PLAN, openCard, openWizard } from './valueWizardSupport.mjs';
-import { goTo507, mountReq507, textOf } from './req507Support.mjs';
+import { mountReq507, textOf } from './req507Support.mjs';
 
 test.after(closeBrowser);
 
 const calcNow = (dialog) => dialog.getByRole('button', { name: 'Calculate now', exact: true });
 const defaultsOf = (d) => Object.fromEntries(d.asks.filter((a) => a.source === 'estimate').map((a) => [a.id, a.default]));
+// Click Next and wait for the page marker to change, so a slow page (the plan, the 12-month count) is never clicked past (goTo507 can skip it).
+const markerOf = (dialog) => dialog.locator('[data-wizard-page]').first().getAttribute('data-wizard-page', { timeout: 15000 });
+async function goTo507(dialog, target) {
+  for (let i = 0; i < 24; i += 1) {
+    const now = await markerOf(dialog);
+    if (now === target) return;
+    await dialog.getByRole('button', { name: 'Next', exact: true }).click();
+    await dialog.page().waitForFunction((prev) => {
+      const el = document.querySelector('[role=dialog] [data-wizard-page]');
+      return el && el.getAttribute('data-wizard-page') !== prev;
+    }, now, { timeout: 15000 });
+  }
+  throw new Error(`wizard never reached ${target}`);
+}
 const approve = async (dialog) => {
   await goTo507(dialog, 'story:approve');
   await dialog.getByRole('checkbox', { name: 'I have read and accept these terms' }).check();
