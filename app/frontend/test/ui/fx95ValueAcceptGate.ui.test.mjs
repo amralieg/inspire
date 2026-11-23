@@ -72,7 +72,7 @@ test('A4: reopening the dialog starts unticked again', async () => {
     const dialog = await openWizard(page, card);
     await toSave(dialog);
     await tick(dialog).check();
-    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Close', exact: true }).last().click();
     await dialog.waitFor({ state: 'hidden', timeout: 5000 });
     const again = await openWizard(page, card);
     await toSave(again);
