@@ -10,7 +10,7 @@ import { DEFAULT_TAB, buildHash, describeFilters, fixThis, parseHash, sectionHas
 import { Block } from './Blocks.jsx';
 import { blockPlan, gridSpans, slotsOf, withBlocks } from './blocks.js';
 import { Icon } from './icons.jsx';
-import Kpis, { kpiValue } from './Kpis.jsx';
+import Kpis, { Story, kpiValue } from './Kpis.jsx';
 import ChartCard from './ChartCard.jsx';
 import { ReviewLink, hubExplain, reviewItem } from './Home.jsx';
 import { genieOn } from './genieAsk.js';
@@ -268,6 +268,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       {shown === 'dashboard' && !hubPage && page.promised?.estimate && (
         <p className="ph-value ph-chip" data-value-estimate="">{valueLine(page.promised.estimate)} <button type="button" className="link" onClick={() => go('settings')}>How it is measured in Settings</button></p>
       )}
+      {shown === 'dashboard' && !hubPage && data && <Story page={page} data={data.kpis} />}
       {shown === 'dashboard' && (
         <div className="ph-meta">
           <Icon name="calendar" size={13} />
