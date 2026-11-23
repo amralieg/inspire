@@ -34,7 +34,7 @@ test('a measured card shows the value box with the verb, "$15M", "(estimated)" a
     await line.waitFor({ timeout: 15000 });
     assert.equal((await line.locator('[data-value-verb]').innerText()).trim().toUpperCase(), 'INCREASE REVENUE');
     assert.equal((await line.locator('[data-value-amount]').innerText()).replace(/\s+/g, ' ').trim(), '$15M');
-    assert.equal((await line.locator('[data-value-qualifier]').innerText()).trim(), '(estimated)');
+    assert.equal((await line.locator('[data-value-qualifier]').innerText()).trim(), 'Provisional estimate');
     assert.equal((await line.locator('[data-value-period]').innerText()).trim(), 'Per year');
     const score = await card('Predict churn').locator('[data-score-box]').first().boundingBox();
     const box = await line.boundingBox();
@@ -76,7 +76,7 @@ test('Calculate opens the wizard, Save on its last step saves the answers on the
     const amountOf = async () => (await line.locator('[data-value-amount]').innerText()).replace(/\s+/g, ' ').trim();
     for (let i = 0; i < 30 && await amountOf() !== '$406K'; i += 1) await page.waitForTimeout(100);
     assert.equal(await amountOf(), '$406K');
-    assert.equal((await line.locator('[data-value-qualifier]').innerText()).trim(), '(estimated)');
+    assert.equal((await line.locator('[data-value-qualifier]').innerText()).trim(), 'Provisional estimate');
     assert.equal(posts.length, 1, 'one save request');
     assert.equal(posts[0].use_case_id, 'N01-U01');
     assert.ok(posts[0].answers && posts[0].answers.shape === 2 && posts[0].answers.plan, 'the answers (shape 2, with the plan) travel with the request');

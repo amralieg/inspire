@@ -90,9 +90,9 @@ test('1: a calculated card shows two boxes of the same size, the score box solid
     assert.match(await text(score), /INSPIRE\s*7\.4\s*score/i);
     assert.equal((await text(value.locator('[data-value-verb]'))).toUpperCase(), 'REDUCE COST');
     assert.equal(await text(value.locator('[data-value-amount]')), '$2.39M');
-    assert.equal(await text(value.locator('[data-value-qualifier]')), '(calculated)');
+    assert.equal(await text(value.locator('[data-value-qualifier]')), 'Reviewed calculation');
     assert.equal(await text(value.locator('[data-value-period]')), 'Per year');
-    assert.equal(await text(value.locator('[data-value-tag]')), '✓ CHECKED');
+    assert.equal(await text(value.locator('[data-value-tag]')), '✓ REVIEWED');
     assert.equal(await value.locator('button[aria-label="Edit value"]').isVisible(), true);
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
@@ -101,7 +101,7 @@ test('1: a calculated card shows two boxes of the same size, the score box solid
 test('2: estimated, out of date, GROW REVENUE, none and no data each read as the wireframe states', async () => {
   const cases = [
     ['estimated', { answers: { 'N01-U01': answerEntry(yearlyOf({ calculated: false })) }, totals: withTotals('N01-U01', useCaseEntry('estimated', 'REDUCE COST', 2390000)) },
-      async (card) => { const v = card.locator('[data-value-box]'); assert.equal(await text(v.locator('[data-value-qualifier]')), '(estimated)'); assert.equal(await text(v.locator('[data-value-tag]')), 'ESTIMATE'); }],
+      async (card) => { const v = card.locator('[data-value-box]'); assert.equal(await text(v.locator('[data-value-qualifier]')), 'Provisional estimate'); assert.equal(await text(v.locator('[data-value-tag]')), 'PROVISIONAL'); }],
     ['stale', { answers: { 'N01-U01': answerEntry(yearlyOf({ stale: true })) }, totals: withTotals('N01-U01', useCaseEntry('calculated', 'REDUCE COST', 2390000)) },
       async (card) => { assert.equal(await text(card.locator('[data-value-box] [data-value-tag]')), 'DATA CHANGED'); }],
     ['grow', { answers: { 'N01-U01': answerEntry(yearlyOf({ verb: 'GROW REVENUE' })) }, totals: withTotals('N01-U01', useCaseEntry('calculated', 'GROW REVENUE', 2390000)) },
@@ -154,7 +154,7 @@ test('3: How we got this number lists each part with data and estimate chips and
     assert.match(meta, /7 of 9 groups covered/);
     assert.match(meta, /Counted per fraud case, by region/i);
     assert.match(meta, /40% credited/);
-    assert.match(meta, /calculated by sara@example\.com/);
+    assert.match(meta, /reviewed and accepted by sara@example\.com/);
     assert.match(meta, /\(version 3\)/);
     await how.getByRole('button', { name: 'Open the full calculation' }).click();
     await page.getByRole('dialog', { name: /^Calculating Value at Stake for / }).waitFor();
@@ -169,7 +169,7 @@ test('4: the run panel shows $6.7M, 1 calculated / 2 estimated, four rows and th
     const panel = page.locator('[data-value-run-panel]');
     await panel.waitFor({ timeout: 15000 });
     assert.equal(await text(panel.locator('[data-value-total] [data-total-amount]')), '$6.7M');
-    assert.match(await text(panel), /1 calculated · 2 estimated/);
+    assert.match(await text(panel), /1 reviewed calculation · 2 provisional estimates/);
     assert.equal(await panel.locator('tr[data-value-row]').count(), 4);
     assert.equal(await text(panel.locator('[data-value-run-total]')), 'Run total $6.7M');
     await panel.locator('tr[data-value-row="N01-U04"]').click();

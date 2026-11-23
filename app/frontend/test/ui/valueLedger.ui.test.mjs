@@ -98,7 +98,7 @@ test('the run header shows the run value from the totals, with its counts and th
     const header = page.locator('[data-run-heading] [data-run-header-value]');
     await header.locator('[data-run-value-total]').waitFor({ timeout: 15000 });
     assert.equal((await header.locator('[data-run-value-total]').innerText()).trim(), 'AED 12K');
-    assert.match(await header.innerText(), /1 calculated · 1 estimated/);
+    assert.match(await header.innerText(), /1 reviewed calculation · 1 provisional estimate/);
     assert.equal(await header.locator('[data-value-disclaimer]').count(), 1);
     assert.deepEqual(ui.pageErrors, []);
   } finally {

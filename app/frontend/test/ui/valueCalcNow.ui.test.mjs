@@ -88,6 +88,6 @@ test('C5: after Save confirms the numbers, Back and Calculate now with no change
     await again.locator('[data-wizard-page="save"]').waitFor({ timeout: 15000 });
     assert.equal(puts.length, 2);
     assert.equal(puts[1].answers.calculated, false);
-    await again.locator('[data-save-total]').filter({ hasText: '(estimated)' }).waitFor({ timeout: 15000 });
+    await again.locator('[data-save-total]').filter({ hasText: 'Provisional estimate' }).waitFor({ timeout: 15000 });
   } finally { await ui.close(); }
 });

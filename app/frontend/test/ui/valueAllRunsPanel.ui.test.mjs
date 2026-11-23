@@ -42,7 +42,7 @@ test('the all-runs panel has no By run bar or legend', () => {
   const out = html();
   assert.doesNotMatch(out, /data-bar-legend="By run"/);
   assert.doesNotMatch(out, />By run</);
-  assert.doesNotMatch(out, /data-bar-legend="Calculated vs estimated"/);
+  assert.doesNotMatch(out, /data-bar-legend="Reviewed calculations vs provisional estimates"/);
   assert.match(out, /ALL RUNS/);
 });
 

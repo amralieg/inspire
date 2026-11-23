@@ -85,9 +85,9 @@ test('2b: the Business rows show counted-in amounts that sum to the run total, a
     const sum = counted.reduce((s, t) => s + (money(t) || 0), 0);
     assert.equal(Math.round(sum), 9200000, `visible parts ${counted.join(' + ')} add up to the total`);
     assert.match(await text(panel.locator('[data-value-row="N01-U03"] [data-value-counted]')), /\$0/, 'the shared row adds $0');
-    const legend = await text(panel.locator('[data-bar-legend="Calculated vs estimated"]'));
-    assert.match(legend, /Calculated \$6\.8M/);
-    assert.match(legend, /Estimated \$2\.4M/);
+    const legend = await text(panel.locator('[data-bar-legend="Reviewed calculations vs provisional estimates"]'));
+    assert.match(legend, /Reviewed calculation \$6\.8M/);
+    assert.match(legend, /Provisional estimate \$2\.4M/);
     assert.match(await text(panel.locator('[data-value-row="N02-U01"]')), /not estimated/i, 'an old estimate says it is not estimated');
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
