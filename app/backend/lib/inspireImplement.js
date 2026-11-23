@@ -3691,7 +3691,7 @@ function appAccessMessage(table, gaps) {
   // REQ-456: when USE CATALOG on the catalog is the only gap, another table location cannot help; name the statement and the installer
   if (gaps.length && gaps.every((g) => g.level === 'catalog' && g.privilege === 'USE CATALOG')) {
     return `a new App could not read the result table: it cannot open the catalog yet. `
-      + `Ask your Databricks admin to run the Inspire installer again (it opens no data by itself), or choose a result table in a catalog and schema Inspire manages`;
+      + `Ask your Databricks admin to run the Inspire installer again (it opens no data by itself)`;
   }
   const one = gaps.length === 1;
   // the places the grant is missing on, in plain words (the App tile names them the same way)
