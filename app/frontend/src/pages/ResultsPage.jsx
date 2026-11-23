@@ -115,7 +115,7 @@ import { ARCHIVE_VIEWS, archiveKeyOf, inArchiveView, loadArchiveMap, toggledArch
 import QualityGateDrops from '../components/QualityGateDrops';
 import { makeApiFetch, makeApiPostJson, makeApiPutJson, requestHeaders, responseError } from '../lib/apiClient';
 import { INSPIRE_ENTRY, RESULTS_PENDING_TEXT, noResultsText, resultsReadFailure, reviewLinkText } from '../lib/runPages';
-import ResultsNav from '../components/results/ResultsNav';
+import ResultsNav, { resultsPanel } from '../components/results/ResultsNav';
 import { DEFAULT_RESULTS_VIEW, searchWithView, viewOfSearch } from '../lib/resultsView';
 import ResultsBusiness from '../components/results/ResultsBusiness';
 import ResultsAssets from '../components/results/ResultsAssets';
@@ -1742,7 +1742,7 @@ export default function ResultsPage({
 
             {/* ── Right Panel: filters stay put; use case cards scroll in a bounded pane ── */}
             {view === 'usecases' && (
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-0">
+            <div {...resultsPanel('usecases', view)} className="tab-panel-enter flex min-h-0 min-w-0 flex-1 flex-col gap-0">
               {/* Filter toolbar */}
               <div className="mb-4 shrink-0 bg-surface border border-border/70 rounded-xl shadow-elevated overflow-hidden">
                 <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
@@ -2144,7 +2144,7 @@ export default function ResultsPage({
             </div>
             )}
             {view === 'business' && (
-              <div className="min-w-0 flex-1">
+              <div {...resultsPanel('business', view)} className="tab-panel-enter min-w-0 flex-1">
               <ResultsBusiness
                 allUseCases={allUseCases}
                 avgInspireScore={avgInspireScore}
@@ -2174,7 +2174,7 @@ export default function ResultsPage({
               </div>
             )}
             {view === 'assets' && (
-              <div className="min-w-0 flex-1">
+              <div {...resultsPanel('assets', view)} className="tab-panel-enter min-w-0 flex-1">
               <ResultsAssets
                 allUseCases={allUseCases}
                 apiFetch={apiFetch}
