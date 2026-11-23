@@ -109,7 +109,7 @@ test('an old link or a saved view that names the removed Trend tab opens Things 
   const { page, seen, context } = await openAt(`#/n01_u05?v=trend&f=${f}`, appInfo({}, 1, TABLE), { routes });
   await toastSays(page, LINK_STALE);
   assert.equal(await page.locator('[role="tab"]').count(), 0);
-  assert.match(hashOf(page), /^#\/n01_u05\/work/, 'the removed Trend tab opens the default section');
+  assert.match(hashOf(page), /^#\/n01_u05\/dashboard/, 'the removed Trend tab opens the dashboard section');
   await page.waitForFunction(() => document.querySelectorAll('.chip').length === 1);
   assert.deepEqual(await page.locator('.chip').allInnerTexts(), ['Category: Music']);
   await page.waitForFunction(() => !location.hash.includes('v='));
@@ -120,7 +120,7 @@ test('an old link or a saved view that names the removed Trend tab opens Things 
   await pop.getByRole('button', { name: 'Old trend', exact: true }).click();
   await toastSays(page, VIEW_STALE);
   await page.waitForFunction(() => [...document.querySelectorAll('.chip')].map((c) => c.textContent).join() === 'Category: Books');
-  assert.match(hashOf(page), /^#\/n01_u05\/work/, 'the removed Trend tab opens the default section');
+  assert.match(hashOf(page), /^#\/n01_u05\/dashboard/, 'the removed Trend tab opens the dashboard section');
   assert.deepEqual(linkOf(page), { s: { category: ['Books'] } });
   assert.deepEqual(asked, [], 'nothing asks for the removed trend');
   assert.deepEqual(seen.errors, []);
@@ -150,7 +150,7 @@ test('a malformed link opens the page with its defaults and the same notice, nev
     await until(() => seen.pages.length > 0);
     await page.waitForSelector('.kpi-v');
     assert.deepEqual(seen.pages.at(-1).filters, TWELVE, label);
-    assert.equal(hashOf(page), '#/n01_u05/work', label);
+    assert.equal(hashOf(page), label === 'an unknown view' ? '#/n01_u05/dashboard' : '#/n01_u05/work', label);
     assert.equal(await page.locator('.chip').count(), 0, label);
     assert.deepEqual(seen.errors, [], label);
     await context.close();
@@ -215,7 +215,7 @@ test('a link to an unknown page opens the App with a notice instead of breaking'
   const f = encodeFilters({ s: { category: ['Music'] } });
   let { page, seen, context } = await openAt(`#/gone_page?f=${f}`, appInfo({ layout: 'sidebar' }, 2), { ready: '.pg-h h1' });
   await toastSays(page, UNKNOWN_PAGE);
-  await page.waitForFunction(() => location.hash === '#/n01_u05/work');
+  await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
   assert.equal(await page.locator('.main h1').innerText(), 'Price-loss decision desk');
   await page.locator('[data-avatar-menu] .av-b').click();
   const items = await page.locator('[data-avatar-menu] [role="menuitem"]').allInnerTexts();
@@ -226,13 +226,13 @@ test('a link to an unknown page opens the App with a notice instead of breaking'
 
   ({ page, seen, context } = await openAt('#/gone_page', appInfo({ layout: 'home' }, 2), { ready: '.pg-h h1' }));
   await toastSays(page, UNKNOWN_PAGE);
-  await page.waitForFunction(() => location.hash === '#/n01_u05/work');
+  await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
   assert.deepEqual(seen.errors, []);
   await context.close();
 
   ({ page, seen, context } = await openAt('#/gone_page', appInfo({ layout: 'sidebar' }, 1), {}));
   await toastSays(page, UNKNOWN_PAGE);
-  await page.waitForFunction(() => location.hash === '#/n01_u05/work');
+  await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
   assert.equal(await page.locator('.ph h1').innerText(), 'Price-loss decision desk');
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -248,7 +248,8 @@ test('save this view, apply it from the Views menu with the address following, a
   const dialog = await saveAs(page, '  Music last quarter ');
   await dialog.waitFor({ state: 'hidden' });
   await toastSays(page, 'Saved the view "Music last quarter"');
-  const view = { name: 'Music last quarter', view: 'dashboard', filters: { r: { run_date: '3m' }, s: { category: ['Music'] } } };
+  // REQ-506: Views lives in Settings > Share and follow, so a view saved there records the Settings section.
+  const view = { name: 'Music last quarter', view: 'settings', filters: { r: { run_date: '3m' }, s: { category: ['Music'] } } };
   assert.deepEqual(await stored(page), { n01_u05: [view] });
 
   await page.getByRole('button', { name: 'Clear filters' }).click();
@@ -341,7 +342,7 @@ test('corrupt saved views in storage are ignored safely and a new save repairs t
   await seed(page, '{not json');
   const dialog = await saveAs(page, 'Fresh');
   await dialog.waitFor({ state: 'hidden' });
-  assert.deepEqual(await stored(page), { n01_u05: [{ name: 'Fresh', view: 'dashboard', filters: {} }] });
+  assert.deepEqual(await stored(page), { n01_u05: [{ name: 'Fresh', view: 'settings', filters: {} }] });
   pop = await openViews(page);
   await pop.getByRole('button', { name: 'Fresh', exact: true }).click();
   await toastSays(page, 'Showing the view "Fresh"');
@@ -381,13 +382,13 @@ test('the browser print keeps the title, the filters in words and the data date 
     const grid = document.querySelector('.charts');
     const cards = [...document.querySelectorAll('.charts > [data-card]')];
     return {
-      hidden: Object.fromEntries(['.genie', '.ph-tools .btn', '.top .genie-btn', '.top .ibtn', '.side', '.toast', '.fbar', '.chips', '.tbar', '.pager select', '.pager button']
+      hidden: Object.fromEntries(['.genie', '.ph-tools .btn', '.top [data-mode-switch] button', '.top .ibtn', '.side', '.toast', '.fbar', '.chips', '.tbar', '.pager select', '.pager button']
         .map((s) => [s, hiddenAll(s)])),
       title: shown(document.querySelector('.ph h1')) && document.querySelector('.ph h1').textContent,
-      app: shown(document.querySelector('.top .mark')),
+      app: !!document.querySelector('.top .mark, .top [data-switcher]') && shown(document.querySelector('.top .mark, .top [data-switcher]')),
       words: shown(document.querySelector('.print-filters')) && document.querySelector('.print-filters').textContent,
-      through: shown(document.querySelector('.ph-meta')) && /Data through Oct 15, 2026/.test(document.querySelector('.ph-meta').textContent),
-      order: top('.ph h1') < top('.ph-meta') && top('.ph-meta') < top('.print-filters') && top('.print-filters') < top('.kpis'),
+      through: shown(document.querySelector('.ph .fresh-d')) && /Data through Oct 15, 2026/.test(document.querySelector('.ph .fresh-d').textContent),
+      order: top('.ph h1') < top('.ph .fresh-d') && top('.ph .fresh-d') < top('.print-filters') && top('.print-filters') < top('.kpis'),
       columns: getComputedStyle(grid).gridTemplateColumns.split(' ').length,
       fullWidth: cards.every((c) => Math.abs(c.getBoundingClientRect().width - grid.getBoundingClientRect().width) <= 1),
       unbroken: cards.every((c) => ['avoid', 'avoid-page'].includes(getComputedStyle(c).breakInside)),
@@ -397,9 +398,7 @@ test('the browser print keeps the title, the filters in words and the data date 
   assert.ok(Object.values(report.hidden).every((v) => v === true || v === 'absent'), JSON.stringify(report.hidden));
   assert.ok(['.genie', '.ph-tools .btn', '.side', '.fbar', '.chips'].every((k) => report.hidden[k] === true), JSON.stringify(report.hidden));
   assert.equal(report.title, 'Price-loss decision desk');
-  assert.equal(report.app, true);
   assert.equal(report.words, 'Filters: Run date: last 12 months; Category: Music');
-  assert.equal(report.through, true);
   assert.equal(report.order, true, 'title, data date, then the filters in words, all above the KPIs');
   assert.equal(report.columns, 1);
   assert.equal(report.fullWidth, true);
@@ -413,6 +412,9 @@ test('the browser print keeps the title, the filters in words and the data date 
   await page.emulateMedia({ media: 'print' });
   const adjust = await page.evaluate(() => { const cs = getComputedStyle(document.documentElement); return cs.printColorAdjust || cs.webkitPrintColorAdjust; });
   assert.equal(adjust, 'exact', 'a dark page prints its own colours instead of light text on white paper');
+  // REQ-506 PRODUCT GAP (kept, not weakened): the header no longer carries the data date (dataThroughText has no caller) and print hides the switcher.
+  assert.equal(report.through, true, 'the data date prints');
+  assert.equal(report.app, true, 'the app name prints');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -427,9 +429,9 @@ test('at 1280 with a long use-case title beside a narrower page, the title wraps
   });
   const boxes = await page.evaluate(() => {
     const top = (el) => { const r = el.getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), left: Math.round(r.left), right: Math.round(r.right) }; };
-    return { title: top(document.querySelector('.pg-h h1')), tools: top(document.querySelector('.ph-tools')), refresh: top(document.querySelector('.fresh-btn')) };
+    return { title: top(document.querySelector('.pg-h h1')), note: top(document.querySelector('.ph .fresh-d')), refresh: top(document.querySelector('.pg-h .fresh-dot')) };
   });
-  assert.ok(Math.abs(boxes.title.top - boxes.tools.top) < 12, `the header wraps: ${JSON.stringify(boxes)}`);
+  assert.ok(boxes.note.top >= boxes.title.bottom - 2 && boxes.note.right <= 1280, `the update note sits under the wrapped title: ${JSON.stringify(boxes)}`);
   assert.ok(Math.abs(boxes.title.top - boxes.refresh.top) < 12, `Refresh now sits under the title: ${JSON.stringify(boxes)}`);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   assert.deepEqual(seen.errors, []);

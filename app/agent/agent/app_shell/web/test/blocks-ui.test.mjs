@@ -148,7 +148,7 @@ test('a style sheet in an html block styles only its own block', async () => {
     getComputedStyle(document.querySelector('.kpi-v')).color]);
   assert.equal(inside, 'rgb(9, 99, 199)');
   assert.notEqual(kpi, 'rgb(9, 99, 199)');
-  const [box, block] = await page.evaluate(() => ['.main', '[data-block="card"]'].map((s) => document.querySelector(s).getBoundingClientRect())
+  const [box, block] = await page.evaluate(() => ['.page', '[data-block="card"]'].map((s) => document.querySelector(s).getBoundingClientRect())
     .map((r) => ({ right: r.right, width: r.width })));
   assert.ok(Math.abs(block.right - box.right) < 40 && block.width < box.width * 0.6, 'a half block aligned right sits on the right');
   await context.close();
