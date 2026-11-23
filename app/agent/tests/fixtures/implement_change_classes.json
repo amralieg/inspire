@@ -8223,7 +8223,7 @@
           "app_name": "churn-desk"
         }
       },
-      "error": "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal)"
+      "error": "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself)"
     },
     {
       "name": "unknown App palette",
@@ -8294,7 +8294,7 @@
           "app_access": "everyone"
         }
       },
-      "error": "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal), not 'everyone'"
+      "error": "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself), not 'everyone'"
     },
     {
       "name": "App look setting that does not exist",

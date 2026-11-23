@@ -6405,7 +6405,7 @@
         ]
       ],
       "errors": [
-        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal), not true"
+        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself), not true"
       ],
       "changes": [
         [
@@ -6430,7 +6430,7 @@
         ]
       ],
       "errors": [
-        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal)"
+        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself)"
       ],
       "changes": [
         [
@@ -6455,7 +6455,7 @@
         ]
       ],
       "errors": [
-        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal), not 'it's'"
+        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself), not 'it's'"
       ],
       "changes": [
         [
@@ -6480,7 +6480,7 @@
         ]
       ],
       "errors": [
-        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal), not 'x\"y'"
+        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself), not 'x\"y'"
       ],
       "changes": [
         [
@@ -6505,7 +6505,7 @@
         ]
       ],
       "errors": [
-        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal), not 'constructor'"
+        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself), not 'constructor'"
       ],
       "changes": [
         [
@@ -6530,7 +6530,7 @@
         ]
       ],
       "errors": [
-        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal), not '__proto__'"
+        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself), not '__proto__'"
       ],
       "changes": [
         [
@@ -6555,7 +6555,7 @@
         ]
       ],
       "errors": [
-        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal), not 'toString'"
+        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself), not 'toString'"
       ],
       "changes": [
         [
@@ -6580,7 +6580,7 @@
         ]
       ],
       "errors": [
-        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal), not '﻿x﻿'"
+        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself), not '﻿x﻿'"
       ],
       "changes": [
         [
@@ -6605,7 +6605,7 @@
         ]
       ],
       "errors": [
-        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal), not '\u001cx\u001d'"
+        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself), not '\u001cx\u001d'"
       ],
       "changes": [
         [
@@ -6630,7 +6630,7 @@
         ]
       ],
       "errors": [
-        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal), not 'x'"
+        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself), not 'x'"
       ],
       "changes": [
         [
@@ -6655,7 +6655,7 @@
         ]
       ],
       "errors": [
-        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal), not '​x'"
+        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself), not '​x'"
       ],
       "changes": [
         [
@@ -6680,7 +6680,7 @@
         ]
       ],
       "errors": [
-        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal), not 'x\n'"
+        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself), not 'x\n'"
       ],
       "changes": [
         [
@@ -6720,7 +6720,7 @@
         ]
       ],
       "errors": [
-        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal), not '٣'"
+        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself), not '٣'"
       ],
       "changes": [
         [
@@ -6745,7 +6745,7 @@
         ]
       ],
       "errors": [
-        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal), not '１'"
+        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself), not '１'"
       ],
       "changes": [
         [
@@ -6770,7 +6770,7 @@
         ]
       ],
       "errors": [
-        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal), not '😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀'"
+        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself), not '😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀'"
       ],
       "changes": [
         [
@@ -6795,7 +6795,7 @@
         ]
       ],
       "errors": [
-        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal), not 'éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé'"
+        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself), not 'éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé'"
       ],
       "changes": [
         [
@@ -13484,7 +13484,7 @@
         ]
       ],
       "errors": [
-        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal), not 'admin'"
+        "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data, read as the App itself), not 'admin'"
       ],
       "changes": [
         [
