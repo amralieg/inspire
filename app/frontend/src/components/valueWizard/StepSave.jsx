@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { ATTRIBUTION } from '../../lib/valueDrivers.js';
-import { DRIVER_ICONS, moneyText, partOf, totalText } from '../../lib/valueWizard.js';
-import ValueDisclaimer from '../ValueDisclaimer.jsx';
+import { AlertTriangle } from 'lucide-react';
+import { DRIVER_ICONS, driversOn, figureText, moneyText, partOf, totalText } from '../../lib/valueWizard.js';
+import { VALUE_DISCLAIMER } from '../../lib/valueLabels';
 import Ask, { Controls } from './Ask.jsx';
 import FormulaLine from './FormulaLine.jsx';
 
 const CREDIT = { id: ATTRIBUTION.id, label: ATTRIBUTION.label, kind: 'pct', default: ATTRIBUTION.default };
 
 // REQ-437, step 5: the total on top, five tiles side by side, one editor under them, then the credit. REQ-473: value is over all records, no groups.
-export default function StepSave({ plan, answers, yearly, calculated, onToggleDriver, onInput, onCredit, status, children }) {
+export default function StepSave({ plan, answers, yearly, calculated, onToggleDriver, onInput, onCredit, status, accepted = false, onAccept, children }) {
   const [open, setOpen] = useState(null);
   const unit = yearly?.total?.unit;
   const opened = plan.drivers.find((d) => d.id === open);
@@ -55,7 +56,31 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
           <Controls ask={CREDIT} value={answers.attribution_pct} onChange={onCredit} currency={answers.currency} />
         </div>
       </div>
-      <ValueDisclaimer />
+      <div data-accept-summary="" className="rounded-lg border border-border px-3 py-2 text-[12px] text-text-primary">
+        <p className="mb-1 text-[13px] font-semibold">Every number in this value</p>
+        <ul className="space-y-1">
+          {driversOn(plan, answers).map((d) => {
+            const part = partOf(yearly, d.id);
+            return (
+              <li key={d.id}>
+                <span className="font-semibold">{d.label}</span>: {part ? `${moneyText(unit, part.amount)} a year` : '...'}
+                {(part?.inputs || []).length > 0 && <span className="text-text-secondary"> ({part.inputs.map((i) => `${i.label} ${figureText(i.kind, i.value, answers.currency || yearly?.currency)}`).join('; ')})</span>}
+              </li>
+            );
+          })}
+        </ul>
+        <p className="mt-1">Credit given to this use case: <span className="font-semibold">{Number(answers.attribution_pct ?? 100)}%</span></p>
+        {yearly?.confidence != null && yearly.confidence !== '' && <p>Confidence: <span className="font-semibold">{String(yearly.confidence)}</span></p>}
+        <p className="mt-1 font-semibold">{yearly?.verb || 'Value'} per year: {totalText(yearly) || '...'} {calculated ? '(calculated)' : '(estimated)'}</p>
+      </div>
+      <div data-accept-terms="" className="rounded-lg border-2 border-warning bg-warning-bg px-3 py-2">
+        <p className="flex items-center gap-1.5 text-[13px] font-semibold text-warning-fg"><AlertTriangle aria-label="Warning" role="img" size={16} className="shrink-0" />Terms and conditions</p>
+        <p data-value-disclaimer="" role="note" className="mt-1 text-[13px] leading-snug text-text-primary">{VALUE_DISCLAIMER}</p>
+        <label className="mt-2 flex cursor-pointer items-center gap-2 text-[13px] font-semibold text-text-primary">
+          <input type="checkbox" checked={accepted} onChange={(e) => onAccept?.(e.target.checked)} className="h-4 w-4" />
+          I have read and accept these terms
+        </label>
+      </div>
       {children}
     </div>
   );

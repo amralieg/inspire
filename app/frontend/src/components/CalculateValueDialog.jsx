@@ -28,6 +28,8 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
   // A link that opens the measure settings (measure.open) lands on Your data, where that section sits; every other opening starts on Kinds of value.
   const [pageIdx, setPageIdx] = useState(measure?.open ? 1 : 0);
   const [savedKey, setSavedKey] = useState('');
+  // REQ-496: the accept tick is for the numbers on screen; it starts off with every opening and is lost when a number changes.
+  const [acceptedKey, setAcceptedKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [history, setHistory] = useState([]);
@@ -65,6 +67,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
   const pages = useMemo(() => (plan && answers ? ['kinds', 'data', ...driversOn(plan, answers).map((d) => `driver:${d.id}`), 'save'] : ['kinds']), [plan, answers]);
   const page = pages[Math.min(pageIdx, pages.length - 1)];
   const calculated = Boolean(answers) && savedKey === answersKey(answers);
+  const accepted = Boolean(answers) && acceptedKey === JSON.stringify(answers);
 
   const edit = (fn) => { setError(''); setAnswers((a) => fn(a)); };
   const setInput = (id, ask, v) => edit((a) => ({ ...a, drivers: { ...a.drivers, [id]: { ...a.drivers[id], inputs: { ...a.drivers[id].inputs, [ask]: v } } } }));
@@ -130,7 +133,8 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
           <p role="note" data-value-range-note="" className="rounded-md border border-warning/40 bg-warning-bg px-3 py-1.5 text-[12px] text-warning-fg">{rangeNote(yearly.total.unit, yearly.total.amount)}</p>
         )}
         {last && (
-          <StepSave plan={plan} answers={answers} yearly={yearly} calculated={calculated} onToggleDriver={toggleDriver} onInput={setInput} onCredit={setCredit} status={preview.status}>
+          <StepSave plan={plan} answers={answers} yearly={yearly} calculated={calculated} onToggleDriver={toggleDriver} onInput={setInput} onCredit={setCredit} status={preview.status}
+            accepted={accepted} onAccept={(on) => setAcceptedKey(on ? JSON.stringify(answers) : '')}>
             {preview.status === 'error' && <PlainMessage text={preview.error} role="status" dir="auto" className="text-[12px] text-error-fg" />}
             <ValueHistory history={history} busy={busy} onUndo={undo} />
           </StepSave>
@@ -149,7 +153,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, inspireDa
           {last ? (
             <>
               <button type="button" onClick={onClose} className={btn}>Close</button>
-              <button type="button" disabled={busy || preview.status !== 'ready'} onClick={() => save(true)} className={primary}>Save</button>
+              <button type="button" data-save-button="" disabled={busy || preview.status !== 'ready' || !accepted} onClick={() => accepted && save(true)} className={primary}>{accepted ? 'Accept and save' : 'Tick the box to accept and save'}</button>
             </>
           ) : (
             <>
