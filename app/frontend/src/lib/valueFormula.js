@@ -27,11 +27,11 @@ const valueOf = (ask, typed, part) => {
   return v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v);
 };
 
-// { text, longer }: text is the line before "="; longer is true when hours today are below hours with the use case.
-export function formulaOf(driver, inputs, part, currency) {
+// { parts, longer }: one phrase per factor (null while a number is missing); longer is true when hours today are below hours with the use case.
+export function factorsOf(driver, inputs, part, currency) {
   const nums = Object.fromEntries((driver?.asks || []).map((a) => [a.id, valueOf(a, inputs, part)]));
   if (driver?.id === 'time_saved' && nums.hours_saved === undefined && nums.hours_before !== undefined && nums.hours_after !== undefined) {
-    if (nums.hours_before !== null && nums.hours_after !== null && nums.hours_after > nums.hours_before) return { text: TAKES_LONGER, longer: true };
+    if (nums.hours_before !== null && nums.hours_after !== null && nums.hours_after > nums.hours_before) return { parts: [], longer: true };
     nums.hours_saved = nums.hours_before === null || nums.hours_after === null ? null : nums.hours_before - nums.hours_after;
   }
   const parts = [];
@@ -43,5 +43,12 @@ export function formulaOf(driver, inputs, part, currency) {
     const at = (driver.asks || []).findIndex((a) => a.id === 'hours_before');
     parts.splice(Math.max(0, at), 0, nums.hours_saved === null ? null : PHRASES.hours_saved(nums.hours_saved));
   }
-  return parts.includes(null) ? { text: '', longer: false } : { text: parts.join(' × '), longer: false };
+  return { parts, longer: false };
+}
+
+// { text, longer }: text is the line before "="; empty while any number is missing.
+export function formulaOf(driver, inputs, part, currency) {
+  const { parts, longer } = factorsOf(driver, inputs, part, currency);
+  if (longer) return { text: TAKES_LONGER, longer: true };
+  return { text: parts.includes(null) ? '' : parts.join(' × '), longer: false };
 }
