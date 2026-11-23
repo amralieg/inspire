@@ -27,7 +27,7 @@ function checked(ask) {
   if (!source) throw refusal('That source is not one Inspire reads. Pick one from the list.');
   if (!source.host) throw refusal('Marketplace is not set up yet; an admin names its table first.');
   if (typeof a.indicator !== 'string' || !INDICATOR_RE.test(a.indicator)) throw refusal('That indicator is not valid. Use the code the source gives, such as NE.CON.PRVT.KD.ZG.');
-  if (typeof a.country !== 'string' || !COUNTRY_RE.test(a.country)) throw refusal('That country is not valid. Use its 2 or 3 letter code, such as DE or ARE.');
+  if (typeof a.country !== 'string' || !COUNTRY_RE.test(a.country)) throw refusal('That country is not valid. Use its 2 or 3 letter code, such as DE or USA.');
   return { source, indicator: a.indicator, country: a.country };
 }
 
