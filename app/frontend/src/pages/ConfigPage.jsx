@@ -131,7 +131,7 @@ export default function ConfigPage({ settings, update, onConfigured }) {
   const step3Done = step2Done && Boolean(notebookPath);
 
   return (
-    <div className="mx-auto w-full max-w-[var(--w-page)]">
+    <div className="w-full px-6">
       {/* Page header */}
       <PageHeader className="mb-8" icon={Settings} title="Configure"
         subtitle="Connect to your Databricks workspace and set up the Inspire AI notebook." />

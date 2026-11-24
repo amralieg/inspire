@@ -299,7 +299,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   if (loading) {
     return (
       <div className="min-h-[calc(100vh-64px)] flex items-start justify-center pt-12 pb-16 px-6">
-        <div className="max-w-3xl w-full space-y-6">
+        <div className="w-full space-y-6">
           <div className="text-center space-y-3">
             <div className="skeleton w-40 h-5 mx-auto rounded-full" />
             <div className="skeleton w-64 h-9 mx-auto rounded-lg" />
@@ -317,9 +317,9 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   if (sessions.length === 0 && !error) {
     return (
       <div className="min-h-[calc(100vh-64px)] flex items-start justify-center pt-12 pb-16 px-6">
-        <div className="max-w-[var(--w-page)] w-full space-y-6">
+        <div className="w-full space-y-6">
           <PageHeader icon={Rocket} title="Get started with Inspire AI" subtitle="No runs yet. Start your first run to see your use cases here." />
-          <div className="mx-auto w-full max-w-3xl space-y-6">
+          <div className="w-full space-y-6">
             <p className="text-sm text-text-secondary">
               Start from your own Unity Catalog data, or let Inspire make sample data for you.
             </p>
@@ -345,7 +345,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
       <div className="absolute top-[-15%] start-[-5%] w-[40%] h-[40%] rounded-full bg-db-red/[0.03] blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] end-[-5%] w-[35%] h-[35%] rounded-full bg-db-red/[0.02] blur-[100px] pointer-events-none" />
 
-      <div className="relative z-10 max-w-[var(--w-page)] w-full space-y-8">
+      <div className="relative z-10 w-full space-y-8">
 
         {/* ── Header ── */}
         <div className="space-y-3">
@@ -358,9 +358,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
           </div>}
         </div>
 
-        <div className="mx-auto w-full max-w-3xl">
-          <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
-        </div>
+        <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
 
         {allTotals?.all && <AllRunsValuePanel reply={allTotals} />}
         {inspireDatabase && warehouseId && (

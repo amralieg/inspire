@@ -18,12 +18,12 @@ const PAGES = [
 ];
 
 for (const [name, open, opts] of PAGES) {
-  test(`${name}: one page header (text-h1, no gradient, the shared icon tile) and the 1200px page width`, async () => {
+  test(`${name}: one page header (text-h1, no gradient, the shared icon tile) and the full page width (REQ-512)`, async () => {
     const ui = await openUi(open);
     const { page } = ui;
     try {
       await page.setViewportSize({ width: 1440, height: 900 });
-      assertHeader(assert, await headerFacts(page), { name, ...opts });
+      assertHeader(assert, await headerFacts(page), { name, width: null, ...opts });
       assert.deepEqual(ui.pageErrors, []);
     } finally {
       await ui.close();
@@ -36,12 +36,12 @@ const inApp = (app) => {
   app.get('/api/health', (_req, res) => res.json({ status: 'ok', isDatabricksApp: true }));
 };
 
-test('Setup: the narrow 720px header, and inside a Databricks App the wizard counts 4 steps with no Authenticate step', async () => {
+test('Setup: the header at full width (REQ-512), and inside a Databricks App the wizard counts 4 steps with no Authenticate step', async () => {
   const ui = await openUi('setup', {}, '', { mount: inApp });
   const { page } = ui;
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
-    assertHeader(assert, await headerFacts(page), { name: 'Setup', width: '720px', icon: false });
+    assertHeader(assert, await headerFacts(page), { name: 'Setup', width: null, icon: false });
     await page.getByText(/^Step 1 of \d$/).waitFor({ timeout: 15000 });
     assert.equal(await page.getByText(/^Step 1 of \d$/).innerText(), 'Step 1 of 4', 'the token comes from the App, so Authenticate is not a step');
     assert.equal(await page.getByRole('button', { name: /Authenticate/ }).count(), 0, 'no Authenticate step in the indicator');

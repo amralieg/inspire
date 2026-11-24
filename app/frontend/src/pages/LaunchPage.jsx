@@ -1144,7 +1144,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
   return (
     <>
-    <div className="max-w-[var(--w-page)] mx-auto px-6 py-8">
+    <div className="w-full px-6 py-8">
       {/* Page Header */}
       <div className="mb-8">
         <PageHeader className="mb-2" icon={Rocket}
