@@ -61,7 +61,6 @@ inspire_args = {
     "06_business_domains": "",
     "07_business_priorities": "Increase Revenue",
     "08_generation_instructions": f"Demo data pipeline. {user_description[:500]}",
-    "09_generation_options": "PDF Catalog",
     "11_generation_path": "./../demos/",
     "12_documents_languages": "English",
     "13_generate_genie_code_for": "0",

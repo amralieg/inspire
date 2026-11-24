@@ -288,7 +288,7 @@ test('a new App that could not get access is disabled up front with the reason, 
     assert.equal(await blocked.locator('p').textContent(), 'Needs access Inspire does not have on the catalog, the schema and the SQL warehouse.', 'one short plain line says why, naming the place');
     await blocked.getByText('Details', { exact: true }).click();
     const reason = await blocked.locator('[data-technical-details] pre').textContent();
-    assert.ok(reason.includes(`a new App could not read the result table: its service principal needs these accesses`), reason);
+    assert.ok(reason.includes(`a new App could not read the result table: it needs access on the catalog and on the schema that Inspire cannot give it`), reason);
     assert.ok(reason.includes('Inspire cannot manage'), reason);
     assert.equal(await page.locator('[data-output="app"] [data-recommended]').count(), 0, 'the blocked App carries no badge');
     assert.equal(await page.getByRole('checkbox', { name: /^Genie Agent/ }).isDisabled(), false);
