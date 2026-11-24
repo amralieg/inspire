@@ -2310,7 +2310,7 @@ export default function ResultsPage({
           values={docValuesOf({ byId: calculated.byId, totals: valueTotals })}
           businessName={runBusiness(selectedSession)} language={docLanguageOf(selectedSession)} folder={generationPath}
           apiPostJson={apiPostJson} inspireDatabase={inspireDb} warehouseId={warehouseId} sessionId={selectedSessionId}
-          onSaved={() => loadArtifacts(generationPath)}
+          onSaved={() => { loadArtifacts(generationPath); refreshUsecasesForSession(selectedSessionId); }}
           onGoToAssets={() => { setDocsUcs(null); showView('assets'); }}
           onClose={() => setDocsUcs(null)} />
       )}

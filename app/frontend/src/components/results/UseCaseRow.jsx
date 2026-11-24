@@ -74,7 +74,7 @@ export default function UseCaseRow({
           </div>
         )}
         {subtitle && <p dir="auto" title={subtitle} className="truncate text-[13px] leading-[18px] text-text-secondary">{subtitle}</p>}
-        <div className="mt-1 flex max-h-[22px] flex-wrap gap-1.5 overflow-hidden">
+        <div className="mt-1 flex max-h-[22px] min-w-0 flex-wrap gap-1.5 overflow-hidden [&>*]:max-w-full [&>*]:truncate">
           {v130?.bestOfBest && (
             <span className={`${CHIP} border-warning/35 bg-warning-bg uppercase tracking-wide text-warning-fg`} title={bestOfBestLabel(v130.bestOfBest)}>
               <Star size={11} className="fill-current" />Best of Best{v130.bestOfBest.rank ? ` #${v130.bestOfBest.rank}` : ''}
