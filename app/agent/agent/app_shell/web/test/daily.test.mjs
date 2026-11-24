@@ -365,8 +365,9 @@ test('the browser print keeps the title, the filters in words and the data date 
   const { page, seen, context } = await openAt(`#/n01_u05/dashboard?f=${f}`, appInfo({ layout: 'sidebar' }, 2));
   await toastSays(page, LINK_STALE);
   await page.waitForFunction(chartsDrawn, 4);
-  await openGenieMode(page);
-  await page.locator('.genie').waitFor();
+  await openGenieMode(page); // REQ-506: Genie fills the page, so the screen comes back before printing
+  await page.locator('[data-mode="screen"]').click();
+  await page.locator('.print-filters').waitFor({ state: 'attached' });
   assert.equal(await page.locator('.print-filters').isVisible(), false, 'the filters in words are for paper only');
   assert.equal(await page.getByRole('button', { name: 'Print' }).count(), 0, 'printing is the browser\'s own command');
 
@@ -382,11 +383,11 @@ test('the browser print keeps the title, the filters in words and the data date 
     return {
       hidden: Object.fromEntries(['.genie', '.ph-tools .btn', '.top [data-mode-switch] button', '.top .ibtn', '.side', '.toast', '.fbar', '.chips', '.tbar', '.pager select', '.pager button']
         .map((s) => [s, hiddenAll(s)])),
-      title: shown(document.querySelector('.ph h1')) && document.querySelector('.ph h1').textContent,
+      title: shown(document.querySelector('.pg-h h1')) && document.querySelector('.pg-h h1').textContent,
       app: !!document.querySelector('.top .mark, .top [data-switcher]') && shown(document.querySelector('.top .mark, .top [data-switcher]')),
       words: shown(document.querySelector('.print-filters')) && document.querySelector('.print-filters').textContent,
-      through: shown(document.querySelector('.ph .fresh-d')) && /Data through Oct 15, 2026/.test(document.querySelector('.ph .fresh-d').textContent),
-      order: top('.ph h1') < top('.ph .fresh-d') && top('.ph .fresh-d') < top('.print-filters') && top('.print-filters') < top('.kpis'),
+      through: !!document.querySelector('.ph .fresh-d') && shown(document.querySelector('.ph .fresh-d')) && /Data through Oct 15, 2026/.test(document.querySelector('.ph .fresh-d').textContent),
+      order: top('.pg-h h1') < top('.print-filters') && top('.print-filters') < top('.kpis') && (!document.querySelector('.ph .fresh-d') || (top('.pg-h h1') < top('.ph .fresh-d') && top('.ph .fresh-d') < top('.print-filters'))),
       columns: getComputedStyle(grid).gridTemplateColumns.split(' ').length,
       fullWidth: cards.every((c) => Math.abs(c.getBoundingClientRect().width - grid.getBoundingClientRect().width) <= 1),
       unbroken: cards.every((c) => ['avoid', 'avoid-page'].includes(getComputedStyle(c).breakInside)),
@@ -394,7 +395,8 @@ test('the browser print keeps the title, the filters in words and the data date 
     };
   });
   assert.ok(Object.values(report.hidden).every((v) => v === true || v === 'absent'), JSON.stringify(report.hidden));
-  assert.ok(['.genie', '.ph-tools .btn', '.side', '.fbar', '.chips'].every((k) => report.hidden[k] === true), JSON.stringify(report.hidden));
+  assert.ok(['.ph-tools .btn', '.fbar', '.chips'].every((k) => report.hidden[k] === true), JSON.stringify(report.hidden));
+  assert.ok(['.genie', '.side'].every((k) => report.hidden[k] === true || report.hidden[k] === 'absent'), 'no Genie panel and no side rail on paper');
   assert.equal(report.title, 'Price-loss decision desk');
   assert.equal(report.words, 'Filters: Run date: last 12 months; Category: Music');
   assert.equal(report.order, true, 'title, data date, then the filters in words, all above the KPIs');
@@ -430,7 +432,8 @@ test('at 1280 with a long use-case title beside a narrower page, the title wraps
     return { title: top(document.querySelector('.pg-h h1')), note: top(document.querySelector('.ph .fresh-d')), refresh: top(document.querySelector('.pg-h .fresh-dot')) };
   });
   assert.ok(boxes.note.top >= boxes.title.bottom - 2 && boxes.note.right <= 1280, `the update note sits under the wrapped title: ${JSON.stringify(boxes)}`);
-  assert.ok(Math.abs(boxes.title.top - boxes.refresh.top) < 12, `Refresh now sits under the title: ${JSON.stringify(boxes)}`);
+  // REQ-506: the dot sits beside the wrapped title, centred on its lines, instead of on the first line
+  assert.ok(boxes.refresh.top >= boxes.title.top && boxes.refresh.bottom <= boxes.title.bottom, `Refresh now sits on the title's lines: ${JSON.stringify(boxes)}`);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   assert.deepEqual(seen.errors, []);
   await context.close();
