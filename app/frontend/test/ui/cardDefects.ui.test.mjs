@@ -101,10 +101,10 @@ test('D26: after Save no grey overlay stays on the card, focus is in the card, a
     await page.setViewportSize({ width: 1280, height: 500 });
     const dialog = await openCalc(page, 'Predict churn');
     const before = await rect(cardOf(page, 'Predict churn'));
+    // REQ-507: goTo 'save' ticks the terms and approves (the one PUT); the Save page then closes with Close.
     await goTo(dialog, 'save');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-    await dialog.getByLabel('I have read and accept these terms').check();
-    await dialog.getByRole('button', { name: 'Accept and save', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Close', exact: true }).filter({ hasText: 'Close' }).click();
     await dialog.waitFor({ state: 'detached' });
     await cardOf(page, 'Predict churn').locator('[data-value-yearly]').waitFor({ timeout: 15000 });
     await page.mouse.move(2, 2);
@@ -203,10 +203,9 @@ test('D24: once a value is saved the card shows the box and not the old estimate
   const { page } = ui;
   try {
     const dialog = await openCalc(page, 'Predict churn');
+    // REQ-507: goTo 'save' ticks the terms and approves (the one PUT).
     await goTo(dialog, 'save');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-    await dialog.getByLabel('I have read and accept these terms').check();
-    await dialog.getByRole('button', { name: 'Accept and save', exact: true }).click();
     const card = cardOf(page, 'Predict churn');
     await card.locator('[data-value-yearly]').waitFor({ timeout: 15000 });
     assert.equal(await card.locator('[data-value-estimate]').count(), 0, 'no estimate line beside the saved value');
