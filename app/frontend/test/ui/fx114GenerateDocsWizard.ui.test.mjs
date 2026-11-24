@@ -42,7 +42,7 @@ function backend({ failName = null } = {}) {
 async function openResults(mount, viewport = { width: 1440, height: 900 }) {
   const ui = await openUi('results', { ...REVIEW_STATE, sessions: SESSIONS, results: REVIEW_RESULTS }, '', { mount });
   await ui.page.setViewportSize(viewport);
-  await ui.page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]').first().waitFor();
+  await ui.page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]').first().waitFor();
   return ui;
 }
 const pick = async (page, names) => { for (const n of names) await page.getByRole('checkbox', { name: `Select ${n}`, exact: true }).check(); };
@@ -71,11 +71,11 @@ test('W1: Generate docs shows beside "Calculate value for N" only while one or m
   const { page } = ui;
   try {
     const bar = page.locator('[data-value-bulk-bar]');
-    await bar.waitFor();
     assert.equal(await genButton(page).count(), 0, 'hidden with none selected');
     await pick(page, ['Predict churn']);
+    await bar.waitFor();
     await genButton(page).waitFor();
-    assert.match((await genButton(page).innerText()).trim(), /^✦\s*Generate docs/);
+    assert.match((await genButton(page).innerText()).trim(), /^Generate docs for 1$/);
     assert.equal(await bar.getByRole('button', { name: 'Calculate value for 1', exact: true }).count(), 1, 'Calculate value stays');
     await page.getByRole('checkbox', { name: 'Select Predict churn', exact: true }).uncheck();
     await poll(async () => (await genButton(page).count()) === 0, 'Generate docs hidden again');

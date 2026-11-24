@@ -23,21 +23,21 @@ test('F1: the Value filter shows Calculated, Not calculated or All, and the acti
   const { page } = ui;
   try {
     const list = page.getByRole('region', { name: 'Use case list' });
-    await list.locator('[aria-expanded]').first().waitFor();
+    await list.locator('[data-use-case-row]').first().waitFor();
     await list.locator('[data-value-yearly]').first().waitFor({ timeout: 15000 });
-    const total = await list.locator('[aria-expanded]').count();
+    const total = await list.locator('[data-use-case-row]').count();
     assert.ok(total >= 3);
     const filter = page.getByRole('combobox', { name: 'Value' });
     await filter.selectOption('calculated');
-    assert.equal(await list.locator('[aria-expanded]').count(), 1);
+    assert.equal(await list.locator('[data-use-case-row]').count(), 1);
     await filter.selectOption('not_calculated');
-    assert.equal(await list.locator('[aria-expanded]').count(), total - 1);
+    assert.equal(await list.locator('[data-use-case-row]').count(), total - 1);
     await filter.selectOption('all');
-    assert.equal(await list.locator('[aria-expanded]').count(), total);
+    assert.equal(await list.locator('[data-use-case-row]').count(), total);
     await filter.selectOption('calculated');
     await page.getByRole('button', { name: 'Clear the Value filter' }).click();
     assert.equal(await filter.inputValue(), 'all');
-    assert.equal(await list.locator('[aria-expanded]').count(), total);
+    assert.equal(await list.locator('[data-use-case-row]').count(), total);
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
 });

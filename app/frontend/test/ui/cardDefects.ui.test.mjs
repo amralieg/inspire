@@ -40,8 +40,8 @@ for (const [name, width, dir, dark] of SETUPS) {
       await page.evaluate((d) => { document.documentElement.dir = d; }, dir);
       await setDark(page, dark);
       const list = page.getByRole('region', { name: 'Use case list' });
-      await list.locator('[aria-expanded]').first().waitFor();
-      const card = list.locator('[aria-expanded]').filter({ hasText: 'Predict churn' });
+      await list.locator('[data-use-case-row]').first().waitFor();
+      const card = list.locator('[data-use-case-row]').filter({ hasText: 'Predict churn' });
       const note = card.locator('[data-value-check]');
       await note.waitFor({ timeout: 15000 });
       await page.waitForTimeout(700);
@@ -69,7 +69,7 @@ const calcMount = (app) => {
   app.put('/api/inspire/value/answers', (req, res) => { PUTS.push(req.body); res.json({ version: 1, yearly: YEARLY(405556), disclaimer: '' }); });
   baseMount(app);
 };
-const cardOf = (page, name) => page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]').filter({ hasText: name });
+const cardOf = (page, name) => page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]').filter({ hasText: name });
 async function openCalc(page, name) {
   const card = cardOf(page, name);
   await card.first().waitFor();
@@ -80,15 +80,17 @@ async function openCalc(page, name) {
 }
 // What the person sees over a card once its dialog is gone: nothing fixed or absolute covers it, and its header is not shaded.
 const coverOf = (page, name) => page.evaluate((n) => {
-  const header = [...document.querySelectorAll('[aria-expanded]')].find((el) => el.textContent.includes(n));
-  const card = header.parentElement.parentElement;
+  const rows = [...document.querySelectorAll('[data-use-case-row]')];
+  const header = rows.find((el) => el.textContent.includes(n));
+  const card = header;
   const r = card.getBoundingClientRect();
   const covers = [];
   for (const [fx, fy] of [[0.5, 0.2], [0.5, 0.5], [0.5, 0.8], [0.3, 0.5], [0.7, 0.5]]) {
     const top = document.elementFromPoint(r.left + r.width * fx, r.top + r.height * fy);
     if (top && !card.contains(top)) covers.push(`${top.tagName}.${String(top.className).slice(0, 60)}`);
   }
-  return { covers, shade: getComputedStyle(header).backgroundColor, dialogs: document.querySelectorAll('[role="dialog"]').length };
+  const peer = rows.find((el) => el !== header && !el.hasAttribute('data-open'));
+  return { covers, shade: getComputedStyle(header).backgroundColor, peerShade: peer ? getComputedStyle(peer).backgroundColor : null, dialogs: document.querySelectorAll('[role="dialog"]').length };
 }, name);
 
 test('D26: after Save no grey overlay stays on the card, focus is in the card, and the list stays where it was', async () => {
@@ -98,9 +100,10 @@ test('D26: after Save no grey overlay stays on the card, focus is in the card, a
   try {
     await page.setViewportSize({ width: 1280, height: 500 });
     const dialog = await openCalc(page, 'Predict churn');
-    const before = await rect(cardOf(page, 'Predict churn').locator('xpath=../..'));
+    const before = await rect(cardOf(page, 'Predict churn'));
     await goTo(dialog, 'save');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
+    await dialog.getByLabel('I have read and accept these terms').check();
     await dialog.getByRole('button', { name: 'Accept and save', exact: true }).click();
     await dialog.waitFor({ state: 'detached' });
     await cardOf(page, 'Predict churn').locator('[data-value-yearly]').waitFor({ timeout: 15000 });
@@ -108,13 +111,13 @@ test('D26: after Save no grey overlay stays on the card, focus is in the card, a
     await page.waitForTimeout(800);
     const cover = await coverOf(page, 'Predict churn');
     assert.deepEqual(cover.covers, [], 'nothing outside the card is drawn over it');
-    assert.match(cover.shade, /rgba\(0, 0, 0, 0\)|transparent/, 'the card header carries no leftover grey');
+    assert.ok(/rgba\(0, 0, 0, 0\)|transparent/.test(cover.shade) || cover.shade === cover.peerShade, 'the row carries no leftover grey: it shows the same background as a row nothing touched');
     const inCard = await page.evaluate(() => {
       const a = document.activeElement;
-      return Boolean(a && a.closest('[data-use-case-no], [data-use-case-card]') || a?.closest('[aria-expanded]')?.parentElement);
+      return Boolean(a && a.closest('[data-use-case-no], [data-use-case-card]') || a?.closest('[data-use-case-row]'));
     });
     assert.ok(inCard, 'focus returned to the card that was opened');
-    const after = await rect(cardOf(page, 'Predict churn').locator('xpath=../..'));
+    const after = await rect(cardOf(page, 'Predict churn'));
     assert.ok(Math.abs(after.t - before.t) <= 60, `the card stays where it was (moved ${after.t - before.t} px)`);
   } finally { await ui.close(); }
 });
@@ -125,17 +128,17 @@ test('D26: closing the dialog with X leaves the list where it was and focus on t
   try {
     await page.setViewportSize({ width: 1280, height: 500 });
     await cardOf(page, 'Score upsell').first().waitFor();
-    await cardOf(page, 'Score upsell').locator('xpath=../..').scrollIntoViewIfNeeded();
+    await cardOf(page, 'Score upsell').scrollIntoViewIfNeeded();
     const dialog = await openCalc(page, 'Score upsell');
     const scrollBefore = await page.evaluate(() => [...document.querySelectorAll('*')].filter((e) => e.scrollTop > 0).map((e) => e.scrollTop));
-    const before = await rect(cardOf(page, 'Score upsell').locator('xpath=../..'));
+    const before = await rect(cardOf(page, 'Score upsell'));
     await dialog.getByRole('button', { name: 'Close', exact: true }).first().click();
     await dialog.waitFor({ state: 'detached' });
     await page.waitForTimeout(500);
-    const after = await rect(cardOf(page, 'Score upsell').locator('xpath=../..'));
+    const after = await rect(cardOf(page, 'Score upsell'));
     const scrollAfter = await page.evaluate(() => [...document.querySelectorAll('*')].filter((e) => e.scrollTop > 0).map((e) => e.scrollTop));
     assert.ok(Math.abs(after.t - before.t) <= 60, `the card stays where it was (moved ${after.t - before.t} px; scroll ${scrollBefore} -> ${scrollAfter})`);
-    const inCard = await page.evaluate(() => Boolean(document.activeElement?.closest('[aria-expanded]')));
+    const inCard = await page.evaluate(() => Boolean(document.activeElement?.closest('[data-use-case-row]')));
     assert.ok(inCard, 'focus is on the card that was opened');
     const cover = await coverOf(page, 'Score upsell');
     assert.deepEqual(cover.covers, []);
@@ -157,14 +160,19 @@ test('D35: at 390 a Build next title wraps whole, the value is one short line, a
     await page.locator('[data-run="42"]').waitFor({ timeout: 20000 });
     await page.waitForLoadState('networkidle');
     await page.evaluate(() => { window.location.hash = '#/review/42'; });
-    const row = page.locator('[data-build-next-row]').first();
+    // REQ-511 (D3): the Build next panel left Review, so its 390 px layout is asserted on the Review row that replaced it.
+    const row = page.locator('[data-use-case-row]').first();
     await row.waitFor({ timeout: 20000 });
-    const title = row.locator('p').first();
-    const value = row.locator('[data-value-estimate]').first();
-    const button = row.locator('[data-start-mvp]');
+    assert.equal(await page.locator('[data-build-next]').count(), 0, 'no Build next panel on Review');
+    assert.equal(await page.locator('[data-build-next-row]').count(), 0, 'no Build next rows on Review');
+    const title = row.locator('[data-row-name]');
+    const value = row.locator('[data-value-box]').first();
+    const button = row.getByRole('button', { name: /Build MVP|Open MVP|Rebuild MVP|Building/ });
     assert.equal(await title.evaluate((el) => el.scrollWidth <= el.clientWidth + 1 && getComputedStyle(el).textOverflow !== 'ellipsis'), true, 'the title is not cut with an ellipsis');
     const t = await rect(title); const v = await rect(value); const b = await rect(button);
-    assert.ok(v.h <= 20, `the value text is one line (${v.h} px high)`);
+    // The value is a fixed 6.25rem tile (not a text line), so "one short line" is asserted per text line inside it: none wraps (22px figure, 11px labels).
+    const lines = await value.evaluate((el) => [...el.querySelectorAll('span')].filter((x) => x.textContent.trim()).map((x) => x.getBoundingClientRect().height));
+    assert.ok(lines.length > 0 && lines.every((h) => h <= 26), `every line of the value box is one line (${lines} px high)`);
     assert.ok(t.w >= 200, `the button leaves the title room (${t.w} px wide)`);
     assert.equal(touches(t, b), false, 'the title and the button do not overlap');
     assert.ok(b.r <= 390 && v.r <= 390.5, 'nothing runs off the screen');
@@ -197,6 +205,7 @@ test('D24: once a value is saved the card shows the box and not the old estimate
     const dialog = await openCalc(page, 'Predict churn');
     await goTo(dialog, 'save');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
+    await dialog.getByLabel('I have read and accept these terms').check();
     await dialog.getByRole('button', { name: 'Accept and save', exact: true }).click();
     const card = cardOf(page, 'Predict churn');
     await card.locator('[data-value-yearly]').waitFor({ timeout: 15000 });

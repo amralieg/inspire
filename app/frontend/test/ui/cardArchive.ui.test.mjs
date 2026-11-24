@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, idle, openUi, until } from './uiSupport.mjs';
+import { openReader, closeReader } from './reviewRows.mjs';
 import { REVIEW_STATE } from './reviewFixtures.js';
 import { built } from './implementFixtures.js';
 import { cardAssetLinks } from '../../src/lib/implementControl.js';
@@ -9,7 +10,7 @@ import { archiveKeyOf, inArchiveView, loadArchiveMap, toggledArchive } from '../
 test.after(closeBrowser);
 
 const list = (page) => page.getByRole('region', { name: 'Use case list' });
-const cards = (page) => list(page).locator('[aria-expanded]');
+const cards = (page) => list(page).locator('[data-use-case-row]');
 const cardOf = (page, no) => page.locator(`[data-use-case-no="${no}"]`);
 const shownNos = (page) => page.locator('[data-use-case-no]').evaluateAll((els) => els.map((el) => el.getAttribute('data-use-case-no')));
 const view = (page, id) => page.locator(`[data-archive-view="${id}"]`);
@@ -66,24 +67,32 @@ test('Review: Archive moves a card from Active to Archived, the counts follow, U
 
     const builtCard = cardOf(page, 'N01-U01');
     await builtCard.getByRole('button', { name: 'Open MVP' }).waitFor();
-    const links = await builtCard.locator('[data-card-asset]').evaluateAll((els) => els.map((el) => [el.textContent.trim(), el.getAttribute('href'), el.getAttribute('target')]));
+    // REQ-511: the built asset links live in the reader (the full card), not the row.
+    const reader = await openReader(page, builtCard);
+    const links = await reader.locator('[data-card-asset]').evaluateAll((els) => els.map((el) => [el.textContent.trim(), el.getAttribute('href'), el.getAttribute('target')]));
     assert.deepEqual(links, [
       ['Open App', 'https://churn-desk-1.aws.databricksapps.com', '_blank'],
       ['Open Dashboard', 'https://workspace.example.com/dashboardsv3/d1/published', '_blank'],
       ['Open Genie Agent', 'https://workspace.example.com/genie/rooms/g1', '_blank'],
       ['Open alert', 'https://workspace.example.com/sql/alerts-v2/a1', '_blank'],
     ]);
+    await closeReader(page);
     const other = before.find((no) => no !== 'N01-U01');
-    assert.equal(await cardOf(page, other).locator('[data-card-asset]').count(), 0, 'a card with no MVP shows no asset link');
+    const otherReader = await openReader(page, cardOf(page, other));
+    assert.equal(await otherReader.locator('[data-card-asset]').count(), 0, 'a card with no MVP shows no asset link');
+    await closeReader(page);
 
-    await builtCard.getByRole('button', { name: 'Archive use case' }).click();
+    // REQ-511: Archive/Unarchive live on the reader card; the reader is closed after, if it stays open.
+    await (await openReader(page, builtCard)).getByRole('button', { name: 'Archive use case' }).click();
+    if (await page.locator('[data-review-reader]').count()) await closeReader(page);
     await until(async () => !(await shownNos(page)).includes('N01-U01'));
     assert.deepEqual(await shownNos(page), before.filter((no) => no !== 'N01-U01'), 'only the archived card leaves the Active list');
     assert.match(await view(page, 'archived').innerText(), /1$/);
 
     await view(page, 'archived').click();
     await until(async () => (await shownNos(page)).join() === 'N01-U01');
-    await cardOf(page, 'N01-U01').getByRole('button', { name: 'Unarchive use case' }).click();
+    await (await openReader(page, cardOf(page, 'N01-U01'))).getByRole('button', { name: 'Unarchive use case' }).click();
+    if (await page.locator('[data-review-reader]').count()) await closeReader(page);
     await list(page).locator('[data-archive-empty="archived"]').waitFor();
     await view(page, 'active').click();
     await until(async () => (await shownNos(page)).length === before.length);

@@ -32,7 +32,7 @@ for (const [label, width] of [['1280x800', 1280], ['390x800', 390]]) {
     const page = ui.page;
     try {
       await page.setViewportSize({ width, height: 800 });
-      await page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]').first().waitFor();
+      await page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]').first().waitFor();
       await page.getByRole('checkbox', { name: 'Select Predict churn', exact: true }).check();
       await page.getByRole('button', { name: 'Calculate value for 1', exact: true }).click();
       const row = page.locator('[data-bulk-row][data-bulk-state="skipped"]').first();

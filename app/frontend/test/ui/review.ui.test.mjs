@@ -8,13 +8,14 @@ import * as V from '../../src/lib/v130UseCase.js';
 import * as A from '../../src/lib/artifactFiles.js';
 import { START_MVP_LABEL } from '../../src/lib/implementWizard.js';
 import { wheelScrolls } from './wheelScroll.mjs';
+import { panelSettled, readerOf } from './reviewRows.mjs';
 
 const AdmZip = createRequire(import.meta.url)('../../../backend/node_modules/adm-zip');
 
 test.after(closeBrowser);
 
 const list = (page) => page.getByRole('region', { name: 'Use case list' });
-const cards = (page) => list(page).locator('[aria-expanded]');
+const cards = (page) => list(page).locator('[data-use-case-row]');
 const card = (page, name) => cards(page).filter({ hasText: name });
 const portfolio = (page) => page.getByRole('region', { name: 'Across all runs' });
 const insight = (page, title) => page.locator(`[data-insight="${title}"]`);
@@ -297,11 +298,12 @@ test('the insight cards stack at full width with no Strategy coverage card and n
     await page.getByText('No use cases match your filters.').waitFor();
     await toView(page, 'Business');
     await insight(page, 'Suggested build order').getByRole('button', { name: 'Score upsell' }).click();
-    await until(async () => (await card(page, 'Score upsell').getAttribute('aria-expanded')) === 'true', 'the use case opens');
+    await until(async () => (await card(page, 'Score upsell').getAttribute('data-open')) !== null && (await readerOf(page).count()) === 1, 'the use case opens');
     assert.equal(await page.getByPlaceholder('Search use cases...').inputValue(), '', 'the filters that hid it are cleared');
     await toView(page, 'Business');
     for (const dark of [false, true]) {
       await setDark(page, dark);
+      await panelSettled(page);
       const measured = await lowContrast(page, ['[data-insights-grid]']);
       assert.ok(measured.checked >= 2, `${dark ? 'dark' : 'light'}: measured ${measured.checked}`);
       assert.deepEqual(measured.low, [], `${dark ? 'dark' : 'light'} insight cards`);
@@ -409,7 +411,8 @@ test('a live preview heads the run with its business name and offers no MVP star
   const saved = await openUi('results', REVIEW_STATE);
   try {
     await ready(saved.page);
-    assert.ok((await saved.page.getByRole('button', { name: START_MVP_LABEL }).count()) > 0, 'a finished run still offers the MVP start');
+    // REQ-511: the MVP start is the Build MVP button of each use case row (it opens the same wizard).
+    assert.ok((await saved.page.locator('[data-use-case-row]').getByRole('button', { name: /^(Build|Open|Rebuild) MVP$/ }).count()) > 0, 'a finished run still offers the MVP start');
   } finally {
     await saved.close();
   }

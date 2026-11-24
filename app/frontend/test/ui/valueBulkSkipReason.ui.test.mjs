@@ -33,7 +33,7 @@ async function skippedRow(width) {
   const ui = await openUi('results', { ...REVIEW_STATE, results: RESULTS }, '', { mount });
   const page = ui.page;
   await page.setViewportSize({ width, height: 800 });
-  await page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]').first().waitFor();
+  await page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]').first().waitFor();
   await page.getByRole('checkbox', { name: `Select ${LONG_NAME}`, exact: true }).check();
   await page.getByRole('button', { name: 'Calculate value for 1', exact: true }).click();
   const row = page.locator('[data-bulk-row][data-bulk-state="skipped"]').first();

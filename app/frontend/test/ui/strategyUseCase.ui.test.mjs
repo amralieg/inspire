@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { closeBrowser, openUi, toView } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
 import * as V from '../../src/lib/v130UseCase.js';
+import { openReader, closeReader, readerOf } from './reviewRows.mjs';
 
 test.after(closeBrowser);
 
 const list = (page) => page.getByRole('region', { name: 'Use case list' });
-const cards = (page) => list(page).locator('[aria-expanded]');
+const cards = (page) => list(page).locator('[data-use-case-row]');
 const card = (page, name) => cards(page).filter({ hasText: name });
 const panel = (page, title) => page.getByRole('button', { name: new RegExp(`^${title}\\b`) }).first();
 const NAMES = ['Predict churn', 'Score upsell', 'Segment shoppers', 'Price elasticity', 'Forecast stock', 'Spot late suppliers'];
@@ -39,10 +40,19 @@ async function ready(page) {
   await cards(page).first().waitFor();
 }
 
+// REQ-511: the chips, strategy line and KPI badges live in the reader (the full card), not in the row.
 async function openCard(page, name) {
-  await card(page, name).click();
-  await list(page).locator('[data-strategy-line]').first().waitFor();
-  return list(page).locator('[data-strategy-line]');
+  const reader = await openReader(page, card(page, name));
+  await reader.locator('[data-strategy-line]').first().waitFor();
+  return reader.locator('[data-strategy-line]');
+}
+
+async function chipOf(page, name) {
+  const reader = await openReader(page, card(page, name));
+  const chips = reader.locator('[data-strategy-chip]');
+  const text = (await chips.count()) ? (await chips.first().innerText()).trim() : null;
+  await closeReader(page);
+  return text;
 }
 
 test('the Strategy coverage card is gone; each use case names the goal and priorities it serves, and one tied to nothing says so', async () => {
@@ -56,10 +66,10 @@ test('the Strategy coverage card is gone; each use case names the goal and prior
     assert.equal(await page.getByText('use cases not aligned to any entry').count(), 0);
     await toView(page, 'Use cases');
 
-    assert.equal((await card(page, 'Predict churn').locator('[data-strategy-chip]').innerText()).trim(), 'Keep customers');
-    assert.equal((await card(page, 'Score upsell').locator('[data-strategy-chip]').innerText()).trim(), 'Sell more');
-    assert.equal((await card(page, 'Price elasticity').locator('[data-strategy-chip]').innerText()).trim(), V.STRATEGY_NOT_TIED);
-    assert.equal(await card(page, 'Forecast stock').locator('[data-strategy-chip]').count(), 0, 'no chip without strategy data');
+    assert.equal(await chipOf(page, 'Predict churn'), 'Keep customers');
+    assert.equal(await chipOf(page, 'Score upsell'), 'Sell more');
+    assert.equal(await chipOf(page, 'Price elasticity'), V.STRATEGY_NOT_TIED);
+    assert.equal(await chipOf(page, 'Forecast stock'), null, 'no chip without strategy data');
 
     const line = await openCard(page, 'Predict churn');
     const text = (await line.innerText()).replace(/\s+/g, ' ');
@@ -68,7 +78,7 @@ test('the Strategy coverage card is gone; each use case names the goal and prior
     assert.match(text, /Measured by: Churn rate/);
     assert.doesNotMatch(text, /built-in goals/, 'a customer strategy is not called built-in');
     assert.equal(await list(page).getByText('Priority Alignment', { exact: true }).count(), 0, 'the priorities are not repeated in a tile');
-    await card(page, 'Predict churn').click();
+    await closeReader(page);
 
     const notTied = await openCard(page, 'Price elasticity');
     assert.match((await notTied.innerText()).replace(/\s+/g, ' '), /Not tied to your strategy\. It was found in your data/);
@@ -113,11 +123,11 @@ test('with no strategy given, the detail says once that the goals are the built-
   const { page } = ui;
   try {
     await ready(page);
-    assert.equal((await card(page, 'Predict churn').locator('[data-strategy-chip]').innerText()).trim(), 'Increase Revenue');
-    assert.equal((await card(page, 'Score upsell').locator('[data-strategy-chip]').innerText()).trim(), V.STRATEGY_NOT_TIED);
+    assert.equal(await chipOf(page, 'Predict churn'), 'Increase Revenue');
+    assert.equal(await chipOf(page, 'Score upsell'), V.STRATEGY_NOT_TIED);
     const line = await openCard(page, 'Predict churn');
     assert.match((await line.innerText()).replace(/\s+/g, ' '), /Serves Increase Revenue \(Strategic Goal\)/);
-    const note = list(page).locator('[data-strategy-builtin]');
+    const note = readerOf(page).locator('[data-strategy-builtin]');
     assert.equal(await note.count(), 1, 'said once');
     assert.equal((await note.innerText()).trim(), V.STRATEGY_BUILTIN_NOTE);
     assert.deepEqual(ui.pageErrors, []);
@@ -133,9 +143,10 @@ test('with no strategy and no built-in goals, nothing is called Not tied to your
     await ready(page);
     assert.equal(await list(page).locator('[data-strategy-chip]').count(), 0);
     assert.equal(await page.getByText(V.STRATEGY_NOT_TIED).count(), 0);
-    await card(page, 'Score upsell').click();
-    await list(page).getByText('Score upsell pays back').waitFor();
-    assert.equal(await list(page).locator('[data-strategy-line]').count(), 0);
+    const reader = await openReader(page, card(page, 'Score upsell'));
+    await reader.getByText('Score upsell pays back').waitFor();
+    assert.equal(await reader.locator('[data-strategy-chip]').count(), 0);
+    assert.equal(await reader.locator('[data-strategy-line]').count(), 0);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -157,16 +168,16 @@ test('with the user own level names, each card and detail names the entry at eve
   const { page } = ui;
   try {
     await ready(page);
-    assert.equal((await card(page, 'Predict churn').locator('[data-strategy-chip]').innerText()).trim(), 'Ambition: Keep customers');
-    assert.equal((await card(page, 'Price elasticity').locator('[data-strategy-chip]').innerText()).trim(), V.STRATEGY_NOT_TIED);
+    assert.equal(await chipOf(page, 'Predict churn'), 'Ambition: Keep customers');
+    assert.equal(await chipOf(page, 'Price elasticity'), V.STRATEGY_NOT_TIED);
     assert.equal(await page.getByRole('button', { name: /^Strategy\b/ }).count(), 0, 'the level panels replace the single Strategy tree');
 
     await openCard(page, 'Predict churn');
-    const levels = list(page).locator('[data-strategy-levels]');
+    const levels = readerOf(page).locator('[data-strategy-levels]');
     assert.equal((await levels.innerText()).replace(/\s+/g, ' ').trim(), 'Theme Grow Ambition Keep customers');
-    const origins = await list(page).locator('[data-kpi-origin]').allInnerTexts();
+    const origins = await readerOf(page).locator('[data-kpi-origin]').allInnerTexts();
     assert.deepEqual(origins.map((t) => t.trim()), [V.KPI_FROM_STRATEGY, V.KPI_PROPOSED]);
-    await card(page, 'Predict churn').click();
+    await closeReader(page);
 
     await panel(page, 'Theme').click();
     await page.getByRole('button', { name: /^Run lean\b/ }).click();
@@ -201,12 +212,12 @@ test('without user level names the card, detail and filters stay as they were (m
   const { page } = ui;
   try {
     await ready(page);
-    assert.equal((await card(page, 'Score upsell').locator('[data-strategy-chip]').innerText()).trim(), 'Sell more');
+    assert.equal(await chipOf(page, 'Score upsell'), 'Sell more');
     assert.equal(await page.getByRole('button', { name: /^KPIs\b/ }).count(), 0);
     assert.equal(await page.getByRole('button', { name: /^Strategy\b/ }).count(), 1);
     await openCard(page, 'Predict churn');
-    assert.equal(await list(page).locator('[data-strategy-levels]').count(), 0);
-    assert.equal(await list(page).locator('[data-kpi-origin]').count(), 0, 'a KPI with no source gets no badge');
+    assert.equal(await readerOf(page).locator('[data-strategy-levels]').count(), 0);
+    assert.equal(await readerOf(page).locator('[data-kpi-origin]').count(), 0, 'a KPI with no source gets no badge');
   } finally {
     await ui.close();
   }

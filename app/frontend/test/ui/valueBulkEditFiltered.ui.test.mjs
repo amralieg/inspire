@@ -29,7 +29,7 @@ function mount({ puts, check }) {
 
 
 async function toCheckRow(page) {
-  await page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]').first().waitFor();
+  await page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]').first().waitFor();
   await page.getByRole('checkbox', { name: 'Select Predict churn', exact: true }).check();
   await page.getByRole('button', { name: 'Calculate value for 1', exact: true }).click();
   const panel = page.getByRole('dialog', { name: 'Calculating value' });

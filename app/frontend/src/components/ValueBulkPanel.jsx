@@ -10,27 +10,26 @@ const btn = 'rounded-md border border-border px-3 py-1.5 text-sm text-text-secon
 const wide = (state, check) => state === 'failed' || state === 'skipped' || (state === 'done' && Boolean(check));
 const LABELS = { waiting: 'Waiting', working: 'Working', stopped: 'Stopped' };
 
-// REQ-441: the bar above the cards: Select all (the cards shown) and "Calculate value for N".
-export function ValueBulkBar({ shown, selected, onSelectAll, onCalculate, onGenerate = null, busy = false }) {
+// REQ-441, REQ-512: the toolbar above the rows while one or more are ticked: the same three actions the row carries, for the whole selection.
+// Calculate value runs the bulk run; Build MVP and Generate docs open their wizard for the ticked use cases (a queue, "1 of N", for the MVP wizard).
+export function ValueBulkBar({ shown, selected, onSelectAll, onClear, onCalculate, onGenerate = null, onBuild = null, busy = false }) {
+  if (selected < 1) return null;
   const all = shown > 0 && selected === shown;
+  const ghost = 'rounded-md px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10 hover:text-white';
+  const action = 'rounded-md border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20';
   return (
-    <div data-value-bulk-bar="" className="mb-2 flex flex-wrap items-center gap-3 text-xs text-text-secondary">
-      <label className="inline-flex items-center gap-2">
-        <input type="checkbox" checked={all} onChange={(e) => onSelectAll(e.target.checked)} />
-        <span>Select all</span>
-      </label>
-      {selected >= 1 && (
-        <button type="button" onClick={onCalculate} disabled={busy} title={busy ? 'A value calculation is running. Wait for it to finish or stop it first.' : undefined}
-          className="rounded-md bg-primary-solid hover:bg-primary-solid-hover px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed">
-          Calculate value for {selected}
-        </button>
-      )}
-      {selected >= 1 && onGenerate && (
-        <button type="button" onClick={onGenerate}
-          className="rounded-md border border-primary-solid px-3 py-1.5 text-xs font-semibold text-db-red-fg hover:bg-db-red-50">
-          ✦ Generate docs
-        </button>
-      )}
+    <div role="toolbar" aria-label="Actions for the selected use cases" data-value-bulk-bar="" className="sticky top-0 z-[3] mb-2 flex flex-wrap items-center gap-2 rounded-xl bg-[#1A1A1F] py-2 pe-2 ps-4 text-xs text-white shadow-lg">
+      <span className="me-2 font-semibold tabular-nums">{selected} selected</span>
+      {onBuild && <button type="button" onClick={onBuild} className={action}>Build MVP for {selected}</button>}
+      {onGenerate && <button type="button" onClick={onGenerate} className={action}>Generate docs for {selected}</button>}
+      <button type="button" onClick={onCalculate} disabled={busy} title={busy ? 'A value calculation is running. Wait for it to finish or stop it first.' : undefined}
+        className="rounded-md bg-primary-solid px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-solid-hover disabled:cursor-not-allowed disabled:opacity-50">
+        Calculate value for {selected}
+      </button>
+      <span className="ms-auto flex items-center gap-1">
+        {!all && <button type="button" onClick={() => onSelectAll(true)} className={ghost}>Select all</button>}
+        <button type="button" onClick={onClear} className={ghost}>Clear</button>
+      </span>
     </div>
   );
 }

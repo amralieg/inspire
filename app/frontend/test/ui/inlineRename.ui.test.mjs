@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, idle, openUi, until } from './uiSupport.mjs';
 import { REVIEW_STATE } from './reviewFixtures.js';
+import { readerOf } from './reviewRows.mjs';
 
 test.after(closeBrowser);
 
@@ -39,18 +40,18 @@ test('the pencil turns the name into an inline field in the same font; Enter sav
   const { page } = ui;
   try {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await cardOf(page).locator('[aria-expanded]').first().waitFor();
+    await cardOf(page).waitFor();
     await idle(page);
     const title = cardOf(page).locator('h3');
     const before = await title.innerText();
     const titleFont = await computed(title);
-    const expandedBefore = await cardOf(page).locator('[aria-expanded]').first().getAttribute('aria-expanded');
+    const expandedBefore = await readerOf(page).count();
 
     await page.getByRole('button', { name: `Rename ${before}` }).click();
     const field = cardOf(page).getByRole('textbox', { name: `Use case name for ${before}` });
     await field.waitFor();
     assert.deepEqual(await computed(field), titleFont, 'the field has the same computed font as the name');
-    assert.equal(await cardOf(page).locator('[aria-expanded]').first().getAttribute('aria-expanded'), expandedBefore, 'the pencil does not expand or collapse the card');
+    assert.equal(await readerOf(page).count(), expandedBefore, 'the pencil does not open or close the reader');
 
     await field.fill('Esc draft');
     await field.press('Escape');
@@ -79,7 +80,7 @@ test('a slow rename shows Saving… with a spinner in place, the field is disabl
   const { page } = ui;
   try {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await cardOf(page).locator('[aria-expanded]').first().waitFor();
+    await cardOf(page).waitFor();
     await idle(page);
     const before = await cardOf(page).locator('h3').innerText();
     await page.getByRole('button', { name: `Rename ${before}` }).click();
@@ -108,24 +109,23 @@ test('REQ-098 Tab to the pencil and press Enter or Space opens the rename field 
   const { page } = ui;
   try {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await cardOf(page).locator('[aria-expanded]').first().waitFor();
+    await cardOf(page).waitFor();
     await idle(page);
-    const toggle = cardOf(page).locator('[aria-expanded]').first();
     const before = await cardOf(page).locator('h3').innerText();
-    const expandedBefore = await toggle.getAttribute('aria-expanded');
+    const expandedBefore = await readerOf(page).count();
     const field = () => cardOf(page).getByRole('textbox', { name: `Use case name for ${before}` });
 
     await page.getByRole('button', { name: `Rename ${before}` }).focus();
     await page.keyboard.press('Enter');
     await field().waitFor();
-    assert.equal(await toggle.getAttribute('aria-expanded'), expandedBefore, 'Enter on the pencil does not expand or collapse the card');
+    assert.equal(await readerOf(page).count(), expandedBefore, 'Enter on the pencil does not open or close the reader');
 
     await field().press('Escape');
     await cardOf(page).locator('h3').waitFor();
     await page.getByRole('button', { name: `Rename ${before}` }).focus();
     await page.keyboard.press('Space');
     await field().waitFor();
-    assert.equal(await toggle.getAttribute('aria-expanded'), expandedBefore, 'Space on the pencil does not expand or collapse the card');
+    assert.equal(await readerOf(page).count(), expandedBefore, 'Space on the pencil does not open or close the reader');
     assert.equal(posted.rename.length, 0, 'opening the field sends no write');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -139,7 +139,7 @@ test('an empty name is refused: the field stays open with a message, no write is
   const { page } = ui;
   try {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await cardOf(page).locator('[aria-expanded]').first().waitFor();
+    await cardOf(page).waitFor();
     await idle(page);
     const before = await cardOf(page).locator('h3').innerText();
     await page.getByRole('button', { name: `Rename ${before}` }).click();

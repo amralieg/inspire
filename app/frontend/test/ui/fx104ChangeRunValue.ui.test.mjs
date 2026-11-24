@@ -30,11 +30,13 @@ test('Change run: every run row has a red value box and the all-runs number show
     await page.locator('[data-run-heading]').getByRole('button', { name: 'Change run' }).click();
     const runs = page.getByRole('group', { name: 'Runs' });
     await runs.locator('[data-run="43"]').waitFor();
-    for (const sid of ['41', '42', '43']) {
+    // REQ-508 L7: a run with no value yet shows the Not calculated badge in [data-run-value] instead of the red box.
+    for (const sid of ['41', '42']) {
       await runs.locator(`[data-run="${sid}"] [data-run-value-box]`).waitFor({ timeout: 15000 });
     }
+    await runs.locator('[data-run="43"] [data-run-value]').waitFor({ timeout: 15000 });
     assert.ok((await runs.locator('[data-run="41"] [data-run-value-box]').innerText()).includes('$3.1M'));
-    assert.ok((await runs.locator('[data-run="43"] [data-run-value-box]').innerText()).includes('Not calculated'));
+    assert.ok((await runs.locator('[data-run="43"] [data-run-value]').innerText()).includes('Not calculated'));
     await page.locator('[data-value-all-panel]').locator('[data-total-amount]').first().waitFor({ timeout: 15000 });
     assert.deepEqual(ui.pageErrors, []);
   } finally {

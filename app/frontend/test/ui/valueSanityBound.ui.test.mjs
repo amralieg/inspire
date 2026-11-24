@@ -35,7 +35,7 @@ test('FX-51: a bulk row whose plan is outside the range is saved as an estimate 
   const ui = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS }, '', { mount: mount({ puts, check: true }) });
   const page = ui.page;
   try {
-    await page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]').first().waitFor();
+    await page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]').first().waitFor();
     await page.getByRole('checkbox', { name: 'Select Predict churn', exact: true }).check();
     await page.getByRole('button', { name: 'Calculate value for 1', exact: true }).click();
     const row = page.getByRole('dialog', { name: 'Calculating value' }).locator('[data-bulk-row="N01-U01"][data-bulk-state="done"]');
@@ -53,7 +53,7 @@ test('FX-51: a bulk row in range is saved as calculated with no note', async () 
   const ui = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS }, '', { mount: mount({ puts, check: false }) });
   const page = ui.page;
   try {
-    await page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]').first().waitFor();
+    await page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]').first().waitFor();
     await page.getByRole('checkbox', { name: 'Select Predict churn', exact: true }).check();
     await page.getByRole('button', { name: 'Calculate value for 1', exact: true }).click();
     const row = page.getByRole('dialog', { name: 'Calculating value' }).locator('[data-bulk-row="N01-U01"][data-bulk-state="done"]');

@@ -10,6 +10,7 @@ import { closeAsset, closeBrowser, expandBuild, openAsset, openUi, toView, until
 import { READ_QUIET_MS, apiWatch, keepToOrigins, openShowcase, readOnlyInspire, recordMvpApp, routeInspireDemo, tabButton, walkInspireDemo, walkMvpViews, watchOffline } from '../../../scripts/showcaseRecorder.mjs';
 import { DEMO_READS, DEMO_READS_WHEN, routeOf, unrecorded } from '../../../scripts/showcaseRoutes.mjs';
 import { SHOWCASE_ALERT_NOTE, SHOWCASE_BUTTON, SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOWCASE_NOTE, SHOWCASE_OPEN_APP, SHOWCASE_PAGES } from '../../src/lib/showcase.js';
+import { closeReader, openReader } from './reviewRows.mjs';
 import { START_MVP_LABEL } from '../../src/lib/implementWizard.js';
 import { APP_TABS } from '../../src/lib/tabs.js';
 import { PORTFOLIO_GROUPS } from '../../src/lib/reviewFigures.js';
@@ -260,7 +261,7 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     const read = { sql: made.sqlCalls.length, fetches: made.fetches.length };
     await page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().click();
     await demoBar(page).getByText(SHOWCASE_NOTE).waitFor();
-    const cards = list(page).locator('[aria-expanded]');
+    const cards = list(page).locator('[data-use-case-row]');
     await cards.first().waitFor();
     assert.equal(await cards.count(), 6);
     await toView(page, 'Business');
@@ -269,14 +270,14 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     assert.equal(await page.locator('[data-portfolio], [data-portfolio-card]').count(), 0, 'the demo Review shows this run only, with no totals across runs');
     assert.equal(await page.getByRole('combobox', { name: 'MVP', exact: true }).locator('option[value="has"]').count(), 1, 'the demo filters by Has an MVP too');
     assert.equal(await page.getByRole('button', { name: START_MVP_LABEL }).count(), 0, 'the demo offers no new build');
-    await cards.filter({ hasText: 'Predict churn' }).click();
+    const reader = await openReader(page, cards.filter({ hasText: 'Predict churn' }));
     await settle();
-    const feedback = list(page).getByRole('button', { name: /^(Accepted|Planned|Implemented|Reject)$/ });
+    const feedback = reader.getByRole('button', { name: /^(Accepted|Planned|Implemented|Reject)$/ });
     assert.deepEqual(await feedback.evaluateAll((els) => els.map((b) => [b.textContent.trim(), b.disabled, b.title])),
       ['Accepted', 'Planned', 'Implemented', 'Reject'].map((name) => [name, true, SHOWCASE_NOTE]), 'the demo shows the feedback buttons, disabled with the reason');
-    assert.equal(await list(page).locator('[data-demo-note]').innerText(), SHOWCASE_NOTE, 'and says why in a calm note');
-    assert.equal(await list(page).locator('[data-demo-note]').getAttribute('role'), 'note');
-    await list(page).getByRole('button', { name: 'Open MVP' }).click();
+    assert.equal(await reader.locator('[data-demo-note]').innerText(), SHOWCASE_NOTE, 'and says why in a calm note');
+    assert.equal(await reader.locator('[data-demo-note]').getAttribute('role'), 'note');
+    await reader.getByRole('button', { name: 'Open MVP' }).click();
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await page.locator('nav[aria-label="Use cases"] section button').first().waitFor();
     await page.locator('[data-asset-tiles]').waitFor();
@@ -437,18 +438,18 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     await demoBar(page).getByText(SHOWCASE_NOTE).waitFor();
 
     await tabButton(page, 'results').click();
-    await page.getByRole('button', { name: 'Change run', exact: true }).click();
+    await page.getByRole('button', { name: /^Change run/ }).click();
     const runCards = page.getByRole('group', { name: 'Runs' }).locator('button[data-run]');
     await runCards.first().waitFor();
     assert.deepEqual(await runCards.evaluateAll((els) => els.map((el) => el.getAttribute('data-run'))), ['42'], 'Review lists the demo run alone');
     assert.equal(await runCards.first().locator('[data-latest-run]').count(), 1, 'the run card shows the Latest Run badge');
     assert.match(await runCards.first().locator('[data-run-figures]').innerText(), /^6 use cases · 2 domains/, 'the run card shows the recorded figures');
     await runCards.first().click();
-    await cards.filter({ hasText: 'Segment shoppers' }).click();
-    await list(page).locator('[data-use-case-text="statement"]').first().waitFor();
+    const card = await openReader(page, cards.filter({ hasText: 'Segment shoppers' }));
+    await card.locator('[data-use-case-text="statement"]').first().waitFor();
     await settle();
-    assert.equal(await list(page).getByText('SUM(amount) FROM main.s.orders', { exact: false }).count(), 0, 'the card shows no notebook preview');
-    assert.equal(await list(page).getByRole('button', { name: /^Preview$/ }).count(), 0);
+    assert.equal(await card.getByText('SUM(amount) FROM main.s.orders', { exact: false }).count(), 0, 'the card shows no notebook preview');
+    assert.equal(await card.getByRole('button', { name: /^Preview$/ }).count(), 0);
 
     assert.equal(made.sqlCalls.length - read.sql, 0, 'the demo reads nothing from the warehouse; only Start read the runs before it opened');
     assert.equal(made.fetches.length - read.fetches, 0, 'the demo calls no workspace API');
@@ -458,6 +459,7 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     assert.deepEqual(sent.slice(opened).filter((s) => !s.demo).map((s) => s.path), [], 'every request in the demo was a demo request');
     assert.deepEqual(besidesRefusals(ui.pageErrors), []);
 
+    await closeReader(page);
     await demoBar(page).getByRole('button', { name: 'Leave demo' }).click();
     await page.locator('[data-landing-actions]').first().waitFor();
     assert.equal(await demoBar(page).count(), 0);
@@ -522,9 +524,9 @@ async function openDemoBuild(history) {
   try {
     await openShowcase(ui.page);
     await demoBar(ui.page).getByText(SHOWCASE_NOTE).waitFor();
-    await list(ui.page).locator('[aria-expanded]').filter({ hasText: 'Predict churn' }).click();
+    const reader = await openReader(ui.page, list(ui.page).locator('[data-use-case-row]').filter({ hasText: 'Predict churn' }));
     await settle();
-    await list(ui.page).getByRole('button', { name: 'Open MVP' }).click();
+    await reader.getByRole('button', { name: 'Open MVP' }).click();
     await ui.page.locator('[data-asset-tiles]').waitFor();
     await settle();
   } catch (e) {
@@ -674,18 +676,18 @@ test('a change the demo refuses shows as a calm note in plain words, and any oth
     },
   });
   const { page } = ui;
-  const calm = list(page).locator('[data-demo-note]');
-  const red = list(page).locator('p.text-error-fg');
+  const calm = page.locator('[data-review-reader] [data-demo-note]');
+  const red = page.locator('[data-review-reader] p.text-error-fg');
   try {
-    await list(page).locator('[aria-expanded]').filter({ hasText: 'Predict churn' }).click();
-    await list(page).getByRole('button', { name: 'Accepted', exact: true }).click();
+    const reader = await openReader(page, list(page).locator('[data-use-case-row]').filter({ hasText: 'Predict churn' }));
+    await reader.getByRole('button', { name: 'Accepted', exact: true }).click();
     await calm.waitFor();
     assert.equal(await calm.innerText(), SHOWCASE_READ_ONLY);
     assert.equal(await calm.getAttribute('role'), 'note');
     assert.match(await calm.getAttribute('class'), /text-info-fg/);
     assert.equal(await red.count(), 0, 'the refusal is not shown as an error');
     answer = [500, { error: 'The warehouse is stopped' }];
-    await list(page).getByRole('button', { name: 'Planned', exact: true }).click();
+    await reader.getByRole('button', { name: 'Planned', exact: true }).click();
     await red.filter({ hasText: 'The SQL warehouse is stopped, so start it' }).waitFor();
     assert.equal(await calm.count(), 0, 'a real failure is never dressed as the demo note');
   } finally {

@@ -18,7 +18,7 @@ const nav = (page) => page.getByRole('navigation', { name: 'Results sections' })
 const item = (page, name) => nav(page).getByRole('tab', { name: new RegExp(`^${name}\\b`) });
 const rail = (page) => page.locator('[data-results-nav-body]');
 const list = (page) => page.getByRole('region', { name: 'Use case list' });
-const cards = (page) => list(page).locator('[aria-expanded]');
+const cards = (page) => list(page).locator('[data-use-case-row]');
 const summary = (page) => page.locator('[data-executive-summary]');
 const figures = (page) => page.getByRole('region', { name: 'Figures of this run' });
 const mvps = (page) => page.getByRole('group', { name: 'MVPs' });

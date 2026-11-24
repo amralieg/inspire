@@ -32,6 +32,13 @@ async function openApp(state = STATE) {
   return openUi('app', state, '', { mount });
 }
 
+// REQ-511 D3: the Build next panel left Review (the run box replaced it); Build still has [data-build-next-step].
+async function assertNoBuildNextOnReview(page) {
+  await page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]').first().waitFor({ timeout: 20000 });
+  assert.equal(await page.locator('[data-build-next]').count(), 0, 'Review has no Build next panel');
+  assert.equal(await page.locator('[data-build-next-row]').count(), 0, 'Review has no Build next rows');
+}
+
 async function go(page, hash) {
   await page.waitForLoadState('networkidle');
   await page.waitForFunction(() => !document.body.innerText.includes('Connecting to workspace'), null, { timeout: 20000 });
@@ -52,20 +59,14 @@ test('Start shows no Build next section', async () => {
   }
 });
 
-test('Review shows the Build next panel with the live count, the value at stake covered, and the unbuilt use cases ranked by value', async () => {
+test('Review shows no Build next panel: the run box replaced it (REQ-511 D3)', async () => {
   const ui = await openApp();
   const { page } = ui;
   try {
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
     await page.locator('[data-run="42"]').waitFor({ timeout: 20000 });
     await go(page, '#/review/42');
-    const panel = page.locator('[data-build-next]');
-    await panel.waitFor({ timeout: 20000 });
-    assert.equal((await panel.locator('[data-build-progress]').innerText()).replace(/\s+/g, ' ').trim(), PROGRESS);
-    const order = await panel.locator('[data-build-next-row]').evaluateAll((els) => els.map((el) => el.getAttribute('data-build-next-row')));
-    assert.deepEqual(order, ['N01-U02', 'N02-U01', 'N02-U02']);
-    assert.equal(await panel.locator('[data-start-mvp]').count(), 3);
-    assert.equal(await page.locator('[data-build-next-row="N01-U03"]').count(), 0, 'the top three only');
+    await assertNoBuildNextOnReview(page);
   } finally {
     await ui.close();
   }
@@ -358,7 +359,7 @@ test('Build Now on a sibling whose tables the App cannot read shows the access r
 });
 
 for (const dark of [false, true]) {
-  test(`the Build next panel and next-step card meet 4.5:1 contrast in ${dark ? 'dark' : 'light'} mode`, async () => {
+  test(`Review has no Build next panel (REQ-511 D3) and the next-step card meets 4.5:1 contrast in ${dark ? 'dark' : 'light'} mode`, async () => {
     const ui = await openApp();
     const { page } = ui;
     try {
@@ -366,8 +367,7 @@ for (const dark of [false, true]) {
       await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
       await page.locator('[data-run="42"]').waitFor({ timeout: 20000 });
       await go(page, '#/review/42');
-      await page.locator('[data-build-next]').waitFor({ timeout: 20000 });
-      assert.deepEqual((await lowContrast(page, ['[data-build-next]'])).low, [], `${dark ? 'dark' : 'light'} Build next panel`);
+      await assertNoBuildNextOnReview(page);
       await go(page, '#/build/42/N01-U01');
       await page.locator('[data-build-next-step]').waitFor({ timeout: 20000 });
       assert.deepEqual((await lowContrast(page, ['[data-build-next-step]'])).low, [], `${dark ? 'dark' : 'light'} next-step card`);
@@ -384,8 +384,10 @@ test('the new panel and card use no dashes or customer-facing selling words', as
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
     await page.locator('[data-run="42"]').waitFor({ timeout: 20000 });
     await go(page, '#/review/42');
-    await page.locator('[data-build-next]').waitFor({ timeout: 20000 });
-    const text = await page.locator('[data-build-next]').innerText();
+    await assertNoBuildNextOnReview(page);
+    await go(page, '#/build/42/N01-U01');
+    await page.locator('[data-build-next-step]').waitFor({ timeout: 20000 });
+    const text = await page.locator('[data-build-next-step]').innerText();
     assert.doesNotMatch(text, /[–—]/);
     assert.doesNotMatch(text, /\bcustomer\b|\bpitch\b|\bprospect\b/i);
   } finally {
@@ -393,48 +395,15 @@ test('the new panel and card use no dashes or customer-facing selling words', as
   }
 });
 
-test('a run card with no measured KPI baseline says Value at stake: Not calculated, and its Measure action opens that use case (must-exclude a made-up number)', async () => {
+test('Review has no Build next rows, so no Measure action there (REQ-511 D3; the Review row value box opens the calculator)', async () => {
   const ui = await openApp({ ...STATE, useCases: USE_CASES.map((uc) => (uc.id === 'N01-U02' ? { ...uc, value_estimate: notMeasured() } : uc)) });
   const { page } = ui;
   try {
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
     await page.locator('[data-run="42"]').waitFor({ timeout: 20000 });
     await go(page, '#/review/42');
-    const panel = page.locator('[data-build-next]');
-    await panel.waitFor({ timeout: 20000 });
-    const row = panel.locator('[data-build-next-row="N02-U02"]');
-    const line = await row.locator('[data-value-estimate="not-calculated"]').innerText();
-    assert.match(line, /Value at stake: Not calculated/);
-    assert.doesNotMatch(line, /AED|\d/, 'no number is shown for a use case without a measured baseline');
-    assert.equal(await row.locator('[data-measure-value="N02-U02"]').innerText(), 'Measure');
-    assert.match(await panel.locator('[data-build-next-row="N02-U01"] [data-value-estimate]').innerText(), /AED 2,500/, 'a measured card still shows its estimate');
-    await row.locator('[data-measure-value="N02-U02"]').click();
-    await page.waitForFunction(() => window.location.hash.includes('/build/42/N02-U02'), null, { timeout: 20000 });
-    await page.getByRole('dialog', { name: /^Calculating Value at Stake for / }).waitFor({ timeout: 20000 });
-    assert.equal(await page.locator('[data-wizard-header]').count(), 0, 'Build next opens the value wizard, never the Build wizard (REQ-457)');
-  } finally {
-    await ui.close();
-  }
-});
-
-test('the Measure step opens once from the Build next action; picking another use case does not reopen it', async () => {
-  const ui = await openApp({ ...STATE, useCases: USE_CASES.map((uc) => (uc.id === 'N01-U02' ? { ...uc, value_estimate: notMeasured() } : uc)) });
-  const { page } = ui;
-  try {
-    await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
-    await page.locator('[data-run="42"]').waitFor({ timeout: 20000 });
-    await go(page, '#/review/42');
-    const panel = page.locator('[data-build-next]');
-    await panel.waitFor({ timeout: 20000 });
-    await panel.locator('[data-build-next-row="N02-U02"] [data-measure-value="N02-U02"]').click();
-    await page.getByRole('dialog', { name: /^Calculating Value at Stake for / }).waitFor({ timeout: 20000 });
-    await page.getByRole('dialog', { name: /^Calculating Value at Stake for / }).getByRole('button', { name: 'Close', exact: true }).last().click();
-    await page.getByRole('dialog', { name: /^Calculating Value at Stake for / }).waitFor({ state: 'detached', timeout: 20000 });
-    await go(page, '#/build/42/N02-U01');
-    await page.waitForFunction(() => window.location.hash.includes('/build/42/N02-U01'), null, { timeout: 20000 });
-    await page.waitForTimeout(1500);
-    assert.equal(await page.locator('[data-wizard-header]').count(), 0, 'the wizard does not reopen on Measure for another use case (must-exclude)');
-    assert.deepEqual(ui.pageErrors, []);
+    await assertNoBuildNextOnReview(page);
+    assert.equal(await page.locator('[data-measure-value]').count(), 0);
   } finally {
     await ui.close();
   }

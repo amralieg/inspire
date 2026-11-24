@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { FAKE_CLOCK, closeBrowser, lowContrast, lowContrastThroughAnimations, openUi, setDark, settled, toView, until, watchAsks } from './uiSupport.mjs';
 import { RESULTS } from './implementFixtures.js';
+import { closeReader, openReader, panelSettled, readerOf } from './reviewRows.mjs';
 
 const { SLOW_WAREHOUSE_MESSAGE } = createRequire(import.meta.url)('../../../backend/lib/sqlStatements.js');
 
@@ -11,7 +12,7 @@ test.after(closeBrowser);
 const STATE = { results: RESULTS, useCases: [] };
 
 const list = (page) => page.getByRole('region', { name: 'Use case list' });
-const cards = (page) => list(page).locator('[aria-expanded]');
+const cards = (page) => list(page).locator('[data-use-case-row]');
 const card = (page, name) => cards(page).filter({ hasText: name });
 const panel = (page, title) => page.getByRole('button', { name: new RegExp(`^${title}\\b`) }).first();
 
@@ -68,11 +69,13 @@ test('the Results page is the list it was before the grid: the sidebar and the f
     assert.match(await cards(page).first().innerText(), /Score upsell/);
     await page.getByRole('button', { name: 'Clear', exact: true }).click();
     const churn = card(page, 'Predict churn');
-    await churn.click();
-    assert.equal(await churn.getAttribute('aria-expanded'), 'true');
-    await list(page).getByText('Build predict churn').first().waitFor();
-    await card(page, 'Forecast stock').click();
-    assert.equal(await churn.getAttribute('aria-expanded'), 'false', 'one card is open at a time');
+    await openReader(page, churn);
+    assert.notEqual(await churn.getAttribute('data-open'), null, 'the clicked row is the open one');
+    await readerOf(page).getByText('Build predict churn').first().waitFor();
+    await card(page, 'Forecast stock').locator('[data-row-name]').click();
+    await readerOf(page).getByText('Forecast stock').first().waitFor();
+    assert.equal(await churn.getAttribute('data-open'), null, 'one card is open at a time');
+    assert.equal(await readerOf(page).count(), 1, 'one reader is open at a time');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -84,15 +87,15 @@ test('an open card says what the Deep data check found, and a card without the c
   const { page } = ui;
   try {
     await ready(page);
-    const line = list(page).locator('[data-testid="data-signal"]');
-    await card(page, 'Predict churn').click();
+    const line = readerOf(page).locator('[data-testid="data-signal"]');
+    await openReader(page, card(page, 'Predict churn'));
     await line.waitFor();
     assert.equal(await line.innerText(), 'The data shows no signal: no signal column separates the outcome. Inspire kept it because the instructions ask for it.');
-    await card(page, 'Score upsell').click();
-    await list(page).getByText('Data check passed').waitFor();
+    await card(page, 'Score upsell').locator('[data-row-name]').click();
+    await readerOf(page).getByText('Data check passed').waitFor();
     assert.equal(await line.innerText(), 'Data check passed: basket_size moves with the outcome, with a correlation of 0.210.');
-    await card(page, 'Segment shoppers').click();
-    await list(page).getByText('Build segment shoppers').first().waitFor();
+    await card(page, 'Segment shoppers').locator('[data-row-name]').click();
+    await readerOf(page).getByText('Build segment shoppers').first().waitFor();
     assert.equal(await line.count(), 0);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -196,17 +199,17 @@ test('the whole Results page, its open sidebar panels and every kind of open car
     for (const dark of [false, true]) {
       await setDark(page, dark);
       const mode = dark ? 'dark' : 'light';
+      await panelSettled(page);
       const plain = await lowContrast(page, ['body']);
       assert.ok(plain.checked >= 80, `${mode}: measured ${plain.checked} text elements`);
       assert.deepEqual(plain.low, [], `${mode} Results page with a domain filter on`);
       for (const name of ['Predict churn', 'Score upsell', 'Price elasticity']) {
-        const open = card(page, name);
-        await open.click();
-        await settled(page, '[aria-label="Use case list"]');
-        const withCard = await lowContrast(page, ['[aria-label="Use case list"]']);
+        await openReader(page, card(page, name));
+        await settled(page, '[data-review-reader]');
+        const withCard = await lowContrast(page, ['[aria-label="Use case list"]', '[data-review-reader]']);
         assert.ok(withCard.checked >= 20, `${mode} ${name}: measured ${withCard.checked} card elements`);
         assert.deepEqual(withCard.low, [], `${mode} open card ${name}`);
-        await open.click();
+        await closeReader(page);
       }
     }
     assert.deepEqual(ui.pageErrors, []);
@@ -239,6 +242,7 @@ test('the MVP tiles count the use cases by their MVP, a tile or the MVP filter n
     assert.equal(await live.getAttribute('aria-pressed'), 'true');
     for (const dark of [false, true]) {
       await setDark(page, dark);
+      await panelSettled(page);
       const measured = await lowContrast(page, ['[aria-label="MVPs"]']);
       assert.ok(measured.checked >= 10, `${dark ? 'dark' : 'light'}: measured ${measured.checked} tile elements`);
       assert.deepEqual(measured.low, [], `${dark ? 'dark' : 'light'} MVP tiles with one picked`);
@@ -319,6 +323,7 @@ test('value tracking shows a KPI the agent did not measure as Not measured with 
     const kept = page.locator('[data-tracking-status="measured"]');
     assert.deepEqual((await kept.locator('td').allTextContents()).slice(2), ['12.50', '11.25', '-1.25']);
     assert.equal(await kept.locator('[data-tracking-note]').count(), 0);
+    await panelSettled(page);
     const contrast = await lowContrast(page, ['[data-tracking-status]']);
     assert.deepEqual(contrast.low, []);
     const value = page.getByRole('table', { name: 'Value of implemented use cases' });
@@ -349,7 +354,7 @@ test('a use case card offers only Open notebook for its notebook: no preview, no
     const exports = watchAsks(page, (r) => new URL(r.url()).pathname === '/api/workspace/export');
     try {
       await ready(page);
-      await card(page, 'Segment shoppers').click();
+      await openReader(page, card(page, 'Segment shoppers'));
       const section = page.locator('[data-use-case-notebook]');
       await section.waitFor({ timeout: 15000 });
       assert.match(await section.innerText(), new RegExp(`^${heading}`, 'i'), label);

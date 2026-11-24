@@ -4,6 +4,7 @@ import { closeBrowser, openUi } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
 import { REVIEW_LEFT_DEMO } from '../../src/lib/runPages.js';
 import { SHOWCASE_NOTE } from '../../src/lib/showcase.js';
+import { readerOf } from './reviewRows.mjs';
 import { openShowcase } from '../../../scripts/showcaseRecorder.mjs';
 
 test.after(closeBrowser);
@@ -22,8 +23,10 @@ const note = (page) => page.locator('[data-review-link-note]');
 const errorBox = (page) => page.locator('[data-results-error] span');
 
 async function openedCard(page, id) {
-  const box = cardOf(page, id);
-  await box.locator('[aria-expanded="true"]').first().waitFor({ timeout: 20000 });
+  // REQ-511: an open use case is its row marked data-open plus the reader [data-review-reader] holding the card.
+  const box = page.locator(`[data-use-case-row][data-use-case-no="${id}"]`);
+  await box.and(page.locator('[data-open]')).waitFor({ timeout: 20000 });
+  await readerOf(page).waitFor({ timeout: 20000 });
   await page.waitForFunction((no) => {
     const el = [...document.querySelectorAll('[data-use-case-no]')].find((e) => e.getAttribute('data-use-case-no') === no);
     if (!el) return false;
@@ -40,20 +43,20 @@ test('?review=<session>&uc=<use case> opens Review on that run with that use cas
     await openedCard(page, 'N01-U02');
     assert.equal((await page.locator('h1').innerText()).trim(), 'Review');
     assert.equal(await page.locator('[data-run-heading] [data-run-business]').innerText(), 'Acme');
-    assert.equal(await list(page).locator('[aria-expanded="true"]').count(), 1, 'only the linked use case is open');
+    assert.equal(await list(page).locator('[data-use-case-row][data-open]').count(), 1, 'only the linked use case is open');
     assert.deepEqual(await address(page), ['?open=app', '#/review/42'], 'the link query is gone, other queries stay, and the hash names the Review page of the run');
     assert.equal(await note(page).count(), 0);
 
     await page.evaluate(() => { window.location.hash = '#/review/42/N01-U03'; });
     await openedCard(page, 'N01-U03');
-    assert.equal(await list(page).locator('[aria-expanded="true"]').count(), 1, 'a second link in the open tab opens its own use case');
+    assert.equal(await list(page).locator('[data-use-case-row][data-open]').count(), 1, 'a second link in the open tab opens its own use case');
     assert.deepEqual(await address(page), ['?open=app', '#/review/42']);
 
     await page.reload();
     await page.locator('[data-run-heading] [data-run-business]').filter({ hasText: 'Acme' }).waitFor({ timeout: 20000 });
     assert.equal((await page.locator('h1').innerText()).trim(), 'Review', 'a reload stays on the Review page of the run');
     await list(page).locator('[data-use-case-no]').first().waitFor({ timeout: 20000 });
-    assert.equal(await list(page).locator('[aria-expanded="true"]').count(), 0, 'a reload does not open the linked use case again');
+    assert.equal(await list(page).locator('[data-use-case-row][data-open]').count(), 0, 'a reload does not open the linked use case again');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -74,7 +77,7 @@ test('the back button after a handled review link returns to the run page withou
     await page.locator('[data-run-heading] [data-run-business]').filter({ hasText: 'Acme' }).waitFor({ timeout: 20000 });
     assert.deepEqual(await address(page), ['?open=app', '#/review/42'], 'the history entry of the link holds the run page, not the link');
     await list(page).locator('[data-use-case-no]').first().waitFor({ timeout: 20000 });
-    assert.equal(await list(page).locator('[aria-expanded="true"]').count(), 0, 'going back opens the run, not the linked use case');
+    assert.equal(await list(page).locator('[data-use-case-row][data-open]').count(), 0, 'going back opens the run, not the linked use case');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -113,7 +116,7 @@ test('a link to a run that exists but has no such use case opens the run and say
     await note(page).waitFor({ timeout: 20000 });
     assert.equal(await note(page).innerText(), 'Run 42 has no use case N09-U09, so Review shows every use case of the run.');
     await page.locator('[data-run-heading]').waitFor();
-    assert.equal(await list(page).locator('[aria-expanded="true"]').count(), 0);
+    assert.equal(await list(page).locator('[data-use-case-row][data-open]').count(), 0);
     assert.ok(await list(page).locator('[data-use-case-no]').count() >= 6, 'every use case of the run is listed');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -137,7 +140,7 @@ test('quoted use case ids with spaces, a slash, an ampersand, a plus and non-Lat
     const { page } = ui;
     try {
       await openedCard(page, id);
-      assert.equal(await list(page).locator('[aria-expanded="true"]').count(), 1, id);
+      assert.equal(await list(page).locator('[data-use-case-row][data-open]').count(), 1, id);
       assert.equal(await note(page).count(), 0, id);
       assert.deepEqual(await address(page), ['?open=app', '#/review/42'], id);
       assert.deepEqual(ui.pageErrors, [], id);
@@ -169,7 +172,7 @@ test('a review link that arrives during the demo leaves the demo and opens the w
     await page.locator('[data-run-heading]').waitFor({ timeout: 20000 });
     await list(page).waitFor({ timeout: 20000 });
     assert.equal(await page.locator('[data-review-left-demo]').count(), 0, 'the note goes once the person moves on');
-    assert.equal(await list(page).locator('[aria-expanded="true"]').count(), 0, 'and the link does not open again');
+    assert.equal(await list(page).locator('[data-use-case-row][data-open]').count(), 0, 'and the link does not open again');
   } finally {
     await ui.close();
   }

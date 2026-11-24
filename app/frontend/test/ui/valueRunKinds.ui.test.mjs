@@ -55,7 +55,7 @@ test('Review: the header shows the total, saved, the hours chip and from 2 MVPs,
   const ui = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS }, '', { mount });
   const { page } = ui;
   try {
-    const header = page.locator('[data-run-heading] [data-run-header-value]');
+    const header = page.locator('[data-run-box] [data-run-header-value]');
     await header.locator('[data-run-value-total]').waitFor({ timeout: 15000 });
     assert.equal((await header.locator('[data-run-value-total]').innerText()).trim(), 'AED 12K');
     assert.deepEqual(await readOf(header), WANT);

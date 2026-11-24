@@ -320,7 +320,7 @@ async function openTab(page, settle, id) {
 }
 
 async function walkReviewRuns(page, settle) {
-  await page.getByRole('button', { name: 'Change run', exact: true }).click();
+  await page.getByRole('button', { name: /^Change run/ }).click();
   const runs = page.getByRole('group', { name: 'Runs' }).locator('button[data-run]');
   await runs.first().waitFor({ timeout: 120000 });
   await settle();
@@ -328,7 +328,7 @@ async function walkReviewRuns(page, settle) {
   for (let i = n - 1; i >= 0; i -= 1) {
     await runs.nth(i).click();
     await settle();
-    if (i > 0) await page.getByRole('button', { name: 'Change run', exact: true }).click();
+    if (i > 0) await page.getByRole('button', { name: /^Change run/ }).click();
   }
   return n;
 }
@@ -433,7 +433,8 @@ export async function walkInspireDemo(page, { settle, log = () => {}, mvps = tru
   const doing = new Set(parts);
   await openShowcase(page);
   const list = page.getByRole('region', { name: 'Use case list' });
-  const cards = list.locator('[aria-expanded]');
+  // REQ-511: the Review list is rows; a row click opens the reader (the full card), so a row is the unit the walk visits.
+  const cards = list.locator('[data-use-case-row]');
   await cards.first().waitFor({ timeout: 180000 });
   await settle();
   let runs = null;
@@ -446,8 +447,12 @@ export async function walkInspireDemo(page, { settle, log = () => {}, mvps = tru
     n = await cards.count();
     let opened = 0;
     for (let i = Math.max(0, useCases[0]); i < Math.min(n, useCases[1]); i += 1) {
-      await cards.nth(i).click();
+      await cards.nth(i).locator('[data-row-name]').click();
+      const reader = page.locator('[data-review-reader]');
+      await reader.waitFor({ timeout: 60000 });
       await settle();
+      await reader.getByRole('button', { name: 'Close' }).first().click();
+      await reader.waitFor({ state: 'detached', timeout: 60000 });
       opened += 1;
     }
     reviewed = opened;
