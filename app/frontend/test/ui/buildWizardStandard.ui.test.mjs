@@ -131,7 +131,7 @@ test('6: a Build row of a hidden step says Change in Advanced, which switches to
     const labels = await page.locator('[data-wizard-header] ol li').allTextContents();
     assert.ok(labels.some((l) => /What to deliver/.test(l)), 'the stepper is Advanced');
     await goToStep(page, 'What to deliver');
-    assert.equal(await page.locator('[data-output="app"] input[type="checkbox"]').isChecked(), true, 'the What choices are kept');
+    assert.equal(await page.locator('[data-output="app"] input').count(), 0, 'REQ-514: the App is fixed, not a choice');
     assert.deepEqual(pageErrors, []);
   } finally {
     await ui.close();

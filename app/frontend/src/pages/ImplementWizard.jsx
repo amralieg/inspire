@@ -177,8 +177,6 @@ import {
   withAppPage,
   appPagesOf,
   LAKEVIEW_STYLE_NOTE,
-  GENIE_FOR_APP_NOTE,
-  APP_GENIE_NOTE,
   RESULT_TABLE_MOVE_NOTE,
   MERGE_OUTPUTS,
   resultTableParts,
@@ -253,7 +251,9 @@ import {
   uncountedReadiness,
   outputUncheckedText,
   DELIVERY_LABEL,
-  NOTEBOOK_CARD,
+  APP_CARD,
+  withFixedApp,
+  OPTIONAL_OUTPUTS,
   RUN_IT_TITLE,
   APP_ACCESS_QUESTION,
   USE_CASE_DETAILS_LABEL,
@@ -1114,7 +1114,7 @@ export default function ImplementWizard({
   };
 
   const edited = useMemo(() => editedWidgets(context?.latest), [context?.latest]);
-  const sent = useMemo(() => sentSpec(spec, lakebase, built, targets, placeScope, edited), [spec, lakebase, built, targets, placeScope, edited]);
+  const sent = useMemo(() => withFixedApp(sentSpec(spec, lakebase, built, targets, placeScope, edited), blocks), [spec, lakebase, built, targets, placeScope, edited, blocks]);
   const runs = withFirstRunSaved(spec).config.widgets;
   const sentScope = withGroupingDefault(scopeValues((name) => runs?.[name]), scopeProfile.profile, runs?.[GROUP_BY]);
   const specKey = JSON.stringify(sent);
@@ -1925,18 +1925,34 @@ export default function ImplementWizard({
                 <p className="text-xs text-text-tertiary">Pick one or more. Genie builds each one for you.</p>
               </div>
               <div data-choice="outputs" data-choice-multi="" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div data-output={NOTEBOOK_CARD.id} className="border rounded-lg p-3 border-db-red/50 bg-db-red-50/40">
-                  <label className="flex items-start gap-3">
-                    <input type="checkbox" value={NOTEBOOK_CARD.id} className="mt-0.5" checked disabled readOnly />
+                <div data-output="app" className="border rounded-lg p-3 space-y-2 border-db-red/50 bg-db-red-50/40">
+                  <div className="flex items-start gap-3">
                     <span className="flex-1">
                       <span className="flex items-center gap-2 text-sm font-semibold text-text-primary">
-                        {NOTEBOOK_CARD.label} <Lock size={14} className="text-text-tertiary" aria-hidden="true" />
+                        <AppWindow size={14} /> {APP_CARD.label} <Lock size={14} className="text-text-tertiary" aria-hidden="true" />
                       </span>
-                      <span className="block text-xs mt-1 text-text-secondary">{NOTEBOOK_CARD.blurb}</span>
+                      <span className="block text-xs mt-1 text-text-secondary">{APP_CARD.blurb} {APP_NEXT_NOTE}</span>
                     </span>
-                  </label>
+                  </div>
+                  {blocks.app && <div className="ps-7"><BlockedReason block={blocks.app} id="app" /></div>}
+                  {!context?.assets?.app && appRefusal?.offer && (
+                    <div className="ps-7 space-y-1.5 text-xs">
+                      <GrantList label="Grant Inspire can run for new Apps" items={appRefusal.offer.grants} />
+                      <Button type="button" disabled={granting} onClick={grantNewApps}
+                        >
+                        {granting ? 'Granting with your sign-in' : NEW_APPS_ACCESS_ACTION}
+                      </Button>
+                    </div>
+                  )}
+                  {newAppsGrant && (
+                    <div role="status" aria-label="New Apps access result" className="ps-7 space-y-1 text-xs text-text-secondary">
+                      <p>{newAppsGrant.text}</p>
+                      <GrantList label="Grants Inspire ran for new Apps" items={newAppsGrant.ran} />
+                    </div>
+                  )}
+                  {(context?.gone_assets || []).includes('app') && <p className="ps-7 text-xs text-text-secondary">{goneAssetText('Agentic App', context.assets.app)}</p>}
                 </div>
-                {IMPLEMENT_OUTPUTS.map((item) => {
+                {IMPLEMENT_OUTPUTS.filter((item) => OPTIONAL_OUTPUTS.includes(item.id)).map((item) => {
                   const Icon = ICONS[item.id];
                   const on = spec.outputs[item.id];
                   const noAppAccess = item.id === 'app' && !context?.assets?.app && Boolean(appRefusal);
@@ -1965,9 +1981,6 @@ export default function ImplementWizard({
                             </span>
                             <span className="block text-xs mt-1 text-text-secondary">
                               {item.blurb}
-                              {item.id === 'genie_space' && spec.outputs.app && ` ${GENIE_FOR_APP_NOTE}`}
-                              {item.id === 'app' && ` ${APP_GENIE_NOTE}`}
-                              {!cannot && item.id === 'app' && ` ${APP_NEXT_NOTE}`}
                             </span>
                             {cannot && on && <span className="block text-xs mt-1 text-error-fg">It cannot be built, so turn it off.</span>}
                             <span className="block mt-1"><Recommended best={best.output} id={item.id} /></span>
