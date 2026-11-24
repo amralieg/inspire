@@ -30,7 +30,7 @@ export async function headerFacts(page) {
 // The solid primary reds (old db-red #FF3621, db-red-solid #D92E1B, new primary #E8311B / #FF4A33): no icon tile is filled with one.
 export const SOLID_REDS = ['rgb(255, 54, 33)', 'rgb(217, 46, 27)', 'rgb(232, 49, 27)', 'rgb(255, 74, 51)'];
 
-export function assertHeader(assert, facts, { name, width = '1200px', icon = true } = {}) {
+export function assertHeader(assert, facts, { name, width = null, icon = true } = {}) {
   assert.ok(facts.h1, `${name}: the page renders its h1`);
   assert.equal(facts.header, true, `${name}: the h1 sits in [data-page-header]`);
   assert.deepEqual([facts.h1.size, facts.h1.lineHeight, facts.h1.weight], [28, 36, 600], `${name}: the h1 is text-h1 (28/36, 600)`);
@@ -40,5 +40,5 @@ export function assertHeader(assert, facts, { name, width = '1200px', icon = tru
     assert.deepEqual([facts.icon.w, facts.icon.h, facts.icon.radius], [40, 40, '10px'], `${name}: the icon tile is 40x40 with radius md`);
     assert.ok(!SOLID_REDS.includes(facts.icon.bg), `${name}: the icon tile is primary-subtle, not solid red (got ${facts.icon.bg})`);
   }
-  assert.equal(facts.widthCap, width, `${name}: the page content is capped at ${width}`);
+  assert.equal(facts.widthCap, width, `${name}: the page content is full width (REQ-512), no max-width cap`);
 }
