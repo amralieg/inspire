@@ -32,9 +32,8 @@ test('a fresh MVP shows every step in the step bar, with no shortcut that hides 
     await goToStep(page, 'What to deliver');
     assert.equal(await page.getByRole('button', { name: 'Customize' }).count(), 0);
     await page.getByRole('heading', { name: 'How will people use this use case?' }).waitFor();
-    await page.getByRole('checkbox', { name: /^Agentic App/ }).first().uncheck();
-    assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS.filter((l) => !/App|Where it lives|Page storage/.test(l)), 'with Apps unticked both App steps are hidden');
-    await page.getByRole('checkbox', { name: /^Agentic App/ }).first().check();
+    // REQ-514: the App is always built, so What to deliver has no App checkbox and the App steps cannot be hidden.
+    assert.equal(await page.getByRole('checkbox', { name: /^Agentic App/ }).count(), 0, 'the App is not an option');
     assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS);
     await goToStep(page, 'Data');
     assert.deepEqual(ui.pageErrors, []);

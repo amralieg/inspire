@@ -144,7 +144,6 @@ test('at 1280 by 800 no step overflows its dialog sideways', async () => {
 
 const PROFILE = profileOf(31, 40);
 const check = (name) => async (page) => page.getByRole('checkbox', { name }).first().check();
-const uncheck = (name) => async (page) => page.getByRole('checkbox', { name }).first().uncheck();
 const radio = (name) => async (page) => page.getByRole('radio', { name }).first().check();
 const press = (name) => async (page) => page.getByRole('button', { name, exact: true }).first().click();
 const inFold = (what, fn) => async (page) => { await openFolded(page, what); await fn(page); };
@@ -153,8 +152,8 @@ const impactUncheck = (name) => async (page) => { await goToMeasureImpact(page);
 const both = (...fns) => async (page) => { for (const fn of fns) await fn(page); };
 
 const COMBOS = [
-  ['app-off', { 'What to deliver': uncheck(/^Agentic App A Databricks/) }],
-  ['app-off-alert-dashboard', { 'What to deliver': both(uncheck(/^Agentic App A Databricks/), check(/^Dashboard/), check(/^Alert/)) }],
+  // REQ-514: the App is always built, so the two App-off combinations are gone; the extras are the only choices left on What to deliver.
+  ['alert-dashboard', { 'What to deliver': both(check(/^Dashboard/), check(/^Alert/)) }],
   ['per-user', { 'Who uses the App and storage': radio(/^Sensitive data/) }],
   ['per-user-edit', { 'Who uses the App and storage': both(radio(/^Sensitive data/), inFold('What people can do', check(/^Let people edit data/))) }],
   ['one-app-per-use-case', { 'Where it lives': radio(/^One App per use case/) }],
