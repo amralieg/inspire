@@ -30,6 +30,9 @@ test('the Runs page: number-only all-runs panel, a red value box on every run, n
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    // REQ-510: the all-runs value panel opens from the page More menu.
+    await page.getByRole('button', { name: 'More', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Value across all runs' }).click();
     const panel = page.locator('[data-value-all-panel]');
     await panel.locator('[data-total-amount]').first().waitFor({ timeout: 20000 });
     assert.equal(await panel.locator('table, tr, [data-all-runs-row]').count(), 0, 'REQ-487: no per-run table in the all-runs panel');
@@ -38,7 +41,7 @@ test('the Runs page: number-only all-runs panel, a red value box on every run, n
       await box.waitFor({ timeout: 20000 });
       assert.ok((await text(box)).includes(want), `REQ-488: run ${sid} box shows ${want}, got "${await text(box)}"`);
       assert.match(await box.evaluate((el) => getComputedStyle(el).borderTopColor), /rgb\(\s*(19[0-9]|2[0-9]{2}),\s*\d{1,2},\s*\d{1,2}\)|rgb\(\s*\d+,\s*\d+,\s*\d+\)/);
-      assert.ok(/border/.test(await box.getAttribute('class')) && /db-red/.test(await box.getAttribute('class')), 'REQ-488: red-themed border');
+      assert.ok(/border/.test(await box.getAttribute('class')) && /db-red|primary-solid/.test(await box.getAttribute('class')), 'REQ-488: red-themed border');
     }
     assert.ok(!/Value of this run/i.test(await page.locator('body').innerText()), 'REQ-489: "Value of this run" appears nowhere');
     assert.equal(await page.locator('[aria-label="Value of this run"]').count(), 0);

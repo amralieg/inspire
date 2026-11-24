@@ -289,7 +289,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
         <PageHeader className="mb-10" title="Inspire AI Setup" subtitle="Let's get your workspace connected in under 2 minutes." />
 
         {/* Step indicators */}
-        <div className="flex items-center justify-center gap-1 mb-8">
+        <div className="flex flex-wrap items-center justify-center gap-y-2 gap-1 mb-8">
           {healthKnown && shown.map((s, i) => (
             <div key={s.id} className="flex items-center">
               <button

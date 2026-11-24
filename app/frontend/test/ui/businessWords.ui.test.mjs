@@ -83,7 +83,7 @@ test('Generate data explains in plain words and keeps table locations under Deta
   const ui = await openUi('generate');
   const { page } = ui;
   try {
-    await page.getByText(/from your description and adds/).first().waitFor({ timeout: 15000 });
+    await page.getByText(/from your description, plus/).first().waitFor({ timeout: 15000 });
     const text = await shownText(page);
     assert.doesNotMatch(text, JARGON);
     assert.doesNotMatch(text, /inspire_demo_\*|\(recommended\)/, 'locations and the old badge stay out of the page text (must-exclude)');

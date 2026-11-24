@@ -62,6 +62,9 @@ test('runs that cannot be read because the warehouse is gone are never shown as 
   };
   const ui = await openUi('launch', {}, '', { mount });
   try {
+    // REQ-510 L3: the run overview opens from More > Recent runs.
+    await ui.page.getByRole('button', { name: 'More', exact: true }).click();
+    await ui.page.getByRole('menuitem', { name: 'Recent runs' }).click();
     await ui.page.locator('[data-overview-error]').waitFor({ timeout: 20000 });
     const shown = await visible(ui.page);
     assert.match(shown, /pick another warehouse/);
@@ -149,6 +152,9 @@ test('Launch says a lost connection once, not once per list', async () => {
   };
   const ui = await openUi('launch', {}, '', { mount });
   try {
+    // REQ-510 L3: the run overview opens from More > Recent runs.
+    await ui.page.getByRole('button', { name: 'More', exact: true }).click();
+    await ui.page.getByRole('menuitem', { name: 'Recent runs' }).click();
     await ui.page.locator('[data-overview-error]').waitFor({ timeout: 20000 });
     const shown = await visible(ui.page);
     assert.equal(shown.split('Inspire lost its connection to Databricks').length - 1, 1, shown);
