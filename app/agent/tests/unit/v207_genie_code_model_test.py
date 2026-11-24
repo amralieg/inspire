@@ -171,7 +171,7 @@ def _stopping(ns, inspire_database):
     obj = cls.__new__(cls)
     calls = []
     obj.logger = logging.getLogger("v207_stop")
-    obj.generate_choices, obj.operation_mode, obj.session_id = ["PDF Catalog"], "Discover Use Cases", 4242
+    obj.generate_choices, obj.operation_mode, obj.session_id = [], "Discover Use Cases", 4242
     obj.inspire_database = inspire_database
     obj.no_usable_model = "No AI model can be called from this workspace, so the run stopped before it used any. Tried 1 model"
     for name in ("_ensure_inspire_database_exists", "_create_tracking_table", "_load_feedback", "_attach_ailogs",

@@ -48,7 +48,9 @@ test('the default result table is the Inspire-owned schema, and a missing USE CA
     await page.getByText(/reads the data/).first().waitFor({ timeout: 30000 });
     const text = await page.getByText(/reads the data/).first().locator('xpath=ancestor::*[3]').textContent(); // the GRANT sits in the closed Details drawer by design
     assert.match(text, /App reads the data/, 'the row is on the page');
-    assert.ok(text.includes('GRANT USE CATALOG ON CATALOG `main` TO `account users`'), 'the row names the exact GRANT');
+    // REQ-478 FX-91 (d12197f4b): no GRANT wording to business users; the row says the App cannot open the catalog and to run the installer again
+    assert.ok(text.includes('it cannot open the catalog yet') && text.includes('run the Inspire installer again'), 'the row names the catalog gap and the installer');
+    assert.doesNotMatch(text, /GRANT /);
     assert.doesNotMatch(text, /choose a result table in a catalog and schema Inspire manages/);
     assert.deepEqual(ui.pageErrors, []);
   } finally {

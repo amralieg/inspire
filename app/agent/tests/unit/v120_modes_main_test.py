@@ -46,7 +46,6 @@ def widget_values(**over):
         "06_business_domains": "",
         "07_business_priorities": "",
         "08_generation_instructions": "",
-        "09_generation_options": "PDF Catalog",
         "11_generation_path": "/Workspace/Users/someone/inspire_out",
         "12_documents_languages": "English",
         "13_generate_genie_code_for": "5",

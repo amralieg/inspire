@@ -116,18 +116,18 @@ def test_a_package_already_loaded_from_elsewhere_is_refused_with_a_restart(fresh
 
 
 def test_a_native_package_is_picked_for_this_machine_and_python_and_refused_for_another(fresh_ns, tmp_path):
-    version = fresh_ns["INSPIRE_ASSET_WHEELS"]["lxml"]
-    entries = [{"kind": "python", "name": "lxml", "version": version, "data": wheel({f"lxml/{m}.so": m}), "machine": m, "python": "3.12"}
+    version = fresh_ns["INSPIRE_ASSET_WHEELS"]["psycopg-binary"]
+    entries = [{"kind": "python", "name": "psycopg-binary", "version": version, "data": wheel({f"psycopg_binary/{m}.so": m}), "machine": m, "python": "3.12"}
                for m in ("aarch64", "x86_64")]
     root = tmp_path / "assets"
     make_assets(fresh_ns, root, entries)
     pick = lambda machine: fresh_ns["InspireAssets"](str(root), local=str(tmp_path / machine), machine=machine)
-    assert pick("amd64").entry("python", "lxml", version, python="3.12")["file"] == "python/lxml-cp312-x86_64.whl"
-    assert pick("arm64").entry("python", "lxml", version, python="3.12")["file"] == "python/lxml-cp312-aarch64.whl"
-    with pytest.raises(fresh_ns["InspireAssetError"], match=r"manifest\.json lists no lxml for ppc64le and Python 3\.12"):
-        pick("ppc64le").entry("python", "lxml", version, python="3.12")
-    with pytest.raises(fresh_ns["InspireAssetError"], match=r"lists no lxml for aarch64 and Python 3\.11"):
-        pick("aarch64").entry("python", "lxml", version, python="3.11")
+    assert pick("amd64").entry("python", "psycopg-binary", version, python="3.12")["file"] == "python/psycopg-binary-cp312-x86_64.whl"
+    assert pick("arm64").entry("python", "psycopg-binary", version, python="3.12")["file"] == "python/psycopg-binary-cp312-aarch64.whl"
+    with pytest.raises(fresh_ns["InspireAssetError"], match=r"manifest\.json lists no psycopg-binary for ppc64le and Python 3\.12"):
+        pick("ppc64le").entry("python", "psycopg-binary", version, python="3.12")
+    with pytest.raises(fresh_ns["InspireAssetError"], match=r"lists no psycopg-binary for aarch64 and Python 3\.11"):
+        pick("aarch64").entry("python", "psycopg-binary", version, python="3.11")
 
 
 def test_both_clis_come_from_local_copies_of_the_assets_with_no_download(fresh_ns, tmp_path, monkeypatch):
@@ -182,31 +182,6 @@ def test_a_cli_missing_from_the_assets_names_the_manifest_and_the_install_step(f
                                  + _install_step(fresh_ns, str(root)))
 
 
-def test_pdf_fonts_are_read_in_place_from_the_assets_with_no_download(fresh_ns, tmp_path, monkeypatch):
-    cls = fresh_ns["DatabricksInspire"]
-    monkeypatch.setattr(cls, "_DOC_FONT_FILES", {})
-    root = tmp_path / "assets"
-    obj = make_inspire(fresh_ns)
-    obj._assets = make_assets(fresh_ns, root, [{"kind": "font", "name": "Inter", "version": "v20", "weight": w, "data": FONT}
-                                               for w in (400, 600, 700)])
-    calls = _refuse_pip_and_network(monkeypatch)
-    assert obj._doc_font_files("Inter", (400, 600, 700)) == {w: f"{root}/fonts/inter-{w}.ttf" for w in (400, 600, 700)}
-    assert calls == [] and obj.logger.matching("[DOCS-FONTS] Inter: 3 weights ready for the PDF from the Inspire assets")
-
-
-def test_a_font_missing_from_the_assets_falls_back_and_names_the_file_and_the_install_step(fresh_ns, tmp_path, monkeypatch):
-    cls = fresh_ns["DatabricksInspire"]
-    monkeypatch.setattr(cls, "_DOC_FONT_FILES", {})
-    root = tmp_path / "assets"
-    obj = make_inspire(fresh_ns)
-    obj._assets = make_assets(fresh_ns, root, [{"kind": "font", "name": "Noto Sans Arabic", "version": "v33", "weight": 400, "data": FONT}])
-    calls = _refuse_pip_and_network(monkeypatch)
-    assert obj._doc_font_files("Noto Sans Arabic", (400, 700)) == {} and calls == []
-    warned = obj.logger.matching("[DOCS-FONTS] Noto Sans Arabic:", level="WARNING")
-    assert warned and f"{root}/manifest.json lists no Noto Sans Arabic 700" in warned[0][1] and "Install step:" in warned[0][1]
-    assert warned[0][1].endswith("The PDF falls back to installed fonts for it and may show missing glyphs.")
-
-
 class _Assets:
     def __init__(self, error=None):
         self.calls, self.error = [], error
@@ -223,10 +198,10 @@ def test_a_document_package_loads_once_per_run_and_a_missing_one_names_the_insta
     obj._assets = _Assets(fresh_ns["InspireAssetError"]("The Inspire assets file /W/a/manifest.json is missing. Install step: run it."))
     for _ in range(3):
         with pytest.raises(RuntimeError) as raised:
-            obj._require_asset_package("weasyprint", "PDF Catalog (French)")
-        assert str(raised.value) == "PDF Catalog (French) cannot be generated: The Inspire assets file /W/a/manifest.json is missing. " \
+            obj._require_asset_package("sqlglot", "The SQL checks (French)")
+        assert str(raised.value) == "The SQL checks (French) cannot be generated: The Inspire assets file /W/a/manifest.json is missing. " \
                                     "Install step: run it."
-    assert obj._assets.calls == ["weasyprint"] and calls == []
+    assert obj._assets.calls == ["sqlglot"] and calls == []
 
 
 def test_a_package_whose_native_library_fails_to_load_says_so_without_pip(fresh_ns, monkeypatch):
@@ -236,26 +211,10 @@ def test_a_package_whose_native_library_fails_to_load_says_so_without_pip(fresh_
     obj._assets = _Assets()
     monkeypatch.setattr(importlib, "import_module", lambda name, *a, **k: (_ for _ in ()).throw(OSError("cannot load library 'gobject-2.0-0'")))
     with pytest.raises(RuntimeError) as raised:
-        obj._require_asset_package("weasyprint", "PDF Catalog")
-    assert str(raised.value).startswith("PDF Catalog cannot be generated: 'weasyprint' from the Inspire assets cannot be loaded: cannot "
+        obj._require_asset_package("sqlglot", "The SQL checks")
+    assert str(raised.value).startswith("The SQL checks cannot be generated: 'sqlglot' from the Inspire assets cannot be loaded: cannot "
                                         "load library "), "the one redaction still masks the quoted value"
     assert calls == []
-
-
-def test_a_pdf_with_no_assets_runs_no_pip_fetches_nothing_and_names_the_install_step(fresh_ns, tmp_path, monkeypatch):
-    calls = _refuse_pip_and_network(monkeypatch)
-    root = str(tmp_path / "assets")
-    obj = make_inspire(fresh_ns)
-    obj._assets = fresh_ns["InspireAssets"](root, local=str(tmp_path / "local"), machine=MACHINE)
-    failed = []
-    obj._record_failed_step = lambda step, language, error: failed.append((step, language, str(error)))
-    monkeypatch.delitem(sys.modules, "weasyprint", raising=False)
-    with pytest.raises(RuntimeError) as raised:
-        obj.generate_catalog_pdf("French", "fr", {}, {}, {"Sales": [{"No": "N01-U01", "Name": "Forecast demand"}]}, "Acme")
-    assert str(raised.value) == (f"PDF Catalog (French) cannot be generated: The Inspire assets file {root}/manifest.json is missing. "
-                                 + _install_step(fresh_ns, root))
-    assert calls == [], "no pip and no download even when the assets are missing"
-    assert failed and failed[0][:2] == ("PDF Catalog", "French")
 
 
 def test_a_lakebase_app_gets_the_python_3_11_packages_and_never_the_agent_ones(fresh_ns, tmp_path):
@@ -315,18 +274,14 @@ def test_genie_is_told_environment_4_ships_its_libraries_and_the_notebook_instal
         assert "%pip" not in agent_ns[name], name
 
 
-def test_the_weasyprint_pin_keeps_the_70_floor_that_stops_the_double_free(agent_ns):
-    pinned = tuple(int(p) for p in agent_ns["INSPIRE_ASSET_WHEELS"]["weasyprint"].split(".")[:2])
-    assert pinned >= (70, 0), "WeasyPrint before 70.0 frees its font configuration twice and can crash the Python process"
-    assert set(agent_ns["INSPIRE_ASSET_MODULES"]["weasyprint"]) >= {"tinycss2", "fonttools"}, \
-        "WeasyPrint 70.0 needs tinycss2 1.5.0 and fonttools 4.59.2, newer than environment 4 ships"
-    assert tuple(int(p) for p in agent_ns["INSPIRE_ASSET_WHEELS"]["fonttools"].split(".")[:2]) >= (4, 59)
-    assert tuple(int(p) for p in agent_ns["INSPIRE_ASSET_WHEELS"]["tinycss2"].split(".")[:2]) >= (1, 5)
-
-
 def test_the_app_passes_the_installed_assets_folder_and_the_notebook_reads_it_before_the_shared_fallback(fresh_ns):
     installed = "/Workspace/Users/someone@example.com/inspire-ai/assets/v1.3.0"
     fresh_ns["INSPIRE_SETTINGS_APPLIED"] = {"inspire_assets_path": installed + "/"}
     assert fresh_ns["InspireAssets"]().root == installed
     fresh_ns["INSPIRE_SETTINGS_APPLIED"] = {}
     assert fresh_ns["InspireAssets"]().root == _build_folder(fresh_ns)
+
+
+def test_the_document_libraries_and_fonts_are_no_longer_pinned_in_the_assets(agent_ns):
+    pinned = set(agent_ns["INSPIRE_ASSET_WHEELS"]) | set(agent_ns["INSPIRE_ASSET_MODULES"])
+    assert not pinned & {"weasyprint", "fonttools", "tinycss2", "python-pptx", "XlsxWriter", "xlsxwriter"}, sorted(pinned)

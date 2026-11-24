@@ -10,7 +10,7 @@ import json
 
 from rc14_space_sql_scope_test import TABLE, _scopes
 from rc16_f_filter_cols_test import SALES, make_inspire, scope, scoped, use_case  # noqa: F401 (fixture)
-from v120_docs_geometry_test import docs  # noqa: F401 (fixture)
+from v120_docs_design_test import docs  # noqa: F401 (fixture)
 
 
 def test_a_notebook_refusal_repeated_with_the_same_problems_stops_after_the_round_it_repeats_in(agent_ns, monkeypatch):

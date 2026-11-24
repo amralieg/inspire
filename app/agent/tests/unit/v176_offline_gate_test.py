@@ -237,7 +237,7 @@ def test_the_bundle_decoder_finds_an_install_and_a_font_host_hidden_two_levels_d
 
 def test_the_gate_catches_each_kind_it_names():
     assert INSTALL.search("%pip install scikit-learn==1.6.1") and INSTALL.search('[sys.executable, "-m", "pip", "install", spec]')
-    assert INSTALL.search("npm ci") and INSTALL.search('"postinstall": "node x"') and INSTALL.search("run 'pip install \"weasyprint\"'")
+    assert INSTALL.search("npm ci") and INSTALL.search('"postinstall": "node x"') and INSTALL.search("run 'pip install \"sqlglot\"'")
     assert not INSTALL.search("the pipeline installs nothing") and not INSTALL.search("pipeline_id")
     assert DOWNLOAD.search("https://fonts.googleapis.com/css2?family=Inter") and DOWNLOAD.search("/releases/download/v1/x.tar.gz")
     assert not DOWNLOAD.search("https://example.com/release-notes/serverless/environment-version/four")

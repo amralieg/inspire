@@ -84,7 +84,6 @@ const {
 } = require('./lib/inspireFeedback');
 const { createHostedRun, workspaceFiles } = require('./lib/hostedRun');
 const RP = require('./lib/routePolicy');
-const DJ = require('./lib/documentJob');
 const LC = require('./lib/launchChoice');
 const { crossSiteGuard } = require('./lib/crossSite');
 const L = require('./lib/launchLedger');
@@ -2368,53 +2367,6 @@ app.post('/api/run/:runId/again', requireToken, async (req, res) => {
   } catch (err) {
     const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
     return PM_ERROR.sendFailure(res, code, err.message);
-  }
-});
-
-async function storedCatalogPath(req, inspireDatabase, sessionId) {
-  const parsed = splitInspireDatabase(inspireDatabase);
-  if (!parsed || !DEFAULT_WAREHOUSE_ID) return null;
-  try {
-    const rows = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, DEFAULT_WAREHOUSE_ID,
-      `SELECT catalog_json_path, catalog_json_reason FROM \`${parsed.catalog}\`.\`${parsed.schema}\`.\`__inspire_session\` WHERE session_id = ${sessionId} LIMIT 1`));
-    if (!rows.length) return { path: null, reason: null };
-    return { path: rows[0].catalog_json_path ? String(rows[0].catalog_json_path) : null, reason: rows[0].catalog_json_reason ? String(rows[0].catalog_json_reason) : null };
-  } catch (err) {
-    if (/UNRESOLVED_COLUMN/.test(String(err && err.message))) return { path: null, reason: null };
-    throw err;
-  }
-}
-
-app.post('/api/documents', requireToken, async (req, res) => {
-  try {
-    const { params, document } = DJ.documentRunParams(req.body || {});
-    const refused = await launchSessionProblem(req, params);
-    if (refused) return res.status(403).json(RP.refusalBody(req.policyKey, 'launcher', `${refused}.`));
-    const stored = await storedCatalogPath(req, params['02_inspire_database'], params['14_session_id']).catch((err) => {
-      console.warn(`document catalog path read failed: ${err && err.message}`);
-      return undefined;
-    });
-    if (stored === undefined) return res.status(503).json({ error: DJ.CATALOG_CHECK_FAILED_TEXT });
-    if (stored.path) params['01_uc_metadata'] = stored.path;
-    else if (stored.reason) return res.status(409).json({ error: DJ.CATALOG_UNSAVED_TEXT });
-    const catalog = await dbFetch(req.dbHost, req.dbToken, `/api/2.0/workspace/get-status?path=${encodeURIComponent(params['01_uc_metadata'])}`).catch((err) => {
-      console.warn(`document catalog check failed: ${err && err.message}`);
-      return null;
-    });
-    if (!catalog || (!catalog.ok && catalog.status !== 404)) return res.status(503).json({ error: DJ.CATALOG_CHECK_FAILED_TEXT });
-    if (catalog.status === 404) return res.status(409).json({ error: DJ.CATALOG_MISSING_TEXT });
-    const out = await triggerInspireNotebookJob(req.dbHost, req.dbToken, {
-      params,
-      jobType: 'discovery',
-      launchedBy: RP.forwardedPerson(req.headers),
-      writeCheck: (writes) => outputWriteVerdict(req, writes),
-      asker: req,
-    });
-    res.json({ ...out, document });
-  } catch (err) {
-    if (err.writeRefusal) return res.status(err.writeRefusal.status).json(writeRefusalBody(req.policyKey, err.writeRefusal));
-    const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
-    PM_ERROR.sendFailure(res, code, err.message);
   }
 });
 
