@@ -4,7 +4,7 @@ export function tabPanel(idBase, id, current) {
 
 /**
  * The one tab style: a tablist with a 2px primary underline on the current tab, no fill, no box. Arrow keys, Home and End move
- * between tabs (flipped in right-to-left pages). Each tab is { id, label, icon, mark, count, ariaLabel }.
+ * between tabs (flipped in mirrored pages). Each tab is { id, label, icon, mark, count, ariaLabel }.
  * With `idBase`, tabs get ids and aria-controls that match `tabPanel(idBase, id, current)` on the panels.
  */
 export default function Tabs({ label, idBase, tabs, current, onPick, tabAttrs, className = '', ...rest }) {
@@ -45,7 +45,7 @@ export default function Tabs({ label, idBase, tabs, current, onPick, tabAttrs, c
           >
             {Icon && <Icon size={14} aria-hidden="true" className="shrink-0" />}
             <span className="truncate">{t.label}</span>
-            {t.count !== undefined && <span className="font-mono text-[10px] tabular-nums text-text-secondary">{t.count}</span>}
+            {t.count !== undefined && <span className="font-mono text-caption tabular-nums text-text-secondary">{t.count}</span>}
             {t.mark}
           </button>
         );

@@ -281,7 +281,7 @@ test('the top bar holds the switcher, the Screen | Genie switch, the value chip 
   assert.equal(await page.locator('.side, [data-rail]').count(), 0, 'there is no side rail');
   assert.deepEqual(await page.locator('header.top > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]).filter((c) => c !== 'avatar')),
     ['switch', 'sp', 'mode-switch', 'top-value', 'av'], 'the top bar holds the use case switcher, the Screen | Genie switch, the value chip and the avatar menu');
-  assert.deepEqual(await menuIds(page), ['Switch to dark theme', 'Take the tour', 'Settings', 'Runs', 'Performance', 'Admin'], 'Feedback sits in Settings, not in the menu (REQ-110)');
+  assert.deepEqual(await menuIds(page), ['Switch to dark theme', 'Take the tour', 'Dashboard', 'Settings', 'Runs', 'Performance', 'Admin'], 'Feedback sits in Settings, not in the menu (REQ-110); REQ-506 gap2 added the Dashboard entry before Settings');
   await pickMenu(page, 'Runs');
   await page.waitForFunction(() => window.location.hash === '#/n01_u05/runs');
   await page.locator('.runs-tbl, [data-card="run_timeline"], [data-page-section]').first().waitFor();
@@ -380,7 +380,7 @@ test('Fix this on the To fix tile and on a reason bar opens Work on the Open tab
   await page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/work') && window.location.hash.includes('tab=open'));
   await until(() => JSON.stringify(seen.records.at(-1)?.column_filters || {}).includes('Act now'));
   assert.equal(seen.records.at(-1).column_filters.action_status[0], 'New');
-  await page.evaluate(() => { window.location.hash = '#/n01_u05/dashboard'; }); // REQ-506: no menu item opens the dashboard, so the link is the way back
+  await page.evaluate(() => { window.location.hash = '#/n01_u05/dashboard'; }); // Return to the dashboard by its route (the avatar menu also has a Dashboard entry since REQ-506 gap2; this keeps the test off the menu)
   await page.locator('[data-fix-reason]').first().waitFor();
   const reason = await page.locator('[data-fix-reason]').first().getAttribute('data-fix-reason');
   await page.locator('[data-fix-reason]').first().click();

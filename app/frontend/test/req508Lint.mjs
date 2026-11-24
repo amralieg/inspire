@@ -59,7 +59,7 @@ export const RULES = {
     ...hits(f, s, /\bfontSize:\s*['"]?(\d+(?:\.\d+)?)(px|rem|em)?['"]?/g, (m) => PX(m[1], m[2] || 'px') < 12),
   ],
   // F14: colours come from tokens, never hex or rgb()/hsl() literals in a component.
-  'raw-colour': (f, s) => (allowed('raw-colour', f) ? [] : hits(f, s, /#[0-9a-fA-F]{8}\b|#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3,4}\b(?![-\w])|\b(?:rgba?|hsla?)\(/g,
+  'raw-colour': (f, s) => (allowed('raw-colour', f) ? [] : hits(f, s, /#[0-9a-fA-F]{8}\b|#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3,4}\b(?![-\w])|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(/g,
     (m) => !/^#\d{3,4}$/.test(m[0]) || /['"`]#\d{3,4}['"`]/.test(s.slice(m.index - 1, m.index + m[0].length + 1)))),
   // F14/F15: no arbitrary colour classes such as bg-[#fff], text-[rgb(...)] or accent-[var(--color-x,#c4161c)].
   'arbitrary-colour': (f, s) => (allowed('raw-colour', f) ? [] : hits(f, s, new RegExp(`\\b(?:${PREFIX})-\\[(?:#|rgb|hsl|var\\(--color|color:)[^\\]]*\\]`, 'g'))),

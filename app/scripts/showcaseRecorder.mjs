@@ -384,8 +384,18 @@ async function walkMonitor(page, settle) {
   await openTab(page, settle, 'monitor');
   await page.getByRole('heading', { name: 'Monitor', exact: true }).waitFor({ timeout: 120000 });
   await settle();
-  const steps = await shown(page.getByRole('heading', { name: 'Detailed Steps' }));
-  if (steps) await settle();
+  // REQ-511: the step log is the "Every step" dialog, opened from the button beside the live feed.
+  const every = page.getByRole('button', { name: /^Every step/ });
+  let steps = false;
+  if (await shown(every)) {
+    await every.first().click();
+    steps = await shown(page.getByRole('dialog', { name: 'Every step' }));
+    if (steps) {
+      await settle();
+      await page.keyboard.press('Escape');
+    }
+    await settle();
+  }
   const usecases = page.getByRole('button', { name: 'Show the use cases' });
   if (await usecases.count()) {
     await usecases.click();

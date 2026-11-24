@@ -29,9 +29,14 @@ test('Launch Quick view lists the plain use case name, never the name with its t
   const ui = await openUi('launch', { sessions, useCases });
   const { page } = ui;
   try {
-    await page.getByRole('button', { name: /Discovery Overview/ }).click();
+    // REQ-510 L3: the run overview opens, expanded, from More > Recent runs.
+    await page.getByRole('button', { name: 'More', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Recent runs' }).click();
     const run = page.locator('li[data-run="42"]');
-    await run.getByRole('button', { name: /Quick view/ }).click();
+    // REQ-510 L3: More > Recent runs opens the latest run's Quick view already; click only when it is not open.
+    const quick = run.getByRole('button', { name: /Quick view/ });
+    await quick.waitFor();
+    if ((await quick.getAttribute('aria-expanded')) !== 'true') await quick.click();
     const titles = run.locator('ul li span.font-semibold');
     await titles.first().waitFor();
     assert.deepEqual(await titles.allInnerTexts(), ['Forecast stock', 'Spot late suppliers']);
@@ -54,9 +59,10 @@ test('Monitor lists the use cases so far by the plain use case name (REQ-175)', 
   const ui = await openUi('monitor', {}, '&run=none', { mount });
   const { page } = ui;
   try {
-    const live = page.getByText('2 use cases so far').locator('xpath=ancestor::div[contains(@class, "rounded")][1]');
-    await live.waitFor({ timeout: 15000 });
-    const names = await live.locator('p.font-medium').allInnerTexts();
+    // REQ-511: the live list is the Arriving now region (count line + cards), not a rounded div.
+    const live = page.getByRole('region', { name: 'Arriving now' });
+    await live.getByText('2 use cases so far').waitFor({ timeout: 15000 });
+    const names = await live.locator('[data-live-use-case] p.font-medium').allInnerTexts();
     assert.deepEqual(names, ['Forecast stock', 'Spot late suppliers']);
     assert.deepEqual(ui.pageErrors, []);
   } finally {

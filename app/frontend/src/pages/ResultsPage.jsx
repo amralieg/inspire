@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react';
 import {
   Loader2,
   AlertCircle,
@@ -651,7 +651,7 @@ export default function ResultsPage({
     if (!el) return;
     el.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' });
     el.setAttribute('data-value-pulse', 'on');
-    el.animate?.([{ boxShadow: '0 0 0 0 rgba(217,46,27,.5)' }, { boxShadow: '0 0 0 16px rgba(217,46,27,0)' }], { duration: 1400 });
+    el.animate?.([{ boxShadow: '0 0 0 0 color-mix(in srgb, var(--color-db-red) 50%, transparent)' }, { boxShadow: '0 0 0 16px color-mix(in srgb, var(--color-db-red) 0%, transparent)' }], { duration: 1400 });
     setTimeout(() => el.removeAttribute('data-value-pulse'), 1400);
   }, []);
   // A row of the run's value leads to its card, which only exists in the Use cases view.
@@ -1280,14 +1280,14 @@ export default function ResultsPage({
         </div>
       )}
       {!embedded && results && (
-        <section aria-label="This run" data-run-box="" className="mb-3 mt-4 flex flex-wrap items-center gap-x-7 gap-y-3 rounded-2xl border border-db-red/20 bg-gradient-to-r from-db-red-50 to-surface px-5 py-3.5">
+        <section aria-label="This run" data-run-box="" className="mb-3 mt-4 flex flex-wrap items-center gap-x-7 gap-y-3 rounded-2xl border border-db-red/20 bg-linear-to-r from-db-red-50 to-surface px-5 py-3.5">
           <div data-run-heading="" className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-secondary">This run</p>
+            <p className="text-caption font-semibold uppercase tracking-[0.18em] text-text-secondary">This run</p>
             <h2 className="text-xl font-bold tracking-tight text-text-primary sm:text-2xl" title={resultsPageTitle || undefined}>
               <button type="button" aria-label={`Change run: ${resultsPageTitle}`} title="Switch to another run" onClick={changeRun}
                 className="group inline-flex items-center gap-2 break-words rounded-md py-0.5 pe-1 text-start hover:text-db-red-fg">
                 {resultsPageTitle}
-                <RefreshCw size={13} className="shrink-0 text-text-tertiary group-hover:text-db-red-fg" aria-hidden />
+                <RefreshCw size={14} className="shrink-0 text-text-tertiary group-hover:text-db-red-fg" aria-hidden />
               </button>
             </h2>
             <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-text-secondary">
@@ -1301,7 +1301,7 @@ export default function ResultsPage({
           <dl className="ms-auto flex gap-7">
             {[['Use cases', archiveCounts.active], ['Value calculated', `${runCalculated} of ${archiveCounts.active}`], ['MVPs live', runMvpsLive]].map(([label, n]) => (
               <div key={label}>
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary">{label}</dt>
+                <dt className="text-caption font-semibold uppercase tracking-[0.06em] text-text-tertiary">{label}</dt>
                 <dd className="mt-0.5 text-[17px] font-bold tabular-nums text-text-primary">{n}</dd>
               </div>
             ))}
@@ -1310,7 +1310,7 @@ export default function ResultsPage({
       )}
       {embedded && filteredUseCases.length > 0 && (
         <div className="flex items-center gap-2 mb-4">
-          <BarChart3 size={18} className="text-db-red-fg shrink-0" strokeWidth={1.75} aria-hidden />
+          <BarChart3 size={20} className="text-db-red-fg shrink-0" strokeWidth={1.75} aria-hidden />
           <span className="text-sm font-bold text-text-primary">
             {allUseCases.length} Use Cases Generated
           </span>
@@ -1332,13 +1332,13 @@ export default function ResultsPage({
                     <div className="flex flex-col items-center gap-2">
                       <div
                         className="w-10 h-10 rounded-xl flex items-center justify-center animate-pulse"
-                        style={{ backgroundColor: 'rgba(255,54,33,0.1)', animationDelay: `${i * 400}ms` }}
+                        style={{ backgroundColor: 'var(--color-db-red-50)', animationDelay: `${i * 400}ms` }}
                       >
-                        {i === 0 && <Database size={18} className="text-db-red-fg" />}
-                        {i === 1 && <Search size={18} className="text-db-red-fg" />}
-                        {i === 2 && <FileText size={18} className="text-db-red-fg" />}
+                        {i === 0 && <Database size={20} className="text-db-red-fg" />}
+                        {i === 1 && <Search size={20} className="text-db-red-fg" />}
+                        {i === 2 && <FileText size={20} className="text-db-red-fg" />}
                       </div>
-                      <span className="text-[10px] font-medium text-text-tertiary">{step}</span>
+                      <span className="text-caption font-medium text-text-tertiary">{step}</span>
                     </div>
                     {i < 2 && (
                       <div className="w-8 h-px bg-border relative overflow-hidden mb-5">
@@ -1364,7 +1364,7 @@ export default function ResultsPage({
                   <p className="text-sm font-semibold text-text-primary mb-1">Could not load the runs</p>
                   <PlainMessage text={sessionsError} className="text-xs text-text-secondary mb-3" />
                   <button onClick={() => handleLoadSessions(false)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-db-red-fg bg-db-red-50 border border-db-red/20 rounded-lg hover:bg-db-red/10 transition-smooth">
-                    <RefreshCw size={12} /> Retry
+                    <RefreshCw size={14} /> Retry
                   </button>
                 </div>
               </div>
@@ -1422,9 +1422,9 @@ export default function ResultsPage({
                           </span>
                           <LatestRunBadge session={s} latest={String(s.session_id) === latestId} />
                         </span>
-                        <div className="text-[11px] text-text-secondary flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
+                        <div className="text-caption text-text-secondary flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
                           <span className="flex items-center gap-1">
-                            <Calendar size={10} aria-hidden />{' '}
+                            <Calendar size={14} aria-hidden />{' '}
                             {formatSessionDate(runDate(s))}
                           </span>
                           {figures.length > 0 && <span data-run-figures="">{figures.join(' · ')}</span>}
@@ -1432,7 +1432,7 @@ export default function ResultsPage({
                         {allTotals && <RunValueLine value={runValueOf(s.session_id)} className="mt-2" />}
                       </div>
                       <span
-                        className={`text-[10px] px-2.5 py-1 rounded-full font-semibold border tabular-nums ${
+                        className={`text-caption px-2.5 py-1 rounded-full font-semibold border tabular-nums ${
                           isFailed
                             ? 'bg-error-bg text-error-fg border-error/20'
                             : isDone
@@ -1517,7 +1517,7 @@ export default function ResultsPage({
                 onClick={() => loadResults(selectedSessionId)}
                 className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-warning-fg border border-warning/30 rounded-md hover:bg-warning/10 transition-smooth"
               >
-                <RefreshCw size={11} />
+                <RefreshCw size={14} />
                 Refresh
               </button>
             </div>
@@ -1543,13 +1543,13 @@ export default function ResultsPage({
                     onClick={() => setArchiveView(view.id)}
                     aria-pressed={archiveView === view.id}
                     data-archive-view={view.id}
-                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-smooth ${
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-caption font-semibold transition-smooth ${
                       archiveView === view.id ? 'bg-db-red-50 text-db-red-fg border border-db-red/20' : 'text-text-secondary border border-transparent hover:bg-bg-subtle'
                     }`}
                   >
-                    {view.id === 'archived' && <Archive size={12} />}
+                    {view.id === 'archived' && <Archive size={14} />}
                     {view.label}
-                    <span className="text-[10px] font-medium">{archiveCounts[view.id]}</span>
+                    <span className="text-caption font-medium">{archiveCounts[view.id]}</span>
                   </button>
                 ))}
               </div>
@@ -1559,7 +1559,7 @@ export default function ResultsPage({
                   type="button"
                   onClick={() => setDomainPanelOpen((o) => !o)}
                   aria-expanded={domainPanelOpen}
-                  className="flex w-full shrink-0 items-start gap-2 border-b border-border bg-gradient-to-b from-db-red-50 to-surface px-3 py-3 text-start transition-smooth hover:from-db-red-50/80"
+                  className="flex w-full shrink-0 items-start gap-2 border-b border-border bg-linear-to-b from-db-red-50 to-surface px-3 py-3 text-start transition-smooth hover:from-db-red-50/80"
                 >
                   <ChevronRight
                     size={14}
@@ -1568,12 +1568,12 @@ export default function ResultsPage({
                   <Layers size={14} className="mt-0.5 shrink-0 text-db-red-fg" />
                   <div className="min-w-0 flex-1">
                     <span className="text-xs font-bold text-text-primary">Domains</span>
-                    <p className="text-[10px] text-text-tertiary mt-0.5">
+                    <p className="text-caption text-text-tertiary mt-0.5">
                       {domains.length} domain{domains.length !== 1 ? 's' : ''} &middot; {allUseCases.length} use cases
                     </p>
                     {!domainPanelOpen && (filterDomain !== 'all' || filterSubdomain !== 'all') && (
                       <p
-                        className="mt-1 truncate text-[10px] font-medium text-db-red-fg"
+                        className="mt-1 truncate text-caption font-medium text-db-red-fg"
                         title={filterSubdomain !== 'all' ? `${filterDomain} › ${filterSubdomain}` : filterDomain}
                       >
                         Filter:{' '}
@@ -1599,14 +1599,14 @@ export default function ResultsPage({
                     <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
                       filterDomain === 'all' ? 'bg-db-red/10' : 'bg-bg-subtle'
                     }`}>
-                      <Layers size={10} className={filterDomain === 'all' ? 'text-db-red-fg' : 'text-text-tertiary'} />
+                      <Layers size={14} className={filterDomain === 'all' ? 'text-db-red-fg' : 'text-text-tertiary'} />
                     </div>
-                    <span className={`text-[11px] font-semibold flex-1 ${
+                    <span className={`text-caption font-semibold flex-1 ${
                       filterDomain === 'all' ? 'text-db-red-fg' : 'text-text-primary'
                     }`}>
                       All Domains
                     </span>
-                    <span className={`text-[10px] font-mono tabular-nums ${filterDomain === 'all' ? 'text-db-red-fg' : 'text-text-tertiary'}`}>
+                    <span className={`text-caption font-mono tabular-nums ${filterDomain === 'all' ? 'text-db-red-fg' : 'text-text-tertiary'}`}>
                       {allUseCases.length}
                     </span>
                   </button>
@@ -1632,7 +1632,7 @@ export default function ResultsPage({
                               aria-expanded={!!isExpanded}
                               className="p-0.5 me-0.5 rounded hover:bg-bg-subtle transition-smooth"
                             >
-                              <ChevronRight size={10} className={`text-text-tertiary transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+                              <ChevronRight size={14} className={`text-text-tertiary transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
                             </button>
                           )}
                           <button
@@ -1646,18 +1646,18 @@ export default function ResultsPage({
                             <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
                               active ? 'bg-db-red/10' : 'bg-bg-subtle'
                             }`}>
-                              <Building2 size={10} className={active ? 'text-db-red-fg' : 'text-text-tertiary'} />
+                              <Building2 size={14} className={active ? 'text-db-red-fg' : 'text-text-tertiary'} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <span dir="auto" className={`text-[11px] font-semibold block truncate ${
+                              <span dir="auto" className={`text-caption font-semibold block truncate ${
                                 active ? 'text-db-red-fg' : 'text-text-primary'
                               }`}>
                                 {d}
                               </span>
                               <div className="flex items-center gap-2 mt-1">
-                                <span className="text-[9px] text-text-tertiary font-mono tabular-nums">{count} use case{count !== 1 ? 's' : ''}</span>
+                                <span className="text-caption text-text-tertiary font-mono tabular-nums">{count} use case{count !== 1 ? 's' : ''}</span>
                                 {highPriCount > 0 && (
-                                  <span className="text-[9px] text-db-red-fg font-medium">{highPriCount} high pri</span>
+                                  <span className="text-caption text-db-red-fg font-medium">{highPriCount} high pri</span>
                                 )}
                               </div>
                             </div>
@@ -1681,8 +1681,8 @@ export default function ResultsPage({
                                       : 'text-text-secondary hover:bg-bg-subtle'
                                   }`}
                                 >
-                                  <span dir="auto" className={`text-[10px] font-medium truncate flex-1 ${sdActive ? 'text-db-red-fg' : ''}`}>{sd}</span>
-                                  <span className={`text-[9px] font-mono ${sdActive ? 'text-db-red-fg' : 'text-text-tertiary'}`}>{sdCount}</span>
+                                  <span dir="auto" className={`text-caption font-medium truncate flex-1 ${sdActive ? 'text-db-red-fg' : ''}`}>{sd}</span>
+                                  <span className={`text-caption font-mono ${sdActive ? 'text-db-red-fg' : 'text-text-tertiary'}`}>{sdCount}</span>
                                 </button>
                               );
                             })}
@@ -1824,9 +1824,9 @@ export default function ResultsPage({
                     }`}
                     title={showFavoritesOnly ? 'Show all use cases' : 'Show favorites only'}
                   >
-                    <Heart size={13} className={showFavoritesOnly ? 'fill-current' : ''} />
+                    <Heart size={14} className={showFavoritesOnly ? 'fill-current' : ''} />
                     {favoriteCount(favorites) > 0 && (
-                      <span className="text-[10px]">{favoriteCount(favorites)}</span>
+                      <span className="text-caption">{favoriteCount(favorites)}</span>
                     )}
                   </button>
 
@@ -1842,9 +1842,9 @@ export default function ResultsPage({
                       title={showBestOfBestOnly ? 'Show all use cases' : 'Show Best of Best use cases only'}
                       aria-pressed={showBestOfBestOnly}
                     >
-                      <Star size={13} className={showBestOfBestOnly ? 'fill-current' : ''} />
+                      <Star size={14} className={showBestOfBestOnly ? 'fill-current' : ''} />
                       Best of Best
-                      <span className="text-[10px]">{starredCount}</span>
+                      <span className="text-caption">{starredCount}</span>
                     </button>
                   )}
 
@@ -1858,7 +1858,7 @@ export default function ResultsPage({
                           <button
                             key={p}
                             onClick={() => setFilterPriority(active ? 'all' : p)}
-                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-smooth border ${
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-caption font-medium transition-smooth border ${
                               active
                                 ? 'border-db-red/30 bg-db-red-50 text-db-red-fg'
                                 : 'border-transparent text-text-secondary hover:bg-bg-subtle'
@@ -1878,7 +1878,7 @@ export default function ResultsPage({
                       aria-label="Type"
                       value={filterType}
                       onChange={(e) => setFilterType(e.target.value)}
-                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
+                      className="px-2 py-1.5 text-caption border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
                     >
                       <option value="all">All Types</option>
                       {types.map((t) => (
@@ -1893,7 +1893,7 @@ export default function ResultsPage({
                       aria-label="Technique"
                       value={filterTechnique}
                       onChange={(e) => setFilterTechnique(e.target.value)}
-                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
+                      className="px-2 py-1.5 text-caption border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
                     >
                       <option value="all">All Techniques</option>
                       {techniques.map((t) => (
@@ -1907,7 +1907,7 @@ export default function ResultsPage({
                       aria-label="Kind"
                       value={filterKind}
                       onChange={(e) => setFilterKind(e.target.value)}
-                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
+                      className="px-2 py-1.5 text-caption border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
                     >
                       <option value="all">All Kinds</option>
                       {kindOptions.map((family) => (
@@ -1927,7 +1927,7 @@ export default function ResultsPage({
                       aria-label="Quality"
                       value={filterQuality}
                       onChange={(e) => setFilterQuality(e.target.value)}
-                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
+                      className="px-2 py-1.5 text-caption border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
                     >
                       <option value="all">All Quality</option>
                       {qualities.map((q) => (
@@ -1942,7 +1942,7 @@ export default function ResultsPage({
                     value={filterHasGenie}
                     onChange={(e) => setFilterHasGenie(e.target.value)}
                     title="Filter by whether the use case has a Genie Code instruction"
-                    className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth min-w-[10.5rem]"
+                    className="px-2 py-1.5 text-caption border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth min-w-[10.5rem]"
                   >
                     <option value="all">Genie Code instruction: Any</option>
                     <option value="yes">Genie Code instruction: Yes</option>
@@ -1956,7 +1956,7 @@ export default function ResultsPage({
                       value={filterQualityBar}
                       onChange={(e) => setFilterQualityBar(e.target.value)}
                       title="Filter by whether the use case meets your quality bar"
-                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth min-w-[10.5rem]"
+                      className="px-2 py-1.5 text-caption border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth min-w-[10.5rem]"
                     >
                       <option value="all">Quality bar: Any ({qualityBarCounts.found})</option>
                       <option value="meets">Meets the quality bar ({qualityBarCounts.meets})</option>
@@ -1969,7 +1969,7 @@ export default function ResultsPage({
                     onChange={(e) => setFilterMvp(e.target.value)}
                     aria-label="MVP"
                     title="Filter by the use case's MVP"
-                    className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth min-w-[9rem]"
+                    className="px-2 py-1.5 text-caption border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth min-w-[9rem]"
                   >
                     {MVP_FILTERS.map((f) => (
                       <option key={f.id} value={f.id}>{f.label}</option>
@@ -1981,7 +1981,7 @@ export default function ResultsPage({
                     onChange={(e) => setFilterValue(e.target.value)}
                     aria-label="Value"
                     title="Filter by whether the value at stake is a reviewed calculation"
-                    className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth min-w-[9rem]"
+                    className="px-2 py-1.5 text-caption border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth min-w-[9rem]"
                   >
                     <option value="all">Value: All</option>
                     <option value="calculated">{`Value: ${STATUS_LABELS.calculated}`}</option>
@@ -1993,7 +1993,7 @@ export default function ResultsPage({
                     aria-label="Sort"
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
+                    className="px-2 py-1.5 text-caption border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
                   >
                     <option value="inspire">Sort: Inspire score (high → low)</option>
                     <option value="priority">Sort: Priority tier</option>
@@ -2004,7 +2004,7 @@ export default function ResultsPage({
                   {hasActiveFilters && (
                     <button
                       onClick={clearAllFilters}
-                      className="text-[11px] text-db-red-fg hover:underline font-medium shrink-0"
+                      className="text-caption text-db-red-fg hover:underline font-medium shrink-0"
                     >
                       Clear
                     </button>
@@ -2014,91 +2014,91 @@ export default function ResultsPage({
                 {/* Active filter chips */}
                 {hasActiveFilters && (
                   <div className="px-4 py-2 bg-db-red-50/50 border-t border-border flex items-center gap-2 flex-wrap">
-                    <Filter size={12} className="text-db-red-fg shrink-0" />
-                    <span className="text-[11px] text-text-secondary">
+                    <Filter size={14} className="text-db-red-fg shrink-0" />
+                    <span className="text-caption text-text-secondary">
                       <span className="font-semibold text-text-primary tabular-nums">{filteredUseCases.length}</span> of{' '}
                       <span className="font-semibold text-text-primary tabular-nums">{allUseCases.length}</span> use cases
                     </span>
                     {filterDomain !== 'all' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
                         {filterDomain}
                         <button onClick={() => { setFilterDomain('all'); setFilterSubdomain('all'); }} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}
                     {filterSubdomain !== 'all' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
                         Sub: {filterSubdomain}
                         <button onClick={() => setFilterSubdomain('all')} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}
                     {filterPriority !== 'all' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
                         {filterPriority}
                         <button onClick={() => setFilterPriority('all')} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}
                     {filterType !== 'all' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
                         {filterType}
                         <button onClick={() => setFilterType('all')} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}
                     {filterTechnique !== 'all' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
                         {filterTechnique}
                         <button onClick={() => setFilterTechnique('all')} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}
                     {filterKind !== 'all' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
                         {kindFilterLabel(filterKind, kindOptions)}
                         <button onClick={() => setFilterKind('all')} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}
                     {filterQuality !== 'all' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
                         Q: {filterQuality}
                         <button onClick={() => setFilterQuality('all')} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}
                     {filterQualityBar !== 'all' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
                         {filterQualityBar === 'meets' ? 'Meets the quality bar' : 'Below the quality bar'}
                         <button type="button" onClick={() => setFilterQualityBar('all')} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}
                     {filterHasGenie !== 'all' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
                         Genie Code instruction: {filterHasGenie === 'yes' ? 'Yes' : 'No'}
                         <button type="button" onClick={() => setFilterHasGenie('all')} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}
                     {filterValue !== 'all' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
                         {filterValue === 'calculated' ? `Value: ${STATUS_LABELS.calculated}` : 'Value: Not reviewed'}
                         <button type="button" aria-label="Clear the Value filter" onClick={() => setFilterValue('all')} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}
                     {filterMvp !== 'all' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
                         {MVP_FILTERS.find((f) => f.id === filterMvp)?.label}
                         <button type="button" aria-label="Clear the MVP filter" onClick={() => setFilterMvp('all')} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}
                     {showFavoritesOnly && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
                         Favorites only
                         <button type="button" aria-label="Show all use cases, not only favorites" onClick={() => setShowFavoritesOnly(false)} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}
                     {showBestOfBestOnly && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
                         Best of Best only
                         <button type="button" aria-label="Show all use cases, not only Best of Best" onClick={() => setShowBestOfBestOnly(false)} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}
                     {searchQuery && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
                         "{searchQuery}"
                         <button onClick={() => setSearchQuery('')} className="hover:text-db-red-fg">&times;</button>
                       </span>
@@ -2128,15 +2128,27 @@ export default function ResultsPage({
               >
                 {filteredUseCases.length > 0 ? (
                   <div className="pb-2">
-                    <div data-use-case-head="" className={`${ROW_GRID} max-md:hidden sticky top-0 z-[2] bg-bg px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary`}>
+                    <div data-use-case-head="" className={`${ROW_GRID} max-md:hidden sticky top-0 z-[2] bg-bg px-2.5 py-2 text-caption font-semibold uppercase tracking-[0.06em] text-text-tertiary`}>
                       <div>
                         {bulkOn && (
                           <input type="checkbox" aria-label="Select all" checked={bulkIds.length > 0 && bulkIds.length === filteredUseCases.filter((uc) => trackingIdOf(uc)).length}
                             onChange={(e) => setBulkPicked(e.target.checked ? new Set(filteredUseCases.map((uc) => trackingIdOf(uc)).filter(Boolean)) : new Set())} />
                         )}
                       </div>
-                      {[['no', '#', ''], ['', '', ''], ['name', 'Use case', ''], ['mvp', 'MVP', 'text-center'], ['docs', 'Docs', 'text-center'], ['score', 'Score', 'text-center'], ['value', 'Value', 'text-center']].map(([key, label, cls], i) => (
-                        key ? (
+                      {[['no', '#', ''], ['', '', ''], ['name', 'Use case', ''], ['mvp-docs', 'MVP / Docs', 'col-span-2 text-center'], ['score', 'Score', 'text-center'], ['value', 'Value', 'text-center']].map(([key, label, cls], i) => (
+                        key === 'mvp-docs' ? (
+                          <div key={key} className={`${cls} flex items-center justify-center gap-1.5`}>
+                            {[['mvp', 'MVP'], ['docs', 'Docs']].map(([k, l], n) => (
+                              <Fragment key={k}>
+                                {n > 0 && <span aria-hidden="true">/</span>}
+                                <button type="button" onClick={() => toggleColSort(k)} aria-sort={colSort?.key === k ? (colSort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                                  className={`uppercase tracking-[0.06em] hover:text-text-primary ${colSort?.key === k ? 'text-text-primary' : ''}`}>
+                                  {l}{colSort?.key === k ? (colSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
+                                </button>
+                              </Fragment>
+                            ))}
+                          </div>
+                        ) : key ? (
                           <button key={key} type="button" onClick={() => toggleColSort(key)} aria-sort={colSort?.key === key ? (colSort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
                             className={`${cls} ${key === 'no' ? 'text-start' : ''} uppercase tracking-[0.06em] hover:text-text-primary ${colSort?.key === key ? 'text-text-primary' : ''}`}>
                             {label}{colSort?.key === key ? (colSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}

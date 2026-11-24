@@ -198,6 +198,9 @@ async function openRuns(allReply) {
     mount(app);
   } });
   await ui.page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+  // REQ-510 L2: the all-runs value panel opens from the Start More menu.
+  await ui.page.getByRole('button', { name: 'More', exact: true }).click();
+  await ui.page.getByRole('menuitem', { name: 'Value across all runs' }).click();
   const panel = ui.page.locator('[data-value-all-panel]');
   await panel.waitFor({ timeout: 20000 });
   return { ui, panel };
