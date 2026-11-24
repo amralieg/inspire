@@ -1,7 +1,8 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { actBody, ASK_GROUPS, OWN_CHOICES, OWN_STATUSES, TABLE, appInfo, askAudit, openApp, pageData, serveDist, toastSays, until, footerActions } from './harness.mjs';
+import { actBody, ASK_GROUPS, OWN_CHOICES, OWN_STATUSES, TABLE, appInfo, askAudit, openApp, pageData, serveDist, toastSays, until } from './harness.mjs';
+import { allActions, openMore } from './moreMenu.mjs';
 import { closedRows, estimatedFigure, figuresOf, heldShare, holdoutOffText, holdoutView, measuredFigure, promisedView, reportedFigure, wrongFigure } from '../src/impact.js';
 import { actionForm, actionProblem, actionValues, doneText, statusLabel } from '../src/records.js';
 
@@ -159,7 +160,7 @@ test('Performance shows estimated, reported and measured apart, promised against
   assert.deepEqual(rows[0], ['Wool coat, store 4', 'Done', 'No longer flagged', '$1,200 when fixed minus $100 now = $1,100', '$900\nRepriced on Monday', 'Oct 6', 'Ask Genie']);
   const text = await page.locator('[data-performance]').innerText();
   assert.ok(!/[\u2013\u2014]/.test(text), 'the page has no en or em dash');
-  assert.equal(await page.locator('[data-rail="performance"]').getAttribute('aria-current'), 'page');
+  assert.match(await page.evaluate(() => location.hash), /\/performance$/, 'REQ-506: no rail; the open section is the one in the link');
   await page.evaluate(() => { window.location.hash = '#/n02_u01/performance'; });
   const other = page.locator('.imp[data-page="n02_u01"]');
   await other.waitFor();
@@ -183,11 +184,11 @@ test('the closed records on Performance show the choice people picked from the u
   await context.close();
 });
 
-test('a one use case App opens on its dashboard, Performance shows its Impact, and the old Impact links open Performance', async () => {
+test('a one use case App opens on its Work page (REQ-506), Performance shows its Impact, and the old Impact links open Performance', async () => {
   const routes = { impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, SUMMARY) };
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, { ...TABLE, promised: PROMISED }), { width: 1440, routes });
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Price-loss decision desk');
-  assert.equal(await page.locator('[data-rail="dashboard"]').getAttribute('aria-current'), 'page');
+  assert.equal(await page.evaluate(() => location.hash), '#/n01_u05/work', 'REQ-506: the use case opens on Work, its home');
   assert.ok(await page.locator('[data-switcher]').isDisabled());
   await goSection(page, 'performance');
   await page.waitForFunction(() => document.querySelectorAll('.imp').length === 1);
@@ -234,7 +235,9 @@ test('the record panel closes a record as fixed, not an issue or could not fix, 
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
-  assert.deepEqual(await footerActions(drawer), ['Mark done', 'Not an issue', 'Could not fix', 'Snooze…', 'Draft message', 'Ask Genie to fix'].sort());
+  // REQ-506: Resolve, Not an issue and Later in the open, the rest under More.
+  assert.deepEqual(await allActions(drawer.locator('.dr-act')), ['Resolve', 'Not an issue', 'Could not fix', 'Later', 'Clear the owner', 'Give to someone…', 'Set status', 'Draft message', 'Ask Genie to fix'].sort());
+  await drawer.locator('.dr-act').getByRole('button', { name: 'More', exact: true }).click(); // close the menu again
   assert.equal(await drawer.locator('input[name="realized_value"]').count(), 0, 'the amount shows only for a fix');
   await drawer.locator('select[name="action_choice"]').selectOption('Done');
   await drawer.locator('input[name="realized_value"]').fill('-3');
@@ -247,7 +250,7 @@ test('the record panel closes a record as fixed, not an issue or could not fix, 
   assert.deepEqual(calls.acts[0], { page: 'n01_u05', record_keys: ['R001'], values: { action_status: 'Done', realized_value: 1250, realized_note: 'Repriced the coat on Monday' },
     seen: { R001: '102' } });
   await page.waitForFunction(() => document.querySelector('dialog.drawer select[name="action_choice"]')?.value === 'new');
-  await drawer.getByRole('button', { name: 'Could not fix' }).click();
+  await (await openMore(drawer.locator('.dr-act'))).getByRole('menuitem', { name: 'Could not fix' }).click();
   await until(() => calls.acts.length === 2);
   assert.deepEqual(calls.acts[1].values, { action_status: 'Could not fix' });
   await toastSays(page, 'Marked as could not fix. The next run still checks it.');
@@ -274,8 +277,7 @@ test('closing a record from its panel reloads the things to fix, so the tab coun
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
   const loads = hub.length;
-  await footerActions(drawer);
-  await drawer.getByRole('button', { name: 'Could not fix' }).click();
+  await (await openMore(drawer.locator('.dr-act'))).getByRole('menuitem', { name: 'Could not fix' }).click();
   await until(() => calls.acts.length === 1);
   await until(() => hub.length > loads);
   assert.ok(hub.length > loads, 'a close reloads the things to fix');
@@ -347,9 +349,11 @@ test('every card and closed record on Performance shows a visible Ask Genie, and
   assert.deepEqual([sent.kind, sent.page, sent.title, sent.question, sent.context.hint], ['record', 'n01_u05', 'Wool coat, store 4', 'Did the fix hold?', 'A closed record of this use case.']);
   assert.deepEqual(sent.context.fields, { Record: 'Wool coat, store 4', Outcome: 'Done', 'What a later run found': 'No longer flagged', Measured: 1100, Reported: 900,
     Closed: '2026-10-06T06:00:00.000Z' });
-  await page.locator('aside.genie .msg-sql').waitFor({ timeout: 15000 });
-  assert.match(await page.locator('aside.genie .g-h small').innerText(), /^Answers from the Genie Agent/);
+  await page.locator('[data-genie-full] .msg-sql').waitFor({ timeout: 15000 });
+  assert.match(await page.locator('[data-genie-full] .g-h small').innerText(), /^Answers from the Genie Agent/);
   assert.equal(found.counts.card >= 1, true, `the use case card is audited: ${JSON.stringify(found.counts)}`);
+  await page.locator('[data-mode="screen"]').click(); // REQ-506: Genie fills the page, so the screen comes back
+  await goSection(page, 'performance');
   const card = page.locator('section.imp[data-page="n01_u05"]');
   await card.getByRole('button', { name: 'Ask Genie about The impact of Price-loss decision desk', exact: true }).click();
   await page.locator('form.ask-box .sugg').first().click();
