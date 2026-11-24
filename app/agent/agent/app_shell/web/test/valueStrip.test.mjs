@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MORE_USE_CASES, valueStripOf } from '../src/valueStrip.js';
+import { valueStripOf } from '../src/valueStrip.js';
 
 const REVIEW = 'https://inspire.example.com/?review=5150';
 const page = (extra = {}) => ({ id: 'n01_u01', title: 'Churn', kpis: [
@@ -30,7 +30,6 @@ test('the More use cases link goes to the run on Inspire Review, in a new tab ou
   const strip = valueStripOf(page({ kpis: [] }), null, { review_run: REVIEW });
   assert.equal(strip.kpi, null);
   assert.deepEqual(strip.more, { href: REVIEW, inside: false });
-  assert.equal(MORE_USE_CASES, 'More use cases for this business');
 });
 
 test('inside Inspire the More use cases link opens in the same window', () => {

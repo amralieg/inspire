@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 import react from '@vitejs/plugin-react';
 import { ensureDist } from './freshDist.mjs';
-import { INBOX_ROWS } from '../src/inbox.js';
+const INBOX_ROWS = 50;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');

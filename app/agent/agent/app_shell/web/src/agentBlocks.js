@@ -65,17 +65,6 @@ export function chartOf(page, chartId) {
   return (page?.charts || []).find((c) => c.id === chartId) || null;
 }
 
-// The briefing: the top tickets, all visible at once (the server already grounded their values in the records).
-export function briefingBlocks(briefing) {
-  return (briefing?.tickets || []).map((t) => ({ ...t, type: 'ticket' }));
-}
-
-// A sent question is an ordinary turn on the agent: the same request, with the surface flag set.
-export const askBody = (pageId, question, history = []) => ({
-  page: pageId, question, surface: 'agent', history: history.slice(-6).map((h) => ({ question: h.question, answer: h.answer || '' })),
-  view: {}, visible: [],
-});
-
 // The App's currency for value at stake: the decision list's own currency, from its money column. Empty when the App names none.
 export function stakeCurrency(page) {
   const cols = page?.records?.columns || [];

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { stakeCurrency, stakeText, AGENT_ACTION_IDS, askBody, askText, briefingBlocks, columnHeads, copyText, multiAsk, multiValid, valuesFor, actionLabel, chartOf, kpiName } from '../src/agentBlocks.js';
+import { stakeCurrency, stakeText, AGENT_ACTION_IDS, askText, columnHeads, copyText, multiAsk, multiValid, valuesFor, actionLabel, chartOf, kpiName } from '../src/agentBlocks.js';
 
 test('the Agent page offers every registry action, and an action without a label shows its id', () => {
   assert.deepEqual([...AGENT_ACTION_IDS].sort(), ['add_note', 'assign', 'done', 'not_an_issue', 'override', 'reopen', 'run_again', 'set_target', 'skip', 'snooze']);
@@ -47,20 +47,6 @@ test('a KPI and a chart resolve from the page, and an unknown id is not invented
   assert.equal(kpiName(page, 'other'), 'other');
   assert.equal(chartOf(page, 'trend').title, 'Trend');
   assert.equal(chartOf(page, 'nope'), null);
-});
-
-test('the briefing is one ticket per top record, all visible, and nothing when there are none', () => {
-  assert.deepEqual(briefingBlocks({ tickets: [] }), []);
-  const blocks = briefingBlocks({ tickets: [{ record_key: 'r1', label: 'Unit 7' }, { record_key: 'r2', label: 'Unit 8' }] });
-  assert.deepEqual(blocks.map((b) => [b.type, b.record_key]), [['ticket', 'r1'], ['ticket', 'r2']]);
-});
-
-test('a question carries the surface and the last six turns only', () => {
-  const history = Array.from({ length: 9 }, (_, i) => ({ question: `q${i}`, answer: `a${i}` }));
-  const body = askBody('p', 'now', history);
-  assert.equal(body.surface, 'agent');
-  assert.equal(body.history.length, 6);
-  assert.equal(body.history[0].question, 'q3');
 });
 
 test('value at stake reads in the App currency through the shared formatter, and a non-number is shown as given', () => {

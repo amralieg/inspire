@@ -1,7 +1,6 @@
 import disclaimer from './valueDisclaimer.json' with { type: 'json' };
 import { kpiText, wholeMoney } from './format.js';
 
-export const MORE_USE_CASES = 'More use cases for this business';
 export const SAVED_LABEL = 'Saved since go-live';
 
 export function savedOf(saved) {
