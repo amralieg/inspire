@@ -45,7 +45,7 @@ export default function ValueMap({ useCases, valueTotals, openUseCase, onRunValu
         <h2 className="text-caption font-semibold uppercase tracking-[0.18em] text-db-red-fg">Value map</h2>
         <div role="group" aria-label="Domains" className="flex flex-wrap gap-2">
           {domains.map((d) => (
-            <button key={d} type="button" aria-pressed={hidden === d} onClick={() => setHidden(hidden === d ? null : d)}
+            <button key={d} type="button" dir="auto" aria-pressed={hidden === d} onClick={() => setHidden(hidden === d ? null : d)}
               title={hidden === d ? 'Show every domain' : `Show only ${d}`}
               className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-smooth ${hidden === d ? 'border-db-red/40 bg-db-red-50' : 'border-border bg-surface hover:border-db-red/25'}`}>
               <span aria-hidden className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: colorOf(d) }} />
@@ -64,11 +64,11 @@ export default function ValueMap({ useCases, valueTotals, openUseCase, onRunValu
         <text x={L + PLOT_W / 2} y={H - 6} fontSize="12" textAnchor="middle" fill={AXIS}>Inspire score</text>
         {maxValue > 0 && [0.5, 1].map((f) => <text key={f} x={L - 8} y={y(maxValue * f) + 4} fontSize="12" textAnchor="end" fill={AXIS}>{money(maxValue * f)}</text>)}
         <text transform={`translate(14 ${T + PLOT_H / 2}) rotate(-90)`} fontSize="12" textAnchor="middle" fill={AXIS}>Yearly value</text>
-        {visible.map((p) => {
+        {visible.map((p, i) => {
           const r = p.feas != null ? 6 + (Math.min(10, Math.max(0, p.feas)) / 10) * 8 : 9;
           const c = colorOf(p.domain);
           return (
-            <circle key={p.no} data-map-point="" data-use-case-no={p.no} data-valued={p.amount != null ? 'true' : 'false'}
+            <circle key={`${p.id || p.no}:${i}`} data-map-point="" data-use-case-no={p.no} data-valued={p.amount != null ? 'true' : 'false'}
               role="button" tabIndex={0} aria-label={label(p)} cx={x(p.score)} cy={y(p.amount)} r={r}
               fill={p.amount != null ? c : 'transparent'} fillOpacity={p.amount != null ? 0.75 : 0} stroke={c} strokeWidth="2"
               style={{ cursor: 'pointer', outline: 'none' }}

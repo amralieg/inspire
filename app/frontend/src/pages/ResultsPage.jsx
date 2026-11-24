@@ -115,6 +115,7 @@ import { buildUseCaseList } from '../lib/useCaseList';
 import { useScoreRefine } from '../lib/useScoreRefine';
 import RefineBanner from '../components/RefineBanner';
 import { cardAssetLinks, liveAppRenameStale, renameRestyleSpec, trackBuildSubmit } from '../lib/implementControl';
+import UiPageHeader from '../components/ui/PageHeader';
 import { ARCHIVE_VIEWS, archiveKeyOf, inArchiveView, loadArchiveMap, toggledArchive } from '../lib/useCaseArchive';
 import QualityGateDrops from '../components/QualityGateDrops';
 import { makeApiFetch, makeApiPostJson, makeApiPutJson, requestHeaders, responseError } from '../lib/apiClient';
@@ -233,7 +234,8 @@ export default function ResultsPage({
   // Archive: browser localStorage, keyed by run and use case id; archived use cases leave the Active list
   const [archiveView, setArchiveView] = useState('active');
   const [archived, setArchived] = useState(loadArchiveMap);
-  const toggleArchive = useCallback((key) => setArchived((prev) => toggledArchive(prev, key)), []);
+  // Archiving or unarchiving moves the card to the other view, so the open key is cleared (a stale key made the next row click close instead of open)
+  const toggleArchive = useCallback((key) => { setArchived((prev) => toggledArchive(prev, key)); setExpandedUseCase(null); }, []);
 
   const [feedbackState, setFeedbackState] = useState({ available: null, latest: [], message: '' });
   const [feedbackRefresh, setFeedbackRefresh] = useState(0);
@@ -1193,7 +1195,7 @@ export default function ResultsPage({
     setSessionsLoaded(false);
     setIsProgressive(false);
   };
-  const runCalculated = valueTotals?.run?.n_calculated ?? allUseCases.filter((uc) => isCalculated(calculated.byId[trackingIdOf(uc)])).length;
+  const runCalculated = allUseCases.filter((uc) => !isArchivedUc(uc) && isCalculated(calculated.byId[trackingIdOf(uc)])).length;
   const runMvpsLive = allUseCases.filter((uc) => mvpStateOf(uc)?.group === 'ready').length;
   const feedbackCurrentFor = (uc) => (uc?._v130?.useCaseKey ? feedbackLatest[uc._v130.useCaseKey] : undefined);
   const detailPropsFor = (uc) => {
@@ -1264,36 +1266,12 @@ export default function ResultsPage({
     >
       {/* Page header — tighter when results are shown so executive summary stays above the fold */}
       {!embedded && (
-        <div className={`flex items-center justify-between gap-3 ${results ? 'mb-3' : 'mb-8'}`}>
-          <div className={`flex items-center min-w-0 flex-1 ${results ? 'gap-3' : 'gap-4'}`}>
-            <div
-              className={`flex shrink-0 items-center justify-center rounded-xl border border-border bg-surface shadow-sm ${
-                results ? 'h-10 w-10' : 'h-12 w-12'
-              }`}
-            >
-              <BarChart3
-                size={results ? 20 : 24}
-                className="text-db-red-fg"
-                strokeWidth={1.75}
-                aria-hidden
-              />
-            </div>
-            <div className="min-w-0">
-              <h1
-                className={`font-bold tracking-[-0.02em] bg-gradient-to-br from-text-primary via-text-primary to-db-red bg-clip-text text-transparent ${
-                  results ? 'text-2xl sm:text-3xl' : 'text-3xl sm:text-4xl'
-                }`}
-              >
-                Review
-              </h1>
-              {!results && (
-                <p className="mt-1 text-sm text-text-secondary sm:text-base">
-                  Read the use cases Inspire found for your business.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
+        <UiPageHeader
+          icon={BarChart3}
+          title="Review"
+          subtitle={results ? undefined : 'Read the use cases Inspire found for your business.'}
+          className={results ? 'mb-3' : 'mb-8'}
+        />
       )}
       {!embedded && (notice || linkNote) && (
         <div className="mb-3 space-y-2">
@@ -1321,7 +1299,7 @@ export default function ResultsPage({
           {/* FX-34 (REQ-448, W16 D9): the header says the run value the Business panel and the Start card say. */}
           {valueTotals?.run && <div data-run-total-value="" data-run-header-value=""><RunValueLine value={valueTotals.run_value || valueTotals.run} /></div>}
           <dl className="ms-auto flex gap-7">
-            {[['Use cases', allUseCases.length], ['Value calculated', `${runCalculated} of ${allUseCases.length}`], ['MVPs live', runMvpsLive]].map(([label, n]) => (
+            {[['Use cases', archiveCounts.active], ['Value calculated', `${runCalculated} of ${archiveCounts.active}`], ['MVPs live', runMvpsLive]].map(([label, n]) => (
               <div key={label}>
                 <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary">{label}</dt>
                 <dd className="mt-0.5 text-[17px] font-bold tabular-nums text-text-primary">{n}</dd>

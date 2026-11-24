@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import UiPageHeader from '../components/ui/PageHeader';
 import {
   CheckCircle2,
   Clock,
@@ -394,21 +395,14 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
   }, [steps]);
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-8">
+    <div className="w-full px-6 py-8">
       {/* ═══ Page Header ═══ */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-db-red to-db-red-hover flex items-center justify-center shadow-sm">
-            <Activity size={20} className="text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-text-primary">Monitor</h1>
-            <p className="text-sm text-text-secondary">
-              Follow Inspire as it reads your data and writes your use cases.
-            </p>
-          </div>
-        </div>
-        {runInfo?.run_page_url && (
+      <UiPageHeader
+        icon={Activity}
+        title="Monitor"
+        subtitle="Follow Inspire as it reads your data and writes your use cases."
+        className="mb-6"
+        actions={runInfo?.run_page_url && (
           <a
             href={runInfo.run_page_url}
             target="_blank"
@@ -419,7 +413,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
             <ExternalLink size={14} aria-hidden="true" />
           </a>
         )}
-      </div>
+      />
 
       {launchNotes.length > 0 && (
         <ul role="note" aria-label="What Inspire changed to start this run" data-testid="launch-notes"

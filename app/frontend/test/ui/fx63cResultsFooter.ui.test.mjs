@@ -55,5 +55,9 @@ test('archiving a use case takes it out of the shown list; Review has no Build n
     const reader = await openReader(page, page.locator(`[data-use-case-row][data-use-case-no="${target}"]`));
     await reader.getByRole('button', { name: 'Archive use case' }).click();
     await until(async () => (await shownOf(page)) === before - 1);
+    // REQ-511 (R1e): the run box counts ACTIVE use cases only; the archived one is on the Archived tab.
+    const runBoxCount = async (label) => (await page.locator('[data-run-box] dt', { hasText: label }).locator('xpath=following-sibling::dd').innerText()).trim();
+    assert.equal(await runBoxCount('Use cases'), String(before - 1), 'the run box Use cases counts active use cases only');
+    assert.match(await runBoxCount('Value calculated'), new RegExp(` of ${before - 1}$`), 'Value calculated n of N uses the active N');
   } finally { await ui.close(); }
 });
