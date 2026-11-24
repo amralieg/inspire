@@ -348,7 +348,7 @@ export const framed = (page) => page.evaluate(() => new Promise((done) => reques
 export const moved = (page) => page.evaluate(() => Promise.all(document.getAnimations()
   .filter((a) => a.effect && a.effect.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => null))));
 
-export async function openApp(browser, base, info, { width = 1440, height = 900, scheme = 'light', errors = {}, routes = {}, clock, watch, ready = '.kpi-v, .hcard, [data-page-section]:not([data-page-section="dashboard"])',
+export async function openApp(browser, base, info, { width = 1440, height = 900, scheme = 'light', errors = {}, routes = {}, clock, watch, ready = '.kpi-v, .hcard, [data-page-section]:not([data-page-section="dashboard"]), [data-genie-full]',
   timezone, hash = '', genie = 'closed', locale } = {}) {
   const context = await browser.newContext({ viewport: { width, height }, colorScheme: scheme, acceptDownloads: true, ...(timezone ? { timezoneId: timezone } : {}), ...(locale ? { locale } : {}) });
   const page = await context.newPage();
