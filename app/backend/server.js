@@ -2525,6 +2525,41 @@ async function launcherReadRefusal(req, scope) {
     unreadable: names };
 }
 
+// SEC-01 (W7): a session is shown only to its launcher (launchLedger launched_by) or to a person who can read every table in its scope with their
+// own token. `scope` is { catalogs, schemas_str, tables_str } as __inspire_session stores it. Returns null when the person may see it, else the
+// refusal of launcherReadRefusal (request 'person', a table-level SELECT). With no signed-in person there is nothing to check.
+function sessionScopeText(scope) {
+  return [scope && scope.catalogs, scope && scope.schemas_str, scope && scope.tables_str].map((v) => String(v || '').trim()).filter(Boolean).join(',');
+}
+
+async function sessionHiddenFrom(req, sessionId, scope) {
+  const person = RP.forwardedPerson(req.headers);
+  if (!forwardedTokenOf(req) || !person) return null;
+  const launcher = await readLaunchRecord(req, { kind: 'session', inspireDatabase: String(req.query.inspire_database || ''), sessionId: String(sessionId) }).catch(() => null);
+  if (launcher && launcher === String(person).trim().toLowerCase()) return null;
+  return launcherReadRefusal(req, sessionScopeText(scope));
+}
+
+async function visibleSessions(req, warehouseId, parsedDb, sessions) {
+  const person = RP.forwardedPerson(req.headers);
+  if (!forwardedTokenOf(req) || !person || !sessions.length) return sessions;
+  const ids = [...new Set(sessions.map((s) => String(s.session_id)).filter((id) => /^\d+$/.test(id)))];
+  if (!ids.length) return sessions;
+  const scopeRows = sqlResultToObjects(await executeSql(req.dbHost, await appOwnToken(), warehouseId,
+    `SELECT session_id, catalogs, schemas_str, tables_str FROM \`${parsedDb.catalog}\`.\`${parsedDb.schema}\`.\`__inspire_session\` WHERE session_id IN (${ids.join(', ')})`));
+  const scopes = new Map(scopeRows.map((r) => [String(r.session_id), r]));
+  const verdicts = await Promise.all(sessions.map(async (s) => {
+    const scope = scopes.get(String(s.session_id));
+    if (!scope) return true; // a session with no stored scope yet (starting) has nothing to protect
+    try {
+      return !(await sessionHiddenFrom(req, s.session_id, scope));
+    } catch {
+      return false; // a check that cannot finish shows nothing
+    }
+  }));
+  return sessions.filter((_s, i) => verdicts[i]);
+}
+
 function refusalExtra(refusal) {
   return { unreadable: refusal.unreadable, ...(refusal.request ? { request: refusal.request } : {}), ...(refusal.permissions ? { permissions: refusal.permissions } : {}) };
 }
@@ -2828,6 +2863,13 @@ app.get('/api/inspire/session', requireToken, async (req, res) => {
     }
 
     const session = rows[0];
+
+    // SEC-01 (W7): a session whose scope the person cannot read is not opened: 403, no session content, a table-level SELECT to ask for.
+    const hidden = await sessionHiddenFrom(req, session.session_id, session);
+    if (hidden) {
+      return PM_ERROR.sendFailure(res, 403, 'You cannot open this session: you did not launch it and you cannot read every table it covers. Ask for access to the tables below.',
+        { request: 'person', permissions: hidden.permissions, unreadable: hidden.unreadable });
+    }
 
     // Reconstruct widget_values from individual columns for frontend compatibility
     session.widget_values = {
@@ -3685,6 +3727,9 @@ app.get('/api/inspire/sessions', requireToken, async (req, res) => {
       sessionListCap(req.query.all === '1'),
     );
     sessions.unshift(...await startingSessions(req, inspire_database, warehouse_id, sessions));
+    // SEC-01 (W7): sessions the person did not launch and cannot read the scope of are not listed.
+    const shown = await visibleSessions(req, warehouse_id, parsed, sessions);
+    sessions.splice(0, sessions.length, ...shown);
 
     for (const s of sessions) {
       // Reconstruct widget_values from individual columns
