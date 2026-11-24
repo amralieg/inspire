@@ -50,9 +50,9 @@ export function ValueChip({ page }) {
   const lines = chipLines(counter, leaders);
   return (
     <span className="value-chip-wrap">
-      <button type="button" className={`value-chip${lines.set ? '' : ' is-unset'}`} data-value-chip="" aria-expanded={open}
+      <button type="button" className={`value-chip${lines.set ? '' : ' is-unset'}`} data-value-chip="" data-tour="value" aria-expanded={open}
         title={counter && counter.shown ? counterTitle(counter) : undefined} onClick={() => setOpen((o) => !o)}>
-        <span data-chip-value="">{lines.value}</span>
+        <span data-chip-value="" data-tour="saved">{lines.value}</span>
         {lines.rank && <span className="value-chip-rank" data-chip-rank="">{lines.rank}</span>}
       </button>
       {open && <Leaders data={leaders} onClose={() => setOpen(false)} />}

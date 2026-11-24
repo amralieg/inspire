@@ -247,7 +247,7 @@ function Shell({ app, onRefreshSiblings }) {
           {page && !admin && (
             <div className="mode-switch" role="group" aria-label="How to work" data-mode-switch>
               <button type="button" className="mode-b" data-mode="screen" aria-pressed={!genieFull} onClick={showScreen}>Screen</button>
-              <button type="button" className="mode-b" data-mode="genie" aria-pressed={genieFull} onClick={showGenie}>Genie</button>
+              <button type="button" className="mode-b" data-mode="genie" data-tour="genie" aria-pressed={genieFull} onClick={showGenie}>Genie</button>
             </div>
           )}
           <span className="top-value" data-top-value>{page && !admin && <ValueChip page={page} />}</span>

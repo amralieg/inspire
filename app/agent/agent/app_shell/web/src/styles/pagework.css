@@ -5,7 +5,9 @@
 .fresh-dot{flex:none;width:12px;height:12px;padding:0;border-radius:50%;border:0;background:var(--green-line,#2e9e5b);cursor:pointer}
 .fresh-dot.is-late{background:var(--amber-line,#d9962b)}
 .fresh-dot.is-busy{background:var(--blue-line,#3b7de0);animation:fresh-pulse 1.2s ease-in-out infinite}
+.fresh-dot{position:relative}
 .fresh-dot:disabled{cursor:default}
+@media (max-width:700px){.fresh-dot::before{content:"";position:absolute;top:50%;left:50%;width:40px;height:40px;transform:translate(-50%,-50%)}.ov-t{min-height:40px}}
 @keyframes fresh-pulse{50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){.fresh-dot.is-busy{animation:none}}
 .ov{margin:0 0 12px}
