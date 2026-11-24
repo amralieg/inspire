@@ -197,7 +197,6 @@ def test_the_build_ships_both_serverless_machines_unless_told_otherwise(tmp_path
     build = _build()
     seen = {"python": []}
     monkeypatch.setattr(build, "add_python", lambda bundle, pins, python, machines, names: seen["python"].append((python, list(machines))))
-    monkeypatch.setattr(build, "add_fonts", lambda bundle, pins: None)
     monkeypatch.setattr(build, "add_clis", lambda bundle, pins, machines: seen.__setitem__("cli", list(machines)))
     monkeypatch.setattr(build, "write", lambda *a, **k: {"path": "", "archive": 0, "sha256": "", "files": 0, "payload": 0})
     probe = tmp_path / "probe.json"
