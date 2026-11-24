@@ -48,15 +48,25 @@ const Alerts = lazy(() => import('./Alerts.jsx'));
 const TrendCards = lazy(() => import('./Trends.jsx'));
 const Waiting = ({ height = 180 }) => <section className="card" role="status" aria-label="Loading"><Skeleton height={height} /></section>;
 
-export function usePageData(pageId, state, ready, nonce = 0, sorts = null, searches = {}) {
-  const [data, setData] = useState(null);
+// The sorts and key a page read is asked with; the shell uses the same two so a read it made can feed the Page (REQ-506).
+export const readSorts = (look) => Object.fromEntries(Object.entries(look?.sorts || {}).filter(([id]) => id !== 'records'));
+export const readKey = (state, sorts, searches = {}) => JSON.stringify({ filters: apiValues(state), tables: apiTables(state), sorts: sorts || {}, searches });
+
+// warm: an optional { key, data } read the shell already made; the first read uses it when the key matches, then onWarm clears it.
+export function usePageData(pageId, state, ready, nonce = 0, sorts = null, searches = {}, warm = null, onWarm = null) {
+  const key = readKey(state, sorts, searches);
+  const first = useRef(warm);
+  const [data, setData] = useState(() => (ready && warm?.key === key ? warm.data : null));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [waiting, setWaiting] = useState(null);
   const seq = useRef(0);
-  const key = JSON.stringify({ filters: apiValues(state), tables: apiTables(state), sorts: sorts || {}, searches });
   useEffect(() => {
     if (!ready) return undefined;
+    const kept = first.current;
+    first.current = null;
+    if (kept) onWarm?.();
+    if (kept?.key === key) { setData(kept.data); return undefined; }
     const mine = ++seq.current;
     setBusy(true);
     const timer = setTimeout(() => {
@@ -104,7 +114,7 @@ function radioKeys(e) {
 }
 
 export default function Page({ app, page, meta, state, onState, look = EMPTY_LOOK, onLook, themeKey, onAsk, onExplain, genieBusy, hubEntry, summary, view, onView, genie,
-  section = 'dashboard', tab = '', focus = '', chrome, onCounts, onRecord, onRetryMeta = null, onRetrySummary = null, onTour, onTourFacts }) {
+  section = 'dashboard', tab = '', focus = '', chrome, onCounts, onRecord, onRetryMeta = null, onRetrySummary = null, onTour, onTourFacts, warm = null, onWarm = null }) {
   const ready = !!state;
   const [nonce, setNonce] = useState(0);
   const retry = useCallback(() => setNonce((n) => n + 1), []);
@@ -115,7 +125,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const [runOffset, setRunOffset] = useState(0);
   const [settings, setSettings, settingsError] = useSettings(page.id, nonce);
   const listed = !!(page.history && page.records);
-  const sorts = useMemo(() => Object.fromEntries(Object.entries(look.sorts || {}).filter(([id]) => id !== 'records')), [look]);
+  const sorts = useMemo(() => readSorts(look), [look]);
   const sortBy = (target) => (s) => onLook?.((l) => ({ ...l, sorts: { ...l.sorts, [target]: s } }));
   useEffect(() => {
     const changed = (e) => { if (e.detail?.pageId === page.id) setNonce((n) => n + 1); };
@@ -123,7 +133,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     return () => window.removeEventListener(AGENT_CHANGED, changed);
   }, [page.id]);
   const [searches, setSearches] = useState({});
-  const { data, busy, error, waiting: waitingFor, recheck } = usePageData(page.id, state, ready, nonce, sorts, searches);
+  const { data, busy, error, waiting: waitingFor, recheck } = usePageData(page.id, state, ready, nonce, sorts, searches, warm, onWarm);
   useEffect(() => { onTourFacts?.(page.id, tourFacts(page, data?.kpis, queue?.data)); }, [page, data?.kpis, queue?.data]);
   const live = usePageHub(page.id, state, ready, nonce, listed);
   const laidOut = isLaidOut(page);
