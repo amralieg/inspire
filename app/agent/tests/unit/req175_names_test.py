@@ -138,10 +138,8 @@ def test_the_document_description_column_is_the_subtitle(agent_ns):
 
 
 def test_the_pdf_card_deck_and_markdown_show_the_subtitle_under_the_title(agent_ns):
-    """REQ-175: the view feeds the PDF card, the deck slide and the markdown; each one shows the subtitle, not the name."""
+    """REQ-175: the view feeds the markdown, which shows the subtitle, not the name. REQ-503 removed the agent PDF card and deck slide."""
     source = _source(agent_ns)
-    assert '(f\'<div class="sub"{bidi(view["subtitle"])}>{text(view["subtitle"])}</div>\' if view["subtitle"] else "")' in source
-    assert 'deck.text(slide, 1.6, 1.36, 11.13, 0.28, view["subtitle"], size=S["body"], color=C["muted"])' in source
     assert 'md_content.append(f"\\n*{iso(view[\'subtitle\'])}*\\n")' in source
     assert 'view["name"]' not in source, "no view reads the name as a sub-line any more"
 

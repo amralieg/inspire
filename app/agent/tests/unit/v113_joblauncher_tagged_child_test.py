@@ -169,7 +169,7 @@ class _Jobs:
         return types.SimpleNamespace(settings=types.SimpleNamespace(schedule=self.schedule))
 
     def update(self, job_id=None, new_settings=None, fields_to_remove=None):
-        self.calls.append(("update", {"job_id": job_id, "settings": vars(new_settings)}))
+        self.calls.append(("update", {"job_id": job_id, "settings": {k: v for k, v in vars(new_settings).items() if v is not None}}))
 
     def create(self, **kwargs):
         self.calls.append(("create", kwargs))
