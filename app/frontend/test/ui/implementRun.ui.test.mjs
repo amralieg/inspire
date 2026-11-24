@@ -55,8 +55,8 @@ test('the Run tab sits right after Build in the header', async () => {
   try {
     const nav = ui.page.locator('header nav button');
     await nav.first().waitFor();
-    assert.deepEqual(await nav.allTextContents(), ['01Home', '02Start', '03Monitor', '04Review', '05Build', '06Run']);
-    assert.equal(await nav.nth(5).isEnabled(), true);
+    assert.deepEqual(await nav.allTextContents(), ['01Start', '02Monitor', '03Review', '04Build', '05Run']);
+    assert.equal(await nav.nth(4).isEnabled(), true);
     assert.doesNotMatch(await ui.page.locator('header').innerText(), /\bv\d/i, 'the header shows no version badge');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
