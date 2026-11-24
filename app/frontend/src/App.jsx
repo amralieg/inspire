@@ -79,13 +79,13 @@ class ErrorBoundary extends Component {
     if (this.state.hasError) {
       return (
         <div style={{ padding: 32, fontFamily: 'monospace' }}>
-          <h2 style={{ color: '#DC2626' }}>Component Crash</h2>
-          <pre style={{ whiteSpace: 'pre-wrap', background: '#FEF2F2', padding: 16, borderRadius: 8 }}>
+          <h2 className="text-error-solid">Component Crash</h2>
+          <pre className="bg-danger-bg" style={{ whiteSpace: 'pre-wrap', padding: 16, borderRadius: 8 }}>
             {this.state.error?.toString()}
           </pre>
           <details>
             <summary>Stack trace</summary>
-            <pre style={{ whiteSpace: 'pre-wrap', fontSize: 11 }}>
+            <pre className="text-xs" style={{ whiteSpace: 'pre-wrap' }}>
               {this.state.info?.componentStack}
             </pre>
           </details>
