@@ -4,6 +4,7 @@ import GlassCard from '../../components/GlassCard';
 import { RunValuePanel } from '../../components/ValueTotalsPanel';
 import { displayCleanText, nameOfUseCase, trackingIdOf } from '../../lib/useCaseFields';
 import { mvpCounts } from '../../lib/implementWizard';
+import ValueMap from './ValueMap';
 
 const MVP_TILES = [
   { id: 'has', label: 'MVPs started', icon: Layers },
@@ -66,6 +67,8 @@ export default function ResultsBusiness({
           <RunValuePanel run={valueTotals.run} useCases={valueTotals.use_cases}
             nameOf={(id) => { const u = allUseCases.find((x) => trackingIdOf(x) === id); return u ? nameOfUseCase(u) : id; }} onRow={onRunValueRow} />
         )}
+
+        {allUseCases.length > 0 && <ValueMap useCases={allUseCases} valueTotals={valueTotals} openUseCase={openUseCase} onRunValueRow={onRunValueRow} />}
 
             {(summaryParagraphs.length > 0 || domainsSummary) && (
             <div
