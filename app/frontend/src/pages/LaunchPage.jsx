@@ -8,10 +8,8 @@ import {
   Target,
   Layers,
   FileText,
-  FileSpreadsheet,
   Search,
   CheckCircle2,
-  Globe2,
   ChevronDown,
   Sliders,
   Settings2,
@@ -39,7 +37,6 @@ import {
 import PageHeader from '../components/ui/PageHeader';
 import MoreMenu from '../components/ui/MoreMenu';
 import Button from '../components/ui/Button';
-import DocumentLanguagesMultiselect from '../components/DocumentLanguagesMultiselect';
 import StrategyEditor from '../components/StrategyEditor';
 import { parseStrategicContext, splitPriorities, validateStrategicContextText, withPriorities } from '../lib/strategyContext';
 import UcPermissionErrorHelp from '../components/UcPermissionErrorHelp';
@@ -59,7 +56,6 @@ import SamplesCopyOffer from '../components/SamplesCopyOffer';
 import DiscoveryPromise from '../components/DiscoveryPromise';
 import { useOutputFolderCheck } from '../lib/outputFolderCheck';
 import { DRAFT_BACK_NOTE, DRAFT_START_OVER, START_DRAFT_STAMP, START_DRAFT_STEP, clearWizardDraft, readWizardDraft, startDraftKey, writeWizardDraft } from '../lib/wizardDraft';
-import { DEFAULT_DOCUMENT_LANGUAGE, parseDocumentLanguages, formatDocumentLanguages, launchDocLanguages, needsDocumentLanguage } from '../constants/documentLanguages';
 import { newSessionId } from '../lib/runState';
 import { interpretUcPermissionError, parseApiErrorMessage } from '../lib/ucPermissionErrors';
 import { formatWhen, utcDate } from '../lib/formatWhen';
@@ -115,11 +111,6 @@ const TABLE_SELECTION_WARN_THRESHOLD = 10;
 /** Documented sweet spot for discovery quality and runtime. */
 const TABLE_SELECTION_IDEAL_MAX = 25;
 const OPERATION_WIDGET_OPTIONS = ['Discover Use Cases', 'Generate Use Cases'];
-const GENERATION_OPTIONS = [
-  { key: 'PDF Catalog', icon: FileText, desc: 'Professional PDF use case catalog' },
-  { key: 'Presentation', icon: Target, desc: 'Executive-ready slide deck' },
-  { key: 'Excel', icon: FileSpreadsheet, desc: 'Excel workbook of the use cases' },
-];
 const BUSINESS_PRIORITIES = [
   { key: 'Increase Revenue', icon: TrendingUp },
   { key: 'Reduce Cost', icon: DollarSign },
@@ -179,18 +170,16 @@ const defaultParams = (inspireDatabase) => ({
   '06_business_domains': '',
   '07_business_priorities': '',
   '08_generation_instructions': '',
-  '09_generation_options': 'PDF Catalog,Excel',
   '10_strategic_context': '',
   '11_generation_path': '',
-  '12_documents_languages': 'English',
   '13_generate_genie_code_for': '0',
   '14_session_id': '',
   '16_best_of_best_count': '',
 });
 const DRAFT_PARAMS = ['00_business_name', '03_discovery_type', '04_table_election', '05_use_cases_quality', '06_business_domains', '08_generation_instructions',
-  '11_generation_path', '12_documents_languages', '13_generate_genie_code_for', '15_operation', '16_best_of_best_count'];
+  '11_generation_path', '13_generate_genie_code_for', '15_operation', '16_best_of_best_count'];
 const FORM_DEFAULTS = {
-  genChecks: { 'PDF Catalog': true, Presentation: false, Excel: true }, priorityChecks: {}, customPriorities: [], strategyBase: '',
+  priorityChecks: {}, customPriorities: [], strategyBase: '',
   selectedCatalogs: [], wholeCatalogs: [], selectedSchemas: [], selectedTables: [], tableScopes: {}, dataFilterLabel: { on: false, text: null }, relationships: [],
   electionTouched: false, discoveryTouched: false, strategyTouched: false, prioritiesTouched: false,
 };
@@ -213,7 +202,6 @@ function restoredForm(draft) {
   const saved = spec.params && typeof spec.params === 'object' ? spec.params : {};
   return {
     params: Object.fromEntries(DRAFT_PARAMS.filter((key) => ['string', 'number'].includes(typeof saved[key])).map((key) => [key, String(saved[key])])),
-    genChecks: { ...FORM_DEFAULTS.genChecks, ...checks(spec.genChecks, {}) },
     priorityChecks: checks(spec.priorityChecks, {}),
     strategyBase: typeof spec.strategyBase === 'string' ? spec.strategyBase : '',
     ...Object.fromEntries(LISTS.map((key) => [key, Array.isArray(spec[key]) ? spec[key].filter((x) => typeof x === 'string') : []])),
@@ -322,7 +310,6 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const [metadataPreviewExpanded, setMetadataPreviewExpanded] = useState(false);
 
   // ── Multiselects ──
-  const [genChecks, setGenChecks] = useState(start.genChecks);
   const [priorityChecks, setPriorityChecks] = useState(start.priorityChecks);
   const [customPriorities, setCustomPriorities] = useState(start.customPriorities);
   const [customPriorityDraft, setCustomPriorityDraft] = useState('');
@@ -495,14 +482,6 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     autoQuickViewDone.current = true;
     onQuickViewToggle(sessionsList[0].session_id);
   }, [showRecentRuns, sessionsList, onQuickViewToggle]);
-
-
-  // v1.2.0 generation options only control document artifacts.
-  // Auto-Genie is independently controlled by 13_generate_genie_code_for.
-  useEffect(() => {
-    const sel = Object.entries(genChecks).filter(([, v]) => v).map(([k]) => k);
-    setParams((p) => ({ ...p, '09_generation_options': sel.join(',') }));
-  }, [genChecks]);
 
   // Sync business priorities
   useEffect(() => {
@@ -693,9 +672,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const [prioritiesTouched, setPrioritiesTouched] = useState(start.prioritiesTouched);
 
   const draftForm = useMemo(() => draftFormOf(params, {
-    genChecks, priorityChecks, customPriorities, strategyBase, selectedCatalogs, wholeCatalogs, selectedSchemas, selectedTables, tableScopes, dataFilterLabel, relationships,
+    priorityChecks, customPriorities, strategyBase, selectedCatalogs, wholeCatalogs, selectedSchemas, selectedTables, tableScopes, dataFilterLabel, relationships,
     electionTouched, discoveryTouched, strategyTouched, prioritiesTouched,
-  }), [params, genChecks, priorityChecks, customPriorities, strategyBase, selectedCatalogs, wholeCatalogs, selectedSchemas, selectedTables, tableScopes, dataFilterLabel, relationships,
+  }), [params, priorityChecks, customPriorities, strategyBase, selectedCatalogs, wholeCatalogs, selectedSchemas, selectedTables, tableScopes, dataFilterLabel, relationships,
     electionTouched, discoveryTouched, strategyTouched, prioritiesTouched]);
   useEffect(() => {
     if (JSON.stringify(draftForm) === PRISTINE_FORM && !loadedProfile) clearWizardDraft(draftKey);
@@ -705,7 +684,6 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   // One code path sets the whole form: Start over sets the defaults, and a picked profile sets its saved settings.
   const applyForm = (form) => {
     setParams(form.params);
-    setGenChecks(form.genChecks);
     setPriorityChecks(form.priorityChecks);
     setCustomPriorities(form.customPriorities);
     setStrategyBase(form.strategyBase);
@@ -903,7 +881,6 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     setLaunching(true);
     setLaunchError('');
     const finalParams = { ...params };
-    finalParams['12_documents_languages'] = formatDocumentLanguages(launchDocLanguages(params));
     // Always auto-generate session ID
     finalParams['14_session_id'] = newSessionId();
     const tableScopeText = launchTableScopeText(tableScopes, scope,
@@ -1006,11 +983,6 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const filteredTables = tables.filter(
     (t) => !tableSearch || t.full_name.toLowerCase().includes(tableSearch.toLowerCase())
   );
-  const needsLanguage = needsDocumentLanguage(params['09_generation_options']);
-  const selectedDocLanguages = useMemo(
-    () => parseDocumentLanguages(params['12_documents_languages']),
-    [params['12_documents_languages']],
-  );
 
   // Every change to the picked schemas or tables goes through here: a catalog with a picked child is not whole (REQ-388).
   const setPickedChildren = (nextSchemas, nextTables) => {
@@ -1060,8 +1032,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     : strategyProblems.length ? `Fix the strategy: ${strategyProblems[0]}`
       : dataFilterProblems.length ? `Fix the data filters: ${dataFilterProblems[0]}`
       : bestOfBestInvalid ? 'Fix Best of Best stars: use a whole number from 0 to 100, or leave it empty.'
-        : needsLanguage && selectedDocLanguages.length === 0 ? 'Select at least one document language for PDF or Presentation.'
-          : ['refused', 'error'].includes(outputCheck.state) ? 'Change the Generation Path: Inspire cannot write to it.' : '';
+        : ['refused', 'error'].includes(outputCheck.state) ? 'Change the Generation Path: Inspire cannot write to it.' : '';
   useEffect(() => {
     if (advancedProblem) setShowAdvanced(true);
   }, [advancedProblem]);
@@ -1941,88 +1912,19 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 />
               </FieldSection>
 
-              {/* Generation Options */}
-              <Field
-                label="Generation Options"
-                icon={Layers}
-                hint="Pick the documents this run builds. None picked means no documents now. Auto-Genie is configured separately below."
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                  {GENERATION_OPTIONS.map((opt) => {
-                    const Icon = opt.icon;
-                    const active = !!genChecks[opt.key];
-                    return (
-                      <button
-                        key={opt.key}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() => setGenChecks((p) => ({ ...p, [opt.key]: !p[opt.key] }))}
-                        className={`relative p-3.5 rounded-xl text-start transition-smooth border group ${
-                          active
-                            ? 'border-db-red/30 bg-db-red-50 shadow-sm'
-                            : 'border-border hover:border-border-strong hover:shadow-sm'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                            active ? 'bg-db-red/10' : 'bg-bg-subtle group-hover:bg-bg'
-                          }`}>
-                            <Icon size={14} className={active ? 'text-db-red-fg' : 'text-text-tertiary'} />
-                          </div>
-                        </div>
-                        <span className={`text-xs font-semibold block ${active ? 'text-db-red-fg' : 'text-text-primary'}`}>
-                          {opt.key}
-                        </span>
-                        <p className="text-xs text-text-tertiary leading-snug mt-0.5">{opt.desc}</p>
-                        {active && (
-                          <CheckCircle2 size={14} className="absolute top-2.5 end-2.5 text-db-red-fg" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                {!params['09_generation_options'] && (
-                  <p data-no-documents className="text-xs text-text-tertiary mt-2">
-                    No documents in this run. Create the strategy document or the use case catalog later from Review.
-                  </p>
-                )}
+              {/* Generation Path */}
+              <Field label="Generation Path" icon={FileText} hint="Where to write output artifacts">
+                <input dir="auto"
+                  type="text"
+                  value={params['11_generation_path']}
+                  onChange={(e) => updateParam('11_generation_path', e.target.value)}
+                  placeholder="Your own folder: /Users/<you>/inspire_output"
+                  aria-label="Generation Path"
+                  aria-describedby="output-folder-check-field"
+                  className="w-full ps-10 pe-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth font-mono"
+                />
+                <OutputFolderCheck check={outputCheck} id="output-folder-check-field" />
               </Field>
-
-              {/* Generation Path + Languages side by side */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <Field label="Generation Path" icon={FileText} hint="Where to write output artifacts">
-                  <input dir="auto"
-                    type="text"
-                    value={params['11_generation_path']}
-                    onChange={(e) => updateParam('11_generation_path', e.target.value)}
-                    placeholder="Your own folder: /Users/<you>/inspire_output"
-                    aria-label="Generation Path"
-                    aria-describedby="output-folder-check-field"
-                    className="w-full ps-10 pe-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth font-mono"
-                  />
-                  <OutputFolderCheck check={outputCheck} id="output-folder-check-field" />
-                </Field>
-
-                <Field
-                  label="Document Languages"
-                  icon={Globe2}
-                  hint={
-                    needsLanguage
-                      ? `Used for PDF and Presentation. ${DEFAULT_DOCUMENT_LANGUAGE} unless you pick others`
-                      : 'Used only when PDF or Presentation is selected'
-                  }
-                >
-                  <DocumentLanguagesMultiselect
-                    value={params['12_documents_languages']}
-                    onChange={(v) => updateParam('12_documents_languages', v)}
-                  />
-                  {needsLanguage && selectedDocLanguages.length === 0 && (
-                    <p data-doc-language-default className="text-xs text-text-tertiary mt-2">
-                      {`No language picked, so the documents are in ${DEFAULT_DOCUMENT_LANGUAGE}.`}
-                    </p>
-                  )}
-                </Field>
-              </div>
 
               {/* Row: Table Election + Quality */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

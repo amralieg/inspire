@@ -77,9 +77,9 @@ def test_unknown_look_access_or_options_are_refused_with_the_reason(agent_ns, ou
 def test_round_50_a_missing_access_asks_for_the_choice_without_showing_an_empty_value(agent_ns):
     for outputs in ({}, {"app_access": None}, {"app_access": "  "}):
         errors = agent_ns["implement_app_choices"](outputs)[1]
-        assert len(errors) == 1 and errors[0].endswith("through the App's service principal)"), (outputs, errors)
-    assert agent_ns["implement_app_choices"]({"app_access": 3})[1][0].endswith("service principal), not 3")
-    assert agent_ns["implement_app_choices"]({"app_access": "everyone"})[1][0].endswith("service principal), not 'everyone'")
+        assert len(errors) == 1 and errors[0].endswith("read as the App itself)"), (outputs, errors)
+    assert agent_ns["implement_app_choices"]({"app_access": 3})[1][0].endswith("read as the App itself), not 3")
+    assert agent_ns["implement_app_choices"]({"app_access": "everyone"})[1][0].endswith("read as the App itself), not 'everyone'")
 
 
 def test_the_spec_carries_the_app_choices_and_refuses_bad_ones_before_anything_builds(agent_ns):

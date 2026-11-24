@@ -13,8 +13,8 @@ const STATE = {
   columnsByTable: { 'main.s.orders': [{ column_name: 'brand_name', data_type: 'STRING', ordinal_position: 1 }] },
 };
 
-const option = (page, name) => page.locator('button[aria-pressed]').filter({ hasText: name });
-const pressed = async (page, name) => (await option(page, name).getAttribute('aria-pressed')) === 'true';
+const DOC_OPTIONS = ['PDF Catalog', 'Presentation', 'Excel'];
+const offered = (page, name) => page.getByRole('button', { name: new RegExp(`^${name}`) }).count();
 const launchOf = async (page, made) => {
   await idle(page);
   await page.getByRole('button', { name: 'Get Started' }).click();
@@ -29,66 +29,44 @@ async function fillForm(page) {
   await page.locator('button[title="orders"]').click();
   await idle(page);
   await page.getByRole('button', { name: /Advanced Settings/ }).click();
-  await option(page, 'PDF Catalog').waitFor({ timeout: 15000 });
+  await idle(page);
 }
 async function reloaded(page) {
   await page.reload();
   await page.getByPlaceholder(BUSINESS).waitFor({ timeout: 20000 });
   await idle(page);
   await page.getByRole('button', { name: /Advanced Settings/ }).click();
-  await option(page, 'PDF Catalog').waitFor({ timeout: 15000 });
+  await idle(page);
 }
 
-test('the strategy PDF (PDF Catalog) and the Excel workbook are ticked by default and the run carries both; Presentation stays off', async () => {
+test('a new Launch page has no PDF, Presentation or Excel option and the run carries no 09 key (REQ-503 FX-116)', async () => {
   const ui = await openUi('launch', STATE);
   const { page, made } = ui;
   try {
     await fillForm(page);
-    assert.equal(await pressed(page, 'PDF Catalog'), true, 'the PDF is ticked on a new Launch page');
-    assert.equal(await pressed(page, 'Presentation'), false);
-    assert.equal(await pressed(page, 'Excel'), true, 'the Excel workbook is ticked on a new Launch page');
+    for (const name of DOC_OPTIONS) assert.equal(await offered(page, name), 0, `${name} is still offered`);
     const params = await launchOf(page, made);
-    assert.equal(params['09_generation_options'], 'PDF Catalog,Excel', 'the job carries the PDF Catalog and Excel options');
+    assert.equal(Object.hasOwn(params, '09_generation_options'), false, 'the job gets no generation option');
   } finally {
     await ui.close();
   }
 });
 
-test('a reload keeps the PDF ticked with the other choices, and a draft saved without the PDF choice restores it ticked', async () => {
+test('a draft saved before FX-116 with document ticks restores no option after a reload, and the run still carries no 09 key', async () => {
   const ui = await openUi('launch', STATE);
   const { page, made } = ui;
   try {
     await fillForm(page);
-    await option(page, 'Presentation').click();
-    await reloaded(page);
-    assert.equal(await pressed(page, 'PDF Catalog'), true, 'the ticked PDF survives a reload');
-    assert.equal(await pressed(page, 'Presentation'), true, 'the Presentation the person ticked survives too');
-
     await page.evaluate((prefix) => {
       const key = Object.keys(localStorage).find((k) => k.startsWith(prefix));
       const saved = JSON.parse(localStorage.getItem(key));
-      delete saved.spec.genChecks['PDF Catalog'];
+      saved.spec.genChecks = { 'PDF Catalog': true, Presentation: true, Excel: true };
       localStorage.setItem(key, JSON.stringify(saved));
     }, START_DRAFT_PREFIX);
     await reloaded(page);
-    assert.equal(await pressed(page, 'PDF Catalog'), true, 'a draft without the PDF choice restores it ticked');
+    for (const name of DOC_OPTIONS) assert.equal(await offered(page, name), 0, `${name} came back from the old draft`);
     const params = await launchOf(page, made);
-    assert.deepEqual(params['09_generation_options'].split(',').sort(), ['Excel', 'PDF Catalog', 'Presentation']);
-  } finally {
-    await ui.close();
-  }
-});
-
-test('unticking the PDF and the Excel workbook launches with the option empty, which the run reads as no documents', async () => {
-  const ui = await openUi('launch', STATE);
-  const { page, made } = ui;
-  try {
-    await fillForm(page);
-    await option(page, 'PDF Catalog').click();
-    await option(page, 'Excel').click();
-    assert.equal(await pressed(page, 'PDF Catalog'), false);
-    const params = await launchOf(page, made);
-    assert.equal(params['09_generation_options'], '', 'the person unticked every document');
+    assert.equal(Object.hasOwn(params, '09_generation_options'), false, 'an old draft does not bring the option back');
   } finally {
     await ui.close();
   }

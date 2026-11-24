@@ -1,11 +1,11 @@
-"""REQ-171: a Data Filter the person picked on a categorical column shows in the use case catalog. The Excel workbook and the CSV carry one
-column per filtered column (header = the column name), each use case's cell holds its picked values, and the PDF and markdown use case
-card carry a 'Data Filters' fact. Filters are read from the run's Table Scope only; no filter adds no column."""
+"""REQ-171: a Data Filter the person picked on a categorical column shows in the use case catalog. The CSV carries one
+column per filtered column (header = the column name), each use case's cell holds its picked values, and the markdown use case
+card carries a 'Data Filters' fact. Filters are read from the run's Table Scope only; no filter adds no column."""
 import io
 import json
 import os
 
-import openpyxl
+import csv
 import pytest
 
 from v120_artifacts_support import make_inspire
@@ -35,32 +35,29 @@ def use_case(no, tables, **extra):
     return value_uc(no, "Sales", **{"Tables Involved": ", ".join(tables), "Primary Table": tables[0], **extra})
 
 
-def excel_sheet(ns, grouped):
+def csv_sheet(ns, grouped):
     obj = make_inspire(ns)
     obj.delivery_order = [uc["No"] for ucs in grouped.values() for uc in ucs]
-    obj._generate_use_case_excel("English", "en", grouped)
-    xlsx = next(p for p in obj.w_client.workspace.files if str(p).endswith(".xlsx"))
-    return openpyxl.load_workbook(io.BytesIO(obj.w_client.workspace.files[xlsx])).worksheets[0]
+    obj._generate_csv_catalog("English", "en", grouped)
+    path = next(p for p in obj.w_client.workspace.files if str(p).endswith(".csv"))
+    return list(csv.reader(io.StringIO(obj.w_client.workspace.files[path].decode("utf-8").lstrip("\ufeff"))))
 
 
 def rows_by_id(sheet):
-    headers = [cell.value for cell in next(sheet.iter_rows())]
-    out = {}
-    for row in sheet.iter_rows(min_row=2, values_only=True):
-        out[row[headers.index("ID")]] = dict(zip(headers, row))
-    return headers, out
+    headers = sheet[0]
+    return headers, {row[headers.index("ID")]: dict(zip(headers, row)) for row in sheet[1:]}
 
 
-def test_a_picked_categorical_filter_is_a_column_of_the_excel_with_its_value_on_each_filtered_use_case(scoped):
+def test_a_picked_categorical_filter_is_a_column_of_the_csv_with_its_value_on_each_filtered_use_case(scoped):
     set_scope(scoped, scope(SALES, ["sku", "product"], [{"column": "product", "op": "=", "values": ["Tokyo Tidbits"]}]))
-    headers, by_id = rows_by_id(excel_sheet(scoped, {"Sales": [use_case("N01-U01", [SALES]), use_case("N01-U02", [STORES])]}))
+    headers, by_id = rows_by_id(csv_sheet(scoped, {"Sales": [use_case("N01-U01", [SALES]), use_case("N01-U02", [STORES])]}))
     assert "product" in headers, headers
     assert by_id["N01-U01"]["product"] == "Tokyo Tidbits", "the filtered use case shows its picked value"
     assert by_id["N01-U02"]["product"] in (None, ""), "a use case over tables with no filter shows nothing in that column"
 
 
 def test_a_catalog_with_no_filter_has_no_filter_column(scoped):
-    headers, _ = rows_by_id(excel_sheet(scoped, {"Sales": [use_case("N01-U01", [SALES])]}))
+    headers, _ = rows_by_id(csv_sheet(scoped, {"Sales": [use_case("N01-U01", [SALES])]}))
     assert "product" not in headers and not any("filter" in str(h).lower() for h in headers), headers
 
 
@@ -68,7 +65,7 @@ def test_several_filtered_columns_each_get_a_column_and_several_values_are_comma
     set_scope(scoped, scope(SALES, ["sku", "product", "region"], [
         {"column": "product", "op": "in", "values": ["Tokyo Tidbits", "Golden Gate Ginger"]},
         {"column": "region", "op": "=", "values": ["north"]}]))
-    headers, by_id = rows_by_id(excel_sheet(scoped, {"Sales": [use_case("N01-U01", [SALES])]}))
+    headers, by_id = rows_by_id(csv_sheet(scoped, {"Sales": [use_case("N01-U01", [SALES])]}))
     assert headers.index("region") > headers.index("product"), headers
     assert by_id["N01-U01"]["product"] == "Tokyo Tidbits, Golden Gate Ginger"
     assert by_id["N01-U01"]["region"] == "north"
@@ -77,27 +74,27 @@ def test_several_filtered_columns_each_get_a_column_and_several_values_are_comma
 def test_a_use_case_over_tables_filtered_differently_names_each_tables_values(scoped):
     set_scope(scoped, {**scope(SALES, ["sku", "product"], [{"column": "product", "op": "=", "values": ["Tokyo Tidbits"]}]),
                        **scope(STORES, ["store", "product"], [{"column": "product", "op": "=", "values": ["Golden Gate Ginger"]}])})
-    _, by_id = rows_by_id(excel_sheet(scoped, {"Sales": [use_case("N01-U01", [SALES, STORES])]}))
+    _, by_id = rows_by_id(csv_sheet(scoped, {"Sales": [use_case("N01-U01", [SALES, STORES])]}))
     assert by_id["N01-U01"]["product"] == "sales: Tokyo Tidbits; stores: Golden Gate Ginger"
 
 
 def test_a_long_value_list_shows_its_first_ten_values_and_a_count_for_the_rest(scoped):
     values = [f"Brand {n:02d}" for n in range(1, 13)]
     set_scope(scoped, scope(SALES, ["sku", "product"], [{"column": "product", "op": "in", "values": values}]))
-    _, by_id = rows_by_id(excel_sheet(scoped, {"Sales": [use_case("N01-U01", [SALES])]}))
+    _, by_id = rows_by_id(csv_sheet(scoped, {"Sales": [use_case("N01-U01", [SALES])]}))
     assert by_id["N01-U01"]["product"] == ", ".join(values[:10]) + " and 2 more"
 
 
 def test_an_exception_filter_is_written_as_all_except_its_values(scoped):
     set_scope(scoped, scope(SALES, ["sku", "product"], [{"column": "product", "op": "not in", "values": ["Other Co"]}]))
-    _, by_id = rows_by_id(excel_sheet(scoped, {"Sales": [use_case("N01-U01", [SALES])]}))
+    _, by_id = rows_by_id(csv_sheet(scoped, {"Sales": [use_case("N01-U01", [SALES])]}))
     assert by_id["N01-U01"]["product"] == "all except Other Co"
 
 
 def test_a_range_bound_is_listed_as_a_column_with_its_bound(scoped):
-    # REQ-244: a bound is a value the reader can see, so the Excel names the column and shows the bound next to the picks.
+    # REQ-244: a bound is a value the reader can see, so the CSV names the column and shows the bound next to the picks.
     set_scope(scoped, scope(SALES, ["sku", "sold_on"], [{"column": "sold_on", "op": ">=", "values": ["2026-01-01"]}]))
-    headers, rows = rows_by_id(excel_sheet(scoped, {"Sales": [use_case("N01-U01", [SALES])]}))
+    headers, rows = rows_by_id(csv_sheet(scoped, {"Sales": [use_case("N01-U01", [SALES])]}))
     assert "sold_on" in headers
     assert rows["N01-U01"]["sold_on"] == "\u2265 2026-01-01"
 
@@ -110,7 +107,7 @@ def test_a_translated_export_keeps_the_filter_header_as_the_column_name(scoped):
     assert rows[0][headers.index("product")] == "Tokyo Tidbits"
 
 
-def test_the_csv_writer_carries_the_same_filter_columns_as_the_excel(scoped):
+def test_the_csv_writer_carries_the_same_filter_columns_as_the_translated_export(scoped):
     set_scope(scoped, scope(SALES, ["sku", "product"], [{"column": "product", "op": "=", "values": ["Tokyo Tidbits"]}]))
     obj = make_inspire(scoped)
     grouped = {"Sales": [use_case("N01-U01", [SALES])]}

@@ -474,22 +474,22 @@ def test_every_documents_language_gets_its_iso_code(agent_ns):
 
 def test_failed_steps_are_recorded_once_and_reach_the_session_result(agent_ns):
     obj = make_inspire(agent_ns)
-    obj._record_failed_step("PDF Catalog", "Arabic", RuntimeError("weasyprint missing"))
-    obj._record_failed_step("PDF Catalog", "Arabic", RuntimeError("weasyprint missing again"))
+    obj._record_failed_step("Markdown Catalog", "Arabic", RuntimeError("upload failed"))
+    obj._record_failed_step("Markdown Catalog", "Arabic", RuntimeError("upload failed again"))
     obj._record_failed_step("Tracking Table", "", "replace failed")
-    assert [(f["step"], f["language"]) for f in obj.failed_steps] == [("PDF Catalog", "Arabic"), ("Tracking Table", "")]
+    assert [(f["step"], f["language"]) for f in obj.failed_steps] == [("Markdown Catalog", "Arabic"), ("Tracking Table", "")]
     assert obj.final_inspire_results_json["failed_steps"] == obj.failed_steps
-    assert len(obj.logger.matching("[ARTIFACT STEP FAILED] step=PDF Catalog", level="WARNING")) == 1
+    assert len(obj.logger.matching("[ARTIFACT STEP FAILED] step=Markdown Catalog", level="WARNING")) == 1
 
 
 def test_failed_steps_survive_the_json_catalog_replacing_the_results(agent_ns, monkeypatch):
     obj = make_inspire(agent_ns, column_id_map={}, id_column_map={}, table_id_map={}, id_table_map={},
                        catalogs_str="main", schemas_str="", generation_path="/Workspace/out")
     monkeypatch.setattr(agent_ns["workspace"], "ImportFormat", type("F", (), {"AUTO": "AUTO"}), raising=False)
-    obj._record_failed_step("Use Case Excel", "English", "upload failed")
+    obj._record_failed_step("CSV Catalog", "English", "upload failed")
     obj._save_usecases_catalog_json([{"No": "N01-U01", "Name": "Demo", "Business Domain": "Sales"}], {}, summary_dict={"Executive": "x"})
     assert obj.final_inspire_results_json["domains"]
-    assert obj.final_inspire_results_json["failed_steps"][0]["step"] == "Use Case Excel"
+    assert obj.final_inspire_results_json["failed_steps"][0]["step"] == "CSV Catalog"
     saved = next(iter(obj.w_client.workspace.files.values()))
     assert b"failed_steps" not in saved
 
@@ -499,11 +499,11 @@ def test_processing_report_warns_about_failed_steps(agent_ns, monkeypatch):
     monkeypatch.setitem(agent_ns["DatabricksInspire"]._report_processing_honesty.__globals__, "log_print",
                         lambda msg, level="INFO": printed.append((level, msg)))
     obj = make_inspire(agent_ns)
-    obj._record_failed_step("Presentation", "French", "python-pptx missing")
+    obj._record_failed_step("CSV Catalog", "French", "upload failed")
     obj._record_translation_gaps("French", {"use_cases": 2, "untranslated_use_cases": 1, "fields": {"Statement": 2}})
     obj._report_processing_honesty()
     warnings = [m for level, m in printed if level == "WARNING"]
     assert any("1 artifact step failed" in m for m in warnings)
-    assert any("Presentation (French): python-pptx missing" in m for m in warnings)
+    assert any("CSV Catalog (French): upload failed" in m for m in warnings)
     assert any("French: 2 use cases contain text shown in English" in m for m in warnings)
     assert obj.final_inspire_results_json["translation_gaps"]["French"]["use_cases"] == 2
