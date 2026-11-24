@@ -13,6 +13,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ENTITY_FILE = 'entity_matching.json';
 const PAGE = JSON.parse(readFileSync(join(HERE, '..', '..', 'examples', ENTITY_FILE), 'utf8'));
 const CASE = LAYOUT_B_CASES.network_explorer;
+const DASH = '#/n08_u01/dashboard'; // REQ-506: the App lands on Work; the match groups are on the dashboard
 
 let served;
 let browser;
@@ -68,7 +69,7 @@ function freshRows() {
 
 async function open(routes) {
   const info = appInfo(DECIDE, 1, {}, `examples/${ENTITY_FILE}`);
-  const opened = await openApp(browser, served.base, info, { routes });
+  const opened = await openApp(browser, served.base, info, { routes, hash: DASH });
   await opened.page.locator('[data-choice-row]').first().waitFor();
   await idle(opened.page);
   return opened;
@@ -222,7 +223,7 @@ test('entity matching group: Take all suggestions merges every suggested pair, k
   const h = dupListing(state);
   const info = appInfo(DECIDE, 1, {}, `examples/${DUP_PAGE}`);
   const base = kindRoutes(CASE.data(), state.rows, [], JSON.parse(readFileSync(join(HERE, '..', '..', 'examples', DUP_PAGE), 'utf8')));
-  const { page, context, seen } = await openApp(browser, served.base, info, { routes: { ...base, records: h.records, 'records/act': h.act } });
+  const { page, context, seen } = await openApp(browser, served.base, info, { routes: { ...base, records: h.records, 'records/act': h.act }, hash: DASH });
   await page.locator('[data-choice-row]').first().waitFor();
   await idle(page);
   const before = await rowCount(page);
@@ -250,7 +251,7 @@ test('entity matching group: a group action whose refresh fails keeps every row 
   const h = dupListing(state, { failAfterAct: true });
   const info = appInfo(DECIDE, 1, {}, `examples/${DUP_PAGE}`);
   const base = kindRoutes(CASE.data(), state.rows, [], JSON.parse(readFileSync(join(HERE, '..', '..', 'examples', DUP_PAGE), 'utf8')));
-  const { page, context } = await openApp(browser, served.base, info, { routes: { ...base, records: h.records, 'records/act': h.act } });
+  const { page, context } = await openApp(browser, served.base, info, { routes: { ...base, records: h.records, 'records/act': h.act }, hash: DASH });
   await page.locator('[data-choice-row]').first().waitFor();
   await idle(page);
   await page.locator('[data-take-all]').click();
@@ -268,7 +269,7 @@ test('a decision list whose kind names no undo word says Undo, not Unmerge', asy
   const info = appInfo(DECIDE, 1, {}, 'examples/network_explorer.json');
   const spec = JSON.parse(readFileSync(join(HERE, '..', '..', 'examples', 'network_explorer.json'), 'utf8'));
   const base = kindRoutes(CASE.data(), state.rows, [], spec);
-  const { page, context, seen } = await openApp(browser, served.base, info, { routes: { ...base, records: h.records, 'records/act': h.act, 'records/undo': h.undo } });
+  const { page, context, seen } = await openApp(browser, served.base, info, { routes: { ...base, records: h.records, 'records/act': h.act, 'records/undo': h.undo }, hash: DASH });
   await page.locator('[data-choice-row]').first().waitFor();
   await idle(page);
   await page.locator('[data-choice-row="K1"] [data-choice="block"]').click();
