@@ -15,6 +15,10 @@ export function typeCheckBusyOf(row) {
 /** The reason a listed table cannot be picked right now, or '' when it can be. A busy check and usable:false both block a pick. */
 export function unusableReasonOf(row) {
   if (typeCheckBusyOf(row)) return String(row.unusable_reason || TYPE_CHECK_BUSY_FALLBACK);
+  // SEC-01 (W4): a table the person or Inspire cannot read is shown with who must ask for access, not hidden.
+  if (row && row.pickable === false) {
+    return row.request === 'inspire' ? 'Inspire cannot read this table yet. Request access for Inspire.' : 'You cannot read this table. Request access.';
+  }
   if (!row || row.usable !== false) return '';
   return String(row.unusable_reason || UNUSABLE_TYPE_FALLBACK);
 }
