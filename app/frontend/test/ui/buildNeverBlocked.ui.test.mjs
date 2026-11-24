@@ -31,15 +31,14 @@ async function open({ reads, byYou }) {
   return { ui, page, submits };
 }
 
-test('tables the person owns: Build is on, no "Send this to", a green line says Inspire grants with their permissions', async () => {
-  const { ui, page, submits } = await open({ byYou: BY_YOU });
+test('no source the App cannot read: Build is on, no "Send this to", no grant line', async () => {
+  const { ui, page, submits } = await open({});
   try {
     const build = page.getByRole('button', { name: BUILD_IT, exact: true });
     await page.waitForFunction((label) => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === label && !b.disabled), BUILD_IT, { timeout: 30000 });
     assert.equal(await page.getByText(/Send this to/).count(), 0);
     assert.equal(await page.locator('[data-app-reads-blocking]').count(), 0);
-    await page.locator('[data-app-reads-by-you]').waitFor({ timeout: 15000 });
-    assert.match(await page.locator('[data-app-reads-by-you]').innerText(), /uses your permissions/);
+    assert.equal(await page.locator('[data-app-reads-by-you]').count(), 0);
     await build.click();
     await ui.page.waitForTimeout(1500);
     assert.equal(submits.length, 1, 'Build posts the submit');
@@ -47,17 +46,14 @@ test('tables the person owns: Build is on, no "Send this to", a green line says 
   } finally { await ui.close(); }
 });
 
-test('blocking:true with every table covered by app_reads_by_you still leaves Build on and shows no "Send this to"', async () => {
+test('SEC-01 W1: a stale app_reads_by_you never covers a blocking table: Build stays off and the request shows', async () => {
   const reads = { tables: [{ table: 'main.s.orders', owner: 'owner@example.com' }], owners: ['owner@example.com'], text: 'Inspire cannot share main.s.orders', blocking: true, grant: [GRANT] };
   const { ui, page, submits } = await open({ reads, byYou: BY_YOU });
   try {
-    await page.waitForFunction((label) => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === label && !b.disabled), BUILD_IT, { timeout: 30000 });
-    assert.equal(await page.getByText(/Send this to/).count(), 0, 'no Send this to when the person owns the tables');
-    assert.equal(await page.getByText(/Build waits/).count(), 0);
-    await page.locator('[data-app-reads-by-you]').waitFor({ timeout: 15000 });
-    await page.getByRole('button', { name: BUILD_IT, exact: true }).click();
-    await page.waitForTimeout(1500);
-    assert.equal(submits.length, 1, 'Build posts the submit');
+    await page.locator('[data-app-reads-blocking]').waitFor({ timeout: 15000 });
+    assert.equal(await page.locator('[data-app-reads-by-you]').count(), 0);
+    assert.equal(await page.getByRole('button', { name: BUILD_IT, exact: true }).isDisabled(), true);
+    assert.equal(submits.length, 0, 'nothing posts into the backend refusal');
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
 });
