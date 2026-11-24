@@ -65,7 +65,7 @@ const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../fronte
 const { isInspireOwnName, isInspireOwnSchema } = require('../frontend/src/lib/inspireOwnObjects.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
 const { appReadPermissions, sampleCopyPermission, permissionRequired, readStatementsFor } = require('./lib/permissions');
-const { spGrantedCatalogs, grantedCatalogList, partialPermission, droppedCatalogs } = require('./lib/spCatalogs');
+const { spGrantedCatalogs, grantedCatalogList, partialPermission, droppedCatalogs, pickableRows, heldWrites } = require('./lib/spCatalogs');
 const { planModelAccess, selfCheckRecord, MODEL_CHECK_ROUTE } = require('./lib/modelAccess');
 const PM_ERROR = require('./lib/permissionError');
 const { apiRefusalText, logApiBody } = require('./lib/apiRefusal');
@@ -1907,7 +1907,9 @@ app.get('/api/catalogs/:catalog/schemas', requireToken, async (req, res) => {
 app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
   try {
     const { catalog, schema } = req.params;
-    const token = req.dbToken;
+    // SEC-01 (W4): the person's own sign-in lists the tables, so the person sees only what they can see.
+    const personToken = personTokenOf(req);
+    const token = personToken || req.dbToken;
     const warehouseId = String(req.query.warehouse_id || '').trim();
     let raw = [];
     let restCut = false;
@@ -1955,7 +1957,20 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
       }
     }
     // Inspire's own tables and views are not the person's data (REQ-387): the one rule, inspireOwnObjects.js.
-    const tables = [...byKey.values()].filter((t) => !isInspireOwnName(t.full_name)).sort((a, b) => a.full_name.localeCompare(b.full_name));
+    let tables = [...byKey.values()].filter((t) => !isInspireOwnName(t.full_name)).sort((a, b) => a.full_name.localeCompare(b.full_name));
+    const probeWarehouse = warehouseId || DEFAULT_WAREHOUSE_ID;
+    if (personToken && probeWarehouse && tables.length) {
+      const spToken = await appOwnToken().catch(() => '');
+      tables = await pickableRows(tables, { personToken, spToken, readable: async (tok, name) => {
+        try {
+          const probe = tableProbeStatement(name);
+          await executeSql(req.dbHost, tok, probeWarehouse, probe.sql, probe.parameters);
+          return true;
+        } catch (err) {
+          return tableAccessReason(name, err && err.message) !== 'no read access';
+        }
+      } });
+    }
     console.log(`   📋 tables ${catalog}.${schema}: REST=${raw.length} merged=${tables.length}`);
     if (raw.length === 0 && tables.length === 0 && restErr) {
       return PM_ERROR.sendFailure(res, restStatus, restErr);
@@ -2510,6 +2525,64 @@ async function launcherReadRefusal(req, scope) {
     unreadable: names };
 }
 
+// SEC-01 (W7): a session is shown only to its launcher (launchLedger launched_by) or to a person who can read every table in its scope with their
+// own token. `scope` is { catalogs, schemas_str, tables_str } as __inspire_session stores it. Returns null when the person may see it, else the
+// refusal of launcherReadRefusal (request 'person', a table-level SELECT). With no signed-in person there is nothing to check.
+function sessionScopeText(scope) {
+  return [scope && scope.catalogs, scope && scope.schemas_str, scope && scope.tables_str].map((v) => String(v || '').trim()).filter(Boolean).join(',');
+}
+
+async function sessionHiddenFrom(req, sessionId, scope) {
+  const person = RP.forwardedPerson(req.headers);
+  if (!forwardedTokenOf(req) || !person) return null;
+  const launcher = await readLaunchRecord(req, { kind: 'session', inspireDatabase: String(req.query.inspire_database || ''), sessionId: String(sessionId) }).catch(() => null);
+  if (launcher && launcher === String(person).trim().toLowerCase()) return null;
+  return launcherReadRefusal(req, sessionScopeText(scope));
+}
+
+async function visibleSessions(req, warehouseId, parsedDb, sessions) {
+  const person = RP.forwardedPerson(req.headers);
+  if (!forwardedTokenOf(req) || !person || !sessions.length) return sessions;
+  const ids = [...new Set(sessions.map((s) => String(s.session_id)).filter((id) => /^\d+$/.test(id)))];
+  if (!ids.length) return sessions;
+  const scopeRows = sqlResultToObjects(await executeSql(req.dbHost, await appOwnToken(), warehouseId,
+    `SELECT session_id, catalogs, schemas_str, tables_str FROM \`${parsedDb.catalog}\`.\`${parsedDb.schema}\`.\`__inspire_session\` WHERE session_id IN (${ids.join(', ')})`));
+  const scopes = new Map(scopeRows.map((r) => [String(r.session_id), r]));
+  const verdicts = await Promise.all(sessions.map(async (s) => {
+    const scope = scopes.get(String(s.session_id));
+    if (!scope) return true; // a session with no stored scope yet (starting) has nothing to protect
+    try {
+      return !(await sessionHiddenFrom(req, s.session_id, scope));
+    } catch {
+      return false; // a check that cannot finish shows nothing
+    }
+  }));
+  return sessions.filter((_s, i) => verdicts[i]);
+}
+
+// SEC-01 (W2): Inspire's principal must hold no write privilege on a source. Unity Catalog's effective permissions decide, so a grant made
+// higher up or through a group counts. Inspire's own catalog and schema are not sources and are left out.
+const WRITE_GUARD_LIMIT = 50;
+async function writeGuardRefusal(req, scope) {
+  const token = await appOwnToken();
+  const principal = SP_CLIENT_ID;
+  const { catalogs, schemas, tables: picked } = ucMetadataParts(scope);
+  const entries = [...picked, ...schemas, ...catalogs];
+  if (!token || !principal || !entries.length) return null;
+  const { tables } = await scopeTables(dbFetch, req.dbHost, token, entries);
+  const own = splitInspireDatabase(DEFAULT_INSPIRE_DB);
+  const ownKey = own ? `${own.catalog}.${own.schema}`.toLowerCase() : '';
+  const skip = (type, name) => {
+    const n = name.toLowerCase();
+    return Boolean(ownKey) && (type === 'catalog' ? n === own.catalog.toLowerCase() : n === ownKey || n.startsWith(`${ownKey}.`));
+  };
+  const held = await heldWrites(dbFetch, req.dbHost, token, principal, tables.slice(0, WRITE_GUARD_LIMIT), skip);
+  if (!held.length) return null;
+  const lines = held.map((h) => `${h.privilege.replace(/_/g, ' ')} on ${h.type} ${h.name}: ${h.fix}`);
+  return { status: 409, unreadable: [],
+    message: `Inspire's service principal holds a write privilege on your source data, so the run did not start. Inspire only reads customer data. Remove it, then start again. ${lines.join('; ')}.` };
+}
+
 function refusalExtra(refusal) {
   return { unreadable: refusal.unreadable, ...(refusal.request ? { request: refusal.request } : {}), ...(refusal.permissions ? { permissions: refusal.permissions } : {}) };
 }
@@ -2525,6 +2598,13 @@ async function checkLaunchReads(req, params) {
         return null;
       });
       if (lost) return { reads: { ...reads, refusal: lost }, access: { permissions: [], warnings: [] }, model: [] };
+    }
+    if (!reads.refusal) {
+      const writes = await writeGuardRefusal(req, reads.scope || params['01_uc_metadata']).catch((err) => {
+        console.warn(`write guard: ${err.message || err}`);
+        return null;
+      });
+      if (writes) return { reads: { ...reads, refusal: writes }, access: { permissions: [], warnings: [] }, model: [] };
     }
     const access = reads.refusal ? { permissions: [], warnings: [] } : await discoverAppAccess(req, reads.scope || params['01_uc_metadata']);
     const model = await discoverModelAccess(req);
@@ -2813,6 +2893,13 @@ app.get('/api/inspire/session', requireToken, async (req, res) => {
     }
 
     const session = rows[0];
+
+    // SEC-01 (W7): a session whose scope the person cannot read is not opened: 403, no session content, a table-level SELECT to ask for.
+    const hidden = await sessionHiddenFrom(req, session.session_id, session);
+    if (hidden) {
+      return PM_ERROR.sendFailure(res, 403, 'You cannot open this session: you did not launch it and you cannot read every table it covers. Ask for access to the tables below.',
+        { request: 'person', permissions: hidden.permissions, unreadable: hidden.unreadable });
+    }
 
     // Reconstruct widget_values from individual columns for frontend compatibility
     session.widget_values = {
@@ -3670,6 +3757,9 @@ app.get('/api/inspire/sessions', requireToken, async (req, res) => {
       sessionListCap(req.query.all === '1'),
     );
     sessions.unshift(...await startingSessions(req, inspire_database, warehouse_id, sessions));
+    // SEC-01 (W7): sessions the person did not launch and cannot read the scope of are not listed.
+    const shown = await visibleSessions(req, warehouse_id, parsed, sessions);
+    sessions.splice(0, sessions.length, ...shown);
 
     for (const s of sessions) {
       // Reconstruct widget_values from individual columns

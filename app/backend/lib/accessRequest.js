@@ -5,7 +5,6 @@
 // 'unity-catalog' (Databricks API reference, Request For Access: "API scopes: unity-catalog"), which the Apps API does not grant as a
 // user scope (the workspace refused it on install, REQ-320). So a person's token may lack it: the send is then refused with a scope
 // error and the dialog falls back to the copyable SQL under Advanced, opened (REQ-313).
-const { coarseGrants } = require('./grantScope');
 const RFA_SCOPE = 'unity-catalog';
 const RFA_TYPES = new Set(['CATALOG', 'SCHEMA', 'TABLE', 'VOLUME']);
 const GRANT_RE = /^GRANT\s+(.+?)\s+ON\s+(CATALOG|SCHEMA|TABLE|VOLUME)\s+(.+?)\s+TO\s+(.+?);?$/i;
@@ -32,10 +31,10 @@ function parseGrant(statement) {
 }
 
 // The requestable grants of a dialog: one entry per grantee and securable, with its privileges once each.
-// REQ-408: the request asks for the same coarse securables as the SQL the dialog shows (the schema, not each table).
+// SEC-01 (W3): the request asks for the same table-level securables as the SQL the dialog shows; grants are never widened.
 function requestsOf(statements) {
   const byKey = new Map();
-  for (const statement of coarseGrants(Array.isArray(statements) ? statements : [])) {
+  for (const statement of Array.isArray(statements) ? statements : []) {
     const grant = parseGrant(statement);
     if (!grant) continue;
     const key = `${grant.grantee.toLowerCase()}|${grant.type}:${grant.fullName}`;
