@@ -29,6 +29,8 @@ test('the built dist ships no html2canvas or dompurify chunk and no aws-key-shap
   const files = fs.readdirSync(dir);
   assert.deepEqual(files.filter((f) => /^(html2canvas|purify)/.test(f)), []);
   for (const f of files.filter((n) => n.endsWith('.js'))) {
-    assert.doesNotMatch(fs.readFileSync(path.join(dir, f), 'utf8'), /\b(AKIA|ASIA|ABIA|ACCA)[A-Z0-9]{16}\b/, f);
+    const text = fs.readFileSync(path.join(dir, f), 'utf8');
+    assert.doesNotMatch(text, /\b(AKIA|ASIA|ABIA|ACCA)[A-Z0-9]{16}\b/, f);
+    assert.doesNotMatch(text, /cdnjs\.cloudflare\.com/, `${f} loads nothing from cdnjs (offline gate)`);
   }
 });
