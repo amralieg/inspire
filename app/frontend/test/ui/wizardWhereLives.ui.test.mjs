@@ -35,10 +35,9 @@ test('What to deliver only picks what gets built, Where it lives places the App 
     await shot(page, 'where-it-lives-1440x900', false);
 
     await goToStep(page, 'What to deliver');
-    await page.getByRole('checkbox', { name: /^Agentic App / }).uncheck(); // D-LABEL209
-    assert.deepEqual(await stepLabels(page), labels.filter((l) => !['Where it lives'].includes(l) && !/App/.test(l)),
-      'with the App unticked, Where it lives and Page storage are skipped too');
-    await page.getByRole('checkbox', { name: /^Agentic App / }).check(); // D-LABEL209
+    // REQ-514: the App is always built; there is no App checkbox and the App steps stay.
+    assert.equal(await page.getByRole('checkbox', { name: /^Agentic App / }).count(), 0, 'the App is not an option');
+    assert.deepEqual(await stepLabels(page), labels, 'Where it lives and Page storage stay');
 
     await goToStep(page, 'Where it lives');
     await openFolded(page, 'Who sees which rows');

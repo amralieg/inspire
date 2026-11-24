@@ -140,7 +140,7 @@ test('every list field keeps the comma or new line a person types, and sends eac
     await page.getByRole('button', { name: 'Change failure emails', exact: true }).click();
     await keeps([[page.getByLabel('Failure emails (comma separated; default: the decision owner)'), `${OWNER}, ${OPS}`]]);
     await goToStep(page, 'What to build');
-    for (const name of [/^Dashboard/, /^Agentic App A Databricks/, /^Alert/]) await page.getByRole('checkbox', { name }).check();
+    for (const name of [/^Dashboard/, /^Alert/]) await page.getByRole('checkbox', { name }).check();
     await advanced(page).click();
     await keeps([
       [page.getByPlaceholder('Filter widgets, comma separated'), 'top_k, region'],
@@ -191,9 +191,8 @@ test('App owners are typed under Advanced settings like alert recipients, checke
     await advanced(page).click();
     const owners = page.getByLabel('App owners (comma separated)');
     await owners.waitFor();
-    await page.getByRole('checkbox', { name: /^Agentic App A Databricks/ }).uncheck();
-    assert.equal(await owners.count(), 0, 'no App, no owners to name');
-    await page.getByRole('checkbox', { name: /^Agentic App A Databricks/ }).check();
+    // REQ-514: the App is always built, so there is no App checkbox to clear; the owners box stays.
+    assert.equal(await page.getByRole('checkbox', { name: /^Agentic App/ }).count(), 0, 'the App is not an option');
     await page.getByText('You can always change this use case\u2019s settings and assumptions in the App and run it now. Add the work emails of other people who may do the same.').waitFor();
     assert.equal(await owners.inputValue(), '', 'nobody else unless named');
     await owners.pressSequentially(`${PAT}, nope`);

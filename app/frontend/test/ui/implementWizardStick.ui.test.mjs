@@ -77,25 +77,26 @@ test('the wizard groups the rows by the use case\'s subject, asks no team capaci
 
 const holder = (uc, name, extra) => ({
   session_id: '42', use_case_id: uc, spec_version: 1, status: 'ready', updated_at: '2026-10-26T00:00:00Z', asset_status: null,
-  spec_json: JSON.stringify({ use_case_id: uc, use_case_name: name, outputs: { app: true } }), dashboard_id: null, genie_space_id: null, app_name: null, ...extra,
+  spec_json: JSON.stringify({ use_case_id: uc, use_case_name: name, outputs: { app: true, dashboard: true } }), dashboard_id: null, genie_space_id: null, app_name: null, ...extra,
 });
-const TAKE_OUT = "Take this use case's part out of churn-desk; it stays for Forecast demand";
+const TAKE_OUT = "Take this use case's part out of Dashboard; it stays for Forecast demand";
 
 test('removing an App another use case shares offers to take this use case\'s part out of it, on the radio and in the plan, instead of deleting it', async () => {
   const ui = await openUi('wizard', {
     ...STUDIO_STATE,
     me: { userName: OWNER, displayName: 'Owner' },
     registry: [holder('N01-U01', 'Predict churn', { app_name: 'churn-desk', dashboard_id: 'd1', genie_space_id: 'g1' }),
-      holder('N01-U02', 'Forecast demand', { app_name: 'churn-desk' })],
+      holder('N01-U02', 'Forecast demand', { app_name: 'churn-desk', dashboard_id: 'd1' })],
   });
   const { page, pageErrors } = ui;
   try {
     await goToStep(page, 'Data');
     await dataToResults(page);
     await goToStep(page, 'What to build');
-    await page.getByRole('checkbox', { name: /^Agentic App A Databricks/ }).uncheck();
-    const tile = page.locator('[data-output="app"]');
-    await tile.getByText('This use case already has an App. What should happen to it?').waitFor();
+    // REQ-514: the App is always built and cannot be removed, so the shared-asset take-out is pinned on the Dashboard.
+    await page.getByRole('checkbox', { name: /^Dashboard/ }).uncheck();
+    const tile = page.locator('[data-output="dashboard"]');
+    await tile.getByText('This use case already has a dashboard. What should happen to it?').waitFor();
     const takeOut = tile.getByRole('radio', { name: TAKE_OUT });
     await takeOut.waitFor();
     assert.equal(await tile.getByRole('radio', { name: 'Delete it' }).count(), 0, 'a shared App is never offered as Delete it');
@@ -108,12 +109,12 @@ test('removing an App another use case shares offers to take this use case\'s pa
     };
     await plan();
     await page.getByText(TAKE_OUT, { exact: true }).and(page.locator('p')).waitFor();
-    assert.equal(await page.getByText('Deletes: App', { exact: true }).count(), 0, 'the plan never says it deletes a shared App');
+    assert.equal(await page.getByText('Deletes: Dashboard', { exact: true }).count(), 0, 'the plan never says it deletes a shared Dashboard');
     await goToStep(page, 'What to build');
     await tile.getByRole('radio', { name: 'Keep it unmanaged' }).check();
     assert.equal(await tile.getByRole('radio', { name: TAKE_OUT }).count(), 1, 'the radio keeps the last check while the plan no longer deletes it');
     await plan();
-    await page.getByText('Leaves in place, no longer managed: Agentic App', { exact: true }).waitFor();
+    await page.getByText('Leaves in place, no longer managed: Dashboard', { exact: true }).waitFor();
     assert.deepEqual(pageErrors, []);
   } finally {
     await ui.close();
@@ -125,7 +126,7 @@ test('Open all settings on the Build page hands the wizard its live check, so a 
     ...STUDIO_STATE,
     me: { userName: OWNER, displayName: 'Owner' },
     registry: [holder('N01-U01', 'Predict churn', { app_name: 'churn-desk', dashboard_id: 'd1', genie_space_id: 'g1' }),
-      holder('N01-U02', 'Forecast demand', { app_name: 'churn-desk' })],
+      holder('N01-U02', 'Forecast demand', { app_name: 'churn-desk', dashboard_id: 'd1' })],
   });
   const { page, pageErrors } = ui;
   try {
@@ -134,9 +135,9 @@ test('Open all settings on the Build page hands the wizard its live check, so a 
     await (await openAsset(page, 'app')).getByRole('button', { name: 'Remove from churn-desk' }).waitFor({ timeout: 15000 });
     await openSettings(page);
     await goToStep(page, 'What to build');
-    await page.getByRole('checkbox', { name: /^Agentic App A Databricks/ }).uncheck();
-    const tile = page.locator('[data-output="app"]');
-    await tile.getByText('This use case already has an App. What should happen to it?').waitFor();
+    await page.getByRole('checkbox', { name: /^Dashboard Decision list/ }).uncheck();
+    const tile = page.locator('[data-output="dashboard"]');
+    await tile.getByText('This use case already has a dashboard. What should happen to it?').waitFor();
     assert.equal(await tile.getByRole('radio', { name: TAKE_OUT }).count(), 1, 'the live check already knows Forecast demand holds the App');
     assert.equal(await tile.getByRole('radio', { name: TAKE_OUT }).isChecked(), false, 'nothing is picked for the person');
     assert.equal(await tile.getByRole('radio', { name: 'Delete it' }).count(), 0);

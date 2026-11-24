@@ -2546,6 +2546,7 @@ export default function ImplementWizard({
             {stepId !== 'notebook' && !lastStep ? (
               <Button
                 type="button"
+                data-variant="primary"
                 disabled={Boolean(checking)}
                 onClick={goNext}>
                 {checking ? <><Loader2 size={14} className="animate-spin" /> {checking}…</> : <>{nextIsSummary ? BACK_TO_SUMMARY : 'Next'} <ChevronRight size={14} /></>}
