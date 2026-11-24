@@ -5,7 +5,7 @@ import { apiTables, apiValues, initialFilterState } from './filters.js';
 import { AGENT_OPEN, EMPTY_LOOK, applyActions, changesView, visibleOf, topFact } from './agentView.js';
 import { Icon } from './icons.jsx';
 import { ACCESS_CHECKED, NoAccessScope, PlainNote, RetryProvider, ToastProvider, useToast } from './ui.jsx';
-import Page from './Page.jsx';
+import Page, { readKey, readSorts } from './Page.jsx';
 import WaitingForAccess from './WaitingForAccess.jsx';
 import { isQueue, pageSections } from './Layouts.jsx';
 import { hasPlan, pageMode, performanceOn, sectionTitle } from './modes.js';
@@ -201,17 +201,23 @@ function Shell({ app, onRefreshSiblings }) {
   const retryMeta = useCallback((id) => { requested.current.delete(id); loadMeta(id); }, [loadMeta]);
   useEffect(() => { if (page && !aside) loadMeta(page.id); }, [page, aside, loadMeta]);
   // REQ-506: on the full-height Genie screen no Page is mounted to re-read, so after a grant or a check the shell re-reads the page's meta and data itself.
+  // It keeps the latest read per page; the Page renders it on its first read when the person goes back, and clears it.
+  const [warm, setWarm] = useState({});
   const rereadId = !admin && page && !aside && section === 'genie' ? page.id : '';
   useEffect(() => {
     if (!rereadId) return undefined;
     const again = () => {
       retryMeta(rereadId);
       const st = viewNow.current.states[rereadId];
-      getPage(rereadId, apiValues(st), apiTables(st)).catch(() => {});
+      if (!st) return;
+      const sorts = readSorts(viewNow.current.looks[rereadId]);
+      const key = readKey(st, sorts);
+      getPage(rereadId, apiValues(st), apiTables(st), sorts).then((data) => setWarm((w) => ({ ...w, [rereadId]: { key, data } }))).catch(() => {});
     };
     window.addEventListener(ACCESS_CHECKED, again);
     return () => window.removeEventListener(ACCESS_CHECKED, again);
   }, [rereadId, retryMeta]);
+  const dropWarm = useCallback((id) => setWarm((w) => { if (!w[id]) return w; const next = { ...w }; delete next[id]; return next; }), []);
 
   const leave = () => { document.querySelector('.main')?.focus(); };
   const go = (id) => { window.location.hash = `#/${encodeURIComponent(id)}`; leave(); };
@@ -290,7 +296,7 @@ function Shell({ app, onRefreshSiblings }) {
                 onLook={setPageLook(page.id)} themeKey={themeKey} onAsk={ask} onExplain={explain} genieBusy={genie.busy} hubEntry={hub?.pages?.[page.id]}
                 summary={summaries[page.id]} view={view} onView={setView} genie={genie} section={section} tab={link.tab} focus={link.focus} chrome={chrome}
                 onCounts={setRailCounts} onRecord={openRecord} onRetryMeta={() => retryMeta(page.id)} onRetrySummary={() => summarize(page.id)}
-                onTour={page.tour ? takeTour : null} onTourFacts={keepFacts} />
+                onTour={page.tour ? takeTour : null} onTourFacts={keepFacts} warm={warm[page.id]} onWarm={() => dropWarm(page.id)} />
             )}
             </RetryProvider>
             </NoAccessScope>
