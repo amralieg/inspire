@@ -26,7 +26,7 @@ function ParamRow({ p, currency, onValue, onOwner }) {
           <input type="number" min={0} step="any" aria-label={p.label} value={p.value ?? ''} className={INPUT}
             onChange={(e) => e.target.value !== '' && onValue(p.id, Number(e.target.value))} />
         )}
-        <input type="text" aria-label={`Owner of ${p.label}`} placeholder="Owner" value={p.owner || ''} onChange={(e) => onOwner(p.id, e.target.value)}
+        <input dir="auto" type="text" aria-label={`Owner of ${p.label}`} placeholder="Owner" value={p.owner || ''} onChange={(e) => onOwner(p.id, e.target.value)}
           className="min-w-0 flex-1 rounded-md border border-border px-1.5 py-0.5 text-[13px]" />
       </div>
     </li>

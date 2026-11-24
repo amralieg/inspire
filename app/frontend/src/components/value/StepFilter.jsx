@@ -71,11 +71,11 @@ export default function StepFilter({ facts, scope, onScope, post }) {
       {reply?.builder && (
         <div data-filter-builder="" className="flex flex-wrap items-end gap-2 rounded-md border border-border px-3 py-2">
           <p className="w-full text-[12px] text-text-secondary">{reply.reason ? `The AI model is not available (${reply.reason}). Build the filter here.` : 'Build the filter here.'}</p>
-          <label className="flex flex-col gap-1 text-[12px]">Column<input value={row.column} onChange={(e) => setRow({ ...row, column: e.target.value })} className="h-8 rounded-md border border-border bg-surface px-2 text-sm" /></label>
+          <label className="flex flex-col gap-1 text-[12px]">Column<input dir="auto" value={row.column} onChange={(e) => setRow({ ...row, column: e.target.value })} className="h-8 rounded-md border border-border bg-surface px-2 text-sm" /></label>
           <label className="flex flex-col gap-1 text-[12px]">Operator
             <select value={row.op} onChange={(e) => setRow({ ...row, op: e.target.value })} className="h-8 rounded-md border border-border bg-surface px-2 text-sm">{OPS.map((o) => <option key={o}>{o}</option>)}</select>
           </label>
-          <label className="flex flex-col gap-1 text-[12px]">Value<input value={row.value} disabled={NO_VALUE.includes(row.op)} onChange={(e) => setRow({ ...row, value: e.target.value })} className="h-8 rounded-md border border-border bg-surface px-2 text-sm" /></label>
+          <label className="flex flex-col gap-1 text-[12px]">Value<input dir="auto" value={row.value} disabled={NO_VALUE.includes(row.op)} onChange={(e) => setRow({ ...row, value: e.target.value })} className="h-8 rounded-md border border-border bg-surface px-2 text-sm" /></label>
           <button type="button" className={btn} disabled={busy || !row.column.trim()} onClick={addRow}>Add condition</button>
         </div>
       )}

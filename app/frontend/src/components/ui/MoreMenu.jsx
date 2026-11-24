@@ -60,16 +60,16 @@ export default function MoreMenu({ label = 'More', items = [] }) {
       <button ref={triggerRef} type="button" aria-haspopup="menu" aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-bg-subtle">
-        {label}
+        <bdi>{label}</bdi>
       </button>
       {open && (
         <div ref={panelRef} role="menu" aria-label={label}
-          className="menu-enter absolute right-0 top-full z-[75] mt-1 min-w-[12rem] rounded-md border border-border bg-surface py-1 shadow-lg">
+          className="menu-enter absolute end-0 top-full z-drawer mt-1 min-w-[12rem] rounded-md border border-border bg-surface py-1 shadow-lg">
           {items.map((item) => (
             <button key={item.label} type="button" role="menuitem" tabIndex={-1}
               aria-disabled={item.disabled ? 'true' : undefined}
               onClick={() => pick(item)}
-              className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-bg-subtle focus:bg-bg-subtle focus:outline-none ${item.danger ? 'text-error-fg' : 'text-text-primary'} ${item.disabled ? 'cursor-not-allowed opacity-50' : ''}`}>
+              className={`block w-full px-3 py-1.5 text-start text-sm hover:bg-bg-subtle focus:bg-bg-subtle focus:outline-none ${item.danger ? 'text-error-fg' : 'text-text-primary'} ${item.disabled ? 'cursor-not-allowed opacity-50' : ''}`}>
               {item.label}
             </button>
           ))}

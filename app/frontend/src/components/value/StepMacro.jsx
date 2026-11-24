@@ -74,8 +74,8 @@ export default function StepMacro({ plan, onPlan, get, inspireDatabase, warehous
           ))}
         </div>
         <div className="flex gap-2">
-          <label className="text-[12px] text-text-secondary">Country <input type="text" value={country} onChange={(e) => setCountry(e.target.value)} className="rounded border border-border px-2 py-1 text-[13px]" /></label>
-          <label className="text-[12px] text-text-secondary">Indicator <input type="text" value={indicator} onChange={(e) => setIndicator(e.target.value)} className="rounded border border-border px-2 py-1 text-[13px]" /></label>
+          <label className="text-[12px] text-text-secondary">Country <input dir="auto" type="text" value={country} onChange={(e) => setCountry(e.target.value)} className="rounded border border-border px-2 py-1 text-[13px]" /></label>
+          <label className="text-[12px] text-text-secondary">Indicator <input dir="auto" type="text" value={indicator} onChange={(e) => setIndicator(e.target.value)} className="rounded border border-border px-2 py-1 text-[13px]" /></label>
         </div>
         {blocked && <PlainMessage text={blocked} role="alert" data-macro-blocked="" className="rounded-md border border-error/30 bg-error-bg px-3 py-1.5 text-[12px] text-error-fg" />}
         {error && <PlainMessage text={error} role="alert" className="rounded-md border border-error/30 bg-error-bg px-3 py-1.5 text-[12px] text-error-fg" />}
