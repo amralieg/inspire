@@ -59,7 +59,7 @@ async function openResultsWizard(log, opts, which = 0) {
   const ui = await openUi('app', structuredClone(STATE), '', { mount: mounter(log, opts), build: null });
   const { page } = ui;
   await page.goto(`${page.url().split('#')[0]}#/review/42`).catch(() => {});
-  const start = page.getByRole('region', { name: 'Use case list' }).getByRole('button', { name: 'Start Use Case MVP with Genie' }).nth(which);
+  const start = page.getByRole('region', { name: 'Use case list' }).getByRole('button', { name: /^Build MVP$/ }).nth(which);
   await start.waitFor({ timeout: 30000 });
   await start.click();
   await page.getByRole('dialog', { name: /Start Use Case MVP/ }).waitFor({ timeout: 20000 });
