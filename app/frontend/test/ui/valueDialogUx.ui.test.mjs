@@ -10,29 +10,32 @@ test.after(closeBrowser);
 
 const text = async (loc) => (await loc.innerText()).replace(/\s+/g, ' ').trim();
 
-test('U1 (REQ-449): Save closes the dialog within 2 s and the card shows the saved value; a 500 shows its error inside the dialog', async () => {
+test('U1 (REQ-449, REQ-507): Approve story and save finishes within 2 s, the Save page closes the dialog and the card shows the saved value; a 500 shows its error inside the dialog', async () => {
   const puts = [];
   const { ui, card, page } = await openCard(mountWizard({ puts }));
   try {
     const dialog = await openWizard(page, card);
     await goTo(dialog, 'driver:time_saved');
     await dialog.locator('[data-ask="cost_per_hour"] input[type=number]').fill('60');
-    await goTo(dialog, 'save');
+    await goTo(dialog, 'story:approve');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     await dialog.getByLabel('I have read and accept these terms').check();
-    await dialog.getByRole('button', { name: 'Accept and save', exact: true }).click();
-    await dialog.waitFor({ state: 'hidden', timeout: 2000 });
+    await dialog.getByRole('button', { name: 'Approve story and save' }).click();
+    // REQ-507: the approval saves and shows the Save page (CalculateValueDialog.jsx save() -> go('save')); its Close button closes the dialog.
+    await dialog.locator('[data-wizard-page="save"]').waitFor({ timeout: 2000 });
     assert.equal(puts.length, 1);
+    await dialog.getByRole('button', { name: 'Close', exact: true }).last().click();
+    await dialog.waitFor({ state: 'hidden', timeout: 2000 });
     await card.locator('[data-value-yearly] [data-value-amount]').waitFor({ timeout: 5000 });
     assert.match(await text(card.locator('[data-value-yearly] [data-value-qualifier]')), /Reviewed calculation/);
   } finally { await ui.close(); }
   const failing = await openCard(mountWizard({ putReply: { status: 500, body: { error: 'The warehouse refused the write.' } } }));
   try {
     const dialog = await openWizard(failing.page, failing.card);
-    await goTo(dialog, 'save');
+    await goTo(dialog, 'story:approve');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     await dialog.getByLabel('I have read and accept these terms').check();
-    await dialog.getByRole('button', { name: 'Accept and save', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Approve story and save' }).click();
     await dialog.getByRole('alert').filter({ hasText: 'The warehouse refused the write.' }).waitFor({ timeout: 5000 });
     assert.equal(await dialog.isVisible(), true, 'a failed save keeps the dialog open');
   } finally { await failing.ui.close(); }

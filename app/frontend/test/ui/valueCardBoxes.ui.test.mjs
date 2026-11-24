@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, openUi, toView, totalsQueryMissing } from './uiSupport.mjs';
-import { goTo } from './valueWizardSupport.mjs';
+import { goTo, saveFrom } from './valueWizardSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
 
 test.after(closeBrowser);
@@ -239,10 +239,10 @@ test('6: after a PUT answers succeeds, the card amount and the run total change 
     await card.getByRole('button', { name: 'Edit value' }).click();
     const dialog = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
     await dialog.waitFor();
-    // v8 wizard: walk to the Save step, then Save (the old dialog's single Calculate button is gone).
-    await goTo(dialog, 'save');
+    // REQ-507: walk to the story approval, then the one PUT is "Approve story and save" (terms ticked first).
+    await goTo(dialog, 'story:approve');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await saveFrom(dialog);
     await page.waitForFunction(() => document.querySelector('[data-use-case-no="N01-U01"] [data-value-amount]')?.textContent.trim() === '$3M', null, { timeout: 15000 });
     assert.equal(state.puts.length, 1);
     await page.keyboard.press('Escape');

@@ -73,6 +73,8 @@ export const routesOf = (calls) => calls.map((c) => c.route);
 // Click Next until the wizard shows the page. On the Market data offer it picks "Keep my own estimates" unless macro is 'public'.
 export async function goTo507(dialog, page, { macro = 'keep' } = {}) {
   for (let i = 0; i < 24; i += 1) {
+    // Settle first: while the next page loads (case plan, scope, filter) no marker shows, and a Next click then would skip the target.
+    await dialog.locator('[data-wizard-page], [role="alert"]').first().waitFor({ timeout: 15000 });
     if (await dialog.locator(`[data-wizard-page="${page}"]`).count()) return;
     if (await dialog.locator('[data-wizard-page="macro:offer"]').count()) {
       await dialog.getByRole('button', { name: macro === 'public' ? 'Use public data' : 'Keep my own estimates' }).click();
