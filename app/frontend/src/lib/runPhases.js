@@ -32,6 +32,11 @@ const PHASE_OF_STAGE = {
   'Implementation Planning': 'implementation',
   'Discover Skeletons': 'implementation',
   'Implement Use Cases': 'implementation',
+  // REQ-511: the Monitor fixtures name the stages by the agent's narrative titles; these map to the same phases as the notebook names above.
+  'Use Case Generation': 'generation',
+  'Domain Clustering': 'domains',
+  'Prioritization': 'prioritization',
+  'Implementation': 'implementation',
 };
 const GENERATE_PREFIX = 'Generate ';
 

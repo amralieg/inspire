@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FileText, Loader2, RefreshCw } from 'lucide-react';
 import { PlainMessage } from './TechnicalDetails';
 
@@ -6,8 +6,12 @@ export function runLogQuery({ inspireDatabase, warehouseId, sessionId }) {
   return `/api/inspire/log?${new URLSearchParams({ inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId) })}`;
 }
 
-export default function RunLogPanel({ inspireDatabase, warehouseId, sessionId, apiFetch }) {
-  const [open, setOpen] = useState(false);
+// REQ-511: with `open` set, the page's More menu owns the Run log entry and this renders only the log, its Refresh and a way to hide it.
+export default function RunLogPanel({ inspireDatabase, warehouseId, sessionId, apiFetch, open: openProp, onOpenChange }) {
+  const controlled = openProp !== undefined;
+  const [openOwn, setOpenOwn] = useState(false);
+  const open = controlled ? openProp : openOwn;
+  const setOpen = controlled ? onOpenChange : setOpenOwn;
   const [loading, setLoading] = useState(false);
   const [log, setLog] = useState(null);
   const [error, setError] = useState('');
@@ -23,7 +27,11 @@ export default function RunLogPanel({ inspireDatabase, warehouseId, sessionId, a
     setLoading(false);
   };
 
-  if (!inspireDatabase || !warehouseId || !sessionId) return null;
+  useEffect(() => {
+    if (controlled && open && !log && !loading) load();
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!inspireDatabase || !warehouseId || !sessionId || (controlled && !open)) return null;
   const toggle = () => {
     if (!open && !log) load();
     setOpen(!open);
