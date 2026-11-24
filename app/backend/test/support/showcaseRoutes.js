@@ -69,7 +69,7 @@ function frontendPaths(app = APP) {
 }
 
 function backendRoutes(app = APP) {
-  const files = [path.join(app, 'backend', 'server.js'), path.join(app, 'backend', 'implementRoutes.js'), ...sourceFiles(path.join(app, 'backend', 'lib'), ['.js'])];
+  const files = [path.join(app, 'backend', 'server.js'), path.join(app, 'backend', 'implementRoutes.js'), path.join(app, 'backend', 'macroRoutes.js'), ...sourceFiles(path.join(app, 'backend', 'lib'), ['.js'])];
   const found = new Set();
   for (const file of files) {
     const text = withoutComments(fs.readFileSync(file, 'utf8'));

@@ -34,6 +34,8 @@ export function demoReads(withMvps, walk = null) {
 }
 
 export const NOT_IN_DEMO = {
+  'GET /api/inspire/macro/sources': 'the Calculate value dialog lists public economic data sources only outside the demo; the demo is read only, has no ledger to save a calculation to, and reaches no outside host (REQ-507)',
+  'GET /api/inspire/macro/series': 'the Calculate value dialog reads a public economic series from the cache in the Inspire database or an outside host only outside the demo; the demo has neither (REQ-507)',
   'GET /api/inspire/value': 'the value at stake and saved of a run is read from the ledger of a workspace run; a demo has no ledger, so the Review card and the run header send no value read while the demo is open',
   'GET /api/inspire/value/estimates': 'the Build and Review cards read each use case estimate from the value ledger of a workspace run; the demo has no ledger, so the cards send no estimate read while the demo is open',
   'GET /api/inspire/value/yearly': 'the Review and Build cards read the value per year of each use case from the value ledger of a workspace run; the demo has no ledger, so the pages send no yearly read while the demo is open (REQ-432)',

@@ -968,7 +968,7 @@ test('preflight disables a new App up front when its service principal could not
     const got = await call(url, `/api/inspire/implement/preflight?${Q}&${OUT}&app_name=churn-desk&share=1&principals=${principals}`);
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.deepEqual(got.data.checks.app_access,
-      { ok: false, detail: `${I.appAccessMessage('main.inspire.churn_out', gaps, 'inspire-sp')}; ${CANNOT_MANAGE}` });
+      { ok: false, detail: `${I.appAccessMessage('main.inspire.churn_out', gaps, 'inspire-sp')}; ${CANNOT_MANAGE}`, permission: I.appAccessPermission(gaps, 'inspire-sp') });
     assert.equal(got.data.ok, false);
     assert.equal(got.data.checks.result_grant.ok, true);
     const warehouseWarning = I.shareWarehouseWarnings({ ok: false }, ['amr@x', 'planners'], ['the dashboard'], 'wh1')[0];

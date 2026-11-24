@@ -1206,8 +1206,8 @@ test('Data groups are a step of their own after Data, First run follows them onl
 test('the wizard opens on Data with no MVP or notebook choice, Notebook alone is a delivery, and with Genie Code off only the notebook is written', async () => {
   const w = await load();
   assert.equal(w.IMPLEMENT_MODES, undefined, 'there is no mode page (must-exclude)');
-  assert.deepEqual([w.NOTEBOOK_CARD.id, w.NOTEBOOK_CARD.label], ['notebook', 'Notebook']);
-  assert.match(w.NOTEBOOK_CARD.blurb, /Always built\.$/);
+  assert.deepEqual([w.APP_CARD.id, w.APP_CARD.label], ['app', 'App with Genie']);
+  assert.match(w.APP_CARD.blurb, /Always built\.$/);
   const fs = require('node:fs');
   const src = path.resolve(__dirname, '..', '..', 'frontend', 'src');
   const files = fs.readdirSync(src, { recursive: true, withFileTypes: true }).filter((e) => e.isFile() && /\.(js|jsx)$/.test(e.name))
