@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Hammer, Loader2 } from 'lucide-react';
 import { makeApiFetch } from '../lib/apiClient';
 import { sessionSucceeded } from '../lib/monitorState';
 import { PlainMessage } from '../components/TechnicalDetails';
+import Button from '../components/ui/Button';
+import UiPageHeader from '../components/ui/PageHeader';
 
 // FX-94 (D-uae-03, REQ-482): "#/build" with no run id. Build needs a run, so this page looks for the newest finished one and opens it.
 // While it reads, a spinner shows; with no finished run, a plain message and a way forward; a failed read shows Retry. Never a blank page.
@@ -28,15 +30,15 @@ export default function BareBuildPage({ settings, onPick, onReview }) {
   }, [apiFetch, inspireDatabase, warehouseId, onPick, tick]);
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-10 space-y-4" data-implement-bare="">
-      <h1 className="text-xl font-semibold text-text-primary">Build</h1>
+    <div className="w-full px-6 py-10 space-y-4" data-implement-bare="">
+      <UiPageHeader icon={Hammer} title="Build" />
       {state.phase === 'loading' && (
         <p role="status" className="flex items-center gap-2 text-sm text-text-secondary"><Loader2 size={16} className="animate-spin" /> Loading your builds…</p>
       )}
       {state.phase === 'empty' && (
         <div className="space-y-3">
           <p className="text-sm text-text-secondary">No builds yet. Pick a use case on Review to build one.</p>
-          <button type="button" onClick={onReview} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white">Go to Review</button>
+          <Button onClick={onReview}>Go to Review</Button>
         </div>
       )}
       {state.phase === 'error' && (
