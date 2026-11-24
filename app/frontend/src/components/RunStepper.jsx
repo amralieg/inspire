@@ -23,7 +23,8 @@ function Step({ phase, column }) {
 }
 
 export default function RunStepper({ steps, ended = false, failed = false }) {
-  const phases = runPhasesOf(steps, { ended, failed });
+  // Before the first steps arrive nothing is known, so an ended run's phases stay "not started" instead of flashing "skipped".
+  const phases = runPhasesOf(steps, { ended: ended && Array.isArray(steps) && steps.length > 0, failed });
   const columns = [...new Set(RUN_PHASES.map((p) => p.column))];
   return (
     <ol role="list" data-run-stepper="" aria-label="Run steps"
