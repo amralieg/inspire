@@ -89,7 +89,7 @@ function HarnessContent({ open, discoveryType, step, run }) {
   if (open === 'header') {
     return (
       <ThemeProvider>
-        <Header page="results" setPage={() => {}} canMonitor canResults canImplement={false} />
+        <Header page="results" setPage={() => {}} canMonitor canResults canRun canImplement={false} />
       </ThemeProvider>
     );
   }
