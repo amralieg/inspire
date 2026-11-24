@@ -268,6 +268,7 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     await page.getByRole('group', { name: 'MVPs' }).getByRole('button', { name: 'MVPs started: 1' }).waitFor();
     await toView(page, 'Use cases');
     assert.equal(await page.locator('[data-portfolio], [data-portfolio-card]').count(), 0, 'the demo Review shows this run only, with no totals across runs');
+    await page.getByRole('button', { name: /^More filters/ }).click(); // REQ-510 L5: the advanced filters sit behind More filters
     assert.equal(await page.getByRole('combobox', { name: 'MVP', exact: true }).locator('option[value="has"]').count(), 1, 'the demo filters by Has an MVP too');
     assert.equal(await page.getByRole('button', { name: START_MVP_LABEL }).count(), 0, 'the demo offers no new build');
     const reader = await openReader(page, cards.filter({ hasText: 'Predict churn' }));

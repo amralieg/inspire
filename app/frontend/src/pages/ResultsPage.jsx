@@ -198,6 +198,7 @@ export default function ResultsPage({
   const [filterSubdomain, setFilterSubdomain] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
   const [filterType, setFilterType] = useState('all');
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [filterTechnique, setFilterTechnique] = useState('all');
   const [filterKind, setFilterKind] = useState('all');
   const [filterQuality, setFilterQuality] = useState('all');
@@ -1887,6 +1888,13 @@ export default function ResultsPage({
                     </select>
                   )}
 
+                  {/* REQ-510 L5: the six advanced filters sit behind one More filters button. */}
+                  <button type="button" aria-expanded={moreFiltersOpen} aria-controls="review-more-filters" onClick={() => setMoreFiltersOpen((o) => !o)}
+                    className="inline-flex items-center gap-1 px-2 py-1.5 text-caption font-medium border border-border rounded-lg bg-bg text-text-secondary hover:border-border-strong transition-smooth">
+                    <Filter size={14} />More filters
+                  </button>
+                  {moreFiltersOpen && (
+                  <div id="review-more-filters" className="contents">
                   {/* Technique filter */}
                   {techniques.length > 0 && (
                     <select
@@ -1987,6 +1995,9 @@ export default function ResultsPage({
                     <option value="calculated">{`Value: ${STATUS_LABELS.calculated}`}</option>
                     <option value="not_calculated">Value: Not reviewed</option>
                   </select>
+
+                  </div>
+                  )}
 
                   {/* Sort */}
                   <select
@@ -2128,7 +2139,7 @@ export default function ResultsPage({
               >
                 {filteredUseCases.length > 0 ? (
                   <div className="pb-2">
-                    <div data-use-case-head="" className={`${ROW_GRID} max-md:hidden sticky top-0 z-[2] bg-bg px-2.5 py-2 text-caption font-semibold uppercase tracking-[0.06em] text-text-tertiary`}>
+                    <div data-use-case-head="" className={`${ROW_GRID} max-md:hidden sticky top-0 z-10 bg-bg px-2.5 py-2 text-caption font-semibold uppercase tracking-[0.06em] text-text-tertiary`}>
                       <div>
                         {bulkOn && (
                           <input type="checkbox" aria-label="Select all" checked={bulkIds.length > 0 && bulkIds.length === filteredUseCases.filter((uc) => trackingIdOf(uc)).length}
@@ -2305,7 +2316,7 @@ export default function ResultsPage({
           onClose={() => setDocsUcs(null)} />
       )}
       {implementUc && buildQueue.total > 1 && (
-        <p data-build-queue="" role="status" className="fixed bottom-4 start-4 z-[60] rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-text-primary shadow-elevated">
+        <p data-build-queue="" role="status" className="fixed bottom-4 start-4 z-toast rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-text-primary shadow-elevated">
           Building MVP {buildQueue.total - buildQueue.left.length} of {buildQueue.total}
         </p>
       )}

@@ -250,6 +250,7 @@ test('the MVP tiles count the use cases by their MVP, a tile or the MVP filter n
     await live.click();
     await card(page, 'Forecast stock').waitFor();
     assert.equal(await cards(page).count(), 6, 'a second click on the picked tile shows every use case');
+    await page.getByRole('button', { name: /^More filters/ }).click(); // REQ-510 L5: the MVP filter sits behind More filters
     const filter = page.getByRole('combobox', { name: 'MVP', exact: true });
     await filter.selectOption('none');
     await card(page, 'Predict churn').waitFor({ state: 'detached' });

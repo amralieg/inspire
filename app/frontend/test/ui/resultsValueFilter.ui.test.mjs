@@ -27,6 +27,7 @@ test('F1: the Value filter shows Calculated, Not calculated or All, and the acti
     await list.locator('[data-value-yearly]').first().waitFor({ timeout: 15000 });
     const total = await list.locator('[data-use-case-row]').count();
     assert.ok(total >= 3);
+    await page.getByRole('button', { name: /^More filters/ }).click(); // REQ-510 L5: the advanced filters sit behind More filters
     const filter = page.getByRole('combobox', { name: 'Value' });
     await filter.selectOption('calculated');
     assert.equal(await list.locator('[data-use-case-row]').count(), 1);

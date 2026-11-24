@@ -105,6 +105,7 @@ test('in a mixed run the use cases that meet the bar come first with the chip, a
     assert.equal(await page.locator('[data-testid="execution-complete"]').getAttribute('data-status'), 'success');
     assert.equal(await page.locator('[data-testid="quality-bar-counts"]').innerText(), '3 of 6 use cases meet the High quality bar');
     await toView(page, 'Use cases');
+    await page.getByRole('button', { name: /^More filters/ }).click(); // REQ-510 L5
     assert.deepEqual(await page.locator('select[aria-label="Quality bar"] option').allTextContents(),
       ['Quality bar: Any (6)', 'Meets the quality bar (3)', 'Below the quality bar (3)'], 'the filter labels use the same wording as the count');
     await toView(page, 'Assets');

@@ -63,8 +63,8 @@ const SCREENS = [
     ['F200', b(/^Active/), 'main'],
   ], [
     ['F219', { role: 'combobox', name: 'Value' }, { disclose: /^More filters/ }],
-    ['F249', { role: 'menuitem', name: 'Rename' }, CARD],
-    ['F243', { role: 'menuitem', name: 'Archive use case' }, CARD],
+    ['F249', { role: 'button', name: /^Rename / }, 'main'],
+    ['F243', { role: 'button', name: 'Move this row to Archived' }, 'main'],
   ]],
   ['Build', 'implement', { useCase: HARNESS_USE_CASE }, {}, 'h1', [
     ['F307', { role: 'searchbox', name: 'Search use cases' }, 'main'],
