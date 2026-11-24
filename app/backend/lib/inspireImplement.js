@@ -21,7 +21,7 @@ const {
   ownSchemaAllTakenNote, ownSchemaClashNote, ownSchemaFallbackNote, ownSchemaReuseNote, rowKeyOf, USE_CASE_SCHEMA_CLASH_LIMIT,
 } = require('../../frontend/src/lib/implementWizard.js');
 const { quotedIdent } = require('../../frontend/src/lib/tableName.js');
-const { scopesFromObject } = require('../../frontend/src/lib/tableScope.js');
+const { scopesFromObject, scopeEntryOf } = require('../../frontend/src/lib/tableScope.js');
 const { RUN_STATE_UNKNOWN, runStateText } = require('../../frontend/src/lib/runState.js');
 
 const IMPLEMENT_OPERATION = 'Implement Use Cases';
@@ -2626,6 +2626,39 @@ function uniqueTables(names) {
   return out;
 }
 
+// SEC-01 W8: the columns a source's row filter and column masks read, from its Unity Catalog table info.
+function tablePolicyColumns(info) {
+  const filter = info && info.row_filter && info.row_filter.function_name ? info.row_filter : null;
+  const masks = ((info && info.columns) || []).filter((c) => c && c.mask && c.mask.function_name);
+  return {
+    filter: filter ? { function_name: filter.function_name, columns: filter.input_column_names || [] } : null,
+    masks: masks.map((c) => ({ column: c.name, function_name: c.mask.function_name, columns: c.mask.using_column_names || [] })),
+  };
+}
+
+// SEC-01 W8: a plain refusal for each source whose row filter or column mask reads a column the Table Scope drops, because the
+// result must carry that policy and cannot without the column. No scope entry, or an empty column list, keeps every column.
+function policiedScopeProblems(table, info, scopes) {
+  const entry = scopeEntryOf(scopes, table);
+  const kept = entry && Array.isArray(entry.columns) && entry.columns.length ? new Set(entry.columns.map((c) => String(c).toLowerCase())) : null;
+  if (!kept) return [];
+  const { filter, masks } = tablePolicyColumns(info);
+  const problems = [];
+  const dropped = (cols) => cols.filter((c) => !kept.has(String(c).toLowerCase()));
+  if (filter) {
+    for (const column of dropped(filter.columns)) {
+      problems.push(`${table} has a row filter (${filter.function_name}) that reads ${column}, so the result must keep the column ${column}. Add ${column} to the Table Scope of ${table}.`);
+    }
+  }
+  for (const mask of masks) {
+    if (!kept.has(String(mask.column).toLowerCase())) continue;
+    for (const column of dropped(mask.columns)) {
+      problems.push(`${table} masks ${mask.column} with ${mask.function_name}, which reads ${column}, so the result must keep the column ${column}. Add ${column} to the Table Scope of ${table}.`);
+    }
+  }
+  return problems;
+}
+
 function sourceTables(spec, involved) {
   return uniqueTables(sourcePicks(spec, involved).map((p) => p.chosen));
 }
@@ -4394,6 +4427,8 @@ module.exports = {
   rerunWidgets,
   rerunOverrides,
   sourceTables,
+  tablePolicyColumns,
+  policiedScopeProblems,
   sourcePicks,
   checkedSourceTables,
   IMPLEMENT_TABLES_NO_SIGN_IN,
