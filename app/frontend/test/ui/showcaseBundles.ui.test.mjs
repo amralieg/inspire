@@ -189,9 +189,11 @@ test('Genie in a kinds demo MVP App answers a suggested question with the record
     const settle = apiWatch(page);
     const u = USE_CASES[0];
     const frame = await openMvpFromBuild(page, settle, u);
-    const genieBtn = frame.locator('header.top button.genie-btn');
+    // REQ-506: Genie is the Screen | Genie switch in the top bar, not an Ask Genie button that opens on first load.
+    const genieBtn = frame.locator('header.top button[data-mode="genie"]');
     await genieBtn.waitFor();
-    assert.equal(await genieBtn.getAttribute('aria-expanded'), 'true', 'Ask Genie opens on first load of the App (REQ-092)');
+    await genieBtn.click();
+    assert.equal(await genieBtn.getAttribute('aria-pressed'), 'true', 'the Genie mode of the App opens from the top bar');
     const ask = frame.locator('.genie .g-sugg button.sugg').filter({ hasText: u.genie[0].q });
     await ask.first().click();
     const answer = frame.locator('.msg--genie').last();
