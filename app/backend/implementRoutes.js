@@ -1626,6 +1626,8 @@ function registerImplementRoutes(app, deps) {
     const verdict = await sourceCheckOf(req, warehouseId, useCase, chosen, history);
     if (verdict.refusal) throw verdict.refusal;
     const { spec, warnings: readWarnings, details: readDetails } = await dropUnreadableSources(req, chosen, useCase, verdict.reads);
+    const policyIssues = await policiedScopeIssues(req, spec, useCase, session);
+    if (policyIssues.length) throw I.badRequest(policyIssues.join(' '));
     const kpiIssues = I.implementKpiTargetProblems(raw, I.implementKpiOptions(useCase, history), history);
     if (kpiIssues.length) throw I.badRequest(kpiIssues.join('; '));
     const keyRef = I.resultKeyRef(spec, useCase);
@@ -1672,6 +1674,19 @@ function registerImplementRoutes(app, deps) {
     const err = I.badRequest(message, status);
     err.details = { unreadable };
     return err;
+  }
+
+  // SEC-01 W8: a source with a row filter or column mask must keep the columns that policy reads, or the result cannot carry it.
+  async function policiedScopeIssues(req, spec, useCase, session) {
+    if (!req.dbToken) return [];
+    const scopes = chosenTableScopes(spec.data, parseTableScopeText(session.table_scope).scopes);
+    const tables = I.sourceTables(spec, I.useCaseTables(useCase)).filter((t) => !I.resultTableNameError(t, 'tables'));
+    const out = [];
+    for (const table of tables) {
+      const got = await fetchJsonFor(req)(`/api/2.1/unity-catalog/tables/${encodeURIComponent(table)}`).catch(() => null);
+      if (got && got.ok) out.push(...I.policiedScopeProblems(table, got.data, scopes));
+    }
+    return out;
   }
 
   async function refuseUnreadableSources(req, spec, useCase) {
