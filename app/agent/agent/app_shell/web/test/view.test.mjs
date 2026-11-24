@@ -227,6 +227,7 @@ test('Focus on the list folds every chart and the key numbers of a page that sho
   const info = appInfo(DECIDE, 1, {}, 'examples/monitor_triage.json');
   const { page, seen, context } = await openApp(browser, served.base, info, { routes: monitorRoutes(), clock: CLOCK, timezone: 'Asia/Dubai' });
   const drawn = () => page.evaluate(() => document.querySelectorAll('[data-section] canvas').length);
+  await page.evaluate(() => { window.location.hash = '#/n01_u05/dashboard'; }); // REQ-506: the app lands on Work, so go to the Dashboard where the charts are
   await page.waitForFunction(() => document.querySelectorAll('[data-section] canvas').length >= 3);
   const charts = await drawn();
   const expanded = () => page.locator('[data-fold]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-expanded')));
