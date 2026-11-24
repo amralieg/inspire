@@ -9,7 +9,6 @@ export const APP_TABS = [
 ];
 
 // Kept because test/ui/navHistory.ui.test.mjs imports it; the header no longer numbers Home (REQ-508 F8). Drop with that test's approved edit.
-export const NAV_TABS = [HOME_TAB, ...APP_TABS];
 
 export const REMOVED_TAB_LABELS = ['Get Started', 'Results'];
 
