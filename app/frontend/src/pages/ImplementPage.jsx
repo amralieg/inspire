@@ -4,7 +4,7 @@ import UiPageHeader from '../components/ui/PageHeader';
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { newIssueUrl } from '../lib/issues';
 import {
-  AlertTriangle, AppWindow, ArrowRight, BellRing, CheckCircle2, ChevronDown, CircleDashed, ExternalLink, FileText, Hammer, History, LayoutDashboard, Loader2,
+  AlertTriangle, AppWindow, ArrowRight, BellRing, CheckCircle2, ChevronDown, CircleDashed, ExternalLink, Hammer, History, LayoutDashboard, Loader2,
   NotebookPen, Pencil, RefreshCw, Rocket, RotateCcw, Search, Settings2, Sparkles, Square, Trash2, XCircle,
 } from 'lucide-react';
 import {
@@ -25,6 +25,7 @@ import { plural, shown } from '../lib/plural';
 import ImplementStatusBadge from '../components/ImplementStatusBadge';
 import ImplementWizard from './ImplementWizard';
 import { AssetPanel, AssetTile, BuildControls, ConfirmDialog, NotebookPanel } from '../components/ImplementControlTower';
+import MoreMenu from '../components/ui/MoreMenu';
 import UseCaseDrawer from '../components/UseCaseDrawer';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
 import QualityBarChip from '../components/QualityBarChip';
@@ -1964,9 +1965,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
         {built && progress.active && <ProgressLine chip={chip} summary={progress} typical={typicalBuildText(builds)} />}
         <div className={HEADER_ACTIONS}>
           {item.uc && (
-            <button type="button" onClick={() => setDetailsOpen(true)} className={OUTLINE_BUTTON}>
-              <FileText size={14} /> Use case details
-            </button>
+            <MoreMenu items={[{ label: 'Use case details', onSelect: () => setDetailsOpen(true) }]} />
           )}
           {readOnly ? (built && onOpenDemoMvp && (
             <Button type="button" data-demo-open-mvp={useCaseId} onClick={onOpenDemoMvp} size="sm">

@@ -20,6 +20,10 @@ const tile = (page, id) => page.locator(`[data-asset-tile="${id}"]`);
 const runPane = (page) => page.getByRole('region', { name: 'Run and schedule', exact: true });
 const historyPane = (page) => page.getByRole('region', { name: 'History', exact: true });
 const historyToggle = (page) => historyPane(page).getByRole('button', { name: /^History/ });
+async function openUseCaseDetails(page) {
+  await page.locator('[aria-label="Use case"]').getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Use case details' }).click();
+}
 const focusedName = (page) => page.evaluate(() => document.activeElement?.getAttribute('aria-label') || document.activeElement?.textContent?.trim() || '');
 const VIEW_IDS = ['build', ...TILE_IDS];
 const viewSelector = (id) => (id === 'build' ? '[data-mvp-progress]' : `[data-mvp-panel="${id}"]`);
@@ -1823,7 +1827,7 @@ test('Use case details on the Implement page open the full use case in a drawer 
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await showView(page, 'build');
-    await page.getByRole('button', { name: 'Use case details' }).click();
+    await openUseCaseDetails(page);
     const drawer = page.getByRole('dialog', { name: `Use case details: ${HARNESS_USE_CASE.Name}` });
     await drawer.getByRole('heading', { name: HARNESS_USE_CASE.Name, level: 2 }).waitFor();
     await drawer.getByText(HARNESS_USE_CASE.statement).first().waitFor();
@@ -1835,8 +1839,8 @@ test('Use case details on the Implement page open the full use case in a drawer 
     await page.locator('[data-progress-card]').waitFor();
     assert.equal(await page.locator('[data-mvp-progress]').count(), 1, 'the docked Genie panel stays open through a click outside it');
     assert.equal(await page.locator('[data-mvp-panel]').count(), 0, 'no asset drawer opened behind it');
-    assert.equal(await focusedName(page), 'Use case details', 'the focus comes back to the button that opened it');
-    await page.getByRole('button', { name: 'Use case details' }).click();
+    assert.equal(await focusedName(page), 'More', 'the focus comes back to the More button that opened it');
+    await openUseCaseDetails(page);
     await drawer.getByRole('button', { name: 'Close', exact: true }).click();
     await drawer.waitFor({ state: 'detached' });
     assert.deepEqual(ui.pageErrors, []);
@@ -2385,7 +2389,7 @@ test('the whole Implement page, the use case details and the wizard read at 4.5:
       assert.ok(features.checked >= 5, `${mode}: measured ${features.checked} Vibe/Add/Remove Features elements`);
       assert.deepEqual(features.low, [], `${mode} Vibe/Add/Remove Features`);
       await closeAsset(page);
-      await page.getByRole('button', { name: 'Use case details' }).click();
+      await openUseCaseDetails(page);
       const details = await lowContrast(page, ['[role="dialog"]']);
       assert.ok(details.checked >= 15, `${mode}: measured ${details.checked} detail elements`);
       assert.deepEqual(details.low, [], `${mode} use case details`);

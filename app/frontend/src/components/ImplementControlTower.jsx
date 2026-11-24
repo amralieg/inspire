@@ -225,7 +225,7 @@ export function AssetTile({
       <IconChip icon={Icon} tone={off ? 'idle' : TONE_CHIP[shown.tone] || 'idle'} size="sm" />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1 text-[13px] font-semibold text-text-primary">
-          {label}{link && <ExternalLink size={14} aria-hidden className="shrink-0 text-text-secondary" />}
+          <span className="min-w-0 break-words">{label}</span>{link && <ExternalLink size={14} aria-hidden className="shrink-0 text-text-secondary" />}
         </span>
         <span data-tile-state="" title={shown.label} className={`flex items-center gap-1 min-w-0 text-caption font-medium ${off ? 'text-text-secondary' : shown.tone === 'error' ? 'text-error-fg' : 'text-text-secondary'}`}>
           {building && <Loader2 data-tile-spinner="" size={14} aria-hidden className="shrink-0 text-db-red-fg motion-safe:animate-spin" />}
