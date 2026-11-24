@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { actBody, DECIDE, ROWS, SRC, TABLE, appInfo, bundleEntry, openApp, openBundle, scrollsAsked, serveDist, steadyBox, tracked, until, watchScrolls } from './harness.mjs';
 import { dashboardRoutes, evaluated, explainerRoutes, fanRows, forecastRoutes, monitorRoutes, plannerRoutes, scenarioRoutes } from './exampleRoutes.mjs';
+import { openMore } from './moreMenu.mjs';
 
 // REQ-506: no side rail; a section opens by its hash.
 const goSection = (page, section) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, section);
@@ -411,7 +412,7 @@ test('the monitor opens with What to do now, draws the signal with its range, th
   const layout = KINDS.layouts.find((l) => l.id === 'monitor_triage');
   assert.equal(layout.enabled, true);
   assert.deepEqual(info.pages[0].layout.sections, layout.sections);
-  const { page, seen, context } = await openApp(browser, base, info, { routes: monitorRoutes() });
+  const { page, seen, context } = await openApp(browser, base, info, { routes: monitorRoutes(), hash: `#/${info.pages[0].id}/dashboard` });
   await page.waitForFunction(() => document.querySelectorAll('[data-section] canvas').length >= 3);
   await page.locator('[data-section="triage_queue"] tbody tr').first().waitFor();
   assert.deepEqual([...new Set(await sectionsOf(page))], ['todo', 'kpis', 'signal_band', 'triage_queue', 'exceptions_by_rule', 'aging_buckets']);
@@ -431,7 +432,7 @@ test('the explainer opens with What to do now, draws the variance list, the brid
   const layout = KINDS.layouts.find((l) => l.id === 'performance_explainer');
   assert.equal(layout.enabled, true);
   assert.deepEqual(info.pages[0].layout.sections, layout.sections);
-  const { page, seen, context } = await openApp(browser, base, info, { routes: explainerRoutes() });
+  const { page, seen, context } = await openApp(browser, base, info, { routes: explainerRoutes(), hash: `#/${info.pages[0].id}/dashboard` });
   await page.waitForFunction(() => document.querySelectorAll('[data-section] canvas').length >= 3);
   await page.locator('[data-section="variance_table"] tbody tr').first().waitFor();
   await page.locator('[data-section="quote_cards"] tbody tr').first().waitFor();
@@ -504,7 +505,7 @@ test('the use case switcher names each layout by its tab label, and the decision
 test('the decision queue page opens with What to do now', async () => {
   const info = appInfo();
   assert.equal(info.pages[0].layout.id, 'decision_queue');
-  const { page, seen, context } = await openApp(browser, base, info);
+  const { page, seen, context } = await openApp(browser, base, info, { hash: `#/${info.pages[0].id}/dashboard` });
   await page.locator('[data-section="todo"] [data-step="first"]').waitFor();
   assert.match(await page.locator('[data-step="first"]').innerText(), /Start with Item number 1/);
   assert.equal(await page.locator('[data-step="accept"]').count(), 0, 'an App that keeps no decisions offers no accept');
@@ -527,7 +528,7 @@ test('What to do now counts the records still open, not the ones somebody alread
         summary: { open: acted, done, resolved: 0, left: 0, owners: [] }, errors: {},
         window: body.window ? { window: body.window, limit: null, shown: open, more: 0, today: '2026-10-27' } : null });
     };
-    const { page, seen, context } = await openApp(browser, base, info, { routes });
+    const { page, seen, context } = await openApp(browser, base, info, { routes, hash: `#/${info.pages[0].id}/dashboard` });
     await page.locator('[data-section="todo"] [data-todo-count]').waitFor();
     await page.waitForFunction((t) => document.querySelector('[data-section="todo"] [data-todo-count]')?.textContent === t, said, { timeout: 10000 })
       .catch(async () => assert.fail(`the count reads "${await page.locator('[data-section="todo"] [data-todo-count]').innerText()}", not "${said}"`));
@@ -541,7 +542,7 @@ test('What to do now counts the records still open, not the ones somebody alread
 
 test('What to do now on the Dashboard counts the records under the filters the person picked', async () => {
   const info = appInfo(DECIDE, 1, TABLE);
-  const { page, seen, context } = await openApp(browser, base, info, { routes: tracked().routes });
+  const { page, seen, context } = await openApp(browser, base, info, { routes: tracked().routes, hash: `#/${info.pages[0].id}/dashboard` });
   await page.locator('[data-section="todo"] [data-todo-count]').waitFor();
   const todoReads = () => seen.records.filter((b) => b.limit === 5);
   assert.ok(todoReads().length > 0, 'What to do now reads its own list');
@@ -558,7 +559,7 @@ test('What to do now on the Dashboard counts the records under the filters the p
 test('accepting a suggested action takes one click on a row, or one click for the selected rows, through records/act', async () => {
   const info = appInfo(DECIDE, 1, TABLE);
   const { calls, routes } = tracked();
-  const { page, seen, context } = await openApp(browser, base, info, { routes });
+  const { page, seen, context } = await openApp(browser, base, info, { routes, hash: `#/${info.pages[0].id}/dashboard` });
   await page.locator('[data-step="accept"]').waitFor();
   assert.match(await page.locator('[data-step="accept"]').innerText(), /Accept the suggested action where you agree/);
   await goSection(page, 'work');
@@ -570,7 +571,7 @@ test('accepting a suggested action takes one click on a row, or one click for th
   for (const name of ['Item number 2 with a long descriptive name', 'Item number 3 with a long descriptive name', 'Item number 5 with a long descriptive name']) {
     await page.getByLabel(`Select ${name}`).check();
   }
-  await page.locator('[data-accept-picked]').click();
+  await (await openMore(page.locator('.bulk'))).locator('[data-accept-picked]').click();
   await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent?.startsWith('Accepted the suggested action on 2 records. Left 1 record as they are'));
   assert.deepEqual(calls.acts.at(-1), { page: info.pages[0].id, record_keys: ['R003', 'R005'], seen: { R003: '102', R005: '104' },
     values: { action_status: 'In progress', note: 'Accepted the suggested action' } });
@@ -616,7 +617,7 @@ test('a records-list row action says its result in the row, a bulk action and Un
   assert.equal(await page.locator('tr', { has: note }).locator('[data-accept="R001"], .cell-t').count() > 0, true, 'the message sits in the row it is about');
   await impact(`Actions: ${n - 1} open · 1 done · 0 resolved by a later run (0/1)`);
   for (const name of ['Item number 3 with a long descriptive name', 'Item number 5 with a long descriptive name']) await page.getByLabel(`Select ${name}`).check();
-  await page.locator('[data-accept-picked]').click();
+  await (await openMore(page.locator('.bulk'))).locator('[data-accept-picked]').click();
   await page.locator('[data-said="all"]').filter({ hasText: /^Accepted the suggested action on 2 records/ }).waitFor();
   assert.equal(await page.locator('[data-said="R001"]').count(), 0, 'one message at a time: the newest replaces the row note');
   await impact(`Actions: ${n - 3} open · 3 done · 0 resolved by a later run (0/3)`);
