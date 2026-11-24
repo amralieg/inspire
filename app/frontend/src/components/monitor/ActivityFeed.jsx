@@ -33,8 +33,8 @@ export default function ActivityFeed({ steps, live }) {
       <ol ref={box} role="list" className="max-h-80 space-y-2 overflow-y-auto"
         onScroll={(e) => { const el = e.currentTarget; pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < SLACK_PX; }}>
         {lines.length === 0 && <li className="text-sm text-text-secondary">Each step shows here as soon as Inspire saves it.</li>}
-        {lines.map((s) => (
-          <li key={s.step_id} className="text-sm">
+        {lines.map((s, i) => (
+          <li key={`${s.step_id}-${i}`} className="text-sm">
             <p className="font-medium text-text-primary break-words">{s.step_name || s.sub_step_name}</p>
             {s.message && <p className="line-clamp-2 text-xs text-text-secondary break-words">{splitTechnical(s.message).plain}</p>}
           </li>

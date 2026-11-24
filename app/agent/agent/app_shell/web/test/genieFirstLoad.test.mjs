@@ -27,9 +27,8 @@ test('a browser session lands on Work with Genie closed, and Screen chosen after
   const { page, context } = await openApp(browser, served.base, appInfo(), { genie: 'open' });
   try {
     await page.locator('[data-mode-switch]').waitFor({ timeout: 20000 });
-    assert.equal(await genieOpen(page), 0, 'Genie is not open on the first load');
-    await openGenieMode(page);
-    assert.equal(await genieOpen(page), 1, 'Genie opens from the switch');
+    await page.locator('[data-genie-full]').waitFor({ state: 'visible', timeout: 20000 });
+    assert.equal(await genieOpen(page), 1, 'the App opens in Genie mode on the first load (REQ-092)');
     await page.locator('[data-mode-switch] [data-mode="screen"]').click();
     await page.locator('[data-genie-full]').waitFor({ state: 'detached', timeout: 10000 });
     await page.reload();

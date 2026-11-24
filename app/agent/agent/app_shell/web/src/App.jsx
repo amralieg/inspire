@@ -77,6 +77,9 @@ function useHub(pages, asked) {
 
 // REQ-506: no side rail. The sections a person can reach by link or from the avatar menu; Work is home and Genie is its own screen.
 const railOf = (app, page) => [...pageSections(app, page), ...(performanceOn(app) ? ['performance'] : []), 'genie'];
+// REQ-092: the App opens in Genie mode; a session with the closed flag (the test harness sets it) lands on Screen. Screen goes to the page's Work queue, or its dashboard when it has none.
+const genieClosed = () => { try { return window.sessionStorage.getItem('inspire-genie-closed') === '1'; } catch { return false; } };
+const screenSection = (app, page) => (pageMode(page).queue && railOf(app, page).includes('work') ? 'work' : 'dashboard');
 const HOME_ROUTES = ['', 'home', 'overview'];
 const OLD_SECTION = /^(#\/[^/?]+)\/(?:inbox|agent)(?=[?]|$)/;
 
@@ -94,7 +97,7 @@ function Shell({ app, onRefreshSiblings }) {
     const before = window.location.hash.replace(OLD_SECTION, '$1');
     if (unknownRoute(parseHash(before).route, known.current.pages)) missed.current = UNKNOWN_PAGE;
     const canon = (hash) => canonicalHash(hash, { pages: known.current.pages, last: known.current.last, sectionsOf: (p) => railOf(app, p), queueOf: (p) => pageMode(p).queue,
-      landingOf: (p) => (pageMode(p).queue && railOf(app, p).includes('work') ? 'work' : '') });
+      landingOf: (p) => (genieClosed() ? (pageMode(p).queue && railOf(app, p).includes('work') ? 'work' : '') : 'genie') });
     let next = canon(before);
     if (HOME_ROUTES.includes(parseHash(before).route) && next) next = canon(`#/${encodeURIComponent(parseHash(next).route)}`) || next;
     if (!next && before !== window.location.hash) next = before;
@@ -250,7 +253,7 @@ function Shell({ app, onRefreshSiblings }) {
   const themeKey = `${palette}:${theme}:${app.style}`;
   const chrome = { palette, built: app.palette, theme, onPalette: choosePalette, onTheme: toggleTheme };
   const showGenie = () => { if (page) window.location.hash = sectionHash(page.id, 'genie'); };
-  const showScreen = () => { if (page) window.location.hash = sectionHash(page.id, 'work'); };
+  const showScreen = () => { if (page) window.location.hash = sectionHash(page.id, screenSection(app, page)); };
   const welcomed = !!page && !!prefs.welcomed[page.id];
   const welcome = (choice) => { update((p) => ({ ...p, welcomed: { ...p.welcomed, [page.id]: true } })); if (choice === 'genie') showGenie(); else showScreen(); };
   const genieProps = { app, genie, page, pages: shown, onPick: go, themeKey, fact: page ? topFact(page, tourFacts[page.id]) : '' };

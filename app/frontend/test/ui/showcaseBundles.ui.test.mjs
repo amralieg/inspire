@@ -74,7 +74,7 @@ async function openKindsDemo() {
   return ui;
 }
 
-async function openMvpFromBuild(page, settle, u) {
+async function openMvpFromBuild(page, settle, u, screen = true) {
   await tabButton(page, 'implement').click();
   const item = page.locator('nav[aria-label="Use cases"] section button').filter({ hasText: u.name });
   await item.first().waitFor({ timeout: 60000 });
@@ -86,7 +86,10 @@ async function openMvpFromBuild(page, settle, u) {
   await open.click();
   await page.locator(`[data-run-full] iframe[data-run-frame="${u.no}"]`).waitFor();
   const frame = page.frameLocator(`[data-run-full] iframe[data-run-frame="${u.no}"]`);
-  await frame.locator('main h1').first().waitFor({ timeout: 60000 });
+  // REQ-092: the App opens in Genie mode; callers that read the Screen pick it, the first-load test passes screen = false.
+  await frame.locator('header.top').waitFor({ timeout: 60000 });
+  if (screen) await frame.locator('header.top button[data-mode="screen"]').click();
+  await (screen ? frame.locator('main h1').first() : frame.locator('header.top button[data-mode="genie"]')).waitFor({ timeout: 60000 });
   return frame;
 }
 
@@ -188,12 +191,11 @@ test('Genie in a kinds demo MVP App answers a suggested question with the record
   try {
     const settle = apiWatch(page);
     const u = USE_CASES[0];
-    const frame = await openMvpFromBuild(page, settle, u);
+    const frame = await openMvpFromBuild(page, settle, u, false);
     // REQ-506: Genie is the Screen | Genie switch in the top bar, not an Ask Genie button that opens on first load.
     const genieBtn = frame.locator('header.top button[data-mode="genie"]');
     await genieBtn.waitFor();
-    await genieBtn.click();
-    assert.equal(await genieBtn.getAttribute('aria-pressed'), 'true', 'the Genie mode of the App opens from the top bar');
+    assert.equal(await genieBtn.getAttribute('aria-pressed'), 'true', 'the App opens in Genie mode on first load (REQ-092)');
     const ask = frame.locator('.genie .g-sugg button.sugg').filter({ hasText: u.genie[0].q });
     await ask.first().click();
     const answer = frame.locator('.msg--genie').last();
