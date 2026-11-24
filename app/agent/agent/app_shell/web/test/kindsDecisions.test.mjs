@@ -48,7 +48,7 @@ for (const [id, c] of Object.entries(LISTS)) {
     const info = appInfo(DECIDE, 1, {}, `examples/${file}`);
     const acts = [];
     const routes = failingRefresh(kindRoutes(c.data(), c.rows.map((r) => ({ ...r })), acts, JSON.parse(readFileSync(join(HERE, '..', '..', 'examples', file), 'utf8'))), acts);
-    const { page, context, seen } = await openApp(browser, served.base, info, { routes });
+    const { page, context, seen } = await openApp(browser, served.base, info, { hash: `#/${info.pages[0].id}/dashboard`, routes });
     await page.locator('[data-choice-row] [data-choice]').first().waitFor();
     await idle(page);
     const before = await page.locator('[data-choice-row]').count();
