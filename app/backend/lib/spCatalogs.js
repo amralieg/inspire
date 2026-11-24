@@ -12,10 +12,11 @@ const CATALOG_READ = [['USE CATALOG', 'catalog'], ['SELECT', 'catalog'], ['READ 
 
 const key = (name) => String(name || '').replace(/`/g, '').trim().toLowerCase();
 
-// The privileges held on one catalog, or null when Unity Catalog will not say (then the catalog is listed without a verdict).
-async function heldOn(dbFetch, host, token, catalog, principal) {
+// The privileges held on one securable (type 'catalog', 'schema' or 'table'; `catalog` is its full name), or null when Unity Catalog will not say
+// (then the catalog is listed without a verdict).
+async function heldOn(dbFetch, host, token, catalog, principal, type = 'catalog') {
   try {
-    const resp = await dbFetch(host, token, `${UC}/effective-permissions/catalog/${encodeURIComponent(catalog)}?principal=${encodeURIComponent(principal)}`);
+    const resp = await dbFetch(host, token, `${UC}/effective-permissions/${type}/${encodeURIComponent(catalog)}?principal=${encodeURIComponent(principal)}`);
     if (!resp.ok) return null;
     const data = parseExactJson((await resp.text()) || '{}');
     const held = new Set();
@@ -65,6 +66,28 @@ function grantedCatalogList(personList, granted) {
   return catalogs;
 }
 
+// SEC-01 (W2): Inspire's principal is read-only on customer data. Returns the write privileges it holds on the tables, their schemas and their
+// catalogs, as [{ type, name, privilege, fix }], where `fix` is the exact statement that removes it. `skip(type, name)` leaves out Inspire's own
+// objects. Securables Unity Catalog will not report on are not guessed at.
+const WRITE_PRIVILEGES = ['MODIFY', 'MANAGE', 'ALL_PRIVILEGES', 'OWNER'];
+const quote = (name) => String(name).split('.').map((p) => `\`${p.replace(/`/g, '')}\``).join('.');
+async function heldWrites(dbFetch, host, token, principal, tables, skip = () => false) {
+  const securables = new Map();
+  for (const table of tables) {
+    const [c, s] = String(table).replace(/`/g, '').split('.');
+    for (const [type, name] of [['catalog', c], ['schema', `${c}.${s}`], ['table', String(table).replace(/`/g, '')]]) {
+      if (!skip(type, name)) securables.set(`${type}/${name}`, [type, name]);
+    }
+  }
+  const found = await Promise.all([...securables.values()].map(async ([type, name]) => {
+    const held = await heldOn(dbFetch, host, token, name, principal, type);
+    return held ? WRITE_PRIVILEGES.filter((p) => held.has(p)).map((privilege) => ({ type, name, privilege,
+      fix: privilege === 'OWNER' ? `ALTER ${type.toUpperCase()} ${quote(name)} OWNER TO <a person or group other than \`${principal}\`>`
+        : `REVOKE ${privilege.replace(/_/g, ' ')} ON ${type.toUpperCase()} ${quote(name)} FROM \`${principal}\`` })) : [];
+  }));
+  return found.flat();
+}
+
 // SEC-01 (W4): the picker's table rows. `readable(token, name)` is a LIMIT 0 read (tableProbeStatement). The person is probed on every listed
 // table and the principal on the tables the person can read; a row is pickable when both can read it. Otherwise `request` says who must ask:
 // 'person' (the person cannot read it) or 'inspire' (the principal cannot). Past `cap` tables the rows carry no verdict (nothing is hidden).
@@ -95,4 +118,4 @@ function droppedCatalogs(scopeCatalogs, granted) {
   return [...new Set(scopeCatalogs.filter((name) => !granted.names.has(key(name))))];
 }
 
-module.exports = { spGrantedCatalogs, grantedCatalogList, partialPermission, droppedCatalogs, pickableRows };
+module.exports = { spGrantedCatalogs, grantedCatalogList, partialPermission, droppedCatalogs, pickableRows, heldOn, heldWrites };

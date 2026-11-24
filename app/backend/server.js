@@ -65,7 +65,7 @@ const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../fronte
 const { isInspireOwnName, isInspireOwnSchema } = require('../frontend/src/lib/inspireOwnObjects.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
 const { appReadPermissions, sampleCopyPermission, permissionRequired, readStatementsFor } = require('./lib/permissions');
-const { spGrantedCatalogs, grantedCatalogList, partialPermission, droppedCatalogs, pickableRows } = require('./lib/spCatalogs');
+const { spGrantedCatalogs, grantedCatalogList, partialPermission, droppedCatalogs, pickableRows, heldWrites } = require('./lib/spCatalogs');
 const { planModelAccess, selfCheckRecord, MODEL_CHECK_ROUTE } = require('./lib/modelAccess');
 const PM_ERROR = require('./lib/permissionError');
 const { apiRefusalText, logApiBody } = require('./lib/apiRefusal');
@@ -2560,6 +2560,29 @@ async function visibleSessions(req, warehouseId, parsedDb, sessions) {
   return sessions.filter((_s, i) => verdicts[i]);
 }
 
+// SEC-01 (W2): Inspire's principal must hold no write privilege on a source. Unity Catalog's effective permissions decide, so a grant made
+// higher up or through a group counts. Inspire's own catalog and schema are not sources and are left out.
+const WRITE_GUARD_LIMIT = 50;
+async function writeGuardRefusal(req, scope) {
+  const token = await appOwnToken();
+  const principal = SP_CLIENT_ID;
+  const { catalogs, schemas, tables: picked } = ucMetadataParts(scope);
+  const entries = [...picked, ...schemas, ...catalogs];
+  if (!token || !principal || !entries.length) return null;
+  const { tables } = await scopeTables(dbFetch, req.dbHost, token, entries);
+  const own = splitInspireDatabase(DEFAULT_INSPIRE_DB);
+  const ownKey = own ? `${own.catalog}.${own.schema}`.toLowerCase() : '';
+  const skip = (type, name) => {
+    const n = name.toLowerCase();
+    return Boolean(ownKey) && (type === 'catalog' ? n === own.catalog.toLowerCase() : n === ownKey || n.startsWith(`${ownKey}.`));
+  };
+  const held = await heldWrites(dbFetch, req.dbHost, token, principal, tables.slice(0, WRITE_GUARD_LIMIT), skip);
+  if (!held.length) return null;
+  const lines = held.map((h) => `${h.privilege.replace(/_/g, ' ')} on ${h.type} ${h.name}: ${h.fix}`);
+  return { status: 409, unreadable: [],
+    message: `Inspire's service principal holds a write privilege on your source data, so the run did not start. Inspire only reads customer data. Remove it, then start again. ${lines.join('; ')}.` };
+}
+
 function refusalExtra(refusal) {
   return { unreadable: refusal.unreadable, ...(refusal.request ? { request: refusal.request } : {}), ...(refusal.permissions ? { permissions: refusal.permissions } : {}) };
 }
@@ -2575,6 +2598,13 @@ async function checkLaunchReads(req, params) {
         return null;
       });
       if (lost) return { reads: { ...reads, refusal: lost }, access: { permissions: [], warnings: [] }, model: [] };
+    }
+    if (!reads.refusal) {
+      const writes = await writeGuardRefusal(req, reads.scope || params['01_uc_metadata']).catch((err) => {
+        console.warn(`write guard: ${err.message || err}`);
+        return null;
+      });
+      if (writes) return { reads: { ...reads, refusal: writes }, access: { permissions: [], warnings: [] }, model: [] };
     }
     const access = reads.refusal ? { permissions: [], warnings: [] } : await discoverAppAccess(req, reads.scope || params['01_uc_metadata']);
     const model = await discoverModelAccess(req);
