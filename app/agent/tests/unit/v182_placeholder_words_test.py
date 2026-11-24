@@ -4,7 +4,7 @@ import re
 
 from v120_artifacts_support import make_inspire, make_uc
 from v120_docs_consistency_test import expected_views
-from v120_docs_design_test import LANGUAGES, captured_html, deck, docs, labels, pdf_html, slide_texts, summary  # noqa: F401
+from v120_docs_design_test import LANGUAGES, docs, labels, summary  # noqa: F401
 
 FIXTURE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fixtures", "placeholder_words_cases.json")
 with open(FIXTURE, encoding="utf-8") as handle:
@@ -69,15 +69,13 @@ def test_no_document_notebook_or_export_shows_a_raw_placeholder_tag(docs):
     assert any("(assumption: inferred from the business name 'Acme' only, not evidenced by the metadata) COO" in t for t in rendered)
 
 
-def test_the_pdf_the_deck_the_markdown_and_the_csv_catalog_never_show_a_raw_placeholder_tag(docs, captured_html):
+def test_the_markdown_and_the_csv_catalog_never_show_a_raw_placeholder_tag(docs):
     grouped = {"Sales": [make_uc("N01-U01", **TAGGED)]}
-    _obj, page = pdf_html(docs, captured_html, grouped, summary())
-    _deck_obj, prs = deck(docs, grouped, summary())
     md_obj = make_inspire(docs)
     md_obj._generate_markdown_catalog("English", "en", grouped, summary(), "Acme")
     csv_obj = make_inspire(docs)
     csv_obj._generate_csv_catalog("English", "en", grouped)
-    written = {"pdf": page, "deck": " | ".join(slide_texts(prs))}
+    written = {}
     written.update((f"md:{name}", body.decode("utf-8")) for name, body in md_obj.w_client.workspace.files.items())
     written.update((f"csv:{name}", body.decode("utf-8-sig")) for name, body in csv_obj.w_client.workspace.files.items())
     assert any(name.startswith("md:") for name in written) and any(name.startswith("csv:") for name in written), list(written)

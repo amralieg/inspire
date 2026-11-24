@@ -1,41 +1,26 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { pathToFileURL } = require('node:url');
+const fs = require('node:fs');
 const path = require('node:path');
 
-const libUrl = pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', 'documentActions.js')).href;
-const load = () => import(libUrl);
+const SRC = path.resolve(__dirname, '..', '..', 'frontend', 'src');
 
-test('the documents are rebuilt beside the session folder Discover wrote, never the business folder under it (REQ-077)', async () => {
-  const lib = await load();
-  assert.equal(lib.documentBasePath({ generationPath: '/Workspace/Users/me/inspire_output', notebookPath: '' }), '/Workspace/Users/me/inspire_output');
-  assert.equal(lib.documentBasePath({ generationPath: '/Workspace/Users/me/inspire_output/', notebookPath: '' }), '/Workspace/Users/me/inspire_output', 'a trailing slash is not a second folder');
-  assert.equal(lib.documentBasePath({ generationPath: '../demos', notebookPath: '/Workspace/Users/me/app/agent/dbx_inspire_ai_agent' }), '/Workspace/Users/me/app/demos', 'a relative path resolves from the notebook, as Discover resolved it');
-  assert.equal(lib.documentBasePath({ generationPath: '', notebookPath: '' }), '', 'no stored folder: no base');
+test('the App no longer rebuilds documents: the document action library, its components and the backend job are gone (REQ-503 FX-116)', () => {
+  for (const gone of ['lib/documentActions.js', 'components/DocumentActions.jsx', 'components/DocumentLanguagesMultiselect.jsx']) {
+    assert.equal(fs.existsSync(path.join(SRC, gone)), false, `${gone} is still there`);
+  }
+  assert.equal(fs.existsSync(path.resolve(__dirname, '..', 'lib', 'documentJob.js')), false, 'backend/lib/documentJob.js is still there');
 });
 
-test('the request carries the session base folder and no catalog path: the job finds the catalog itself (REQ-077)', async () => {
-  const lib = await load();
-  assert.deepEqual(lib.documentRunBody({ kind: 'strategy-document', format: 'PPTX', sessionId: 42, inspireDatabase: 'c.s',
-    businessName: 'Acme', generationPath: '/Workspace/out', outputLanguage: 'English,Arabic' }), {
-    kind: 'strategy-document', format: 'PPTX', session_id: '42', inspire_database: 'c.s', business_name: 'Acme',
-    generation_path: '/Workspace/out', output_language: 'English,Arabic' });
-  assert.equal('format' in lib.documentRunBody({ kind: 'use-case-catalog', sessionId: 1 }), false);
-  assert.equal('catalog_json_path' in lib.documentRunBody({ kind: 'excel-workbook', sessionId: 1 }), false);
-});
-
-test('a document job reads running until its run ends, then done or failed (REQ-077)', async () => {
-  const lib = await load();
-  assert.equal(lib.documentJobState({ life_cycle_state: 'RUNNING' }), 'running');
-  assert.equal(lib.documentJobState({ life_cycle_state: 'PENDING' }), 'running');
-  assert.equal(lib.documentJobState({ life_cycle_state: 'TERMINATED', result_state: 'SUCCESS' }), 'done');
-  assert.equal(lib.documentJobState({ life_cycle_state: 'TERMINATED', result_state: 'FAILED' }), 'failed');
-  assert.equal(lib.documentJobState({ life_cycle_state: 'INTERNAL_ERROR' }), 'failed');
-});
-
-test('the catalog button is named Create, the way Amr asked, because the button rebuilds the catalog on demand (REQ-077)', async () => {
-  const lib = await load();
-  assert.equal(lib.DOCUMENT_ACTIONS['use-case-catalog'].label, 'Create use case catalog');
-  assert.equal(lib.DOCUMENT_ACTIONS['strategy-document'].label, 'Create strategy document');
-  assert.deepEqual(lib.DOCUMENT_ACTIONS['strategy-document'].formats, ['PDF', 'PPTX']);
+test('no source file asks for a Create strategy document, use case catalog or Excel workbook action (REQ-503 FX-116)', () => {
+  const hits = [];
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (/\.(jsx?|mjs)$/.test(e.name) && /Create (strategy document|use case catalog|Excel workbook)|documentRunBody|documentJobState/.test(fs.readFileSync(p, 'utf8'))) hits.push(path.relative(SRC, p));
+    }
+  };
+  walk(SRC);
+  assert.deepEqual(hits, []);
 });

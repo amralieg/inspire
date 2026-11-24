@@ -28,7 +28,7 @@ test(`bundled notebook is a valid ${INSPIRE_AGENT_VERSION} Jupyter notebook`, ()
   assert.match(source, new RegExp(`__AGENT_VERSION__\\s*=\\s*["']${INSPIRE_AGENT_VERSION}["']`));
   assert.match(source, /\[AGENT_VERSION FIRED\]/);
   assert.match(source, /USE_CASES_QUALITY_VALID\s*=\s*\(\s*"Good",\s*"High",\s*"Ultra High"\s*\)/);
-  assert.match(source, /"weasyprint":\s*\(\s*"weasyprint",\s*"pydyf"/);
+  assert.doesNotMatch(source, /weasyprint|pydyf/, 'the agent installs no PDF writer (FX-116)');
   assert.doesNotMatch(source, /discover_auto_genie_top_n/);
   assert.match(source, /dbx_inspire_ai_child_run/);
   assert.match(source, /funnel_ledger/);
@@ -54,15 +54,10 @@ test('backend widget allowlist matches the notebook contract', () => {
   assert.deepEqual(notebookKeys, INSPIRE_NOTEBOOK_WIDGET_KEYS);
 });
 
-test('the generation widget offers PDF, Presentation and Excel, and defaults to no documents (REQ-077)', () => {
-  assert.match(source, /dbutils\.widgets\.multiselect\(\s*"09_generation_options"/);
-  assert.match(source, /generation_options = \[[\s\S]{0,200}"Excel"/);
-  const widget = source.match(/dbutils\.widgets\.multiselect\(\s*"09_generation_options",\s*\n\s*"([^"]*)",/);
-  const choices = [...source.match(/generation_options = \[([^\]]*)\]/)[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-  assert.ok(widget, 'the generation widget has a default');
-  assert.ok(choices.includes(widget[1]), `the widget default "${widget[1]}" must be one of its choices ${JSON.stringify(choices)}`);
-  assert.ok(choices.includes('Excel'));
-  assert.doesNotMatch(source, /dbutils\.widgets\.multiselect\(\s*"09_generation_options"[\s\S]{0,400}Genie Code Instructions/);
+test('the notebook has no generation widget: no 09_generation_options widget, no document formats list (FX-116)', () => {
+  assert.doesNotMatch(source, /09_generation_options/);
+  assert.doesNotMatch(source, /generation_options\s*=\s*\[/);
+  assert.equal(INSPIRE_NOTEBOOK_WIDGET_KEYS.includes('09_generation_options'), false);
 });
 
 test('embedded backend fallback is byte-identical to the physical notebook', () => {
@@ -118,7 +113,7 @@ test('launch UI exposes v1.2.0 quality modes and Auto-Genie widget 13', () => {
   );
   assert.doesNotMatch(launchPage, /key:\s*['"]Genie Code Instructions['"]/);
   assert.doesNotMatch(launchPage, /discover_auto_genie_top_n/);
-  assert.match(launchPage, /'09_generation_options':\s*'PDF Catalog,Excel'/);
+  assert.doesNotMatch(launchPage, /09_generation_options/);
   assert.match(
     launchPage,
     /QUALITY_OPTIONS\s*=\s*\['Good', 'High', 'Ultra High'\]/,

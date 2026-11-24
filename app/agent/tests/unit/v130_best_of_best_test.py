@@ -2,7 +2,7 @@ import pytest
 
 from _agentload import agent_source
 from v120_artifacts_support import elite_assessment, make_inspire, make_uc
-from v120_docs_design_test import captured_html, deck, docs, pdf_html, section, slide_texts, summary  # noqa: F401
+from v120_docs_design_test import docs, summary  # noqa: F401
 
 STAR_FIELDS = {"best_of_best", "best_of_best_rank", "best_of_best_score", "best_of_best_reason"}
 JUDGE_FIELDS = {"elite_assessment", "elite_score", "elite_status", "selection_drop_reason"}
@@ -261,19 +261,6 @@ def test_the_outcome_names_final_ids_and_reaches_the_results_and_the_catalog(age
     assert make_inspire(agent_ns)._publish_best_of_best(ucs) is None, "nothing is published when no marking ran"
 
 
-def test_every_starred_use_case_gets_its_own_deck_page_and_the_top_ten_keep_theirs(docs):
-    ranked = [make_uc(f"N01-U{i:02d}", "Sales", **{"Inspire Score": round(9.5 - i * 0.1, 2)}) for i in range(1, 17)]
-    ranked[13].update(best_of_best="Y", best_of_best_rank=1, best_of_best_score=8.6,
-                      best_of_best_reason="passed every elite test")
-    _, prs = deck(docs, {"Sales": ranked}, summary())
-    texts = slide_texts(prs)
-    page = lambda no: any(f"Statement for {no}" in text for text in texts)
-    assert sum("\u2605 Best of Best #1 \u00b7 Elite Score 8.6 / 10" in text for text in texts) == 1
-    assert page("N01-U14"), "the starred use case outside the top 10 gets its own page"
-    assert all(page(f"N01-U{i:02d}") for i in range(1, 11)), "the top 10 keep their pages"
-    assert not any(page(no) for no in ("N01-U11", "N01-U12", "N01-U13", "N01-U15", "N01-U16"))
-
-
 def test_the_tracking_row_carries_four_star_columns_and_older_rows_read_null(agent_ns):
     cls = agent_ns["DatabricksInspire"]
     fields = [field for field in cls._V130_TRACKING_FIELDS if field[0].startswith("best_of_best")]
@@ -284,22 +271,13 @@ def test_the_tracking_row_carries_four_star_columns_and_older_rows_read_null(age
     assert all(cls._v130_tracking_value({}, key, kind) is None for _column, key, kind in fields)
 
 
-def test_a_starred_use_case_shows_its_star_on_every_surface_and_an_unstarred_one_shows_none(docs, captured_html):
+def test_a_starred_use_case_shows_its_star_in_the_markdown_and_exports_and_an_unstarred_one_shows_none(docs):
     star = make_uc("N01-U01", "Sales", Name="Starred idea", best_of_best="Y", best_of_best_rank=1,
                    best_of_best_score=8.6, best_of_best_reason="passed every elite test", **{"Inspire Score": 9.0})
     plain = make_uc("N01-U02", "Sales", Name="Plain idea", best_of_best="N", best_of_best_reason="did not pass: red_team",
                     **{"Inspire Score": 8.0})
     grouped = {"Sales": [star, plain]}
     expected = "\u2605 Best of Best #1 \u00b7 Elite Score 8.6 / 10"
-    _, page = pdf_html(docs, captured_html, grouped, summary())
-    assert expected in section(page, 'id="uc-N01-U01"', "</article>") and 'class="ribbon star"' in page
-    assert "\u2605" not in section(page, 'id="uc-N01-U02"', "</article>")
-    assert "did not pass" not in page and "passed every elite test" not in page
-    _, prs = deck(docs, grouped, summary())
-    assert sum(expected in text for text in slide_texts(prs)) == 1
-    _, romanian = deck(docs, grouped, summary(), language="Romanian")
-    assert sum("\u2605 Cel mai bun dintre cei mai buni #1 \u00b7 Scor de elit\u0103 8.6 / 10" in text
-               for text in slide_texts(romanian)) == 1, "the longest translation is never cut"
     md_obj = make_inspire(docs)
     md_obj._generate_markdown_catalog("English", "en", grouped, summary(), "Acme")
     md = next(iter(md_obj.w_client.workspace.files.values())).decode("utf-8")

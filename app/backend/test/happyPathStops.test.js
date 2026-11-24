@@ -8,16 +8,14 @@ const SRC = path.resolve(__dirname, '..', '..', 'frontend', 'src');
 const lib = (name) => import(pathToFileURL(path.join(SRC, name)).href);
 const source = (name) => fs.readFileSync(path.join(SRC, name), 'utf8');
 
-test('a run with PDF or Presentation and no document language is written in English, and a picked language is kept', async () => {
+test('the Launch page has no document language logic: launchDocLanguages and the language prompt are gone, the list stays for the Generate docs wizard (REQ-503 FX-116)', async () => {
   const D = await lib('constants/documentLanguages.js');
-  assert.equal(D.DEFAULT_DOCUMENT_LANGUAGE, 'English');
-  assert.deepEqual(D.launchDocLanguages({ '09_generation_options': 'PDF Catalog', '12_documents_languages': '' }), ['English']);
-  assert.deepEqual(D.launchDocLanguages({ '09_generation_options': 'Presentation', '12_documents_languages': undefined }), ['English']);
-  assert.deepEqual(D.launchDocLanguages({ '09_generation_options': 'PDF Catalog', '12_documents_languages': 'Arabic' }), ['Arabic']);
-  assert.deepEqual(D.launchDocLanguages({ '09_generation_options': 'Excel', '12_documents_languages': '' }), [], 'no documents, no language added');
+  assert.equal(D.launchDocLanguages, undefined);
+  assert.equal(D.needsDocumentLanguage, undefined);
+  assert.equal(D.DEFAULT_DOCUMENT_LANGUAGE, undefined);
+  assert.equal(Array.isArray(D.DOCUMENT_LANGUAGE_CHOICES) && D.DOCUMENT_LANGUAGE_CHOICES.includes('Arabic'), true, 'the wizard still picks from the list');
   const page = source('pages/LaunchPage.jsx');
-  assert.doesNotMatch(page, /Pick a document language/i);
-  assert.match(page, /launchDocLanguages\(/);
+  assert.doesNotMatch(page, /Pick a document language|launchDocLanguages\(|09_generation_options/);
 });
 
 test('a strategy saved last session is prefilled only when it is valid', () => {

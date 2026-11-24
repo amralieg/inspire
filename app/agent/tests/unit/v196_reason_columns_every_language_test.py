@@ -1,4 +1,4 @@
-"""Every column a person reads in the CSV, Excel and JSON catalogs is in each requested language, or flagged.
+"""Every column a person reads in the CSV and JSON catalogs is in each requested language, or flagged.
 
 Before: the Arabic CSV and Excel kept "Priority Reasons", "Quality Reasons" and "Best of Best Reason" in English
 on every row (the translator never received them, so the gap warning never counted them), four headers and the
@@ -142,47 +142,6 @@ def foundations():
              "use_case_count": 2, "use_cases": ["N01-U01", "N01-U02"], "summed_inspire_score": 12.7}]
 
 
-def test_arabic_excel_sheet_names_foundations_headers_and_reasons_are_arabic(ns):
-    import openpyxl
-    obj = bilingual(ns, data_foundations=foundations())
-    labels = arabic_labels(ns)
-    obj._generate_use_case_excel("Arabic", "ar", arabic_portfolio(), translations=labels)
-    _path, data = written(obj, ".xlsx")
-    book = openpyxl.load_workbook(io.BytesIO(data))
-    assert book.sheetnames == [labels["quality"], labels["doc_use_cases"], labels["doc_foundations_title"]]
-    notice = book[labels["quality"]]["A1"].value
-    assert notice and any("\u0600" <= ch <= "\u06ff" for ch in notice) and "1" in notice and "2" in notice
-    sheet = book[labels["doc_use_cases"]]
-    header = [c.value for c in sheet[1]]
-    for english in BUILT_IN_ENGLISH_HEADERS:
-        assert english not in header, english
-    row = dict(zip(header, [c.value for c in sheet[2]]))
-    assert row[labels["priority_reasons"]] == ARABIC_REASONS["Justification"]
-    assert row[labels["doc_best_of_best_reason"]] == ARABIC_REASONS["best_of_best_reason"]
-    found = [c.value for c in book[labels["doc_foundations_title"]][1]]
-    assert found == [labels["sum_id"], labels["doc_foundation_tables"], labels["doc_foundation_joins"],
-                     labels["doc_foundation_unlocks"], labels["doc_foundation_use_case_ids"], labels["doc_foundation_summed_score"]]
-
-
-def test_english_excel_keeps_its_sheet_names_and_foundation_headers(ns):
-    import openpyxl
-    obj = make_inspire(ns, data_foundations=foundations())
-    obj._normalize_usecase = lambda usecase, name: usecase
-    obj._generate_use_case_excel("English", "en", {"Sales": english_portfolio()})
-    _path, data = written(obj, ".xlsx")
-    book = openpyxl.load_workbook(io.BytesIO(data))
-    assert book.sheetnames == ["Quality Bar", "Use Cases", "Foundations"]
-    assert book["Quality Bar"]["A1"].value.startswith("1 of 2 use cases meet the")
-    assert [c.value for c in book["Foundations"][1]] == ["ID", "Tables", "Joins", "Use cases unlocked", "Use Case IDs", "Summed Inspire Score"]
-
-
-def test_sheet_names_drop_characters_excel_forbids_and_stay_within_31_characters(ns):
-    obj = make_inspire(ns)
-    assert obj._excel_sheet_name("a/b\\c?d*e[f]g:h", "Use Cases") == "abcdefgh"
-    assert len(obj._excel_sheet_name("x" * 40, "Use Cases")) == 31
-    assert obj._excel_sheet_name("[]:*?/\\", "Use Cases") == "Use Cases"
-
-
 class FakeAgent:
     def __init__(self, respond):
         self.respond = respond
@@ -247,7 +206,7 @@ def test_the_translate_prompt_declares_every_optional_reason_column(ns):
         assert f'"{column}"' in prompt, column
 
 
-def test_pdf_and_markdown_notices_skip_reason_columns_they_never_show(ns):
+def test_markdown_notices_skip_reason_columns_they_never_show(ns):
     obj = make_inspire(ns)
     labels = arabic_labels(ns)
     uc = make_uc("N01-U01", _translation_status="partial", _untranslated_fields=["Best of Best Reason", "Priority Reasons"])
@@ -273,15 +232,11 @@ def arabic_pack(ns):
 def run_documents(ns, obj, pack):
     statuses = []
     obj._emit_pipeline_status = lambda **kw: statuses.append(kw) or len(statuses)
-    obj._python_package_status = {"weasyprint": (True, ""), "xlsxwriter": (True, ""), "pptx": (True, "")}
     obj.translation_service = types.SimpleNamespace(get_translations=lambda lang: dict(ns["TranslationService"].ENGLISH_TRANSLATIONS))
-    obj.generate_catalog_pdf = lambda *a, **k: None
-    obj.generate_presentation_pptx = lambda *a, **k: None
     obj._translate_and_prepare_language_pack = pack
     english = english_portfolio()
-    obj._generate_documents_for_all_languages(english, english_grouped_data={"Sales": english},
-                                              summary_dict={"Executive": "x"}, languages=["English", "Arabic"],
-                                              skip_excel_langs=["English"])
+    obj._generate_language_catalogs(english, english_grouped_data={"Sales": english},
+                                              summary_dict={"Executive": "x"}, languages=["English", "Arabic"])
     return statuses
 
 
@@ -392,7 +347,7 @@ def test_the_run_flags_notebooks_after_they_are_written():
     batch = source.index("self.assemble_use_case_notebooks(final_consolidated_use_cases, english_translations, summary_dict)")
     assert batch < flag
     assert source[flag + len(call):].lstrip().startswith(
-        'if final_consolidated_use_cases:\n            self.logger.info("Generating English Excel (post-notebook, with hyperlinks)...")')
+        'if final_consolidated_use_cases:\n            self.logger.info("Regenerating the English CSV catalog (post-notebook, with notebook links)...")')
 
 
 ELITE_PROSE = ("verdict_reason", "decision", "decision_owner", "kpi", "value_driver", "build_path", "red_team")
@@ -524,8 +479,7 @@ def test_english_csv_elite_columns_keep_the_english_assessment(ns):
     assert rows[0]["Decision"] == "Reorder stock for each store every Monday" and rows[0]["Decision Cadence"] == "Weekly"
 
 
-def test_arabic_csv_and_excel_rows_name_a_reason_left_in_english(ns):
-    import openpyxl
+def test_arabic_csv_rows_name_a_reason_left_in_english(ns):
     labels = arabic_labels(ns)
     portfolio = arabic_portfolio()
     uc = portfolio["المبيعات"][0]
@@ -535,11 +489,6 @@ def test_arabic_csv_and_excel_rows_name_a_reason_left_in_english(ns):
     obj._generate_csv_catalog("Arabic", "ar", portfolio, translations=labels)
     _header, rows = csv_rows(obj)
     assert {r[labels["sum_id"]]: r for r in rows}["N01-U01"][labels["untranslated_notice"]] == expected
-    obj = bilingual(ns)
-    obj._generate_use_case_excel("Arabic", "ar", portfolio, translations=labels)
-    sheet = openpyxl.load_workbook(io.BytesIO(written(obj, ".xlsx")[1]))[labels["doc_use_cases"]]
-    header = [c.value for c in sheet[1]]
-    assert dict(zip(header, [c.value for c in sheet[2]]))[labels["untranslated_notice"]] == expected
 
 
 def test_the_arabic_json_carries_the_translated_elite_assessment(ns):
@@ -652,7 +601,6 @@ def test_a_non_standard_cadence_the_model_leaves_in_english_is_retried_flagged_a
 
 
 def test_a_cadence_left_in_english_is_named_on_the_arabic_export_row_and_not_in_documents(ns):
-    import openpyxl
     labels = arabic_labels(ns)
     portfolio = arabic_portfolio()
     uc = portfolio["المبيعات"][0]
@@ -664,11 +612,6 @@ def test_a_cadence_left_in_english_is_named_on_the_arabic_export_row_and_not_in_
     _header, rows = csv_rows(obj)
     row = {r[labels["sum_id"]]: r for r in rows}["N01-U01"]
     assert row[labels["untranslated_notice"]] == expected and row[labels["elite_cadence"]] == NON_STANDARD_CADENCE
-    obj = bilingual(ns)
-    obj._generate_use_case_excel("Arabic", "ar", portfolio, translations=labels)
-    sheet = openpyxl.load_workbook(io.BytesIO(written(obj, ".xlsx")[1]))[labels["doc_use_cases"]]
-    header = [c.value for c in sheet[1]]
-    assert dict(zip(header, [c.value for c in sheet[2]]))[labels["untranslated_notice"]] == expected
     assert make_inspire(ns)._untranslated_notice(uc, labels, "Arabic") == ""
 
 
@@ -877,16 +820,11 @@ def test_one_non_latin_list_holds_every_non_latin_language_the_widget_offers(ns)
     assert len(non_latin) == 8
 
 
-def test_the_translator_and_the_document_writers_read_the_same_non_latin_list(ns, monkeypatch):
+def test_the_translator_reads_the_one_non_latin_list(ns, monkeypatch):
     ts = ns["TranslationService"]
-    obj = make_inspire(ns)
     assert not hasattr(ts, "_NON_LATIN_LANGUAGES") and not hasattr(ns["DatabricksInspire"], "_DOC_NON_LATIN_LANGUAGES")
     for language in ns["INSPIRE_NON_LATIN_LANGUAGES"]:
-        assert "display" not in obj._doc_font_keys(language, ())
         assert ts._looks_untranslated("Manager", "Manager", language, short_text=True) is True
-    assert "display" in obj._doc_font_keys("French", ())
     assert ts._looks_untranslated("Manager", "Manager", "French", short_text=True) is False
     monkeypatch.setitem(ns, "INSPIRE_NON_LATIN_LANGUAGES", frozenset({"French"}))
-    assert "display" not in obj._doc_font_keys("French", ())
     assert ts._looks_untranslated("Manager", "Manager", "French", short_text=True) is True
-    assert "display" in obj._doc_font_keys("Arabic", ())
