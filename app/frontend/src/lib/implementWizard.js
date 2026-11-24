@@ -36,7 +36,7 @@ export const WIZARD_LINE = 'From your data to people using it';
 // REQ-514: an MVP is the App with its Genie Agent, always built; Dashboard and Alert are the only options.
 export const APP_CARD = { id: 'app', label: 'App with Genie', blurb: 'A Databricks App with the decision list, row detail and Ask, and the Genie Agent that answers Ask. Always built.' };
 export const OPTIONAL_OUTPUTS = ['dashboard', 'alert'];
-export const withFixedApp = (spec) => (spec?.outputs ? { ...spec, outputs: { ...spec.outputs, app: true, genie_space: true } } : spec);
+export const withFixedApp = (spec, blocked = {}) => (!spec?.outputs || blocked.app ? spec : { ...spec, outputs: { ...spec.outputs, app: true, genie_space: true } });
 export const RUN_IT_TITLE = 'How often should it run?';
 export const APP_ACCESS_QUESTION = 'Who sees which rows?';
 export const USE_CASE_DETAILS_LABEL = 'Details';

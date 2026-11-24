@@ -1114,7 +1114,7 @@ export default function ImplementWizard({
   };
 
   const edited = useMemo(() => editedWidgets(context?.latest), [context?.latest]);
-  const sent = useMemo(() => withFixedApp(sentSpec(spec, lakebase, built, targets, placeScope, edited)), [spec, lakebase, built, targets, placeScope, edited]);
+  const sent = useMemo(() => withFixedApp(sentSpec(spec, lakebase, built, targets, placeScope, edited), blocks), [spec, lakebase, built, targets, placeScope, edited, blocks]);
   const runs = withFirstRunSaved(spec).config.widgets;
   const sentScope = withGroupingDefault(scopeValues((name) => runs?.[name]), scopeProfile.profile, runs?.[GROUP_BY]);
   const specKey = JSON.stringify(sent);
@@ -1950,7 +1950,7 @@ export default function ImplementWizard({
                       <GrantList label="Grants Inspire ran for new Apps" items={newAppsGrant.ran} />
                     </div>
                   )}
-                  {(context?.gone_assets || []).includes('app') && <p className="ps-7 text-xs text-text-secondary">{goneAssetText('App', context.assets.app)}</p>}
+                  {(context?.gone_assets || []).includes('app') && <p className="ps-7 text-xs text-text-secondary">{goneAssetText('Agentic App', context.assets.app)}</p>}
                 </div>
                 {IMPLEMENT_OUTPUTS.filter((item) => OPTIONAL_OUTPUTS.includes(item.id)).map((item) => {
                   const Icon = ICONS[item.id];
