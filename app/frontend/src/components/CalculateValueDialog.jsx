@@ -214,8 +214,9 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
   const calcWhy = !ready ? 'Finish the Data and Filter steps first' : !anyOn ? 'Tick a kind of value first' : 'Save these numbers as a provisional estimate';
   const money = !SCOPE_PAGES.includes(page);
   // D21/D24: "Up to date" only when a value exists; a missing one says Calculating; no kind ticked says what to tick. No money before the Data step is done.
-  const footerNote = !money ? '' : !ready ? (planState.status === 'error' ? 'No value yet' : 'Calculating...')
-    : !anyOn ? 'Tick a kind of value to calculate.' : preview.status === 'error' ? 'Could not update' : preview.status === 'ready' && preview.yearly ? 'Up to date' : 'Calculating...';
+  const footerBusy = money && (!ready ? planState.status !== 'error' : anyOn && preview.status !== 'error' && !(preview.status === 'ready' && preview.yearly));
+  const footerNote = !money || footerBusy ? '' : !ready ? 'No value yet'
+    : !anyOn ? 'Tick a kind of value to calculate.' : preview.status === 'error' ? 'Could not update' : 'Up to date';
   const yearly = preview.yearly;
   const body = () => {
     if (page === 'scope:facts' || page === 'scope:choice') {
@@ -275,7 +276,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
     <ModalDialog titleId="calculate-value-title" title={dialogTitleFor(nameOfUseCase(uc))} onClose={onClose} widthClass="max-w-4xl"
       footer={(
         <>
-          <span data-preview-state={preview.status} className="me-auto min-h-[34px] truncate text-[12px] leading-[34px] text-text-secondary">{footerNote === 'Calculating...' ? <BusyNote inline text={footerNote} size={14} /> : footerNote}</span>
+          <span data-preview-state={preview.status} className="me-auto min-h-[34px] truncate text-[12px] leading-[34px] text-text-secondary">{footerBusy ? <BusyNote inline text="Calculating..." size={14} /> : footerNote}</span>
           {trail.length > 0 && !(last && busy) && <button type="button" className={btn} onClick={back}>Back</button>}
           {last ? (
             <button type="button" onClick={onClose} className={primary}>Close</button>

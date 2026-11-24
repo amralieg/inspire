@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { closeBrowser } from './uiSupport.mjs';
-import { mountWizard, openCard } from './valueWizardSupport.mjs';
+import { mountWizard, openCard, next } from './valueWizardSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -55,7 +55,12 @@ test('the Calculate value dialog loading state spins in the body and the footer,
     await card.locator('[data-value-calculate]').click();
     const dialog = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
     await dialog.waitFor();
-    const body = dialog.locator('[data-wizard-loading]');
+    // REQ-507: the dialog opens on the Data step; the plan is asked after the Data and Filter steps, so click Next until the plan's loading state shows.
+    const body = dialog.locator('[data-wizard-loading]', { hasText: /plan the value/ });
+    for (let i = 0; i < 4 && !(await body.count()); i += 1) {
+      await dialog.locator('[data-wizard-page]').first().waitFor({ timeout: 15000 });
+      await next(dialog);
+    }
     await body.waitFor({ timeout: 5000 });
     assert.match(await body.innerText(), /Reading your data to plan the value\./);
     assert.equal(await body.locator('[class*="animate-spin"]').count(), 1, 'the body spins');
