@@ -160,10 +160,22 @@ test('D35: at 390 a Build next title wraps whole, the value is one short line, a
     await page.locator('[data-run="42"]').waitFor({ timeout: 20000 });
     await page.waitForLoadState('networkidle');
     await page.evaluate(() => { window.location.hash = '#/review/42'; });
-    // REQ-511 (D3): the Build next panel left Review, so its rows (and their 390 px layout) are not on the page; the use case rows are.
-    await page.locator('[data-use-case-row]').first().waitFor({ timeout: 20000 });
+    // REQ-511 (D3): the Build next panel left Review, so its 390 px layout is asserted on the Review row that replaced it.
+    const row = page.locator('[data-use-case-row]').first();
+    await row.waitFor({ timeout: 20000 });
     assert.equal(await page.locator('[data-build-next]').count(), 0, 'no Build next panel on Review');
     assert.equal(await page.locator('[data-build-next-row]').count(), 0, 'no Build next rows on Review');
+    const title = row.locator('[data-row-name]');
+    const value = row.locator('[data-value-box]').first();
+    const button = row.getByRole('button', { name: /Build MVP|Open MVP|Rebuild MVP|Building/ });
+    assert.equal(await title.evaluate((el) => el.scrollWidth <= el.clientWidth + 1 && getComputedStyle(el).textOverflow !== 'ellipsis'), true, 'the title is not cut with an ellipsis');
+    const t = await rect(title); const v = await rect(value); const b = await rect(button);
+    // The value is a fixed 6.25rem tile (not a text line), so "one short line" is asserted per text line inside it: none wraps (22px figure, 11px labels).
+    const lines = await value.evaluate((el) => [...el.querySelectorAll('span')].filter((x) => x.textContent.trim()).map((x) => x.getBoundingClientRect().height));
+    assert.ok(lines.length > 0 && lines.every((h) => h <= 26), `every line of the value box is one line (${lines} px high)`);
+    assert.ok(t.w >= 200, `the button leaves the title room (${t.w} px wide)`);
+    assert.equal(touches(t, b), false, 'the title and the button do not overlap');
+    assert.ok(b.r <= 390 && v.r <= 390.5, 'nothing runs off the screen');
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
 });

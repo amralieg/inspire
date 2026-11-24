@@ -30,7 +30,7 @@ export function buildCell(status, { onImplement, onOpenMvp }) {
 
 export default function UseCaseRow({
   uc, index, selection = null, isFavorite = false, onToggleFavorite, onRename, implementStatus = null, onImplement, onOpenMvp,
-  onGenerateDocs, docsMade = false, yearly = null, valueSummary = null, canCalculate = false, onCalculate, onEdit, onOpen, open = false, rowAttrs = {},
+  onGenerateDocs, docsMade = false, yearly = null, valueSummary = null, canCalculate = false, onCalculate, onEdit, onUndoRefine, onOpen, open = false, rowAttrs = {},
 }) {
   const { title: titleProp, subtitle } = cardTitlesOfUseCase(uc, index);
   // The saved name shows at once; a refreshed use case takes over when its own name changes.
@@ -73,7 +73,7 @@ export default function UseCaseRow({
       <div className="min-w-0 max-md:col-span-2">
         {rename.editing ? <UseCaseNameTitle text={title} rename={rename} /> : (
           <div className="flex min-w-0 items-center gap-1">
-            <h3 data-row-name="" dir="auto" title={title} className={`${NAME_TEXT_CLASS} min-w-0 truncate`}>{title}</h3>
+            <h3 data-row-name="" dir="auto" title={title} className={`${NAME_TEXT_CLASS} min-w-0 md:truncate max-md:flex-1 max-md:break-words`}>{title}</h3>
             <UseCaseRenameButton text={title} rename={rename} />
           </div>
         )}
@@ -104,7 +104,7 @@ export default function UseCaseRow({
         </button>
         {docsMade && <span data-docs-made="" className="inline-flex items-center justify-center gap-1 text-[11px] font-medium text-success-fg"><Check size={11} aria-hidden />Docs made</span>}
       </div>
-      <div className="flex justify-center max-md:col-start-3"><InspireScoreBadge score={inspireScoreFromUc(uc)} refinedFrom={uc.refined_from} /></div>
+      <div className="flex justify-center max-md:col-start-3"><InspireScoreBadge score={inspireScoreFromUc(uc)} refinedFrom={uc.refined_from} onUndo={onUndoRefine} /></div>
       <div className="flex justify-center max-md:[&_[data-value-box]]:w-full">
         <ValueBox inset yearly={yearly} summary={valueSummary} canCalculate={canCalculate} onCalculate={calculate} onEdit={onEdit} />
       </div>

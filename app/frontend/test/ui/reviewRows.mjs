@@ -11,3 +11,5 @@ export async function openReader(page, row) {
   return reader;
 }
 export const closeReader = async (page) => { await readerOf(page).getByRole('button', { name: 'Close' }).first().click(); await readerOf(page).waitFor({ state: 'detached' }); };
+// A tab panel fades in (tabPanelEnter, opacity 0 to 1); a contrast measure taken mid-fade reads the faded colour (4.00 at 75%). Wait for the fade to end first.
+export const panelSettled = (page) => page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.animationName === 'tabPanelEnter').map((a) => a.finished.catch(() => null))));

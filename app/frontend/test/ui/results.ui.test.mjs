@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { FAKE_CLOCK, closeBrowser, lowContrast, lowContrastThroughAnimations, openUi, setDark, settled, toView, until, watchAsks } from './uiSupport.mjs';
 import { RESULTS } from './implementFixtures.js';
-import { closeReader, openReader, readerOf } from './reviewRows.mjs';
+import { closeReader, openReader, panelSettled, readerOf } from './reviewRows.mjs';
 
 const { SLOW_WAREHOUSE_MESSAGE } = createRequire(import.meta.url)('../../../backend/lib/sqlStatements.js');
 
@@ -199,6 +199,7 @@ test('the whole Results page, its open sidebar panels and every kind of open car
     for (const dark of [false, true]) {
       await setDark(page, dark);
       const mode = dark ? 'dark' : 'light';
+      await panelSettled(page);
       const plain = await lowContrast(page, ['body']);
       assert.ok(plain.checked >= 80, `${mode}: measured ${plain.checked} text elements`);
       assert.deepEqual(plain.low, [], `${mode} Results page with a domain filter on`);
@@ -241,6 +242,7 @@ test('the MVP tiles count the use cases by their MVP, a tile or the MVP filter n
     assert.equal(await live.getAttribute('aria-pressed'), 'true');
     for (const dark of [false, true]) {
       await setDark(page, dark);
+      await panelSettled(page);
       const measured = await lowContrast(page, ['[aria-label="MVPs"]']);
       assert.ok(measured.checked >= 10, `${dark ? 'dark' : 'light'}: measured ${measured.checked} tile elements`);
       assert.deepEqual(measured.low, [], `${dark ? 'dark' : 'light'} MVP tiles with one picked`);
@@ -321,6 +323,7 @@ test('value tracking shows a KPI the agent did not measure as Not measured with 
     const kept = page.locator('[data-tracking-status="measured"]');
     assert.deepEqual((await kept.locator('td').allTextContents()).slice(2), ['12.50', '11.25', '-1.25']);
     assert.equal(await kept.locator('[data-tracking-note]').count(), 0);
+    await panelSettled(page);
     const contrast = await lowContrast(page, ['[data-tracking-status]']);
     assert.deepEqual(contrast.low, []);
     const value = page.getByRole('table', { name: 'Value of implemented use cases' });
