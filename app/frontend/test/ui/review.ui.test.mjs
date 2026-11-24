@@ -8,6 +8,7 @@ import * as V from '../../src/lib/v130UseCase.js';
 import * as A from '../../src/lib/artifactFiles.js';
 import { START_MVP_LABEL } from '../../src/lib/implementWizard.js';
 import { wheelScrolls } from './wheelScroll.mjs';
+import { readerOf } from './reviewRows.mjs';
 
 const AdmZip = createRequire(import.meta.url)('../../../backend/node_modules/adm-zip');
 
@@ -292,7 +293,7 @@ test('the insight cards stack at full width with no Strategy coverage card and n
     await page.getByText('No use cases match your filters.').waitFor();
     await toView(page, 'Business');
     await insight(page, 'Suggested build order').getByRole('button', { name: 'Score upsell' }).click();
-    await until(async () => (await card(page, 'Score upsell').getAttribute('aria-expanded')) === 'true', 'the use case opens');
+    await until(async () => (await card(page, 'Score upsell').getAttribute('data-open')) !== null && (await readerOf(page).count()) === 1, 'the use case opens');
     assert.equal(await page.getByPlaceholder('Search use cases...').inputValue(), '', 'the filters that hid it are cleared');
     await toView(page, 'Business');
     for (const dark of [false, true]) {

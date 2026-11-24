@@ -2150,7 +2150,7 @@ export default function ResultsPage({
               >
                 {filteredUseCases.length > 0 ? (
                   <div className="pb-2">
-                    <div data-use-case-head="" className={`${ROW_GRID} sticky top-0 z-[2] bg-bg px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary`}>
+                    <div data-use-case-head="" className={`${ROW_GRID} max-md:hidden sticky top-0 z-[2] bg-bg px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary`}>
                       <div>
                         {bulkOn && (
                           <input type="checkbox" aria-label="Select all" checked={bulkIds.length > 0 && bulkIds.length === filteredUseCases.filter((uc) => trackingIdOf(uc)).length}

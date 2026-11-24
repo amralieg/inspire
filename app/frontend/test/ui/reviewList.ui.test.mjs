@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, idle, openUi, toView } from './uiSupport.mjs';
 import { REVIEW_STATE } from './reviewFixtures.js';
+import { readerOf } from './reviewRows.mjs';
 
 test.after(closeBrowser);
 
@@ -74,9 +75,11 @@ test('the Review list sorts, searches, clears and expands the way its labels say
     assert.equal(await cards(page).count(), 5, 'Clear all filters brings every use case back after Favorites only');
     assert.equal(await page.getByRole('button', { name: 'Show favorites only' }).getAttribute('aria-pressed'), 'false');
 
-    await cards(page).filter({ hasText: 'Twin one' }).first().click();
-    assert.equal(await cards(page).filter({ hasText: 'Twin one' }).first().getAttribute('aria-expanded'), 'true');
-    assert.equal(await cards(page).filter({ hasText: 'Twin two' }).first().getAttribute('aria-expanded'), 'false', 'two use cases that share a number open one at a time');
+    await cards(page).filter({ hasText: 'Twin one' }).first().locator('[data-row-name]').click();
+    await readerOf(page).waitFor();
+    assert.notEqual(await cards(page).filter({ hasText: 'Twin one' }).first().getAttribute('data-open'), null);
+    assert.equal(await cards(page).filter({ hasText: 'Twin two' }).first().getAttribute('data-open'), null, 'two use cases that share a number open one at a time');
+    assert.match(await readerOf(page).innerText(), /Twin one/, 'the reader holds the one that was opened');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -153,7 +156,7 @@ test('Review names every document a language did not get, counts High priority b
     assert.equal(await done.getAttribute('data-status'), 'warning');
     const missing = page.getByRole('list', { name: 'Documents the run did not write' });
     assert.deepEqual((await missing.locator('li').allInnerTexts()).map((t) => t.trim()), [
-      'Not written in Arabic: CSV and Excel.',
+      'Not written in Arabic: CSV.',
       'Written in English only, not in Arabic: Genie Code notebooks.',
       'Open the run log to see why.',
     ]);

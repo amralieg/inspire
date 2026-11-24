@@ -32,7 +32,7 @@ test('REQ-144 opening the rename field selects the whole current name, so typing
   const { page } = ui;
   try {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await cardOf(page).locator('[data-use-case-row]').first().waitFor();
+    await cardOf(page).waitFor();
     await idle(page);
     const title = cardOf(page).locator('h3');
     const before = await title.innerText();

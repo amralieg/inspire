@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, openUi } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
+import { openReader } from './reviewRows.mjs';
 
 test.after(closeBrowser);
 
@@ -34,14 +35,16 @@ for (const width of [1280, 1440]) {
       await page.setViewportSize({ width, height: 800 });
       const list = page.getByRole('region', { name: 'Use case list' });
       await list.locator('[data-use-case-row]').first().waitFor();
-      const card = list.locator('[data-use-case-row]').filter({ has: page.locator('[data-testid="quality-bar-reason"]') }).first();
+      const card = list.locator('[data-use-case-row]').filter({ has: page.locator('[data-testid="quality-bar-chip"][data-meets="no"]') }).first();
       await card.locator('[data-value-calculate]').waitFor();
-      const reason = await card.locator('[data-testid="quality-bar-reason"]').innerText();
       const ctas = (await card.locator('[data-value-calculate]').count()) + (await card.locator('[data-value-estimate="set-rule"]').count());
       assert.equal(ctas, 1, 'exactly one value call to action');
-      const outer = await card.locator('xpath=ancestor::div[contains(@class,"rounded-xl")][1]').boundingBox();
+      const outer = await card.boundingBox();
       const box = await card.locator('[data-value-calculate]').boundingBox();
       assert.ok(box.x >= outer.x && box.x + box.width <= outer.x + outer.width + 0.5, `the Calculate box (${box.x}+${box.width}) sits inside the card (${outer.x}+${outer.width})`);
+      // The row keeps the reason in the chip's title; the reader shows it in full under the name.
+      assert.doesNotMatch(await card.locator('[data-testid="quality-bar-chip"]').getAttribute('title'), /_|=\d|relevance/);
+      const reason = await (await openReader(page, card)).locator('[data-testid="quality-bar-reason"]').innerText();
       assert.doesNotMatch(reason, /_|=\d|relevance/, reason);
       assert.deepEqual(ui.pageErrors, []);
     } finally {

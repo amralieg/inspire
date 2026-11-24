@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, openUi, toView } from './uiSupport.mjs';
 import { RESULTS } from './implementFixtures.js';
+import { closeReader, openReader } from './reviewRows.mjs';
 
 test.after(closeBrowser);
 
@@ -50,8 +51,11 @@ test('a run where nothing meets the bar still lists every use case found, each m
     assert.equal(await cards(page).count(), 6);
     assert.equal(await list(page).locator('[data-testid="quality-bar-chip"][data-meets="no"]').count(), 6);
     assert.equal(await list(page).locator('[data-testid="quality-bar-chip"][data-meets="yes"]').count(), 0);
-    assert.match(await list(page).locator('[data-testid="quality-bar-reason"]').first().innerText(),
+    // The reason sits in the reader (the row keeps the chip, with the reason as its title).
+    const reader = await openReader(page, cards(page).first());
+    assert.match(await reader.locator('[data-testid="quality-bar-reason"]').first().innerText(),
       /^Why it is below your bar: its main table airline\.passenger\.bookings has no rows yet/);
+    await closeReader(page);
     await toView(page, 'Assets');
     const done = page.locator('[data-testid="execution-complete"]');
     await done.waitFor();

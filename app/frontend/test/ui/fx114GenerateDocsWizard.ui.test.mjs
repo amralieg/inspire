@@ -71,11 +71,11 @@ test('W1: Generate docs shows beside "Calculate value for N" only while one or m
   const { page } = ui;
   try {
     const bar = page.locator('[data-value-bulk-bar]');
-    await bar.waitFor();
     assert.equal(await genButton(page).count(), 0, 'hidden with none selected');
     await pick(page, ['Predict churn']);
+    await bar.waitFor();
     await genButton(page).waitFor();
-    assert.match((await genButton(page).innerText()).trim(), /^✦\s*Generate docs/);
+    assert.match((await genButton(page).innerText()).trim(), /^Generate docs for 1$/);
     assert.equal(await bar.getByRole('button', { name: 'Calculate value for 1', exact: true }).count(), 1, 'Calculate value stays');
     await page.getByRole('checkbox', { name: 'Select Predict churn', exact: true }).uncheck();
     await poll(async () => (await genButton(page).count()) === 0, 'Generate docs hidden again');

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FileText, Heart, Sparkles, Star, ArrowRight, Loader2, Check } from 'lucide-react';
 import InspireScoreBadge from '../InspireScoreBadge';
 import ValueBox from '../ValueBox';
@@ -11,7 +11,8 @@ import { cardTitlesOfUseCase, inspireScoreFromUc } from '../../lib/useCaseFields
 
 // REQ-511 / REQ-512 (wireframe A6): the Review list row. One grid shared with the header in ResultsPage (ROW_GRID), so the columns line up:
 // tick | # | favourite | name | Build MVP | Generate docs | score box | value box. Clicking the row (outside its buttons) opens the reader.
-export const ROW_GRID = 'grid grid-cols-[22px_30px_22px_minmax(0,1fr)_124px_132px_136px_136px] items-center gap-3';
+export const ROW_GRID = 'grid grid-cols-[22px_30px_22px_minmax(0,1fr)_124px_132px_136px_136px] items-center gap-3 max-md:grid-cols-[20px_20px_minmax(0,1fr)_minmax(0,1fr)] max-md:gap-2';
+// Below 768px the row is three lines: tick, favourite and name; then Build MVP beside Generate docs, and the score beside the value box. The # column is dropped.
 
 const BTN = 'inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border px-2 text-xs font-semibold whitespace-nowrap transition-smooth disabled:opacity-60';
 const BTN_PRIMARY = `${BTN} border-db-red-solid bg-db-red-solid text-white hover:bg-db-red-solid-hover`;
@@ -41,6 +42,9 @@ export default function UseCaseRow({
   const kind = v130?.kind || null;
   const build = buildCell(implementStatus, { onImplement, onOpenMvp });
   const BuildIcon = build.busy ? Loader2 : build.primary ? ArrowRight : Sparkles;
+  // The Calculate box is replaced by the value box once a value is saved, so the dialog hands focus back to the row, which stays.
+  const rowRef = useRef(null);
+  const calculate = () => { rowRef.current?.focus({ preventScroll: true }); onCalculate?.(); };
   const openRow = (e) => {
     if (e.target.closest('button, input, a, textarea, select, [role="button"]')) return;
     onOpen?.();
@@ -48,7 +52,7 @@ export default function UseCaseRow({
 
   return (
     <div
-      data-use-case-row="" {...rowAttrs} data-open={open ? '' : undefined} tabIndex={0}
+      ref={rowRef} data-use-case-row="" {...rowAttrs} data-open={open ? '' : undefined} tabIndex={0}
       onClick={openRow}
       onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onOpen?.(); } }}
       className={`${ROW_GRID} cursor-pointer rounded-xl border bg-surface px-2.5 py-2.5 shadow-sm transition-smooth hover:border-db-red/30 hover:shadow-md focus-visible:outline-2 focus-visible:outline-db-red-solid scroll-mt-10 ${open ? 'border-db-red/60 bg-db-red-50' : 'border-border/70'}`}
@@ -58,7 +62,7 @@ export default function UseCaseRow({
           <input type="checkbox" data-use-case-select="" aria-label={`Select ${title}`} checked={Boolean(selection.checked)} onChange={(e) => selection.onChange(e.target.checked)} />
         )}
       </div>
-      <div className="text-[13px] font-bold tabular-nums text-text-tertiary">{index + 1}</div>
+      <div className="text-[13px] font-bold tabular-nums text-text-tertiary max-md:hidden">{index + 1}</div>
       <div>
         <button type="button" onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(); }} aria-pressed={isFavorite}
           title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
@@ -66,7 +70,7 @@ export default function UseCaseRow({
           <Heart size={16} className={isFavorite ? 'fill-current' : ''} />
         </button>
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0 max-md:col-span-2">
         {rename.editing ? <UseCaseNameTitle text={title} rename={rename} /> : (
           <div className="flex min-w-0 items-center gap-1">
             <h3 data-row-name="" dir="auto" title={title} className={`${NAME_TEXT_CLASS} min-w-0 truncate`}>{title}</h3>
@@ -89,7 +93,7 @@ export default function UseCaseRow({
           {kind?.informational && <span data-kind-informational="" className={`${CHIP} border-border bg-bg-subtle text-text-secondary`}>{KIND_INFORMATIONAL_LABEL}</span>}
         </div>
       </div>
-      <div>
+      <div className="max-md:col-start-3">
         <button type="button" disabled={!build.run} onClick={(e) => { e.stopPropagation(); build.run?.(); }} className={build.primary ? BTN_PRIMARY : BTN_OUTLINE}>
           <BuildIcon size={13} className={build.busy ? 'animate-spin' : ''} aria-hidden />{build.label}
         </button>
@@ -100,9 +104,9 @@ export default function UseCaseRow({
         </button>
         {docsMade && <span data-docs-made="" className="inline-flex items-center justify-center gap-1 text-[11px] font-medium text-success-fg"><Check size={11} aria-hidden />Docs made</span>}
       </div>
-      <div className="flex justify-center"><InspireScoreBadge score={inspireScoreFromUc(uc)} refinedFrom={uc.refined_from} /></div>
-      <div className="flex justify-center">
-        <ValueBox inset yearly={yearly} summary={valueSummary} canCalculate={canCalculate} onCalculate={onCalculate} onEdit={onEdit} />
+      <div className="flex justify-center max-md:col-start-3"><InspireScoreBadge score={inspireScoreFromUc(uc)} refinedFrom={uc.refined_from} /></div>
+      <div className="flex justify-center max-md:[&_[data-value-box]]:w-full">
+        <ValueBox inset yearly={yearly} summary={valueSummary} canCalculate={canCalculate} onCalculate={calculate} onEdit={onEdit} />
       </div>
     </div>
   );

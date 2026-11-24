@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, idle, openUi, until } from './uiSupport.mjs';
 import { REVIEW_STATE } from './reviewFixtures.js';
+import { openReader } from './reviewRows.mjs';
 
 test.after(closeBrowser);
 
@@ -40,15 +41,15 @@ test('after a rename, the live App offers one Update button; clicking it posts t
   const { page } = ui;
   try {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await cardOf(page, 'N01-U01').locator('[data-use-case-row]').first().waitFor();
+    await cardOf(page, 'N01-U01').waitFor();
     await idle(page);
-    await cardOf(page, 'N01-U01').locator('[data-use-case-row]').first().click();
+    const reader = await openReader(page, cardOf(page, 'N01-U01'));
     assert.equal(await page.getByRole('button', { name: UPDATE }).count(), 0, 'no rename, no update button');
 
     const before = await cardOf(page, 'N01-U01').locator('h3').innerText();
-    await page.getByRole('button', { name: `Rename ${before}` }).click();
-    await cardOf(page, 'N01-U01').getByRole('textbox', { name: `Use case name for ${before}` }).fill(RENAMED);
-    await cardOf(page, 'N01-U01').getByRole('textbox', { name: `Use case name for ${before}` }).press('Enter');
+    await reader.getByRole('button', { name: `Rename ${before}` }).click();
+    await reader.getByRole('textbox', { name: `Use case name for ${before}` }).fill(RENAMED);
+    await reader.getByRole('textbox', { name: `Use case name for ${before}` }).press('Enter');
     await until(async () => posted.rename.length === 1);
     assert.deepEqual(posted.rename[0], { inspire_database: posted.rename[0].inspire_database, warehouse_id: posted.rename[0].warehouse_id, session_id: '42', use_case_id: 'N01-U01', name: RENAMED });
 

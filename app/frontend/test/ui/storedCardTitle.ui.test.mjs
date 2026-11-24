@@ -28,7 +28,7 @@ test('the card title is the stored name, not a stale generated label that repeat
   const { page } = ui;
   try {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await cardOf(page).locator('[data-use-case-row]').first().waitFor();
+    await cardOf(page).waitFor();
     await idle(page);
     const title = (await cardOf(page).locator('h3').innerText()).trim();
     assert.notEqual(title, DOUBLED, 'the card must not show the generated label');

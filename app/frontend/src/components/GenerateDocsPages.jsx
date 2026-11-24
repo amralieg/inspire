@@ -114,7 +114,7 @@ export function StylePage({ options, set, svg }) {
         </div>
         <label className="flex items-center gap-2 text-sm text-text-primary">
           <span className="font-semibold">Brand colour</span>
-          <input type="text" aria-label="Brand colour" placeholder="#RRGGBB" value={options.customColor} onChange={(e) => set({ customColor: e.target.value })} className="w-28 rounded-md border border-border bg-surface px-2 py-1 text-sm" />
+          <input type="text" dir="ltr" aria-label="Brand colour" placeholder="#RRGGBB" value={options.customColor} onChange={(e) => set({ customColor: e.target.value })} className="w-28 rounded-md border border-border bg-surface px-2 py-1 text-sm" />
           <input type="color" aria-label="Pick a brand colour" value={/^#[0-9a-f]{6}$/i.test(options.customColor) ? options.customColor : theme.accents[0]} onChange={(e) => set({ customColor: e.target.value })} className="h-7 w-9 cursor-pointer rounded border border-border bg-surface" />
         </label>
       </div>

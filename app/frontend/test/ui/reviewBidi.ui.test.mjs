@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { closeBrowser, openUi, toView } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
+import { closeReader, openReader } from './reviewRows.mjs';
 
 test.after(closeBrowser);
 
@@ -88,25 +89,30 @@ test('an Arabic use case card reads right to left, isolates every value it joins
     assert.equal(await title.evaluate((el) => el.matches(':dir(rtl)')), true, 'the Arabic title is right to left');
     const english = cardOf(page, 'Score upsell').getByRole('heading', { name: 'Score upsell', exact: true });
     assert.equal(await english.evaluate((el) => el.matches(':dir(ltr)')), true, 'an English title next to it stays left to right');
-    const meta = arabic.locator('[data-use-case-meta]');
+    const rowLayout = await arabic.evaluate(layout);
+    assert.deepEqual(rowLayout.unisolated, [], 'every Arabic run in the row sits in an element that sets or isolates its own direction');
+    assert.deepEqual(rowLayout.clipped, [], 'nothing in the Arabic row runs past its edge');
+
+    // The domain line, the statement and the facts are in the reader (the full card).
+    const reader = await openReader(page, arabic);
+    const meta = reader.locator('[data-use-case-meta]');
     assert.deepEqual(await meta.locator('bdi').allInnerTexts(), [AR.domain, AR.subdomain, AR.technique],
       'each value of the domain line sits in its own bdi, so the separators stay between them');
-    assert.equal(await arabic.locator('[data-technique-chip]').count(), 0, 'with no kind, the technique is on the meta line');
-
-    await arabic.locator('[data-use-case-row]').click();
-    const statement = arabic.locator('[data-use-case-text="statement"]');
+    assert.equal(await reader.locator('[data-technique-chip]').count(), 0, 'with no kind, the technique is on the meta line');
+    const statement = reader.locator('[data-use-case-text="statement"]');
     await statement.waitFor();
     const side = await statement.evaluate(sideOf);
     assert.ok(side.gapEnd <= 2 && side.gapStart >= 0, `the Arabic statement starts at the right edge: ${JSON.stringify(side)}`);
-    const sponsor = arabic.locator('[data-use-case-fact="Sponsor"] [data-use-case-fact-value]');
+    const sponsor = reader.locator('[data-use-case-fact="Sponsor"] [data-use-case-fact-value]');
     assert.equal(await sponsor.evaluate((el) => el.matches(':dir(rtl)')), true, 'the sponsor value reads right to left');
-    const { unisolated, clipped } = await arabic.evaluate(layout);
+    const { unisolated, clipped } = await reader.evaluate(layout);
     assert.deepEqual(unisolated, [], 'every Arabic run sits in an element that sets or isolates its own direction');
     assert.deepEqual(clipped, [], 'nothing in the Arabic card runs past its edge');
 
+    await closeReader(page);
     const englishCard = cardOf(page, 'Score upsell');
-    await englishCard.locator('[data-use-case-row]').click();
-    const plain = englishCard.locator('[data-use-case-text="statement"]');
+    const englishReader = await openReader(page, englishCard);
+    const plain = englishReader.locator('[data-use-case-text="statement"]');
     await plain.waitFor();
     const left = await plain.evaluate(sideOf);
     assert.ok(left.gapStart <= 2 && left.gapEnd > 20, `the English statement still starts at the left edge: ${JSON.stringify(left)}`);
@@ -121,9 +127,9 @@ test('on a phone the Arabic card and its details wrap inside the card instead of
   const { page } = ui;
   try {
     const arabic = cardOf(page, AR.name);
-    await arabic.locator('[data-use-case-row]').click();
-    await arabic.locator('[data-use-case-text="statement"]').waitFor();
-    const { clipped } = await arabic.evaluate(layout);
+    const reader = await openReader(page, arabic);
+    await reader.locator('[data-use-case-text="statement"]').waitFor();
+    const { clipped } = await reader.evaluate(layout);
     assert.deepEqual(clipped, [], 'nothing in the Arabic card runs past its edge on a 390 px screen');
   } finally {
     await ui.close();

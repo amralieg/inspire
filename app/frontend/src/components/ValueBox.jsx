@@ -123,6 +123,8 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
     </div>
   );
   // FX-38b (W16 D25): the note sits under the box, past the pill that overhangs its bottom edge, so it never covers the pill or leaves the box.
-  if (inset || !yearly?.check?.outside) return box;
+  if (!yearly?.check?.outside) return box;
+  // REQ-511: in the row the pill sits inside the box, so the note goes one small gap below it and the row keeps the warning.
+  if (inset) return <div className="flex flex-col items-center gap-1">{box}{note}</div>;
   return <div className="flex w-[8.5rem] shrink-0 flex-col items-center gap-3.5">{box}{note}</div>;
 }
