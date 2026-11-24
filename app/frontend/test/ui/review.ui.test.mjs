@@ -227,7 +227,8 @@ test('Start lists the runs with Latest Run only on the newest run of a business 
     const box = await steadyBox(choose.page.locator('[data-run="42"]'));
     await choose.page.mouse.click(box.x + box.width - 10, box.y + box.height / 2);
     assert.equal(await opened(), '42', 'a click anywhere on the row opens the run, its chevron edge too');
-    await choose.page.locator('[data-run="51"]').getByRole('button', { name: 'Quick View' }).click();
+    await choose.page.locator('[data-run="51"]').getByRole('button', { name: /^More for / }).click();
+    await choose.page.getByRole('menuitem', { name: 'Quick view' }).click();
     await choose.page.locator('[data-run="51"]').getByRole('button', { name: 'Hide' }).waitFor();
     assert.equal(await opened(), '42', 'Quick View opens its panel and not the run');
     await choose.page.locator('[data-run="42"]').getByRole('button', { name: /Acme/ }).first().waitFor();
