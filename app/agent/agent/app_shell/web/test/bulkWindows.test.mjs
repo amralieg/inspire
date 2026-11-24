@@ -42,14 +42,14 @@ test('Act on all the open records is visible in the Everything window too, and s
   await context.close();
 });
 
-test('Mark all as done confirms the open count, says the closed records stay, and writes only open records', async () => {
+test('Resolve all confirms the open count, says the closed records stay, and writes only open records', async () => {
   const writes = [];
   const { page, context } = await openEverything(writes);
   await page.locator('[data-act-all]').click();
-  await page.getByRole('button', { name: 'Mark all as done…' }).click();
+  await page.getByRole('button', { name: 'Resolve all', exact: true }).click();
   await page.getByText(/closed records? stays? as /).waitFor();
   assert.match(await page.locator('[data-closed-note]').innerText(), /^\d+ closed records? stays? as/);
-  await page.getByRole('button', { name: 'Mark 2 open records as done?' }).click();
+  await page.getByRole('button', { name: 'Resolve 2 open records?' }).click();
   await until(() => writes.length === 1);
   assert.deepEqual(writes[0].match.view.column_filters, { action_status: OPEN_STATUSES }, 'the bulk write names open statuses only');
   assert.deepEqual(writes[0].values, { action_status: 'Done' });
@@ -64,8 +64,8 @@ test('with My actions on, the same control reads Select my N open and covers onl
   await clear.waitFor();
   assert.match((await clear.innerText()).trim(), /^Select my \d+ open$/);
   await clear.click();
-  await page.getByRole('button', { name: /Mark all as done…/ }).click();
-  await page.getByRole('button', { name: /Mark \d+ open records as done\?/ }).click();
+  await page.getByRole('button', { name: 'Resolve all', exact: true }).click();
+  await page.getByRole('button', { name: /^Resolve \d+ open records\?$/ }).click();
   await until(() => writes.length === 1);
   assert.equal(writes[0].match.view.mine, true, 'the queue is the person\'s own records');
   assert.deepEqual(writes[0].match.view.column_filters, { action_status: OPEN_STATUSES });

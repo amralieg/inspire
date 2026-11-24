@@ -4,7 +4,9 @@ import { readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { DECIDE, appInfo, goRail, openApp, serveDist } from './harness.mjs';
+import { DECIDE, appInfo, openApp, serveDist } from './harness.mjs';
+// REQ-506: no side rail; a section opens by its hash.
+const goRail = (page, id) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, id);
 import { scenarioRoutes } from './exampleRoutes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));

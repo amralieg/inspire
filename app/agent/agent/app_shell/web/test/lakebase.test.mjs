@@ -51,7 +51,7 @@ test('a Lakebase App says so in the header, and says it reads Delta while saved 
       return json(200, { ...pageData(body.filters), errors: {}, served: [pending ? 'delta' : 'lakebase'], catching_up: pending });
     },
   };
-  const { page, seen, context } = await openApp(browser, served.base, info, { routes, clock: NOW });
+  const { page, seen, context } = await openApp(browser, served.base, info, { routes, clock: NOW, hash: `#/${info.pages[0].id}/dashboard` });
   assert.match(await page.locator('.ph-meta').innerText(), / · Read from Lakebase, synced 12 min ago$/);
   assert.deepEqual(await notes(page), []);
   pending = true;
@@ -66,7 +66,7 @@ test('a Lakebase App says so in the header, and says it reads Delta while saved 
 test('a Lakebase App that cannot reach Lakebase reads Delta and says why on every page', async () => {
   const info = appInfo({ backend: BACKEND });
   assert.equal(info.backend.kind, 'delta');
-  const { page, seen, context } = await openApp(browser, served.base, info);
+  const { page, seen, context } = await openApp(browser, served.base, info, { hash: `#/${info.pages[0].id}/dashboard` });
   assert.deepEqual(await notes(page), [UNREACHABLE]);
   assert.doesNotMatch(await page.locator('.ph-meta').innerText(), /Lakebase/);
   assert.deepEqual(seen.errors, []);
@@ -76,7 +76,7 @@ test('a Lakebase App that cannot reach Lakebase reads Delta and says why on ever
 test('a Delta App shows no backend note and no Lakebase label', async () => {
   const info = appInfo();
   assert.deepEqual(info.backend, { kind: 'delta', note: '', catching_up: false, synced_at: null });
-  const { page, seen, context } = await openApp(browser, served.base, info);
+  const { page, seen, context } = await openApp(browser, served.base, info, { hash: `#/${info.pages[0].id}/dashboard` });
   assert.deepEqual(await notes(page), []);
   assert.doesNotMatch(await page.locator('.ph-meta').innerText(), /Lakebase/);
   assert.deepEqual(seen.errors, []);

@@ -59,7 +59,7 @@ const sectionsOf = (page) => page.evaluate(() => [...document.querySelectorAll('
 
 async function open(id, acts = [], extra = {}) {
   const info = appInfo(DECIDE, 1, {}, `examples/${id}.json`);
-  const opened = await openApp(browser, base, info, { routes: kindRoutes(CASES[id].data(), CASES[id].rows, acts, exampleOf(id), extra) });
+  const opened = await openApp(browser, base, info, { hash: `#/${info.pages[0].id}/dashboard`, routes: kindRoutes(CASES[id].data(), CASES[id].rows, acts, exampleOf(id), extra) });
   await opened.page.locator(CASES[id].ready).first().waitFor();
   return { ...opened, info };
 }
@@ -304,7 +304,7 @@ for (const id of ['process_flow', 'location_view', 'network_explorer']) {
   test(`the ${id} layout shows a list the App cannot save a decision on with its suggestions only, no choice and no per-row read only`, async () => {
     const info = appInfo(DECIDE, 1, {}, `examples/${id}.json`);
     const routes = unlinkedRecords(kindRoutes(CASES[id].data(), CASES[id].rows.map((r) => ({ ...r })), [], exampleOf(id)));
-    const { page, seen, context } = await openApp(browser, base, info, { routes });
+    const { page, seen, context } = await openApp(browser, base, info, { hash: `#/${info.pages[0].id}/dashboard`, routes });
     await page.locator(CASES[id].ready).first().waitFor();
     await page.locator('[data-no-decisions]').first().waitFor();
     assert.deepEqual([...new Set(await page.locator('[data-no-decisions]').allInnerTexts())], [UNLINKED]);

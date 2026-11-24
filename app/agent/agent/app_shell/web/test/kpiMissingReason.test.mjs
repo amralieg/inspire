@@ -27,7 +27,8 @@ async function open(items, options = {}) {
       return json(200, { ...data, kpis: { ...data.kpis, total_loss: { now: 1234567, before: 1100000 }, next_day: items }, errors: {} });
     },
   };
-  const opened = await openApp(browser, served.base, appInfo({}, 1, { kpis: KPIS }), { routes, ...options });
+  const info = appInfo({}, 1, { kpis: KPIS });
+  const opened = await openApp(browser, served.base, info, { routes, hash: `#/${info.pages[0].id}/dashboard`, ...options });
   await opened.page.waitForFunction(() => document.querySelectorAll('.kpi .kpi-v').length === 3);
   return opened;
 }

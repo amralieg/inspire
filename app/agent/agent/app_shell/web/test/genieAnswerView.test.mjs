@@ -49,7 +49,8 @@ test('a finished answer shows its steps under Details, after the answer text, an
   assert.match(genie, /\{!done && <AgentSteps steps=\{message\.steps\} \/>\}/, 'steps show before the answer only while it runs');
   assert.match(genie, /\{done && <StepsDetails steps=\{message\.steps\} \/>\}/, 'a finished answer keeps its steps under Details');
   assert.doesNotMatch(genie, /<AgentSteps steps=\{message\.steps\} \/>\s*\n\s*<Typing/, 'the answer text is never preceded by the steps');
-  assert.match(read('AgentPage.jsx'), /<StepsDetails steps=\{item\.turn\.steps\} \/>/, 'the Agent page keeps steps under Details too');
+  // REQ-506: the Agent page is gone; the agent chat answers in this same Genie answer view, so its turns get the same Details.
+  assert.match(genie, /\{m\.state === 'done' && <Answer message=\{m\}/, 'the agent chat shows its steps under Details too: one Answer view, not gated on the agent flag');
 });
 
 test('the answer table is built only from the Genie columns, not from text written by the model', () => {

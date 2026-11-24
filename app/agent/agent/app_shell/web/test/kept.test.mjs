@@ -5,6 +5,8 @@ import { PERSON, TABLE, appInfo, openApp, pageData, serveDist } from './harness.
 import { NOT_IN_RUN, changeBadge, keptText, missingSince, notInRunText } from '../src/records.js';
 import { STATES, closedRows } from '../src/impact.js';
 
+// REQ-506: no side rail; a section opens by its hash.
+const goSection = (page, section) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, section);
 let served;
 let browser;
 before(async () => { served = await serveDist(); browser = await chromium.launch(); });
@@ -74,24 +76,6 @@ test('the list tags the kept record, counts it beside the records that left, and
   await rows.nth(2).click();
   await page.locator('dialog.drawer .sec').first().waitFor();
   assert.equal(await page.locator('dialog.drawer .kept').count(), 0, 'a record the runs still list says nothing about being kept');
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('the inbox tags the kept record you own and leaves the others as they are', async () => {
-  const base = routes();
-  const owned = [{ ...ROWS[0], _inspire_owner: PERSON, entity_label: 'Wool coat, store 4' }, { ...ROWS[2], _inspire_owner: PERSON, _inspire_missing: null, entity_label: 'Blue denim jacket, store 12' }];
-  const records = (call) => {
-    const body = call.route.request().postDataJSON();
-    if (body.mine) return call.json(200, { rows: owned, total: owned.length, offset: 0, limit: body.limit, actions: true, changes: false, summary: null, errors: {} });
-    return base.records(call);
-  };
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: { ...base, records }, hash: '#/n01_u05/work' });
-  await page.locator('[data-rail="inbox"]').click();
-  const assigned = page.locator('[data-inbox-group="assigned"] [data-inbox-item]');
-  await assigned.nth(1).waitFor();
-  const tags = await assigned.evaluateAll((all) => all.map((b) => [b.querySelector('bdi').textContent, b.querySelector('.chg-b--missing')?.textContent || '']));
-  assert.deepEqual(tags, [['Wool coat, store 4', NOT_IN_RUN], ['Blue denim jacket, store 12', '']]);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

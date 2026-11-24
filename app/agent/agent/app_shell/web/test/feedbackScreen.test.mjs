@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { appInfo, openApp, serveDist } from './harness.mjs';
 
+// REQ-506: no side rail; a section opens by its hash.
+const goSection = (page, section) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, section);
 let served;
 let browser;
 
@@ -21,7 +23,7 @@ test('Settings offers Report an issue under Feedback, and the button opens the r
   info.pages[0].reports = { ready: true, note: '', where: '' };
   const { page, context } = await openApp(browser, served.base, info, {});
   try {
-    await page.locator('[data-rail="settings"]').click();
+    await goSection(page, 'settings');
     const report = page.locator('[data-group="feedback"]').getByRole('button', { name: 'Report an issue', exact: true });
     await report.waitFor({ timeout: 20000 });
     assert.equal(await page.locator('[data-feedback-form]').count(), 0, 'the form waits behind the button');

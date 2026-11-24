@@ -86,7 +86,8 @@ async function settled(page, ms) {
 
 async function openPanel(page) {
   const panel = page.locator('aside.genie');
-  if (!(await panel.count())) await page.getByRole('button', { name: 'Ask Genie', exact: true }).first().click();
+  // REQ-506: Genie is the Genie mode of the Screen | Genie switch, no longer an Ask Genie button.
+  if (!(await panel.count())) await page.locator('[data-mode-switch] [data-mode="genie"]').click();
   await panel.waitFor({ timeout: 30000 });
   return panel;
 }
@@ -101,7 +102,7 @@ export async function walkGenie(page, base, info, { answerMs = ANSWER_MS, pageMs
   if (!pages.length) results.push({ page: '', question: '', ok: false, problem: 'the App lists no use case page' });
   for (const p of pages) {
     await page.goto(`${base.replace(/\/?$/, '/')}#/${encodeURIComponent(p.id)}`);
-    await page.locator('.ph h1').filter({ hasText: p.title }).first().waitFor({ timeout: pageMs });
+    await page.locator('.pg-h h1').filter({ hasText: p.title }).first().waitFor({ timeout: pageMs });
     const panel = await openPanel(page);
     if (!p.genie?.enabled) {
       const why = ((await panel.locator('.g-off').innerText().catch(() => '')) || p.genie?.note || '').replace(/\s+/g, ' ').trim();
