@@ -27,12 +27,12 @@ export function IconChip({ icon, tone = 'red', size = 'md' }) {
 export function SectionTitle({ icon, title, hint, right, as = 'h3' }) {
   const Heading = as;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-border bg-gradient-to-r from-db-red-50 to-surface">
+    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-border bg-linear-to-r from-db-red-50 to-surface">
       <div className="flex items-center gap-2.5 min-w-0">
         <IconChip icon={icon} size="sm" />
         <div className="min-w-0">
-          <Heading className="text-[11px] font-semibold uppercase tracking-[0.18em] text-db-red-fg">{title}</Heading>
-          {hint && <p className="text-[11px] text-text-secondary">{hint}</p>}
+          <Heading className="text-caption font-semibold uppercase tracking-[0.18em] text-db-red-fg">{title}</Heading>
+          {hint && <p className="text-caption text-text-secondary">{hint}</p>}
         </div>
       </div>
       {right}
@@ -46,7 +46,7 @@ export function Counter({ value, label, tone = 'plain' }) {
   return (
     <div className="text-center px-1">
       <div className={`text-2xl font-bold tabular-nums tracking-tight ${COUNTER_TONE[tone] || COUNTER_TONE.plain}`}>{value}</div>
-      <div className="text-[9px] text-text-tertiary uppercase tracking-[0.18em] font-semibold whitespace-nowrap">{label}</div>
+      <div className="text-caption text-text-tertiary uppercase tracking-[0.18em] font-semibold whitespace-nowrap">{label}</div>
     </div>
   );
 }

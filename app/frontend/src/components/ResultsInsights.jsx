@@ -14,7 +14,7 @@ const LIST_PREVIEW = 5;
 function ShowAll({ total, shown, open, onToggle, noun = '' }) {
   if (total <= shown) return null;
   return (
-    <button type="button" onClick={onToggle} aria-expanded={open} className="text-[11px] font-medium text-db-red-fg hover:underline">
+    <button type="button" onClick={onToggle} aria-expanded={open} className="text-caption font-medium text-db-red-fg hover:underline">
       {open ? 'Show fewer' : `Show all ${total}${noun ? ` ${noun}` : ''}`}
     </button>
   );
@@ -38,7 +38,7 @@ export function SidebarFilterPanel({ title, subtitle, icon, open, onToggle, allL
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full shrink-0 items-start gap-2 border-b border-border bg-gradient-to-b from-db-red-50 to-surface px-3 py-3 text-start transition-smooth hover:from-db-red-50/80"
+        className="flex w-full shrink-0 items-start gap-2 border-b border-border bg-linear-to-b from-db-red-50 to-surface px-3 py-3 text-start transition-smooth hover:from-db-red-50/80"
       >
         <ChevronRight
           size={14}
@@ -47,9 +47,9 @@ export function SidebarFilterPanel({ title, subtitle, icon, open, onToggle, allL
         <Icon size={14} className="mt-0.5 shrink-0 text-db-red-fg" />
         <div className="min-w-0 flex-1">
           <span className="text-xs font-bold text-text-primary">{title}</span>
-          <p className="text-[10px] text-text-tertiary mt-0.5">{subtitle}</p>
+          <p className="text-caption text-text-tertiary mt-0.5">{subtitle}</p>
           {!open && !allActive && (
-            <p className="mt-1 truncate text-[10px] font-medium text-db-red-fg" title={selected?.title || selected?.label || value}>
+            <p className="mt-1 truncate text-caption font-medium text-db-red-fg" title={selected?.title || selected?.label || value}>
               Filter: {selected?.label || value}
             </p>
           )}
@@ -65,12 +65,12 @@ export function SidebarFilterPanel({ title, subtitle, icon, open, onToggle, allL
             }`}
           >
             <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${allActive ? 'bg-db-red/10' : 'bg-bg-subtle'}`}>
-              <Icon size={10} className={allActive ? 'text-db-red-fg' : 'text-text-tertiary'} />
+              <Icon size={14} className={allActive ? 'text-db-red-fg' : 'text-text-tertiary'} />
             </div>
-            <span className={`text-[11px] font-semibold flex-1 truncate ${allActive ? 'text-db-red-fg' : 'text-text-primary'}`}>
+            <span className={`text-caption font-semibold flex-1 truncate ${allActive ? 'text-db-red-fg' : 'text-text-primary'}`}>
               {allLabel}
             </span>
-            <span className={`text-[10px] font-mono shrink-0 ${allActive ? 'text-db-red-fg' : 'text-text-tertiary'}`}>{allCount}</span>
+            <span className={`text-caption font-mono shrink-0 ${allActive ? 'text-db-red-fg' : 'text-text-tertiary'}`}>{allCount}</span>
           </button>
           {options.map((o) => {
             const active = value === o.value;
@@ -86,11 +86,11 @@ export function SidebarFilterPanel({ title, subtitle, icon, open, onToggle, allL
                 }`}
               >
                 <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${active ? 'bg-db-red/10' : 'bg-bg-subtle'}`}>
-                  <Icon size={10} className={active ? 'text-db-red-fg' : 'text-text-tertiary'} />
+                  <Icon size={14} className={active ? 'text-db-red-fg' : 'text-text-tertiary'} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className={`text-[11px] font-semibold block truncate ${active ? 'text-db-red-fg' : 'text-text-primary'}`}>{o.label}</span>
-                  <span className="text-[9px] text-text-tertiary font-mono mt-0.5 block">
+                  <span className={`text-caption font-semibold block truncate ${active ? 'text-db-red-fg' : 'text-text-primary'}`}>{o.label}</span>
+                  <span className="text-caption text-text-tertiary font-mono mt-0.5 block">
                     {o.count} use case{o.count !== 1 ? 's' : ''}
                   </span>
                 </div>
@@ -111,7 +111,7 @@ function InsightCard({ icon, title, summary, children }) {
         <Icon size={14} className="mt-0.5 shrink-0 text-db-red-fg" aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <h3 className="text-xs font-bold text-text-primary">{title}</h3>
-          <p className="text-[11px] text-text-secondary mt-0.5">{summary}</p>
+          <p className="text-caption text-text-secondary mt-0.5">{summary}</p>
         </div>
       </div>
       <div className="px-4 py-3 space-y-3">{children}</div>
@@ -129,8 +129,8 @@ export function DataAccessBadge({ results }) {
   if (!access) return null;
   if (!access.dataRead) {
     return (
-      <div className="mb-4 flex items-start gap-2 rounded-xl border border-border bg-surface px-3 py-2.5 text-[11px] text-text-secondary shadow-sm">
-        <Lock size={13} className="mt-0.5 shrink-0 text-success-fg" />
+      <div className="mb-4 flex items-start gap-2 rounded-xl border border-border bg-surface px-3 py-2.5 text-caption text-text-secondary shadow-sm">
+        <Lock size={14} className="mt-0.5 shrink-0 text-success-fg" />
         <span>
           <span className="font-semibold text-text-primary">Discovery: no data read.</span> Inspire used table and column
           metadata, metric views, lineage and access counts only.
@@ -141,8 +141,8 @@ export function DataAccessBadge({ results }) {
   const skipped = Object.entries(access.tablesSkipped);
   return (
     <details className="mb-4 rounded-xl border border-border bg-surface shadow-sm">
-      <summary className="flex cursor-pointer items-start gap-2 px-3 py-2.5 text-[11px] text-text-secondary">
-        <Eye size={13} className="mt-0.5 shrink-0 text-db-red-fg" />
+      <summary className="flex cursor-pointer items-start gap-2 px-3 py-2.5 text-caption text-text-secondary">
+        <Eye size={14} className="mt-0.5 shrink-0 text-db-red-fg" />
         <span>
           <span className="font-semibold text-text-primary">Discovery:</span> read summary figures (counts and totals) from{' '}
           {plural(access.tablesReadCount, 'table')} in {plural(access.statements, 'statement')}.{' '}
@@ -155,16 +155,16 @@ export function DataAccessBadge({ results }) {
         {access.tablesRead.length > 0 && (
           <ul className="grid gap-0.5 sm:grid-cols-2">
             {access.tablesRead.map((t, i) => (
-              <li key={`${i}-${t}`} className="truncate font-mono text-[10px] text-text-secondary" title={t}>{t}</li>
+              <li key={`${i}-${t}`} className="truncate font-mono text-caption text-text-secondary" title={t}>{t}</li>
             ))}
           </ul>
         )}
         {skipped.length > 0 && (
           <div>
-            <p className="text-[10px] font-semibold text-text-tertiary">Not read</p>
+            <p className="text-caption font-semibold text-text-tertiary">Not read</p>
             <ul className="space-y-0.5">
               {skipped.map(([table, reason]) => (
-                <li key={table} className="text-[10px] text-text-tertiary">
+                <li key={table} className="text-caption text-text-tertiary">
                   <span className="font-mono">{table}</span>: {String(reason)}
                 </li>
               ))}
@@ -204,22 +204,22 @@ function BuildOrder({ order, onOpenUseCase }) {
   const list = usePreview(order, LIST_PREVIEW);
   return (
     <div>
-      <ol className="space-y-1 text-[11px]" aria-label="Suggested build order">
+      <ol className="space-y-1 text-caption" aria-label="Suggested build order">
         {list.shown.map(({ id, entry }, i) => {
           return (
             <li key={id} className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-baseline gap-x-2">
-              <span className="font-mono text-[10px] text-text-secondary tabular-nums">{i + 1}.</span>
+              <span className="font-mono text-caption text-text-secondary tabular-nums">{i + 1}.</span>
               <span className="min-w-0">
                 <UseCaseLink entry={entry} onOpen={onOpenUseCase} />
-                {entry.domain && <span dir="auto" className="block text-[10px] text-text-secondary">{entry.domain}</span>}
+                {entry.domain && <span dir="auto" className="block text-caption text-text-secondary">{entry.domain}</span>}
               </span>
-              <span className="font-mono text-[10px] text-text-secondary tabular-nums" title="Inspire Score">{scoreText(entry.score)}</span>
+              <span className="font-mono text-caption text-text-secondary tabular-nums" title="Inspire Score">{scoreText(entry.score)}</span>
             </li>
           );
         })}
       </ol>
       <div className="mt-1">{list.toggle}</div>
-      <p className="mt-1 text-[11px] text-text-secondary">Ordered by shared foundation, then Inspire Score. The pace is yours to set.</p>
+      <p className="mt-1 text-caption text-text-secondary">Ordered by shared foundation, then Inspire Score. The pace is yours to set.</p>
     </div>
   );
 }
@@ -254,7 +254,7 @@ const TRACKING_COLUMNS = [
     key: 'kpi', label: 'KPI', className: 'py-1 pe-2 text-text-secondary',
     render: (t) => {
       const note = trackedKpiNote(t);
-      return <>{t.kpi}{note && <span data-tracking-note="" className="block text-[10px] text-text-secondary">{note}</span>}</>;
+      return <>{t.kpi}{note && <span data-tracking-note="" className="block text-caption text-text-secondary">{note}</span>}</>;
     },
   },
   { key: 'baseline', label: 'Baseline', kind: 'number', value: (t) => pointValue(trackedKpiValue(t).baseline), render: (t) => valueText(trackedKpiValue(t).baseline) },
@@ -289,7 +289,7 @@ export function FeedbackPanel({ results, feedback }) {
         <MessageSquareText size={14} className="mt-0.5 shrink-0 text-db-red-fg" aria-hidden="true" />
         <div className="min-w-0">
           <h3 className="text-xs font-bold text-text-primary">Feedback and value</h3>
-          <p data-feedback-note="" className="mt-0.5 text-[11px] text-text-secondary">{note}</p>
+          <p data-feedback-note="" className="mt-0.5 text-caption text-text-secondary">{note}</p>
         </div>
       </section>
     );
@@ -300,13 +300,13 @@ export function FeedbackPanel({ results, feedback }) {
       title="Feedback and value"
       summary={`${excluded.length} hidden by feedback · ${plural(history.length, 'use case')} with feedback · ${plural(tracking.length, 'KPI')} tracked`}
     >
-      {note && <p data-feedback-note="" className="text-[11px] text-text-secondary">{note}</p>}
+      {note && <p data-feedback-note="" className="text-caption text-text-secondary">{note}</p>}
       {excluded.length > 0 && (
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary mb-1">Hidden by feedback</p>
+          <p className="text-caption font-bold uppercase tracking-[0.18em] text-text-tertiary mb-1">Hidden by feedback</p>
           <ul className="space-y-0.5">
             {excluded.map((e, index) => (
-              <li key={`${e.use_case_key}|${e.use_case_id ?? index}`} className="text-[11px] text-text-secondary">
+              <li key={`${e.use_case_key}|${e.use_case_id ?? index}`} className="text-caption text-text-secondary">
                 {excludedFeedbackText(e)}
               </li>
             ))}
@@ -315,15 +315,15 @@ export function FeedbackPanel({ results, feedback }) {
       )}
       {history.length > 0 && (
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary mb-1">
+          <p className="text-caption font-bold uppercase tracking-[0.18em] text-text-tertiary mb-1">
             {live ? 'Latest feedback' : 'Feedback at the time of this run'}
           </p>
           <ul className="space-y-0.5">
             {history.map((h) => (
-              <li key={h.use_case_key} className="flex items-baseline gap-2 text-[11px]">
+              <li key={h.use_case_key} className="flex items-baseline gap-2 text-caption">
                 <span className="min-w-0 flex-1 truncate text-text-primary" title={h.use_case_title || h.title}>{h.use_case_title || h.title}</span>
                 <span className="shrink-0 text-text-secondary">{feedbackLabel(h.status)}</span>
-                <span className="shrink-0 font-mono text-[9px] text-text-tertiary">{String(h.updated_at || '').slice(0, 10)}</span>
+                <span className="shrink-0 font-mono text-caption text-text-tertiary">{String(h.updated_at || '').slice(0, 10)}</span>
               </li>
             ))}
           </ul>
@@ -331,18 +331,18 @@ export function FeedbackPanel({ results, feedback }) {
       )}
       {tracking.length > 0 && (
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary mb-1">Value of implemented use cases</p>
+          <p className="text-caption font-bold uppercase tracking-[0.18em] text-text-tertiary mb-1">Value of implemented use cases</p>
           <DataGrid label="Value of implemented use cases" grid="results:value_tracking" columns={TRACKING_COLUMNS} rows={tracking}
-            rowKey={(t, i) => `${t.use_case_key}-${i}`} rowProps={(t) => ({ 'data-tracking-status': t.status || '' })} tableClassName="w-full text-[11px]"
-            headRowClassName="text-start text-[9px] uppercase tracking-[0.14em] text-text-tertiary" headClassName="py-1 pe-2 font-semibold" rowClassName={() => 'border-t border-border align-top'}
+            rowKey={(t, i) => `${t.use_case_key}-${i}`} rowProps={(t) => ({ 'data-tracking-status': t.status || '' })} tableClassName="w-full text-caption"
+            headRowClassName="text-start text-caption uppercase tracking-[0.14em] text-text-tertiary" headClassName="py-1 pe-2 font-semibold" rowClassName={() => 'border-t border-border align-top'}
             cellClassName="py-1 pe-2 font-mono text-text-secondary" />
           {tracking.some((t) => t.status === 'query_only' && t.query) && (
             <div className="mt-2 space-y-1">
-              <p className="text-[10px] text-text-tertiary">A Standard run never reads data. Run these queries to measure the KPIs now.</p>
+              <p className="text-caption text-text-tertiary">A Standard run never reads data. Run these queries to measure the KPIs now.</p>
               {tracking.filter((t) => t.status === 'query_only' && t.query).map((t, i) => (
                 <details key={`${t.use_case_key}-q-${i}`} className="rounded border border-border bg-bg">
-                  <summary className="cursor-pointer px-2 py-1 text-[10px] text-text-secondary">{t.title}: {t.kpi}</summary>
-                  <pre className="overflow-x-auto px-2 pb-2 font-mono text-[10px] text-text-primary whitespace-pre-wrap">{t.query}</pre>
+                  <summary className="cursor-pointer px-2 py-1 text-caption text-text-secondary">{t.title}: {t.kpi}</summary>
+                  <pre className="overflow-x-auto px-2 pb-2 font-mono text-caption text-text-primary whitespace-pre-wrap">{t.query}</pre>
                 </details>
               ))}
             </div>

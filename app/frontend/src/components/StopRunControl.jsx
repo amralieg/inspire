@@ -50,14 +50,14 @@ export default function StopRunControl({ runId, business, apiFetch, open, onClos
       {!confirming ? (
         <button type="button" onClick={() => setConfirming(true)}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-primary border border-border rounded-lg hover:bg-bg-subtle">
-          <Square size={12} aria-hidden="true" /> Stop this run
+          <Square size={14} aria-hidden="true" /> Stop this run
         </button>
       ) : (
         <div role="group" aria-label="Stop this run" className="flex flex-wrap items-center gap-2 text-xs">
           <span className="text-text-primary">Stop the Discover run for {name}? What the run already wrote stays.</span>
           <button type="button" onClick={stop} disabled={stopping}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 font-medium text-white bg-primary-solid rounded-lg disabled:opacity-60">
-            {stopping && <Loader2 size={12} className="animate-spin" aria-hidden="true" />} Stop the run
+            {stopping && <Loader2 size={14} className="animate-spin" aria-hidden="true" />} Stop the run
           </button>
           <button type="button" onClick={closeConfirm} disabled={stopping}
             className="px-3 py-1.5 text-text-secondary border border-border rounded-lg">Keep it running</button>

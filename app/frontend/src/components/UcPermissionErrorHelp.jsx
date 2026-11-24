@@ -38,7 +38,7 @@ export default function UcPermissionErrorHelp({ guidance }) {
   return (
     <div role="alert" data-uc-permission="" className="mb-6 rounded-xl border border-error/25 bg-error-bg/80 px-4 py-3 space-y-3">
       <div className="flex items-start gap-3">
-        <AlertCircle size={18} className="text-error-fg shrink-0 mt-0.5" />
+        <AlertCircle size={16} className="text-error-fg shrink-0 mt-0.5" />
         <p className="min-w-0 flex-1 text-sm text-error-fg">{guidance.userMessage}</p>
       </div>
       {guidance.adminEmailText && (

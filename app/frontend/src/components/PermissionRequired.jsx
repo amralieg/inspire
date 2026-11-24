@@ -110,7 +110,7 @@ export default function PermissionRequired({ permissions, onStart, onRetry, onCl
   };
   const buttons = (
     <>
-      {asked.length > 0 && <button type="button" onClick={requestAccess} disabled={requesting} className={PRIMARY} data-request-access="">{requesting ? <><Loader2 size={13} className="inline me-1 animate-spin" aria-hidden />Requesting</> : 'Request access'}</button>}
+      {asked.length > 0 && <button type="button" onClick={requestAccess} disabled={requesting} className={PRIMARY} data-request-access="">{requesting ? <><Loader2 size={14} className="inline me-1 animate-spin" aria-hidden />Requesting</> : 'Request access'}</button>}
       {onRetry && <button type="button" onClick={onRetry} className={BUTTON}>Try again</button>}
       {onStart && <button type="button" onClick={onStart} className={BUTTON}>Start anyway</button>}
     </>

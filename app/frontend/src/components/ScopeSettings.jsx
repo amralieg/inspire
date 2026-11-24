@@ -19,18 +19,18 @@ import SaveButton from './SaveButton';
 
 const ROW = 'flex items-start gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-[12px] text-text-primary';
 const NUMBER = 'w-24 px-2 py-1 text-[12px] border border-border rounded-md bg-surface text-text-primary';
-const NOTE = 'text-[11px] text-text-secondary';
+const NOTE = 'text-caption text-text-secondary';
 
 function ProfileNote({ state, error }) {
   if (state === 'loading') {
     return (
       <p data-scope-profile="loading" className={`${NOTE} inline-flex items-center gap-1.5`}>
-        <Loader2 size={12} className="animate-spin" aria-hidden /> {PROFILE_READING}
+        <Loader2 size={14} className="animate-spin" aria-hidden /> {PROFILE_READING}
       </p>
     );
   }
   if (state === 'no_table') return <p data-scope-profile="no-table" className={NOTE}>{error}</p>;
-  if (state === 'error') return <PlainMessage text={`Inspire could not read the table for its suggestions: ${error}`} role="alert" data-scope-profile="error" className="text-[11px] text-error-fg" />;
+  if (state === 'error') return <PlainMessage text={`Inspire could not read the table for its suggestions: ${error}`} role="alert" data-scope-profile="error" className="text-caption text-error-fg" />;
   return null;
 }
 
@@ -151,11 +151,11 @@ function GroupingPart({ values, onChange, profile, read = null, settings, editab
             <span className="min-w-0 flex-1 space-y-0.5">
               <span className="flex flex-wrap items-baseline justify-between gap-x-2">
                 <span className="font-medium break-words">{c.label}</span>
-                <span data-grouping-count="" className="shrink-0 text-[11px] text-text-secondary">{groupingCountText(groupingCount(c, profile) ?? (read ? groupingCount(c, read) : null))}</span>
+                <span data-grouping-count="" className="shrink-0 text-caption text-text-secondary">{groupingCountText(groupingCount(c, profile) ?? (read ? groupingCount(c, read) : null))}</span>
               </span>
-              {c.deep && <span data-grouping-deep="" className="block text-[11px] text-text-secondary">{GROUPING_DEEP_MARK}</span>}
+              {c.deep && <span data-grouping-deep="" className="block text-caption text-text-secondary">{GROUPING_DEEP_MARK}</span>}
               <Recommended best={best} id={c.value} />
-              {c.note && <span data-grouping-join-note="" className="block text-[11px] text-text-secondary">{c.note}</span>}
+              {c.note && <span data-grouping-join-note="" className="block text-caption text-text-secondary">{c.note}</span>}
             </span>
           </label>
         ))}
@@ -189,7 +189,7 @@ function ShowAll({ state, total, hidden, onChange, name }) {
   if (!state.open) {
     if (hidden <= 0) return null;
     return (
-      <button type="button" data-show-all={name} className="text-[11px] font-medium text-db-red-fg glow-focus" onClick={() => onChange({ open: true, find: '' })}>
+      <button type="button" data-show-all={name} className="text-caption font-medium text-db-red-fg glow-focus" onClick={() => onChange({ open: true, find: '' })}>
         Show all {counted(total, 'column')}
       </button>
     );
@@ -199,7 +199,7 @@ function ShowAll({ state, total, hidden, onChange, name }) {
       <input dir="auto" type="search" aria-label={name === 'combine' ? `${GROUPING_FIND} to combine` : GROUPING_FIND}
         placeholder={`${GROUPING_FIND} of ${counted(total, 'column')}`} className={`${NUMBER} w-64`} value={state.find}
         onChange={(e) => onChange({ open: true, find: e.target.value })} />
-      <button type="button" className="text-[11px] font-medium text-db-red-fg glow-focus" onClick={() => onChange({ open: false, find: '' })}>Show fewer</button>
+      <button type="button" className="text-caption font-medium text-db-red-fg glow-focus" onClick={() => onChange({ open: false, find: '' })}>Show fewer</button>
     </div>
   );
 }
@@ -276,7 +276,7 @@ function FirstRunPart({ values, onChange, profile, groupsState, settings, editab
       {unrecorded && <p data-first-run-unrecorded="" className={NOTE}>{RUN_SCOPE_UNRECORDED}</p>}
       {setting?.locked && <p data-first-run-locked="" className={NOTE}>{setting.locked}</p>}
       {groupsState === 'loading' && (
-        <p data-first-run-groups-reading="" className={`${NOTE} inline-flex items-center gap-1.5`}><Loader2 size={12} className="animate-spin" aria-hidden /> {FIRST_RUN_GROUPS_READING}</p>
+        <p data-first-run-groups-reading="" className={`${NOTE} inline-flex items-center gap-1.5`}><Loader2 size={14} className="animate-spin" aria-hidden /> {FIRST_RUN_GROUPS_READING}</p>
       )}
       <div className="space-y-1.5" data-choice="first-run">
         {choices.map((c) => (
@@ -286,7 +286,7 @@ function FirstRunPart({ values, onChange, profile, groupsState, settings, editab
               <span className="min-w-0">
                 <span className="font-medium">{c.label}</span>
                 {c.records != null && !c.label.includes(counted(c.records, 'record')) && <span data-first-run-records="" className="text-text-secondary"> · {counted(c.records, 'record')}</span>}
-                {c.estimate && <span data-first-run-estimate="" className="block text-[11px] text-text-secondary">{c.estimate}</span>}
+                {c.estimate && <span data-first-run-estimate="" className="block text-caption text-text-secondary">{c.estimate}</span>}
                 <span className="block"><Recommended best={best} id={c.id} /></span>
               </span>
             </label>
@@ -347,13 +347,13 @@ export default function ScopeSettings({
       <ProfileNote state={profileState} error={profileError} />
       {part !== 'first_run' && <GroupingPart values={values} onChange={onChange} profile={profile} read={groups?.state === 'ready' ? groups.profile : null} settings={settings} editable={editableOf(GROUP_BY)} chosenBy={groupingChosenBy} />}
       {part !== 'grouping' && groups && groups.state === 'error' && !(profileState === 'error' && groups.error === profileError) && (
-        <PlainMessage text={`Inspire could not read the groups of the Data groups you chose: ${groups.error}`} role="alert" data-first-run-groups-error="" className="text-[11px] text-error-fg" />
+        <PlainMessage text={`Inspire could not read the groups of the Data groups you chose: ${groups.error}`} role="alert" data-first-run-groups-error="" className="text-caption text-error-fg" />
       )}
       {part !== 'grouping' && (
         <FirstRunPart values={values} onChange={onChange} profile={listing.state === 'ready' ? listing.profile : profile} groupsState={listing.state}
           settings={settings} editable={editableOf(RUN_SCOPE)} unrecorded={unrecorded} everything={everything} />
       )}
-      {problems.length > 0 && <ul className="space-y-0.5">{problems.map((p) => <li key={p} data-scope-problem="" className="text-[11px] text-error-fg">{p}</li>)}</ul>}
+      {problems.length > 0 && <ul className="space-y-0.5">{problems.map((p) => <li key={p} data-scope-problem="" className="text-caption text-error-fg">{p}</li>)}</ul>}
       {children}
     </section>
   );
@@ -396,7 +396,7 @@ export function ScopeSection({ settings, editable, scope = null, onSave, childre
   };
   return (
     <div data-setting-group={part === 'grouping' ? 'data_groups' : 'run_scope'} className="space-y-2">
-      <h4 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">{meta.title}</h4>
+      <h4 className="text-caption font-semibold uppercase tracking-[0.14em] text-text-secondary">{meta.title}</h4>
       <ScopeSettings part={part} values={shown} onChange={(name, value) => setDraft((was) => ({ ...(was || saved), [name]: value }))}
         profile={scope?.profile || null} profileState={scope?.state || 'off'} profileError={scope?.error || ''} groups={scope?.firstRun || null}
         settings={list} editable={canEdit} unrecorded={unrecorded} everything={everything}>

@@ -89,16 +89,16 @@ export default function ReportedIssues({ issues, onDraft, locked = '' }) {
           {listed.map((item) => (
             <li key={item.feedback_id} data-issue={item.feedback_id} className="border border-border rounded-lg px-3 py-2 space-y-1.5">
               <p dir="auto" className="text-sm text-text-primary whitespace-pre-wrap break-words">{item.text}</p>
-              <p className="text-[11px] text-text-tertiary">{[where(item), item.reported_by, item.reported_at ? String(item.reported_at).slice(0, 16) : ''].filter(Boolean).join(' · ')}</p>
+              <p className="text-caption text-text-tertiary">{[where(item), item.reported_by, item.reported_at ? String(item.reported_at).slice(0, 16) : ''].filter(Boolean).join(' · ')}</p>
               {item.status === 'vibe' && item.vibe_text && <p className="text-xs text-text-secondary" data-issue-vibe="">Vibe: {item.vibe_text}</p>}
               {item.status === 'new' && view?.editable && (
                 <div className="flex flex-wrap gap-2 pt-1">
                   <button type="button" className={BUTTON} disabled={Boolean(busy) || Boolean(locked)} title={locked || undefined}
                     onClick={() => act(item, 'vibe')} data-issue-vibe-draft="">
-                    <Sparkles size={12} /> {busy === `vibe:${item.feedback_id}` ? 'Drafting…' : 'Add to vibe'}
+                    <Sparkles size={14} /> {busy === `vibe:${item.feedback_id}` ? 'Drafting…' : 'Add to vibe'}
                   </button>
                   <button type="button" className={BUTTON} disabled={Boolean(busy)} onClick={() => act(item, 'close')} data-issue-close="">
-                    <X size={12} /> Not a change
+                    <X size={14} /> Not a change
                   </button>
                 </div>
               )}

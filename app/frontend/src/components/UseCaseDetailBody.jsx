@@ -29,14 +29,14 @@ export function CopyButton({ text }) {
     <button
       type="button"
       onClick={handleCopy}
-      className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-smooth border ${
+      className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-caption font-medium transition-smooth border ${
         copied
           ? 'bg-success-bg text-success-fg border-success/20'
           : 'bg-bg text-text-tertiary border-border hover:text-text-secondary hover:border-border-strong'
       }`}
       title={copied ? 'Copied!' : 'Copy to clipboard'}
     >
-      {copied ? <Check size={10} /> : <Copy size={10} />}
+      {copied ? <Check size={14} /> : <Copy size={14} />}
       {copied ? 'Copied' : 'Copy'}
     </button>
   );
@@ -85,10 +85,10 @@ export default function UseCaseDetailBody({
     <div className={className}>
       {kind && (
         <section data-what-you-get className="rounded-lg border border-border p-3" style={kindChipStyle(kind.color)}>
-          <h4 className="text-[10px] font-bold text-text-primary uppercase tracking-[0.18em] mb-1">
+          <h4 className="text-caption font-bold text-text-primary uppercase tracking-[0.18em] mb-1">
             What you get
           </h4>
-          <p className="text-[11px] font-semibold text-text-primary mb-1.5">
+          <p className="text-caption font-semibold text-text-primary mb-1.5">
             {kind.familyLabel} · {kind.label}{kind.technique && <> · <bdi>{kind.technique}</bdi></>}{kind.informational ? ` · ${KIND_INFORMATIONAL_LABEL}` : ''}
           </p>
           {kind.lines.length > 0 ? (
@@ -107,7 +107,7 @@ export default function UseCaseDetailBody({
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="min-w-0">
-          <h4 className="text-[10px] font-bold text-db-red-fg uppercase tracking-[0.18em] mb-1">
+          <h4 className="text-caption font-bold text-db-red-fg uppercase tracking-[0.18em] mb-1">
             Problem Statement
           </h4>
           <p dir="auto" data-use-case-text="statement" className="text-sm text-text-secondary leading-relaxed break-words">
@@ -115,7 +115,7 @@ export default function UseCaseDetailBody({
           </p>
         </div>
         <div className="min-w-0">
-          <h4 className="text-[10px] font-bold text-success-fg uppercase tracking-[0.18em] mb-1">
+          <h4 className="text-caption font-bold text-success-fg uppercase tracking-[0.18em] mb-1">
             Proposed Solution
           </h4>
           <p dir="auto" data-use-case-text="solution" className="text-sm text-text-secondary leading-relaxed break-words">
@@ -126,7 +126,7 @@ export default function UseCaseDetailBody({
 
       {Array.isArray(u.data_filters) && u.data_filters.length > 0 && (
         <section data-use-case-data-filters="">
-          <h4 className="text-[10px] font-bold text-text-primary uppercase tracking-[0.18em] mb-1">
+          <h4 className="text-caption font-bold text-text-primary uppercase tracking-[0.18em] mb-1">
             Data Filters
           </h4>
           <ul className="space-y-0.5 text-sm text-text-secondary leading-relaxed">
@@ -139,7 +139,7 @@ export default function UseCaseDetailBody({
 
       {businessValue && (
         <div>
-          <h4 className="text-[10px] font-bold text-warning-fg uppercase tracking-[0.18em] mb-1">
+          <h4 className="text-caption font-bold text-warning-fg uppercase tracking-[0.18em] mb-1">
             Business Value
           </h4>
           <p dir="auto" data-use-case-text="value" className="text-sm text-text-secondary leading-relaxed break-words">
@@ -151,7 +151,7 @@ export default function UseCaseDetailBody({
       <BestOfBestDetail info={v130} />
       <UseCaseStrategyDetail info={v130} uc={uc} valueEstimate={valueEstimate} knownPriorities={priorityList} foundationsById={foundationsById} strategy={strategy} />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-caption">
         {[
           { label: 'Beneficiary', val: beneficiary },
           { label: 'Sponsor', val: sponsor },
@@ -167,10 +167,10 @@ export default function UseCaseDetailBody({
           },
         ].map((item) => (
           <div key={item.label} data-use-case-fact={item.label} className="min-w-0 bg-bg rounded-lg p-2.5 border border-border">
-            <span className="text-[9px] text-text-tertiary uppercase tracking-[0.18em] font-bold block mb-0.5">
+            <span className="text-caption text-text-tertiary uppercase tracking-[0.18em] font-bold block mb-0.5">
               {item.label}
             </span>
-            <span dir="auto" data-use-case-fact-value="" className={`block text-text-secondary break-words ${item.mono ? 'font-mono text-[10px]' : ''}`}>
+            <span dir="auto" data-use-case-fact-value="" className={`block text-text-secondary break-words ${item.mono ? 'font-mono text-caption' : ''}`}>
               {item.val || 'N/A'}
             </span>
           </div>
@@ -180,7 +180,7 @@ export default function UseCaseDetailBody({
       {sql && !sql.startsWith('--') && (
         <div>
           <div className="flex items-center justify-between mb-1">
-            <h4 className="text-[10px] font-bold text-info-fg uppercase tracking-[0.18em]">
+            <h4 className="text-caption font-bold text-info-fg uppercase tracking-[0.18em]">
               SQL Implementation
               {resultTable && (
                 <span className="text-text-tertiary font-normal normal-case ms-1">
@@ -192,7 +192,7 @@ export default function UseCaseDetailBody({
           </div>
           <div className="relative rounded-lg border border-border overflow-hidden">
             <div className="absolute start-0 top-0 bottom-0 w-1 bg-info/30 rounded-s-lg" />
-            <pre className="text-[11px] text-text-primary bg-bg p-4 ps-5 overflow-x-auto max-h-60 overflow-y-auto font-mono leading-relaxed whitespace-pre-wrap">
+            <pre className="text-caption text-text-primary bg-bg p-4 ps-5 overflow-x-auto max-h-60 overflow-y-auto font-mono leading-relaxed whitespace-pre-wrap">
               {sql}
             </pre>
           </div>
@@ -202,9 +202,9 @@ export default function UseCaseDetailBody({
       {workspaceNotebookHref && (
         <div data-use-case-notebook="">
           <div className="flex items-center justify-between gap-2">
-            <h4 className="min-w-0 text-[10px] font-bold text-db-red-fg uppercase tracking-[0.18em]">
+            <h4 className="min-w-0 text-caption font-bold text-db-red-fg uppercase tracking-[0.18em]">
               {shippedGenie ? 'Genie Code Instruction' : 'Use case notebook'}
-              <span className="text-text-tertiary font-normal normal-case ms-1 font-mono text-[9px] truncate max-w-[300px] inline-block align-bottom">
+              <span className="text-text-tertiary font-normal normal-case ms-1 font-mono text-caption truncate max-w-[300px] inline-block align-bottom">
                 {notebookPath.split('/').pop()}
               </span>
             </h4>
@@ -212,14 +212,14 @@ export default function UseCaseDetailBody({
               href={workspaceNotebookHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium text-db-red-fg hover:underline transition-colors"
+              className="inline-flex shrink-0 items-center gap-1 text-caption font-medium text-db-red-fg hover:underline transition-colors"
               title="Open the notebook in your Databricks workspace"
             >
-              Open notebook <ExternalLink size={10} aria-hidden />
+              Open notebook <ExternalLink size={14} aria-hidden />
             </a>
           </div>
           {!shippedGenie && (
-            <p className="mt-2 text-[10px] text-text-tertiary leading-relaxed">
+            <p className="mt-2 text-caption text-text-tertiary leading-relaxed">
               This notebook holds an outline or part of the instruction. To write the full Genie Code instruction, use <span className="font-semibold">{START_MVP_LABEL}</span> and tick only Notebook under Deliver.
             </p>
           )}

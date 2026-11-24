@@ -67,7 +67,7 @@ export default function StepFilter({ facts, scope, onScope, post }) {
           })}
         </ul>
       )}
-      {reply?.sql && <details data-filter-sql=""><summary className="cursor-pointer text-[12px] text-text-secondary">SQL used to count</summary><pre className="overflow-x-auto text-[11px]">{reply.sql}</pre></details>}
+      {reply?.sql && <details data-filter-sql=""><summary className="cursor-pointer text-[12px] text-text-secondary">SQL used to count</summary><pre className="overflow-x-auto text-caption">{reply.sql}</pre></details>}
       {reply?.builder && (
         <div data-filter-builder="" className="flex flex-wrap items-end gap-2 rounded-md border border-border px-3 py-2">
           <p className="w-full text-[12px] text-text-secondary">{reply.reason ? `The AI model is not available (${reply.reason}). Build the filter here.` : 'Build the filter here.'}</p>

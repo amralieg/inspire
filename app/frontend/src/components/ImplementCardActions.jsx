@@ -15,23 +15,23 @@ export default function ImplementCardActions({ status = null, onImplement, onOpe
     <div className={`${className} flex flex-wrap items-center gap-2`} data-implement-actions="">
       {open && (
         <button type="button" onClick={(e) => { e.stopPropagation(); onOpen(); }} className={PRIMARY}>
-          <ArrowRight size={13} /> Open MVP
+          <ArrowRight size={14} /> Open MVP
         </button>
       )}
       {canStart && (
         <button type="button" onClick={(e) => { e.stopPropagation(); onImplement(); }} className={PRIMARY}>
-          <Sparkles size={13} />
+          <Sparkles size={14} />
           {START_MVP_LABEL}
         </button>
       )}
       {assets.map((link) => (
         <a key={link.id} href={link.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className={OUTLINE} data-card-asset={link.id}>
-          {link.label} <ExternalLink size={12} />
+          {link.label} <ExternalLink size={14} />
         </a>
       ))}
       {notebook && (
         <a href={notebook} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className={OUTLINE}>
-          Open notebook <ExternalLink size={12} />
+          Open notebook <ExternalLink size={14} />
         </a>
       )}
       {showStatus && <ImplementStatusBadge state={status} />}

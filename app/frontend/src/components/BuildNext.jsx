@@ -87,7 +87,7 @@ function StartButton({ id, onStart }) {
   return (
     <button type="button" data-start-mvp={id} onClick={() => onStart(id)}
       className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-db-red/40 bg-surface px-3 py-1.5 text-[12px] font-semibold text-text-primary hover:bg-bg-subtle">
-      Start use case MVP <ArrowRight size={13} aria-hidden />
+      Start use case MVP <ArrowRight size={14} aria-hidden />
     </button>
   );
 }
@@ -200,7 +200,7 @@ export function BuildNextStep({ apiFetch, apiPostJson, inspireDatabase, warehous
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0 flex-1 basis-56">
                   <p dir="auto" className="break-words text-sm font-medium text-text-primary">{row.name || row.id}</p>
-                  <p className="text-[11px] text-text-secondary">Shares {row.shared.join(', ')}</p>
+                  <p className="text-caption text-text-secondary">Shares {row.shared.join(', ')}</p>
                   <RunValue row={row} onMeasure={onMeasure} />
                 </div>
                 {canBuild && (
@@ -208,11 +208,11 @@ export function BuildNextStep({ apiFetch, apiPostJson, inspireDatabase, warehous
                     {canBuildNow && (
                       <button type="button" data-build-now={row.id} aria-busy={build.busy ? 'true' : 'false'} disabled={build.busy}
                         onClick={() => buildNow(row)} className={BUILD_NOW_BUTTON}>
-                        {build.busy ? <><Loader2 size={13} className="animate-spin" aria-hidden data-build-spinner="" /> Building</> : 'Build Now'}
+                        {build.busy ? <><Loader2 size={14} className="animate-spin" aria-hidden data-build-spinner="" /> Building</> : 'Build Now'}
                       </button>
                     )}
                     <button type="button" data-build-custom={row.id} onClick={() => onBuildCustom(ucOf(row))} className={BUILD_CUSTOM_BUTTON}>
-                      Build custom <ArrowRight size={13} aria-hidden />
+                      Build custom <ArrowRight size={14} aria-hidden />
                     </button>
                   </div>
                 )}
@@ -220,7 +220,7 @@ export function BuildNextStep({ apiFetch, apiPostJson, inspireDatabase, warehous
               {build.error && <PlainMessage text={`Inspire could not start the build: ${build.error}`} role="alert" className="text-[12px] text-error-fg" />}
               {build.permissions?.length > 0 && (
                 <button type="button" data-see-grant="" onClick={() => raisePermissions(build.permissions, {}, { explicit: true })}
-                  className="self-start rounded-lg border border-border bg-surface px-2.5 py-1 text-[11px] font-semibold text-text-primary hover:bg-bg-subtle">
+                  className="self-start rounded-lg border border-border bg-surface px-2.5 py-1 text-caption font-semibold text-text-primary hover:bg-bg-subtle">
                   See the grant
                 </button>
               )}

@@ -43,12 +43,12 @@ export default function RunLogPanel({ inspireDatabase, warehouseId, sessionId, a
       <div className="flex items-center gap-2">
         <button type="button" onClick={toggle} aria-expanded={open}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-primary border border-border rounded-lg hover:bg-bg-subtle">
-          <FileText size={12} aria-hidden="true" /> {open ? 'Hide the run log' : 'Show the run log'}
+          <FileText size={14} aria-hidden="true" /> {open ? 'Hide the run log' : 'Show the run log'}
         </button>
         {open && (
           <button type="button" onClick={load} disabled={loading}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-text-secondary border border-border rounded-lg disabled:opacity-60">
-            {loading ? <Loader2 size={12} className="animate-spin" aria-hidden="true" /> : <RefreshCw size={12} aria-hidden="true" />} Refresh
+            {loading ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <RefreshCw size={14} aria-hidden="true" />} Refresh
           </button>
         )}
       </div>
@@ -56,8 +56,8 @@ export default function RunLogPanel({ inspireDatabase, warehouseId, sessionId, a
       {open && log && !log.found && <p role="status" className="mt-2 text-xs text-text-secondary">The run has not written its log yet. Refresh in a minute.</p>}
       {open && log && log.found && (
         <>
-          {log.truncated && <p className="mt-2 text-[11px] text-text-tertiary">Showing the last part of the log.</p>}
-          <pre aria-label="Run log" className="mt-2 max-h-80 overflow-auto rounded-lg bg-bg-subtle p-3 text-[11px] leading-snug font-mono text-text-secondary whitespace-pre-wrap">{log.text}</pre>
+          {log.truncated && <p className="mt-2 text-caption text-text-tertiary">Showing the last part of the log.</p>}
+          <pre aria-label="Run log" className="mt-2 max-h-80 overflow-auto rounded-lg bg-bg-subtle p-3 text-caption leading-snug font-mono text-text-secondary whitespace-pre-wrap">{log.text}</pre>
         </>
       )}
     </div>

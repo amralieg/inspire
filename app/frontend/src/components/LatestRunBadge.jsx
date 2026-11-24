@@ -7,7 +7,7 @@ export default function LatestRunBadge({ session, latest, className = '' }) {
     <span
       data-latest-run=""
       title="The newest completed run, by its last update"
-      className={`inline-flex shrink-0 items-center rounded-full border border-success/30 bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-fg ${className}`}
+      className={`inline-flex shrink-0 items-center rounded-full border border-success/30 bg-success-bg px-2 py-0.5 text-caption font-semibold text-success-fg ${className}`}
     >
       {LATEST_RUN_LABEL}
     </span>

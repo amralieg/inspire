@@ -42,7 +42,7 @@ export default function Header({
             </span>
           </button>
           {releaseTag && (
-            <span data-release-tag="" className="hidden md:inline shrink-0 whitespace-nowrap font-mono text-[11px] text-text-tertiary">{releaseTag}</span>
+            <span data-release-tag="" className="hidden md:inline shrink-0 whitespace-nowrap font-mono text-caption text-text-tertiary">{releaseTag}</span>
           )}
 
           {/* Navigation */}
@@ -90,7 +90,7 @@ export default function Header({
               className="p-2 rounded-md text-text-secondary hover:text-db-red-fg hover:bg-db-red-50 transition-smooth"
               title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
-              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
             </button>
           </div>
         </div>

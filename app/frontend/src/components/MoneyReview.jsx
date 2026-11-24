@@ -26,7 +26,7 @@ export function NothingToActCard({ run }) {
   return (
     <section aria-label={notReliableReason(run) ? NOT_RELIABLE : NOTHING_TO_ACT} role="status"
       className="flex items-start gap-2.5 rounded-lg border border-warning/40 bg-warning-bg px-3.5 py-3 text-[13px] text-warning-fg">
-      <AlertTriangle size={15} className="mt-px shrink-0" aria-hidden />
+      <AlertTriangle size={16} className="mt-px shrink-0" aria-hidden />
       <p>{text}</p>
     </section>
   );

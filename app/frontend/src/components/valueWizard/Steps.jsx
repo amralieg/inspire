@@ -17,7 +17,7 @@ export function StepData({ plan, answers }) {
       </div>
       <div className="flex flex-wrap items-center gap-4">
         <div className="rounded-lg border border-ok/30 bg-ok-bg px-4 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-ok-fg">From your data</p>
+          <p className="text-caption font-semibold uppercase tracking-wide text-ok-fg">From your data</p>
           <p data-records-per-year="" className="text-2xl font-extrabold tabular-nums text-ok-fg">{countText(recordsOf(plan, answers))} <span className="text-[12px] font-normal">{plan.case_noun}s a year</span></p>
         </div>
       </div>
@@ -49,8 +49,8 @@ export function StepKinds({ plan, answers, onToggle }) {
               <input type="checkbox" aria-label={`Include ${d.label}`} checked={on} onChange={() => onToggle(d.id)} className="mt-1" />
               <span aria-hidden="true" className="text-xl leading-none">{DRIVER_ICONS[d.id] || ''}</span>
               <span className="min-w-0 flex-1"><b className="block text-[13px] text-text-primary">{d.label}</b><span className="block text-[12px] text-text-secondary">{d.why}</span>
-                <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide text-text-secondary">{d.verb}</span></span>
-              <span className="shrink-0 text-[11px] font-semibold text-text-secondary">Include</span>
+                <span className="mt-0.5 block text-caption font-semibold uppercase tracking-wide text-text-secondary">{d.verb}</span></span>
+              <span className="shrink-0 text-caption font-semibold text-text-secondary">Include</span>
             </label>
           );
         })}
@@ -69,8 +69,8 @@ export function StepKind({ driver, answers, yearly, onInput, status, error }) {
       <div className="flex flex-wrap items-center gap-3 lg:col-span-2">
         <span aria-hidden="true" className="text-2xl">{DRIVER_ICONS[driver.id] || ''}</span>
         <div className="min-w-0 flex-1"><h3 className="text-sm font-bold text-text-primary">{driver.label}</h3><p className="text-[12px] text-text-secondary">{driver.why}</p></div>
-        <div className="rounded-lg border border-border px-3 py-1 text-end"><p className="text-[10px] uppercase tracking-wide text-text-secondary">{driver.label}</p><p data-kind-amount="" className="text-lg font-extrabold tabular-nums text-text-primary">{part ? moneyText(unit, part.amount) : stale ? 'Not set' : '...'}{part && <span className="text-[11px] font-normal text-text-secondary"> per year</span>}</p></div>
-        <div className="rounded-lg border border-border bg-bg-subtle px-3 py-1 text-end"><p className="text-[10px] uppercase tracking-wide text-text-secondary">Running total</p><p data-run-total="" className="text-lg font-extrabold tabular-nums text-text-primary">{stale ? 'Not set' : totalText(yearly) || '...'}{!stale && yearly?.total && <span className="text-[11px] font-normal text-text-secondary"> per year</span>}</p></div>
+        <div className="rounded-lg border border-border px-3 py-1 text-end"><p className="text-caption uppercase tracking-wide text-text-secondary">{driver.label}</p><p data-kind-amount="" className="text-lg font-extrabold tabular-nums text-text-primary">{part ? moneyText(unit, part.amount) : stale ? 'Not set' : '...'}{part && <span className="text-caption font-normal text-text-secondary"> per year</span>}</p></div>
+        <div className="rounded-lg border border-border bg-bg-subtle px-3 py-1 text-end"><p className="text-caption uppercase tracking-wide text-text-secondary">Running total</p><p data-run-total="" className="text-lg font-extrabold tabular-nums text-text-primary">{stale ? 'Not set' : totalText(yearly) || '...'}{!stale && yearly?.total && <span className="text-caption font-normal text-text-secondary"> per year</span>}</p></div>
       </div>
       {status === 'error' && <PlainMessage text={error} role="alert" dir="auto" className="rounded-md border border-error/30 bg-error-bg px-3 py-1.5 text-[12px] text-error-fg lg:col-span-2" />}
       {/* FX-106: at laptop widths the inputs stand in one column and the formula, chart and confidence in the other, so the page fits the body with every input listed. */}

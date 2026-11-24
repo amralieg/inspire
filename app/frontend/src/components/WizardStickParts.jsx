@@ -13,7 +13,7 @@ import TechnicalDetails from './TechnicalDetails';
 export function BlockedReason({ block, id = '' }) {
   if (!block?.why) return null;
   return (
-    <div data-blocked-reason={id} className="text-[11px] text-text-secondary">
+    <div data-blocked-reason={id} className="text-caption text-text-secondary">
       <p>{block.why}</p>
       <TechnicalDetails items={block.details} />
     </div>
@@ -35,7 +35,7 @@ export function RowSubjectCheck({ check, options, chosen, tagNotes = [], inputCl
       {text && <p role="status" className={`text-[12px] ${warn ? 'text-warning-fg' : 'text-text-secondary'}`}>{text}</p>}
       {tagNotes.map((note) => <p key={note} data-tags-unread="" className="text-[12px] text-text-secondary">{note}</p>)}
       {(check.state === 'mismatch' || check.state === 'personal') && (
-        <div className="flex flex-wrap gap-3 text-[11px]">
+        <div className="flex flex-wrap gap-3 text-caption">
           {check.suggest && (
             <button data-draft-change="" type="button" className="text-db-red-fg font-medium" onClick={() => onPick(check.suggest.ref)}>
               Group by {check.suggest.column}
@@ -55,7 +55,7 @@ export function RowSubjectCheck({ check, options, chosen, tagNotes = [], inputCl
           {picks.map((o) => <option key={o.ref} value={o.ref}>{o.ref}</option>)}
         </select>
       </label>
-      <p className="text-[11px] text-text-tertiary">Your pick is saved with the MVP, and Genie builds one row of the result per value of it.</p>
+      <p className="text-caption text-text-tertiary">Your pick is saved with the MVP, and Genie builds one row of the result per value of it.</p>
     </section>
   );
 }
@@ -63,7 +63,7 @@ export function RowSubjectCheck({ check, options, chosen, tagNotes = [], inputCl
 function AlertEmailChoice({ outputs, label, blurb, on, onChange, className }) {
   const reached = alertReaches(outputs);
   return (
-    <label className={`${className} flex items-start gap-2 text-[11px] text-text-secondary`}>
+    <label className={`${className} flex items-start gap-2 text-caption text-text-secondary`}>
       <input type="checkbox" className="mt-0.5" checked={on(outputs)} disabled={!reached} onChange={(e) => onChange(e.target.checked)} />
       <span>
         <span className="font-medium text-text-primary">{label}</span>. {reached ? blurb : DIGEST_NOBODY}

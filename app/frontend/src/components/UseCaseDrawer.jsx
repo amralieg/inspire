@@ -15,7 +15,7 @@ function ScoreTile({ label, value, hint }) {
   const shown = typeof value === 'number' && Number.isFinite(value) ? value.toFixed(1) : value || 'n/a';
   return (
     <div className="rounded-lg border border-border bg-bg px-3 py-2 min-w-0" title={hint || label}>
-      <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-text-tertiary truncate">{label}</div>
+      <div className="text-caption font-bold uppercase tracking-[0.16em] text-text-tertiary truncate">{label}</div>
       <div className="mt-1 text-lg font-bold tabular-nums text-text-primary truncate">{shown}</div>
     </div>
   );
@@ -65,7 +65,7 @@ export default function UseCaseDrawer({
       title={(
         <>
           {eyebrow.length > 0 && (
-            <p className="text-[11px] text-text-tertiary truncate">
+            <p className="text-caption text-text-tertiary truncate">
               {eyebrow.map((part, i) => (
                 <span key={part + i} className={i === 0 && row.id ? 'font-mono font-semibold text-text-secondary' : ''}>
                   {i > 0 ? ' · ' : ''}{part}
@@ -81,7 +81,7 @@ export default function UseCaseDrawer({
         <>
           {(onPrev || onNext) && total > 1 && (
             <>
-              <span className="me-1 text-[11px] tabular-nums text-text-tertiary">{position + 1} of {total}</span>
+              <span className="me-1 text-caption tabular-nums text-text-tertiary">{position + 1} of {total}</span>
               <button type="button" onClick={onPrev} disabled={!onPrev} className="rounded-md p-1.5 text-text-secondary hover:bg-bg-subtle disabled:opacity-40" aria-label="Previous use case" title="Previous (↑)">
                 <ChevronUp size={16} />
               </button>
@@ -107,19 +107,19 @@ export default function UseCaseDrawer({
         <>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {row.bob && (
-              <span className="inline-flex items-center gap-1 rounded-md border border-warning/35 bg-warning-bg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-warning-fg" title={bestOfBestLabel(row.bob)}>
-                <Star size={11} className="fill-current text-warning-fg" />
+              <span className="inline-flex items-center gap-1 rounded-md border border-warning/35 bg-warning-bg px-2 py-0.5 text-caption font-semibold uppercase tracking-[0.14em] text-warning-fg" title={bestOfBestLabel(row.bob)}>
+                <Star size={14} className="fill-current text-warning-fg" />
                 Best of Best{row.bob.rank ? ` #${row.bob.rank}` : ''}
               </span>
             )}
             <QualityBarChip uc={uc} />
             {row.priority && (
-              <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${priorityPillClass(row.priority)}`}>{row.priority}</span>
+              <span className={`rounded-full border px-2 py-0.5 text-caption font-semibold ${priorityPillClass(row.priority)}`}>{row.priority}</span>
             )}
             {row.technique && (
-              <span className="rounded-full border border-border bg-bg-subtle px-2 py-0.5 text-[10px] font-medium text-text-secondary">{row.technique}</span>
+              <span className="rounded-full border border-border bg-bg-subtle px-2 py-0.5 text-caption font-medium text-text-secondary">{row.technique}</span>
             )}
-            <span className="rounded-full border border-border bg-bg-subtle px-2 py-0.5 text-[10px] font-medium text-text-secondary">{row.genie}</span>
+            <span className="rounded-full border border-border bg-bg-subtle px-2 py-0.5 text-caption font-medium text-text-secondary">{row.genie}</span>
             <StrategyChip info={v130} />
             <FeedbackChip status={row.feedbackStatus} />
             <ImplementStatusBadge state={row.status} />
@@ -156,7 +156,7 @@ export default function UseCaseDrawer({
               onClick={onOpenImplement}
               className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-text-primary hover:bg-bg-subtle"
             >
-              <ExternalLink size={13} />
+              <ExternalLink size={14} />
               Open in Build
             </button>
           )}

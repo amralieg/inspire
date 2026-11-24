@@ -97,7 +97,7 @@ export default function VibesEditor({ id, value, onChange, autoFocus = false, la
         onChange={(e) => onChange(e.target.value)}
         className={`w-full px-2.5 py-2 text-sm leading-snug border rounded-md bg-surface text-text-primary glow-focus resize-y max-h-[60vh] disabled:opacity-60 ${problem ? 'border-error' : 'border-border'}`}
       />
-      <div className="flex items-start justify-between gap-3 text-[11px]">
+      <div className="flex items-start justify-between gap-3 text-caption">
         <p id={hint} className="text-error-fg">{problem}</p>
         <span data-vibes-count="" className={`shrink-0 tabular-nums ${problem ? 'font-semibold text-error-fg' : 'text-text-secondary'}`}>
           {vibesLength(value).toLocaleString('en-US')}/{VIBES_MAX.toLocaleString('en-US')}

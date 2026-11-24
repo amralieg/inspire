@@ -82,11 +82,11 @@ export default function GenieFeed({ feed, arrivals, active, working, scroller })
   return (
     <div className="relative" data-genie-feed="">
       <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-2.5 border-b border-border bg-bg-subtle">
-        <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-text-secondary">
-          <GenieLogo size={13} /> Genie&apos;s messages
+        <span className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.18em] text-text-secondary">
+          <GenieLogo size={14} /> Genie&apos;s messages
         </span>
         {Array.isArray(feed) && (
-          <span className="text-[11px] text-text-secondary">
+          <span className="text-caption text-text-secondary">
             {said} {said === 1 ? 'message' : 'messages'}{active ? ' · new ones appear as Genie works' : ''}
           </span>
         )}
@@ -114,7 +114,7 @@ export default function GenieFeed({ feed, arrivals, active, working, scroller })
             return (
               <div key={entry.key} className="flex gap-2.5 animate-terminal-line" data-feed-kind={entry.item.kind}>
                 <span className="mt-0.5 shrink-0 w-7 h-7 rounded-full bg-db-red-50 text-db-red-fg ring-1 ring-inset ring-db-red/20 flex items-center justify-center">
-                  <GenieLogo size={15} />
+                  <GenieLogo size={16} />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="inline-block max-w-full rounded-2xl rounded-ss-md px-3.5 py-2.5 bg-surface ring-1 ring-inset ring-border shadow-sm">
@@ -124,7 +124,7 @@ export default function GenieFeed({ feed, arrivals, active, working, scroller })
                     </div>
                   </div>
                   {!still && <TechnicalDetails items={entry.line.details} className="mt-1" />}
-                  {time && <p className="mt-1 text-[10px] text-text-tertiary">Genie · {time}</p>}
+                  {time && <p className="mt-1 text-caption text-text-tertiary">Genie · {time}</p>}
                 </div>
               </div>
             );
@@ -132,12 +132,12 @@ export default function GenieFeed({ feed, arrivals, active, working, scroller })
           const Icon = entry.line.who === 'genie' ? Terminal : Info;
           return (
             <div key={entry.key} className="flex items-start gap-2.5 ps-1 animate-terminal-line" data-feed-kind={entry.item.kind}>
-              <Icon size={13} className={`mt-0.5 shrink-0 ${entry.line.tone === 'error' ? 'text-error-fg' : 'text-text-tertiary'}`} aria-hidden />
+              <Icon size={14} className={`mt-0.5 shrink-0 ${entry.line.tone === 'error' ? 'text-error-fg' : 'text-text-tertiary'}`} aria-hidden />
               <div className="min-w-0">
                 <p className={`text-[12px] ${tone}`}>
                   {entry.line.who === 'inspire' && <span className="font-semibold text-text-secondary">Inspire · </span>}
                   {entry.line.text}
-                  {time && <span className="text-[10px] text-text-tertiary"> · {time}</span>}
+                  {time && <span className="text-caption text-text-tertiary"> · {time}</span>}
                 </p>
                 <TechnicalDetails items={entry.line.details} />
               </div>
@@ -147,7 +147,7 @@ export default function GenieFeed({ feed, arrivals, active, working, scroller })
         {active && (
           <div className="flex items-center gap-2.5 pt-1" data-genie-working="">
             <span className="shrink-0 w-7 h-7 rounded-full bg-db-red-50 text-db-red-fg ring-1 ring-inset ring-db-red/20 flex items-center justify-center motion-safe:animate-pulse">
-              <GenieLogo size={15} />
+              <GenieLogo size={16} />
             </span>
             <span className="text-[12px] text-text-secondary">{working || 'Genie is working'}</span>
             <span className="flex gap-1" aria-hidden>
@@ -166,7 +166,7 @@ export default function GenieFeed({ feed, arrivals, active, working, scroller })
             onClick={jump}
             className="pointer-events-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-semibold text-white bg-primary-solid shadow-lg"
           >
-            <ArrowDown size={12} /> Jump to latest
+            <ArrowDown size={14} /> Jump to latest
           </button>
         </div>
       )}

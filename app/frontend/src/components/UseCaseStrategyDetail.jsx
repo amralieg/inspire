@@ -25,7 +25,7 @@ import { PlainMessage } from './TechnicalDetails';
 function Section({ title, tone, children }) {
   return (
     <div>
-      <h4 className={`text-[10px] font-bold ${tone} uppercase tracking-[0.18em] mb-1`}>{title}</h4>
+      <h4 className={`text-caption font-bold ${tone} uppercase tracking-[0.18em] mb-1`}>{title}</h4>
       {children}
     </div>
   );
@@ -46,7 +46,7 @@ export function StrategyChip({ info, strategy = null }) {
   if (!info.paths.length) {
     if (!showsNotTied(info, strategy)) return null;
     return (
-      <span data-strategy-chip="" className="text-[10px] px-2 py-0.5 rounded-full border border-border bg-bg text-text-tertiary font-medium">{STRATEGY_NOT_TIED}</span>
+      <span data-strategy-chip="" className="text-caption px-2 py-0.5 rounded-full border border-border bg-bg text-text-tertiary font-medium">{STRATEGY_NOT_TIED}</span>
     );
   }
   const goals = strategyGoals(info, strategy);
@@ -55,7 +55,7 @@ export function StrategyChip({ info, strategy = null }) {
   return (
     <span
       data-strategy-chip=""
-      className="max-w-[22rem] truncate text-[10px] px-2 py-0.5 rounded-full border border-db-red/20 bg-db-red-50 text-db-red-fg font-medium"
+      className="max-w-[22rem] truncate text-caption px-2 py-0.5 rounded-full border border-db-red/20 bg-db-red-50 text-db-red-fg font-medium"
       title={info.paths.join('\n')}
     >
       {level ? `${level}: ` : ''}{goals[0].name}{extra > 0 ? ` +${extra}` : ''}
@@ -106,7 +106,7 @@ function StrategySection({ info, priorities, strategy }) {
             <span className="font-semibold text-text-primary">Measured by:</span> {kpis.join('; ')}
           </p>
         )}
-        {strategy?.builtIn && <p data-strategy-builtin="" className="text-[11px] text-text-tertiary">{STRATEGY_BUILTIN_NOTE}</p>}
+        {strategy?.builtIn && <p data-strategy-builtin="" className="text-caption text-text-tertiary">{STRATEGY_BUILTIN_NOTE}</p>}
       </div>
     </Section>
   );
@@ -116,7 +116,7 @@ export function FeedbackChip({ status }) {
   const label = feedbackLabel(status);
   if (!label) return null;
   return (
-    <span className="text-[10px] px-2 py-0.5 rounded-full border border-success/30 bg-success-bg text-success-fg font-medium">{label}</span>
+    <span className="text-caption px-2 py-0.5 rounded-full border border-success/30 bg-success-bg text-success-fg font-medium">{label}</span>
   );
 }
 
@@ -152,21 +152,21 @@ export function UseCaseStrategyDetail({ info, knownPriorities, foundationsById, 
                 {kpiOrigin(k) && (
                   <span
                     data-kpi-origin=""
-                    className={`ms-1.5 rounded border px-1.5 py-0.5 align-middle text-[9px] font-semibold ${
+                    className={`ms-1.5 rounded border px-1.5 py-0.5 align-middle text-caption font-semibold ${
                       kpiOrigin(k) === KPI_FROM_STRATEGY ? 'border-success/30 text-success-fg' : 'border-border text-text-tertiary'
                     }`}
                   >
                     {kpiOrigin(k)}
                   </span>
                 )}
-                {kpiSource(k) && <span className="block font-mono text-[10px] text-text-tertiary">{kpiSource(k)}</span>}
+                {kpiSource(k) && <span className="block font-mono text-caption text-text-tertiary">{kpiSource(k)}</span>}
                 {!k.baseline && k.computable && (
-                  <span className="block text-[10px] text-text-tertiary">No baseline measured yet. The query measures it.</span>
+                  <span className="block text-caption text-text-tertiary">No baseline measured yet. The query measures it.</span>
                 )}
                 {k.query && (
                   <details className="mt-0.5">
-                    <summary className="cursor-pointer text-[10px] text-text-tertiary hover:text-db-red-fg">KPI query</summary>
-                    <pre className="mt-1 overflow-x-auto rounded border border-border bg-panel p-2 font-mono text-[10px] text-text-primary whitespace-pre-wrap">{k.query}</pre>
+                    <summary className="cursor-pointer text-caption text-text-tertiary hover:text-db-red-fg">KPI query</summary>
+                    <pre className="mt-1 overflow-x-auto rounded border border-border bg-panel p-2 font-mono text-caption text-text-primary whitespace-pre-wrap">{k.query}</pre>
                   </details>
                 )}
               </li>
@@ -185,7 +185,7 @@ export function UseCaseStrategyDetail({ info, knownPriorities, foundationsById, 
             {info.keyResults.map((kr, i) => (
               <li key={`${kr.id || 'p'}-${i}`} className="text-sm text-text-secondary leading-relaxed">
                 {kr.statement}{' '}
-                <span className="ms-1 rounded border border-border px-1.5 py-0.5 align-middle text-[9px] font-semibold text-text-tertiary">
+                <span className="ms-1 rounded border border-border px-1.5 py-0.5 align-middle text-caption font-semibold text-text-tertiary">
                   {kr.source === 'strategy' ? 'From your strategy' : 'Proposed'}
                 </span>
               </li>
@@ -216,20 +216,20 @@ export function UseCaseStrategyDetail({ info, knownPriorities, foundationsById, 
               {signal.text && `: ${signal.text}`}
             </p>
           )}
-          <ul className="space-y-0.5 text-[11px] text-text-secondary">
+          <ul className="space-y-0.5 text-caption text-text-secondary">
             {evidenceTables.map(([table, t]) => (
               <li key={table}>
                 <span className="font-mono">{table}</span>
                 {t?.rows != null && `: ${Number(t.rows).toLocaleString('en-US')} rows${t.sampled ? ' (sampled)' : ''}`}
                 {Object.entries(t?.date_ranges || {}).map(([column, range]) => (
-                  <span key={column} className="block ps-3 text-[10px] text-text-tertiary">
+                  <span key={column} className="block ps-3 text-caption text-text-tertiary">
                     {column}: {range.min} to {range.max}
                   </span>
                 ))}
               </li>
             ))}
             {evidenceJoins.map((j, i) => (
-              <li key={`j-${i}`} className="font-mono text-[10px]">
+              <li key={`j-${i}`} className="font-mono text-caption">
                 {j.child_table}.{j.child_column} → {j.parent_table}.{j.parent_column}
                 {matchRateText(j.rate) && <span className="font-sans">: {matchRateText(j.rate)} of rows match</span>}
               </li>
@@ -243,7 +243,7 @@ export function UseCaseStrategyDetail({ info, knownPriorities, foundationsById, 
             {info.foundations.map((id) => {
               const f = foundationsById?.get(id);
               return (
-                <span key={id} title={(f?.tables || []).join(', ')} className="rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] text-text-secondary">
+                <span key={id} title={(f?.tables || []).join(', ')} className="rounded-full border border-border bg-surface px-2 py-0.5 text-caption text-text-secondary">
                   {id}{f?.name ? ` · ${f.name}` : ''}
                 </span>
               );
@@ -265,13 +265,13 @@ export function FeedbackControls({ useCaseKey, available, current, busy, error, 
   const locked = busy || readOnly;
   const why = readOnlyReason(readOnly) || undefined;
   const pill = (active) =>
-    `px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-smooth disabled:opacity-50 ${
+    `px-2.5 py-1 rounded-lg text-caption font-medium border transition-smooth disabled:opacity-50 ${
       active ? 'border-db-red/30 bg-db-red-50 text-db-red-fg' : 'border-border bg-surface text-text-secondary hover:border-border-strong'
     }`;
   return (
     <div className="rounded-lg border border-border bg-bg p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Your feedback</span>
+        <span className="text-caption font-bold uppercase tracking-[0.18em] text-text-tertiary">Your feedback</span>
         {FEEDBACK_BUTTONS.map((s) => (
           <button key={s} type="button" disabled={locked} title={why} onClick={() => onSubmit(s, '')} className={pill(status === s)}>
             {feedbackLabel(s)}
@@ -280,9 +280,9 @@ export function FeedbackControls({ useCaseKey, available, current, busy, error, 
         <button type="button" disabled={locked} title={why} onClick={() => setRejecting((r) => !r)} className={pill(status === 'rejected' || rejecting)}>
           Reject
         </button>
-        {busy && <Loader2 size={13} className="animate-spin text-text-tertiary" aria-hidden />}
+        {busy && <Loader2 size={14} className="animate-spin text-text-tertiary" aria-hidden />}
         {current && (
-          <span className="text-[10px] text-text-tertiary">
+          <span className="text-caption text-text-tertiary">
             Last: {feedbackLabel(status)}
             {current.updated_at ? ` on ${String(current.updated_at).slice(0, 10)}` : ''}
             {current.updated_by ? ` by ${current.updated_by}` : ''}
@@ -313,12 +313,12 @@ export function FeedbackControls({ useCaseKey, available, current, busy, error, 
           </button>
         </div>
       )}
-      <p className="mt-2 text-[10px] text-text-tertiary leading-snug">
+      <p className="mt-2 text-caption text-text-tertiary leading-snug">
         A rejected use case is left out of this business&apos;s next runs. For an implemented one, the next run tracks its KPIs against the baseline.
       </p>
       {readOnly && <DemoNote className="mt-2" />}
       {error && note && <DemoNote className="mt-2" text={error} />}
-      {error && !note && <PlainMessage text={error} className="mt-1 text-[11px] text-error-fg" />}
+      {error && !note && <PlainMessage text={error} className="mt-1 text-caption text-error-fg" />}
     </div>
   );
 }

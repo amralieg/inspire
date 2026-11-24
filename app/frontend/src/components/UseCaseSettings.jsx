@@ -18,7 +18,7 @@ function SettingRow({ setting, editable, draft, onDraft }) {
     <div data-setting={setting.name} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border pt-2 first:border-t-0 first:pt-0">
       <div className="min-w-0 flex-1">
         <p className="font-medium text-text-primary" title={setting.help || undefined}>{setting.label || setting.name}</p>
-        <p className="text-[11px] text-text-secondary">
+        <p className="text-caption text-text-secondary">
           <span data-setting-source="">{setting.saved ? SETTINGS_SAVED : setting.reason || 'Set when the use case was built'}</span>
           {setting.allowed && <> · Allowed: {setting.allowed}</>}
         </p>
@@ -106,7 +106,7 @@ export default function UseCaseSettings({ view, error = '', readOnly = false, im
         <ScopeSections settings={settings} editable={editable} scope={scope} onSave={onSave} />
         {groups.map(([group, list]) => (
           <div key={group || 'other'} data-setting-group={group || 'other'} className="space-y-2">
-            <h4 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">{settingGroupTitle(group, impact)}</h4>
+            <h4 className="text-caption font-semibold uppercase tracking-[0.14em] text-text-secondary">{settingGroupTitle(group, impact)}</h4>
             {list.map((s) => <SettingRow key={s.name} setting={s} editable={editable} draft={draft} onDraft={setDraft} />)}
           </div>
         ))}
@@ -128,12 +128,12 @@ export default function UseCaseSettings({ view, error = '', readOnly = false, im
         {message && <p role="status" className="text-text-primary">{message}</p>}
         {!readOnly && view.can_run && (
           <button type="button" disabled={busy !== ''} onClick={run} className={`${BUTTON} border border-border bg-surface text-text-primary`}>
-            {busy === 'run' ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />} Run now
+            {busy === 'run' ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} Run now
           </button>
         )}
         {!readOnly && view.source === 'recorded' && !view.app && onEdit && settings.length > 0 && (
           <button type="button" onClick={onEdit} className={`${BUTTON} border border-border bg-surface text-text-primary`}>
-            <Pencil size={12} /> Change them in all settings
+            <Pencil size={14} /> Change them in all settings
           </button>
         )}
         {history.length > 0 && (

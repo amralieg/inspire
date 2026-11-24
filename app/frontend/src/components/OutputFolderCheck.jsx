@@ -8,7 +8,7 @@ function Notes({ items }) {
     <ul data-output-check-notes className="mt-1 space-y-0.5 text-xs text-warning-fg">
       {items.map((note) => (
         <li key={note} className="flex items-start gap-1.5">
-          <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+          <AlertTriangle size={14} className="shrink-0 mt-0.5" />
           <span className="break-words min-w-0">{note}</span>
         </li>
       ))}
@@ -20,7 +20,7 @@ export default function OutputFolderCheck({ check, where = '', id }) {
   if (check.state === 'checking') {
     return (
       <p id={id} role="status" data-output-check="checking" className="flex items-center gap-1.5 text-xs text-text-tertiary mt-2">
-        <Loader2 size={12} className="animate-spin shrink-0" />
+        <Loader2 size={14} className="animate-spin shrink-0" />
         Checking that you can write to the output folder. Get Started waits for this check.
       </p>
     );
@@ -43,7 +43,7 @@ export default function OutputFolderCheck({ check, where = '', id }) {
   if (check.state === 'unchecked') {
     return (
       <p id={id} role="status" data-output-check="unchecked" className="flex items-start gap-1.5 text-xs text-warning-fg mt-2">
-        <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+        <AlertTriangle size={14} className="shrink-0 mt-0.5" />
         <span className="break-words min-w-0">{check.text}</span>
       </p>
     );
@@ -59,7 +59,7 @@ export default function OutputFolderCheck({ check, where = '', id }) {
         </p>
         {check.permissions?.length > 0 && (
           <button type="button" data-see-grant="" onClick={() => raisePermissions(check.permissions, {}, { explicit: true })}
-            className="mt-1 rounded-lg border border-border bg-surface px-2.5 py-1 text-[11px] font-semibold text-text-primary hover:bg-bg-subtle">
+            className="mt-1 rounded-lg border border-border bg-surface px-2.5 py-1 text-caption font-semibold text-text-primary hover:bg-bg-subtle">
             See the grant
           </button>
         )}

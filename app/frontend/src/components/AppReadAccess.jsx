@@ -7,7 +7,7 @@ export function GrantList({ label, items }) {
   if (!items?.length) return null;
   return (
     <ul aria-label={label} className="space-y-0.5">
-      {items.map((sql) => <li key={sql} className="font-mono text-[11px] text-text-primary break-all">{sql}</li>)}
+      {items.map((sql) => <li key={sql} className="font-mono text-caption text-text-primary break-all">{sql}</li>)}
     </ul>
   );
 }
@@ -21,7 +21,7 @@ export function AppReadAccess({ offer, result, busy, onGrant }) {
     if (result?.failed?.length) raisePermissions(grantFailurePermissions(result));
   }, [result]);
   return (
-    <section aria-label="App read access" data-app-read="" className="space-y-1.5 text-[11px] bg-bg border border-border rounded-md px-3 py-2">
+    <section aria-label="App read access" data-app-read="" className="space-y-1.5 text-caption bg-bg border border-border rounded-md px-3 py-2">
       {offer && <PlainMessage text={offer.text} className="text-text-secondary" />}
       {offer?.can_grant && (
         <button type="button" disabled={busy} onClick={onGrant}

@@ -125,7 +125,7 @@ function AddRowFilter({ table, column, who, openLabel = 'Row filter', commitLabe
           {draft.map((v, i) => (
             <span key={`${i}-${v}`} className={CHIP}>
               {v}
-              <button type="button" aria-label={`Remove value ${v}`} onClick={() => setDraft(draft.filter((x) => x !== v))}><X size={10} /></button>
+              <button type="button" aria-label={`Remove value ${v}`} onClick={() => setDraft(draft.filter((x) => x !== v))}><X size={14} /></button>
             </span>
           ))}
         </div>
@@ -209,7 +209,7 @@ function RowGroups({ column, picked, loaded, onLoad, onPick }) {
           {picked.map((v, i) => (
             <span key={`${i}-${v}`} data-scope-group={column} className={CHIP}>
               <span dir="auto">{v}</span>
-              <button type="button" aria-label={`Remove group ${v}`} onClick={() => onPick(picked.filter((x) => x !== v))}><X size={10} /></button>
+              <button type="button" aria-label={`Remove group ${v}`} onClick={() => onPick(picked.filter((x) => x !== v))}><X size={14} /></button>
             </span>
           ))}
         </div>
@@ -601,7 +601,7 @@ export default function DataFilters({ scope, scopes, tables, listing, onScopes, 
                     <span className="min-w-0 text-text-tertiary [overflow-wrap:anywhere]">{shortName(table)}{countLine(table) && ` · ${countLine(table)}`}</span>
                     <button type="button" aria-label={`Remove ${f.group ? 'row group' : 'row filter'} on ${f.column} in ${shortName(table)}: ${rowText(f)}`}
                       onClick={() => removeRow(table, index)}>
-                      <X size={10} />
+                      <X size={14} />
                     </button>
                   </li>
                 )))}

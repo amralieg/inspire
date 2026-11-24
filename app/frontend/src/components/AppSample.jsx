@@ -53,7 +53,7 @@ const impactTilesOf = (s) => [
 ];
 
 const Chip = ({ hue, children }) => (
-  <span className="inline-block rounded-full px-1.5 text-[8.5px] font-semibold leading-[14px]" style={{ background: pv(`${hue}-bg`), color: pv(`${hue}-ink`) }}>{children}</span>
+  <span className="inline-block rounded-full px-1.5 text-caption font-semibold leading-[14px]" style={{ background: pv(`${hue}-bg`), color: pv(`${hue}-ink`) }}>{children}</span>
 );
 
 function Card({ look, title, hue = 'blue', explain = false, className = '', children }) {
@@ -62,10 +62,10 @@ function Card({ look, title, hue = 'blue', explain = false, className = '', chil
     ? { background: pv(`${hue}-bg`), color: pv(`${hue}-ink`), borderBottom: `1px solid ${pv('line')}` }
     : { color: pv('ink') };
   return (
-    <div className={`flex min-h-0 flex-col overflow-hidden ${look.style === 'a' ? 'rounded-[4px]' : 'rounded-[8px]'} ${className}`} style={body}>
+    <div className={`flex min-h-0 flex-col overflow-hidden ${look.style === 'a' ? 'rounded-sm' : 'rounded-md'} ${className}`} style={body}>
       <div className="flex items-center justify-between gap-1 px-2 py-1" style={head}>
-        <span className="truncate text-[9px] font-semibold" style={look.style === 'c' ? SERIF : undefined}>{title}</span>
-        {explain && <span className="shrink-0 rounded-full px-1.5 text-[8px] leading-[13px]" style={{ border: `1px solid ${pv('line-strong')}`, color: pv('ink'), background: pv('card') }}>Explain</span>}
+        <span className="truncate text-caption font-semibold" style={look.style === 'c' ? SERIF : undefined}>{title}</span>
+        {explain && <span className="shrink-0 rounded-full px-1.5 text-caption leading-[13px]" style={{ border: `1px solid ${pv('line-strong')}`, color: pv('ink'), background: pv('card') }}>Explain</span>}
       </div>
       <div className="min-h-0 flex-1 px-2 pb-1.5">{children}</div>
     </div>
@@ -102,9 +102,9 @@ function Bars({ s, pareto = false }) {
     <div className="space-y-[3px] pt-0.5">
       {SEGMENTS.map(([name, v]) => (
         <div key={name} className="flex items-center gap-1.5">
-          <span className="w-[52px] shrink-0 truncate text-[8.5px] leading-tight" style={{ color: pv('muted') }}>{name}</span>
-          <span className="block h-[7px] rounded-[2px]" style={{ width: `${(v / max) * 100}%`, maxWidth: 'calc(100% - 82px)', background: pv('green-line') }} />
-          <span className="text-[8.5px] leading-tight" style={{ color: pv('ink') }}>{s.amount(v * 1000)}</span>
+          <span className="w-[52px] shrink-0 truncate text-caption leading-tight" style={{ color: pv('muted') }}>{name}</span>
+          <span className="block h-[7px] rounded-sm" style={{ width: `${(v / max) * 100}%`, maxWidth: 'calc(100% - 82px)', background: pv('green-line') }} />
+          <span className="text-caption leading-tight" style={{ color: pv('ink') }}>{s.amount(v * 1000)}</span>
         </div>
       ))}
     </div>
@@ -126,7 +126,7 @@ function Donut() {
         })}
       </svg>
       <div className="space-y-0.5">
-        {TIERS.map(([name, v]) => <p key={name} className="text-[8.5px] leading-tight" style={{ color: pv('ink') }}><Chip hue={TIER_HUES[name]}>{name}</Chip> {v}</p>)}
+        {TIERS.map(([name, v]) => <p key={name} className="text-caption leading-tight" style={{ color: pv('ink') }}><Chip hue={TIER_HUES[name]}>{name}</Chip> {v}</p>)}
       </div>
     </div>
   );
@@ -158,7 +158,7 @@ function Kpis({ look, s }) {
       <div className="grid grid-cols-4" style={{ borderTop: `1px solid ${pv('line')}`, borderBottom: `1px solid ${pv('line')}` }}>
         {kpis.map((k, i) => (
           <div key={k.label} className="px-2 py-1" style={i ? { borderInlineStart: `1px solid ${pv('line')}` } : undefined}>
-            <p className="text-[8.5px]" style={{ color: pv('muted') }}>{k.label}</p>
+            <p className="text-caption" style={{ color: pv('muted') }}>{k.label}</p>
             <p className="text-[16px] font-semibold leading-tight" style={{ ...SERIF, color: pv(`${k.hue}-ink`) }}>{k.value}</p>
           </div>
         ))}
@@ -173,8 +173,8 @@ function Kpis({ look, s }) {
           ? { background: pv(`${k.hue}-bg`), border: `1px solid ${pv('line')}`, boxShadow: `inset 3px 0 0 ${pv(`${k.hue}-line`)}` }
           : { background: pv('card'), border: `1px solid ${pv('line')}`, boxShadow: `inset 0 -2px 0 ${pv(`${k.hue}-line`)}` };
         return (
-          <div key={k.label} className={`px-2 py-1 ${tinted ? 'rounded-[8px]' : 'rounded-[4px]'}`} style={box}>
-            <p className="text-[8.5px] font-medium" style={{ color: tinted ? pv(`${k.hue}-ink`) : pv('muted') }}>{k.label}</p>
+          <div key={k.label} className={`px-2 py-1 ${tinted ? 'rounded-md' : 'rounded-sm'}`} style={box}>
+            <p className="text-caption font-medium" style={{ color: tinted ? pv(`${k.hue}-ink`) : pv('muted') }}>{k.label}</p>
             <p className="text-[13px] font-bold leading-tight" style={{ color: tinted ? pv(`${k.hue}-ink`) : pv('ink') }}>{k.value}</p>
           </div>
         );
@@ -187,11 +187,11 @@ function Table({ look, title, head, rows }) {
   return (
     <Card look={{ ...look, style: look.style === 'c' ? 'a' : look.style }} title={title} hue="slate">
       <table className="w-full table-fixed text-start">
-        <thead><tr>{head.map(([label, width]) => <th key={label} className="pb-0.5 text-[8px] font-medium" style={{ color: pv('muted'), width }}>{label}</th>)}</tr></thead>
+        <thead><tr>{head.map(([label, width]) => <th key={label} className="pb-0.5 text-caption font-medium" style={{ color: pv('muted'), width }}>{label}</th>)}</tr></thead>
         <tbody>
           {rows.map((cells, r) => (
             <tr key={r} style={{ borderTop: `1px solid ${pv('line')}` }}>
-              {cells.map((cell, c) => <td key={c} className="truncate py-[2px] pe-1 text-[8.5px]" style={{ color: pv('ink') }}>{cell}</td>)}
+              {cells.map((cell, c) => <td key={c} className="truncate py-[2px] pe-1 text-caption" style={{ color: pv('ink') }}>{cell}</td>)}
             </tr>
           ))}
         </tbody>
@@ -203,8 +203,8 @@ function Table({ look, title, head, rows }) {
 function PageTitle({ look, title, sub }) {
   return (
     <div className="min-w-0">
-      <p className={`truncate font-semibold leading-tight ${look.style === 'c' ? 'text-[14px]' : 'text-[11px]'}`} style={{ color: pv('ink'), ...(look.style === 'c' ? SERIF : {}) }}>{title}</p>
-      <p className="truncate text-[8.5px]" style={{ color: pv('muted') }}>{sub}</p>
+      <p className={`truncate font-semibold leading-tight ${look.style === 'c' ? 'text-[14px]' : 'text-caption'}`} style={{ color: pv('ink'), ...(look.style === 'c' ? SERIF : {}) }}>{title}</p>
+      <p className="truncate text-caption" style={{ color: pv('muted') }}>{sub}</p>
     </div>
   );
 }
@@ -248,7 +248,7 @@ function Body({ look, view, title, charts, s }) {
         <Table look={look} title="Runs" head={[['When', '24%'], ['Status', '15%'], ['What it covered', '31%'], ['Records', '15%'], ['To fix', '15%']]}
           rows={RUNS.map(([when, covered, records, fix]) => [when, <Chip key={when} hue="green">Done</Chip>, covered, records, fix])} />
         <Card look={look} title="Tables read in the Oct 27 run" hue="slate">
-          <p className="text-[8.5px]" style={{ color: pv('ink') }}>2 tables, 48,210 rows, updated Oct 27, 05:40</p>
+          <p className="text-caption" style={{ color: pv('ink') }}>2 tables, 48,210 rows, updated Oct 27, 05:40</p>
         </Card>
       </>
     );
@@ -259,10 +259,10 @@ function Body({ look, view, title, charts, s }) {
         <PageTitle look={look} title="Alerts" sub="Email alerts on this use case, each on its own schedule" />
         {alertsOf(s).map(([what, when, who, state, hue]) => (
           <Card key={what} look={look} title={what} hue={hue}>
-            <p className="flex items-center gap-1.5 text-[8.5px]" style={{ color: pv('ink') }}><span>{when}</span><span style={{ color: pv('muted') }}>·</span><span>{who}</span><Chip hue={hue}>{state}</Chip></p>
+            <p className="flex items-center gap-1.5 text-caption" style={{ color: pv('ink') }}><span>{when}</span><span style={{ color: pv('muted') }}>·</span><span>{who}</span><Chip hue={hue}>{state}</Chip></p>
           </Card>
         ))}
-        <span className="self-start rounded-full px-2 text-[8.5px] leading-[16px]" style={{ border: `1px solid ${pv('line-strong')}`, color: pv('ink'), background: pv('card') }}>New alert</span>
+        <span className="self-start rounded-full px-2 text-caption leading-[16px]" style={{ border: `1px solid ${pv('line-strong')}`, color: pv('ink'), background: pv('card') }}>New alert</span>
       </>
     );
   }
@@ -274,11 +274,11 @@ function Body({ look, view, title, charts, s }) {
           {impactTilesOf(s).map(([label, value, sub, hue]) => (
             <Card key={label} look={look} title={label} hue={hue}>
               <p className="text-[14px] font-bold leading-tight" style={{ color: pv(`${hue}-ink`), ...(look.style === 'c' ? SERIF : {}) }}>{value}</p>
-              <p className="text-[8px] leading-snug" style={{ color: pv('muted') }}>{sub}</p>
+              <p className="text-caption leading-snug" style={{ color: pv('muted') }}>{sub}</p>
             </Card>
           ))}
         </div>
-        <p className="text-[8.5px]" style={{ color: pv('muted') }}>The three are never added together.</p>
+        <p className="text-caption" style={{ color: pv('muted') }}>The three are never added together.</p>
         <Card look={look} title="Delivered by month" hue="green" className="h-[64px]" explain><Trend /></Card>
       </>
     );
@@ -289,12 +289,12 @@ function Body({ look, view, title, charts, s }) {
 function GeniePanel() {
   return (
     <div className="flex w-[38%] shrink-0 flex-col gap-1.5 p-2" style={{ background: pv('card'), borderInlineStart: `1px solid ${pv('line')}` }}>
-      <p className="text-[10px] font-semibold" style={{ color: pv('ink') }}>Ask Genie</p>
-      <p className="self-end rounded-[8px] px-2 py-1 text-[8.5px]" style={{ background: pv('well'), color: pv('ink') }}>Why is R-1042 flagged?</p>
-      <p className="rounded-[8px] px-2 py-1 text-[8.5px] leading-snug" style={{ border: `1px solid ${pv('line')}`, color: pv('ink') }}>
+      <p className="text-caption font-semibold" style={{ color: pv('ink') }}>Ask Genie</p>
+      <p className="self-end rounded-md px-2 py-1 text-caption" style={{ background: pv('well'), color: pv('ink') }}>Why is R-1042 flagged?</p>
+      <p className="rounded-md px-2 py-1 text-caption leading-snug" style={{ border: `1px solid ${pv('line')}`, color: pv('ink') }}>
         Its value fell 38% below its 8 week average, the biggest drop in Segment B, so it is first in Act now.
       </p>
-      <span className="mt-auto rounded-[6px] px-2 text-[8.5px] leading-[18px]" style={{ border: `1px solid ${pv('line-strong')}`, color: pv('muted') }}>Ask about this page</span>
+      <span className="mt-auto rounded-sm px-2 text-caption leading-[18px]" style={{ border: `1px solid ${pv('line-strong')}`, color: pv('muted') }}>Ask about this page</span>
     </div>
   );
 }
@@ -305,19 +305,19 @@ function TopBar({ look, appName, title, shared, impact }) {
     : look.style === 'c' ? { background: pv('card'), boxShadow: `0 1px 0 ${pv('line')}` } : { background: pv('card'), borderBottom: `1px solid ${pv('line')}` };
   return (
     <div className="flex h-[30px] shrink-0 items-center gap-2 px-2" style={bar}>
-      <span aria-hidden="true" className="block h-[14px] w-[14px] shrink-0 rounded-[3px]" style={{ background: pv('brand') }} />
+      <span aria-hidden="true" className="block h-[14px] w-[14px] shrink-0 rounded-sm" style={{ background: pv('brand') }} />
       <span className="min-w-0 shrink-0 leading-none">
-        <span className="block max-w-[150px] truncate text-[9.5px] font-semibold" style={{ color: pv('ink') }}>{appName}</span>
-        <span className="block text-[8px]" style={{ color: pv('muted') }}>1 use case · built by Inspire</span>
+        <span className="block max-w-[150px] truncate text-caption font-semibold" style={{ color: pv('ink') }}>{appName}</span>
+        <span className="block text-caption" style={{ color: pv('muted') }}>1 use case · built by Inspire</span>
       </span>
       {look.layout === 'tabs' && (
         <span className="ms-2 flex min-w-0 items-end gap-2 self-stretch">
-          <span className="flex max-w-[160px] items-center truncate text-[9px] font-semibold" style={{ color: pv('ink'), borderBottom: `2px solid ${pv('brand')}` }}>{title}</span>
-          {impact && <span className="flex items-center text-[9px]" style={{ color: pv('muted'), borderBottom: '2px solid transparent' }}>Impact</span>}
+          <span className="flex max-w-[160px] items-center truncate text-caption font-semibold" style={{ color: pv('ink'), borderBottom: `2px solid ${pv('brand')}` }}>{title}</span>
+          {impact && <span className="flex items-center text-caption" style={{ color: pv('muted'), borderBottom: '2px solid transparent' }}>Impact</span>}
         </span>
       )}
-      <span className="ms-auto shrink-0 text-[8px]" style={{ color: pv('muted') }}>{shared ? 'Shared view' : 'Your view'}</span>
-      <span className="shrink-0 rounded-full px-1.5 text-[8.5px] leading-[15px]" style={{ border: `1px solid ${pv('line-strong')}`, color: pv('ink'), background: pv('card') }}>Ask Genie</span>
+      <span className="ms-auto shrink-0 text-caption" style={{ color: pv('muted') }}>{shared ? 'Shared view' : 'Your view'}</span>
+      <span className="shrink-0 rounded-full px-1.5 text-caption leading-[15px]" style={{ border: `1px solid ${pv('line-strong')}`, color: pv('ink'), background: pv('card') }}>Ask Genie</span>
     </div>
   );
 }
@@ -325,17 +325,17 @@ function TopBar({ look, appName, title, shared, impact }) {
 function SideNav({ look, title, impact }) {
   return (
     <div className="flex w-[116px] shrink-0 flex-col gap-1 p-1.5" style={{ background: look.style === 'b' ? pv('panel') : pv('card'), borderInlineEnd: `1px solid ${pv('line')}` }}>
-      <p className="px-1 text-[8px] font-semibold uppercase tracking-wide" style={{ color: pv('muted') }}>Use case</p>
-      <div className="rounded-[5px] px-1.5 py-1" style={{ background: pv('brand-wash'), borderInlineStart: `2px solid ${pv('brand')}` }}>
-        <p className="truncate text-[9px] font-semibold" style={{ color: pv('ink') }}>{title}</p>
-        <p className="text-[8px]" style={{ color: pv('muted') }}>128 to fix</p>
+      <p className="px-1 text-caption font-semibold uppercase tracking-wide" style={{ color: pv('muted') }}>Use case</p>
+      <div className="rounded-sm px-1.5 py-1" style={{ background: pv('brand-wash'), borderInlineStart: `2px solid ${pv('brand')}` }}>
+        <p className="truncate text-caption font-semibold" style={{ color: pv('ink') }}>{title}</p>
+        <p className="text-caption" style={{ color: pv('muted') }}>128 to fix</p>
       </div>
       {impact && (
         <>
           <span className="my-0.5 block h-px" style={{ background: pv('line') }} />
           <div className="px-1.5 py-0.5">
-            <p className="text-[9px] font-semibold" style={{ color: pv('ink') }}>Impact</p>
-            <p className="text-[8px]" style={{ color: pv('muted') }}>What it delivered</p>
+            <p className="text-caption font-semibold" style={{ color: pv('ink') }}>Impact</p>
+            <p className="text-caption" style={{ color: pv('muted') }}>What it delivered</p>
           </div>
         </>
       )}
@@ -348,9 +348,9 @@ function HomeCards({ look, title, impact, s }) {
   return (
     <div className="grid shrink-0 grid-cols-2 gap-1.5">
       {cards.map(([name, sub, hue]) => (
-        <div key={name} className="rounded-[6px] px-2 py-1" style={{ background: pv('card'), border: `1px solid ${pv('line')}`, boxShadow: `inset 0 2px 0 ${pv(`${hue}-line`)}` }}>
-          <p className="truncate text-[9px] font-semibold" style={{ color: pv('ink') }}>{name}</p>
-          <p className="truncate text-[8px]" style={{ color: pv('muted') }}>{sub}</p>
+        <div key={name} className="rounded-sm px-2 py-1" style={{ background: pv('card'), border: `1px solid ${pv('line')}`, boxShadow: `inset 0 2px 0 ${pv(`${hue}-line`)}` }}>
+          <p className="truncate text-caption font-semibold" style={{ color: pv('ink') }}>{name}</p>
+          <p className="truncate text-caption" style={{ color: pv('muted') }}>{sub}</p>
         </div>
       ))}
     </div>

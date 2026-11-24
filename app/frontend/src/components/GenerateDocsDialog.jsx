@@ -83,7 +83,7 @@ export default function GenerateDocsDialog({ useCases, values, businessName, lan
           {pages.map((p, i) => (
             <li key={p} data-docs-step={p} aria-current={p === pageId ? 'step' : undefined}
               className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${p === pageId ? 'bg-primary-solid text-white' : i < at || files ? 'bg-db-red-100 text-db-red-fg' : 'bg-bg-subtle text-text-secondary'}`}>
-              {(i < at || files) ? <Check size={11} aria-hidden /> : <span aria-hidden>{i + 1}</span>}{TITLES[p]}
+              {(i < at || files) ? <Check size={14} aria-hidden /> : <span aria-hidden>{i + 1}</span>}{TITLES[p]}
             </li>
           ))}
         </ol>
@@ -110,9 +110,9 @@ export default function GenerateDocsDialog({ useCases, values, businessName, lan
                 <li key={f.name} data-doc-file={f.name} data-doc-file-state={s.state} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-3 py-2 text-sm">
                   <span className="min-w-0 flex-1 truncate text-text-primary" title={f.name}>{f.name}</span>
                   <span className="inline-flex items-center gap-1 text-xs text-text-secondary">
-                    {s.state === 'working' && <Loader2 size={12} className="motion-safe:animate-spin" aria-hidden />}
-                    {s.state === 'done' && <Check size={12} className="text-success-fg" aria-hidden />}
-                    {s.state === 'failed' && <CircleAlert size={12} className="text-error-fg" aria-hidden />}
+                    {s.state === 'working' && <Loader2 size={14} className="motion-safe:animate-spin" aria-hidden />}
+                    {s.state === 'done' && <Check size={14} className="text-success-fg" aria-hidden />}
+                    {s.state === 'failed' && <CircleAlert size={14} className="text-error-fg" aria-hidden />}
                     {{ waiting: 'Waiting', working: 'Making', done: 'Saved', failed: 'Failed' }[s.state]}
                   </span>
                   {s.state === 'failed' && <PlainMessage as="span" dir="auto" text={s.message} className="basis-full text-xs text-error-fg" />}

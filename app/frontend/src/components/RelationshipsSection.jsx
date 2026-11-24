@@ -125,7 +125,7 @@ function LinkDialog({ dialog, links, suggestions, linked, onPick, onLink, onRemo
                 <li key={linkText(link, nameOf)} data-dialog-link={linkText(link, nameOf)} className="flex min-w-0 items-center gap-2 rounded-md border border-border px-2 py-1">
                   <span className="min-w-0 truncate font-mono text-text-primary" title={linkText(link, nameOf)}>{linkText(link, nameOf)}</span>
                   <button type="button" aria-label={`Remove link ${linkText(link, nameOf)}`} onClick={() => onRemove(link)}
-                    className="ms-auto text-text-tertiary hover:text-db-red-fg"><X size={12} /></button>
+                    className="ms-auto text-text-tertiary hover:text-db-red-fg"><X size={14} /></button>
                 </li>
               ))}
             </ul>
@@ -246,7 +246,7 @@ export default function RelationshipsSection({ tables, relationships, onRelation
                 <span className="min-w-0 truncate font-mono text-text-primary" title={linkText(link, nameOf)}>{linkText(link, nameOf)}</span>
                 <span data-link-source className="ms-auto text-text-secondary">{sourceText(link.source)}</span>
                 <button type="button" aria-label={`Remove relationship ${linkText(link, nameOf)}`} onClick={() => onRelationships(relationships.filter((l) => l !== link))}
-                  className="text-text-tertiary hover:text-db-red-fg"><X size={12} /></button>
+                  className="text-text-tertiary hover:text-db-red-fg"><X size={14} /></button>
               </li>
             ))}
           </ul>

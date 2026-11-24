@@ -47,12 +47,12 @@ export default function ArrivingNow({ useCases, live, empty }) {
             <li key={uc.id || `${uc.name}-${i}`} data-live-use-case="" className="min-w-0 rounded-lg border border-border bg-bg p-3">
               <div className="flex items-center gap-2 text-xs text-text-tertiary">
                 <span className="font-mono tabular-nums">{uc.id || `#${i + 1}`}</span>
-                {uc.priority && <span className={`ms-auto rounded-full px-2 py-0.5 text-[11px] font-semibold ${toneOf(uc.priority)}`}>{uc.priority}</span>}
+                {uc.priority && <span className={`ms-auto rounded-full px-2 py-0.5 text-caption font-semibold ${toneOf(uc.priority)}`}>{uc.priority}</span>}
               </div>
               <p className="mt-1 text-sm font-medium leading-snug text-text-primary break-words">{uc.label || uc.name}</p>
               <p className="mt-1 flex items-center gap-2 text-xs text-text-secondary">
                 {uc.domain && <span className="truncate">{uc.domain}</span>}
-                {uc.quality && <span className="ms-auto shrink-0 rounded-full bg-bg-subtle px-1.5 py-0.5 text-[11px]">Quality {uc.quality}</span>}
+                {uc.quality && <span className="ms-auto shrink-0 rounded-full bg-bg-subtle px-1.5 py-0.5 text-caption">Quality {uc.quality}</span>}
               </p>
             </li>
           ))}

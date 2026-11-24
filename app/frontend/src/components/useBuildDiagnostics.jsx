@@ -65,22 +65,22 @@ export default function useBuildDiagnostics({ apiFetch, query, refreshKey = '', 
     actions: (
       <>
         <button type="button" data-diagnostics-download="" aria-describedby={noteId} disabled={busy === 'download'} onClick={download} className={BUTTON_CLASS}>
-          <Download size={13} aria-hidden /> Download diagnostics
+          <Download size={14} aria-hidden /> Download diagnostics
         </button>
         <button type="button" data-diagnostics-copy="" aria-describedby={noteId} disabled={busy === 'copy'} onClick={copy} className={BUTTON_CLASS}>
-          {copied ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />} {copied ? 'Copied diagnostics' : 'Copy diagnostics'}
+          {copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />} {copied ? 'Copied diagnostics' : 'Copy diagnostics'}
         </button>
         <a data-diagnostics-report="" href={newIssueUrl(ready)} target="_blank" rel="noopener noreferrer" onPointerEnter={prepare} onFocus={prepare} onClick={report} aria-describedby={noteId} className={BUTTON_CLASS}>
-          <Bug size={13} aria-hidden /> Report issue
+          <Bug size={14} aria-hidden /> Report issue
         </a>
       </>
     ),
     note: (
       <>
-        <p id={noteId} data-diagnostics-note="" className="basis-full text-[11px] text-text-secondary">
+        <p id={noteId} data-diagnostics-note="" className="basis-full text-caption text-text-secondary">
           {DIAGNOSTICS_PRIVACY_NOTE} {REPORT_ISSUE_NOTE}
         </p>
-        <p role="status" aria-live="polite" data-diagnostics-said="" className={error || copied ? 'basis-full text-[11px]' : 'sr-only'}>
+        <p role="status" aria-live="polite" data-diagnostics-said="" className={error || copied ? 'basis-full text-caption' : 'sr-only'}>
           {error ? <PlainMessage as="span" text={error} className="text-error-fg" /> : copied ? 'The diagnostics are on your clipboard.' : ''}
         </p>
       </>

@@ -42,7 +42,7 @@ function Requirement({ entry, assets, headline }) {
   return (
     <li data-requirement={OWN_STATE.includes(state) ? state : entry.met ? 'met' : 'not_met'}
       className={`flex items-start gap-2.5 rounded-lg border bg-surface px-3 py-2 text-[12px] ${look.border}`}>
-      <span aria-hidden className={`mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ring-1 ring-inset ${MARK[state]}`}>
+      <span aria-hidden className={`mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-caption font-bold ring-1 ring-inset ${MARK[state]}`}>
         {look.mark}
       </span>
       <div className="min-w-0 space-y-0.5">
@@ -58,7 +58,7 @@ function Requirement({ entry, assets, headline }) {
           <ul aria-label="Checks Inspire ran" className="flex flex-wrap gap-1.5 pt-0.5">
             {entry.checks.map((check, i) => (
               <li key={`${i}-${check.name}`} data-check-passed={check.passed ? 'yes' : 'no'}
-                className={`rounded-md px-1.5 py-px text-[11px] font-medium ring-1 ring-inset ${check.passed ? MARK.met : MARK.not_met}`}>
+                className={`rounded-md px-1.5 py-px text-caption font-medium ring-1 ring-inset ${check.passed ? MARK.met : MARK.not_met}`}>
                 <span aria-hidden>{check.passed ? '✓' : '×'} </span>{check.name}<span className="sr-only">{check.passed ? ': passed' : ': failed'}</span>
               </li>
             ))}
@@ -90,8 +90,8 @@ export default function VibeChecklist({ checklist, assets = {}, compact = false,
         <p data-checklist-headline="" className={`font-bold ${compact ? 'text-[12px]' : 'text-[14px]'} ${tone}`}>{headline}</p>
       </div>
       {checklist.live && (
-        <p className="flex items-center gap-1.5 text-[11px] text-text-secondary">
-          <Loader2 size={12} className="motion-safe:animate-spin" aria-hidden /> Inspire is checking each requirement on this build; the list fills as it checks.
+        <p className="flex items-center gap-1.5 text-caption text-text-secondary">
+          <Loader2 size={14} className="motion-safe:animate-spin" aria-hidden /> Inspire is checking each requirement on this build; the list fills as it checks.
         </p>
       )}
       <ol aria-label={settingsOnly ? `Settings changes asked in v${checklist.version}` : `Vibe requirements of v${checklist.version}`} className="space-y-1.5">
@@ -101,12 +101,12 @@ export default function VibeChecklist({ checklist, assets = {}, compact = false,
         <div className="flex flex-wrap gap-2">
           {onSendAgain && (
             <button type="button" disabled={locked} title={lockedReason || undefined} onClick={onSendAgain} className={PRIMARY_BUTTON}>
-              {busy ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Send again
+              {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send again
             </button>
           )}
           {onEdit && (
             <button type="button" onClick={onEdit} className={OUTLINE_BUTTON}>
-              <Pencil size={12} /> {VIBE_FEATURES_LABEL}
+              <Pencil size={14} /> {VIBE_FEATURES_LABEL}
             </button>
           )}
         </div>

@@ -24,7 +24,7 @@ export default function BuildStarting() {
       overlayAttrs={{ 'data-build-starting': '', role: 'status', 'aria-live': 'polite' }}
       header={(
         <div className="flex flex-col items-center gap-3 px-8 pt-6 text-center">
-          <Loader2 size={28} className="animate-spin text-db-red-fg" aria-hidden="true" />
+          <Loader2 size={24} className="animate-spin text-db-red-fg" aria-hidden="true" />
           <h2 id="build-starting-title" className="text-sm font-semibold text-text-primary">{STARTING_TEXT}</h2>
         </div>
       )} bare>

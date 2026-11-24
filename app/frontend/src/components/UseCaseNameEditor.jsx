@@ -29,7 +29,7 @@ export function UseCaseNameTitle({ text, rename }) {
         />
         {busy && (
           <span role="status" data-saving="" className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary shrink-0">
-            <Loader2 size={12} className="animate-spin" aria-hidden />Saving…
+            <Loader2 size={14} className="animate-spin" aria-hidden />Saving…
           </span>
         )}
       </span>
