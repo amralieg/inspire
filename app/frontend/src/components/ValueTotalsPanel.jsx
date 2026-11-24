@@ -61,7 +61,7 @@ export function Bar({ parts, label }) {
 
 export function TotalBox({ label, totals, sub }) {
   return (
-    <div data-value-total="" className="flex min-w-[9rem] flex-col items-center justify-center rounded-xl border-2 border-db-red-solid bg-surface px-4 py-3 text-center">
+    <div data-value-total="" className="flex min-w-[9rem] flex-col items-center justify-center rounded-xl border-2 border-primary-solid bg-surface px-4 py-3 text-center">
       <span className="text-[11px] tracking-wide text-text-primary">{label}</span>
       {totals.length ? totals.map((t) => <span key={t.currency} data-total-amount="" className="text-[22px] font-extrabold tabular-nums text-db-red-fg">{moneyText(t.currency, t.amount)}</span>)
         : <span data-total-amount="" className="text-[22px] font-extrabold text-text-tertiary">None yet</span>}
@@ -201,7 +201,7 @@ export function RunValueLine({ value, label = 'Business value at stake', classNa
   return (
     <div data-run-value="" className={`text-[11px] text-text-secondary ${className}`}>
       {totals.length > 0 ? (
-        <div data-run-value-box="" className="inline-flex min-w-[8rem] flex-col rounded-lg border-2 border-db-red-solid bg-db-red-solid px-3 py-1.5 text-white">
+        <div data-run-value-box="" className="inline-flex min-w-[8rem] flex-col rounded-lg border-2 border-primary-solid bg-primary-solid px-3 py-1.5 text-white">
           <span className="font-semibold uppercase tracking-wide text-white">{label}</span>
           <span className="text-[18px] font-extrabold tabular-nums"><RunValueTotal value={value} red /></span>
           <span className="inline-flex items-center gap-1 text-[10px] text-white">

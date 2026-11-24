@@ -140,7 +140,7 @@ export default function TableBrowser({
               onClick={() => setFilterType(f)}
               className={`px-2 py-0.5 text-[11px] font-medium rounded transition-smooth
                 ${filterType === f
-                  ? 'bg-db-red-solid text-white'
+                  ? 'bg-primary-solid text-white'
                   : 'text-text-secondary hover:bg-bg-subtle'
                 }`}
             >

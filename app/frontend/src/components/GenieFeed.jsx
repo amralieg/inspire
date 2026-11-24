@@ -164,7 +164,7 @@ export default function GenieFeed({ feed, arrivals, active, working, scroller })
           <button
             type="button"
             onClick={jump}
-            className="pointer-events-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-semibold text-white bg-db-red-solid shadow-lg"
+            className="pointer-events-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-semibold text-white bg-primary-solid shadow-lg"
           >
             <ArrowDown size={12} /> Jump to latest
           </button>

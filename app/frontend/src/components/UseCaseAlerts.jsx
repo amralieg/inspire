@@ -17,7 +17,7 @@ import SaveButton from './SaveButton';
 import BusyNote from './BusyNote';
 
 const BUTTON = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50';
-const PRIMARY = `${BUTTON} font-semibold text-white bg-db-red-solid hover:opacity-90`;
+const PRIMARY = `${BUTTON} font-semibold text-white bg-primary-solid hover:opacity-90`;
 const OUTLINE = `${BUTTON} border border-border bg-surface text-text-primary`;
 const DANGER = `${BUTTON} border border-error/40 bg-surface text-error-fg`;
 const FIELD = 'mt-0.5 w-full px-2 py-1 border border-border rounded-lg bg-surface text-[12px] text-text-primary';

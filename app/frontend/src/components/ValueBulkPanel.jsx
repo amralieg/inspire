@@ -21,13 +21,13 @@ export function ValueBulkBar({ shown, selected, onSelectAll, onCalculate, onGene
       </label>
       {selected >= 1 && (
         <button type="button" onClick={onCalculate} disabled={busy} title={busy ? 'A value calculation is running. Wait for it to finish or stop it first.' : undefined}
-          className="rounded-md bg-db-red-solid hover:bg-db-red-solid-hover px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed">
+          className="rounded-md bg-primary-solid hover:bg-primary-solid-hover px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed">
           Calculate value for {selected}
         </button>
       )}
       {selected >= 1 && onGenerate && (
         <button type="button" onClick={onGenerate}
-          className="rounded-md border border-db-red-solid px-3 py-1.5 text-xs font-semibold text-db-red-fg hover:bg-db-red-50">
+          className="rounded-md border border-primary-solid px-3 py-1.5 text-xs font-semibold text-db-red-fg hover:bg-db-red-50">
           ✦ Generate docs
         </button>
       )}
@@ -96,7 +96,7 @@ export function ValueBulkProgress() {
       <span data-bulk-bg-text="" aria-live="polite" className="font-semibold text-text-primary">{run.running && <Loader2 size={12} className="me-1.5 inline motion-safe:animate-spin" aria-hidden />}{run.running ? 'Calculating value' : 'Value calculated'}: {bulkSummary(run.rows, run.items)}</span>
       <div role="progressbar" aria-label="Value calculation progress" aria-valuemin={0} aria-valuenow={done} aria-valuemax={total}
         className="h-2 min-w-24 flex-1 overflow-hidden rounded-full bg-bg-subtle">
-        <div className="h-full bg-db-red-solid text-white" style={{ width: `${total ? Math.round((done / total) * 100) : 0}%` }} />
+        <div className="h-full bg-primary-solid text-white" style={{ width: `${total ? Math.round((done / total) * 100) : 0}%` }} />
       </div>
       <button type="button" onClick={show} className={btn}>Open</button>
       {run.running ? <button type="button" onClick={stop} className={btn}>Stop</button> : <button type="button" onClick={dismiss} className={btn}>Dismiss</button>}

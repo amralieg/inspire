@@ -16,7 +16,7 @@ const SUBTITLES = {
   style: 'Pick a look. The picture on the right is your real infographic.', columns: 'Pick the columns of the Excel sheet.', review: 'These files will be made and saved to Assets.',
 };
 const btn = 'inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle disabled:opacity-50';
-const primary = 'inline-flex items-center gap-1.5 rounded-md bg-linear-to-r from-db-red-solid to-db-red px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-50';
+const primary = 'inline-flex items-center gap-1.5 rounded-md bg-linear-to-r from-primary-solid to-db-red px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-50';
 
 // REQ-503: the Generate docs wizard. Pages: documents, layout, include, style, columns (Excel only), review; then the files are made and saved.
 export default function GenerateDocsDialog({ useCases, values, businessName, language, folder, apiPostJson, inspireDatabase, warehouseId, sessionId, onSaved, onGoToAssets, onClose }) {
@@ -82,7 +82,7 @@ export default function GenerateDocsDialog({ useCases, values, businessName, lan
         <ol className="mt-2 flex flex-wrap items-center gap-1.5" aria-label="Steps">
           {pages.map((p, i) => (
             <li key={p} data-docs-step={p} aria-current={p === pageId ? 'step' : undefined}
-              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${p === pageId ? 'bg-db-red-solid text-white' : i < at || files ? 'bg-db-red-100 text-db-red-fg' : 'bg-bg-subtle text-text-secondary'}`}>
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${p === pageId ? 'bg-primary-solid text-white' : i < at || files ? 'bg-db-red-100 text-db-red-fg' : 'bg-bg-subtle text-text-secondary'}`}>
               {(i < at || files) ? <Check size={11} aria-hidden /> : <span aria-hidden>{i + 1}</span>}{TITLES[p]}
             </li>
           ))}

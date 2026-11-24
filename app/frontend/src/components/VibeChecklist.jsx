@@ -5,7 +5,7 @@ import {
 import { VIBE_FEATURES_LABEL, heldNoReasonText } from '../lib/implementWizard';
 
 const OUTLINE_BUTTON = 'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
-const PRIMARY_BUTTON = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-db-red-solid hover:bg-db-red-solid-hover shadow-sm shadow-db-red/20 disabled:opacity-50';
+const PRIMARY_BUTTON = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-primary-solid hover:bg-primary-solid-hover shadow-sm shadow-db-red/20 disabled:opacity-50';
 const MARK = {
   met: 'bg-success-bg text-success-fg ring-success/30',
   not_met: 'bg-error-bg text-error-fg ring-error/30',

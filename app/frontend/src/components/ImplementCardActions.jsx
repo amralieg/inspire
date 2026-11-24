@@ -2,7 +2,7 @@ import { ArrowRight, ExternalLink, Sparkles } from 'lucide-react';
 import ImplementStatusBadge from './ImplementStatusBadge';
 import { START_MVP_LABEL } from '../lib/implementWizard';
 
-const PRIMARY = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-db-red-solid hover:bg-db-red-solid-hover shadow-sm shadow-db-red/20 transition-smooth';
+const PRIMARY = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-primary-solid hover:bg-primary-solid-hover shadow-sm shadow-db-red/20 transition-smooth';
 const OUTLINE = 'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle transition-smooth';
 
 export default function ImplementCardActions({ status = null, onImplement, onOpen, notebookUrl = '', links = [], className = 'px-5 pb-3', showStatus = true }) {

@@ -556,7 +556,7 @@ function LandingActions({ onStart, large = false, className = '', style }) {
       <button
         type="button"
         onClick={onStart}
-        className={`group inline-flex items-center gap-2.5 bg-linear-to-r from-db-red-solid to-db-red-solid-hover text-white font-bold rounded-xl transition-[opacity,transform] duration-300 hover:-translate-y-0.5 ${size}`}
+        className={`group inline-flex items-center gap-2.5 bg-linear-to-r from-primary-solid to-primary-solid-hover text-white font-bold rounded-xl transition-[opacity,transform] duration-300 hover:-translate-y-0.5 ${size}`}
         style={{ boxShadow: START_GLOW }}
       >
         Get Started

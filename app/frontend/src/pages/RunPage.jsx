@@ -17,7 +17,7 @@ import UiPageHeader from '../components/ui/PageHeader';
 
 const STATE_TONE = { ready: 'text-success-fg', starting: 'text-text-secondary', stopped: 'text-text-secondary', failed: 'text-error-fg' };
 const LINK_CLASS = 'inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold';
-const PRIMARY_CLASS = `${LINK_CLASS} bg-primary hover:bg-primary-hover text-primary-fg`;
+const PRIMARY_CLASS = `${LINK_CLASS} bg-primary-solid hover:bg-primary-hover dark:hover:bg-primary-solid-hover text-primary-fg`;
 const SECONDARY_CLASS = `${LINK_CLASS} border border-border bg-surface text-text-primary hover:border-border-strong`;
 
 function pageDetail(page) {

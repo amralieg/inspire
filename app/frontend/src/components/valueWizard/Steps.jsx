@@ -46,7 +46,7 @@ export function StepKinds({ plan, answers, onToggle }) {
         {plan.drivers.map((d) => {
           const on = Boolean(answers.drivers[d.id]?.on);
           return (
-            <label key={d.id} className={`flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2 text-start ${on ? 'border-db-red-solid ring-1 ring-db-red-solid' : 'border-border hover:bg-bg-subtle'}`}>
+            <label key={d.id} className={`flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2 text-start ${on ? 'border-primary-solid ring-1 ring-db-red-solid' : 'border-border hover:bg-bg-subtle'}`}>
               <input type="checkbox" aria-label={`Include ${d.label}`} checked={on} onChange={() => onToggle(d.id)} className="mt-1" />
               <span aria-hidden="true" className="text-xl leading-none">{DRIVER_ICONS[d.id] || ''}</span>
               <span className="min-w-0 flex-1"><b className="block text-[13px] text-text-primary">{d.label}</b><span className="block text-[12px] text-text-secondary">{d.why}</span>

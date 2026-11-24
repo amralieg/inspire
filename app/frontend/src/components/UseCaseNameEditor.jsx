@@ -25,7 +25,7 @@ export function UseCaseNameTitle({ text, rename }) {
             if (e.key === 'Escape') { e.preventDefault(); leave(); }
           }}
           onBlur={(e) => blur(e.currentTarget.value)}
-          className={`${NAME_TEXT_CLASS} min-w-0 flex-1 bg-transparent border-b border-db-red-solid/60 outline-none disabled:opacity-60`}
+          className={`${NAME_TEXT_CLASS} min-w-0 flex-1 bg-transparent border-b border-primary-solid/60 outline-none disabled:opacity-60`}
         />
         {busy && (
           <span role="status" data-saving="" className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary shrink-0">

@@ -256,7 +256,7 @@ function RailProgress({ item, progress }) {
       <div className="relative h-1.5 rounded-full bg-bg-subtle overflow-hidden" aria-hidden>
         {percent == null
           ? <span className="absolute inset-y-0 start-0 w-1/3 rounded-full bg-db-red motion-safe:animate-[shimmer_1.8s_ease-in-out_infinite]" />
-          : <span className="absolute inset-y-0 start-0 rounded-full bg-linear-to-r from-db-red-solid to-db-red transition-[width] duration-700" style={{ width: `${Math.max(percent, 4)}%` }} />}
+          : <span className="absolute inset-y-0 start-0 rounded-full bg-linear-to-r from-primary-solid to-db-red transition-[width] duration-700" style={{ width: `${Math.max(percent, 4)}%` }} />}
       </div>
       <p className="flex items-center gap-1.5 text-xs text-text-secondary min-w-0">
         {percent != null && <span className="shrink-0 font-mono font-bold tabular-nums text-text-primary">{percent}%</span>}

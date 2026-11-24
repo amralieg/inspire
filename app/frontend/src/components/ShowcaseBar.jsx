@@ -33,7 +33,7 @@ export default function ShowcaseBar({ showcase, showcases = [], onSwitch, onGetS
           <button
             type="button"
             onClick={onGetStarted}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-db-red-solid px-3 py-1.5 text-xs font-semibold text-white hover:bg-db-red-solid-hover transition-smooth"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary-solid px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-solid-hover transition-smooth"
           >
             Get Started
             <ArrowRight size={12} aria-hidden="true" />

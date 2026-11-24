@@ -118,7 +118,7 @@ export default function UseCaseSettings({ view, error = '', readOnly = false, im
             <div className="flex flex-wrap items-center gap-2">
               <input dir="auto" aria-label="Note for the change" placeholder="Why, for the history (optional)" maxLength={300} className={`${INPUT} w-64`} value={note}
                 onChange={(e) => setNote(e.target.value)} />
-              <SaveButton busy={busy === 'save'} disabled={busy !== ''} onClick={save} className={`${BUTTON} text-white bg-db-red-solid`}>
+              <SaveButton busy={busy === 'save'} disabled={busy !== ''} onClick={save} className={`${BUTTON} text-white bg-primary-solid`}>
                 Save {draft.label}
               </SaveButton>
             </div>

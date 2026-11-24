@@ -14,14 +14,14 @@ const STAGE_LOOK = {
   done: { Icon: Check, chip: 'bg-success-bg text-success-fg ring-1 ring-inset ring-success/40', words: 'done' },
   warning: { Icon: AlertTriangle, chip: 'bg-warning-bg text-warning-fg ring-1 ring-inset ring-warning/40', words: 'done with warnings' },
   error: { Icon: X, chip: 'bg-error-solid text-white', words: 'failed' },
-  running: { Icon: Loader2, chip: 'bg-db-red-solid text-white shadow-sm shadow-db-red/30', words: 'in progress', live: true },
-  next: { Icon: Loader2, chip: 'bg-db-red-solid text-white shadow-sm shadow-db-red/30', words: 'starting', live: true },
+  running: { Icon: Loader2, chip: 'bg-primary-solid text-white shadow-sm shadow-db-red/30', words: 'in progress', live: true },
+  next: { Icon: Loader2, chip: 'bg-primary-solid text-white shadow-sm shadow-db-red/30', words: 'starting', live: true },
   waiting: { Icon: Circle, chip: 'bg-bg-subtle text-text-secondary ring-1 ring-inset ring-border', words: 'not started' },
   not_reached: { Icon: Circle, chip: 'bg-bg-subtle text-text-secondary ring-1 ring-inset ring-border', words: 'not reached' },
 };
 
 const BAR_TONE = {
-  busy: 'bg-gradient-to-r from-db-red-solid to-db-red',
+  busy: 'bg-gradient-to-r from-primary-solid to-db-red',
   success: 'bg-success',
   warning: 'bg-warning',
   error: 'bg-error',

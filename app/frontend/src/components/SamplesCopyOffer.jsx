@@ -21,7 +21,7 @@ export default function SamplesCopyOffer({ names, target, onTarget, canCopy, cop
       </label>
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" data-samples-copy="" disabled={!canCopy || copying} onClick={onCopy}
-          className="rounded-lg bg-db-red-solid px-3 py-2 font-semibold text-white disabled:opacity-50">
+          className="rounded-lg bg-primary-solid px-3 py-2 font-semibold text-white disabled:opacity-50">
           {copying ? 'Copying…' : copyLabel || `Copy into ${target || 'a schema you own'}`}
         </button>
         {onDescriptions && (

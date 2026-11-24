@@ -9,6 +9,9 @@
   --color-primary-hover: var(--t-primary-hover);
   --color-primary-subtle: var(--t-primary-subtle);
   --color-primary-fg: #FFFFFF;
+  /* Solid fill under white text: 5.07:1 in light and dark. --color-primary stays for text and links. */
+  --color-primary-solid: #D42A15;
+  --color-primary-solid-hover: #BC2412;
   --color-db-red: var(--color-primary);
   --color-db-red-hover: var(--color-primary-hover);
   --color-db-red-solid: var(--color-primary);
