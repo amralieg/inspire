@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { NAV_TABS, tabTitle } = require('../../frontend/src/lib/tabs.js');
+const { APP_TABS, tabTitle } = require('../../frontend/src/lib/tabs.js');
 
-const tab = (id) => NAV_TABS.find((t) => t.id === id);
+const tab = (id) => APP_TABS.find((t) => t.id === id);
 
 test('a locked Monitor or Build tab says why it is locked, and an open tab keeps its plain label', () => {
   assert.equal(tabTitle(tab('monitor'), false), `${tab('monitor').label}: Start a run or open one from Start to see it here`);

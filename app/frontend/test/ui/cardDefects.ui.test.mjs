@@ -101,7 +101,7 @@ test('D26: after Save no grey overlay stays on the card, focus is in the card, a
     const before = await rect(cardOf(page, 'Predict churn').locator('xpath=../..'));
     await goTo(dialog, 'save');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Accept and save', exact: true }).click();
     await dialog.waitFor({ state: 'detached' });
     await cardOf(page, 'Predict churn').locator('[data-value-yearly]').waitFor({ timeout: 15000 });
     await page.mouse.move(2, 2);
@@ -197,7 +197,7 @@ test('D24: once a value is saved the card shows the box and not the old estimate
     const dialog = await openCalc(page, 'Predict churn');
     await goTo(dialog, 'save');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Accept and save', exact: true }).click();
     const card = cardOf(page, 'Predict churn');
     await card.locator('[data-value-yearly]').waitFor({ timeout: 15000 });
     assert.equal(await card.locator('[data-value-estimate]').count(), 0, 'no estimate line beside the saved value');
