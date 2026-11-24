@@ -33,6 +33,8 @@ function monitorBackend(steps, run) {
 const stepper = (page) => page.locator('[data-run-stepper]');
 async function stepStates(page) {
   await stepper(page).first().waitFor({ timeout: 20000 });
+  // REQ-511: the stepper paints at once, before the first steps poll answers; read the states once any phase has left "not started".
+  await page.waitForFunction(() => [...document.querySelectorAll('[data-run-stepper] [data-run-step]')].some((el) => el.getAttribute('data-state') !== 'todo'), null, { timeout: 20000 });
   return page.evaluate(() => Object.fromEntries([...document.querySelectorAll('[data-run-stepper] [data-run-step]')]
     .map((el) => [el.getAttribute('data-run-step'), el.getAttribute('data-state')])));
 }

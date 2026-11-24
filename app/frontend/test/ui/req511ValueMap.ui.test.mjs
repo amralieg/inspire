@@ -89,6 +89,7 @@ test('4: clicking a valued point opens that use case in the Use cases view; a po
     await point('N01-U02').click();
     const list = page.getByRole('region', { name: 'Use case list' });
     await list.locator('[data-use-case-no="N01-U02"]').first().waitFor({ state: 'visible', timeout: 10000 });
+    await page.getByRole('button', { name: 'Close the reader' }).click(); // REQ-511 A6: the opened use case sits in the reader over the right of the page and covers the map
     await toView(page, 'Business');
     await page.getByRole('region', { name: 'Value map' }).locator('[data-map-point][data-use-case-no="N01-U04"]').click();
     const target = list.locator('[data-use-case-no="N01-U04"]').first();
