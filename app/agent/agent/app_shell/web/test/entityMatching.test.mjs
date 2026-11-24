@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { openMore } from './moreMenu.mjs';
 import { DECIDE, appInfo, idle, openApp, serveDist } from './harness.mjs';
 // REQ-506: no side rail; a section opens by its hash.
 const goRail = (page, id) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, id);
@@ -355,9 +356,9 @@ test('entity matching: the record panel clears a single record\'s owner and says
   await goRail(page, 'work');
   await idle(page);
   await page.locator('table tbody tr button.cell-t').first().click();
-  const give = page.locator('select[aria-label="Give to someone"]');
-  await give.waitFor();
-  await give.selectOption({ label: 'Clear the owner' });
+  // REQ-506: Clear the owner is a More item in the record drawer
+  await page.locator('dialog.drawer[open]').waitFor();
+  await (await openMore(page.locator('dialog.drawer .dr-act'))).getByRole('menuitem', { name: 'Clear the owner' }).click();
   await idle(page);
   await page.waitForTimeout(300);
   assert.equal(h.acts.length, 1, 'the owner clear is one write');
