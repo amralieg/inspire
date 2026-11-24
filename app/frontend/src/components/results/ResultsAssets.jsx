@@ -40,7 +40,7 @@ function useNewDocs(sessionId, generationPath, loadArtifacts, loadFolder) {
 }
 
 const NewTag = ({ path }) => (
-  <span data-new-doc={path} className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-success-bg text-success-fg">NEW</span>
+  <span data-new-doc={path} className="text-caption font-bold uppercase px-1.5 py-0.5 rounded bg-success-bg text-success-fg">NEW</span>
 );
 
 /** The Assets view of Results: everything the run generated (the run's outcome strip, its files and folders, the document actions, Quick access). Moved from ResultsPage unchanged. */
@@ -68,36 +68,36 @@ export default function ResultsAssets({
                           {runOutcome.failed ? runOutcome.failureTitle : runOutcome.warning ? 'Run finished, with a warning' : 'Run finished'}
                         </h3>
                         {runOutcome.failed
-                          ? <p className="text-[11px] text-error-fg" data-testid="execution-failure">{displayCleanText(runOutcome.message)}</p>
+                          ? <p className="text-caption text-error-fg" data-testid="execution-failure">{displayCleanText(runOutcome.message)}</p>
                           : (runOutcome.missingDocuments.length > 0 || runOutcome.unfinishedSteps.length > 0)
                             ? (
                               <>
                                 {runOutcome.missingDocuments.length > 0 && (
-                                  <ul className="text-[11px] text-warning-fg" data-testid="missing-documents" aria-label="Documents the run did not write">
+                                  <ul className="text-caption text-warning-fg" data-testid="missing-documents" aria-label="Documents the run did not write">
                                     {runOutcome.missingDocuments.map((line) => <li key={line} dir="auto">{line}</li>)}
                                     <li className="text-text-secondary">Open the run log to see why.</li>
                                   </ul>
                                 )}
                                 {runOutcome.unfinishedSteps.length > 0 && (
-                                  <ul className="text-[11px] text-warning-fg" data-testid="unfinished-steps" aria-label="Steps the run did not finish">
+                                  <ul className="text-caption text-warning-fg" data-testid="unfinished-steps" aria-label="Steps the run did not finish">
                                     {runOutcome.unfinishedSteps.map((line) => <li key={line} dir="auto">{line}</li>)}
                                   </ul>
                                 )}
                               </>
                             )
-                            : <p className="text-[11px] text-text-secondary">Every step of the run finished.</p>}
+                            : <p className="text-caption text-text-secondary">Every step of the run finished.</p>}
                         {qualityBarCounts.found > 0 && (
-                          <p className="text-[11px] text-text-secondary mt-0.5" data-testid="quality-bar-counts">
+                          <p className="text-caption text-text-secondary mt-0.5" data-testid="quality-bar-counts">
                             {qualityBarCountText(qualityBarCounts.found, qualityBarCounts.meets, runOutcome.mode)}
                           </p>
                         )}
                         {noneMeetsBar && !runOutcome.failed && (
-                          <p className="text-[11px] font-semibold text-text-primary mt-1" data-testid="quality-bar-next-step">
+                          <p className="text-caption font-semibold text-text-primary mt-1" data-testid="quality-bar-next-step">
                             Next step: {nextStepOf(runOutcome)}
                           </p>
                         )}
                         {!runOutcome.failed && (runOutcome.barMessage || runOutcome.notes.length > 0) && (
-                          <p className="text-[10px] text-warning-fg mt-0.5" data-testid="execution-outcome">
+                          <p className="text-caption text-warning-fg mt-0.5" data-testid="execution-outcome">
                             {displayCleanText(runOutcome.barMessage || runOutcome.notes[0])}
                           </p>
                         )}
@@ -109,10 +109,10 @@ export default function ResultsAssets({
                     {reviewBarStages.map((stage, i) => (
                       <div key={stage} className="flex items-center shrink-0">
                         <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-neutral-bg">
-                          <span className="text-[10px] font-medium text-neutral-fg whitespace-nowrap">{stage}</span>
+                          <span className="text-caption font-medium text-neutral-fg whitespace-nowrap">{stage}</span>
                         </div>
                         {i < reviewBarStages.length - 1 && (
-                          <span className="text-text-tertiary text-[10px] mx-1 shrink-0">&rarr;</span>
+                          <span className="text-text-tertiary text-caption mx-1 shrink-0">&rarr;</span>
                         )}
                       </div>
                     ))}
@@ -138,19 +138,19 @@ export default function ResultsAssets({
                         >
                           {isDir ? (
                             <>
-                              <ChevronRight size={10} className={`text-text-tertiary transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-90' : ''}`} />
-                              <FolderOpen size={12} className="text-warning-fg shrink-0" />
+                              <ChevronRight size={14} className={`text-text-tertiary transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-90' : ''}`} />
+                              <FolderOpen size={14} className="text-warning-fg shrink-0" />
                             </>
                           ) : (
                             <>
                               <span className="w-[10px]" />
-                              <FileText size={12} className="text-text-tertiary shrink-0" />
+                              <FileText size={14} className="text-text-tertiary shrink-0" />
                             </>
                           )}
                           <span className="text-xs text-text-primary font-mono truncate flex-1">{f.name}</span>
                           {!isDir && newDocs.has(f.path) && <NewTag path={f.path} />}
                           {fileSizeText(f.file_size) && (
-                            <span className="text-[9px] text-text-tertiary">{fileSizeText(f.file_size)}</span>
+                            <span className="text-caption text-text-tertiary">{fileSizeText(f.file_size)}</span>
                           )}
                           {!isDir && (() => {
                             const actions = fileActions(f);
@@ -159,29 +159,29 @@ export default function ResultsAssets({
                                 {actions.preview && (
                                   <button
                                     type="button"
-                                    className="text-[10px] text-info-fg hover:underline font-medium flex items-center gap-0.5"
+                                    className="text-caption text-info-fg hover:underline font-medium flex items-center gap-0.5"
                                     onClick={(e) => { e.stopPropagation(); togglePreview(f.path, f.name, 'files'); }}
                                   >
-                                    {previewFile === f.path && previewFrom === 'files' ? <><Eye size={10} /> Hide</> : <><Eye size={10} /> Preview</>}
+                                    {previewFile === f.path && previewFrom === 'files' ? <><Eye size={14} /> Hide</> : <><Eye size={14} /> Preview</>}
                                   </button>
                                 )}
                                 {actions.open && (
                                   <button
                                     type="button"
-                                    className="text-[10px] text-success-fg hover:underline font-medium flex items-center gap-0.5"
+                                    className="text-caption text-success-fg hover:underline font-medium flex items-center gap-0.5"
                                     aria-label={`Open ${f.name}`}
                                     onClick={(e) => { e.stopPropagation(); openFileInTab(f.path, f.name); }}
                                   >
-                                    <ExternalLink size={10} /> Open
+                                    <ExternalLink size={14} /> Open
                                   </button>
                                 )}
                                 <button
                                   type="button"
-                                  className="text-[10px] text-db-red-fg hover:underline font-medium flex items-center gap-0.5"
+                                  className="text-caption text-db-red-fg hover:underline font-medium flex items-center gap-0.5"
                                   aria-label={`Download ${f.name}`}
                                   onClick={(e) => { e.stopPropagation(); downloadFile(f.path, f.name); }}
                                 >
-                                  <Download size={10} /> Download
+                                  <Download size={14} /> Download
                                 </button>
                               </div>
                             );
@@ -189,12 +189,12 @@ export default function ResultsAssets({
                           {isDir && (
                             <button
                               type="button"
-                              className="text-[10px] text-info-fg hover:underline font-medium flex items-center gap-0.5 shrink-0"
+                              className="text-caption text-info-fg hover:underline font-medium flex items-center gap-0.5 shrink-0"
                               onClick={(e) => { e.stopPropagation(); downloadFile(f.path, `${f.name}.zip`); }}
                               aria-label={`Download the ${f.name} folder`}
                               title="Download folder"
                             >
-                              <Download size={10} />
+                              <Download size={14} />
                             </button>
                           )}
                         </div>
@@ -208,19 +208,19 @@ export default function ResultsAssets({
                           <div>
                             {folderData?.loading && (
                               <div className="flex items-center gap-2 py-2 ms-6">
-                                <Loader2 size={10} className="animate-spin text-text-tertiary" />
-                                <span className="text-[10px] text-text-secondary">Loading...</span>
+                                <Loader2 size={14} className="animate-spin text-text-tertiary" />
+                                <span className="text-caption text-text-secondary">Loading...</span>
                               </div>
                             )}
                             {folderData?.error && (
                               <div className="ms-6 py-1">
-                                <PlainMessage as="span" text={folderData.error} className="text-[10px] text-text-tertiary" />
-                                <button type="button" onClick={(e) => { e.stopPropagation(); loadFolder(f.path); }} className="ms-2 text-[10px] text-db-red-fg hover:underline">Retry</button>
+                                <PlainMessage as="span" text={folderData.error} className="text-caption text-text-tertiary" />
+                                <button type="button" onClick={(e) => { e.stopPropagation(); loadFolder(f.path); }} className="ms-2 text-caption text-db-red-fg hover:underline">Retry</button>
                               </div>
                             )}
                             {folderData && !folderData.loading && !folderData.error && folderData.files.length === 0 && (
                               <div className="ms-6 py-1">
-                                <span className="text-[10px] text-text-tertiary italic">Empty folder</span>
+                                <span className="text-caption text-text-tertiary italic">Empty folder</span>
                               </div>
                             )}
                             {folderData && !folderData.loading && folderData.files.length > 0 && renderFileTree(folderData.files, depth + 1)}
@@ -248,10 +248,10 @@ export default function ResultsAssets({
                     </div>
                     <div className="flex-1">
                       <h3 className="text-xs font-bold text-text-primary">Generated Artifacts</h3>
-                      <p className="text-[10px] text-text-tertiary font-mono">{generationPath}</p>
+                      <p className="text-caption text-text-tertiary font-mono">{generationPath}</p>
                     </div>
                     {artifactsRootFiles && artifactsRootFiles.length > 0 && (
-                      <span className="text-[10px] text-info-fg font-semibold bg-info-bg px-2 py-0.5 rounded-full">
+                      <span className="text-caption text-info-fg font-semibold bg-info-bg px-2 py-0.5 rounded-full">
                         {artifactsRootFiles.length} item{artifactsRootFiles.length > 1 ? 's' : ''}
                       </span>
                     )}
@@ -270,7 +270,7 @@ export default function ResultsAssets({
                       {!artifactsLoading && artifactsRootFiles && artifactsRootFiles.length === 0 && (
                         <div className="text-center py-4">
                           <p className="text-xs text-text-tertiary">No files found at this path.</p>
-                          <p className="text-[10px] text-text-tertiary mt-1 max-w-lg mx-auto leading-relaxed">
+                          <p className="text-caption text-text-tertiary mt-1 max-w-lg mx-auto leading-relaxed">
                             Resolved folder <span className="font-mono break-all">{generationPath}</span>
                             {settingsNotebookPath ? (
                               <>
@@ -288,7 +288,7 @@ export default function ResultsAssets({
                               lastArtifactsLoadKeyRef.current = '';
                               loadArtifacts(generationPath);
                             }}
-                            className="mt-2 text-[10px] text-db-red-fg hover:underline font-medium"
+                            className="mt-2 text-caption text-db-red-fg hover:underline font-medium"
                           >
                             Retry
                           </button>
@@ -323,9 +323,9 @@ export default function ResultsAssets({
                 <div className="bg-surface border border-border/70 rounded-xl p-4 mb-6 shadow-elevated">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="flex h-6 w-6 items-center justify-center rounded-md bg-db-red/10 ring-1 ring-inset ring-db-red/20">
-                      <FileText size={12} className="text-db-red-fg" strokeWidth={2} />
+                      <FileText size={14} className="text-db-red-fg" strokeWidth={2} />
                     </div>
-                    <h3 className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.18em]">Quick access: documents and data</h3>
+                    <h3 className="text-caption font-bold text-text-secondary uppercase tracking-[0.18em]">Quick access: documents and data</h3>
                   </div>
                   <div className="flex gap-2 overflow-x-auto scrollbar-hide">
                     {previewableFiles.map((f) => {
@@ -333,23 +333,23 @@ export default function ResultsAssets({
                       const style = EXT_STYLES[ext] || EXT_STYLES.xlsx;
                       const isActive = previewFile === f.path && previewFrom === 'quick';
                       return (
-                        <div key={f.path} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] border transition-all shrink-0 ${isActive ? 'border-db-red/30 bg-db-red-50' : 'border-border bg-bg-subtle/50 hover:bg-bg-subtle'}`}>
-                          <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${style.bg} ${style.text}`}>{ext}</span>
+                        <div key={f.path} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-caption border transition-colors shrink-0 ${isActive ? 'border-db-red/30 bg-db-red-50' : 'border-border bg-bg-subtle/50 hover:bg-bg-subtle'}`}>
+                          <span className={`text-caption font-bold uppercase px-1.5 py-0.5 rounded ${style.bg} ${style.text}`}>{ext}</span>
                           <span className="text-text-primary font-medium truncate max-w-[200px]">{f.name}</span>
                           {newDocs.has(f.path) && <NewTag path={f.path} />}
                           <div className="flex items-center gap-1.5 ms-1 border-s border-border ps-2">
                             {fileActions(f).preview && (
-                              <button type="button" className="text-[10px] text-info-fg hover:text-info-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => togglePreview(f.path, f.name, 'quick')}>
-                                {isActive ? <><EyeOff size={9} /> Hide</> : <><Eye size={9} /> Preview</>}
+                              <button type="button" className="text-caption text-info-fg hover:text-info-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => togglePreview(f.path, f.name, 'quick')}>
+                                {isActive ? <><EyeOff size={14} /> Hide</> : <><Eye size={14} /> Preview</>}
                               </button>
                             )}
                             {fileActions(f).open && (
-                              <button type="button" aria-label={`Open ${f.name}`} className="text-[10px] text-success-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => openFileInTab(f.path, f.name)}>
-                                <ExternalLink size={9} /> Open
+                              <button type="button" aria-label={`Open ${f.name}`} className="text-caption text-success-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => openFileInTab(f.path, f.name)}>
+                                <ExternalLink size={14} /> Open
                               </button>
                             )}
-                            <button type="button" aria-label={`Download ${f.name}`} title={`Download ${f.name}`} className="text-[10px] text-db-red-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => downloadFile(f.path, f.name)}>
-                              <Download size={9} />
+                            <button type="button" aria-label={`Download ${f.name}`} title={`Download ${f.name}`} className="text-caption text-db-red-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => downloadFile(f.path, f.name)}>
+                              <Download size={14} />
                             </button>
                           </div>
                         </div>
@@ -398,12 +398,12 @@ export default function ResultsAssets({
                     id="genie-quick-access-toggle"
                     className="flex w-full items-center justify-between gap-3 rounded-lg text-start transition-smooth hover:bg-bg-subtle/80 -mx-1 px-1 py-0.5"
                   >
-                    <h3 className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.18em] flex items-center gap-2 min-w-0">
-                      <Sparkles size={12} className="text-db-red-fg shrink-0" aria-hidden />
+                    <h3 className="text-caption font-bold text-text-secondary uppercase tracking-[0.18em] flex items-center gap-2 min-w-0">
+                      <Sparkles size={14} className="text-db-red-fg shrink-0" aria-hidden />
                       <span className="truncate">Quick access: Genie Code instructions ready</span>
                     </h3>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[10px] font-mono font-semibold text-text-tertiary tabular-nums px-2 py-0.5 rounded-md bg-bg-subtle border border-border">
+                      <span className="text-caption font-mono font-semibold text-text-tertiary tabular-nums px-2 py-0.5 rounded-md bg-bg-subtle border border-border">
                         {notebookFiles.length}
                       </span>
                       <ChevronRight
@@ -416,7 +416,7 @@ export default function ResultsAssets({
                   {genieQuickAccessExpanded && (
                     <>
                       {!origin && (
-                        <p className="text-[10px] text-text-tertiary mt-2 mb-2">
+                        <p className="text-caption text-text-tertiary mt-2 mb-2">
                           Add your Databricks workspace URL in settings to open notebooks in the Workspace UI.
                         </p>
                       )}
@@ -432,7 +432,7 @@ export default function ResultsAssets({
                             const pathSeg = hashPath.startsWith('/') ? hashPath : `/${hashPath}`;
                             const href = origin ? `${origin}/#workspace${pathSeg}` : '';
                             const rowClass =
-                              'flex items-center gap-2.5 px-3 py-2.5 min-h-[2.75rem] text-start text-[11px] text-text-primary font-medium transition-colors hover:bg-db-red-50/40 dark:hover:bg-db-red-950/20';
+                              'flex items-center gap-2.5 px-3 py-2.5 min-h-[2.75rem] text-start text-caption text-text-primary font-medium transition-colors hover:bg-db-red-50/40 dark:hover:bg-db-red-100';
                             if (href) {
                               return (
                                 <li key={f.path} className="min-w-0">
@@ -444,7 +444,7 @@ export default function ResultsAssets({
                                     title={f.path}
                                   >
                                     <ExternalLink
-                                      size={12}
+                                      size={14}
                                       className="shrink-0 text-db-red-fg opacity-80 group-hover:opacity-100"
                                       aria-hidden
                                     />
@@ -455,7 +455,7 @@ export default function ResultsAssets({
                             }
                             return (
                               <li key={f.path} className={`${rowClass} cursor-default text-text-secondary`} title={f.path}>
-                                <FileText size={12} className="shrink-0 text-text-tertiary" aria-hidden />
+                                <FileText size={14} className="shrink-0 text-text-tertiary" aria-hidden />
                                 <span className="truncate min-w-0 leading-snug">{f.name}</span>
                               </li>
                             );
