@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { closeBrowser, openUi, totalsQueryMissing, until } from './uiSupport.mjs';
+import { openReader } from './reviewRows.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
 
 test.after(closeBrowser);
@@ -36,21 +37,23 @@ test('Results with no value at all shows no footer', async () => {
   } finally { await ui.close(); }
 });
 
-const rowsOf = (page) => page.locator('[data-build-next-row]').evaluateAll((els) => els.map((el) => el.getAttribute('data-build-next-row')));
-const totalOf = async (page) => Number(/of (\d+) use cases live/.exec(await page.locator('[data-build-progress]').innerText())?.[1]);
+// REQ-511 D3: Build next left Review. What stays is that archiving takes the use case out of the shown list.
+const shownOf = (page) => page.locator('[data-use-case-row]').count();
 
-test('archiving a use case takes it out of Build next: the suggestions and the header count follow the shown list', async () => {
+test('archiving a use case takes it out of the shown list; Review has no Build next panel (REQ-511 D3)', async () => {
   const ui = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS }, '', { mount: mountWith(NO_VALUE) });
   const { page } = ui;
   try {
-    const panel = page.locator('[data-build-next]');
-    await panel.waitFor({ timeout: 20000 });
-    const rows = await rowsOf(page);
-    const before = await totalOf(page);
-    const target = rows[0];
-    assert.ok(target, 'the panel suggests at least one use case');
-    await page.locator(`[data-use-case-no="${target}"]`).getByRole('button', { name: 'Archive use case' }).click();
-    await until(async () => !(await rowsOf(page)).includes(target));
-    await until(async () => (await totalOf(page)) === before - 1);
+    await page.locator('[data-run-box]').waitFor({ timeout: 20000 });
+    await page.locator('[data-use-case-row]').first().waitFor({ timeout: 20000 });
+    assert.equal(await page.locator('[data-build-next]').count(), 0, 'Review has no Build next panel');
+    assert.equal(await page.locator('[data-build-next-row]').count(), 0, 'Review has no Build next rows');
+    const before = await shownOf(page);
+    const target = await page.locator('[data-use-case-row]').first().getAttribute('data-use-case-no');
+    assert.ok(target, 'the list shows at least one use case');
+    // Archive is a button of the card in the reader.
+    const reader = await openReader(page, page.locator(`[data-use-case-row][data-use-case-no="${target}"]`));
+    await reader.getByRole('button', { name: 'Archive use case' }).click();
+    await until(async () => (await shownOf(page)) === before - 1);
   } finally { await ui.close(); }
 });

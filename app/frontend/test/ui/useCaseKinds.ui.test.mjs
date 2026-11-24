@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { closeBrowser, lowContrast, openUi, setDark } from './uiSupport.mjs';
 import { RESULTS } from './implementFixtures.js';
 import { KINDS } from '../../src/lib/kinds.js';
+import { openReader, closeReader, readerOf } from './reviewRows.mjs';
 
 test.after(closeBrowser);
 
@@ -26,7 +27,8 @@ const rgb = (hex) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 1
 
 const list = (page) => page.getByRole('region', { name: 'Use case list' });
 const cards = (page) => list(page).locator('[data-use-case-row]');
-const card = (page, name) => list(page).locator('.lift-on-hover').filter({ hasText: name });
+// REQ-511: a use case is a row; the kind chip is on the row, the technique chip and What you get are in the reader.
+const card = (page, name) => cards(page).filter({ hasText: name });
 
 async function ready(page) {
   await list(page).waitFor();
@@ -43,7 +45,9 @@ test('each card carries its kind and technique chips in its family color, and an
     assert.equal(await chip.getAttribute('data-kind-chip'), 'forecast');
     assert.equal((await chip.innerText()).trim(), 'Predict · Forecast');
     assert.equal(await chip.evaluate((el) => getComputedStyle(el).borderTopColor), rgb(familyColor('predict')));
-    assert.equal((await forecast.locator('[data-technique-chip]').innerText()).trim(), 'Forecasting');
+    const forecastReader = await openReader(page, forecast);
+    assert.equal((await forecastReader.locator('[data-technique-chip]').innerText()).trim(), 'Forecasting');
+    await closeReader(page);
     const late = card(page, 'Spot late suppliers').locator('[data-kind-chip]');
     assert.equal(await late.getAttribute('data-kind-chip'), 'anomaly', 'Anomaly detection derives the anomaly kind');
     assert.equal(await late.getAttribute('data-kind-family'), 'detect_protect');
@@ -53,7 +57,9 @@ test('each card carries its kind and technique chips in its family color, and an
     assert.notEqual(await segment.evaluate((el) => getComputedStyle(el).borderTopColor),
       await late.evaluate((el) => getComputedStyle(el).borderTopColor), 'two families never share a color');
     assert.equal(await card(page, 'Score upsell').locator('[data-kind-chip]').count(), 0, 'Regression maps to no kind, so no chip');
-    assert.match(await card(page, 'Score upsell').innerText(), /Regression/, 'a use case with no kind still shows its technique');
+    const upsellReader = await openReader(page, card(page, 'Score upsell'));
+    assert.match(await upsellReader.innerText(), /Regression/, 'a use case with no kind still shows its technique');
+    await closeReader(page);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -96,14 +102,14 @@ test('an open card says what you get above the problem statement, with the 3 lin
   try {
     await ready(page);
     const forecast = card(page, 'Forecast stock');
-    await forecast.locator('[data-use-case-row]').click();
-    const section = forecast.locator('[data-what-you-get]');
+    const forecastReader = await openReader(page, forecast);
+    const section = forecastReader.locator('[data-what-you-get]');
     await section.waitFor();
     assert.deepEqual(await section.locator('[data-kind-line]').allInnerTexts(), [
       `What we serve: ${LINES.serving_summary}`, `How it works: ${LINES.method_summary}`, `Where the value comes from: ${LINES.value_source}`,
     ]);
     assert.match(await section.innerText(), /Predict · Forecast · Forecasting/);
-    const above = await forecast.evaluate((el) => {
+    const above = await forecastReader.evaluate((el) => {
       const what = el.querySelector('[data-what-you-get]');
       const problem = [...el.querySelectorAll('h4')].find((h) => /Problem Statement/i.test(h.textContent));
       return Boolean(what && problem && (what.compareDocumentPosition(problem) & Node.DOCUMENT_POSITION_FOLLOWING));
@@ -115,14 +121,14 @@ test('an open card says what you get above the problem statement, with the 3 lin
     const dark = await lowContrast(page, ['[data-what-you-get]']);
     assert.ok(dark.checked >= 4 && dark.low.length === 0, `the section reads in the dark theme too: ${JSON.stringify(dark)}`);
     await setDark(page, false);
-    const churn = card(page, 'Predict churn');
-    await churn.locator('[data-use-case-row]').click();
-    const old = churn.locator('[data-what-you-get]');
+    await closeReader(page);
+    const churnReader = await openReader(page, card(page, 'Predict churn'));
+    const old = churnReader.locator('[data-what-you-get]');
     await old.waitFor();
     assert.equal(await old.locator('[data-kind-line]').count(), 0);
     assert.match(await old.innerText(), new RegExp(KINDS.kinds.find((k) => k.id === 'risk_propensity').question.replace(/[?.()]/g, '\\$&')));
-    const upsell = card(page, 'Score upsell');
-    await upsell.locator('[data-use-case-row]').click();
+    await closeReader(page);
+    const upsell = await openReader(page, card(page, 'Score upsell'));
     await upsell.getByText('Problem Statement').waitFor();
     assert.equal(await upsell.locator('[data-what-you-get]').count(), 0, 'no kind, no section');
     assert.deepEqual(ui.pageErrors, []);
@@ -138,10 +144,11 @@ test('the card title is the name with its technique in lower case, and a use cas
     await ready(page);
     const forecast = card(page, 'Forecast stock');
     assert.equal(await forecast.count(), 1);
-    await forecast.locator('[data-use-case-row]').click();
-    await forecast.locator('[data-what-you-get]').waitFor();
-    assert.match(await forecast.innerText(), /^Forecast stock$/m, 'the open card keeps the same title, the plain name (REQ-175)');
-    assert.doesNotMatch(await forecast.innerText(), /using forecasting/, 'the technique is not in the title');
+    const reader = await openReader(page, forecast);
+    await reader.locator('[data-what-you-get]').waitFor();
+    assert.match(await reader.innerText(), /^Forecast stock$/m, 'the open card keeps the same title, the plain name (REQ-175)');
+    assert.doesNotMatch(await reader.innerText(), /using forecasting/, 'the technique is not in the title');
+    await closeReader(page);
     assert.doesNotMatch(await card(page, 'Spot late suppliers').innerText(), /Spot late suppliers using/, 'an old row has no stored name, so the Name stays');
     await page.getByPlaceholder('Search use cases...').fill('Forecast stock');
     assert.equal(await cards(page).count(), 1, 'search finds the title as shown');
