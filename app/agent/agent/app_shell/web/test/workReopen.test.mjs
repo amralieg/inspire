@@ -134,9 +134,10 @@ test('the drawer of an owned open record has Unassign beside its owner, and clea
 test('the header shows the data refresh time and the App publish time as two times, not one', async () => {
   const { page, context } = await openWork('examples/monitor_triage.json', { freshness: FRESH });
   try {
-    const banner = page.locator('.ph .fresh-t');
+    const banner = page.locator('.ph [data-fresh-dot]');
     await banner.waitFor({ timeout: 20000 });
-    assert.match(await banner.innerText(), /^Data refreshed Oct 27, 07:30 AM UTC( · data through Oct 26, 2026)? · App published Oct 26, (2026, )?10:00 AM UTC$/,
+    const says = ((await banner.getAttribute('title')) || '').replace(/\. Select to refresh now$/, '');
+    assert.match(says, /^Data refreshed Oct 27, 07:30 AM UTC( · data through Oct 26, 2026)? · App published Oct 26, (2026, )?10:00 AM UTC$/,
       'the refresh time and the App publish time show together (REQ-257 D-UPDATED)');
   } finally {
     await context.close();

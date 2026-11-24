@@ -171,10 +171,12 @@ test('each chart, the key numbers and a block fold with a one-line summary, stay
   assert.deepEqual({ ...(await state()), sum: '' }, { ...folded, sum: '' }, 'the folds come back after a reload');
   await pickCase(page, 'Second desk 1');
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
+  await page.evaluate(() => { window.location.hash = '#/n02_u01/dashboard'; }); // REQ-506: picking a use case lands on its Work, so go to the Dashboard
   await page.waitForFunction(chartsDrawn, 4);
   assert.equal(await page.locator('.card--folded, .fold-s.is-folded').count(), 0, 'another page keeps its own folds');
   assert.equal(await page.getByRole('button', { name: 'Unfold Loss to discounts by month' }).count(), 0);
   await pickCase(page, 'Price-loss decision desk');
+  await page.evaluate(() => { window.location.hash = '#/n01_u05/dashboard'; });
   await page.waitForFunction(chartsDrawn, 3);
   await page.getByRole('button', { name: 'Unfold Loss to discounts by month' }).click();
   await page.waitForFunction(chartsDrawn, 4);
@@ -209,7 +211,17 @@ test('Focus on the list folds every chart and the key numbers of a page that sho
   const { routes } = tracked();
   const work = await openWith(appInfo(DECIDE, 1, TABLE), routes);
   await waitList(work.page);
-  assert.equal(await work.page.getByRole('button', { name: 'Focus on the list' }).count(), 0, 'Work holds no chart or key number, so there is nothing to fold');
+  // REQ-506: Work now opens with the Overview strip, which holds the key numbers, so Focus folds those (Work still holds no chart)
+  const workFocus = work.page.getByRole('button', { name: 'Focus on the list' });
+  assert.equal(await workFocus.count(), 1, 'Work holds the key numbers in its Overview strip, so Focus is offered');
+  assert.equal(await work.page.locator('[data-section] canvas').count(), 0, 'Work holds no chart');
+  await work.page.waitForFunction(() => document.querySelectorAll('.kpi').length > 0);
+  await workFocus.click();
+  await work.page.waitForFunction(() => document.querySelectorAll('.kpi').length === 0);
+  assert.equal(await workFocus.getAttribute('aria-pressed'), 'true');
+  await workFocus.click();
+  await work.page.waitForFunction(() => document.querySelectorAll('.kpi').length > 0);
+  assert.equal(await workFocus.getAttribute('aria-pressed'), 'false');
   assert.deepEqual(work.seen.errors, []);
   await work.context.close();
   const info = appInfo(DECIDE, 1, {}, 'examples/monitor_triage.json');
@@ -442,7 +454,8 @@ test('a window reaches only lists that keep actions: a list that keeps none read
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
   await listed(page);
   assert.equal(refused.length, 1, 'the one refused read is asked again without the window');
-  await until(() => seen.records.some((b) => b.page === 'n02_u01' && b.changed));
+  // REQ-506: the Inbox is gone, so no inbox read follows the list read; wait for the list read of this page instead
+  await until(() => seen.records.some((b) => b.page === 'n02_u01'));
   assert.deepEqual(seen.records.filter((b) => b.page === 'n02_u01' && (b.mine || b.unowned)), [], 'the inbox never asks a list that keeps no actions for your records');
   assert.equal(await page.locator('.card--table tbody tr').count(), 25, 'no limit applies to a list that keeps no actions');
   assert.equal(await page.locator('.tile-err').count(), 0, 'the refusal is not shown as an error');
@@ -652,9 +665,11 @@ test('in Everything the keys and the selection skip closed records and say how m
   await page.getByRole('checkbox', { name: 'Select every record on this page' }).check();
   await page.waitForFunction((text) => document.querySelector('.toast.is-on .toast-t')?.textContent === text, SKIPPED(2));
   assert.equal(await page.locator('.bulk b').innerText(), '1 selected:');
-  assert.equal(await page.locator('.bulk').getByRole('button', { name: /^Select all \d+ matching/ }).count(), 1, 'Everything offers Select all of the open matches only, never the closed ones');
-  await page.locator('.bulk').getByRole('button', { name: 'Mark done…' }).click();
-  await page.getByRole('button', { name: 'Mark 1 record done' }).click();
+  await page.locator('.bulk').getByRole('button', { name: 'More' }).click();
+  assert.equal(await page.getByRole('menuitem', { name: /^Select all \d+ matching/ }).count(), 1, 'Everything offers Select all of the open matches only, never the closed ones');
+  await page.keyboard.press('Escape');
+  await page.locator('.bulk [data-bulk="done"]').click();
+  await page.getByRole('button', { name: 'Resolve 1 record', exact: true }).click();
   await until(() => made.acts.length === 1);
   assert.deepEqual(made.acts[0].record_keys, [OPEN.record_key], 'the act names the open record only');
   assert.equal(made.acts[0].match, undefined);

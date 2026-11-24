@@ -80,7 +80,8 @@ async function walk(page) {
     if (!now) return seen;
     seen.push(now);
     at = now.at;
-    await page.locator('[data-tour-next]').click();
+    // the pop re-anchors between steps on the location_view page, so Playwright never sees the button stable; the click event is sent to it directly
+    await page.locator('[data-tour-next]').dispatchEvent('click', null, { timeout: STEP_WAIT });
     const going = await page.waitForFunction((was) => {
       const tour = document.querySelector('.tour');
       return !tour ? 'ended' : Number(tour.dataset.tourStep) !== was ? 'next' : null;

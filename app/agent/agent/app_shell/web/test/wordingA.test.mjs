@@ -22,7 +22,7 @@ after(async () => {
 test('a Genie answer that ran a query names its SQL disclosure in plain words, never SQL', async () => {
   const spec = EXAMPLES['monitor_triage.json'];
   const info = appInfo(spec.settings, 1, {}, 'examples/monitor_triage.json');
-  const { page, context, seen } = await openApp(browser, base, info, { width: 1280, height: 800, routes: spec.routes(), ready: '[data-section]' });
+  const { page, context, seen } = await openApp(browser, base, info, { width: 1280, height: 800, routes: spec.routes(), ready: '[data-section]', hash: `#/${info.pages[0].id}/dashboard` });
   await spec.ready(page);
   await page.locator('[data-mode="genie"]').click();
   const input = page.locator('.genie input').first();

@@ -61,7 +61,8 @@ test('Select all matching acts on every matching record with the load time and t
   const { page, seen, context } = await openList(routes);
   await page.getByRole('checkbox', { name: 'Select every record on this page' }).check();
   assert.equal(await page.locator('.bulk b').innerText(), '25 selected:');
-  await page.getByRole('button', { name: 'Select all 30 matching' }).click();
+  await page.locator('.bulk').getByRole('button', { name: 'More' }).click();
+  await page.getByRole('menuitem', { name: 'Select all 30 matching' }).click();
   assert.equal(await page.locator('.bulk b').innerText(), 'All 30 open records selected');
   assert.equal(await page.locator('.bulk-asof').innerText(), 'As of Oct 27, 2026, 09:29 AM UTC. A record that changes after that is left as it is.');
   const loaded = seen.records.at(-1);
