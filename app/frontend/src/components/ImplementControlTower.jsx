@@ -41,7 +41,7 @@ export function ConfirmDialog({ title, confirmLabel, useCaseId, busy, onCancel, 
     </>
   );
   return (
-    <ModalDialog titleId={`confirm-${useCaseId}-title`} title={title} onClose={onCancel} overlayClass="z-[80] bg-black/40" widthClass="max-w-md"
+    <ModalDialog titleId={`confirm-${useCaseId}-title`} title={title} onClose={onCancel} widthClass="max-w-md"
       footer={actions} dialogAttrs={{ 'data-confirm-dialog': '' }}>
       <div className="text-[12px] text-text-secondary space-y-2">{children}</div>
       <label className="block text-[12px] text-text-secondary">

@@ -11,7 +11,8 @@ import { copyText } from '../lib/clipboard';
 import { defaultMoneyRule, moneySummaryOf } from '../lib/moneyDefaults.js';
 import { valueEstimateOf } from '../lib/v130UseCase.js';
 import { Check, Loader2, NotebookPen, X, ChevronLeft, ChevronRight, LayoutDashboard, Sparkles, AppWindow, Bell, Lock, UserRound, KeyRound } from 'lucide-react';
-import BodyPortal from '../components/BodyPortal';
+import ModalDialog from '../components/ModalDialog';
+import DrawerShell from '../components/DrawerShell';
 import VibesEditor, { VibePrevious } from '../components/VibesEditor';
 import { MoneyRuleEditor } from '../components/MoneyRuleEditor.jsx';
 import SourceTables from '../components/SourceTables';
@@ -303,7 +304,6 @@ import { fieldOf } from '../lib/useCaseFields.js';
 import { chosenScopeParam, chosenTableScopes, normalizeTableScope, rowFilterText, scopeEntryOf, tableScopeSummary, wholeTableScopes, withoutTableRow } from '../lib/tableScope';
 import SamplesCopyOffer from '../components/SamplesCopyOffer';
 import { samplesTarget, validCopyTarget } from '../lib/samplesCopy';
-import { useModal } from '../components/useModal';
 import MvpValuePanel from '../components/MvpValuePanel';
 import { DRAFT_BACK_NOTE, DRAFT_START_OVER, clearWizardDraft, readBuildChoice, readWizardDraft, writeBuildChoice, draftStampOf, wizardDraftKey, writeWizardDraft } from '../lib/wizardDraft';
 import {
@@ -3682,8 +3682,6 @@ function SourceTableBlocks({ tables, spec, columnsByTable, values, setSpec, load
 }
 
 function UseCaseDrawer({ title, ucRow, spec, patch, onOwner, onClose }) {
-  const panel = useRef(null);
-  useModal(panel, onClose);
   const facts = [
     ['Who it helps', ucRow.beneficiary || ucRow.Beneficiary],
     ['Sponsor', ucRow.sponsor || ucRow.Sponsor],
@@ -3691,66 +3689,58 @@ function UseCaseDrawer({ title, ucRow, spec, patch, onOwner, onClose }) {
   ].filter(([, val]) => val);
   const statement = ucRow.statement || ucRow.Statement;
   return (
-    <BodyPortal>
-      <div className="fixed inset-0 z-[60] bg-black/30 flex justify-end" data-use-case-drawer="">
-        <div ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`Use case details: ${title}`} className="bg-surface border-s border-border shadow-elevated w-full max-w-md h-full flex flex-col outline-none">
-          <div className="shrink-0 px-5 pt-4 pb-3 border-b border-border flex items-start justify-between gap-3">
-            <div className="min-w-0 space-y-1">
-              <h2 className="text-base font-semibold text-text-primary break-words">{title}</h2>
-              {statement && <p className="text-[12px] text-text-secondary">{placeholderWords(statement)}</p>}
-            </div>
-            <button type="button" onClick={onClose} className="shrink-0 text-text-tertiary hover:text-text-primary" aria-label="Close details">
-              <X size={16} />
-            </button>
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
-            {facts.length > 0 && (
-              <dl className="space-y-1 text-[12px]">
-                {facts.map(([label, val]) => (
-                  <div key={label} className="flex min-w-0 gap-1.5">
-                    <dt className="shrink-0 font-semibold text-text-tertiary">{label}:</dt>
-                    <dd className="text-text-secondary">{val}</dd>
-                  </div>
-                ))}
-              </dl>
-            )}
-            <Field label="Goal sentence">
-              <textarea dir="auto" className={inputCls} rows={3} value={spec.use_case.goal} onChange={(e) => patch('use_case.goal', e.target.value)} />
-            </Field>
-            <Field label="Decision owner">
-              <input dir="auto" className={inputCls} value={spec.use_case.decision_owner} onChange={(e) => onOwner(e.target.value)} />
-            </Field>
-            {[0, 1, 2].map((i) => (
-              <Field key={i} label={i === 0 ? 'Success measures' : `Measure ${i + 1} (optional)`}>
-                <input dir="auto"
-                  className={inputCls}
-                  value={spec.use_case.success_measures[i] || ''}
-                  onChange={(e) => {
-                    const next = [...spec.use_case.success_measures];
-                    next[i] = e.target.value;
-                    patch('use_case.success_measures', next.filter((m, idx) => m || idx < i));
-                  }}
-                />
-              </Field>
-            ))}
-          </div>
+    <DrawerShell label={`Use case details: ${title}`} closeLabel="Dismiss details" closeButtonLabel="Close details" onClose={onClose} data-use-case-drawer=""
+      title={(
+        <div className="min-w-0 space-y-1">
+          <h2 className="text-base font-semibold text-text-primary break-words">{title}</h2>
+          {statement && <p className="text-[12px] text-text-secondary">{placeholderWords(statement)}</p>}
         </div>
+      )}>
+      <div className="space-y-4">
+        {facts.length > 0 && (
+          <dl className="space-y-1 text-[12px]">
+            {facts.map(([label, val]) => (
+              <div key={label} className="flex min-w-0 gap-1.5">
+                <dt className="shrink-0 font-semibold text-text-tertiary">{label}:</dt>
+                <dd className="text-text-secondary">{val}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        <Field label="Goal sentence">
+          <textarea dir="auto" className={inputCls} rows={3} value={spec.use_case.goal} onChange={(e) => patch('use_case.goal', e.target.value)} />
+        </Field>
+        <Field label="Decision owner">
+          <input dir="auto" className={inputCls} value={spec.use_case.decision_owner} onChange={(e) => onOwner(e.target.value)} />
+        </Field>
+        {[0, 1, 2].map((i) => (
+          <Field key={i} label={i === 0 ? 'Success measures' : `Measure ${i + 1} (optional)`}>
+            <input dir="auto"
+              className={inputCls}
+              value={spec.use_case.success_measures[i] || ''}
+              onChange={(e) => {
+                const next = [...spec.use_case.success_measures];
+                next[i] = e.target.value;
+                patch('use_case.success_measures', next.filter((m, idx) => m || idx < i));
+              }}
+            />
+          </Field>
+        ))}
       </div>
-    </BodyPortal>
+    </DrawerShell>
   );
 }
 
 // The step bar shows only once the real spec and scope are known (stepsReady), so its count never changes after it first shows.
 function Overlay({ title, uc, steps, stepsReady = true, step, part = null, reach = [], done = [], onGo = null, onDetails = null, onClose, onTouch = undefined, children }) {
-  const panel = useRef(null);
-  useModal(panel, onClose);
   const row = uc ? catalogRow(uc, 0) : null;
   const facts = row ? [['Domain', row.domain], ['Subdomain', row.subdomain], ['Technique', row.technique]].filter(([, v]) => v) : [];
   return (
-    <BodyPortal>
-      <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" data-implement-overlay="">
-        <div ref={panel} tabIndex={-1} role="dialog" aria-modal="true" onChangeCapture={onTouch} onClickCapture={onTouch} aria-label={title ? `${START_MVP_LABEL}: ${title}` : START_MVP_LABEL} className="bg-surface border border-border rounded-xl shadow-elevated w-full max-w-6xl max-h-full flex flex-col overflow-hidden outline-none">
-          <header className="shrink-0 px-6 pt-4 pb-3 border-b border-border space-y-3" data-wizard-header="">
+    <ModalDialog onClose={onClose} widthClass="max-w-6xl" bare
+      overlayAttrs={{ 'data-implement-overlay': '' }}
+      dialogAttrs={{ 'aria-labelledby': undefined, 'aria-label': title ? `${START_MVP_LABEL}: ${title}` : START_MVP_LABEL, onChangeCapture: onTouch, onClickCapture: onTouch }}
+      header={(
+<header className="shrink-0 px-6 pt-4 pb-3 border-b border-border space-y-3" data-wizard-header="">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-db-red-fg">{START_MVP_LABEL}</p>
@@ -3801,9 +3791,8 @@ function Overlay({ title, uc, steps, stepsReady = true, step, part = null, reach
             <BusyNote data-step-bar-loading="" className="text-[11px] text-text-tertiary" text="Loading the steps…" />
           )}
           </header>
-          {children}
-        </div>
-      </div>
-    </BodyPortal>
+      )}>
+      {children}
+    </ModalDialog>
   );
 }

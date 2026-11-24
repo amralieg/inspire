@@ -177,7 +177,7 @@ function RunControl({ page, pages, userAuthorization, note, onSwitch, onBack }) 
 function FullView({ page, pages, userAuthorization, note, onSwitch, onBack }) {
   return (
     <BodyPortal>
-      <div data-run-full={runKey(page)} role="region" aria-label={frameTitle(page)} className="fixed inset-0 z-[90] bg-surface">
+      <div data-run-full={runKey(page)} role="region" aria-label={frameTitle(page)} className="fixed inset-0 z-overlay bg-surface">
         <iframe key={frameKey(page)} title={frameTitle(page)} src={runFrameSrc(page)} data-run-frame={page.id} className="block h-full w-full border-0 bg-surface" />
         <RunControl key={runKey(page)} page={page} pages={pages} userAuthorization={userAuthorization} note={note} onSwitch={onSwitch} onBack={onBack} />
       </div>
@@ -299,7 +299,7 @@ export default function RunPage({ settings, focusId = null, onFocus = ignore, on
   if (opening) {
     return (
       <BodyPortal>
-        <div data-run-opening="" className="fixed inset-0 z-[90] grid place-items-center bg-surface text-[12px] text-text-secondary">
+        <div data-run-opening="" className="fixed inset-0 z-overlay grid place-items-center bg-surface text-[12px] text-text-secondary">
           <p><Loader2 size={12} className="inline me-1 animate-spin" aria-hidden /> {RUN_OPENING}</p>
         </div>
       </BodyPortal>
