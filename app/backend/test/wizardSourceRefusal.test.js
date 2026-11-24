@@ -20,7 +20,7 @@ test('the last step renders no build button while the source check refuses, only
   const lastStep = WIZARD.indexOf('{stepId !== \'notebook\' && !lastStep ? (');
   assert.ok(lastStep > 0, 'the footer picks Next or the build button by step');
   const footer = WIZARD.slice(lastStep, WIZARD.indexOf('</footer>', lastStep));
-  assert.match(footer, /\) : sourceAccessRefused \? \(\s*<p data-source-refused=""[^>]*>\{refusedFooterText\}<\/p>\s*\) : \(\s*<button/, 'a refusal replaces the build button, it does not disable it');
+  assert.match(footer, /\) : sourceAccessRefused \? \(\s*<p data-source-refused=""[^>]*>\{refusedFooterText\}<\/p>\s*\) : \(\s*<Button\b/, 'a refusal replaces the build button, it does not disable it');
   assert.match(WIZARD, /const refusedFooterText = appUnreadable\?\.builtin\?\.length \? SOURCE_BUILT_IN_REFUSED_REASON : SOURCE_REFUSED_REASON;/, 'the refusal reason is the plain reason; a built-in sample refusal names the copy instead of a grant (REQ-256)');
   assert.match(WIZARD, /\bSOURCE_REFUSED_REASON\b/, 'both steps show the same reason');
   assert.equal((WIZARD.match(/The App cannot read its sources yet/g) || []).length, 0, 'the reason text lives in one place');

@@ -52,9 +52,8 @@ const SCREENS = [
     ['F086', b(/^Generate data & run Inspire$/), 'main'],
     ['F080', b(/^Back$/), 'main'],
   ], []],
-  ['Monitor', 'monitor', {}, { mount: monitorMount }, 'h1', [
-    ['F193', b(/Stop this run/), 'main'],
-  ], [
+  ['Monitor', 'monitor', {}, { mount: monitorMount }, 'h1', [], [
+    ['F193', { role: 'menuitem', name: 'Stop this run' }, 'more'],
     ['F190', { role: 'menuitem', name: 'Run log' }, 'more'],
   ]],
   ['Review', 'results', REVIEW_STATE, {}, '[data-use-case-no="N01-U01"]', [
@@ -99,10 +98,12 @@ async function walk(open, state, opts, ready, rows) {
 }
 
 for (const [screen, open, state, opts, ready, keep, moved] of SCREENS) {
-  test(`${screen}: must-keep functions stay visible (${keep.map((r) => r[0]).join(', ')})`, async () => {
-    const misses = await walk(open, state, opts, ready, keep);
-    assert.deepEqual(misses, [], misses.join('\n'));
-  });
+  if (keep.length) {
+    test(`${screen}: must-keep functions stay visible (${keep.map((r) => r[0]).join(', ')})`, async () => {
+      const misses = await walk(open, state, opts, ready, keep);
+      assert.deepEqual(misses, [], misses.join('\n'));
+    });
+  }
   if (moved.length) {
     test(`${screen}: moved functions are one click away in More (${moved.map((r) => r[0]).join(', ')})`, async () => {
       const misses = await walk(open, state, opts, ready, moved);
