@@ -2534,23 +2534,30 @@ function sessionScopeText(scope) {
 
 async function sessionHiddenFrom(req, sessionId, scope) {
   const person = RP.forwardedPerson(req.headers);
-  if (!forwardedTokenOf(req) || !person) return null;
+  // Fail closed: with no person nothing is shown; with no sign-in token only the person's own launches are (their reads cannot be probed).
+  if (!person) return { status: 403, request: 'person', permissions: [], unreadable: [] };
   const launcher = await readLaunchRecord(req, { kind: 'session', inspireDatabase: String(req.query.inspire_database || ''), sessionId: String(sessionId) }).catch(() => null);
   if (launcher && launcher === String(person).trim().toLowerCase()) return null;
+  if (!forwardedTokenOf(req)) { // no sign-in token to probe reads with: only the launcher sees it
+    const names = ucMetadataParts(sessionScopeText(scope)).tables.sort();
+    const permission = names.length ? permissionRequired({ statements: readStatementsFor(names, person), principal: person,
+      why: 'You can open this session only when you can read the tables it covers.' }) : null;
+    return { status: 403, request: 'person', permissions: permission ? [permission] : [], unreadable: names };
+  }
   return launcherReadRefusal(req, sessionScopeText(scope));
 }
 
 async function visibleSessions(req, warehouseId, parsedDb, sessions) {
   const person = RP.forwardedPerson(req.headers);
-  if (!forwardedTokenOf(req) || !person || !sessions.length) return sessions;
+  if (!person) return [];
+  if (!sessions.length) return sessions;
   const ids = [...new Set(sessions.map((s) => String(s.session_id)).filter((id) => /^\d+$/.test(id)))];
-  if (!ids.length) return sessions;
+  if (!ids.length) return [];
   const scopeRows = sqlResultToObjects(await executeSql(req.dbHost, await appOwnToken(), warehouseId,
     `SELECT session_id, catalogs, schemas_str, tables_str FROM \`${parsedDb.catalog}\`.\`${parsedDb.schema}\`.\`__inspire_session\` WHERE session_id IN (${ids.join(', ')})`));
   const scopes = new Map(scopeRows.map((r) => [String(r.session_id), r]));
   const verdicts = await Promise.all(sessions.map(async (s) => {
-    const scope = scopes.get(String(s.session_id));
-    if (!scope) return true; // a session with no stored scope yet (starting) has nothing to protect
+    const scope = scopes.get(String(s.session_id)) || {};
     try {
       return !(await sessionHiddenFrom(req, s.session_id, scope));
     } catch {
