@@ -135,8 +135,7 @@ test('picking a saved profile restores every setting exactly, so Get Started run
     assert.equal(sent.params['08_generation_instructions'], 'Focus on churn');
     assert.equal(sent.params['01_uc_metadata'], 'main.s.orders', 'the picked table reaches the run');
     assert.match(sent.params['10_strategic_context'], /Zed priority/, 'a custom priority is restored');
-    assert.match(sent.params['09_generation_options'], /Presentation/);
-    assert.doesNotMatch(sent.params['09_generation_options'], /Excel/, 'an unticked output stays unticked');
+    assert.equal(Object.hasOwn(sent.params, '09_generation_options'), false, 'a profile saved with document ticks (before FX-116) sends no generation option');
   } finally {
     await ui.close();
   }

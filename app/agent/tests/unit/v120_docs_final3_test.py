@@ -7,7 +7,7 @@ tiles; em dashes reached the documents; technique names outside the registry sta
 deck dropped the coverage picks. Every test below fails on the pre-fix code and passes after it.
 """
 import csv
-import html as html_lib
+
 import io
 import re
 import types
@@ -15,7 +15,7 @@ import types
 import pytest
 
 from v120_artifacts_support import elite_assessment, make_inspire, make_uc
-from v120_docs_design_test import captured_html, deck, docs, labels, pdf_html, section, slide_texts, summary
+from v120_docs_design_test import docs, labels, markdown_catalog, summary
 
 AR_HEADLINE = "توقع الطلب على المخبوزات"
 AR_NAME = "توقع الطلب اليومي على المخبوزات لكل فرع لتقليل الهدر"
@@ -30,10 +30,6 @@ def translated_arabic(ns, uc, **row_extra):
            "Business Value": "قيمة مترجمة", "Beneficiary": "المخطط", "Sponsor": "المدير", "Technique Label": ""}
     row.update(row_extra)
     return service._merge_translation(uc, row, "Arabic")
-
-
-def card_slides(prs):
-    return [text for text in slide_texts(prs) if re.search(r"\| \d+ \| N\d\d-U\d\d · ", text)]
 
 
 def test_translation_payload_carries_the_headline_and_the_merge_titles_the_use_case_with_the_name(docs):
@@ -53,22 +49,13 @@ def test_translation_payload_carries_the_headline_and_the_merge_titles_the_use_c
     assert obj._doc_use_case_title(missing, "Arabic") == AR_NAME
 
 
-def test_the_same_title_field_names_the_use_case_on_every_surface_in_every_language(docs, captured_html):
+def test_the_same_title_field_names_the_use_case_in_the_markdown_and_csv_in_every_language(docs):
     english = make_uc("N01-U01", "Sales", usecase="Forecast Bakery Demand", Name="Forecast Daily Demand Per Store")
     arabic = translated_arabic(docs, english)
-    _, page_en = pdf_html(docs, captured_html, {"Sales": [english]}, summary())
-    _, page_ar = pdf_html(docs, captured_html, {"المبيعات": [arabic]}, summary(), language="Arabic")
-    card_en = section(page_en, 'id="uc-N01-U01"', "</article>")
-    card_ar = section(page_ar, 'id="uc-N01-U01"', "</article>")
-    assert ">Forecast Daily Demand Per Store</h3>" in card_en
-    assert f">{html_lib.escape(AR_NAME)}</h3>" in card_ar
-    assert f"{html_lib.escape(AR_NAME)} باستخدام" not in card_ar, "REQ-175: the name carries no technique, so no language joins one"
-    assert page_ar.count(html_lib.escape(AR_NAME)) >= 3
-    _, prs = deck(docs, {"المبيعات": [arabic]}, summary(), language="Arabic")
-    texts = [text.replace("⁦", "").replace("⁩", "") for text in slide_texts(prs)]
-    card = next(text for text in texts if "N01-U01 · " in text and AR_NAME in text)
-    assert AR_NAME in card
-    assert sum(AR_NAME in text for text in texts) >= 3
+    _, md_en = markdown_catalog(docs, {"Sales": [english]}, summary())
+    _, md_ar = markdown_catalog(docs, {"المبيعات": [arabic]}, summary(), language="Arabic")
+    assert "Forecast Daily Demand Per Store" in md_en
+    assert AR_NAME in md_ar and f"{AR_NAME} باستخدام" not in md_ar, "REQ-175: the name carries no technique, so no language joins one"
     obj = make_inspire(docs)
     obj._generate_csv_catalog("English", "en", {"Sales": [english]})
     rows = list(csv.reader(io.StringIO(next(iter(obj.w_client.workspace.files.values())).decode("utf-8"))))
@@ -139,8 +126,7 @@ def test_no_em_dash_rewrites_dashes_with_the_script_appropriate_comma(docs, text
     assert docs["inspire_no_em_dash"](text) == expected
 
 
-def test_no_em_dash_reaches_any_document_format_including_ai_narratives(docs, captured_html):
-    import openpyxl
+def test_no_em_dash_reaches_any_document_format_including_ai_narratives(docs):
     dash = " \u2014 "
     domain = f"Sales{dash}Retail"
     uc = make_uc("N01-U01", domain, usecase=f"Forecast{dash}Demand", Name=f"Forecast demand{dash}per store",
@@ -152,29 +138,18 @@ def test_no_em_dash_reaches_any_document_format_including_ai_narratives(docs, ca
                                                          red_team=f"Promotions{dash}not in data")})
     narratives = {"Executive": f"<p>Acme{dash}bakes daily.</p>", domain: f"<p>Sales{dash}matter.</p>"}
     grouped = {domain: [uc]}
-    _, page = pdf_html(docs, captured_html, grouped, narratives)
-    body = page[page.index("<body"):]
-    assert "\u2014" not in html_lib.unescape(re.sub(r"<[^>]+>", " ", body))
-    _, prs = deck(docs, grouped, narratives)
-    assert not [text for text in slide_texts(prs) if "\u2014" in text]
     obj = make_inspire(docs)
     obj._generate_markdown_catalog("English", "en", grouped, narratives, "Acme")
     assert "\u2014" not in next(iter(obj.w_client.workspace.files.values())).decode("utf-8")
     obj = make_inspire(docs)
     obj._generate_csv_catalog("English", "en", grouped)
     assert "\u2014" not in next(iter(obj.w_client.workspace.files.values())).decode("utf-8")
-    obj = make_inspire(docs)
-    obj._generate_use_case_excel("English", "en", grouped)
-    workbook = openpyxl.load_workbook(io.BytesIO(next(iter(obj.w_client.workspace.files.values()))))
-    cells = [str(c.value) for sheet in workbook.worksheets for row in sheet.iter_rows() for c in row if c.value is not None]
-    assert cells and not [c for c in cells if "\u2014" in c]
-    assert "Less waste, more margin" in cells
 
 
-def test_japanese_document_rewrites_em_dashes_with_the_ideographic_comma(docs, captured_html):
+def test_japanese_document_rewrites_em_dashes_with_the_ideographic_comma(docs):
     uc = make_uc("N01-U01", "営業", usecase="需要予測", Name="店舗別の需要予測\u2014廃棄の削減", Statement="廃棄が多い\u2014過剰生産")
-    _, page = pdf_html(docs, captured_html, {"営業": [uc]}, summary(), language="Japanese")
-    assert "店舗別の需要予測、廃棄の削減" in page and "廃棄が多い、過剰生産" in page and "\u2014" not in page[page.index("<body"):]
+    _, md = markdown_catalog(docs, {"営業": [uc]}, summary(), language="Japanese")
+    assert "店舗別の需要予測、廃棄の削減" in md and "廃棄が多い、過剰生産" in md and "\u2014" not in md
 
 
 @pytest.mark.parametrize("raw, canonical", [
@@ -207,7 +182,7 @@ def test_registry_aliases_render_translated_in_arabic_and_japanese(docs):
     assert obj._doc_technique_label("Entity Extraction", labels(docs), "English") == ("Extraction", False)
 
 
-def test_non_registry_techniques_go_through_the_translation_payload(docs, captured_html):
+def test_non_registry_techniques_go_through_the_translation_payload(docs):
     ts = docs["TranslationService"]
     ranking = make_uc("N01-U01", "Sales", **{"Analytics Technique": "Score-Based Ranking"})
     assert ts._translation_payload(ranking)["Technique Label"] == "Score-Based Ranking"
@@ -216,8 +191,8 @@ def test_non_registry_techniques_go_through_the_translation_payload(docs, captur
     assert "Technique Label" not in ts._translatable_fields_present(make_uc("N01-U02", "Sales"))
     merged = translated_arabic(docs, ranking, **{"Technique Label": AR_TECHNIQUE})
     assert merged["Analytics Technique Label"] == AR_TECHNIQUE and "Technique Label" not in merged["_untranslated_fields"]
-    obj, page = pdf_html(docs, captured_html, {"المبيعات": [merged]}, summary(), language="Arabic")
-    card = section(page, 'id="uc-N01-U01"', "</article>")
+    obj, md = markdown_catalog(docs, {"المبيعات": [merged]}, summary(), language="Arabic")
+    card = md[md.index("#### #1 "):]
     assert AR_TECHNIQUE in card and "Score-Based Ranking" not in card
     assert "analytics_technique" not in (getattr(obj, "translation_gaps", None) or {}).get("Arabic", {}).get("labels_in_english", {})
     assert not obj.logger.matching("[DOCS-LABELS untranslated]")
@@ -244,46 +219,6 @@ def _ultra_with_coverage():
     hr = [make_uc("N03-U01", "People", quality_mode="Ultra High", elite_status="DOMAIN_COVERAGE_PICK",
                   coverage_pick_reason="Below bar: feasibility 2 / 5", **{"Inspire Score": 5.0})]
     return {"Sales": sales, "Operations": ops, "People": hr}
-
-
-def test_small_final_set_gives_every_use_case_a_deck_card_including_coverage_picks(docs):
-    grouped = _ultra_with_coverage()
-    t = labels(docs)
-    obj, prs = deck(docs, grouped, summary())
-    cards = card_slides(prs)
-    for no in ("N01-U01", "N01-U02", "N01-U03", "N02-U01", "N03-U01"):
-        assert any(f"{no} · " in text for text in cards), no
-    coverage = next(text for text in cards if "N02-U01 · " in text)
-    assert f'{t["elite_coverage_pick"]}. {t["elite_reason"]}: Below bar: quality' in coverage
-    texts = slide_texts(prs)
-    assert any(t["doc_deck_scope_all"].format(total=5) in text for text in texts)
-    assert not any(t["doc_deck_scope"].split("{")[0] in text for text in texts)
-
-
-def test_large_final_set_shows_the_top_n_cards_and_states_the_truncation_and_the_full_index(docs):
-    grouped = {"Sales": [make_uc(f"N01-U{i:02d}", "Sales", **{"Inspire Score": 9.0 - i / 10}) for i in range(1, 21)],
-               "Operations": [make_uc(f"N02-U{i:02d}", "Operations", **{"Inspire Score": 8.95 - i / 10}) for i in range(1, 11)]}
-    t = labels(docs)
-    obj, prs = deck(docs, grouped, summary())
-    limit = docs["DatabricksInspire"]._DOC_TOP_LIMIT["default"]
-    assert len(card_slides(prs)) == limit
-    texts = slide_texts(prs)
-    assert any(t["doc_deck_scope"].format(count=limit, total=30) in text for text in texts)
-    index = " ".join(text for text in texts if "N01-U20" in text or "N02-U10" in text)
-    assert "N01-U20" in index and "N02-U10" in index
-
-
-def test_large_ultra_set_keeps_coverage_picks_in_the_deck(docs):
-    cls = docs["DatabricksInspire"]
-    grouped = {"Sales": [make_uc(f"N01-U{i:02d}", "Sales", quality_mode="Ultra High", elite_status="ELITE", elite_score=9.5 - i / 10,
-                                 elite_assessment=elite_assessment(), **{"Inspire Score": 9.5 - i / 10}) for i in range(1, 17)],
-               "Operations": [make_uc("N02-U01", "Operations", quality_mode="Ultra High", elite_status="DOMAIN_COVERAGE_PICK",
-                                      coverage_pick_reason="Below bar", **{"Inspire Score": 4.0})]}
-    obj = make_inspire(docs)
-    model = obj._document_model("English", labels(docs), summary(), grouped, "Acme")
-    assert model["total"] > cls._DOC_TOP_LIMIT["deck_all"]
-    assert [uc["No"] for uc in model["deck"]][-1] == "N02-U01"
-    assert len(model["deck"]) == cls._DOC_TOP_LIMIT["elite"] + 1
 
 
 TRANSLATE_HEADER = ["No", "Name", "Business Domain", "Subdomain", "type", "Analytics Technique",
@@ -415,14 +350,10 @@ def test_narrative_sentences_that_count_use_cases_are_dropped(docs, narrative, k
     assert bool(obj.logger.matching("[DOCS-NARRATIVE count-dropped]")) == (kept != [obj._doc_paragraphs(narrative)[0]])
 
 
-def test_count_sentences_reach_no_document_surface(docs, captured_html):
+def test_count_sentences_reach_no_document_surface(docs):
     counted = {"Executive": "<p>Acme bakes daily. Spanning thirteen use cases, the catalog is broad.</p>",
                "Sales": "<p>Sales matters. Two use cases make this tangible.</p>"}
     grouped = {"Sales": [make_uc("N01-U01"), make_uc("N01-U02"), make_uc("N01-U03")]}
-    _, page = pdf_html(docs, captured_html, grouped, counted)
-    assert "thirteen use cases" not in page and "Two use cases" not in page and "Sales matters." in page
-    _, prs = deck(docs, grouped, counted)
-    assert not [text for text in slide_texts(prs) if "Two use cases" in text or "thirteen use cases" in text]
     obj = make_inspire(docs)
     obj._generate_markdown_catalog("English", "en", grouped, counted, "Acme")
     md = next(iter(obj.w_client.workspace.files.values())).decode("utf-8")
