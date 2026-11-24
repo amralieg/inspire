@@ -4,6 +4,7 @@ import ImplementPage from '../../src/pages/ImplementPage';
 import ResultsPage from '../../src/pages/ResultsPage';
 import ImplementCardActions from '../../src/components/ImplementCardActions';
 import Header from '../../src/components/Header';
+import ShowcaseBar from '../../src/components/ShowcaseBar';
 import LandingPage from '../../src/pages/LandingPage';
 import RunPage from '../../src/pages/RunPage';
 import ChoosePage from '../../src/pages/ChoosePage';
@@ -92,6 +93,7 @@ function HarnessContent({ open, discoveryType, step, run }) {
       </ThemeProvider>
     );
   }
+  if (open === 'showcaseBar') return <ShowcaseBar showcase={{ title: 'Demo title', summary: 'A summary.' }} onGetStarted={() => {}} onLeave={() => {}} />;
   return <PageHarness open={open} discoveryType={discoveryType} step={step} />;
 }
 
