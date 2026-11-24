@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import BodyPortal from './BodyPortal';
+import { SCRIM_STYLE } from './ModalDialog';
 import PaneResizer from './PaneResizer';
 import { DRAWER_WIDTH, loadPaneWidth, paneWidth, savePaneWidth } from '../lib/paneWidth';
 import { useModal } from './useModal';
@@ -21,7 +22,7 @@ function useWide() {
 
 const KEEP_OPEN = '[aria-modal="true"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]';
 
-export default function DrawerShell({ label, closeLabel, focusKey = null, focusOnOpen = true, onClose, title, actions = null, below = null, footer = null, center = false, side = false, dock = null, bodyRef = null, bodyProps = {}, children, ...rest }) {
+export default function DrawerShell({ label, closeLabel, closeButtonLabel = 'Close', focusKey = null, focusOnOpen = true, onClose, title, actions = null, below = null, footer = null, center = false, side = false, dock = null, bodyRef = null, bodyProps = {}, children, ...rest }) {
   const panelRef = useRef(null);
   const openerRef = useRef(null);
   const openedByPerson = useRef(false);
@@ -73,16 +74,16 @@ export default function DrawerShell({ label, closeLabel, focusKey = null, focusO
 
   const panel = (
     <>
-      {!side && <button type="button" aria-label={closeLabel} className="absolute inset-0 bg-black/40 cursor-default" onClick={onClose} />}
+      {!side && <button type="button" aria-label={closeLabel} className="absolute inset-0 bg-black/40 cursor-default" style={SCRIM_STYLE} onClick={onClose} />}
     <div
       ref={panelRef}
       tabIndex={-1}
       role="dialog"
       aria-modal={side ? 'false' : 'true'}
       aria-label={label}
-      className={`relative flex w-full flex-col bg-surface shadow-elevated outline-none ${side ? 'pointer-events-auto' : ''} ${
-        center ? 'max-h-[92dvh] max-w-[44rem] rounded-xl border border-border'
-          : `h-full border-s border-border md:w-[var(--drawer-width)] ${side ? 'md:max-w-[40vw]' : 'md:max-w-[calc(100vw-3rem)]'}`}`}
+      className={`relative flex w-full flex-col bg-surface shadow-e3 outline-none ${side ? 'pointer-events-auto' : ''} ${
+        center ? 'max-h-[92dvh] max-w-[44rem] rounded-lg border border-border dialog-enter'
+          : `drawer-enter h-full border-s border-border md:w-[var(--drawer-width)] ${side ? 'md:max-w-[40vw]' : 'md:max-w-[calc(100vw-3rem)]'}`}`}
       style={center ? undefined : { '--drawer-width': `${width}px` }}
     >
       {!center && (
@@ -94,7 +95,7 @@ export default function DrawerShell({ label, closeLabel, focusKey = null, focusO
           <div className="min-w-0 flex-1">{title}</div>
           <div className="flex shrink-0 items-center gap-1">
             {actions}
-            <button type="button" onClick={onClose} className="rounded-md p-1.5 text-text-secondary hover:bg-bg-subtle" aria-label="Close" title="Close (Esc)">
+            <button type="button" onClick={onClose} className="rounded-md p-1.5 text-text-secondary hover:bg-bg-subtle" aria-label={closeButtonLabel} title="Close (Esc)">
               <X size={16} />
             </button>
           </div>
@@ -117,7 +118,7 @@ export default function DrawerShell({ label, closeLabel, focusKey = null, focusO
   if (docked) return createPortal(<div className="flex h-full min-h-0 md:shrink-0" {...rest}>{panel}</div>, dock);
   return (
     <BodyPortal>
-      <div className={`fixed inset-0 flex ${side ? 'z-[45] pointer-events-none' : 'z-[70]'} ${center ? 'items-center justify-center p-4' : 'justify-end'}`} {...rest}>
+      <div className={`fixed inset-0 flex ${side ? 'z-drawer pointer-events-none' : 'z-overlay'} ${center ? 'items-center justify-center p-4' : 'justify-end'}`} {...rest}>
         {panel}
       </div>
     </BodyPortal>

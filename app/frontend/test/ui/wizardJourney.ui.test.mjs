@@ -99,11 +99,10 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
     await onePerQuestion(page, 'Results');
     await shot(page, '05-results', false);
     await goToStep(page, 'What to deliver');
-    const notebook = page.locator('[data-output="notebook"] input');
-    assert.deepEqual([await notebook.isChecked(), await notebook.isDisabled()], [true, true], 'the notebook is always built');
-    assert.equal(await page.getByRole('checkbox', { name: /^Agentic App A Databricks/ }).isChecked(), true);
+    assert.equal(await page.locator('[data-output="notebook"]').count(), 0, 'REQ-514: the notebook is not a choice');
+    assert.equal(await page.getByRole('checkbox', { name: /^Agentic App/ }).count(), 0, 'REQ-514: the App is not a choice');
     assert.equal(await page.locator('[data-choice="outputs"]').evaluate((g) => [...g.querySelectorAll('[data-recommended]')].filter((b) => b.closest('[data-choice]') === g).length),
-      1, 'one Recommended on What to deliver');
+      0, 'REQ-514: the App is fixed, so nothing on What to deliver is Recommended');
     assert.equal(await page.getByRole('region', { name: 'App placement' }).count(), 0, 'where the App goes waits for Where it lives (must-exclude)');
     await onePerQuestion(page, 'What to deliver');
     await shot(page, '06-deliver', false);
@@ -202,9 +201,8 @@ test('an App Inspire cannot afford is dimmed on Deliver with one plain reason an
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await goToStep(page, 'What to deliver');
-    const appBox = page.getByRole('checkbox', { name: /^Agentic App A Databricks/ });
     await page.locator('[data-blocked-reason="app"]').waitFor({ timeout: 15000 });
-    assert.deepEqual([await appBox.isDisabled(), await appBox.isChecked()], [true, false]);
+    assert.equal(await page.locator('[data-output="app"] input').count(), 0, 'REQ-514: the blocked App is a fixed card with no checkbox');
     const blocked = page.locator('[data-blocked-reason="app"]');
     assert.equal((await blocked.locator('p').allTextContents()).length, 1, 'one plain reason');
     await blocked.getByText('Details', { exact: true }).waitFor();

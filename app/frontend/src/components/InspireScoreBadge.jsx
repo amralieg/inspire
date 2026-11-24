@@ -9,7 +9,7 @@ export default function InspireScoreBadge({ score, refinedFrom = null, onUndo = 
     <div className="shrink-0 flex flex-col items-center gap-1">
       <div
         data-score-box=""
-        className={`${BOX} border-db-red-solid bg-db-red-solid text-white shadow-sm`}
+        className={`${BOX} border-primary-solid bg-primary-solid text-white shadow-sm`}
         title={refined ? `Inspire composite score. Refined from ${from}` : 'Inspire composite score'}
       >
         <span className="text-[10px] font-bold uppercase tracking-[0.12em] leading-none">Inspire</span>

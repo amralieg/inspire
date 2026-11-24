@@ -25,7 +25,7 @@ export function AppReadAccess({ offer, result, busy, onGrant }) {
       {offer && <PlainMessage text={offer.text} className="text-text-secondary" />}
       {offer?.can_grant && (
         <button type="button" disabled={busy} onClick={onGrant}
-          className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-70">
+          className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-primary-solid disabled:opacity-70">
           {busy ? 'Granting with your sign-in' : APP_READ_ACTION}
         </button>
       )}

@@ -13,7 +13,7 @@ export default function FormulaDiagram({ driver, inputs, part, currency, amount 
         </span>
       ))}
       <span data-diagram-op="" className="text-base font-bold text-text-secondary">=</span>
-      <span data-diagram-result="" className="rounded-md border border-db-red-solid bg-bg-subtle px-2.5 py-1 text-[13px] font-extrabold tabular-nums text-text-primary">{amount}</span>
+      <span data-diagram-result="" className="rounded-md border border-primary-solid bg-bg-subtle px-2.5 py-1 text-[13px] font-extrabold tabular-nums text-text-primary">{amount}</span>
     </div>
   );
 }

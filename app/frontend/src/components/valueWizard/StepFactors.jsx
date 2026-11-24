@@ -37,7 +37,7 @@ export default function StepFactors({ plan, answers, yearly, onFactor, status, e
           const mine = answers.economic_factors?.[f.id] || { on: false, pct: Number(f.likely_pct) };
           const pct = Number(mine.pct);
           return (
-            <section key={f.id} data-factor={f.id} aria-label={f.label} className={`space-y-1.5 rounded-lg border px-3 py-2 ${mine.on ? 'border-db-red-solid ring-1 ring-db-red-solid' : 'border-border'}`}>
+            <section key={f.id} data-factor={f.id} aria-label={f.label} className={`space-y-1.5 rounded-lg border px-3 py-2 ${mine.on ? 'border-primary-solid ring-1 ring-db-red-solid' : 'border-border'}`}>
               <label className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">
                 <input type="checkbox" aria-label={`Include ${f.label}`} checked={Boolean(mine.on)} onChange={() => onFactor(f.id, { on: !mine.on })} />
                 <span className="min-w-0 flex-1">{f.label}</span>

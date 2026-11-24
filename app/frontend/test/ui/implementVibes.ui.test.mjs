@@ -75,8 +75,8 @@ test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step h
     assert.equal(await page.getByRole('button', { name: /vibes/i }).count(), 0, 'Delivery has no vibes button');
     assert.equal(await page.getByRole('textbox', { name: /vibes/i }).count(), 0, 'Delivery has no vibes box');
     assert.equal(await page.getByRole('region', { name: 'Vibes' }).count(), 0);
-    await page.getByRole('checkbox', { name: /^Agentic App A Databricks/ }).uncheck();
-    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. How to build', '2. What to deliver', '3. Data & results', '4. First run', '5. Review & build'], 'Summary stays last without an App');
+    assert.equal(await page.getByRole('checkbox', { name: /^Agentic App/ }).count(), 0, 'REQ-514: the App is not a choice');
+    assert.deepEqual(await page.locator('ol li').allTextContents(), STEPS_WITH_APP, 'Summary stays last');
     await toVibes(page);
     const panel = page.getByRole('region', { name: 'Vibes' });
     await panel.getByRole('heading', { name: 'Anything else Genie should build in?' }).waitFor();
@@ -88,7 +88,7 @@ test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step h
     assert.equal(await panel.getByRole('group', { name: /^What happens to v/ }).count(), 0, 'a first build has no version before to keep or remove');
     await wizardBox(page).fill('');
     assert.equal(await panel.locator('[data-vibes-skipped]').textContent(),
-      'Not picked in What to deliver, so not built: the Dashboard, the Agentic App and the Alert.'); // D-LABEL209
+      'Not picked in What to deliver, so not built: the Dashboard and the Alert.'); // D-LABEL209
     assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), ONE_BOX, 'the box has the focus');
     for (const dark of [false, true]) {
       await page.evaluate((on) => document.documentElement.classList.toggle('dark', on), dark);
@@ -100,10 +100,10 @@ test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step h
     assert.deepEqual((await grayExamples(page, panel)).map((e) => e.value), [''], 'the example is never typed into the box');
 
     await page.getByRole('button', { name: 'Back', exact: true }).click();
-    // REQ-457: Measure is no longer a step; Back from the last step lands on First run in this scope.
-    await onStep(page, 'First run');
+    // REQ-514: the App step is always present, so Back from the last step lands on Where it lives.
+    await onStep(page, 'Where it lives');
     await goToStep(page, 'What to build');
-    for (const name of [/^Dashboard/, /^Agentic App A Databricks/, /^Alert/]) await page.getByRole('checkbox', { name }).check();
+    for (const name of [/^Dashboard/, /^Alert/]) await page.getByRole('checkbox', { name }).check();
     await page.getByText(`Emails ${OWNER} when`, { exact: false }).waitFor();
     await toAppAccess(page);
     await page.getByRole('radio', { name: /^Internal data/ }).check();

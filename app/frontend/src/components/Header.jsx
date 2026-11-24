@@ -1,9 +1,10 @@
 import { Sun, Moon } from 'lucide-react';
 import DatabricksLogo from './DatabricksLogo';
 import { useTheme } from '../ThemeContext';
-import { NAV_TABS, tabTitle } from '../lib/tabs';
+import { APP_TABS, tabTitle } from '../lib/tabs';
 
-const NAV = NAV_TABS.map((tab, i) => ({ ...tab, step: i + 1 }));
+const START_PAGES = ['launch', 'generate-data'];
+const NAV = APP_TABS.map((tab, i) => ({ ...tab, step: i + 1 }));
 
 export default function Header({
   page,
@@ -12,27 +13,28 @@ export default function Header({
   canMonitor,
   canResults,
   canImplement,
-  canRun = true,
+  canRun,
+  navReady = true,
   releaseTag = '',
 }) {
   const { theme, toggle } = useTheme();
   const enabled = {
-    landing: true,
     choose: true,
     monitor: canMonitor,
-    results: canResults || true,
+    results: canResults,
     implement: canImplement,
     run: canRun,
   };
 
   return (
     <header className="bg-surface/80 backdrop-blur-xl border-b border-border sticky top-0 z-40">
-      <div className="max-w-screen-xl mx-auto px-3 sm:px-6">
+      <div className="w-full px-6">
         <div className="flex items-center justify-between gap-2 h-14">
           {/* Brand */}
           <button
             onClick={() => setPage('landing')}
             className="flex shrink-0 items-center gap-2.5 group"
+            title="Inspire AI home"
           >
             <DatabricksLogo className="w-7 h-7" />
             <span className="whitespace-nowrap text-text-primary font-bold text-xl tracking-tight">
@@ -45,8 +47,8 @@ export default function Header({
 
           {/* Navigation */}
           <nav className="flex min-w-0 items-center gap-0.5 overflow-x-auto">
-            {NAV.map((item) => {
-              const active = page === item.id;
+            {navReady && NAV.map((item) => {
+              const active = page === item.id || (item.id === 'choose' && START_PAGES.includes(page));
               const can = enabled[item.id];
               return (
                 <button

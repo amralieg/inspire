@@ -11,7 +11,8 @@ import ScrollProgressRing from './components/ScrollProgressRing';
 import ParticleField from './components/ParticleField';
 import ShowcaseBar from './components/ShowcaseBar';
 import { RESULTS_FRAME } from './lib/layout';
-import { BOOT_TIMEOUT_TEXT, bootRead } from './lib/apiClient';
+import { BOOT_TIMEOUT_TEXT, bootRead, makeApiFetch } from './lib/apiClient';
+import { sessionSucceeded } from './lib/monitorState';
 import { PlainMessage } from './components/TechnicalDetails';
 import { showcaseSettings, showcasesFrom, staysInShowcase } from './lib/showcase';
 import PermissionHost from './components/PermissionHost';
@@ -211,7 +212,7 @@ export default function App() {
       pushNext.current = !link;
       setPage(target);
       setTransitioning(false);
-    }, 200);
+    }, 120);
   }, []);
 
   const update = useCallback((key, val) => {
@@ -404,7 +405,7 @@ export default function App() {
       pushNext.current = push;
       setPage(p);
       setTransitioning(false);
-    }, 200);
+    }, 120);
   }, [page, inDemo]);
 
   const onLaunched = useCallback((sid, rid, notes = [], details = []) => {
@@ -501,14 +502,27 @@ export default function App() {
 
   const canLaunch = true;
   const canMonitor = inDemo || Boolean(sessionId || runId);
-  const canResults = true;
+  const [hasResults, setHasResults] = useState(null);
+  const { token: apiToken, databricksHost: apiHost, inspireDatabase: apiDb, warehouseId: apiWh } = settings;
+  useEffect(() => {
+    if (inDemo || !apiDb || !apiWh || page === 'loading' || page === 'setup') return undefined;
+    let cancelled = false;
+    const q = new URLSearchParams({ inspire_database: apiDb, warehouse_id: apiWh, all: '1' });
+    makeApiFetch({ token: apiToken, databricksHost: apiHost })(`/api/inspire/sessions?${q}`)
+      .then((data) => { if (!cancelled) setHasResults((data?.sessions || []).some(sessionSucceeded)); })
+      .catch(() => { if (!cancelled) setHasResults(false); });
+    return () => { cancelled = true; };
+  }, [inDemo, apiToken, apiHost, apiDb, apiWh, page]);
+  const canResults = inDemo || hasResults === true;
+  // The steps appear once the saved-run check has answered, so Review and Run never flash locked for a person who has finished runs.
+  const navReady = inDemo || hasResults !== null || !apiDb || !apiWh;
   const bare = page === 'run' && runFull;
 
   return (
     <ThemeProvider>
     <ValueBulkRunProvider>
     <div className="min-h-screen bg-bg text-text-primary relative">
-      {!bare && <ParticleField count={40} />}
+      {!bare && page === 'landing' && <ParticleField count={40} />}
       <PermissionHost />
       <BuildStarting />
 
@@ -519,6 +533,8 @@ export default function App() {
           canLaunch={canLaunch}
           canMonitor={canMonitor}
           canResults={canResults}
+          canRun={canResults}
+          navReady={navReady}
           canImplement={Boolean(implementSessionId)}
           releaseTag={releaseTag}
         />

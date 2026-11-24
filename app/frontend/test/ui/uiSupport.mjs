@@ -205,6 +205,11 @@ export async function openUi(open, overrides = {}, query = '', { mount, init, bu
   // REQ-435: the saved Value at stake answers are read from the server; a test that does not mount them gets none (its own mount wins, it runs first).
   const withAnswers = (app) => {
     mount?.(app);
+    // REQ-508 L6b: the Setup wizard inside an App reads who is signed in, creates the database and reads the notebook; the Config page reads the DBC info; unmocked, each is a page error.
+    app.get('/api/me', (_req, res) => res.json({ person: { username: 'owner@example.com' } }));
+    app.post('/api/setup/create-database', (_req, res) => res.json({ ok: true }));
+    app.get('/api/notebook', (_req, res) => res.json({ path: '' }));
+    app.get('/api/dbc/info', (_req, res) => res.json({}));
     app.get('/api/inspire/value/answers', (_req, res) => res.json({ answers: {} }));
     app.get('/api/inspire/value/answers/history', (_req, res) => res.json({ history: [] }));
     // REQ-436/438: the harness warehouse has no dated table, so a test that does not mount them gets the server's fallback case plan over

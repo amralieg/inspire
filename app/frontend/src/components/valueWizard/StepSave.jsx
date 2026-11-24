@@ -29,7 +29,7 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
           const on = Boolean(answers.drivers[d.id]?.on);
           const part = partOf(yearly, d.id);
           return (
-            <div key={d.id} data-tile={d.id} className={`flex min-h-[64px] flex-col gap-0 rounded-lg border px-2.5 py-0.5 ${open === d.id ? 'border-db-red-solid ring-1 ring-db-red-solid' : 'border-border'} ${on ? '' : 'bg-bg-subtle text-text-tertiary'}`}>
+            <div key={d.id} data-tile={d.id} className={`flex min-h-[64px] flex-col gap-0 rounded-lg border px-2.5 py-0.5 ${open === d.id ? 'border-primary-solid ring-1 ring-db-red-solid' : 'border-border'} ${on ? '' : 'bg-bg-subtle text-text-tertiary'}`}>
               <div className="flex items-start gap-1.5">
                 <input type="checkbox" aria-label={`Include ${d.label}`} checked={on} onChange={() => onToggleDriver(d.id)} className="mt-0.5" />
                 <span aria-hidden="true">{DRIVER_ICONS[d.id] || ''}</span>
@@ -43,7 +43,7 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
         })}
       </div>
       {opened && answers.drivers[opened.id]?.on && (
-        <div data-editor={opened.id} className="space-y-1.5 rounded-lg border border-db-red-solid px-3 py-2">
+        <div data-editor={opened.id} className="space-y-1.5 rounded-lg border border-primary-solid px-3 py-2">
           <p className="text-[13px] font-semibold text-text-primary">{opened.label}</p>
           <FormulaLine driver={opened} answers={answers} yearly={yearly} status={status} />
           <div className="grid grid-cols-2 gap-1.5">

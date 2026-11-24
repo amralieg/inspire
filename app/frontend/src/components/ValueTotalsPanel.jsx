@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { moneyText } from './ValueBox';
 import { ValueCheckNote } from './ValueCheckNote';
 import ValueDisclaimer from './ValueDisclaimer';
+import Badge from './ui/Badge';
 import { valueChips } from '../lib/valueLedger';
 import { plural as pluralOf } from '../lib/plural';
 import { STATUS_LABELS, statusCounts, statusLabelOf } from '../lib/valueLabels';
@@ -60,7 +61,7 @@ export function Bar({ parts, label }) {
 
 export function TotalBox({ label, totals, sub }) {
   return (
-    <div data-value-total="" className="flex min-w-[9rem] flex-col items-center justify-center rounded-xl border-2 border-db-red-solid bg-surface px-4 py-3 text-center">
+    <div data-value-total="" className="flex min-w-[9rem] flex-col items-center justify-center rounded-xl border-2 border-primary-solid bg-surface px-4 py-3 text-center">
       <span className="text-[11px] tracking-wide text-text-primary">{label}</span>
       {totals.length ? totals.map((t) => <span key={t.currency} data-total-amount="" className="text-[22px] font-extrabold tabular-nums text-db-red-fg">{moneyText(t.currency, t.amount)}</span>)
         : <span data-total-amount="" className="text-[22px] font-extrabold text-text-tertiary">None yet</span>}
@@ -181,7 +182,7 @@ export function RunValueKinds({ value, className = '' }) {
 // The Start bars, the run card and the Review header all render it, so they cannot disagree.
 export function RunValueTotal({ value, red = false }) {
   const totals = value?.totals || [];
-  if (!totals.length) return <span data-run-value-state="not-calculated" className="text-text-tertiary">Not calculated</span>;
+  if (!totals.length) return <Badge data-run-value-state="not-calculated">Not calculated</Badge>;
   // Green when the total is calculated, amber when any of it is only estimated.
   const calculated = Number(value?.n_calculated) > 0 && !(Number(value?.n_estimated) > 0);
   return (
@@ -199,16 +200,21 @@ export function RunValueLine({ value, label = 'Business value at stake', classNa
   const n = value ? statusCounts(value.n_calculated ?? 0, value.n_estimated ?? 0) : '';
   return (
     <div data-run-value="" className={`text-[11px] text-text-secondary ${className}`}>
-      <div data-run-value-box="" className={`inline-flex min-w-[8rem] flex-col rounded-lg border-2 px-3 py-1.5 ${totals.length > 0 ? 'border-db-red-solid bg-db-red-solid text-white' : 'border-dashed border-db-red-solid bg-surface'}`}>
-        <span className={`font-semibold uppercase tracking-wide ${totals.length > 0 ? 'text-white' : 'text-text-primary'}`}>{label}</span>
-        <span className="text-[18px] font-extrabold tabular-nums"><RunValueTotal value={value} red /></span>
-        {totals.length > 0 && (
+      {totals.length > 0 ? (
+        <div data-run-value-box="" className="inline-flex min-w-[8rem] flex-col rounded-lg border-2 border-primary-solid bg-primary-solid px-3 py-1.5 text-white">
+          <span className="font-semibold uppercase tracking-wide text-white">{label}</span>
+          <span className="text-[18px] font-extrabold tabular-nums"><RunValueTotal value={value} red /></span>
           <span className="inline-flex items-center gap-1 text-[10px] text-white">
             <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full ring-2 ring-white" style={{ background: calculated ? GREEN : AMBER }} />{statusLabelOf(calculated ? 'calculated' : 'estimated').toLowerCase()}
             <span>{`(${n})`}</span>
           </span>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="inline-flex flex-col gap-1">
+          <span className="font-semibold uppercase tracking-wide text-text-primary">{label}</span>
+          <RunValueTotal value={value} />
+        </div>
+      )}
       {totals.length > 0 && <div className="mt-1"><ValueDisclaimer short /></div>}
       <RunValueKinds value={value} className="mt-1" />
     </div>

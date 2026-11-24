@@ -405,7 +405,7 @@ export function ScopeSection({ settings, editable, scope = null, onSave, childre
             <input dir="auto" aria-label={`Note for the ${meta.title} change`} placeholder="Why, for the history (optional)" maxLength={300}
               className={`${NUMBER} w-64`} value={note} onChange={(e) => setNote(e.target.value)} />
             <SaveButton busy={saving} disabled={blocked} onClick={save}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-50">
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-primary-solid disabled:opacity-50">
               {meta.save}
             </SaveButton>
           </div>

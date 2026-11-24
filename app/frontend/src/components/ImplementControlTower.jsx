@@ -41,7 +41,7 @@ export function ConfirmDialog({ title, confirmLabel, useCaseId, busy, onCancel, 
     </>
   );
   return (
-    <ModalDialog titleId={`confirm-${useCaseId}-title`} title={title} onClose={onCancel} overlayClass="z-[80] bg-black/40" widthClass="max-w-md"
+    <ModalDialog titleId={`confirm-${useCaseId}-title`} title={title} onClose={onCancel} widthClass="max-w-md"
       footer={actions} dialogAttrs={{ 'data-confirm-dialog': '' }}>
       <div className="text-[12px] text-text-secondary space-y-2">{children}</div>
       <label className="block text-[12px] text-text-secondary">
@@ -76,12 +76,12 @@ export function RowControls({ row, active, actionBusy, submitBusy, readOnly = fa
     <>
       {row.run && onOpenRun && (
         <button type="button" data-open-run={row.run.id} title={named(RUN_LINK_LABEL)} onClick={() => onOpenRun(row.run.id)}
-          className={`${base} font-semibold text-white bg-db-red-solid hover:opacity-90`}>
+          className={`${base} font-semibold text-white bg-primary-solid hover:opacity-90`}>
           <PlayCircle size={11} className="shrink-0" /> {fitted(fit, RUN_LINK_LABEL)}
         </button>
       )}
       {row.url && (
-        <a href={row.url} target="_blank" rel="noreferrer" className={`${BUTTON} font-semibold text-white bg-db-red-solid hover:opacity-90`}>
+        <a href={row.url} target="_blank" rel="noreferrer" className={`${BUTTON} font-semibold text-white bg-primary-solid hover:opacity-90`}>
           Open <ExternalLink size={11} />
         </a>
       )}
@@ -396,7 +396,7 @@ export function NotebookLinks({ notebook }) {
   return (
     <>
       {notebook.href && (
-        <a className={`${BUTTON} font-semibold text-white bg-db-red-solid hover:opacity-90`} href={notebook.href} target="_blank" rel="noreferrer">
+        <a className={`${BUTTON} font-semibold text-white bg-primary-solid hover:opacity-90`} href={notebook.href} target="_blank" rel="noreferrer">
           Open the notebook <ExternalLink size={11} />
         </a>
       )}

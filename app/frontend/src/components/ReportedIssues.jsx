@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { MessageSquareWarning, Sparkles, X } from 'lucide-react';
 import { PANEL_CLASS, SectionTitle } from './BuildUi';
 import { PlainMessage } from './TechnicalDetails';
+import Tabs from './ui/Tabs';
 
 const FILTERS = [['new', 'New'], ['vibe', 'Turned into vibe'], ['closed', 'Closed']];
 const BUTTON = 'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
@@ -77,14 +78,8 @@ export default function ReportedIssues({ issues, onDraft, locked = '' }) {
         hint={counts.new ? `${counts.new} new from the people using the App` : 'What the people using the App reported'}
         right={<span data-new-issues={counts.new} className="text-xs font-semibold text-text-secondary">{counts.new} new</span>} />
       <div className="p-4 space-y-3">
-        <div role="tablist" aria-label="Show issues" className="flex flex-wrap gap-2">
-          {FILTERS.map(([id, label]) => (
-            <button key={id} type="button" role="tab" aria-selected={shown === id} data-issue-filter={id} onClick={() => setShown(id)}
-              className={`${BUTTON} ${shown === id ? 'bg-bg-subtle ring-1 ring-border' : ''}`}>
-              {label} <span className="text-text-secondary">{counts[id]}</span>
-            </button>
-          ))}
-        </div>
+        <Tabs label="Show issues" current={shown} onPick={setShown} tabAttrs={(t) => ({ 'data-issue-filter': t.id })}
+          tabs={FILTERS.map(([id, label]) => ({ id, label, count: counts[id] }))} />
         {error && <PlainMessage text={`Inspire could not read the reported issues: ${error}`} className={ERROR} data-issues-error="" onRetry={reload} copy />}
         {failure && <PlainMessage text={failure.text} className={ERROR} role="alert" onRetry={failure.again} copy />}
         {said && <p className={NOTE} role="status">{said}</p>}

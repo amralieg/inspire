@@ -1,4 +1,6 @@
 import OUTPUT_LABELS from '../../../backend/lib/implementOutputLabels.json' with { type: 'json' };
+import Button from '../components/ui/Button';
+import UiPageHeader from '../components/ui/PageHeader';
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { newIssueUrl } from '../lib/issues';
 import {
@@ -92,7 +94,6 @@ const NOTE_BOX = 'text-xs text-info-fg bg-info-bg border border-info/20 rounded-
 // Header actions: equal widths per row, and a row that does not fit wraps to a second row instead of overlapping.
 const HEADER_ACTIONS = 'grid w-full gap-1.5 grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))]';
 const OUTLINE_BUTTON = 'inline-flex h-8 items-center justify-center gap-1.5 px-3 rounded-lg whitespace-nowrap text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
-const PRIMARY_BUTTON = 'inline-flex h-8 items-center justify-center gap-1.5 px-3.5 rounded-lg whitespace-nowrap text-xs font-semibold text-white bg-db-red-solid hover:bg-db-red-solid-hover shadow-sm shadow-db-red/20 disabled:opacity-50';
 const LINK = 'text-sm font-semibold text-db-red-fg inline-flex items-center gap-1 hover:underline';
 const DANGER_BUTTON = `${OUTLINE_BUTTON} border-error/40 text-error-fg`;
 const COLLECT_LOST = `This browser does not keep the vibes you add, so they are lost if you leave this page. Rebuild them in ${VIBE_FEATURES_LABEL} first.`;
@@ -109,28 +110,20 @@ function PageHeader({ summary, loading, query, onQuery }) {
     ? 'Every use case of this session: what has an MVP or a Genie Code notebook, what is running, and what has not started.'
     : `Every use case of this session: ${plural(summary.mvps, 'MVP')}, ${plural(summary.notebooks, 'Genie Code notebook')}, ${summary.notStarted} not started yet.`;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface shadow-sm">
-          <Hammer size={20} className="text-db-red-fg" strokeWidth={1.75} aria-hidden />
-        </div>
-        <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-[-0.02em] bg-gradient-to-br from-text-primary via-text-primary to-db-red bg-clip-text text-transparent">Build</h1>
-          <p className="text-sm text-text-secondary">{subtitle}</p>
-        </div>
-      </div>
-      <label className="relative">
-        <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" aria-hidden />
-        <input dir="auto"
-          type="search"
-          aria-label="Search use cases"
-          placeholder="Search by name, id or domain"
-          value={query}
-          onChange={(e) => onQuery(e.target.value)}
-          className="w-72 ps-9 pe-3 py-2.5 text-sm border border-border rounded-xl bg-surface text-text-primary shadow-sm glow-focus"
-        />
-      </label>
-    </div>
+    <UiPageHeader icon={Hammer} title="Build" subtitle={subtitle}
+      actions={(
+        <label className="relative">
+          <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" aria-hidden />
+          <input dir="auto"
+            type="search"
+            aria-label="Search use cases"
+            placeholder="Search by name, id or domain"
+            value={query}
+            onChange={(e) => onQuery(e.target.value)}
+            className="w-72 ps-9 pe-3 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary shadow-sm glow-focus"
+          />
+        </label>
+      )} />
   );
 }
 
@@ -196,12 +189,12 @@ function SummaryBanner({ summary }) {
       </div>
       {summary.delivered.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 px-5 py-2.5 border-t border-border bg-bg-subtle/60">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-secondary me-1">Delivered so far</span>
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary me-1">Delivered so far</span>
           {summary.delivered.map((entry) => {
             const Icon = OUTPUT_ICONS[entry.id];
             return (
-              <span key={entry.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-success-bg text-success-fg text-[11px] font-medium">
-                <Icon size={12} aria-hidden /> {entry.text}
+              <span key={entry.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-success-bg text-success-fg text-xs font-medium">
+                <Icon size={14} aria-hidden /> {entry.text}
               </span>
             );
           })}
@@ -220,7 +213,7 @@ function OutputIcons({ latest }) {
         const Icon = OUTPUT_ICONS[id];
         return (
           <span key={id} className="h-5 w-5 rounded-md bg-bg-subtle text-text-secondary flex items-center justify-center" aria-hidden>
-            <Icon size={11} />
+            <Icon size={14} />
           </span>
         );
       })}
@@ -234,11 +227,11 @@ const FILTER_ICONS = { notebook: NotebookPen, ...OUTPUT_ICONS };
 function AssetFilters({ counts, assets, onToggle }) {
   const total = counts.reduce((most, entry) => Math.max(most, entry.count), 0);
   if (!total && !assets.length) return null;
-  const chip = (on) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-smooth has-disabled:cursor-not-allowed has-disabled:border-dashed ${
+  const chip = (on) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-smooth has-disabled:cursor-not-allowed has-disabled:border-dashed ${
     on ? 'border-db-red/40 bg-db-red-50 text-db-red-fg' : 'border-border bg-surface text-text-primary hover:bg-bg-subtle'}`;
   return (
     <div role="group" aria-label="Show use cases with" className="rounded-xl border border-border bg-surface px-3 py-2.5 shadow-sm space-y-1.5">
-      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-secondary">Show use cases with</p>
+      <p className="text-xs font-bold uppercase tracking-[0.18em] text-text-secondary">Show use cases with</p>
       <div className="flex flex-wrap gap-1.5">
         {counts.map((entry) => {
           const Icon = FILTER_ICONS[entry.id];
@@ -246,7 +239,7 @@ function AssetFilters({ counts, assets, onToggle }) {
           return (
             <label key={entry.id} className={chip(on)}>
               <input type="checkbox" data-asset-filter={entry.id} checked={on} disabled={!entry.count && !on} onChange={() => onToggle(entry.id)} className="accent-db-red" />
-              <Icon size={11} aria-hidden /> {entry.label} <span className="font-mono text-text-secondary">{entry.count}</span>
+              <Icon size={14} aria-hidden /> {entry.label} <span className="font-mono text-text-secondary">{entry.count}</span>
             </label>
           );
         })}
@@ -263,9 +256,9 @@ function RailProgress({ item, progress }) {
       <div className="relative h-1.5 rounded-full bg-bg-subtle overflow-hidden" aria-hidden>
         {percent == null
           ? <span className="absolute inset-y-0 start-0 w-1/3 rounded-full bg-db-red motion-safe:animate-[shimmer_1.8s_ease-in-out_infinite]" />
-          : <span className="absolute inset-y-0 start-0 rounded-full bg-gradient-to-r from-db-red-solid to-db-red transition-[width] duration-700" style={{ width: `${Math.max(percent, 4)}%` }} />}
+          : <span className="absolute inset-y-0 start-0 rounded-full bg-linear-to-r from-primary-solid to-db-red transition-[width] duration-700" style={{ width: `${Math.max(percent, 4)}%` }} />}
       </div>
-      <p className="flex items-center gap-1.5 text-[11px] text-text-secondary min-w-0">
+      <p className="flex items-center gap-1.5 text-xs text-text-secondary min-w-0">
         {percent != null && <span className="shrink-0 font-mono font-bold tabular-nums text-text-primary">{percent}%</span>}
         {step && <span className="truncate" title={step}>{step}</span>}
       </p>
@@ -292,13 +285,13 @@ function Rail({ groups, listLoading, query, assets = [], mvp = '', assetLabels =
         const look = GROUP_LOOK[group.id] || GROUP_LOOK.not_started;
         return (
           <section key={group.id} aria-label={group.label} className="rounded-xl border border-border bg-surface shadow-sm overflow-hidden">
-            <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border bg-gradient-to-b from-db-red-50 to-surface">
+            <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border bg-linear-to-b from-db-red-50 to-surface">
               <IconChip icon={look.icon} tone={look.tone} size="sm" />
               <div className="flex-1 min-w-0">
                 <h2 className="text-xs font-bold text-text-primary">{group.label}<span className="sr-only"> ({group.items.length})</span></h2>
-                <p className="text-[10px] text-text-secondary">{look.hint}</p>
+                <p className="text-xs text-text-secondary">{look.hint}</p>
               </div>
-              <span className="text-[11px] font-mono font-semibold text-text-secondary bg-bg-subtle rounded-md px-1.5 py-0.5" aria-hidden>{group.items.length}</span>
+              <span className="text-xs font-mono font-semibold text-text-secondary bg-bg-subtle rounded-md px-1.5 py-0.5" aria-hidden>{group.items.length}</span>
             </div>
             <div className="p-1.5 space-y-0.5">
               {group.items.map((item) => {
@@ -324,7 +317,7 @@ function Rail({ groups, listLoading, query, assets = [], mvp = '', assetLabels =
                     </div>
                     {item.uc && (valuedLine(valued?.[item.id])
                       ? <RunValue row={{ id: item.id, value: valued[item.id] }} />
-                      : <ValueEstimateLine uc={item.uc} estimate={estimates?.use_cases?.[item.id] ?? null} className="mt-1 line-clamp-2 text-[11px]" />)}
+                      : <ValueEstimateLine uc={item.uc} estimate={estimates?.use_cases?.[item.id] ?? null} className="mt-1 line-clamp-2 text-xs" />)}
                     {building && <RailProgress item={item} progress={progress[item.id]} />}
                   </button>
                 );
@@ -343,8 +336,8 @@ function BuildFilterStrip({ filter, sessionId, onPickRun, onClear }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p role="status" className="min-w-0 text-[12px] font-medium text-db-red-fg">{buildFilterText(filter, sessionId)}</p>
         <button type="button" onClick={onClear}
-          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-db-red/30 bg-surface px-2 py-1 text-[11px] font-semibold text-db-red-fg hover:bg-db-red-50">
-          <XCircle size={11} aria-hidden /> Clear
+          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-db-red/30 bg-surface px-2 py-1 text-xs font-semibold text-db-red-fg hover:bg-db-red-50">
+          <XCircle size={14} aria-hidden /> Clear
         </button>
       </div>
       {filter.runs.length > 1 && (
@@ -353,7 +346,7 @@ function BuildFilterStrip({ filter, sessionId, onPickRun, onClear }) {
             const on = run.session_id === String(sessionId);
             return (
               <button key={run.session_id} type="button" data-build-run={run.session_id} aria-pressed={on} onClick={() => { if (!on) onPickRun(run.session_id); }}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${
                   on ? 'border-db-red/50 bg-surface text-db-red-fg' : 'border-border bg-surface text-text-primary hover:bg-bg-subtle'}`}>
                 {run.name} <span className="font-mono text-text-secondary">{run.count}</span>
               </button>
@@ -573,7 +566,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
   const [progressDock, setProgressDock] = useState(null);
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-6 space-y-4 md:flex md:flex-col md:[&>:not(:last-child)]:shrink-0 md:max-h-[calc(100dvh-3.5rem-1px)] md:has-[[data-progress-open=true]]:h-[calc(100dvh-3.5rem-1px)]" data-implement-page="">
+    <div className="w-full px-6 py-6 space-y-4 md:flex md:flex-col md:[&>:not(:last-child)]:shrink-0 md:max-h-[calc(100dvh-3.5rem-1px)] md:has-[[data-progress-open=true]]:h-[calc(100dvh-3.5rem-1px)]" data-implement-page="">
       <PageHeader summary={summary} loading={listLoading} query={query} onQuery={setQuery} />
       {!listLoading && !listError && <SummaryBanner summary={summary} />}
       {filter && <BuildFilterStrip filter={filter} sessionId={sessionId} onPickRun={onPickRun} onClear={clearFilter} />}
@@ -678,9 +671,9 @@ function VersionRow({ card, version, locked, lockedReason, pending, confirming, 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="font-semibold text-text-primary">Version {version.version}</span>
         {version.at && <span className="text-text-secondary">· {formatWhen(version.at, version.at)}</span>}
-        <span className="rounded-full border border-border px-1.5 py-px text-[10px] text-text-secondary">{statusChip(version.status, null, version).label}</span>
+        <span className="rounded-full border border-border px-1.5 py-px text-xs text-text-secondary">{statusChip(version.status, null, version).label}</span>
         <button type="button" disabled={locked || confirming} title={lockedReason || undefined} onClick={onAsk} aria-label={`Roll back to ${name}`} className={`ms-auto ${OUTLINE_BUTTON}`}>
-          <History size={12} /> Roll back
+          <History size={14} /> Roll back
         </button>
       </div>
       <p className="truncate text-text-secondary" title={version.vibes || undefined}>
@@ -696,9 +689,9 @@ function VersionRow({ card, version, locked, lockedReason, pending, confirming, 
               : `Roll back the ${card.label} to ${name}? This replaces the live ${card.label}; Genie is not called.`}
           </p>
           <div className="flex flex-wrap gap-2">
-            <button type="button" disabled={locked} onClick={onConfirm} className={PRIMARY_BUTTON}>
-              {pending ? <Loader2 size={12} className="animate-spin" /> : <History size={12} />} Roll back
-            </button>
+            <Button type="button" disabled={locked} onClick={onConfirm} size="sm">
+              {pending ? <Loader2 size={14} className="animate-spin" /> : <History size={14} />} Roll back
+            </Button>
             <button type="button" onClick={onCancel} className={OUTLINE_BUTTON}>Cancel</button>
           </div>
         </div>
@@ -730,7 +723,7 @@ function AskChecklist({ card, locked, lockedReason, pending, onTryAgain }) {
           const look = CHECK_LOOK[state];
           return (
             <li key={`${i}-${check.ask}`} data-check={state} className={`flex items-start gap-2.5 rounded-lg border bg-surface px-3 py-2 text-[12px] ${look.border}`}>
-              <span aria-hidden className={`mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ring-1 ring-inset ${look.node}`}>
+              <span aria-hidden className={`mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-1 ring-inset ${look.node}`}>
                 {look.mark}
               </span>
               <div className="min-w-0">
@@ -743,11 +736,11 @@ function AskChecklist({ card, locked, lockedReason, pending, onTryAgain }) {
       </ul>
       {missing.length > 0 && card.rebuild && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <button type="button" disabled={locked || pending} title={lockedReason || undefined} onClick={() => onTryAgain(missing)} className={PRIMARY_BUTTON}>
-            {pending ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
+          <Button type="button" disabled={locked || pending} title={lockedReason || undefined} onClick={() => onTryAgain(missing)} size="sm">
+            {pending ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
             Try again with the {missing.length === 1 ? 'missing thing' : `${missing.length} missing things`}
-          </button>
-          <span className="text-[11px] text-text-secondary">Only what is missing is rebuilt.</span>
+          </Button>
+          <span className="text-xs text-text-secondary">Only what is missing is rebuilt.</span>
         </div>
       )}
     </div>
@@ -764,7 +757,7 @@ const CARD = 'rounded-xl border border-border bg-surface shadow-sm';
 
 function AssetPill({ state, children }) {
   return (
-    <span className={`inline-flex shrink-0 whitespace-nowrap rounded-full px-2 py-px text-[11px] font-bold ring-1 ring-inset ${PILL_TONE[state?.tone] || 'bg-bg-subtle text-text-secondary ring-border'}`}>
+    <span className={`inline-flex shrink-0 whitespace-nowrap rounded-full px-2 py-px text-xs font-bold ring-1 ring-inset ${PILL_TONE[state?.tone] || 'bg-bg-subtle text-text-secondary ring-border'}`}>
       {children || state?.label}
     </span>
   );
@@ -852,14 +845,14 @@ function AssetCard({ asset, locked, lockedReason, active, error, money = null, m
         <div className="px-4 pb-4 pt-2 space-y-3 text-[12px]">
           <p className="text-[13px] text-text-secondary">{asset.what}</p>
           <p data-live="" className="flex items-center gap-1.5 text-text-secondary">
-            <History size={13} aria-hidden />
+            <History size={14} aria-hidden />
             {asset.live ? `Version ${asset.live.version}, built ${formatWhen(asset.live.at, asset.live.at) || 'on an earlier run'}` : 'Its last build failed, so no version of it is live'}
           </p>
           {active && !busy && <p className="font-medium text-text-primary">A version is building now; roll backs apply after it finishes.</p>}
           {asset.id === 'value_formula' && <MoneyReview money={money} error={moneyError} impact={asset.impact} scope={scope} />}
           {busy?.rollback && (
             <p data-rolling-back="" className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">
-              <Loader2 size={13} className="motion-safe:animate-spin text-info-fg" aria-hidden />
+              <Loader2 size={14} className="motion-safe:animate-spin text-info-fg" aria-hidden />
               {rollingBackText(asset)}
             </p>
           )}
@@ -869,12 +862,12 @@ function AssetCard({ asset, locked, lockedReason, active, error, money = null, m
                 const state = k < busy.step ? 'done' : k === busy.step ? 'now' : 'next';
                 return (
                   <li key={step} data-step={state} className={`flex items-center gap-2.5 ${state === 'next' ? 'text-text-secondary' : 'text-text-primary'} ${state === 'now' ? 'font-semibold' : ''}`}>
-                    <span aria-hidden className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ring-1 ring-inset ${
+                    <span aria-hidden className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-1 ring-inset ${
                       state === 'done' ? 'bg-success-bg text-success-fg ring-success/30' : state === 'now' ? 'bg-info-bg text-info-fg ring-info/30' : 'bg-surface text-text-secondary ring-border'}`}>
                       {state === 'done' ? '✓' : k + 1}
                     </span>
                     {step}
-                    {state === 'now' && <Loader2 size={13} className="shrink-0 motion-safe:animate-spin text-db-red-fg" aria-hidden data-step-spinner="" />}
+                    {state === 'now' && <Loader2 size={14} className="shrink-0 motion-safe:animate-spin text-db-red-fg" aria-hidden data-step-spinner="" />}
                   </li>
                 );
               })}
@@ -885,7 +878,7 @@ function AssetCard({ asset, locked, lockedReason, active, error, money = null, m
           )}
           {!busy && asset.warnings.length > 0 && (
             <ul aria-label={`Vibes Genie could not do on the ${asset.label}`} className="space-y-0.5">
-              {asset.warnings.map((w) => <li key={w} className="flex items-start gap-1.5 text-[11px] text-warning-fg"><AlertTriangle size={12} className="mt-px shrink-0" aria-hidden />{w}</li>)}
+              {asset.warnings.map((w) => <li key={w} className="flex items-start gap-1.5 text-xs text-warning-fg"><AlertTriangle size={14} className="mt-px shrink-0" aria-hidden />{w}</li>)}
             </ul>
           )}
           {error && <PlainMessage text={error} role="alert" className={ERROR_BOX} copy />}
@@ -1284,7 +1277,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
       return (
         <>
           <p className="text-text-secondary">{SHOWCASE_DASHBOARD_NOTE}</p>
-          <a className={LINK} href={latest.dashboard_url} target="_blank" rel="noreferrer">{SHOWCASE_OPEN_APP} <ExternalLink size={12} /></a>
+          <a className={LINK} href={latest.dashboard_url} target="_blank" rel="noreferrer">{SHOWCASE_OPEN_APP} <ExternalLink size={14} /></a>
         </>
       );
     }
@@ -1295,7 +1288,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
           {readOnly && (
             <>
               <p className="text-text-secondary">{SHOWCASE_GENIE_NOTE}</p>
-              <a className={LINK} href={latest.genie_space_url} target="_blank" rel="noreferrer">{SHOWCASE_OPEN_APP} <ExternalLink size={12} /></a>
+              <a className={LINK} href={latest.genie_space_url} target="_blank" rel="noreferrer">{SHOWCASE_OPEN_APP} <ExternalLink size={14} /></a>
             </>
           )}
           {genie.questions.length > 0 && (
@@ -1310,7 +1303,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
             </div>
           )}
           {genieAsset.check_question && <p>Inspire checked the Genie Agent with: {genieAsset.check_question}</p>}
-          {genieAsset.check_sql && <pre className="text-[10px] font-mono text-text-secondary whitespace-pre-wrap border border-border rounded-lg bg-bg-subtle p-2">{genieAsset.check_sql}</pre>}
+          {genieAsset.check_sql && <pre className="text-xs font-mono text-text-secondary whitespace-pre-wrap border border-border rounded-lg bg-bg-subtle p-2">{genieAsset.check_sql}</pre>}
         </>
       );
     }
@@ -1330,7 +1323,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
       <>
         {readOnly && <p data-showcase-alert-note="" className="text-text-secondary">{SHOWCASE_ALERT_NOTE}</p>}
         <p>Fires when: {alertAsset.trigger || 'not recorded'}</p>
-        {alertAsset.condition_sql && <pre className="text-[10px] font-mono text-text-secondary whitespace-pre-wrap border border-border rounded-lg bg-bg-subtle p-2">{alertAsset.condition_sql}</pre>}
+        {alertAsset.condition_sql && <pre className="text-xs font-mono text-text-secondary whitespace-pre-wrap border border-border rounded-lg bg-bg-subtle p-2">{alertAsset.condition_sql}</pre>}
         <p>Notifies: {spec.outputs?.alert_recipients?.join(', ') || 'no email recipients'}
           {(spec.outputs?.alert_destinations || []).length ? `; ${spec.outputs.alert_destinations.map((d) => d.name || d.id).join(', ')}` : ''}
         </p>
@@ -1427,11 +1420,11 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
           {failedStage && <p>Step: <span className="font-semibold">{failedStage.label}</span></p>}
           {(protection?.reason || reason) && <PlainMessage text={protection?.reason || reason} />}
           {(protection?.details || protection?.sql.length > 0) && (
-            <details data-protection-details="" className="text-[11px] text-error-fg">
+            <details data-protection-details="" className="text-xs text-error-fg">
               <summary className="cursor-pointer">Details</summary>
               {protection.details && <p className="mt-1 font-mono break-all">{protection.details}</p>}
               {protection.sql.length > 0 && (
-                <pre aria-label="SQL to run" data-protection-sql="" className="mt-1 p-2 rounded bg-bg font-mono text-[11px] text-text-primary whitespace-pre-wrap break-all">
+                <pre aria-label="SQL to run" data-protection-sql="" className="mt-1 p-2 rounded bg-bg font-mono text-xs text-text-primary whitespace-pre-wrap break-all">
                   {protection.sql.join('\n')}
                 </pre>
               )}
@@ -1455,7 +1448,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
       )}
       {protectionCopy && <PlainMessage text={protectionCopy} role="status" data-protection-copy="" className="text-text-primary" />}
       {protectionFailed.length > 0 && (
-        <details data-protection-failed="" className="text-[11px] text-error-fg">
+        <details data-protection-failed="" className="text-xs text-error-fg">
           <summary className="cursor-pointer">Details</summary>
           <ul className="mt-1 space-y-0.5">{protectionFailed.map((line, i) => <li key={`${i}-${line}`} className="font-mono break-all">{line}</li>)}</ul>
         </details>
@@ -1466,23 +1459,23 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
       {(buildAgain || onEdit || buildRunUrl) && (
         <div className="flex flex-wrap gap-2">
           {buildAgain && !dataStop && !terminal && (
-            <button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => sendAgain()} className={PRIMARY_BUTTON}>
-              {submitBusy ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />} Try again
-            </button>
+            <Button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => sendAgain()} size="sm">
+              {submitBusy ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} Try again
+            </Button>
           )}
           {buildAgain && dataStop && (
-            <button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => openFeatures()} className={PRIMARY_BUTTON}>
-              <Sparkles size={12} /> {VIBE_FEATURES_LABEL}
-            </button>
+            <Button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => openFeatures()} size="sm">
+              <Sparkles size={14} /> {VIBE_FEATURES_LABEL}
+            </Button>
           )}
           {onEdit && (
-            <button type="button" onClick={openSettings} className={buildAgain ? OUTLINE_BUTTON : PRIMARY_BUTTON}>
-              <Settings2 size={12} /> {OPEN_ALL_SETTINGS}
-            </button>
+            <Button type="button" size="sm" variant={buildAgain ? 'secondary' : 'primary'} onClick={openSettings}>
+              <Settings2 size={14} /> {OPEN_ALL_SETTINGS}
+            </Button>
           )}
           {buildRunUrl && (
             <a data-run-link="" className={OUTLINE_BUTTON} href={buildRunUrl} target="_blank" rel="noreferrer">
-              {stopped ? 'Open the run that stopped' : 'Open the run'} <ExternalLink size={12} />
+              {stopped ? 'Open the run that stopped' : 'Open the run'} <ExternalLink size={14} />
             </a>
           )}
         </div>
@@ -1592,10 +1585,10 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
       {readsResult && readsResult.version === latest?.spec_version && (
         <div role="status" aria-label="Grant result" data-app-reads-result={readsResult.refused || readsResult.error ? 'refused' : readsResult.action} className="space-y-0.5 text-text-primary">
           {readsResult.error && <p>Your grant could not be made. The error is under Details.</p>}
-          {readsResult.error && <details data-app-reads-error="" className="text-[11px]"><summary className="cursor-pointer">Details</summary><PlainMessage text={readsResult.error} /></details>}
+          {readsResult.error && <details data-app-reads-error="" className="text-xs"><summary className="cursor-pointer">Details</summary><PlainMessage text={readsResult.error} /></details>}
           {!readsResult.error && readsResult.action !== 'copy' && readsResult.text && <p>{readsResult.text}</p>}
           {!readsResult.error && readsResult.failed?.length > 0 && (
-            <details data-app-reads-failed="" className="text-[11px]">
+            <details data-app-reads-failed="" className="text-xs">
               <summary className="cursor-pointer">Details</summary>
               <ul className="space-y-0.5 mt-1">{readsResult.failed.map((line, i) => <li key={`${i}-${line}`} className="font-mono break-all">{line}</li>)}</ul>
             </details>
@@ -1617,7 +1610,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
           <div className="flex flex-wrap items-center gap-3">
             <button type="button" data-app-reads-primary={primary.id} disabled={readsBusy !== ''} onClick={() => pickReads(primary)}
               className="inline-flex h-8 items-center justify-center gap-1.5 px-3 rounded-lg whitespace-nowrap text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50">
-              {readsBusy === primary.id ? <Loader2 size={12} className="animate-spin" /> : null} {primary.label}
+              {readsBusy === primary.id ? <Loader2 size={14} className="animate-spin" /> : null} {primary.label}
             </button>
             <button type="button" data-app-reads-choice={check.id} disabled={readsBusy !== ''} onClick={() => pickReads(check)}
               className="text-xs text-text-secondary underline underline-offset-2 hover:text-text-primary disabled:opacity-50">
@@ -1668,16 +1661,16 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
         onOpenRun={onOpenRun} />
       {stalled?.run_url && (
         <a className="text-[12px] font-semibold text-db-red-fg inline-flex items-center gap-1" href={stalled.run_url} target="_blank" rel="noreferrer">
-          Open the run that stopped <ExternalLink size={12} />
+          Open the run that stopped <ExternalLink size={14} />
         </a>
       )}
       <section aria-label="Run and schedule" className={PANEL_CLASS}>
         <SectionTitle icon={RefreshCw} title="Run and schedule" hint="Schedule and retry build a new version; a preview re-run does not" />
         <div className="p-4 grid gap-5 md:grid-cols-2 text-[12px]">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-secondary mb-1">Quick re-run</div>
+            <div className="text-xs font-bold uppercase tracking-[0.18em] text-text-secondary mb-1">Quick re-run</div>
             {widgets.map((w) => (
-              <label key={w.name} className="block text-[11px] mb-1">
+              <label key={w.name} className="block text-xs mb-1">
                 {w.label || w.name}
                 {Array.isArray(w.choices) && w.choices.length > 0 ? (
                   <select
@@ -1700,20 +1693,19 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
                     onChange={(e) => setOverrides((prev) => ({ ...prev, [w.name]: e.target.value }))}
                   />
                 )}
-                {w.allowed && <span className="block text-[10px] text-text-secondary">{w.allowed}</span>}
+                {w.allowed && <span className="block text-xs text-text-secondary">{w.allowed}</span>}
               </label>
             ))}
-            {widgets.length === 0 && <p className="text-[11px] text-text-secondary">No widgets to change; the re-run uses the job&apos;s values.</p>}
-            <p className="text-[10px] text-text-secondary">A preview of the notebook only. Blank fields keep the job&apos;s values, and the alert never fires on a preview.</p>
-            <button
+            {widgets.length === 0 && <p className="text-xs text-text-secondary">No widgets to change; the re-run uses the job&apos;s values.</p>}
+            <p className="text-xs text-text-secondary">A preview of the notebook only. Blank fields keep the job&apos;s values, and the alert never fires on a preview.</p>
+            <Button
               type="button"
               disabled={readOnly || rerunBusy || !latest?.job_id}
               title={lockedReason || undefined}
               onClick={rerun}
-              className={`mt-2 w-full justify-center ${PRIMARY_BUTTON}`}
-            >
-              {rerunBusy ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Preview re-run
-            </button>
+              size="sm" className="mt-2 w-full">
+              {rerunBusy ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Preview re-run
+            </Button>
           </div>
           <div className="space-y-4">
             <label className="flex items-center gap-2 text-[12px]">
@@ -1722,7 +1714,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
             </label>
             {failedOutputs.length > 0 && (
               <div className="space-y-1">
-                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-secondary">Failed outputs</div>
+                <div className="text-xs font-bold uppercase tracking-[0.18em] text-text-secondary">Failed outputs</div>
                 {failedOutputs.map((o) => (
                   <button
                     key={o.id}
@@ -1732,7 +1724,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
                     title={lockedReason || o.error}
                     className="w-full inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border border-error/40 bg-surface text-error-fg disabled:opacity-50"
                   >
-                    <RotateCcw size={12} /> Retry the {o.label}
+                    <RotateCcw size={14} /> Retry the {o.label}
                   </button>
                 ))}
               </div>
@@ -1747,22 +1739,22 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
             aria-expanded={historyOpen}
             aria-controls={`${viewId}-history`}
             onClick={() => setHistoryOpen((open) => !open)}
-            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-start bg-gradient-to-r from-db-red-50 to-surface"
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-start bg-linear-to-r from-db-red-50 to-surface"
           >
             <span className="flex items-center gap-2.5 min-w-0">
               <IconChip icon={History} size="sm" />
               <span className="min-w-0">
-                <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-db-red-fg">History</span>
-                <span className="block text-[11px] text-text-secondary">{historyHint}</span>
-                {versionLines.live && <span className="block text-[11px] font-semibold text-text-primary" data-app-live>{versionLines.live}</span>}
-                {versionLines.side && <span className="block text-[11px] text-text-secondary" data-app-side>{versionLines.side}</span>}
+                <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-db-red-fg">History</span>
+                <span className="block text-xs text-text-secondary">{historyHint}</span>
+                {versionLines.live && <span className="block text-xs font-semibold text-text-primary" data-app-live>{versionLines.live}</span>}
+                {versionLines.side && <span className="block text-xs text-text-secondary" data-app-side>{versionLines.side}</span>}
               </span>
             </span>
             <ChevronDown size={14} className={`shrink-0 text-text-secondary transition-transform ${historyOpen ? 'rotate-180' : ''}`} aria-hidden />
           </button>
         </h3>
         <div id={`${viewId}-history`} hidden={!historyOpen} className="p-4 space-y-3 text-[12px] border-t border-border">
-          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-secondary">Spec versions</div>
+          <div className="text-xs font-bold uppercase tracking-[0.18em] text-text-secondary">Spec versions</div>
           {!status && <BusyNote className="text-[12px] text-text-secondary" text="Loading the versions and job runs…" />}
           {history.map((entry) => (
             <div key={entry.spec_version} data-history-version={entry.spec_version} className="border border-border rounded-lg bg-surface px-3 py-2 text-[12px]">
@@ -1772,7 +1764,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
               {notDoneLines(entry).map((line, i) => <p key={`${i}-${line}`} data-not-done-line="" className="text-error-fg">{line}</p>)}
             </div>
           ))}
-          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-secondary pt-2">Job runs</div>
+          <div className="text-xs font-bold uppercase tracking-[0.18em] text-text-secondary pt-2">Job runs</div>
           {status?.runs?.ok === false && <PlainMessage as="p" text={status.runs.error} securable="workspace" className="text-[12px] text-error-fg" />}
           {(status?.runs?.runs || []).map((run) => (
             <div key={run.run_id} className="border border-border rounded-lg bg-surface px-3 py-2 text-[12px]">
@@ -1797,7 +1789,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
         <NotebookPanel notebook={notebook} kpi={kpiView}>
           {!readOnly && (
             <button type="button" disabled={active || submitBusy} onClick={() => setUninstalling(true)} className={DANGER_BUTTON}>
-              <Trash2 size={12} /> Uninstall
+              <Trash2 size={14} /> Uninstall
             </button>
           )}
         </NotebookPanel>
@@ -1805,7 +1797,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
         <p className={`${PANEL_CLASS} p-4 text-[12px] text-text-secondary`}>This version has no Genie Code notebook.</p>
       )}
       {notebook && !readOnly && (
-        <p className="text-[11px] text-text-secondary">Every output reads the notebook&apos;s result tables, so uninstalling the notebook uninstalls the whole MVP.</p>
+        <p className="text-xs text-text-secondary">Every output reads the notebook&apos;s result tables, so uninstalling the notebook uninstalls the whole MVP.</p>
       )}
       <TargetKpiCard view={kpiView} readOnly={readOnly} builtBefore={builtOn != null} scope={scopeFacts} />
       <UseCaseSettings view={settingsView} error={settingsError} readOnly={readOnly} impact={liveImpact(money?.run, tracked?.impact || rowImpact(latest))} scope={scopeProfile}
@@ -1901,14 +1893,14 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
       {!readOnly && (
         <div className="flex flex-wrap gap-2">
           {appNote && (
-            <button type="button" data-app-update-button="" disabled={locked} title={lockedReason || undefined} onClick={() => submitNext(appUpdate)} className={PRIMARY_BUTTON}>
-              {submitBusy ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Update the App
-            </button>
+            <Button type="button" data-app-update-button="" disabled={locked} title={lockedReason || undefined} onClick={() => submitNext(appUpdate)} size="sm">
+              {submitBusy ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Update the App
+            </Button>
           )}
           {(unreliableNow || olderNote) && (
-            <button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => openFeatures()} className={PRIMARY_BUTTON}>
-              <Sparkles size={12} /> {VIBE_FEATURES_LABEL}
-            </button>
+            <Button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => openFeatures()} size="sm">
+              <Sparkles size={14} /> {VIBE_FEATURES_LABEL}
+            </Button>
           )}
         </div>
       )}
@@ -1924,9 +1916,9 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
         <div className="border border-error/30 bg-error-bg rounded-lg px-3 py-2 text-[12px] space-y-2">
           <p className="text-error-fg">{lostTablesText(missing)}</p>
           {onEdit && (
-            <button type="button" disabled={active} onClick={() => onEdit({ step: 'data', missingTables: missing }, live)} className={PRIMARY_BUTTON}>
-              <Pencil size={12} /> Edit the Data step
-            </button>
+            <Button type="button" disabled={active} onClick={() => onEdit({ step: 'data', missingTables: missing }, live)} size="sm">
+              <Pencil size={14} /> Edit the Data step
+            </Button>
           )}
         </div>
       )}
@@ -1935,9 +1927,9 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
           <p className="text-error-fg">
             {statusReason(latest) || 'The notebook was edited after Inspire last built it, so this version did not rebuild it.'}
           </p>
-          <button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => submitNext({ confirm_notebook_overwrite: true })} className={PRIMARY_BUTTON}>
-            {submitBusy ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />} Rebuild and overwrite the edits
-          </button>
+          <Button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => submitNext({ confirm_notebook_overwrite: true })} size="sm">
+            {submitBusy ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} Rebuild and overwrite the edits
+          </Button>
         </div>
       )}
     </>
@@ -1946,7 +1938,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
 
   const stop = stopAction && (
     <button type="button" data-stop-build="" disabled={readOnly || actionBusy !== ''} title={lockedReason || undefined} onClick={() => runControl(stopAction)} className={DANGER_BUTTON}>
-      {actionBusy === `${stopAction.asset}:${stopAction.action}` ? <Loader2 size={13} className="animate-spin" /> : <Square size={13} />} {stopAction.label}
+      {actionBusy === `${stopAction.asset}:${stopAction.action}` ? <Loader2 size={14} className="animate-spin" /> : <Square size={14} />} {stopAction.label}
     </button>
   );
 
@@ -1958,7 +1950,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h2 className="line-clamp-2 break-words text-lg font-bold text-text-primary" title={item.name}>{item.name}</h2>
-            <div data-use-case-meta="" className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-secondary">
+            <div data-use-case-meta="" className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-secondary">
               {row?.domain && <span className="whitespace-nowrap"><bdi>{row.domain}</bdi>{row.subdomain && <> › <bdi>{row.subdomain}</bdi></>}</span>}
               {latest?.spec_version != null && <span className="whitespace-nowrap font-mono">· v{latest.spec_version}</span>}
               <ImplementStatusBadge state={item.state} />
@@ -1973,32 +1965,32 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
         <div className={HEADER_ACTIONS}>
           {item.uc && (
             <button type="button" onClick={() => setDetailsOpen(true)} className={OUTLINE_BUTTON}>
-              <FileText size={13} /> Use case details
+              <FileText size={14} /> Use case details
             </button>
           )}
           {readOnly ? (built && onOpenDemoMvp && (
-            <button type="button" data-demo-open-mvp={useCaseId} onClick={onOpenDemoMvp} className={PRIMARY_BUTTON}>
-              <ArrowRight size={13} /> Open MVP
-            </button>
+            <Button type="button" data-demo-open-mvp={useCaseId} onClick={onOpenDemoMvp} size="sm">
+              <ArrowRight size={14} /> Open MVP
+            </Button>
           )) : built ? (
             <>
-              <button type="button" data-vibe-features="" data-collected={vibes.length} onClick={() => openFeatures()}
-                className={`${vibes.length ? PRIMARY_BUTTON : OUTLINE_BUTTON} ${vibes.length > 0 && !active ? 'edit-mvp-invite' : ''}`}>
-                <Pencil size={13} /> {vibeFeaturesLabel(vibes)}
-              </button>
+              <Button type="button" size="sm" variant={vibes.length ? 'primary' : 'secondary'} data-vibe-features="" data-collected={vibes.length} onClick={() => openFeatures()}
+                className={vibes.length > 0 && !active ? 'edit-mvp-invite' : ''}>
+                <Pencil size={14} /> {vibeFeaturesLabel(vibes)}
+              </Button>
               {unpublished && (
-                <button type="button" data-change-choices="" onClick={() => onEdit(null, live)} className={PRIMARY_BUTTON}>
-                  <Sparkles size={13} /> {CHANGE_CHOICES_LABEL}
-                </button>
+                <Button type="button" data-change-choices="" onClick={() => onEdit(null, live)} size="sm">
+                  <Sparkles size={14} /> {CHANGE_CHOICES_LABEL}
+                </Button>
               )}
               <button type="button" disabled={active || submitBusy} title={active ? 'Wait for this run to finish' : undefined} onClick={() => setUninstalling(true)} className={DANGER_BUTTON}>
-                <Trash2 size={13} /> Uninstall this use case
+                <Trash2 size={14} /> Uninstall this use case
               </button>
             </>
           ) : (
-            <button type="button" onClick={() => onEdit(null, live)} className={PRIMARY_BUTTON}>
-              <Sparkles size={13} /> {START_MVP_LABEL}
-            </button>
+            <Button type="button" onClick={() => onEdit(null, live)} size="sm">
+              <Sparkles size={14} /> {START_MVP_LABEL}
+            </Button>
           )}
         </div>
         {!hasMvp && (

@@ -1,5 +1,7 @@
 import { Fragment, useState, useEffect, useCallback, useMemo, useId } from 'react';
 import { Rocket, BarChart3, Loader2, AlertCircle, Clock, CheckCircle2, ArrowRight, ChevronRight, ChevronDown, ChevronUp, Trash2, Eye, EyeOff, Target, FileText, Sparkles, X, Download } from 'lucide-react';
+import PageHeader from '../components/ui/PageHeader';
+import Button from '../components/ui/Button';
 import SessionSparkline from '../components/SessionSparkline';
 import MagneticButton from '../components/MagneticButton';
 import { SkeletonCard } from '../components/SkeletonLoader';
@@ -78,13 +80,13 @@ function getSessionSummary(session) {
   return { total: useCases.length, high: computeHighPriorityCount(useCases), meets, below, domains: domains.size, domainNames: [...domains], useCases };
 }
 
-const CHOICE = 'group flex w-full items-start gap-4 rounded-2xl border px-5 py-4 text-start transition-all';
+const CHOICE = 'group flex w-full items-start gap-4 rounded-2xl border px-5 py-4 text-start transition-colors';
 
 function StartChoice({ choice, icon: Icon, title, text, onClick, strong = false }) {
   const textId = useId();
   return (
     <button type="button" data-start-choice={choice} onClick={onClick} aria-label={title} aria-describedby={textId}
-      className={`${CHOICE} ${strong ? 'border-db-red/30 bg-gradient-to-r from-db-red/[0.06] to-transparent hover:from-db-red/[0.12]' : 'border-border bg-surface hover:border-border-strong'}`}>
+      className={`${CHOICE} ${strong ? 'border-db-red/30 bg-linear-to-r from-db-red/[0.06] to-transparent hover:from-db-red/[0.12]' : 'border-border bg-surface hover:border-border-strong'}`}>
       <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${strong ? 'bg-db-red/10' : 'bg-bg-subtle'}`}>
         <Icon size={20} aria-hidden className="text-db-red-fg" />
       </span>
@@ -92,7 +94,7 @@ function StartChoice({ choice, icon: Icon, title, text, onClick, strong = false 
         <span className="block text-sm font-semibold text-text-primary">{title}</span>
         <span id={textId} className="mt-1 block text-[12px] leading-snug text-text-secondary">{text}</span>
       </span>
-      <ArrowRight size={18} aria-hidden className="mt-2.5 shrink-0 text-text-tertiary group-hover:text-db-red-fg" />
+      <ArrowRight size={16} aria-hidden className="mt-2.5 shrink-0 text-text-tertiary group-hover:text-db-red-fg" />
     </button>
   );
 }
@@ -297,7 +299,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   if (loading) {
     return (
       <div className="min-h-[calc(100vh-64px)] flex items-start justify-center pt-12 pb-16 px-6">
-        <div className="max-w-3xl w-full space-y-6">
+        <div className="w-full space-y-6">
           <div className="text-center space-y-3">
             <div className="skeleton w-40 h-5 mx-auto rounded-full" />
             <div className="skeleton w-64 h-9 mx-auto rounded-lg" />
@@ -315,15 +317,14 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   if (sessions.length === 0 && !error) {
     return (
       <div className="min-h-[calc(100vh-64px)] flex items-start justify-center pt-12 pb-16 px-6">
-        <div className="max-w-3xl w-full space-y-6 text-center">
-          <h1 className="text-3xl font-bold tracking-tight">Get started with Inspire AI</h1>
-          <p className="text-sm text-text-secondary">
-            No runs yet. Start your first run to see your use cases here.
-          </p>
-          <p className="text-sm text-text-secondary">
-            Start from your own Unity Catalog data, or let Inspire make sample data for you.
-          </p>
-          <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
+        <div className="w-full space-y-6">
+          <PageHeader icon={Rocket} title="Get started with Inspire AI" subtitle="No runs yet. Start your first run to see your use cases here." />
+          <div className="w-full space-y-6">
+            <p className="text-sm text-text-secondary">
+              Start from your own Unity Catalog data, or let Inspire make sample data for you.
+            </p>
+            <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
+          </div>
         </div>
       </div>
     );
@@ -344,22 +345,17 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
       <div className="absolute top-[-15%] start-[-5%] w-[40%] h-[40%] rounded-full bg-db-red/[0.03] blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] end-[-5%] w-[35%] h-[35%] rounded-full bg-db-red/[0.02] blur-[100px] pointer-events-none" />
 
-      <div className="relative z-10 max-w-3xl w-full space-y-8">
+      <div className="relative z-10 w-full space-y-8">
 
         {/* ── Header ── */}
-        <div className="text-center space-y-3">
+        <div className="space-y-3">
+          <PageHeader icon={Rocket} title="Welcome back" subtitle="Pick up where you left off or start a new run." />
           {!error && <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-bg-subtle border border-border rounded-full">
-            <BarChart3 size={12} className="text-db-red-fg" />
-            <span className="text-[11px] font-medium text-text-secondary">
+            <BarChart3 size={14} className="text-db-red-fg" />
+            <span className="text-xs font-medium text-text-secondary">
               {sessionCountsLine(sessions, loadedAt)}
             </span>
           </div>}
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-[-0.03em]">
-            Welcome back
-          </h1>
-          <p className="text-sm text-text-secondary max-w-md mx-auto">
-            Pick up where you left off or start a new run.
-          </p>
         </div>
 
         <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
@@ -375,9 +371,9 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
             <h2 className="text-xs font-semibold text-text-secondary uppercase tracking-[0.1em]">Previous runs</h2>
             <button
               onClick={() => onViewResults(null)}
-              className="text-[11px] text-text-tertiary hover:text-db-red-fg transition-colors flex items-center gap-1"
+              className="text-xs text-text-tertiary hover:text-db-red-fg transition-colors flex items-center gap-1"
             >
-              View all <ChevronRight size={12} />
+              View all <ChevronRight size={14} />
             </button>
           </div>
 
@@ -387,9 +383,9 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
               <button
                 type="button"
                 onClick={() => setRunFilter('')}
-                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-db-red/30 bg-surface px-2 py-1 text-[11px] font-semibold text-db-red-fg hover:bg-db-red-50"
+                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-db-red/30 bg-surface px-2 py-1 text-xs font-semibold text-db-red-fg hover:bg-db-red-50"
               >
-                <X size={11} aria-hidden /> Clear
+                <X size={14} aria-hidden /> Clear
               </button>
             </div>
           )}
@@ -437,15 +433,18 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
               })();
 
               const isQuickOpen = String(expandedQuickView) === sidStr;
-              const PRIORITY_COLORS = { 'Ultra High': '#DC2626', 'Very High': '#EA580C', 'High': '#D97706', 'Medium': '#2563EB', 'Low': '#6B7280' };
+              const PRIORITY_TONES = {
+                'Ultra High': ['bg-danger', 'bg-danger-bg text-danger-fg'], 'Very High': ['bg-danger', 'bg-danger-bg text-danger-fg'],
+                'High': ['bg-warning', 'bg-warning-bg text-warning-fg'], 'Medium': ['bg-info', 'bg-info-bg text-info-fg'],
+              };
 
               return (
                 <div
                   key={session.session_id}
-                  className={`rounded-xl bg-surface/50 border transition-all duration-200 ${isQuickOpen ? 'border-border-strong' : 'border-border hover:border-border-strong'}`}
+                  className={`rounded-xl bg-surface/50 border transition-colors duration-200 ${isQuickOpen ? 'border-border-strong' : 'border-border hover:border-border-strong'}`}
                 >
                   {/* Main clickable row */}
-                  <div data-run={sidStr} className="group relative flex w-full items-center gap-4 px-5 py-4 rounded-xl hover:bg-surface transition-all duration-200">
+                  <div data-run={sidStr} className="group relative flex w-full items-center gap-4 px-5 py-4 rounded-xl hover:bg-surface transition-colors duration-200">
                   <button
                     type="button"
                     onClick={() => onViewResults(session.session_id, session.starting ? session.run_id : null)}
@@ -455,13 +454,13 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                     <div className="flex-shrink-0 relative">
                       <div className={`w-10 h-10 rounded-lg ${cfg.bg} flex items-center justify-center`}>
                         {status === 'finished' ? (
-                          <CheckCircle2 size={18} className={cfg.text} />
+                          <CheckCircle2 size={16} className={cfg.text} />
                         ) : status === 'failed' ? (
-                          <AlertCircle size={18} className={cfg.text} />
+                          <AlertCircle size={16} className={cfg.text} />
                         ) : status === 'running' ? (
-                          <Loader2 size={18} className={`${cfg.text} animate-spin`} />
+                          <Loader2 size={16} className={`${cfg.text} animate-spin`} />
                         ) : (
-                          <Clock size={18} className={cfg.text} />
+                          <Clock size={16} className={cfg.text} />
                         )}
                       </div>
                     </div>
@@ -473,35 +472,35 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                         <LatestRunBadge session={session} />
                       </p>
                       {description && (
-                        <p className="text-[11px] text-text-secondary truncate mt-0.5">{description}</p>
+                        <p className="text-xs text-text-secondary truncate mt-0.5">{description}</p>
                       )}
                       <div className="flex items-center gap-2 mt-1">
                         {date && (
-                          <span className="flex items-center gap-1 text-[11px] text-text-tertiary">
-                            <Clock size={10} />
+                          <span className="flex items-center gap-1 text-xs text-text-tertiary">
+                            <Clock size={14} />
                             {formatDate(date)}
                           </span>
                         )}
                         {mode && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-subtle text-text-tertiary font-mono">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-bg-subtle text-text-tertiary font-mono">
                             {mode}
                           </span>
                         )}
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${cfg.bg} ${cfg.text}`}>
+                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${cfg.bg} ${cfg.text}`}>
                           {cfg.label}
                         </span>
                         {session.profile_id && (
-                          <span data-run-profile="" className="text-[10px] px-1.5 py-0.5 rounded bg-bg-subtle text-text-secondary">
+                          <span data-run-profile="" className="text-xs px-1.5 py-0.5 rounded bg-bg-subtle text-text-secondary">
                             Profile: {session.profile_name || 'saved profile'}
                           </span>
                         )}
                       </div>
                       {profileError?.sessionId === sidStr && (
-                        <PlainMessage as="p" text={profileError.message} role="alert" data-run-profile-error="" className="mt-1 text-[11px] text-error-fg" />
+                        <PlainMessage as="p" text={profileError.message} role="alert" data-run-profile-error="" className="mt-1 text-xs text-error-fg" />
                       )}
                       <>
                           {counts.items.length > 0 && (
-                            <ul data-run-counts="" aria-label="Counts for this run" className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[11px] text-text-secondary">
+                            <ul data-run-counts="" aria-label="Counts for this run" className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs text-text-secondary">
                               {counts.items.map((item) => (
                                 <li key={item.key} data-run-count={item.key} data-count-off={item.n == null ? '' : undefined}>
                                   {item.n == null ? `${item.label} not counted` : item.text ? item.text : (
@@ -513,12 +512,12 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                             </ul>
                           )}
                           {allTotals && <RunValueLine value={runValueOf(sidStr)} className="mt-3" />}
-                          {counts.note && <p data-run-counts-note="" className="mt-1.5 text-[11px] text-text-secondary">{counts.note}</p>}
+                          {counts.note && <p data-run-counts-note="" className="mt-1.5 text-xs text-text-secondary">{counts.note}</p>}
                           {counts.why.map((line) => (
-                            <p key={line} data-run-counts-why="" className="mt-0.5 text-[10px] leading-snug text-text-secondary">{line}</p>
+                            <p key={line} data-run-counts-why="" className="mt-0.5 text-xs leading-snug text-text-secondary">{line}</p>
                           ))}
                           {listOverview?.previewTitles.length > 0 && (
-                            <p className="text-[10px] text-text-tertiary mt-1 line-clamp-2 leading-snug">
+                            <p className="text-xs text-text-tertiary mt-1 line-clamp-2 leading-snug">
                               {listOverview.previewTitles.join(' · ')}
                               {listOverview.total > listOverview.previewTitles.length && (
                                 <span>
@@ -539,26 +538,26 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                           type="button"
                           data-run-profile-download=""
                           onClick={(e) => { e.stopPropagation(); downloadProfile(session.profile_id, sidStr); }}
-                          className="relative z-10 inline-flex items-center gap-1 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[11px] font-semibold text-text-primary hover:bg-bg-subtle"
+                          className="relative z-10 inline-flex items-center gap-1 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-semibold text-text-primary hover:bg-bg-subtle"
                         >
-                          <Download size={11} aria-hidden /> Download profile
+                          <Download size={14} aria-hidden /> Download profile
                         </button>
                       )}
                       {Number(portfolio?.sessions?.[sidStr]?.mvps_live) > 0 && (
-                        <span data-run-live="" className="rounded-lg border border-success/35 bg-success-bg px-2.5 py-1.5 text-[11px] font-semibold tabular-nums text-success-fg">
+                        <span data-run-live="" className="rounded-lg border border-success/35 bg-success-bg px-2.5 py-1.5 text-xs font-semibold tabular-nums text-success-fg">
                           {portfolio.sessions[sidStr].mvps_live.toLocaleString('en-US')} live
                         </span>
                       )}
                       {buildFilter && buildingCount > 0 && (
-                        <div data-run-building="" className="relative z-10 flex items-center gap-2 rounded-lg border border-border bg-bg-subtle px-2.5 py-1.5 text-[11px] font-medium text-text-primary">
-                          <Loader2 data-run-building-spinner="" size={12} aria-hidden className="shrink-0 animate-spin motion-reduce:animate-none text-text-secondary" />
+                        <div data-run-building="" className="relative z-10 flex items-center gap-2 rounded-lg border border-border bg-bg-subtle px-2.5 py-1.5 text-xs font-medium text-text-primary">
+                          <Loader2 data-run-building-spinner="" size={14} aria-hidden className="shrink-0 animate-spin motion-reduce:animate-none text-text-secondary" />
                           <span className="tabular-nums">{buildingCount.toLocaleString('en-US')} building</span>
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); onOpenBuild?.(buildFilter); }}
-                            className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2 py-0.5 text-[11px] font-semibold text-text-primary hover:bg-bg-subtle"
+                            className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2 py-0.5 text-xs font-semibold text-text-primary hover:bg-bg-subtle"
                           >
-                            Go to Build <ArrowRight size={11} aria-hidden />
+                            Go to Build <ArrowRight size={14} aria-hidden />
                           </button>
                         </div>
                       )}
@@ -567,15 +566,15 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                           type="button"
                           data-run-go-build=""
                           onClick={(e) => { e.stopPropagation(); onOpenBuild?.(buildFilter); }}
-                          className="relative z-10 inline-flex items-center gap-1 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[11px] font-semibold text-text-primary hover:bg-bg-subtle"
+                          className="relative z-10 inline-flex items-center gap-1 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-semibold text-text-primary hover:bg-bg-subtle"
                         >
-                          Go to Build <ArrowRight size={11} aria-hidden />
+                          Go to Build <ArrowRight size={14} aria-hidden />
                         </button>
                       )}
                       {status === 'running' && (
                         <div className="w-16 h-1.5 rounded-full bg-bg-subtle overflow-hidden">
                           <div
-                            className="h-full rounded-full bg-db-red transition-all duration-500"
+                            className="h-full rounded-full bg-db-red transition-[width] duration-500"
                             style={{ width: `${session.completed_percent || 0}%` }}
                           />
                         </div>
@@ -597,23 +596,23 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                               if (!has) fetchUcsForQuickView(session.session_id);
                             }
                           }}
-                          className="relative z-10 px-2.5 py-1.5 text-[10px] font-medium rounded-lg flex items-center gap-1 transition-all border border-border hover:border-db-red/30 hover:bg-db-red-50 text-text-tertiary hover:text-db-red-fg"
+                          className="relative z-10 px-2.5 py-1.5 text-xs font-medium rounded-lg flex items-center gap-1 transition-colors border border-border hover:border-db-red/30 hover:bg-db-red-50 text-text-tertiary hover:text-db-red-fg"
                           title="Quick view use cases"
                         >
                           {isQuickOpen ? (
                             <>
-                              <EyeOff size={10} /> Hide
+                              <EyeOff size={14} /> Hide
                             </>
                           ) : (
                             <>
-                              <Eye size={10} /> Quick View
+                              <Eye size={14} /> Quick View
                             </>
                           )}
                         </button>
                       )}
 
                       {deleteError && deleteError.sessionId === session.session_id && (
-                        <PlainMessage as="span" text={deleteError.message} role="alert" className="max-w-[18rem] text-[10px] text-error-fg" onClick={(e) => e.stopPropagation()} />
+                        <PlainMessage as="span" text={deleteError.message} role="alert" className="max-w-[18rem] text-xs text-error-fg" onClick={(e) => e.stopPropagation()} />
                       )}
 
                       {/* Delete button */}
@@ -622,13 +621,13 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                           <button
                             onClick={(e) => { e.stopPropagation(); deleteSession(session.session_id); }}
                             disabled={deleting === session.session_id}
-                            className="px-2 py-1 text-[10px] font-medium rounded-md bg-error-bg text-error-fg hover:bg-error/20 transition-colors"
+                            className="px-2 py-1 text-xs font-medium rounded-md bg-error-bg text-error-fg hover:bg-error/20 transition-colors"
                           >
-                            {deleting === session.session_id ? <Loader2 size={10} className="animate-spin" /> : 'Delete'}
+                            {deleting === session.session_id ? <Loader2 size={14} className="animate-spin" /> : 'Delete'}
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }}
-                            className="px-2 py-1 text-[10px] font-medium rounded-md bg-bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
+                            className="px-2 py-1 text-xs font-medium rounded-md bg-bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
                           >
                             Cancel
                           </button>
@@ -636,7 +635,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                       ) : (
                         <button
                           onClick={(e) => { e.stopPropagation(); setConfirmDelete(session.session_id); }}
-                          className="relative z-10 p-1.5 rounded-lg text-text-tertiary opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-error-fg hover:bg-error-bg transition-all"
+                          className="relative z-10 p-1.5 rounded-lg text-text-tertiary opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-error-fg hover:bg-error-bg transition-colors"
                           title="Delete run"
                         >
                           <Trash2 size={14} />
@@ -644,7 +643,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                       )}
 
                       {!isQuickOpen && <SessionSparkline session={session} />}
-                      <ChevronRight size={16} aria-hidden="true" className={`text-text-tertiary transition-all ${isQuickOpen ? 'rotate-90' : 'group-hover:text-text-secondary'}`} />
+                      <ChevronRight size={16} aria-hidden="true" className={`text-text-tertiary transition-transform ${isQuickOpen ? 'rotate-90' : 'group-hover:text-text-secondary'}`} />
                     </div>
                   </div>
 
@@ -671,7 +670,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                       {panelSummary.domainNames.length > 0 && (
                         <div className="flex flex-wrap gap-1.5">
                           {panelSummary.domainNames.map((d) => (
-                            <span key={d} className="text-[10px] font-medium px-2.5 py-1 rounded-full bg-db-red-50 text-db-red-fg border border-db-red/15">
+                            <span key={d} className="text-xs font-medium px-2.5 py-1 rounded-full bg-db-red-50 text-db-red-fg border border-db-red/15">
                               {d}
                             </span>
                           ))}
@@ -680,7 +679,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
 
                       {/* Top use cases list */}
                       <div className="space-y-1.5">
-                        <p className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Top Use Cases</p>
+                        <p className="text-xs font-bold text-text-secondary uppercase tracking-wider">Top Use Cases</p>
                         {[...panelSummary.useCases]
                           .sort(compareUseCaseRank)
                           .slice(0, 8)
@@ -689,18 +688,18 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                             const ucPriority = uc.Priority || uc.priority || '';
                             const ucDomain = uc['Business Domain'] || uc.domain || '';
                             const ucTechnique = uc['Analytics Technique'] || '';
-                            const priorityColor = PRIORITY_COLORS[ucPriority] || '#6B7280';
+                            const [priorityDot, priorityChip] = PRIORITY_TONES[ucPriority] || ['bg-neutral', 'bg-neutral-bg text-neutral-fg'];
                             return (
                               <div key={uc.No || i} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-bg-subtle/50 hover:bg-bg-subtle transition-colors">
-                                <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: priorityColor }} />
+                                <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${priorityDot}`} />
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-[11px] font-medium text-text-primary truncate">{ucName}</p>
-                                  <p className="text-[10px] text-text-tertiary truncate">
+                                  <p className="text-xs font-medium text-text-primary truncate">{ucName}</p>
+                                  <p className="text-xs text-text-tertiary truncate">
                                     {ucDomain}{ucTechnique ? ` · ${ucTechnique}` : ''}
                                   </p>
                                 </div>
                                 {ucPriority && (
-                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0" style={{ background: `${priorityColor}15`, color: priorityColor }}>
+                                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${priorityChip}`}>
                                     {ucPriority}
                                   </span>
                                 )}
@@ -708,7 +707,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                             );
                           })}
                         {panelSummary.useCases.length > 8 && (
-                          <p className="text-[10px] text-text-tertiary text-center pt-1">
+                          <p className="text-xs text-text-tertiary text-center pt-1">
                             +{panelSummary.useCases.length - 8} more use cases
                           </p>
                         )}
@@ -719,10 +718,10 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                       <button
                         type="button"
                         onClick={() => onViewResults(session.session_id)}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-db-red-50 text-db-red-fg text-[11px] font-semibold hover:bg-db-red-100 transition-colors"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-db-red-50 text-db-red-fg text-xs font-semibold hover:bg-db-red-100 transition-colors"
                       >
-                        <BarChart3 size={12} /> Open in Review
-                        <ArrowRight size={12} />
+                        <BarChart3 size={14} /> Open in Review
+                        <ArrowRight size={14} />
                       </button>
                     </div>
                   )}
@@ -733,7 +732,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
             {!runFilter && sessions.length > 5 && (
               <button
                 onClick={() => setShowAll(prev => !prev)}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-border hover:border-border-strong text-text-tertiary hover:text-text-secondary transition-all duration-200 text-xs font-medium"
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-border hover:border-border-strong text-text-tertiary hover:text-text-secondary transition-colors duration-200 text-xs font-medium"
               >
                 {showAll ? (
                   <><ChevronUp size={14} /> Show less</>
@@ -748,7 +747,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
         {error && (
           <div className="flex flex-col items-center gap-1 text-xs text-warning-fg justify-center pt-2 px-4 text-center">
             <div className="flex items-center gap-2" data-runs-error="">
-              <AlertCircle size={13} />
+              <AlertCircle size={14} />
               <PlainMessage as="span" text={`${RUNS_ERROR_TEXT}: ${typeof error === 'string' && error.trim() && error !== 'false' ? error : 'Databricks gave no reason'}`} />
             </div>
           </div>

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 
 // REQ-457: "How the MVP measures it". One read-only row per measure setting, then Keep (default) or Edit. Edit shows the editor the wizard passes
 // (so this file never imports the wizard); Keep hides it and hands back the values the section had when it mounted, so the wizard restores them.
-const choice = (on) => `rounded-md border px-3 py-1 text-sm ${on ? 'border-db-red-solid bg-db-red-solid text-white' : 'border-border text-text-secondary hover:bg-bg-subtle'}`;
+const choice = (on) => `rounded-md border px-3 py-1 text-sm ${on ? 'border-primary-solid bg-primary-solid text-white' : 'border-border text-text-secondary hover:bg-bg-subtle'}`;
 
 export default function MeasureSettings({ measure }) {
   const snapshot = useRef(measure?.values);

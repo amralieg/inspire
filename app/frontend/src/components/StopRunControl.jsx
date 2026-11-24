@@ -50,7 +50,7 @@ export default function StopRunControl({ runId, business, apiFetch }) {
         <div role="group" aria-label="Stop this run" className="flex flex-wrap items-center gap-2 text-xs">
           <span className="text-text-primary">Stop the Discover run for {name}? What the run already wrote stays.</span>
           <button type="button" onClick={stop} disabled={stopping}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 font-medium text-white bg-db-red-solid rounded-lg disabled:opacity-60">
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 font-medium text-white bg-primary-solid rounded-lg disabled:opacity-60">
             {stopping && <Loader2 size={12} className="animate-spin" aria-hidden="true" />} Stop the run
           </button>
           <button type="button" onClick={() => setConfirming(false)} disabled={stopping}

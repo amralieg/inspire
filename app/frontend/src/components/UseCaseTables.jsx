@@ -88,7 +88,7 @@ export default function UseCaseTables({ uc, latest, view, readOnly = false, lock
           className={change.error ? 'text-error-fg' : 'text-text-primary'} />
       )}
       {editable && change && change.save && (
-        <SaveButton busy={busy} disabled={locked} onClick={save} className={`${BUTTON} text-white bg-db-red-solid`}>
+        <SaveButton busy={busy} disabled={locked} onClick={save} className={`${BUTTON} text-white bg-primary-solid`}>
           {change.save}
         </SaveButton>
       )}

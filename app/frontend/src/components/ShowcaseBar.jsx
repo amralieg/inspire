@@ -5,7 +5,7 @@ export default function ShowcaseBar({ showcase, showcases = [], onSwitch, onGetS
   const others = onSwitch && showcases.length > 1;
   return (
     <section role="region" aria-label="Demo" className="border-b border-border bg-info-bg/60">
-      <div className="max-w-screen-xl mx-auto px-6 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div className="w-full px-6 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-info/15 px-2.5 py-0.5 text-[11px] font-semibold text-info-fg">
           <Eye size={12} aria-hidden="true" />
           Demo
@@ -33,7 +33,7 @@ export default function ShowcaseBar({ showcase, showcases = [], onSwitch, onGetS
           <button
             type="button"
             onClick={onGetStarted}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-db-red-solid px-3 py-1.5 text-xs font-semibold text-white hover:bg-db-red-solid-hover transition-smooth"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary-solid px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-solid-hover transition-smooth"
           >
             Get Started
             <ArrowRight size={12} aria-hidden="true" />

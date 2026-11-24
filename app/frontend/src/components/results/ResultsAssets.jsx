@@ -108,9 +108,8 @@ export default function ResultsAssets({
                   <div className="flex flex-wrap items-center gap-y-1 gap-1 pt-2 border-t border-border">
                     {reviewBarStages.map((stage, i) => (
                       <div key={stage} className="flex items-center shrink-0">
-                        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-success-bg">
-                          <CheckCircle2 size={11} className="text-success-fg shrink-0" />
-                          <span className="text-[10px] font-medium text-success-fg whitespace-nowrap">{stage}</span>
+                        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-neutral-bg">
+                          <span className="text-[10px] font-medium text-neutral-fg whitespace-nowrap">{stage}</span>
                         </div>
                         {i < reviewBarStages.length - 1 && (
                           <span className="text-text-tertiary text-[10px] mx-1 shrink-0">&rarr;</span>

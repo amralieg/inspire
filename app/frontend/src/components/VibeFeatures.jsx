@@ -9,7 +9,7 @@ import { capital } from '../lib/targetKpi';
 import { plural } from '../lib/plural';
 import { PlainMessage } from './TechnicalDetails';
 
-const PRIMARY_BUTTON = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-db-red-solid hover:bg-db-red-solid-hover shadow-sm shadow-db-red/20';
+const PRIMARY_BUTTON = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-primary-solid hover:bg-primary-solid-hover shadow-sm shadow-db-red/20';
 const GREYED = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-bg-subtle text-text-secondary border border-border cursor-not-allowed';
 const OUTLINE_BUTTON = 'inline-flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
 const ITEM = 'flex items-start justify-between gap-3 rounded-lg border border-border bg-bg-subtle/60 px-3 py-2 text-[12px]';

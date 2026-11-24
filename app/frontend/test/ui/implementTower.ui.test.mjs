@@ -266,6 +266,7 @@ test('Vibe/Add/Remove Features opens one tall box for the whole use case: Add vi
     await openFeatures(page);
     await dialog(page).getByRole('heading', { name: `Vibe/Add/Remove Features: ${HARNESS_USE_CASE.Name}`, exact: true }).waitFor();
     assert.equal(await dialog(page).locator('textarea').count(), 1, 'one box for the whole use case');
+    await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
     const size = await mvpBox(page).evaluate((el) => ({ height: el.getBoundingClientRect().height, resize: getComputedStyle(el).resize }));
     assert.ok(size.height >= 220, `the box is at least 220 px tall (${size.height})`);
     assert.equal(size.resize, 'vertical', 'and the person can make it taller');
@@ -1471,6 +1472,7 @@ test('Build progress opens pinned to the right under the App header, full window
     for (const [width, height] of [[1280, 800], [1024, 700]]) {
       await page.setViewportSize({ width, height });
       await painted(page);
+      await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
       const box = await dialog.boundingBox();
       const useCase = await page.locator('section[aria-label="Use case"]').boundingBox();
       assert.ok(Math.abs(box.y - 56) <= 1 && Math.abs(box.height - (height - 56)) <= 2, `at ${width}x${height} the panel runs from under the App header to the bottom of the window ${JSON.stringify(box)}`);

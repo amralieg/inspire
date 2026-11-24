@@ -87,16 +87,11 @@ test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks
     await goToStep(page, 'What to build');
     assert.equal(await page.getByText('(default)', { exact: false }).count(), 0);
     await page.getByRole('heading', { name: 'How will people use this use case?' }).waitFor();
-    assert.equal(await page.locator('[data-output="notebook"] input').isChecked(), true, 'the notebook is always built');
-    assert.equal(await page.locator('[data-output="notebook"] input').isDisabled(), true);
-    for (const name of [/^Genie Agent/, /^Agentic App A Databricks/]) assert.equal(await page.getByRole('checkbox', { name }).isChecked(), true, String(name));
+    assert.equal(await page.locator('[data-output="notebook"]').count(), 0, 'REQ-514: the notebook is not a choice');
+    for (const name of [/^Genie Agent/, /^Agentic App/]) assert.equal(await page.getByRole('checkbox', { name }).count(), 0, `REQ-514: ${name} is not a choice`);
     for (const name of [/^Dashboard/, /^Alert/]) assert.equal(await page.getByRole('checkbox', { name }).isChecked(), false, `${name} starts off but stays a choice`);
-    assert.equal(await page.locator('[data-output="app"] [data-recommended]').count(), 1, 'the App tile is Recommended');
     assert.equal(await page.locator('[data-choice="outputs"]').evaluate((g) => [...g.querySelectorAll('[data-recommended]')].filter((b) => b.closest('[data-choice]') === g).length),
-      1, 'exactly one tile is Recommended');
-    await page.getByRole('checkbox', { name: /^Agentic App A Databricks/ }).uncheck();
-    await stepsAre(page, ['1. How to build', '2. What to deliver', '3. Data & results', '4. First run', '5. Review & build']);
-    await page.getByRole('checkbox', { name: /^Agentic App A Databricks/ }).check();
+      0, 'REQ-514: the App is fixed, so no tile is Recommended');
     await stepsAre(page, withApp);
     await goToStep(page, 'Where it lives');
     await page.getByRole('region', { name: 'App placement' }).waitFor();
@@ -281,9 +276,8 @@ test('a new App that could not get access is disabled up front with the reason, 
   try {
     await toData(page);
     await toDelivery(page);
-    const appBox = page.getByRole('checkbox', { name: /^Agentic App A Databricks/ });
-    await appBox.waitFor();
-    assert.equal(await appBox.isDisabled(), true);
+    await page.locator('[data-output="app"]').waitFor();
+    assert.equal(await page.locator('[data-output="app"] input').count(), 0, 'REQ-514: the blocked App is a fixed card with no checkbox');
     const blocked = page.locator('[data-blocked-reason="app"]');
     assert.equal(await blocked.locator('p').textContent(), 'Needs access Inspire does not have on the catalog, the schema and the SQL warehouse.', 'one short plain line says why, naming the place');
     await blocked.getByText('Details', { exact: true }).click();
@@ -291,7 +285,7 @@ test('a new App that could not get access is disabled up front with the reason, 
     assert.ok(reason.includes(`a new App could not read the result table: it needs access on the catalog and on the schema that Inspire cannot give it`), reason);
     assert.ok(reason.includes('Inspire cannot manage'), reason);
     assert.equal(await page.locator('[data-output="app"] [data-recommended]').count(), 0, 'the blocked App carries no badge');
-    assert.equal(await page.getByRole('checkbox', { name: /^Genie Agent/ }).isDisabled(), false);
+    assert.equal(await page.getByRole('checkbox', { name: /^Genie Agent/ }).count(), 0, 'REQ-514: the Genie Agent is not a choice');
     await toSummary(page);
     const warn = page.locator('span.text-warning-fg', { hasText: `${OWNER} may not be able to read the result table` });
     await warn.waitFor();
@@ -562,7 +556,6 @@ test('an App name another App already uses is changed to the next free name, and
   try {
     await toData(page);
     await toDelivery(page);
-    await page.getByRole('checkbox', { name: /^Agentic App A Databricks/ }).check();
     await goToStep(page, 'App placement');
     await page.getByText("'inspire-hub-acme' is used by another App in this workspace, so Inspire named this App 'inspire-hub-acme-2'.").waitFor();
     assert.equal(await page.getByLabel('App name').inputValue(), 'inspire-hub-acme-2');

@@ -25,7 +25,7 @@ import { CASE_PLAN_ROUTE, FALLBACK_NOTICE, noModelNotice, bodyOf, carryAnswers, 
 const messageOf = (err) => String(err?.message || err || 'The value could not be saved.');
 const STEPS = ['Data', 'Filter', 'Kinds', 'Each value', 'Ramp and cost', 'Market data', 'Story', 'Save'];
 const btn = 'rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle disabled:opacity-50';
-const primary = 'rounded-md border border-transparent bg-db-red-solid hover:bg-db-red-solid-hover px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50';
+const primary = 'rounded-md bg-primary-solid hover:bg-primary-solid-hover px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50';
 const SCOPE_PAGES = ['scope:facts', 'scope:choice', 'filter'];
 const withoutChoice = ({ choice, ...rest }) => rest; // eslint-disable-line no-unused-vars
 // A reopened value keeps the scope it was saved with; which card it was is read back from its structure.
@@ -291,7 +291,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
       <ol aria-label="Steps" className="flex gap-1 text-[12px]">
         {STEPS.map((name, k) => (
           <li key={name} aria-current={k === step ? 'step' : undefined} className={`flex flex-1 items-center gap-1.5 ${k === step ? 'font-semibold text-text-primary' : 'text-text-secondary'}`}>
-            <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] ${k === step ? 'border-db-red-solid bg-db-red-solid text-white' : k < step ? 'border-ok text-ok' : 'border-border'}`}>{k < step ? '✓' : k + 1}</span>{name}
+            <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] ${k === step ? 'border-primary-solid bg-primary-solid text-white' : k < step ? 'border-ok text-ok' : 'border-border'}`}>{k < step ? '✓' : k + 1}</span>{name}
           </li>
         ))}
       </ol>

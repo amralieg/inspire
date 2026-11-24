@@ -6,21 +6,15 @@ test.after(closeBrowser);
 
 const ME = { userName: ['owner', 'example.com'].join('@'), displayName: 'Owner' };
 
-test('the Build wizard lets a person build the App without a Genie Agent: the Genie Agent is not locked while the App is on, unticks, and the App stays on', async () => {
+test('REQ-514: the Build wizard has no Genie Agent or App choice to untick: the App with its Genie is always built', async () => {
   const ui = await openUi('wizard', { me: ME });
   const { page, pageErrors } = ui;
   try {
     await goToStep(page, 'Data');
     await goToStep(page, 'What to deliver');
-    const genie = page.getByRole('checkbox', { name: /^Genie Agent/ }).first();
-    const app = page.getByRole('checkbox', { name: /^Agentic App/ }).first();
-    await genie.waitFor();
-    assert.equal(await app.isChecked(), true, 'the App is on by default');
-    assert.equal(await genie.isChecked(), true, 'the Genie Agent is ticked by default');
-    assert.equal(await genie.isDisabled(), false, 'the Genie Agent is not locked while the App is on');
-    await genie.uncheck();
-    assert.equal(await genie.isChecked(), false, 'the Genie Agent unticks');
-    assert.equal(await app.isChecked(), true, 'the App stays on');
+    await page.getByRole('checkbox', { name: /^Dashboard/ }).first().waitFor();
+    assert.equal(await page.getByRole('checkbox', { name: /^Genie Agent/ }).count(), 0, 'REQ-514: the Genie Agent is not a choice');
+    assert.equal(await page.getByRole('checkbox', { name: /^Agentic App/ }).count(), 0, 'REQ-514: the App is not a choice');
     assert.equal(await page.getByText('needs a Genie Agent', { exact: false }).count(), 0, 'no stale note says the App needs a Genie Agent');
     assert.deepEqual(pageErrors, []);
   } finally {

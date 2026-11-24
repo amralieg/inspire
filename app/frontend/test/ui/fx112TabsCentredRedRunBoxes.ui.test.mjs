@@ -61,10 +61,11 @@ test('REQ-505: each run with a value shows it in a solid red box with white text
       const [tr, tg, tb] = rgb(await amount.evaluate((el) => getComputedStyle(el).color));
       assert.ok(tr >= 240 && tg >= 240 && tb >= 240, `run ${sid}: white value text, got rgb(${tr},${tg},${tb})`);
     }
-    const none = page.locator('[data-run="51"] [data-run-value-box]');
+    const none = page.locator('[data-run="51"] [data-run-value-state="not-calculated"]');
     await none.waitFor({ timeout: 20000 });
-    assert.ok((await none.innerText()).includes('Not calculated'));
-    assert.equal(await none.evaluate((el) => getComputedStyle(el).borderTopStyle), 'dashed', 'a run with no value: dashed box');
+    assert.equal((await none.innerText()).trim(), 'Not calculated');
+    assert.ok((await none.getAttribute('class')).includes('bg-neutral-bg'), 'a run with no value is a neutral Badge');
+    assert.equal(await page.locator('[data-run="51"] [data-run-value-box]').count(), 0, 'a run with no value has no red value box (must-exclude)');
     const [r, g, b] = rgb(await none.evaluate((el) => getComputedStyle(el).backgroundColor));
     assert.ok(!(r >= 180 && g <= 90 && b <= 90), 'a run with no value is not a filled red box');
     assert.deepEqual(ui.pageErrors, []);

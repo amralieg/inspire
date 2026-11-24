@@ -34,7 +34,7 @@ test('1: the first step asks how to build, with Standard pre-selected and recomm
     assert.equal(await page.locator('[data-build-choice="standard"] [data-recommended]').count(), 1, 'the badge sits on Standard');
     assert.match(await page.locator('[data-build-choice="standard"]').innerText(), /Standard MVP build settings/);
     assert.match(await page.locator('[data-build-choice="advanced"]').innerText(), /Advanced MVP build settings/);
-    assert.match(await nextButton(page).getAttribute('class'), /bg-db-red-solid/, 'Next is the red primary button');
+    assert.match(await nextButton(page).getAttribute('class'), /bg-primary-solid/, 'Next is the red primary button');
     await stepsAre(page, STANDARD);
     assert.deepEqual(pageErrors, []);
   } finally {
@@ -131,7 +131,7 @@ test('6: a Build row of a hidden step says Change in Advanced, which switches to
     const labels = await page.locator('[data-wizard-header] ol li').allTextContents();
     assert.ok(labels.some((l) => /What to deliver/.test(l)), 'the stepper is Advanced');
     await goToStep(page, 'What to deliver');
-    assert.equal(await page.locator('[data-output="app"] input[type="checkbox"]').isChecked(), true, 'the What choices are kept');
+    assert.equal(await page.locator('[data-output="app"] input').count(), 0, 'REQ-514: the App is fixed, not a choice');
     assert.deepEqual(pageErrors, []);
   } finally {
     await ui.close();

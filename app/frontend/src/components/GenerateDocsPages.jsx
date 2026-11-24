@@ -13,7 +13,7 @@ const KIND_INFO = {
 
 const toggle = (list, id) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 const card = (on) => `rounded-xl border p-3 text-start transition-colors motion-safe:duration-150 ${on ? 'border-db-red bg-db-red-50 shadow-sm' : 'border-border bg-surface hover:bg-bg-subtle'}`;
-const tick = (on) => `mt-0.5 inline-block h-4 w-4 shrink-0 rounded border ${on ? 'border-db-red-solid bg-db-red-solid' : 'border-border-strong bg-surface'}`;
+const tick = (on) => `mt-0.5 inline-block h-4 w-4 shrink-0 rounded border ${on ? 'border-primary-solid bg-primary-solid' : 'border-border-strong bg-surface'}`;
 
 export function DocumentsPage({ options, set }) {
   return (
@@ -23,7 +23,7 @@ export function DocumentsPage({ options, set }) {
         const on = options.kinds.includes(id);
         return (
           <button key={id} type="button" role="checkbox" aria-checked={on} data-doc-kind={id} onClick={() => set({ kinds: toggle(options.kinds, id) })} className={`${card(on)} flex items-start gap-3`}>
-            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${on ? 'bg-db-red-solid text-white' : 'bg-bg-subtle text-text-secondary'}`}><Icon size={20} aria-hidden /></span>
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${on ? 'bg-primary-solid text-white' : 'bg-bg-subtle text-text-secondary'}`}><Icon size={20} aria-hidden /></span>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-bold text-text-primary">{label}</span>
               <span className="block text-xs text-text-secondary">{hint}</span>

@@ -81,7 +81,7 @@ export default function RunScope({ page, settings }) {
       {scope !== GROUP_ALL && (
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" disabled={busy || !canRun} onClick={runEverything}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-50">
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-primary-solid disabled:opacity-50">
             {busy ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />} {RUN_EVERYTHING_LABEL}
           </button>
           {facts?.everything && <span data-run-everything-estimate="" className={NOTE}>{facts.everything}</span>}

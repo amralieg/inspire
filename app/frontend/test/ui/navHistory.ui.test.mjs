@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, idle, openUi } from './uiSupport.mjs';
 import { REVIEW_STATE } from './reviewFixtures.js';
-import { NAV_TABS } from '../../src/lib/tabs.js';
+import { APP_TABS } from '../../src/lib/tabs.js';
 
 test.after(closeBrowser);
 
@@ -28,19 +28,20 @@ const SHOWN = {
   '#/build/42': (page) => page.getByRole('heading', { level: 1, name: 'Build' }).waitFor({ timeout: 20000 }),
 };
 
-test('the Home tab comes first, opens the home page, and every tab badge counts from it', async () => {
+test('the header lists Start first without a Home tab, the brand opens the home page, and every tab badge counts from Start', async () => {
   const ui = await openUi('app', KNOWN, '', { mount: mounted(DEFAULTS) });
   const { page } = ui;
   try {
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
     await SHOWN['#/start'](page);
     const labels = (await page.locator('header nav button').allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim());
-    assert.deepEqual(labels, NAV_TABS.map((t, i) => `${String(i + 1).padStart(2, '0')} ${t.label}`));
-    assert.equal(labels[0], '01 Home');
-    assert.equal(await current(page), '02 Start');
+    assert.deepEqual(labels, APP_TABS.map((t, i) => `${String(i + 1).padStart(2, '0')} ${t.label}`));
+    assert.equal(labels[0], '01 Start');
+    assert.equal(labels.some((l) => /Home/.test(l)), false, 'the header has no Home tab (must-exclude)');
+    assert.equal(await current(page), '01 Start');
     await tab(page, 'Review').click();
     await page.getByRole('heading', { level: 1, name: 'Review' }).waitFor({ timeout: 20000 });
-    await tab(page, 'Home').click();
+    await page.locator('header button[title="Inspire AI home"]').click();
     await SHOWN['#/home'](page);
     assert.equal(await hash(page), '#/home');
     assert.deepEqual(ui.pageErrors, []);
@@ -82,7 +83,7 @@ test('every page change adds one history entry, Back and Forward walk them in or
       await at(page, want);
       await SHOWN[want](page);
     }
-    assert.equal(await current(page), '04 Review');
+    assert.equal(await current(page), '03 Review');
     assert.equal(await depth(page), start + 3, 'Back and Forward add no entries of their own');
     assert.equal(await page.locator('[data-review-left-demo], [data-run-left-demo]').count(), 0);
     assert.deepEqual(ui.pageErrors, []);
@@ -117,7 +118,7 @@ test('a reload, or a deep link opened in a new tab, shows the page the address n
     assert.equal(await hash(page), '#/build/42/N01-U02', 'a Build link keeps the use case it names');
     await page.evaluate(() => { window.location.hash = '#/nowhere'; });
     await at(page, '#/build/42/N01-U02');
-    assert.equal(await current(page), '05 Build', 'a typed address that names no page keeps the page open and puts its address back');
+    assert.equal(await current(page), '04 Build', 'a typed address that names no page keeps the page open and puts its address back');
     await page.evaluate(() => window.history.replaceState(null, '', '?open=app#/nowhere'));
     await page.reload();
     await SHOWN['#/home'](page);
@@ -166,7 +167,7 @@ test('opening a page from the address never writes the address of the page it le
     assert.equal(written.includes('#/home'), false, `the address went back to the page being left: ${written.join(', ')} (must-exclude)`);
     await page.evaluate(() => { window.location.hash = '#/nowhere'; });
     await at(page, '#/build/42');
-    assert.equal(await current(page), '05 Build', 'an address that names no page is still put back');
+    assert.equal(await current(page), '04 Build', 'an address that names no page is still put back');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -205,13 +206,13 @@ test('the demo keeps its own addresses: a reload stays in the demo on the same p
     await at(page, '#/demo/acme/build');
     await page.reload();
     await bar.waitFor({ timeout: 20000 });
-    assert.equal(await current(page), '05 Build', 'the reload reopens the demo on its Build page');
+    assert.equal(await current(page), '04 Build', 'the reload reopens the demo on its Build page');
     assert.equal(await hash(page), '#/demo/acme/build');
     await page.goBack();
     await at(page, '#/demo/acme/review');
     await page.locator('header nav button[aria-current="page"]').filter({ hasText: /Review$/ }).waitFor({ timeout: 20000 });
     await bar.waitFor();
-    assert.equal(await current(page), '04 Review');
+    assert.equal(await current(page), '03 Review');
     assert.equal(await hash(page), '#/demo/acme/review');
     assert.equal(await page.locator('[data-review-left-demo], [data-run-left-demo]').count(), 0, 'going Back inside the demo never says the demo was left');
   } finally {
