@@ -54,7 +54,7 @@ export default function PortfolioCards({ portfolio, error, sessions, active = ''
           <button type="button" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen((v) => !v)}
             className="inline-flex items-center gap-1.5 rounded-md uppercase tracking-[0.18em] hover:text-text-primary">
             <ChevronDown size={12} aria-hidden className={`transition-transform motion-reduce:transition-none ${open ? '' : '-rotate-90'}`} />
-            Across all runs in this Inspire Database
+            Totals in this Inspire Database
           </button>
         </h2>
         {error && <PlainMessage text={`Inspire could not count across the runs: ${error}`} role="alert" className="text-[12px] text-error-fg" />}

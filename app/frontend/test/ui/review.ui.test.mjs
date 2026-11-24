@@ -107,7 +107,7 @@ test('Review heads the open run with its catalog, business and date, shows each 
     await stat('Subdomains', '5');
     assert.equal(await page.locator('[data-portfolio], [data-portfolio-card]').count(), 0, 'with the portfolio read, Review still shows no totals across runs');
     assert.equal(await portfolio(page).count(), 0);
-    assert.equal(await page.getByText('Across all runs in this Inspire Database').count(), 0);
+    assert.equal(await page.getByText('Totals in this Inspire Database').count(), 0);
     const runScope = await page.evaluate(() => {
       const words = ['Use Cases', 'Domains', 'High Priority'];
       const seen = Object.fromEntries(words.map((w) => [w, 0]));
