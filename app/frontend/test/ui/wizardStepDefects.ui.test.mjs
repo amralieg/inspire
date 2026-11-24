@@ -123,6 +123,7 @@ test('D33: every Next either shows a new place or a reason, and the wizard has o
 
 const submitMount = (hold, answer) => (app) => {
   app.post('/api/inspire/implement/submit', async (req, res) => {
+    answer.sent = true;
     await hold.promise;
     if (answer.fail) { res.status(500).json({ error: 'The build could not start.' }); return; }
     res.json({ session_id: '42', use_case_id: req.body.spec.use_case_id, spec_version: 1, summary: {}, warnings: [] });
@@ -141,7 +142,9 @@ test('D34 Advanced: Build with these choices closes the wizard while the build s
       const now = page.locator('[data-build-now]');
       await page.waitForFunction(() => { const b = document.querySelector('[data-build-now]'); return b && !b.disabled; }, null, { timeout: 30000 });
       await now.click();
-      await page.getByText('Starting your build').waitFor({ state: 'visible', timeout: 5000 });
+      // REQ-486 (c1918935b): the cover "Starting your build" moved to App.jsx (BuildStarting, walked in fx88BuildDialogStays); the wizard itself stays up while the submit is held.
+      await until(() => answer.sent, 'the submit reaches the server', 10000);
+      assert.equal(await page.locator('[data-build-now]').count(), 1, 'the wizard stays on its step while the build starts');
       hold.release();
       if (fail) {
         await page.getByRole('alert').filter({ hasText: 'The build could not start.' }).waitFor({ timeout: 15000 });
@@ -158,12 +161,15 @@ test('D34 Advanced: Build with these choices closes the wizard while the build s
 
 test('D34 Standard: the final Build button closes the wizard while the build starts', async () => {
   const hold = held();
-  const ui = await openUi('wizard', ME, '', { build: null, mount: submitMount(hold, {}) });
+  const answer = {};
+  const ui = await openUi('wizard', ME, '', { build: null, mount: submitMount(hold, answer) });
   const { page } = ui;
   try {
     await next(page).click();
     await startMvp(page);
-    await page.getByText('Starting your build').waitFor({ state: 'visible', timeout: 5000 });
+    // REQ-486 (c1918935b): the cover moved to App.jsx (BuildStarting, walked in fx88BuildDialogStays); the wizard stays up while the submit is held.
+    await until(() => answer.sent, 'the submit reaches the server', 10000);
+    assert.equal(await page.locator('[data-wizard-body]').isVisible(), true, 'the wizard stays on screen while the build starts');
     hold.release();
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor({ timeout: 20000 });
   } finally {

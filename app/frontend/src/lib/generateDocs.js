@@ -92,7 +92,7 @@ export async function generateDocs({ plan, options, useCases, values, businessNa
       try {
         const m = modelFor({ businessName, useCases, values, options, language, ids: file.useCaseIds, translated });
         const bytes = await toBytes(await makeFile(file, m, theme, options));
-        await post('/api/inspire/docs/save', { ...where, folder, name: file.name, content_base64: toBase64(bytes) });
+        await post('/api/inspire/docs/save', { ...where, folder, name: file.name, content_base64: toBase64(bytes), use_case_ids: file.useCaseIds });
         saved.push(`${folder}/${file.name}`);
         onFile(file.name, 'done');
       } catch (e) {

@@ -494,9 +494,9 @@ def _json_mode(agent_ns, tmp_path, fail):
 
     def documents(*a, **kw):
         if fail:
-            obj._record_failed_step("PDF Catalog", "French", RuntimeError("weasyprint missing"))
+            obj._record_failed_step("Markdown Catalog", "French", RuntimeError("upload failed"))
 
-    obj._generate_documents_for_all_languages = documents
+    obj._generate_language_catalogs = documents
     return obj
 
 
@@ -504,7 +504,7 @@ def test_json_mode_banner_reports_failed_steps(agent_ns, tmp_path, quiet_root_lo
     printed = _capture_log_print(agent_ns, monkeypatch)
     _json_mode(agent_ns, tmp_path, fail=True).run()
     warnings = [m for level, m in printed if level == "WARNING" and "COMPLETED WITH WARNINGS" in m]
-    assert len(warnings) == 1 and "1 artifact step failed: PDF Catalog (French)" in warnings[0]
+    assert len(warnings) == 1 and "1 artifact step failed: Markdown Catalog (French)" in warnings[0]
     assert not [m for _, m in printed if "SUCCESS" in m]
 
 
@@ -526,14 +526,14 @@ def test_final_pipeline_status_is_a_warning_when_artifact_steps_failed(ns):
     obj = make_inspire(ns)
     obj.atomic_writer = _FinalizeRecorder()
     obj._pipeline_start_step_id = 3
-    obj._record_failed_step("Presentation", "French", "python-pptx missing")
+    obj._record_failed_step("CSV Catalog", "French", "upload failed")
     obj._record_translation_gaps("French", {"use_cases": 1, "untranslated_use_cases": 0, "fields": {"Name": 1}})
     obj.finalize_atomic_writer(success=True)
     call = obj.atomic_writer.calls[-1]
     assert call["status"] == "ended_warning"
-    assert call["message"] == ("Completed with warnings: 1 artifact step failed: Presentation (French); "
+    assert call["message"] == ("Completed with warnings: 1 artifact step failed: CSV Catalog (French); "
                                "translation gaps: French (1 use case with text shown in English)")
-    assert call["final_results_json"]["failed_steps"][0]["step"] == "Presentation"
+    assert call["final_results_json"]["failed_steps"][0]["step"] == "CSV Catalog"
     assert call["final_results_json"]["translation_gaps"]["French"]["use_cases"] == 1
     assert call["pipeline_start_step_id"] == 3
 
@@ -778,7 +778,7 @@ def test_docs_describe_run_outcome_language_codes_scores_columns_and_replace(ns)
         for old, new in (("sw", "sv"), ("po", "pl"), ("du", "nl"), ("in", "id"), ("ma", "ms"), ("ch", "zh")):
             assert f"`{old}`" in text and f"`{new}`" in text, (name, old, new)
     steps = set(re.findall(r'_record_failed_step\("([^"]+)"', agent_source()))
-    assert {"PDF Catalog", "Presentation", "Tracking Table"} <= steps
+    assert {"Tracking Table"} <= steps and not {"PDF Catalog", "Presentation", "Use Case Excel"} & steps
     for step in steps:
         assert f"`{step}`" in integration and f"`{step}`" in readme, step
     for code in set(ns["DatabricksInspire"]._LANGUAGE_ABBREVIATIONS.values()):

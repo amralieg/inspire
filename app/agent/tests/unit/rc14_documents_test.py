@@ -1,9 +1,6 @@
-"""rc.14 (rc.11 lane L4): REQ-076 the exported Excel has a column for every strategy level, also when the workbook is
-rebuilt on demand from the saved English catalog (docs-only mode, a fresh run object that never saw the strategy tree)."""
-import io
+"""rc.14 (rc.11 lane L4): REQ-076, rewritten for FX-116 (REQ-503): a docs-only run restores every declared strategy level from the saved
+English catalog (a fresh run object that never saw the strategy tree). The Excel workbook that used to show them is made by the App now."""
 import json
-
-import openpyxl
 
 from v120_artifacts_support import make_inspire
 from v130_outputs_test import docs, foundations  # noqa: F401
@@ -27,18 +24,14 @@ def saved_catalog(docs_ns, monkeypatch):
     return path
 
 
-def test_a_docs_only_rebuild_writes_an_excel_column_for_every_declared_strategy_level(docs, monkeypatch):
+def test_a_docs_only_run_restores_every_declared_strategy_level_and_writes_no_excel(docs, monkeypatch):
     path = saved_catalog(docs, monkeypatch)
     obj = make_inspire(docs)
     _ucs, _summary, grouped = obj._load_usecases_catalog_json(path)
     assert [level for level in obj.strategy_tree["levels"]] == LEVELS, "the saved catalog restores every declared level"
-    obj.delivery_order = ["N01-U01", "N01-U02"]
-    obj._generate_use_case_excel("English", "en", grouped)
-    xlsx = next(p for p in obj.w_client.workspace.files if str(p).endswith(".xlsx"))
-    sheet = openpyxl.load_workbook(io.BytesIO(obj.w_client.workspace.files[xlsx])).worksheets[0]
-    headers = [cell.value for cell in next(sheet.iter_rows())]
-    at = headers.index("Strategic Goals Alignment")
-    assert headers[at + 1:at + 1 + len(LEVELS)] == LEVELS, headers
+    assert grouped, "the saved use cases come back grouped by domain"
+    assert not hasattr(obj, "_generate_use_case_excel"), "the run writes no Excel workbook"
+    assert not any(str(p).endswith(".xlsx") for p in obj.w_client.workspace.files)
 
 
 def test_a_documents_only_run_writes_beside_the_catalog_it_reads_and_never_under_a_second_business_folder(agent_ns):

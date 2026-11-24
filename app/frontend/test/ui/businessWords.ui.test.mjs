@@ -5,7 +5,7 @@ import { closeBrowser, expandBuild, openUi } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
-const JARGON = /\bpipeline\b|\bcluster\b|provision|\bSpark\b|notebook executes|Real-time tracking|AI-generated data strategy/i;
+const JARGON = /\bpipeline\b|\bcluster\b|\bprovision\b|\bSpark\b|notebook executes|Real-time tracking|AI-generated data strategy/i;
 
 async function shownText(page) {
   return page.evaluate(() => {

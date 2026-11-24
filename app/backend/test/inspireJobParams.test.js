@@ -6,7 +6,6 @@ const {
   INSPIRE_AGENT_VERSION,
   INSPIRE_NOTEBOOK_WIDGET_KEYS,
   buildDemoInspireDiscoveryParams,
-  normalizeGenerationOptionsParams,
   normalizeUseCasesQualityParams,
   sanitizeInspireNotebookJobParams,
   belowBarLabelFromUseCase,
@@ -25,13 +24,13 @@ test('advertises the integrated notebook version', () => {
   assert.equal(INSPIRE_AGENT_VERSION, pinned[1]);
 });
 
-test('demo discovery parameters use v1.2.0 generation choices and the v1.3.0 discovery defaults', () => {
+test('demo discovery parameters send no generation option and carry the v1.3.0 discovery defaults (FX-116)', () => {
   const params = buildDemoInspireDiscoveryParams({
     inspireDatabase: 'main._inspire',
     sessionId: '123456789',
   });
 
-  assert.equal(params['09_generation_options'], 'PDF Catalog,Excel', 'an unset option defaults to both the PDF and the Excel workbook');
+  assert.equal(Object.hasOwn(params, '09_generation_options'), false, 'the agent makes no documents, so the demo run sends no generation option');
   assert.equal(params['13_generate_genie_code_for'], '0');
   assert.equal(params['14_session_id'], '123456789');
   assert.equal(params['05_use_cases_quality'], 'Good');
@@ -39,13 +38,10 @@ test('demo discovery parameters use v1.2.0 generation choices and the v1.3.0 dis
   assert.equal(params['10_strategic_context'], '');
 });
 
-test('removes the retired Genie generation option from legacy requests', () => {
-  const params = {
-    '09_generation_options': 'PDF Catalog,Genie Code Instructions,Presentation',
-  };
-
-  normalizeGenerationOptionsParams(params);
-  assert.equal(params['09_generation_options'], 'PDF Catalog,Presentation');
+test('the generation option normalizer is gone and a legacy request keeps no 09 key (FX-116)', () => {
+  assert.equal(require('../lib/inspireJobParams').normalizeGenerationOptionsParams, undefined);
+  const params = sanitizeInspireNotebookJobParams({ '00_business_name': 'Retail', '09_generation_options': 'PDF Catalog,Genie Code Instructions,Presentation' });
+  assert.equal(Object.hasOwn(params, '09_generation_options'), false);
 });
 
 test('normalizes quality aliases to v1.2.0 canonical modes', () => {
@@ -67,16 +63,14 @@ test('normalizes quality aliases to v1.2.0 canonical modes', () => {
   }
 });
 
-test('no documents: an empty generation choice sends no document formats, and a picked format is still built (REQ-077)', () => {
-  const none = sanitizeInspireNotebookJobParams({ '00_business_name': 'Retail', '09_generation_options': '' });
-  assert.equal(none['09_generation_options'], '');
-  const pptx = sanitizeInspireNotebookJobParams({ '00_business_name': 'Retail', '09_generation_options': 'Presentation' });
-  assert.equal(pptx['09_generation_options'], 'Presentation');
-  const excel = sanitizeInspireNotebookJobParams({ '00_business_name': 'Retail', '09_generation_options': 'Excel' });
-  assert.equal(excel['09_generation_options'], 'Excel', 'the Excel workbook is a choice the person can pick');
+test('no documents: whatever a launch sends for 09, the job gets no generation option (FX-116)', () => {
+  for (const choice of ['', 'Presentation', 'Excel', 'PDF Catalog,Excel']) {
+    const out = sanitizeInspireNotebookJobParams({ '00_business_name': 'Retail', '09_generation_options': choice });
+    assert.equal(Object.hasOwn(out, '09_generation_options'), false, `"${choice}" is dropped`);
+  }
 });
 
-test('sanitizer forwards only notebook widget keys and valid generation choices', () => {
+test('sanitizer forwards only notebook widget keys and drops the removed generation choice', () => {
   const params = sanitizeInspireNotebookJobParams({
     '00_business_name': 'Retail',
     '09_generation_options': 'Genie Code Instructions',
@@ -89,14 +83,13 @@ test('sanitizer forwards only notebook widget keys and valid generation choices'
     '00_business_name',
     '03_discovery_type',
     '05_use_cases_quality',
-    '09_generation_options',
     '10_strategic_context',
     '13_generate_genie_code_for',
     '16_best_of_best_count',
   ]);
   assert.equal(params['03_discovery_type'], 'Standard Discovery');
   assert.equal(params['10_strategic_context'], '');
-  assert.equal(params['09_generation_options'], '', 'an invalid choice is dropped and no document is added back');
+  assert.equal(Object.hasOwn(params, '09_generation_options'), false, 'the removed choice is dropped and no document is added back');
   assert.equal(params['13_generate_genie_code_for'], 'all');
   assert.equal(params['05_use_cases_quality'], 'Good');
   assert.ok(!INSPIRE_NOTEBOOK_WIDGET_KEYS.includes('legacy_widget'));
@@ -115,10 +108,11 @@ test('below-bar fallback flags are treated as a valid result label', () => {
 
 test('widget keys follow the notebook order with the two v1.3.0 keys in their slots', () => {
   assert.equal(INSPIRE_NOTEBOOK_WIDGET_KEYS.indexOf('03_discovery_type'), INSPIRE_NOTEBOOK_WIDGET_KEYS.indexOf('02_inspire_database') + 1);
-  assert.equal(INSPIRE_NOTEBOOK_WIDGET_KEYS.indexOf('10_strategic_context'), INSPIRE_NOTEBOOK_WIDGET_KEYS.indexOf('09_generation_options') + 1);
+  assert.equal(INSPIRE_NOTEBOOK_WIDGET_KEYS.includes('09_generation_options'), false, 'the removed widget is not a key (FX-116)');
+  assert.equal(INSPIRE_NOTEBOOK_WIDGET_KEYS.indexOf('10_strategic_context'), INSPIRE_NOTEBOOK_WIDGET_KEYS.indexOf('08_generation_instructions') + 1);
   const { IMPLEMENT_USE_CASE_PARAM, IMPLEMENT_SPEC_VERSION_PARAM } = require('../lib/inspireImplement');
   assert.deepEqual(INSPIRE_NOTEBOOK_WIDGET_KEYS.slice(-3), ['16_best_of_best_count', IMPLEMENT_USE_CASE_PARAM, IMPLEMENT_SPEC_VERSION_PARAM]);
-  assert.equal(INSPIRE_NOTEBOOK_WIDGET_KEYS.length, 24, 'the table scope and relationships widgets and the two currency widgets are the extra keys');
+  assert.equal(INSPIRE_NOTEBOOK_WIDGET_KEYS.length, 23, 'the table scope and relationships widgets and the two currency widgets are the extra keys');
 });
 
 test('the implement run id reaches the job but is not a notebook widget, so a forked run never copies it', () => {

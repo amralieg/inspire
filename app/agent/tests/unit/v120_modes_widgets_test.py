@@ -167,23 +167,17 @@ def test_unknown_value_is_left_for_main_to_reject(agent_ns, monkeypatch):
         agent_ns["canonical_use_cases_quality"](widgets.get(QUALITY))
 
 
-def test_stale_generation_options_widget_also_survives_the_cell_boundary(agent_ns, monkeypatch):
-    widgets = FakeWidgets({OPTIONS: ("multiselect", "PDF Catalog,Genie Code Instructions",
-                                     ["PDF Catalog", "Presentation", "Genie Code Instructions"])})
-    _, after_cell_1 = run_cells(agent_ns, monkeypatch, widgets)
-    assert OPTIONS not in after_cell_1
-    assert widgets.get(OPTIONS) == "PDF Catalog"
-    assert widgets.state[OPTIONS]["choices"] == ["PDF Catalog", "Presentation", "Excel"]
-    assert widgets.state[OPTIONS]["kind"] == "multiselect"
+def test_the_generation_options_widget_is_gone_from_the_agent(agent_ns):
+    from _agentload import agent_source
+    assert OPTIONS not in agent_source()
 
 
 def test_create_widgets_never_recreates_a_widget_it_removed(agent_ns, monkeypatch):
-    widgets = FakeWidgets({**quality_widget("Strict Quality"),
-                           OPTIONS: ("multiselect", "Genie Code Instructions", ["Genie Code Instructions"])})
+    widgets = FakeWidgets(quality_widget("Strict Quality"))
     monkeypatch.setitem(agent_ns, "dbutils", FakeDbutils(widgets))
     agent_ns["create_widgets"]()
     removed = {c[1] for c in widgets.calls if c[0] == "remove"}
-    assert removed == {QUALITY, OPTIONS}
+    assert removed == {QUALITY}
     for call in widgets.calls:
         if call[0] == "create":
             assert call[2] not in removed, call

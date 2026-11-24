@@ -107,12 +107,12 @@ COLUMNS = [("cat", "sch", t, c, "bigint", "") for t in ("orders", "items", "stor
 def _build(ns, tmp_path, mode, acceptable, scorer, user_domains=None):
     cls = ns["DatabricksInspire"]
     obj = cls.__new__(cls)
-    rec = {"filter_kwargs": None, "gen_kwargs": [], "tracking": [], "csv": [], "docs": [], "excel": [], "notebooks": []}
+    rec = {"filter_kwargs": None, "gen_kwargs": [], "tracking": [], "csv": [], "docs": [], "notebooks": []}
     obj.recorded = rec
     obj.logger = logging.getLogger("v120_smoke")
     obj.session_id = 4242
     obj.business_name = "SmokeCo"
-    obj.generate_choices = ["PDF Catalog", "Excel"]
+    obj.generate_choices = []
     obj.operation_mode = "Discover Use Cases"
     obj.operation = "Discover Use Cases"
     obj.inspire_database = ""
@@ -207,10 +207,9 @@ def _build(ns, tmp_path, mode, acceptable, scorer, user_domains=None):
     obj._generate_csv_catalog = lambda lang, abbr, grouped: rec["csv"].append(grouped)
     obj._tracking_replace_session = lambda ucs: rec["tracking"].append(list(ucs))
     obj._get_salesy_summary = lambda grouped, name, lang, tr: ({}, name)
-    obj._generate_documents_for_all_languages = lambda *a, **kw: rec["docs"].append(a)
+    obj._generate_language_catalogs = lambda *a, **kw: rec["docs"].append(a)
     obj._run_discover_skeleton_phase = lambda ucs, schema: ucs
     obj.assemble_use_case_notebooks = lambda *a, **kw: rec["notebooks"].append(a)
-    obj._generate_use_case_excel = lambda *a, **kw: rec["excel"].append(a)
 
     def save_json(ucs, translations, summary):
         obj.final_inspire_results_json = {"domains": [{"domain_name": "x", "use_cases": list(ucs)}]}
@@ -281,7 +280,7 @@ def test_run_zero_at_high_bar_falls_back_to_medium_tier(agent_ns, tmp_path, quie
     assert final, "no use case met the High bar, so the Medium candidates ship rather than wasting the run"
     assert all(u["elite_status"] == "FALLBACK_BELOW_BAR" and u["fallback_kind"] == "tier"
                and u["fallback_bar"] == "High" for u in final)
-    assert rec["csv"] and rec["docs"] and rec["excel"] and rec["notebooks"]
+    assert rec["csv"] and rec["docs"] and rec["notebooks"]
     outcome = obj.final_inspire_results_json["selection_outcome"]
     assert outcome["fallback"] is True and outcome["fallback_kind"] == "tier" and outcome["accepted"] == 0
     assert "below_bar_kept" in [e["stage"] for e in obj.final_inspire_results_json["funnel_ledger"]]
