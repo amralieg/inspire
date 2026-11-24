@@ -117,8 +117,8 @@ export default function GenieFeed({ feed, arrivals, active, working, scroller })
                   <GenieLogo size={16} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="inline-block max-w-full rounded-2xl rounded-ss-md px-3.5 py-2.5 bg-surface ring-1 ring-inset ring-border shadow-sm">
-                    <div className={`text-[13px] leading-relaxed break-words ${tone} ${still ? '[&>p:last-of-type]:inline' : ''}`}>
+                  <div className="inline-block max-w-full rounded-2xl rounded-ss-md px-3.5 py-2 bg-surface ring-1 ring-inset ring-border shadow-sm">
+                    <div className={`text-[13px] leading-snug break-words ${tone} ${still ? '[&>p:last-of-type]:inline' : ''}`}>
                       <ReactMarkdown allowedElements={FEED_MARKDOWN} unwrapDisallowed components={FEED_COMPONENTS}>{text}</ReactMarkdown>
                       {still && <span className="ms-0.5 inline-block w-1.5 h-3.5 align-[-2px] bg-db-red-fg animate-cursor-blink" aria-hidden />}
                     </div>

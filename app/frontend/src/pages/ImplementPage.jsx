@@ -103,13 +103,12 @@ const GROUP_LOOK = {
   in_progress: { icon: Loader2, tone: 'red', hint: 'Genie is working on these' },
   attention: { icon: AlertTriangle, tone: 'error', hint: 'Failed, or held because a vibe was not met' },
   ready: { icon: CheckCircle2, tone: 'success', hint: 'Built and ready to use' },
-  not_started: { icon: CircleDashed, tone: 'idle', hint: 'Start an MVP with Genie' },
+  not_started: { icon: CircleDashed, tone: 'idle', hint: 'Pick one' },
 };
 
 function PageHeader({ summary, loading, query, onQuery }) {
-  const subtitle = loading
-    ? 'Every use case of this session: what has an MVP or a Genie Code notebook, what is running, and what has not started.'
-    : `Every use case of this session: ${plural(summary.mvps, 'MVP')}, ${plural(summary.notebooks, 'Genie Code notebook')}, ${summary.notStarted} not started yet.`;
+  // REQ-510: the counters below the header already show the MVP, notebook and not-started counts, so the subtitle does not repeat them.
+  const subtitle = 'Every use case of this session.';
   return (
     <UiPageHeader icon={Hammer} title="Build" subtitle={subtitle}
       actions={(
