@@ -60,6 +60,10 @@ test('the run value in the Review header, the value across runs and each run car
   const choose = await openUi('app', { ...REVIEW_STATE }, '', { mount });
   try {
     await choose.page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    await choose.page.locator('[data-run="42"]').waitFor({ timeout: 20000 });
+    // REQ-510 L2: the all-runs value panel opens from the Start More menu.
+    await choose.page.getByRole('button', { name: 'More', exact: true }).click();
+    await choose.page.getByRole('menuitem', { name: 'Value across all runs' }).click();
     const overall = choose.page.locator('[data-value-overall]');
     await overall.waitFor({ timeout: 20000 });
     await overall.locator('[data-value-disclaimer]').waitFor({ timeout: 15000 });
