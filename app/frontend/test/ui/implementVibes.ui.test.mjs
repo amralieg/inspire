@@ -100,10 +100,10 @@ test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step h
     assert.deepEqual((await grayExamples(page, panel)).map((e) => e.value), [''], 'the example is never typed into the box');
 
     await page.getByRole('button', { name: 'Back', exact: true }).click();
-    // REQ-457: Measure is no longer a step; Back from the last step lands on First run in this scope.
-    await onStep(page, 'First run');
+    // REQ-514: the App step is always present, so Back from the last step lands on Where it lives.
+    await onStep(page, 'Where it lives');
     await goToStep(page, 'What to build');
-    for (const name of [/^Dashboard/, /^Agentic App A Databricks/, /^Alert/]) await page.getByRole('checkbox', { name }).check();
+    for (const name of [/^Dashboard/, /^Alert/]) await page.getByRole('checkbox', { name }).check();
     await page.getByText(`Emails ${OWNER} when`, { exact: false }).waitFor();
     await toAppAccess(page);
     await page.getByRole('radio', { name: /^Internal data/ }).check();

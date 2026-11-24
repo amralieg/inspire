@@ -34,7 +34,7 @@ test('1: the first step asks how to build, with Standard pre-selected and recomm
     assert.equal(await page.locator('[data-build-choice="standard"] [data-recommended]').count(), 1, 'the badge sits on Standard');
     assert.match(await page.locator('[data-build-choice="standard"]').innerText(), /Standard MVP build settings/);
     assert.match(await page.locator('[data-build-choice="advanced"]').innerText(), /Advanced MVP build settings/);
-    assert.match(await nextButton(page).getAttribute('class'), /bg-db-red-solid/, 'Next is the red primary button');
+    assert.match(await nextButton(page).getAttribute('class'), /bg-primary-solid/, 'Next is the red primary button');
     await stepsAre(page, STANDARD);
     assert.deepEqual(pageErrors, []);
   } finally {

@@ -92,9 +92,6 @@ test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks
     for (const name of [/^Dashboard/, /^Alert/]) assert.equal(await page.getByRole('checkbox', { name }).isChecked(), false, `${name} starts off but stays a choice`);
     assert.equal(await page.locator('[data-choice="outputs"]').evaluate((g) => [...g.querySelectorAll('[data-recommended]')].filter((b) => b.closest('[data-choice]') === g).length),
       0, 'REQ-514: the App is fixed, so no tile is Recommended');
-    await page.getByRole('checkbox', { name: /^Agentic App A Databricks/ }).uncheck();
-    await stepsAre(page, ['1. How to build', '2. What to deliver', '3. Data & results', '4. First run', '5. Review & build']);
-    await page.getByRole('checkbox', { name: /^Agentic App A Databricks/ }).check();
     await stepsAre(page, withApp);
     await goToStep(page, 'Where it lives');
     await page.getByRole('region', { name: 'App placement' }).waitFor();
@@ -279,9 +276,8 @@ test('a new App that could not get access is disabled up front with the reason, 
   try {
     await toData(page);
     await toDelivery(page);
-    const appBox = page.getByRole('checkbox', { name: /^Agentic App A Databricks/ });
-    await appBox.waitFor();
-    assert.equal(await appBox.isDisabled(), true);
+    await page.locator('[data-output="app"]').waitFor();
+    assert.equal(await page.locator('[data-output="app"] input').count(), 0, 'REQ-514: the blocked App is a fixed card with no checkbox');
     const blocked = page.locator('[data-blocked-reason="app"]');
     assert.equal(await blocked.locator('p').textContent(), 'Needs access Inspire does not have on the catalog, the schema and the SQL warehouse.', 'one short plain line says why, naming the place');
     await blocked.getByText('Details', { exact: true }).click();
@@ -560,7 +556,6 @@ test('an App name another App already uses is changed to the next free name, and
   try {
     await toData(page);
     await toDelivery(page);
-    await page.getByRole('checkbox', { name: /^Agentic App A Databricks/ }).check();
     await goToStep(page, 'App placement');
     await page.getByText("'inspire-hub-acme' is used by another App in this workspace, so Inspire named this App 'inspire-hub-acme-2'.").waitFor();
     assert.equal(await page.getByLabel('App name').inputValue(), 'inspire-hub-acme-2');

@@ -201,9 +201,8 @@ test('an App Inspire cannot afford is dimmed on Deliver with one plain reason an
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await goToStep(page, 'What to deliver');
-    const appBox = page.getByRole('checkbox', { name: /^Agentic App A Databricks/ });
     await page.locator('[data-blocked-reason="app"]').waitFor({ timeout: 15000 });
-    assert.deepEqual([await appBox.isDisabled(), await appBox.isChecked()], [true, false]);
+    assert.equal(await page.locator('[data-output="app"] input').count(), 0, 'REQ-514: the blocked App is a fixed card with no checkbox');
     const blocked = page.locator('[data-blocked-reason="app"]');
     assert.equal((await blocked.locator('p').allTextContents()).length, 1, 'one plain reason');
     await blocked.getByText('Details', { exact: true }).waitFor();
