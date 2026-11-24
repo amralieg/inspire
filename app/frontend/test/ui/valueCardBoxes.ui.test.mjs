@@ -77,6 +77,7 @@ test('1: a calculated card shows two boxes of the same size, the score box solid
     const b = await value.boundingBox();
     assert.ok(Math.abs(a.width - b.width) <= 1 && Math.abs(a.height - b.height) <= 1, `same size: ${a.width}x${a.height} vs ${b.width}x${b.height}`);
     assert.ok(Math.abs(a.y - b.y) <= 1 && b.x > a.x, 'side by side');
+    // REQ-516 (A7, Amr 14:45Z): in the Review row the score box is uncoloured and the value box carries the solid red token.
     const probe = await page.evaluate(() => {
       const el = document.createElement('div');
       el.className = 'bg-db-red-solid';
@@ -86,8 +87,11 @@ test('1: a calculated card shows two boxes of the same size, the score box solid
       return css;
     });
     const got = await score.evaluate((el) => ({ bg: getComputedStyle(el).backgroundColor, fg: getComputedStyle(el).color }));
-    assert.equal(got.bg, probe, 'the score box is the solid red token');
-    assert.equal(got.fg, 'rgb(255, 255, 255)');
+    assert.notEqual(got.bg, probe, 'the score box is not the solid red token');
+    assert.notEqual(got.fg, 'rgb(255, 255, 255)');
+    const vgot = await value.evaluate((el) => ({ bg: getComputedStyle(el).backgroundColor, fg: getComputedStyle(el.querySelector('[data-value-amount]')).color }));
+    assert.equal(vgot.bg, probe, 'the value box is the solid red token');
+    assert.equal(vgot.fg, 'rgb(255, 255, 255)');
     assert.match(await text(score), /INSPIRE\s*7\.4\s*score/i);
     assert.equal((await text(value.locator('[data-value-verb]'))).toUpperCase(), 'REDUCE COST');
     assert.equal(await text(value.locator('[data-value-amount]')), '$2.39M');
@@ -109,11 +113,11 @@ test('2: estimated, out of date, GROW REVENUE, none and no data each read as the
       async (card) => {
         const v = card.locator('[data-value-box]');
         assert.equal((await text(v.locator('[data-value-verb]'))).toUpperCase(), 'GROW REVENUE');
-        const colors = await v.evaluate((el) => ({ border: getComputedStyle(el).borderTopColor, amount: getComputedStyle(el.querySelector('[data-value-amount]')).color }));
-        const [r, g, b] = colors.border.match(/\d+/g).map(Number);
-        assert.ok(g > r && g > b, `green border: ${colors.border}`);
-        const [ar, ag, ab] = colors.amount.match(/\d+/g).map(Number);
-        assert.ok(ag > ar && ag > ab, `green amount: ${colors.amount}`);
+        // REQ-516 (A7): every value box in the row is filled with the primary token and the figure is white, GROW REVENUE included.
+        const colors = await v.evaluate((el) => ({ bg: getComputedStyle(el).backgroundColor, amount: getComputedStyle(el.querySelector('[data-value-amount]')).color }));
+        assert.equal(colors.amount, 'rgb(255, 255, 255)', `white amount: ${colors.amount}`);
+        const [r, g, b] = colors.bg.match(/\d+/g).map(Number);
+        assert.ok(r > g && r > b, `red fill: ${colors.bg}`);
       }],
     ['none', { answers: {}, totals: withTotals('N01-U01', useCaseEntry('none')) },
       async (card) => {

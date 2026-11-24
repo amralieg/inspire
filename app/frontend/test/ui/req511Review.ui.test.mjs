@@ -86,9 +86,10 @@ test('2: A6 column order: name, Build MVP, Generate docs, score box, value box o
     const docs = await box(r.getByRole('button', { name: /^Generate docs$/ }));
     const score = await box(r.locator('[data-score-box]'));
     const value = await box(r.locator('[data-value-box]'));
+    // REQ-516 (A7, Amr 14:45Z): Generate docs sits under Build MVP in one column, not beside it.
     assert.ok(name.x + name.width <= build.x, 'Build MVP is right of the name');
-    assert.ok(build.x + build.width <= docs.x, 'Generate docs is right of Build MVP');
-    assert.ok(docs.x + docs.width <= score.x, 'the score box is right of Generate docs');
+    assert.ok(build.y + build.height <= docs.y + 1 && Math.abs(build.x - docs.x) <= 2, 'Generate docs is under Build MVP');
+    assert.ok(Math.max(build.x + build.width, docs.x + docs.width) <= score.x, 'the score box is right of Build MVP and Generate docs');
     assert.ok(score.x + score.width <= value.x, 'the value box is right of the score box');
     const mid = (b) => b.y + b.height / 2;
     for (const [label, b] of [['Build MVP', build], ['Generate docs', docs], ['value box', value]]) {

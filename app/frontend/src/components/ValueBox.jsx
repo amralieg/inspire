@@ -9,6 +9,9 @@ import { ValueCheckNote } from './ValueCheckNote.jsx';
 const stop = (e) => e.stopPropagation();
 export const BOX = 'relative flex h-[6.25rem] w-[8.5rem] shrink-0 flex-col items-center justify-center rounded-xl border-2 text-center leading-tight';
 
+// REQ-516: the Review row's compact box, the same size for the score and the value.
+export const ROW_BOX = 'relative flex h-[5.25rem] w-[7.5rem] shrink-0 flex-col items-center justify-center rounded-xl border-2 text-center leading-tight';
+
 // REQ-432: an amount carries three significant digits at most ($405,556 reads $406K).
 export const moneyText = (unit, amount) => valueChips([{ kind: 'money', unit: unit || 'USD', amount: threeDigits(Number(amount)) }]).shown[0]?.text || '';
 
@@ -65,6 +68,7 @@ const TAGS = {
 // inset (REQ-511 A6 row): the edit pencil and the status pill sit inside the box, so nothing leaves it and the row keeps its height.
 export default function ValueBox({ yearly = null, summary = null, status = '', canCalculate = false, onCalculate, onEdit, readOnly = false, inset = false }) {
   const m = boxModel({ yearly, summary, status });
+  const SZ = inset ? ROW_BOX : BOX;
   const amount = useCountUp(m.amount ?? 0);
   const last = useRef(m.amount);
   const [pulse, setPulse] = useState(false);
@@ -74,16 +78,16 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
     return undefined;
   }, [m.amount]);
   if (m.state === 'no_data') {
-    return <div data-value-box="" data-value-box-state="no_data" className={`${BOX} border-border bg-bg-subtle text-text-tertiary`}><span className="px-2 text-[11px]">No data to count</span></div>;
+    return <div data-value-box="" data-value-box-state="no_data" className={`${SZ} border-border bg-bg-subtle text-text-tertiary`}><span className="px-2 text-[11px]">No data to count</span></div>;
   }
   if (m.state === 'not_estimated') {
     const why = m.reason || 'This use case has no estimate of its own yet.';
     if (!canCalculate || readOnly) {
-      return <div data-value-box="" data-value-box-state="not_estimated" title={why} className={`${BOX} border-border bg-bg-subtle text-text-secondary`}><span className="px-2 text-[11px]">Not estimated</span></div>;
+      return <div data-value-box="" data-value-box-state="not_estimated" title={why} className={`${SZ} border-border bg-bg-subtle text-text-secondary`}><span className="px-2 text-[11px]">Not estimated</span></div>;
     }
     return (
       <button type="button" data-value-box="" data-value-box-state="not_estimated" data-value-calculate="" title={why} onClick={(e) => { e.stopPropagation(); onCalculate?.(); }} onKeyDown={stop}
-        className={`${BOX} cursor-pointer border-dashed border-warning/60 bg-surface hover:bg-warning-bg`}>
+        className={`${SZ} cursor-pointer border-dashed border-warning/60 bg-surface hover:bg-warning-bg`}>
         <span className="text-[11px] font-semibold text-text-primary">Not estimated</span>
         <span className="text-[11px] font-semibold text-db-red-fg">Calculate again</span>
       </button>
@@ -93,7 +97,7 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
     if (!canCalculate || readOnly) return null;
     return (
       <button type="button" data-value-box="" data-value-box-state="none" data-value-calculate="" onClick={(e) => { e.stopPropagation(); onCalculate?.(); }} onKeyDown={stop}
-        className={`${BOX} cursor-pointer border-dashed border-db-red/40 bg-surface hover:bg-db-red-50`}>
+        className={`${SZ} cursor-pointer border-dashed border-db-red/40 bg-surface hover:bg-db-red-50`}>
         <span className="text-[22px] leading-none text-db-red-fg">+</span>
         <span className="text-[11px] font-semibold text-db-red-fg">Calculate value</span>
         <span className="text-[10px] text-text-secondary">at stake</span>
@@ -101,30 +105,32 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
     );
   }
   const grow = /GROW/i.test(m.verb || '');
-  const edge = grow ? 'border-success' : 'border-db-red-solid';
-  const amt = grow ? 'text-success-fg' : 'text-db-red-fg';
+  // REQ-516: in the Review row the box is filled with the primary token and the figure is white (dark mode keeps the light red so white stays above 4.5:1).
+  const fill = inset ? 'border-db-red-solid bg-db-red-solid text-white dark:border-[#D42A15] dark:bg-[#D42A15]' : `${grow ? 'border-success' : 'border-db-red-solid'} bg-surface`;
+  const amt = inset ? 'text-white' : grow ? 'text-success-fg' : 'text-db-red-fg';
+  const sub = inset ? 'text-white' : 'text-text-secondary';
   const [tag, tagCls] = TAGS[m.state];
   const text = moneyText(m.unit, amount);
   const note = <ValueCheckNote check={yearly?.check} notCounted={!m.calculated && m.state !== 'measured'} />;
   const box = (
     <div data-value-box="" data-value-box-state={m.state} data-value-yearly="" title={VALUE_DISCLAIMER} onClick={stop} onKeyDown={stop}
-      className={`${BOX} ${edge} bg-surface ${pulse ? 'animate-pulse' : ''}`}>
-      <span data-value-verb="" className="text-[11px] tracking-wide text-text-primary">{m.verb}</span>
-      <span data-value-amount="" className={`text-[22px] font-extrabold tabular-nums ${amt}`}>{text}</span>
-      <span data-value-qualifier="" className="text-[10px] text-text-secondary">{m.state === 'measured' ? '(measured)' : statusLabel(m.calculated)}</span>
-      <span data-value-period="" className="text-[10px] text-text-secondary">Per year</span>
+      className={`${SZ} ${fill} ${inset ? 'pb-3' : ''} ${pulse ? 'animate-pulse' : ''}`}>
+      <span data-value-verb="" className={`${inset ? 'whitespace-nowrap text-[8.5px] font-semibold uppercase tracking-normal' : 'text-[11px] tracking-wide'} ${inset ? '' : 'text-text-primary'}`}>{m.verb}</span>
+      <span data-value-amount="" className={`${inset ? 'text-[20px] leading-6' : 'text-[22px]'} font-extrabold tabular-nums ${amt}`}>{text}</span>
+      <span data-value-qualifier="" className={inset ? 'sr-only' : 'text-[10px] text-text-secondary'}>{m.state === 'measured' ? '(measured)' : statusLabel(m.calculated)}</span>
+      <span data-value-period="" className={`text-[10px] ${sub}`}>Per year</span>
       {!readOnly && onEdit && m.state !== 'measured' && (
         <button type="button" data-value-edit="" aria-label="Edit value" title="Edit value" onClick={(e) => { e.stopPropagation(); onEdit(); }}
-          className={`absolute ${inset ? 'end-0.5 bottom-1 h-[20px] w-[20px]' : '-end-2.5 -top-2.5 h-[26px] w-[26px]'} flex items-center justify-center rounded-full border border-border bg-surface text-text-secondary shadow hover:border-db-red-solid hover:text-db-red-fg`}>
-          <Pencil size={13} />
+          className={`absolute ${inset ? 'end-0.5 top-0.5 h-[16px] w-[16px]' : '-end-2.5 -top-2.5 h-[26px] w-[26px]'} flex items-center justify-center rounded-full border border-border bg-surface text-text-secondary shadow hover:border-db-red-solid hover:text-db-red-fg`}>
+          <Pencil size={inset ? 9 : 13} />
         </button>
       )}
-      <span data-value-tag="" className={`${inset ? 'mt-0.5' : 'absolute -bottom-2.5'} rounded-full border px-2 py-px text-[9px] font-bold tracking-wide ${tagCls}`}>{tag}</span>
+      <span data-value-tag="" className={`absolute ${inset ? 'bottom-1' : '-bottom-2.5'} rounded-full border px-2 py-px text-[9px] font-bold tracking-wide ${tagCls}`}>{tag}</span>
     </div>
   );
   // FX-38b (W16 D25): the note sits under the box, past the pill that overhangs its bottom edge, so it never covers the pill or leaves the box.
   if (!yearly?.check?.outside) return box;
   // REQ-511: in the row the pill sits inside the box, so the note goes one small gap below it and the row keeps the warning.
-  if (inset) return <div className="flex flex-col items-center gap-1">{box}{note}</div>;
+  if (inset) return <div className="flex flex-col items-center gap-3">{box}{note}</div>;
   return <div className="flex w-[8.5rem] shrink-0 flex-col items-center gap-3.5">{box}{note}</div>;
 }
