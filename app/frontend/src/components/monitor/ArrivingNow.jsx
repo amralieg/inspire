@@ -34,7 +34,7 @@ export default function ArrivingNow({ useCases, live, empty }) {
             <button key={name} type="button" data-domain-chip="" aria-pressed={active === name} onClick={() => setDomain(active === name ? '' : name)}
               className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-smooth ${
                 active === name ? 'border-text-primary bg-text-primary text-surface' : 'border-border text-text-secondary hover:bg-bg-subtle'}`}>
-              {name}<span className="tabular-nums opacity-70">{n}</span>
+              {name}<span className="tabular-nums font-normal">{n}</span>
             </button>
           ))}
         </div>

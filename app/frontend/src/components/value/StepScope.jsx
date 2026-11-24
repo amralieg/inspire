@@ -1,5 +1,6 @@
 // REQ-507 L4: the Data step. Page scope:facts shows the records found and the date column; scope:choice offers All data, Last 12 months or
 // My own filter. No money here.
+import { PlainMessage } from '../TechnicalDetails';
 import { useState } from 'react';
 import { SCOPE_ROUTE, choiceDates, factsLine, scopeChoices, scopeOfChoice } from '../../lib/valueScope.js';
 
@@ -26,7 +27,7 @@ export default function StepScope({ page, facts, scope, onScope, onFacts, post, 
             </select>
           </label>
         )}
-        {error && <p role="alert" className="text-[12px] text-error-fg">{error}</p>}
+        {error && <PlainMessage text={error} role="alert" className="text-[12px] text-error-fg" />}
       </div>
     );
   }

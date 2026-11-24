@@ -69,7 +69,7 @@ export default function MoreMenu({ label = 'More', items = [] }) {
             <button key={item.label} type="button" role="menuitem" tabIndex={-1}
               aria-disabled={item.disabled ? 'true' : undefined}
               onClick={() => pick(item)}
-              className={`block w-full px-3 py-1.5 text-start text-sm hover:bg-bg-subtle focus:bg-bg-subtle focus:outline-none ${item.danger ? 'text-error-fg' : 'text-text-primary'} ${item.disabled ? 'cursor-not-allowed opacity-50' : ''}`}>
+              className={`block w-full px-3 py-1.5 text-start text-sm hover:bg-bg-subtle focus:bg-bg-subtle focus:outline-none ${item.disabled ? 'cursor-not-allowed text-text-disabled' : item.danger ? 'text-error-fg' : 'text-text-primary'}`}>
               {item.label}
             </button>
           ))}

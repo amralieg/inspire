@@ -1,5 +1,6 @@
 // REQ-507 L4: the Filter step. A plain-English phrase (5 examples) is checked by the server, which echoes what it understood, the SQL and one
 // chip per predicate. A chip edit is structure: it re-posts {filters, window} with no phrase. With the model down a structured builder shows.
+import { PlainMessage } from '../TechnicalDetails';
 import { useState } from 'react';
 import { FILTER_EXAMPLES, FILTER_ROUTE, predicateText, unmatchedLine, withoutPredicate } from '../../lib/valueScope.js';
 
@@ -49,7 +50,7 @@ export default function StepFilter({ facts, scope, onScope, post }) {
         <textarea rows={2} value={phrase} dir="auto" onChange={(e) => setPhrase(e.target.value)} className="rounded-md border border-border bg-surface px-2 py-1 text-sm text-text-primary" />
       </label>
       <button type="button" className={btn} disabled={busy || !phrase.trim()} onClick={check}>Check filter</button>
-      {error && <p role="alert" className="text-[12px] text-error-fg">{error}</p>}
+      {error && <PlainMessage text={error} role="alert" className="text-[12px] text-error-fg" />}
       {reply?.echo && <p data-filter-echo="" dir="auto" className="rounded-md border border-border bg-bg-subtle px-3 py-2 text-sm">{reply.echo}</p>}
       {unmatched.length > 0 && (
         <ul data-filter-unmatched="" className="space-y-1 text-[12px] text-warning-fg">{unmatched.map((u, i) => <li key={i} dir="auto">{unmatchedLine(u)}</li>)}</ul>

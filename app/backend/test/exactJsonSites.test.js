@@ -59,6 +59,8 @@ const BROWSER_ALLOWED = [
   ['lib/artifactFiles.js', 'JSON.parse(text);', 'a JSON file read only to check it is valid JSON; the preview prints the file\'s own text, so every id reads as the file holds it'],
   ['lib/useCaseArchive.js', 'JSON.parse(storage.getItem(ARCHIVE_STORAGE_KEY)', 'the use cases this browser archived itself, keyed by text (run id and use case id), so no id passes through a number'],
   ['lib/wizardDraft.js', "JSON.parse(raw || 'null')", 'the wizard draft this browser stored itself from the spec it holds, so every id in it reads back as the wizard wrote it'],
+  ['lib/generateDocs.js', "JSON.parse(sessionStorage.getItem(key)", 'the paths of the documents this browser just saved, kept by this browser itself as text in sessionStorage (REQ-511), so no id passes through a number'],
+  ['components/results/ResultsAssets.jsx', "JSON.parse(window.sessionStorage.getItem(newDocsKey(sessionId))", 'the same saved document paths, read back as text from this browser\'s sessionStorage (REQ-511), so no id passes through a number'],
   ['lib/permissionBus.js', 'JSON.parse(storage.getItem(SHOWN_KEY)', 'the GRANT statements the Permission Required dialog showed in this tab (text, keyed by statement; lines 21 and 31), so no id passes through a number'],
 ];
 

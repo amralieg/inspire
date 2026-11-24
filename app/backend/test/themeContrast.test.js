@@ -18,7 +18,7 @@ function blocks(selector) {
 
 function themeVars() {
   const root = blocks(':root');
-  return { light: root, dark: { ...root, ...blocks('.dark') }, theme: blocks('@theme') };
+  return { light: root, dark: { ...root, ...blocks('.dark') }, theme: blocks('@theme static') };
 }
 
 function rgba(value) {
@@ -54,7 +54,7 @@ function surfaces(t) {
 }
 
 const TEXT = ['t-text-primary', 't-text-secondary', 't-text-tertiary'];
-const STATUS = { 't-success-fg': 't-success-bg', 't-warning-fg': 't-warning-bg', 't-error-fg': 't-error-bg', 't-info-fg': 't-info-bg' };
+const STATUS = { 't-success-fg': 't-success-bg', 't-warning-fg': 't-warning-bg', 't-danger-fg': 't-danger-bg', 't-info-fg': 't-info-bg' };
 
 test('every text color reads at 4.5:1 or better on every surface and on its own status tint, in light and dark', () => {
   const { light, dark, theme } = themeVars();
@@ -89,7 +89,8 @@ test('primary, secondary and tertiary text stay in that order of strength in bot
 
 test('the status text colors switch with the theme through their own tokens', () => {
   const { theme } = themeVars();
-  for (const name of ['success-fg', 'warning-fg', 'error-fg', 'info-fg', 'db-red-fg']) assert.equal(theme[`color-${name}`], `var(--t-${name})`);
+  for (const name of ['success-fg', 'warning-fg', 'danger-fg', 'info-fg', 'db-red-fg']) assert.equal(theme[`color-${name}`], `var(--t-${name})`);
+  assert.equal(theme['color-error-fg'], 'var(--color-danger-fg)'); // REQ-508: error-fg is the alias of danger-fg
 });
 
 function sourceLines(match) {
@@ -134,13 +135,13 @@ const BRIGHT_FILL = /\b(bg|from|via|to)-(db-red|db-red-hover|error|success|warni
 
 test('white button text reads at 4.5:1 or better on the solid fills and on their hover', () => {
   const { theme } = themeVars();
-  const solid = contrast(WHITE, rgba(theme['color-db-red-solid']));
-  const hover = contrast(WHITE, rgba(theme['color-db-red-solid-hover']));
+  const solid = contrast(WHITE, rgba(theme['color-primary-solid']));
+  const hover = contrast(WHITE, rgba(theme['color-primary-solid-hover']));
   const danger = contrast(WHITE, rgba(theme['color-error-solid']));
   assert.ok(solid >= 4.5, `white on --color-db-red-solid: ${solid.toFixed(2)}`);
   assert.ok(hover >= solid, `hover ${hover.toFixed(2)} is at least as strong as rest ${solid.toFixed(2)}`);
   assert.ok(danger >= 4.5, `white on --color-error-solid: ${danger.toFixed(2)}`);
-  for (const bright of ['color-db-red', 'color-error']) assert.ok(contrast(WHITE, rgba(theme[bright])) < 4.5, `--${bright} stays for fills, borders and tints only`);
+  for (const bright of ['color-danger']) assert.ok(contrast(WHITE, rgba(theme[bright])) < 4.5, `--${bright} stays for fills, borders and tints only (REQ-508: db-red is an alias of the solid primary)`);
 });
 
 test('white text never sits on a bright fill; filled buttons use a solid token', () => {

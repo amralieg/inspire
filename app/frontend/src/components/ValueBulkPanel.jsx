@@ -15,7 +15,7 @@ const LABELS = { waiting: 'Waiting', working: 'Working', stopped: 'Stopped' };
 export function ValueBulkBar({ shown, selected, onSelectAll, onClear, onCalculate, onGenerate = null, onBuild = null, busy = false }) {
   if (selected < 1) return null;
   const all = shown > 0 && selected === shown;
-  const ghost = 'rounded-md px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10 hover:text-white';
+  const ghost = 'rounded-md px-3 py-1.5 text-xs font-medium text-white hover:bg-white/10 hover:text-white';
   const action = 'rounded-md border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20';
   return (
     <div role="toolbar" aria-label="Actions for the selected use cases" data-value-bulk-bar="" className="sticky top-0 z-10 mb-2 flex flex-wrap items-center gap-2 rounded-xl bg-black py-2 pe-2 ps-4 text-xs text-white shadow-lg">

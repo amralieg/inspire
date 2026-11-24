@@ -33,12 +33,12 @@ function notebookPhaseMap() {
   return map;
 }
 
-test('RUN_PHASES is the 7-step model: six sequential columns, then Build Genie instructions and Write documents side by side in column 7', async () => {
+test('RUN_PHASES is the 7-step model: six sequential columns, then Build Genie Code instructions and Write documents side by side in column 7', async () => {
   const { RUN_PHASES } = await load();
   assert.deepEqual(RUN_PHASES.map((p) => p.key), KEYS);
   assert.deepEqual(RUN_PHASES.map((p) => p.column), [1, 2, 3, 4, 5, 6, 7, 7]);
   assert.deepEqual(RUN_PHASES.map((p) => p.label), ['Setup', 'Understand the business', 'Read the data', 'Write use cases', 'Group into domains',
-    'Score and rank', 'Build Genie instructions', 'Write documents']);
+    'Score and rank', 'Build Genie Code instructions', 'Write documents']);
 });
 
 test('drift guard: phaseOfStage agrees with the agent notebook for every stage it names, plus "Generate *" and the pseudo-stages', async () => {
@@ -57,7 +57,7 @@ test('a run where every phase ended well shows eight done steps', async () => {
   assert.deepEqual(new Set(out.map((p) => p.state)), new Set(['done']));
 });
 
-test('Amr: skipped phases show as skipped, never done: a from-json run (Setup, then the documents) skips 2-6 and Build Genie instructions', async () => {
+test('Amr: skipped phases show as skipped, never done: a from-json run (Setup, then the documents) skips 2-6 and Build Genie Code instructions', async () => {
   const { runPhasesOf } = await load();
   const out = states(runPhasesOf([row('Setup', 'ended_success'), row('Executive Readout', 'ended_success'), row('Localization', 'ended_success')], { ended: true }));
   assert.deepEqual(out, { setup: 'done', context: 'skipped', tables: 'skipped', generation: 'skipped', domains: 'skipped', prioritization: 'skipped',

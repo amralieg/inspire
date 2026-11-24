@@ -10,13 +10,13 @@ import { resolveTheme } from '../lib/docgen/docStyles.js';
 import { generateDocs, markNewDocs } from '../lib/generateDocs.js';
 import { trackingIdOf } from '../lib/useCaseFields.js';
 
-const TITLES = { documents: 'Documents', layout: 'Layout and language', include: 'What to include', style: 'Style and colour', columns: 'Excel columns', review: 'Review' };
+const TITLES = { documents: 'Documents', layout: 'Layout and language', include: 'What to include', style: 'Style and color', columns: 'Excel columns', review: 'Review' };
 const SUBTITLES = {
   documents: 'Which documents do you want?', layout: 'One file or one per use case, and in which languages.', include: 'Pick what each use case shows.',
   style: 'Pick a look. The picture on the right is your real infographic.', columns: 'Pick the columns of the Excel sheet.', review: 'These files will be made and saved to Assets.',
 };
 const btn = 'inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle disabled:opacity-50';
-const primary = 'inline-flex items-center gap-1.5 rounded-md bg-linear-to-r from-primary-solid to-db-red px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-50';
+const primary = 'inline-flex items-center gap-1.5 rounded-md bg-linear-to-r from-primary-solid to-primary-solid-hover px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-50';
 
 // REQ-503: the Generate docs wizard. Pages: documents, layout, include, style, columns (Excel only), review; then the files are made and saved.
 export default function GenerateDocsDialog({ useCases, values, businessName, language, folder, apiPostJson, inspireDatabase, warehouseId, sessionId, onSaved, onGoToAssets, onClose }) {

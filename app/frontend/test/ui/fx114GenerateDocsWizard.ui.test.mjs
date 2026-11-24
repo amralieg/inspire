@@ -1,6 +1,6 @@
 // FX-114 (REQ-503): "✦ Generate docs" sits beside "Calculate value for N" when one or more use cases are selected, and is hidden when none is.
 // It opens a multi-page wizard (approved wireframe v2: "do not stuff too many things in one page, split into pages inside the wizard"):
-// Documents, Layout and language, What to include, Style and colour (live SVG preview), Excel columns (only when Excel is chosen), Review and
+// Documents, Layout and language, What to include, Style and color (live SVG preview), Excel columns (only when Excel is chosen), Review and
 // generate. Files are made in the browser (runtime A) and saved through POST /api/inspire/docs/save (FX-115, mocked here), one per planned
 // file, then "N files ready" and Go to Assets. A second language is translated through POST /api/inspire/docs/translate (FX-115, mocked).
 import test from 'node:test';
@@ -118,7 +118,7 @@ test('W2: the wizard is split into pages: one section per page, an Excel columns
   }
 });
 
-test('W3: layout and language, the content blocks, eight styles with palettes and a brand colour, and a live SVG preview redrawn on each click', async () => {
+test('W3: layout and language, the content blocks, eight styles with palettes and a brand color, and a live SVG preview redrawn on each click', async () => {
   const ui = await openResults(backend().mount);
   const { page } = ui;
   try {
@@ -137,7 +137,7 @@ test('W3: layout and language, the content blocks, eight styles with palettes an
     assert.equal(await currentPage(dialog), 'style');
     assert.equal(await dialog.locator('[data-doc-style]').count(), DOC_STYLES.length);
     assert.ok((await dialog.locator('[data-doc-palette]').count()) >= 4);
-    assert.equal(await dialog.locator('input[aria-label="Brand colour"]').count(), 1);
+    assert.equal(await dialog.locator('input[aria-label="Brand color"]').count(), 1);
     const preview = dialog.locator('[data-docs-preview] svg');
     await preview.waitFor();
     const before = await preview.evaluate((el) => el.outerHTML);
@@ -146,8 +146,8 @@ test('W3: layout and language, the content blocks, eight styles with palettes an
     assert.ok(await on(dialog.locator('[data-doc-style="executive"]')));
     await poll(async () => (await preview.evaluate((el) => el.outerHTML)) !== before, 'the preview redraws on a style click', 5000);
     const afterStyle = await preview.evaluate((el) => el.outerHTML);
-    await dialog.locator('input[aria-label="Brand colour"]').fill('#123ABC');
-    await poll(async () => (await preview.evaluate((el) => el.outerHTML)).toLowerCase().includes('#123abc'), 'a brand colour leads the preview', 5000);
+    await dialog.locator('input[aria-label="Brand color"]').fill('#123ABC');
+    await poll(async () => (await preview.evaluate((el) => el.outerHTML)).toLowerCase().includes('#123abc'), 'a brand color leads the preview', 5000);
     assert.notEqual(await preview.evaluate((el) => el.outerHTML), afterStyle);
     await next(dialog);
     assert.equal(await currentPage(dialog), 'columns');
