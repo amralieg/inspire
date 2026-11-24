@@ -65,6 +65,22 @@ function grantedCatalogList(personList, granted) {
   return catalogs;
 }
 
+// SEC-01 (W4): the picker's table rows. `readable(token, name)` is a LIMIT 0 read (tableProbeStatement). The person is probed on every listed
+// table and the principal on the tables the person can read; a row is pickable when both can read it. Otherwise `request` says who must ask:
+// 'person' (the person cannot read it) or 'inspire' (the principal cannot). Past `cap` tables the rows carry no verdict (nothing is hidden).
+const PICKER_PROBE_CAP = 100;
+async function pickableRows(rows, { readable, personToken, spToken, cap = PICKER_PROBE_CAP }) {
+  if (!personToken) return rows;
+  const checked = rows.slice(0, cap);
+  const byName = new Map();
+  await Promise.all(checked.map(async (row) => {
+    const person = await readable(personToken, row.full_name);
+    const sp = person && spToken ? await readable(spToken, row.full_name) : person;
+    byName.set(row.full_name, person ? (sp ? { pickable: true } : { pickable: false, request: 'inspire' }) : { pickable: false, request: 'person' });
+  }));
+  return rows.map((row) => ({ ...row, ...(byName.get(row.full_name) || {}) }));
+}
+
 // The permission entry for the partial catalogs, one dialog payload.
 function partialPermission(catalogs, principal) {
   const statements = catalogs.flatMap((c) => (c.partial ? c.partial.missing : []));
@@ -79,4 +95,4 @@ function droppedCatalogs(scopeCatalogs, granted) {
   return [...new Set(scopeCatalogs.filter((name) => !granted.names.has(key(name))))];
 }
 
-module.exports = { spGrantedCatalogs, grantedCatalogList, partialPermission, droppedCatalogs };
+module.exports = { spGrantedCatalogs, grantedCatalogList, partialPermission, droppedCatalogs, pickableRows };

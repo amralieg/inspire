@@ -65,7 +65,7 @@ const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../fronte
 const { isInspireOwnName, isInspireOwnSchema } = require('../frontend/src/lib/inspireOwnObjects.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
 const { appReadPermissions, sampleCopyPermission, permissionRequired, readStatementsFor } = require('./lib/permissions');
-const { spGrantedCatalogs, grantedCatalogList, partialPermission, droppedCatalogs } = require('./lib/spCatalogs');
+const { spGrantedCatalogs, grantedCatalogList, partialPermission, droppedCatalogs, pickableRows } = require('./lib/spCatalogs');
 const { planModelAccess, selfCheckRecord, MODEL_CHECK_ROUTE } = require('./lib/modelAccess');
 const PM_ERROR = require('./lib/permissionError');
 const { apiRefusalText, logApiBody } = require('./lib/apiRefusal');
@@ -1907,7 +1907,9 @@ app.get('/api/catalogs/:catalog/schemas', requireToken, async (req, res) => {
 app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
   try {
     const { catalog, schema } = req.params;
-    const token = req.dbToken;
+    // SEC-01 (W4): the person's own sign-in lists the tables, so the person sees only what they can see.
+    const personToken = personTokenOf(req);
+    const token = personToken || req.dbToken;
     const warehouseId = String(req.query.warehouse_id || '').trim();
     let raw = [];
     let restCut = false;
@@ -1955,7 +1957,20 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
       }
     }
     // Inspire's own tables and views are not the person's data (REQ-387): the one rule, inspireOwnObjects.js.
-    const tables = [...byKey.values()].filter((t) => !isInspireOwnName(t.full_name)).sort((a, b) => a.full_name.localeCompare(b.full_name));
+    let tables = [...byKey.values()].filter((t) => !isInspireOwnName(t.full_name)).sort((a, b) => a.full_name.localeCompare(b.full_name));
+    const probeWarehouse = warehouseId || DEFAULT_WAREHOUSE_ID;
+    if (personToken && probeWarehouse && tables.length) {
+      const spToken = await appOwnToken().catch(() => '');
+      tables = await pickableRows(tables, { personToken, spToken, readable: async (tok, name) => {
+        try {
+          const probe = tableProbeStatement(name);
+          await executeSql(req.dbHost, tok, probeWarehouse, probe.sql, probe.parameters);
+          return true;
+        } catch (err) {
+          return tableAccessReason(name, err && err.message) !== 'no read access';
+        }
+      } });
+    }
     console.log(`   📋 tables ${catalog}.${schema}: REST=${raw.length} merged=${tables.length}`);
     if (raw.length === 0 && tables.length === 0 && restErr) {
       return PM_ERROR.sendFailure(res, restStatus, restErr);
