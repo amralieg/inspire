@@ -7,8 +7,8 @@ const APP = '11111111-2222-3333-4444-555555555555';
 
 test('a permission carries its statements once, its principal and its reason, and an empty list is no permission', () => {
   const p = PM.permissionRequired({ statements: ['GRANT SELECT ON TABLE `a`.`b`.`c` TO `x`', ' GRANT SELECT ON TABLE `a`.`b`.`c` TO `x` ', ''], principal: 'the App', why: 'Discover reads it' });
-  // REQ-408: the table read is asked at schema level, once.
-  assert.deepEqual(p, { statements: ['GRANT SELECT ON SCHEMA `a`.`b` TO `x`'], instructions: [], steps: [], principal: 'the App', why: 'Discover reads it' });
+  // SEC-01 (W3): the table read stays table-level, once.
+  assert.deepEqual(p, { statements: ['GRANT SELECT ON TABLE `a`.`b`.`c` TO `x`'], instructions: [], steps: [], principal: 'the App', why: 'Discover reads it' });
   assert.equal(PM.permissionRequired({ statements: [], principal: 'x' }), null);
   assert.equal(PM.permissionRequired({}), null);
 });
@@ -23,8 +23,8 @@ test('a table the App cannot read yields its source needs, READ METADATA include
   assert.deepEqual(permission.statements, [
     `GRANT USE CATALOG ON CATALOG \`main\` TO \`${APP}\``,
     `GRANT USE SCHEMA ON SCHEMA \`main\`.\`sales\` TO \`${APP}\``,
-    `GRANT SELECT ON SCHEMA \`main\`.\`sales\` TO \`${APP}\``,
-    `GRANT READ METADATA ON SCHEMA \`main\`.\`sales\` TO \`${APP}\``,
+    `GRANT SELECT ON TABLE \`main\`.\`sales\`.\`orders\` TO \`${APP}\``,
+    `GRANT READ METADATA ON TABLE \`main\`.\`sales\`.\`orders\` TO \`${APP}\``,
   ]);
   assert.match(permission.why, /Discover reads main\.sales\.orders as the App, and the App cannot read it yet/);
 });
@@ -33,7 +33,7 @@ test('an App that cannot read a table the person can grants nothing itself: the 
   const offer = { tables: [{ table: 'main.sales.orders' }], app: { name: 'inspire-app', id: APP },
     grants: [`GRANT SELECT ON TABLE \`main\`.\`sales\`.\`orders\` TO \`${APP}\``], can_grant: false };
   const got = PM.appReadPermissions({ app_unreadable: offer, missing: [] }, APP);
-  assert.deepEqual(got.permissions.map((p) => p.statements), [[`GRANT SELECT ON SCHEMA \`main\`.\`sales\` TO \`${APP}\``]]);
+  assert.deepEqual(got.permissions.map((p) => p.statements), [[`GRANT SELECT ON TABLE \`main\`.\`sales\`.\`orders\` TO \`${APP}\``]]);
   assert.equal(got.permissions[0].principal, 'inspire-app');
   assert.deepEqual(got.warnings, []);
 });
@@ -69,7 +69,7 @@ test('the App read grant offered as a permission carries the grants its plan lac
   const offer = { tables: [{ table: 'main.s.orders' }], app: { name: 'inspire-app', id: APP },
     grants: [`GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders\` TO \`${APP}\``], can_grant: false };
   const [permission] = PM.appReadPermissions({ app_unreadable: offer, missing: [] }, APP).permissions;
-  assert.deepEqual(permission.statements, [`GRANT SELECT ON SCHEMA \`main\`.\`s\` TO \`${APP}\``]);
+  assert.deepEqual(permission.statements, [`GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders\` TO \`${APP}\``]);
   assert.equal(permission.principal, 'inspire-app');
 });
 
@@ -78,7 +78,7 @@ test('a sample copy the person cannot read asks for USE CATALOG, USE SCHEMA and 
   assert.deepEqual(p.statements, [
     'GRANT USE CATALOG ON CATALOG `samples` TO `pat@example.com`',
     'GRANT USE SCHEMA ON SCHEMA `samples`.`nyctaxi` TO `pat@example.com`',
-    'GRANT SELECT ON SCHEMA `samples`.`nyctaxi` TO `pat@example.com`',
+    'GRANT SELECT ON TABLE `samples`.`nyctaxi`.`trips` TO `pat@example.com`',
   ]);
   assert.equal(p.principal, 'pat@example.com');
   assert.match(p.why, /Copying samples\.nyctaxi\.trips reads them as the App/);
@@ -118,22 +118,17 @@ test('the output refusal body carries the folder permission for the dialog', () 
 });
 
 // REQ-408: the dialog payload is coarse at the choke point (permissionRequired), so every builder inherits it.
-test('REQ-408: ten tables in one schema give one SELECT on the schema, with USE CATALOG and USE SCHEMA once each', () => {
+test('SEC-01 (W3): ten tables in one schema stay ten table-level SELECTs, with USE CATALOG and USE SCHEMA once each', () => {
   const tables = Array.from({ length: 10 }, (_, i) => `GRANT SELECT ON TABLE \`main\`.\`s\`.\`t${i}\` TO \`${APP}\``);
-  const p = PM.permissionRequired({ statements: [`GRANT USE CATALOG ON CATALOG \`main\` TO \`${APP}\``, `GRANT USE SCHEMA ON SCHEMA \`main\`.\`s\` TO \`${APP}\``, ...tables], principal: APP });
-  assert.deepEqual(p.statements, [
-    `GRANT USE CATALOG ON CATALOG \`main\` TO \`${APP}\``,
-    `GRANT USE SCHEMA ON SCHEMA \`main\`.\`s\` TO \`${APP}\``,
-    `GRANT SELECT ON SCHEMA \`main\`.\`s\` TO \`${APP}\``,
-  ]);
+  const head = [`GRANT USE CATALOG ON CATALOG \`main\` TO \`${APP}\``, `GRANT USE SCHEMA ON SCHEMA \`main\`.\`s\` TO \`${APP}\``];
+  const p = PM.permissionRequired({ statements: [...head, ...tables], principal: APP });
+  assert.deepEqual(p.statements, [...head, ...tables]);
 });
 
-test('REQ-408: a whole-catalog pick asks at catalog level and drops the schema lines under it', () => {
+test('SEC-01 (W3): a whole-catalog pick stays table-level too', () => {
   const p = PM.permissionRequired({ statements: readStatementsFor(['main.s.a', 'main.s.b'], APP), principal: APP, wholeCatalogs: ['main'] });
-  assert.deepEqual(p.statements, [
-    `GRANT USE CATALOG ON CATALOG \`main\` TO \`${APP}\``,
-    `GRANT SELECT ON CATALOG \`main\` TO \`${APP}\``,
-  ]);
+  assert.deepEqual(p.statements.filter((s) => /^GRANT SELECT ON (SCHEMA|CATALOG)/.test(s)), []);
+  assert.ok(p.statements.includes(`GRANT SELECT ON TABLE \`main\`.\`s\`.\`a\` TO \`${APP}\``));
 });
 
 test('REQ-408: a MODIFY on a table stays exact at table level', () => {
@@ -145,5 +140,5 @@ test('REQ-408: a MODIFY on a table stays exact at table level', () => {
 test('REQ-408 must-keep: exact keeps the table-level view grant a viewer is given (no schema widening)', () => {
   const view = `GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders_scope\` TO \`${APP}\``;
   assert.deepEqual(PM.permissionRequired({ statements: [view], principal: APP, exact: true }).statements, [view]);
-  assert.deepEqual(PM.permissionRequired({ statements: [view], principal: APP }).statements, [`GRANT SELECT ON SCHEMA \`main\`.\`s\` TO \`${APP}\``]);
+  assert.deepEqual(PM.permissionRequired({ statements: [view], principal: APP }).statements, [view]);
 });

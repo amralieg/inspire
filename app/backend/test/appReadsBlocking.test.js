@@ -52,7 +52,7 @@ test('the plan for a source Inspire cannot share is blocking and carries the exa
     const reads = got.data.summary.app_reads;
     assert.equal(reads.blocking, true);
     assert.ok(Array.isArray(reads.grant) && reads.grant.length > 0, JSON.stringify(reads));
-    assert.ok(reads.grant.every((s) => /^GRANT MANAGE ON (CATALOG|SCHEMA|TABLE) `main`.* TO `inspire-sp`$/.test(s)), JSON.stringify(reads.grant));
+    assert.ok(reads.grant.every((s) => /^GRANT (USE CATALOG|USE SCHEMA|SELECT) ON (CATALOG|SCHEMA|TABLE) `main`.* TO the new App's service principal$/.test(s)), JSON.stringify(reads.grant));
     assert.deepEqual(reads.tables, [{ table: 'main.s.orders', owner: 'admins and data-eng' }]);
     assert.ok(got.data.warnings.some((w) => w.startsWith('Inspire cannot share main.s.orders (owned by admins and data-eng)')));
   });

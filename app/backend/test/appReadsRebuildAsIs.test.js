@@ -29,7 +29,8 @@ test('submit with rebuild_as_is still refuses with 403 for a source Inspire cann
       body: JSON.stringify({ inspire_database: 'main.inspire', warehouse_id: 'wh1', session_id: '42', spec: SPEC, rebuild_as_is: true }) });
     const data = await resp.json();
     assert.equal(resp.status, 403, JSON.stringify(data));
-    assert.match(data.error, /GRANT MANAGE ON/);
+    assert.match(data.error, /GRANT SELECT ON TABLE `main`\.`s`\.`orders` TO/);
+    assert.doesNotMatch(data.error, /MANAGE/);
     assert.equal(made.jobs.length, 0);
   } finally {
     await srv.close();

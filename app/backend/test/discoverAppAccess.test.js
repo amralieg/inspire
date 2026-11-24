@@ -80,15 +80,15 @@ async function launchWith(personRows, scope = 'main.s.orders', { policy = '', ap
   }
 }
 
-test('Discover checks the App can read the picked tables and grants with the person sign-in when the person can', async () => {
+test('SEC-01 (W1): Discover checks the App can read the picked tables and never grants with the person sign-in, even when the person can', async () => {
   const got = await launchWith(OWNS);
   assert.equal(got.status, 200, JSON.stringify(got.data));
-  assert.deepEqual(got.live.grants.map(([, token]) => token), [PERSON, PERSON, PERSON], 'every grant runs with the person sign-in, never the App');
-  assert.ok(got.live.grants.some(([sql]) => sql === 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `sp-app-id`'));
-  assert.ok(got.live.grants.some(([sql]) => sql === 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `sp-app-id`'), JSON.stringify(got.live.grants));
-  assert.equal(got.live.appReads, true);
-  const access = got.data.warnings.filter((w) => w.includes('main.s.orders'));
-  assert.equal(access.length, 0, `a successful auto-grant shows no warning, it is only logged: ${JSON.stringify(got.data.warnings)}`);
+  assert.deepEqual(got.live.grants, [], 'no silent person grant runs');
+  assert.equal(got.live.appReads, false);
+  const permissions = got.data.permissions || [];
+  assert.equal(permissions.length, 1, JSON.stringify(got.data));
+  assert.ok(permissions[0].statements.includes('GRANT SELECT ON TABLE `main`.`s`.`orders` TO `sp-app-id`'), JSON.stringify(permissions[0]));
+  assert.ok(permissions[0].statements.includes('GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `sp-app-id`'), JSON.stringify(permissions[0]));
   assert.ok(got.calls.some((c) => c.token === SP_TOKEN && /LIMIT 0/.test(String(c.body && c.body.statement))), 'the read probe runs as the App');
 });
 
@@ -105,16 +105,15 @@ test('Discover asks for the grant as a Permission Required, grants nothing, and 
   assert.equal(permissions[0].principal, 'inspire-app');
 });
 
-// REQ-408: a whole-catalog pick asks the App's read at catalog level in the Permission Required dialog, never per schema or table.
-test('Discover of a whole-catalog pick asks for the App read at catalog level, not per schema', async () => {
+// SEC-01 (W3): a whole-catalog pick no longer widens the read to the catalog; the dialog stays table level.
+test('SEC-01 (W3): Discover of a whole-catalog pick asks for table-level reads, never a SELECT on the catalog or a schema', async () => {
   const got = await launchWith(READS, 'main');
   assert.equal(got.status, 200, JSON.stringify(got.data));
   const permissions = got.data.permissions || [];
   assert.equal(permissions.length, 1, JSON.stringify(got.data));
   const statements = permissions[0].statements;
-  assert.ok(statements.includes('GRANT USE CATALOG ON CATALOG `main` TO `sp-app-id`'), JSON.stringify(statements));
-  assert.ok(statements.includes('GRANT SELECT ON CATALOG `main` TO `sp-app-id`'), JSON.stringify(statements));
-  assert.equal(statements.filter((sql) => /ON (SCHEMA|TABLE) /.test(sql)).length, 0, `no schema or table line under a whole-catalog pick: ${JSON.stringify(statements)}`);
+  assert.ok(statements.includes('GRANT SELECT ON TABLE `main`.`s`.`orders` TO `sp-app-id`'), JSON.stringify(statements));
+  assert.equal(statements.filter((sql) => /^GRANT (SELECT|READ METADATA) ON (CATALOG|SCHEMA) /.test(sql)).length, 0, `no catalog or schema read: ${JSON.stringify(statements)}`);
 });
 
 // A live case: the App reads the table through its catalog grants, and its ABAC policy read is refused for
@@ -126,20 +125,19 @@ const LIVE_APP_HOLDS = [
   { level: 'catalog', privilege: 'BROWSE', principal: 'sp-app-id', mine: 'false', me: PERSON_EMAIL },
 ];
 
-test('SELECT works but the App ABAC policy read is refused: Permission Required asks for READ METADATA at schema level, nothing the App already holds (must fail before the fix)', async () => {
+test('SELECT works but the App ABAC policy read is refused: Permission Required asks for READ METADATA at table level, nothing the App already holds (must fail before the fix)', async () => {
   const got = await launchWith([...READS, ...LIVE_APP_HOLDS], 'main.s.orders', { policy: 'refused', appReads: true });
   assert.equal(got.status, 200, JSON.stringify(got.data));
   assert.deepEqual(got.live.grants, [], 'the person cannot grant here, so nothing runs with the sign-in');
   const permissions = got.data.permissions || [];
   assert.equal(permissions.length, 1, JSON.stringify(got.data));
-  assert.deepEqual(permissions[0].statements, ['GRANT READ METADATA ON SCHEMA `main`.`s` TO `sp-app-id`'], JSON.stringify(permissions[0]));
+  assert.deepEqual(permissions[0].statements, ['GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `sp-app-id`'], JSON.stringify(permissions[0]));
 });
 
-test('the printed READ METADATA grant, run with the sign-in, makes the App policy read pass and Discover shows no Permission Required (must fail before the fix)', async () => {
+test('SEC-01 (W1): the READ METADATA grant is printed for the person, never run at Discover, and Discover still starts', async () => {
   const got = await launchWith([...OWNS, ...LIVE_APP_HOLDS], 'main.s.orders', { policy: 'refused', appReads: true });
   assert.equal(got.status, 200, JSON.stringify(got.data));
-  assert.ok(got.live.grants.some(([sql, token]) => sql === 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `sp-app-id`' && token === PERSON),
-    `the person runs the READ METADATA grant: ${JSON.stringify(got.live.grants)}`);
-  assert.equal(got.live.readMetadata, true);
-  assert.deepEqual((got.data.permissions || []).map((p) => p.statements), [], JSON.stringify(got.data));
+  assert.deepEqual(got.live.grants, [], 'no grant runs with the sign-in');
+  assert.equal(got.live.readMetadata, false);
+  assert.deepEqual((got.data.permissions || []).map((p) => p.statements), [['GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `sp-app-id`']], JSON.stringify(got.data));
 });

@@ -45,7 +45,6 @@ const { parseExactJson } = require('./lib/exactJson');
 const { grantJobViewer, rememberViewer } = require('./lib/jobViewer');
 const PM = require('./lib/permissions');
 const UA = require('./lib/useCaseAssets');
-const { coarseGrants } = require('./lib/grantScope');
 const L = require('./lib/launchLedger');
 const PM_ERROR = require('./lib/permissionError');
 const GC = require('./lib/genieCodeCheck');
@@ -1368,7 +1367,7 @@ function registerImplementRoutes(app, deps) {
   // REQ-408: a copyable grant list is shaped for display at schema level (catalog level for a whole-catalog pick). Grant still runs the exact
   // statements the route derived; this only changes the copy text the response carries.
   function displayOffer(offer, wholeCatalogs = []) {
-    return offer && Array.isArray(offer.grants) ? { ...offer, grants: coarseGrants(offer.grants, { wholeCatalogs }) } : offer;
+    return offer && Array.isArray(offer.grants) ? { ...offer, grants: offer.grants } : offer;
   }
 
   // REQ-408: the catalogs the run picked whole (its saved launch scope). Empty when the run has no readable scope, so the dialog asks per schema.
@@ -1428,7 +1427,7 @@ function registerImplementRoutes(app, deps) {
       // to the owner (REQ-042). Only a Grant changes access, and the route policy owns that rule.
       const wholeCatalogs = await wholeCatalogsOf(req, warehouseId, catalog, schema, sid);
       res.json({ state: left.length ? 'unreadable' : 'readable', app: liveApp.id, app_name: liveApp.name, mode: record.mode || '', objects: !!record.objects, principals,
-        tables: left.map((t) => ({ ...t, grants: coarseGrants(t.grants, { wholeCatalogs }) })), ran, failed, refused: action === 'grant' && failed.length > 0, text: I.appReadsText(left, liveApp.name, failed),
+        tables: left.map((t) => ({ ...t, grants: t.grants })), ran, failed, refused: action === 'grant' && failed.length > 0, text: I.appReadsText(left, liveApp.name, failed),
         permissions: appReadsPermissions(left, record, principals, liveApp, wholeCatalogs) });
     } catch (err) {
       sendError(res, err);

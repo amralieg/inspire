@@ -42,7 +42,7 @@ test('preflight offers the READ METADATA grant for a source the App cannot read 
   const offer = got.data.app_unreadable;
   assert.ok(offer, 'the preflight returns the grant offer the wizard shows');
   assert.equal(offer.can_grant, true, 'the person can grant it, so the offer carries the grants');
-  assert.ok(offer.grants.some((g) => /^GRANT READ METADATA ON (TABLE .*orders|SCHEMA `main`\.`s`) TO `app-sp-2`$/.test(g)),
+  assert.ok(offer.grants.some((g) => /^GRANT READ METADATA ON TABLE `main`\.`s`\.`orders` TO `app-sp-2`$/.test(g)),
     `READ METADATA is among the grants: ${JSON.stringify(offer.grants)}`);
 });
 
@@ -60,9 +60,9 @@ test('a source the App cannot read the metadata of is refused before the build i
   // REQ-131, REQ-260: the sentence names no GRANT; the App grant action is the check's Permission Required entry (must-keep)
   assert.doesNotMatch(detail, /GRANT /, 'no GRANT in the detail (must-exclude)');
   assert.deepEqual([...got.data.checks.sources.permission.statements].sort(), [
-    'GRANT READ METADATA ON SCHEMA `main`.`s` TO `app-sp-2`', 'GRANT SELECT ON SCHEMA `main`.`s` TO `app-sp-2`',
+    'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-2`', 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-2`',
     'GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-2`'],
-  'the dialog payload asks at schema level (REQ-408)');
+  'the dialog payload asks at table level (SEC-01 W3)');
 });
 
 test('preflight passes when the App reads the table and its policies (must-exclude control)', async () => {

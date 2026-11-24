@@ -50,7 +50,7 @@ test('group-counts on a table the person cannot read answers 403 with the Permis
   assert.equal(resp.status, 403, JSON.stringify(body));
   assert.ok(Array.isArray(body.permissions) && body.permissions.length > 0, 'the payload is present');
   const statements = body.permissions.flatMap((p) => p.statements || []);
-  assert.ok(statements.some((s) => /GRANT SELECT ON SCHEMA `main`\.`s`/.test(s)), statements.join('\n'));
+  assert.ok(statements.some((s) => /GRANT SELECT ON TABLE `main`\.`s`\.`orders`/.test(s)), statements.join('\n'));
 });
 
 test('a non-denial warehouse failure on group-counts is still a server failure, with no payload invented (must-exclude)', async () => {

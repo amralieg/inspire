@@ -1,13 +1,11 @@
 const { IMPLEMENT_READ_NEEDS, IMPLEMENT_SOURCE_NEEDS } = require('./implementNeeds');
-const { coarseGrants } = require('./grantScope');
 
 // AUTO-4: `steps` are the commands and Share steps an admin copies on their own (Copy steps); `instructions` are plain notes, shown once.
-// REQ-408: every dialog payload passes here, so the read grants are asked at schema level (catalog level for a whole-catalog pick).
-// `exact` keeps the table-level statements: a user-authorization App's viewers get its views only, and a schema grant would open the
-// source tables that share the schema.
+// SEC-01 (W3): every dialog payload passes here and keeps its statements as given: read grants stay table-level, never widened to the schema
+// or catalog (this reverses REQ-408). `wholeCatalogs` and `exact` are kept as accepted, ignored options for existing callers.
 function permissionRequired({ statements, instructions, steps, principal = '', why = '', wholeCatalogs = [], exact = false } = {}) {
   const named = (Array.isArray(statements) ? statements : []).map((s) => String(s || '').trim()).filter(Boolean);
-  const list = [...new Set(exact ? named : coarseGrants(named, { wholeCatalogs }))];
+  const list = [...new Set(named)];
   const lines = [...new Set((Array.isArray(instructions) ? instructions : []).map((s) => String(s || '').trim()).filter(Boolean))];
   const copy = [...new Set((Array.isArray(steps) ? steps : []).map((s) => String(s || '').trim()).filter(Boolean))];
   if (!list.length && !lines.length && !copy.length) return null;
