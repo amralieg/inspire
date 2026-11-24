@@ -37,6 +37,7 @@ import { newSessionId, runResultText, runStateText } from '../lib/runState';
 import { liveUseCasesOf } from '../lib/liveUseCases';
 import { useFollowEnd } from '../lib/followEnd';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
+import BusyNote from '../components/BusyNote';
 import { withStartDeadline } from '../lib/startDeadline';
 
 // Run lifecycle phases
@@ -587,7 +588,7 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
       {(totalCount > 0 || isRunning || isPending) && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <ArrivingNow useCases={liveUseCases} live={isRunning}
-            empty={isPending && sessionOnly ? 'No step yet. Use cases show here as Inspire writes them.' : isPending ? 'Waiting for the run to start. Use cases show here as Inspire writes them.' : 'Waiting for the first step. Use cases show here as Inspire writes them.'} />
+            empty={<BusyNote inline text={isPending && sessionOnly ? 'No step yet. Use cases show here as Inspire writes them.' : isPending ? 'Waiting for the run to start. Use cases show here as Inspire writes them.' : 'Waiting for the first step. Use cases show here as Inspire writes them.'} />} />
           <aside className="min-w-0 space-y-4">
             <ActivityFeed steps={isStaleSession ? [] : steps} live={stepsLive} />
             {totalCount > 0 && (
