@@ -39,7 +39,7 @@ export default function StepScope({ page, facts, scope, onScope, onFacts, post, 
         {choices.map((c) => (
           <button key={c.id} type="button" data-scope-choice={c.id} data-recommended={c.recommended ? 'true' : undefined} aria-pressed={chosen === c.id}
             onClick={() => onScope({ ...(scopeOfChoice(c.id, facts) || { phrase: c.label, filters: [], window: null }), choice: c.id })}
-            className={`${card} ${chosen === c.id ? 'border-db-red-solid bg-bg-subtle' : 'border-border bg-surface'}`}>
+            className={`${card} ${chosen === c.id ? 'border-primary-solid bg-bg-subtle' : 'border-border bg-surface'}`}>
             <span className="block font-semibold">{c.label}{c.recommended ? ' (recommended)' : ''}</span>
             <span className="block text-[12px] text-text-secondary">
               {c.id === 'all' && factsLine(facts, useCase?.noun || 'record')}

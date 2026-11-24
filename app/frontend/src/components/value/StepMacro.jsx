@@ -50,7 +50,7 @@ export default function StepMacro({ plan, onPlan, get, inspireDatabase, warehous
         <h3 className="text-sm font-bold text-text-primary">Use public economic data for these factors?</h3>
         <ul className="list-disc ps-5 text-[13px] text-text-secondary">{factors.map((f) => <li key={f.id}>{f.label}</li>)}</ul>
         <div className="flex gap-2">
-          <button type="button" data-recommended="true" className={`${btn} bg-db-red-solid text-white`} onClick={() => onPage('macro:series')}>Use public data</button>
+          <button type="button" data-recommended="true" className={`${btn} bg-primary-solid text-white`} onClick={() => onPage('macro:series')}>Use public data</button>
           {keep}
         </div>
       </div>
@@ -65,7 +65,7 @@ export default function StepMacro({ plan, onPlan, get, inspireDatabase, warehous
         <div className="grid grid-cols-2 gap-2">
           {sources.map((s) => (
             <button key={s.id} type="button" data-macro-source={s.id} aria-pressed={source === s.id} onClick={() => setSource(s.id)}
-              className={`rounded-lg border px-3 py-2 text-start text-[12px] ${source === s.id ? 'border-db-red-solid ring-1 ring-db-red-solid' : 'border-border'}`}>
+              className={`rounded-lg border px-3 py-2 text-start text-[12px] ${source === s.id ? 'border-primary-solid ring-1 ring-primary-solid' : 'border-border'}`}>
               <b className="block text-[13px] text-text-primary">{s.name}</b>
               <span className="text-text-secondary">{s.licence}</span>
               {s.terms && <span className="block text-text-secondary">{s.terms}</span>}

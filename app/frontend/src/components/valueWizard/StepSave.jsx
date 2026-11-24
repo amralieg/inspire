@@ -29,7 +29,7 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
           const on = Boolean(answers.drivers[d.id]?.on);
           const part = partOf(yearly, d.id);
           return (
-            <div key={d.id} data-tile={d.id} className={`flex min-h-[64px] flex-col gap-0 rounded-lg border px-2.5 py-0.5 ${open === d.id ? 'border-primary-solid ring-1 ring-db-red-solid' : 'border-border'} ${on ? '' : 'bg-bg-subtle text-text-tertiary'}`}>
+            <div key={d.id} data-tile={d.id} className={`flex min-h-[64px] flex-col gap-0 rounded-lg border px-2.5 py-0.5 ${open === d.id ? 'border-primary-solid ring-1 ring-primary-solid' : 'border-border'} ${on ? '' : 'bg-bg-subtle text-text-tertiary'}`}>
               <div className="flex items-start gap-1.5">
                 <input type="checkbox" aria-label={`Include ${d.label}`} checked={on} onChange={() => onToggleDriver(d.id)} className="mt-0.5" />
                 <span aria-hidden="true">{DRIVER_ICONS[d.id] || ''}</span>
@@ -37,7 +37,7 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
               </div>
               <p className="mt-auto text-base font-extrabold tabular-nums">{on ? (part ? <>{moneyText(unit, part.amount)}<span className="text-[10px] font-normal text-text-secondary"> a year</span></> : '...') : 'off'}</p>
               <button type="button" disabled={!on} onClick={() => setOpen(open === d.id ? null : d.id)} aria-expanded={open === d.id}
-                className="text-start text-[12px] font-semibold leading-tight text-db-red-solid disabled:opacity-40">Edit numbers</button>
+                className="text-start text-[12px] font-semibold leading-tight text-primary disabled:opacity-40">Edit numbers</button>
             </div>
           );
         })}

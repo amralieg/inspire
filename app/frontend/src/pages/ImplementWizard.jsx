@@ -2499,7 +2499,7 @@ export default function ImplementWizard({
           </div>
         )}
         {missingSourcePick(missingTables) && (
-          <button type="button" data-pick-replacement="" className="self-start text-xs font-semibold text-db-red-solid underline"
+          <button type="button" data-pick-replacement="" className="self-start text-xs font-semibold text-primary underline"
             onClick={() => { changeStep(missingSourcePick(missingTables).step); openFoldSection('data'); setDataChoice('sources'); }}>{missingSourcePick(missingTables).label}</button>
         )}
         <div className="flex items-center justify-between gap-3">

@@ -37,7 +37,7 @@ export default function StepFactors({ plan, answers, yearly, onFactor, status, e
           const mine = answers.economic_factors?.[f.id] || { on: false, pct: Number(f.likely_pct) };
           const pct = Number(mine.pct);
           return (
-            <section key={f.id} data-factor={f.id} aria-label={f.label} className={`space-y-1.5 rounded-lg border px-3 py-2 ${mine.on ? 'border-primary-solid ring-1 ring-db-red-solid' : 'border-border'}`}>
+            <section key={f.id} data-factor={f.id} aria-label={f.label} className={`space-y-1.5 rounded-lg border px-3 py-2 ${mine.on ? 'border-primary-solid ring-1 ring-primary-solid' : 'border-border'}`}>
               <label className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">
                 <input type="checkbox" aria-label={`Include ${f.label}`} checked={Boolean(mine.on)} onChange={() => onFactor(f.id, { on: !mine.on })} />
                 <span className="min-w-0 flex-1">{f.label}</span>
@@ -45,7 +45,7 @@ export default function StepFactors({ plan, answers, yearly, onFactor, status, e
               </label>
               {f.why && <p className="text-[12px] text-text-secondary">{f.why}</p>}
               <input type="range" aria-label={`${f.label} slider`} min={Number(f.min_pct)} max={Number(f.max_pct)} step={1} value={pct}
-                onChange={(e) => onFactor(f.id, { pct: Number(e.target.value) })} className="m-0 w-full accent-[var(--color-db-red-solid,#c4161c)]" />
+                onChange={(e) => onFactor(f.id, { pct: Number(e.target.value) })} className="m-0 w-full accent-[var(--color-primary-solid,#c4161c)]" />
               <div className="flex justify-between text-[10px] text-text-secondary"><span>{signed(Number(f.min_pct))}</span><span>{signed(Number(f.max_pct))}</span></div>
               <EffectBar pct={pct} f={f} on={Boolean(mine.on)} />
               <p data-factor-amount="" className="text-[12px] tabular-nums text-text-secondary">
