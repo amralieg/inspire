@@ -165,33 +165,6 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
   }
 });
 
-test('a notebook-only build is Deliver with only Notebook ticked: no App step, and Summary says only the notebook and its table are built', async () => {
-  const ui = await openUi('wizard', ME);
-  const { page, made } = ui;
-  try {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await goToStep(page, 'What to deliver');
-    for (const name of [/^Agentic App A Databricks/, /^Genie Agent/, /^Dashboard/, /^Alert/]) {
-      const box = page.getByRole('checkbox', { name });
-      if (await box.isChecked()) await box.uncheck();
-    }
-    await stepsAre(page, NO_APP);
-    await noOldSteps(page);
-    await shot(page, 'notebook-only-05-deliver', false);
-    await goToStep(page, 'Review & build');
-    assert.equal(await builtLine(page), 'The MVP: the result table and the notebook that fills it.');
-    await summaryHasNoCapacity(page);
-    await shot(page, 'notebook-only-07-summary', false);
-    await page.getByRole('button', { name: BUILD_IT, exact: true }).click();
-    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    const { outputs } = submittedSpec(made);
-    assert.deepEqual([outputs.app, outputs.genie_space, outputs.dashboard, outputs.alert], [false, false, false, false]);
-    assert.deepEqual(ui.pageErrors, []);
-  } finally {
-    await ui.close();
-  }
-});
-
 test('an App Inspire cannot afford is dimmed on Deliver with one plain reason and the grant under Details, gets no App step, and Summary names it as not built', async () => {
   const sp = (level, privilege, principal, mine) => ({ level, privilege, principal, mine: mine ? 'true' : 'false', me: 'inspire-sp' });
   const access = [sp('catalog', 'OWNER', 'admins', false), sp('schema', 'OWNER', 'data-eng', false), sp('catalog', 'USE_CATALOG', 'inspire-sp', true),

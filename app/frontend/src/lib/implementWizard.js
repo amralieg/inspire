@@ -2178,10 +2178,15 @@ export function appAccessRefusalOf(outputCheck, preflight = null) {
   return [outputCheck?.app, preflight?.checks?.app_access, preflight?.new_app].find((c) => c?.ok === false) || null;
 }
 
-export function outputBlocks(features, outputCheck, assets = {}, preflight = null) {
+// The App inputs (and grant round) a refusal belongs to. A refusal seen for them is kept until they change or a grant lands (REQ-514: the no-App re-run must not clear it, a grant must).
+export function appInputsKey(spec, grantRound = 0) {
+  return `${spec?.outputs?.app_name || ''}|${spec?.outputs?.merge?.app || ''}|${grantRound}`;
+}
+
+export function outputBlocks(features, outputCheck, assets = {}, preflight = null, remembered = null) {
   const on = features || {};
   const app = !on.apps ? blockOf(OFF_IN_WORKSPACE.app, OFF_DETAILS)
-    : !assets?.app && checkBlock(appAccessRefusalOf(outputCheck, preflight));
+    : !assets?.app && checkBlock(appAccessRefusalOf(outputCheck, preflight) || remembered);
   return Object.fromEntries([
     ['app', app],
     ['genie_space', !on.genie_spaces && blockOf(OFF_IN_WORKSPACE.genie_space, OFF_DETAILS)],

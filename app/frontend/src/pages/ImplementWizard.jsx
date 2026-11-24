@@ -233,6 +233,7 @@ import {
   withHoldoutPercent,
   outputBlocks,
   appAccessRefusalOf,
+  appInputsKey,
   droppedOutputs,
   withoutUnavailableOutputs,
   FRESH_HELP,
@@ -892,11 +893,17 @@ export default function ImplementWizard({
   // Inside Inspire joins and names no App, so it never waits for the App list (REQ-418 ruling 1).
   const placeSettled = !spec.outputs.app || insideInspire(spec) || (targets !== null && (placeSet === 'default' || placeSet === 'person'));
   const features = preflight?.features || context?.features || ALL_FEATURES;
-  const blocks = useMemo(() => outputBlocks(features, outputCheck, context?.assets, preflight), [features, outputCheck, context?.assets, preflight]);
+  const [seenAppRefusal, setSeenAppRefusal] = useState(null);
+  const appKey = appInputsKey(spec, grantRound);
+  const liveAppRefusal = appAccessRefusalOf(outputCheck, preflight);
+  const appAccessOk = [outputCheck?.app, preflight?.checks?.app_access, preflight?.new_app].some((c) => c?.ok === true);
+  useEffect(() => { if (liveAppRefusal) setSeenAppRefusal({ key: appKey, refusal: liveAppRefusal }); else if (appAccessOk) setSeenAppRefusal(null); }, [liveAppRefusal, appAccessOk, appKey]);
+  const keptAppRefusal = seenAppRefusal?.key === appKey ? seenAppRefusal.refusal : null;
+  const blocks = useMemo(() => outputBlocks(features, outputCheck, context?.assets, preflight, keptAppRefusal), [features, outputCheck, context?.assets, preflight, keptAppRefusal]);
   // The verdict is dropped while a check runs (no stale reason shows), but an output it blocked stays locked until the new verdict lands.
   const [blockedAtVerdict, setBlockedAtVerdict] = useState({});
   useEffect(() => { if (!checksBusy) setBlockedAtVerdict(blocks); }, [checksBusy, blocks]);
-  const appRefusal = appAccessRefusalOf(outputCheck, preflight);
+  const appRefusal = liveAppRefusal || keptAppRefusal;
   const extras = { columnsByTable, widgets: context?.widgets || [], trainsModel, mergeTargets: targets, held: context?.assets || {}, appLook: look, built, placeSettled,
     lakebase, warehouses, kpiOptions, settings: settingsList, sourceTables, scopeSteps: stepScope, scopeProfile: scopeProfile.profile, outputBlocks: blocks };
   const chartDates = appInputDates(columnsByTable, sourceTables);
