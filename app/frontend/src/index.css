@@ -21,6 +21,8 @@
   --color-db-red-fg: var(--t-db-red-fg);
 
   /* Surfaces — resolved via CSS vars below */
+  /* Overlay scrim (REQ-508 F14): one token for ModalDialog and DrawerShell. hwb keeps the computed colour a plain black with alpha. */
+  --color-scrim: var(--t-scrim);
   --color-surface: var(--t-surface);
   --color-bg: var(--t-bg);
   --color-bg-subtle: var(--t-bg-subtle);
@@ -97,6 +99,7 @@
   --w-page: 1200px;
   --w-narrow: 720px;
 
+  --t-scrim: hwb(0 0% 100% / 0.4);
   --t-surface: #FFFFFF;
   --t-bg: #F7F7F8;
   --t-bg-subtle: #EEEFF1;
@@ -137,6 +140,7 @@
 
 /* ═══ Dark theme ═══ */
 .dark {
+  --t-scrim: hwb(0 0% 100% / 0.6);
   --t-surface: #111113;
   --t-bg: #09090B;
   --t-bg-subtle: #1A1A1F;

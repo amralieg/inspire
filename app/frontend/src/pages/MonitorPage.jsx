@@ -469,12 +469,12 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
           <div className="flex items-center gap-4 text-xs">
             {elapsed && (
               <div className="flex items-center gap-1.5 text-text-tertiary">
-                <Clock size={12} />
+                <Clock size={14} />
                 <span className="font-mono">{elapsed}</span>
               </div>
             )}
             {runInfo?.life_cycle_state && (
-              <span data-testid="monitor-job-state" className={`px-2.5 py-1 rounded-lg font-medium text-[11px] ${
+              <span data-testid="monitor-job-state" className={`px-2.5 py-1 rounded-lg font-medium text-caption ${
                 isWarning ? 'bg-warning-bg text-warning-fg' :
                 isComplete ? 'bg-success-bg text-success-fg' :
                 isFailed ? 'bg-error-bg text-error-fg' :
@@ -497,7 +497,7 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
         <div role="progressbar" aria-label="Run progress" aria-valuemin={0} aria-valuemax={100}
           aria-valuenow={isComplete ? 100 : Math.round(Math.min(percent, 100))} className="h-2.5 bg-bg-subtle rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all duration-700 ease-out ${
+            className={`h-full rounded-full transition-[width] duration-700 ease-out ${
               isWarning ? 'bg-warning' :
               isComplete || isStopped ? 'bg-success' :
               isFailed ? 'bg-error' :
@@ -520,8 +520,8 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
         {/* Latest activity line */}
         {latestStep && isRunning && (
           <div className="mt-3 flex items-center gap-2">
-            <Activity size={11} className="text-db-red-fg shrink-0 animate-pulse" />
-            <p className="text-[11px] text-text-secondary font-mono truncate">
+            <Activity size={14} className="text-db-red-fg shrink-0 animate-pulse" />
+            <p className="text-caption text-text-secondary font-mono truncate">
               <span className="text-text-tertiary">{latestStep.stage_name}</span>
               {' → '}
               <span className="text-text-primary font-medium">{latestStep.step_name}</span>
@@ -532,7 +532,7 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
           </div>
         )}
         {runInfo?.run_name && !(latestStep && isRunning) && (
-          <p className="text-[11px] text-text-tertiary mt-3" title={runInfo.run_name}>{runTitle(runInfo, session?.business_name)}</p>
+          <p className="text-caption text-text-tertiary mt-3" title={runInfo.run_name}>{runTitle(runInfo, session?.business_name)}</p>
         )}
         {viewerLine(runInfo) && (
           <p className="text-xs text-warning-fg mt-3" role="status" data-viewer-note>{viewerLine(runInfo)}</p>
@@ -547,7 +547,7 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
       {isFailed && (
         <div className="mt-6 bg-error-bg border border-error/20 rounded-xl p-5">
           <div className="flex items-start gap-3">
-            <XCircle size={18} className="text-error-fg mt-0.5 shrink-0" />
+            <XCircle size={20} className="text-error-fg mt-0.5 shrink-0" />
             <div className="flex-1">
               <p className="text-sm font-bold text-text-primary">What you can do</p>
               <p className="text-xs text-text-secondary mt-1" data-testid="monitor-failure-next">
@@ -562,7 +562,7 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
               {platformDetail && <TechnicalDetails items={[platformDetail]} className="mt-2" />}
               <div className="mt-3 text-xs" data-testid="monitor-failure-choices">
                 <ChoiceList choices={monitorFailureChoices({ cannotRead, unrecorded: runUnrecorded, runUrl: runInfo?.run_page_url || '', canRunAgain: Boolean(runId && onRunAgain && !showcase && runEndedBadly(runInfo)) })} mark="data-failure-choice" onPick={pickFailure} />
-                {again.busy && <p role="status" className="mt-2 text-text-secondary"><Loader2 size={12} className="inline animate-spin me-1" aria-hidden="true" />Starting the run again…</p>}
+                {again.busy && <p role="status" className="mt-2 text-text-secondary"><Loader2 size={14} className="inline animate-spin me-1" aria-hidden="true" />Starting the run again…</p>}
                 {again.error && <PlainMessage text={`Inspire could not run it again: ${again.error}`} securable="workspace" copy role="alert" data-run-again-error="" className="mt-2 text-error-fg" />}
                 {sent && <p role="status" className="mt-2 text-text-secondary select-all">{sent}</p>}
               </div>
@@ -627,13 +627,13 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
 
 function StatusIcon({ isPending, isRunning, isQuiet, isComplete, isWarning, isFailed }) {
   const base = 'w-10 h-10 rounded-xl flex items-center justify-center';
-  if (isWarning) return <div className={`${base} bg-warning/10`}><AlertTriangle size={22} className="text-warning-fg" /></div>;
-  if (isComplete) return <div className={`${base} bg-success/10`}><CheckCircle2 size={22} className="text-success-fg" /></div>;
-  if (isFailed) return <div className={`${base} bg-error/10`}><XCircle size={22} className="text-error-fg" /></div>;
-  if (isPending) return <div className={`${base} bg-info/10`}><Loader2 size={22} className="animate-spin text-info-fg" /></div>;
-  if (isRunning) return <div className={`${base} bg-db-red/10`}><Loader2 size={22} className="animate-spin text-db-red-fg" /></div>;
-  if (isQuiet) return <div className={`${base} bg-bg-subtle`}><Clock size={22} className="text-text-tertiary" /></div>;
-  return <div className={`${base} bg-bg-subtle`}><Play size={22} className="text-text-tertiary" /></div>;
+  if (isWarning) return <div className={`${base} bg-warning/10`}><AlertTriangle size={24} className="text-warning-fg" /></div>;
+  if (isComplete) return <div className={`${base} bg-success/10`}><CheckCircle2 size={24} className="text-success-fg" /></div>;
+  if (isFailed) return <div className={`${base} bg-error/10`}><XCircle size={24} className="text-error-fg" /></div>;
+  if (isPending) return <div className={`${base} bg-info/10`}><Loader2 size={24} className="animate-spin text-info-fg" /></div>;
+  if (isRunning) return <div className={`${base} bg-db-red/10`}><Loader2 size={24} className="animate-spin text-db-red-fg" /></div>;
+  if (isQuiet) return <div className={`${base} bg-bg-subtle`}><Clock size={24} className="text-text-tertiary" /></div>;
+  return <div className={`${base} bg-bg-subtle`}><Play size={24} className="text-text-tertiary" /></div>;
 }
 
 function RunSetupSummary({ widgetValues }) {
@@ -652,7 +652,7 @@ function RunSetupSummary({ widgetValues }) {
       (priorities ? `, ${priorities} priorit${priorities === 1 ? 'y' : 'ies'}` : '');
   }
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
+    <div className="mt-3 flex flex-wrap items-center gap-2 text-caption">
       {discovery && (
         <span className="px-2 py-0.5 rounded-full border border-border bg-bg-subtle text-text-secondary">
           {aiSeesAggregates(discovery) ? 'Discovery: the AI sees the summary figures' : 'Discovery: summary figures kept from the AI'}

@@ -422,18 +422,24 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     await tabButton(page, 'monitor').click();
     await page.getByRole('heading', { name: 'Monitor', exact: true }).waitFor();
     await page.getByText('Inspire finished this run.').waitFor();
-    await page.getByRole('heading', { name: 'Detailed Steps' }).waitFor();
+    // REQ-511: the step log is the "Every step" dialog, opened from its button on Monitor.
+    await page.getByRole('button', { name: /^Every step/ }).waitFor();
     assert.match(await page.locator('main').innerText(), /2 stages · 3 steps/, 'Monitor lists the recorded steps of the run');
-    await page.getByRole('button', { name: /Detailed Steps/ }).click();
-    await page.getByRole('button', { name: /^Use Case Generation/ }).filter({ has: page.locator('h3') }).click();
-    const named = await page.getByText('Forecast stock', { exact: true }).count();
-    await page.getByText('Score the use cases', { exact: true }).click();
-    await page.getByText('3 use cases', { exact: true }).waitFor();
-    assert.equal(await page.getByText('Forecast stock', { exact: true }).count(), named + 1, 'a step recorded with only the fields Monitor shows still names its use cases');
-    const heading = page.getByText(/^Use cases of /);
-    await heading.waitFor();
-    assert.doesNotMatch(await heading.innerText(), /\b42\b|\brun \d/, 'the use cases are named by the business and start, never by the internal run number');
-    await page.getByText('Run completed', { exact: true }).waitFor();
+    await page.getByRole('button', { name: /^Every step/ }).click();
+    const steps = page.getByRole('dialog', { name: 'Every step' });
+    await steps.waitFor();
+    await steps.getByRole('button', { name: /^Use Case Generation/ }).filter({ has: page.locator('h3') }).click();
+    const named = await steps.getByText('Forecast stock', { exact: true }).count();
+    await steps.getByText('Score the use cases', { exact: true }).click();
+    await steps.getByText('3 use cases', { exact: true }).waitFor();
+    assert.equal(await steps.getByText('Forecast stock', { exact: true }).count(), named + 1, 'a step recorded with only the fields Monitor shows still names its use cases');
+    await page.keyboard.press('Escape');
+    await page.getByRole('dialog', { name: 'Every step' }).waitFor({ state: 'hidden' });
+    // REQ-511: the "Use cases of <run>" heading is gone; the whole Monitor page must still never show the internal run number.
+    await page.getByRole('region', { name: 'Arriving now' }).waitFor();
+    assert.doesNotMatch(await page.locator('main').innerText(), /\brun 42\b|\brun #?\d/i, 'the use cases are named by the business and start, never by the internal run number');
+    // REQ-511: the hero says "Completed" (statusLabel) where the old banner said "Run completed".
+    await page.getByText('Completed', { exact: true }).first().waitFor();
     await settle();
     await demoBar(page).getByText(SHOWCASE_NOTE).waitFor();
 
