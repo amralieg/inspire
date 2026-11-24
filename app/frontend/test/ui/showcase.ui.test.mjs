@@ -412,7 +412,8 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     }
     assert.deepEqual(landed, { businesses: 'Start, 1 run', runs: 'Start, 1 run', use_cases: 'Start, 1 run', domains: 'Start, 1 run', best_of_best: 'Start, 1 run',
       mvps_started: 'Build', mvps_live: 'Build', apps: 'Build', dashboards: 'Build', genie_spaces: 'Build', alerts: 'Build' }, 'each card lands on a demo page');
-    await page.locator('main button[title="Quick view use cases"]').click();
+    await page.locator('main [data-run]').first().getByRole('button', { name: /^More for / }).click();
+    await page.getByRole('menuitem', { name: 'Quick view', exact: true }).click();
     await page.getByRole('button', { name: /Open in Review/ }).waitFor();
     await settle();
     await demoBar(page).getByText(SHOWCASE_NOTE).waitFor();

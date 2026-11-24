@@ -35,6 +35,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
+import MoreMenu from '../components/ui/MoreMenu';
 import Button from '../components/ui/Button';
 import StrategyEditor from '../components/StrategyEditor';
 import { parseStrategicContext, splitPriorities, validateStrategicContextText, withPriorities } from '../lib/strategyContext';
@@ -300,6 +301,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const [quickViewLoading, setQuickViewLoading] = useState(null);
   /** Experiments list + quick view — collapsed by default to keep Get Started above the fold */
   const [experimentsOverviewExpanded, setExperimentsOverviewExpanded] = useState(false);
+  // Page More: the past-runs overview and the privacy note stay off the form until picked (REQ-510 L3).
+  const [showRecentRuns, setShowRecentRuns] = useState(false);
+  const [showPrivacyNote, setShowPrivacyNote] = useState(false);
 
   // ── Metadata picker state ──
   const [pickerExpanded, setPickerExpanded] = useState(true);
@@ -470,6 +474,14 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     },
     [quickViewSid, allCreatedUcs, quickViewCache, fetchUseCasesForSession]
   );
+
+  // "More > Recent runs" opens the list with the latest run's Quick view already showing (REQ-510 L3).
+  const autoQuickViewDone = useRef(false);
+  useEffect(() => {
+    if (!showRecentRuns || autoQuickViewDone.current || sessionsList.length === 0) return;
+    autoQuickViewDone.current = true;
+    onQuickViewToggle(sessionsList[0].session_id);
+  }, [showRecentRuns, sessionsList, onQuickViewToggle]);
 
   // Sync business priorities
   useEffect(() => {
@@ -1121,7 +1133,10 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
       <div className="mb-8">
         <PageHeader className="mb-2" icon={Rocket}
           title={<span className="block line-clamp-2 wrap-break-word" title={headlineBusiness ? launchPageHeading : undefined} aria-live="polite">{launchPageHeading}</span>}
-          subtitle="Fill in the essentials below, then get started. Everything else is optional." />
+          actions={<MoreMenu items={[
+            { label: 'Recent runs', onSelect: () => { setShowRecentRuns(true); setExperimentsOverviewExpanded(true); } },
+            { label: 'How Inspire keeps your data private', onSelect: () => setShowPrivacyNote(true) },
+          ]} />} />
         {draftBack && (
           <div role="note" aria-label="Your draft" data-launch-draft="" className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-info/20 bg-info-bg px-3 py-2 text-[12px] text-text-primary">
             <span>{DRAFT_BACK_NOTE}</span>
@@ -1130,7 +1145,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
         )}
       </div>
 
-      {(token || serverEnvHasPat) && warehouseId && previewDb && (
+
+      {showRecentRuns && (token || serverEnvHasPat) && warehouseId && previewDb && (
         <section
           className="mb-8 rounded-xl border border-border bg-surface/80 backdrop-blur-sm shadow-sm overflow-hidden"
           aria-label="Discovery Overview"
@@ -1339,7 +1355,6 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             </div>
             <div className="flex-1">
               <h2 className="text-sm font-bold text-text-primary">Essentials</h2>
-              <p className="text-xs text-text-secondary">Your business, the data Inspire should look at, and how it discovers</p>
             </div>
             <span className="text-xs font-semibold text-db-red-fg bg-db-red-50 border border-db-red/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
               Required
@@ -1601,9 +1616,23 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 )}
               </Field>
 
+            {/* Generation Instructions — optional */}
+            <FieldSection label="Generation Instructions" hint="Optional. What the business does, what it wants this year, and anything Inspire should focus on or leave out">
+              <div className="relative">
+                <Target size={14} className="absolute start-3 top-3 text-text-tertiary" />
+                <textarea dir="auto"
+                  rows={4}
+                  placeholder="Focus on fraud detection, join orders with customers on customer_id, exclude staging tables..."
+                  value={params['08_generation_instructions']}
+                  onChange={(e) => updateParam('08_generation_instructions', e.target.value)}
+                  className="w-full ps-9 pe-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth resize-none"
+                />
+              </div>
+            </FieldSection>
+
             {/* Discovery Type — v1.3.0 widget 03_discovery_type */}
             <FieldSection label="Discovery Type" hint="Both modes count your data; only AI Enhanced Discovery shows the counts to the AI">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 gap-2.5">
                 {DISCOVERY_OPTIONS.map((opt) => {
                   const active = params['03_discovery_type'] === opt.key;
                   const Icon = opt.icon;
@@ -1639,8 +1668,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               </div>
               <div data-discovery-panel className="mt-2.5 rounded-xl border border-success/30 bg-success-bg p-3.5">
                 <DiscoveryPromise />
-                <details data-discovery-more="" className="mt-2">
-                  <summary className="cursor-pointer text-xs font-semibold text-success-fg">How Inspire checks your data and keeps it private</summary>
+                <details data-discovery-more="" open={showPrivacyNote} onToggle={(e) => setShowPrivacyNote(e.currentTarget.open)} className="mt-2">
+                  <summary className="cursor-pointer text-xs font-semibold text-success-fg">Privacy details</summary>
                 <div className="mt-2 grid grid-cols-1 gap-2.5 md:grid-cols-3">
                   {DISCOVERY_PANEL.map((part) => {
                     const PartIcon = part.icon;
@@ -1658,20 +1687,6 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 </details>
               </div>
               {prefillNote && <p className="text-xs text-text-tertiary mt-1.5">{prefillNote}</p>}
-            </FieldSection>
-
-            {/* Generation Instructions — optional */}
-            <FieldSection label="Generation Instructions" hint="Optional. What the business does, what it wants this year, and anything Inspire should focus on or leave out">
-              <div className="relative">
-                <Target size={14} className="absolute start-3 top-3 text-text-tertiary" />
-                <textarea dir="auto"
-                  rows={3}
-                  placeholder="Focus on fraud detection, join orders with customers on customer_id, exclude staging tables..."
-                  value={params['08_generation_instructions']}
-                  onChange={(e) => updateParam('08_generation_instructions', e.target.value)}
-                  className="w-full ps-9 pe-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth resize-none"
-                />
-              </div>
             </FieldSection>
 
           </div>
@@ -2120,11 +2135,10 @@ function Field({ label, required, icon: Icon, hint, children }) {
             <Icon size={14} className="text-text-tertiary" />
           </div>
         )}
-        <span className="text-xs font-bold text-text-primary">
+        <span className="text-xs font-bold text-text-primary" title={hint}>
           {label}
           {required && <span className="text-db-red-fg ms-0.5">*</span>}
         </span>
-        {hint && <span className="text-xs text-text-tertiary">{hint}</span>}
       </div>
       {children}
     </div>
@@ -2135,11 +2149,10 @@ function FieldSection({ label, required, hint, children }) {
   return (
     <div>
       <div className="flex items-baseline gap-1.5 mb-1.5">
-        <span className="text-xs font-semibold text-text-primary">
+        <span className="text-xs font-semibold text-text-primary" title={hint}>
           {label}
           {required && <span className="text-db-red-fg ms-0.5">*</span>}
         </span>
-        {hint && <span className="text-xs text-text-tertiary">{hint}</span>}
       </div>
       {children}
     </div>
@@ -2174,6 +2187,7 @@ function listSchemaTables(schemaFullName, apiFetch, warehouseId) {
 function PickerList({ items, selected, onToggle, getKey, getLabel, extraOf = () => null, disabledReasonOf = () => '', onTryAgain, searchValue, onSearch, searchPlaceholder, emptyText }) {
   return (
     <div className="rounded-lg border border-border bg-bg overflow-hidden flex flex-col min-h-0">
+      {(items.length > 0 || searchValue) && (
       <div className="relative shrink-0">
         <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
         <input dir="auto"
@@ -2184,9 +2198,10 @@ function PickerList({ items, selected, onToggle, getKey, getLabel, extraOf = () 
           onChange={(e) => onSearch(e.target.value)}
         />
       </div>
+      )}
       {items.length > 0 && (
-        <p className="text-xs text-text-tertiary px-2 py-1 border-b border-border bg-bg-subtle/40 shrink-0">
-          {items.length} item{items.length === 1 ? '' : 's'}. Scroll the list to see all of them
+        <p title="Scroll the list to see all of them" className="text-xs text-text-tertiary px-2 py-1 border-b border-border bg-bg-subtle/40 shrink-0">
+          {items.length} item{items.length === 1 ? '' : 's'}
         </p>
       )}
       <div className="max-h-[min(22rem,55vh)] overflow-y-auto p-1.5 min-h-0">

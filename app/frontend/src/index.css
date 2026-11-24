@@ -641,12 +641,19 @@ textarea::placeholder {
   from { transform: translateY(4px); }
   to { transform: translateY(0); }
 }
+@keyframes menuEnter {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 @keyframes fadeShort {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 .dialog-enter {
   animation: dialogEnter var(--dur-base) var(--ease-out) backwards;
+}
+.menu-enter {
+  animation: menuEnter var(--dur-base) var(--ease-out) backwards;
 }
 .drawer-enter {
   animation: drawerEnter 220ms var(--ease-out) backwards;
@@ -661,6 +668,7 @@ textarea::placeholder {
     --dur-slow: 0ms;
   }
   .dialog-enter,
+  .menu-enter,
   .drawer-enter,
   .tab-panel-enter {
     animation: fadeShort 60ms linear backwards;

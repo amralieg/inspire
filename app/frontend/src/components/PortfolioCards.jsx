@@ -54,7 +54,7 @@ export default function PortfolioCards({ portfolio, error, sessions, active = ''
           <button type="button" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen((v) => !v)}
             className="inline-flex items-center gap-1.5 rounded-md uppercase tracking-[0.18em] hover:text-text-primary">
             <ChevronDown size={12} aria-hidden className={`transition-transform motion-reduce:transition-none ${open ? '' : '-rotate-90'}`} />
-            Across all runs in this Inspire Database
+            Totals in this Inspire Database
           </button>
         </h2>
         {error && <PlainMessage text={`Inspire could not count across the runs: ${error}`} role="alert" className="text-[12px] text-error-fg" />}
@@ -85,9 +85,9 @@ export default function PortfolioCards({ portfolio, error, sessions, active = ''
                           <CardFigure card={card} totals={totals} />
                         </button>
                       ) : (
-                        <div data-portfolio-card={card.key} data-card-off="" className={`${CARD} border-border bg-bg`}>
+                        <div data-portfolio-card={card.key} data-card-off="" title={action.why || undefined} className={`${CARD} border-border bg-bg`}>
                           <CardFigure card={card} totals={totals} />
-                          {action.why && <PlainMessage as="span" text={action.why} data-card-why="" className="mt-0.5 block text-[10px] leading-snug text-text-secondary" />}
+                          {action.why && <PlainMessage as="span" text={action.why} data-card-why="" className="sr-only" />}
                         </div>
                       )}
                     </li>

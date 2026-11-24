@@ -294,8 +294,8 @@ export default function SetupWizard({ settings, update, onComplete }) {
             <div key={s.id} className="flex items-center">
               <button
                 onClick={() => s.index < step && setStep(s.index)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                  s.index === step ? 'bg-primary-subtle text-primary' :
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-transparent text-xs font-medium transition-colors ${
+                  s.index === step ? 'border-primary bg-primary-subtle text-primary' :
                   s.index < step ? 'bg-success/10 text-success-fg cursor-pointer hover:bg-success/20' :
                   'bg-bg-subtle text-text-tertiary'
                 }`}
@@ -569,7 +569,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
               >
                 Skip setup
               </button>
-              <Button onClick={handleNext} disabled={!canProceed() && step < 4} className="px-6 py-2.5">
+              <Button data-variant="primary" onClick={handleNext} disabled={!canProceed() && step < 4} className="px-6 py-2.5">
                 {step === 4 ? (verification?.ok ? 'Get Started' : 'Verify') : 'Continue'} <ArrowRight size={14} />
               </Button>
             </div>

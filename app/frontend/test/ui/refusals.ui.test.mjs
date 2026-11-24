@@ -22,7 +22,8 @@ test('Choose shows why the policy refused to delete a session, next to that sess
   });
   try {
     await ui.page.getByText('Acme Retail').first().waitFor();
-    await ui.page.getByTitle('Delete run').first().click();
+    await ui.page.getByRole('button', { name: /^More for / }).first().click();
+    await ui.page.getByRole('menuitem', { name: 'Delete run' }).click();
     await ui.page.getByRole('button', { name: 'Delete', exact: true }).click();
     const alert = ui.page.getByRole('alert').filter({ hasText: 'Only the person who launched session 1001' });
     await alert.waitFor({ timeout: 10000 });

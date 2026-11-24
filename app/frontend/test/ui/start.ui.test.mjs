@@ -468,7 +468,13 @@ const RC10_VALUE_ESTIMATES = { runs: { 42: { use_cases: {}, totals: { estimated:
 // FX-34 (REQ-448): the all-runs totals reply; run 42 has a value, the other runs have none.
 const RC10_RUN_VALUE = { totals: [{ currency: 'AED', amount: 12000, calculated: 9000, estimated: 3000 }], n: 3, n_calculated: 1, n_estimated: 1, n_measured: 0, n_none: 1, n_shared: 0 };
 const RC10_VALUE_TOTALS = { runs: [{ session_id: '42', name: 'Acme', ...RC10_RUN_VALUE, run_value: RC10_RUN_VALUE }], all: RC10_RUN_VALUE, truncated: false, cap: 20 };
-const RC10_STATS_TOGGLE = 'Across all runs in this Inspire Database';
+// REQ-510 L2: the stats toggle is named Totals so it does not repeat the More item Value across all runs.
+const RC10_STATS_TOGGLE = 'Totals in this Inspire Database';
+// REQ-510 L2: the all-runs value panel opens from the Start More menu.
+const openValueFromMore = async (page) => {
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Value across all runs' }).click();
+};
 const rc10Mount = (app) => {
   app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
   app.get('/api/showcase', (_req, res) => res.json(DEMO_LIST));
@@ -530,6 +536,7 @@ test('REQ-095 Value across runs sits above the all-runs stats, and the stats col
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    await openValueFromMore(page);
     const overall = page.getByRole('region', { name: 'Value across runs' });
     const stats = page.getByRole('region', { name: 'Across all runs' });
     await overall.waitFor({ timeout: 20000 });
@@ -568,6 +575,7 @@ test('REQ-078 REQ-448 Start: one totals read feeds every run card and the value 
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
     const card = page.locator('[data-run="42"] [data-run-value] [data-run-value-total]');
     await card.waitFor({ timeout: 20000 });
+    await openValueFromMore(page);
     const panelTotal = page.locator('[data-value-all-panel] [data-total-amount]').first();
     await panelTotal.waitFor({ timeout: 20000 });
     assert.equal(await page.locator('[data-value-all-panel] [data-all-runs-row]').count(), 0, 'no per-run table in the all-runs panel');

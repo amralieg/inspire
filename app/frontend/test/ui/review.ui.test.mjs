@@ -107,7 +107,7 @@ test('Review heads the open run with its catalog, business and date, shows each 
     await stat('Subdomains', '5');
     assert.equal(await page.locator('[data-portfolio], [data-portfolio-card]').count(), 0, 'with the portfolio read, Review still shows no totals across runs');
     assert.equal(await portfolio(page).count(), 0);
-    assert.equal(await page.getByText('Across all runs in this Inspire Database').count(), 0);
+    assert.equal(await page.getByText('Totals in this Inspire Database').count(), 0);
     const runScope = await page.evaluate(() => {
       const words = ['Use Cases', 'Domains', 'High Priority'];
       const seen = Object.fromEntries(words.map((w) => [w, 0]));
@@ -227,8 +227,11 @@ test('Start lists the runs with Latest Run only on the newest run of a business 
     const box = await steadyBox(choose.page.locator('[data-run="42"]'));
     await choose.page.mouse.click(box.x + box.width - 10, box.y + box.height / 2);
     assert.equal(await opened(), '42', 'a click anywhere on the row opens the run, its chevron edge too');
-    await choose.page.locator('[data-run="51"]').getByRole('button', { name: 'Quick View' }).click();
-    await choose.page.locator('[data-run="51"]').getByRole('button', { name: 'Hide' }).waitFor();
+    await choose.page.locator('[data-run="51"]').getByRole('button', { name: /^More for / }).click();
+    await choose.page.getByRole('menuitem', { name: 'Quick view' }).click();
+    await choose.page.locator('[data-run="51"]').getByRole('button', { name: /^More for / }).click();
+    await choose.page.getByRole('menuitem', { name: 'Hide quick view' }).waitFor();
+    await choose.page.keyboard.press('Escape');
     assert.equal(await opened(), '42', 'Quick View opens its panel and not the run');
     await choose.page.locator('[data-run="42"]').getByRole('button', { name: /Acme/ }).first().waitFor();
     assert.deepEqual(choose.pageErrors, []);
