@@ -3153,6 +3153,7 @@ app.get('/api/inspire/usecases', requireToken, async (req, res) => {
       row.No = row.id || '';
       row.original_name = row.use_case || row.Name || '';
       row.Name = row.user_use_case_name || row.original_name;
+      row.docs_generated_at = row.docs_generated_at || null;
       row.short_name = row.short_name || row.use_case || '';
       row['Business Domain'] = row.business_domain || '';
       row.Subdomain = row.subdomain || '';

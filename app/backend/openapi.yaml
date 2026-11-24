@@ -2221,6 +2221,7 @@ paths:
                 folder: {type: string, description: The generation path of the run, or a folder under it}
                 name: {type: string, example: Acme_infographic.pdf}
                 content_base64: {type: string}
+                use_case_ids: {type: array, items: {type: string}, description: 'Optional. Use cases the file covers; after the save their docs_generated_at is set. A bad id is refused with 400 before the save.'}
       responses:
         '200':
           description: Saved
@@ -2232,6 +2233,7 @@ paths:
                   path: {type: string}
                   name: {type: string}
                   size: {type: integer}
+                  use_case_ids: {type: array, items: {type: string}, description: Present when ids were sent}
         '400':
           description: Invalid input
           content:
