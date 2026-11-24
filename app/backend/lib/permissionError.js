@@ -43,7 +43,9 @@ function permissionFor(message, principal) {
     const [catalog, schema] = denied.name.split('.');
     statements = [`GRANT CREATE TABLE ON SCHEMA \`${catalog}\`.\`${schema}\` TO \`${who}\``]; // PERMISSION_DIALOG
   } else if (named && denied.kind === 'table' && /^MODIFY$/i.test(named[1])) {
-    statements = [`GRANT MODIFY ON TABLE ${denied.name.split('.').map((p) => `\`${p}\``).join('.')} TO \`${who}\``]; // PERMISSION_DIALOG
+    // SEC-01 (W1): Inspire writes only to its own schema, so a MODIFY denial on a table is never answered with a GRANT MODIFY.
+    return permissionRequired({ principal: who, instructions: [`Inspire writes only to its own schema, so it does not need MODIFY on ${denied.name}. `
+      + 'Nothing is granted on that table; check which table the step was asked to change.'], why: 'Inspire never changes your tables.' });
   } else if (denied.kind === 'schema') {
     const [catalog, schema] = denied.name.split('.');
     // PERMISSION_DIALOG: these statements go to the Permission Required dialog, which copies them (REQ-131, REQ-260)

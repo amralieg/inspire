@@ -18,9 +18,10 @@ test('a schema refusal maps to USE CATALOG, USE SCHEMA and SELECT on the schema 
   assert.equal(p.why, 'Inspire reads this with your own access.');
 });
 
-test('a table refusal maps to USE CATALOG, USE SCHEMA and SELECT on the table schema (REQ-408)', () => {
+test('a table refusal maps to USE CATALOG, USE SCHEMA and a table-level SELECT (SEC-01 W3)', () => {
   const p = permissionFor(TABLE_DENIED, PERSON);
-  assert.ok(p.statements.includes(`GRANT SELECT ON SCHEMA \`adb_fe_uae_01\`.\`demo_telco\` TO \`${PERSON}\``));
+  assert.ok(p.statements.some((s) => /^GRANT SELECT ON TABLE `adb_fe_uae_01`\.`demo_telco`\.`[^`]+` TO /.test(s)), p.statements.join('\n'));
+  assert.ok(!p.statements.some((s) => /^GRANT SELECT ON SCHEMA/.test(s)));
   assert.ok(p.statements.some((s) => s.startsWith('GRANT USE SCHEMA ON SCHEMA')));
 });
 

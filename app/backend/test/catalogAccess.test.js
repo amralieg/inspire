@@ -131,8 +131,8 @@ test('context splits a table only the App cannot read from a missing table and n
     const offer = got.data.app_unreadable;
     assert.deepEqual(offer.tables, ['main.s.orders']);
     assert.deepEqual(offer.app, { name: 'inspire-manual', id: 'app-sp-id' });
-    // REQ-408: the offer's copy is schema level (the read grants of the schema); the table statements stay in Grant.
-    assert.deepEqual(offer.grants, ['GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`', 'GRANT SELECT ON SCHEMA `main`.`s` TO `app-sp-id`', 'GRANT READ METADATA ON SCHEMA `main`.`s` TO `app-sp-id`']);
+    // SEC-01 (W3): the offer's copy is table level, the same statements Grant runs.
+    assert.deepEqual(offer.grants, ['GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`', 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`', 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-id`']);
     assert.equal(offer.can_grant, true);
     assert.match(offer.text, /builds run as the App inspire-manual, and the App cannot read this table/);
     assert.doesNotMatch(offer.text, /swap/i);
@@ -162,7 +162,7 @@ test('a rerun the App cannot read refuses with the named App reason, never the s
     assert.match(got.data.error, /Ask your data owner to give the App access: the details for your admin are in Permission Required$/);
     assert.doesNotMatch(got.data.error, /GRANT /, 'no GRANT in the refusal prose (REQ-260)');
     assert.deepEqual(got.data.app_unreadable.permissions[0].statements, [
-      'GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`', 'GRANT SELECT ON SCHEMA `main`.`s` TO `app-sp-id`', 'GRANT READ METADATA ON SCHEMA `main`.`s` TO `app-sp-id`'], 'the dialog payload asks at schema level (REQ-408)');
+      'GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`', 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`', 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-id`'], 'the dialog payload asks at table level (SEC-01 W3)');
     assert.doesNotMatch(got.data.error, /swap/i);
     assert.deepEqual(got.data.missing_tables, []);
     assert.equal(got.data.app_unreadable.can_grant, false);
@@ -430,7 +430,7 @@ test('the preflight context offers the App read grants when only the policy read
     assert.deepEqual(before.data.app_unreadable.tables, ['main.s.orders']);
     assert.equal(before.data.app_unreadable.can_grant, true);
     assert.deepEqual(before.data.app_unreadable.grants, ['GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`',
-      'GRANT SELECT ON SCHEMA `main`.`s` TO `app-sp-id`', 'GRANT READ METADATA ON SCHEMA `main`.`s` TO `app-sp-id`']);  // REQ-408: copy at schema level
+      'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`', 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-id`']);  // SEC-01 (W3): table level
   });
 });
 

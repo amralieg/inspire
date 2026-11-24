@@ -50,7 +50,7 @@ test('group-counts on a table the person cannot read answers 403 with the Permis
   assert.equal(resp.status, 403, JSON.stringify(body));
   assert.ok(Array.isArray(body.permissions) && body.permissions.length > 0, 'the payload is present');
   const statements = body.permissions.flatMap((p) => p.statements || []);
-  assert.ok(statements.some((s) => /GRANT SELECT ON SCHEMA `main`\.`s`/.test(s)), statements.join('\n'));
+  assert.ok(statements.some((s) => /GRANT SELECT ON TABLE `main`\.`s`\.`orders`/.test(s)), statements.join('\n'));
 });
 
 test('a non-denial warehouse failure on group-counts is still a server failure, with no payload invented (must-exclude)', async () => {
@@ -114,7 +114,8 @@ test('CREATE TABLE on a schema and MODIFY on a table each map to their own GRANT
   const create = permissionFor("[INSUFFICIENT_PERMISSIONS] User does not have CREATE TABLE on Schema 'main.inspire'.", WHO);
   assert.deepEqual(create.statements, [`GRANT CREATE TABLE ON SCHEMA \`main\`.\`inspire\` TO \`${WHO}\``]);
   const modify = permissionFor("[INSUFFICIENT_PERMISSIONS] User does not have MODIFY on Table 'main.inspire.churn_out'.", WHO);
-  assert.deepEqual(modify.statements, [`GRANT MODIFY ON TABLE \`main\`.\`inspire\`.\`churn_out\` TO \`${WHO}\``]);
+  assert.deepEqual(modify.statements, [], 'SEC-01: a MODIFY denial never offers GRANT MODIFY');
+  assert.match(modify.instructions[0], /writes only to its own schema.*main\.inspire\.churn_out/);
 });
 
 test('a warehouse Can Use refusal carries steps to copy, names the warehouse, and writes no GRANT (REQ-313)', () => {

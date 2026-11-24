@@ -49,13 +49,13 @@ test('the Discover dialog names the plan grant, READ METADATA at schema level, n
   const offer = { app: { id: SP, name: 'inspire-app' }, tables: ['main.s.orders'], can_grant: false, builtin: [],
     grants: [`GRANT READ METADATA ON TABLE \`main\`.\`s\`.\`orders\` TO \`${SP}\``] };
   const read = appReadPermissions({ app_unreadable: { ...offer, text: 'x' }, missing: [] }, SP);
-  assert.deepEqual(read.permissions[0].statements, [`GRANT READ METADATA ON SCHEMA \`main\`.\`s\` TO \`${SP}\``]);
+  assert.deepEqual(read.permissions[0].statements, [`GRANT READ METADATA ON TABLE \`main\`.\`s\`.\`orders\` TO \`${SP}\``]);
 });
 
 test('a source the App cannot probe names every source need, READ METADATA included, at schema level (must fail before the fix)', () => {
   const read = appReadPermissions({ app_unreadable: null, missing: [{ table: 'main.s.orders', reason: 'no read access' }] }, SP);
-  assert.ok(read.permissions[0].statements.includes(`GRANT READ METADATA ON SCHEMA \`main\`.\`s\` TO \`${SP}\``), JSON.stringify(read.permissions[0]));
-  assert.ok(read.permissions[0].statements.includes(`GRANT SELECT ON SCHEMA \`main\`.\`s\` TO \`${SP}\``), JSON.stringify(read.permissions[0]));
+  assert.ok(read.permissions[0].statements.includes(`GRANT READ METADATA ON TABLE \`main\`.\`s\`.\`orders\` TO \`${SP}\``), JSON.stringify(read.permissions[0]));
+  assert.ok(read.permissions[0].statements.includes(`GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders\` TO \`${SP}\``), JSON.stringify(read.permissions[0]));
 });
 
 test('an ABAC refusal with no grant left to name gives a warning, never an empty dialog (must-exclude)', () => {

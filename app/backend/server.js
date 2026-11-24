@@ -64,12 +64,12 @@ const { loadSessionList, loadSessionOverviews, sessionListCap, SESSION_LIST_CAP 
 const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../frontend/src/lib/liveUseCases.js');
 const { isInspireOwnName, isInspireOwnSchema } = require('../frontend/src/lib/inspireOwnObjects.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
-const { appReadPermissions, sampleCopyPermission, permissionRequired } = require('./lib/permissions');
+const { appReadPermissions, sampleCopyPermission, permissionRequired, readStatementsFor } = require('./lib/permissions');
 const { spGrantedCatalogs, grantedCatalogList, partialPermission, droppedCatalogs } = require('./lib/spCatalogs');
 const { planModelAccess, selfCheckRecord, MODEL_CHECK_ROUTE } = require('./lib/modelAccess');
 const PM_ERROR = require('./lib/permissionError');
 const { apiRefusalText, logApiBody } = require('./lib/apiRefusal');
-const { samplesChoiceOfRun, isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyFailureKind, samplesNeedChoice, SAMPLES_CHOICE_TEXT, sampleCopyName, sampleCopyRefusal, sampleCopyStatement, sampleCopyTakenMessage, sampleSchemaMessage, sampleTableRef, schemaCreateStatement, describedColumnNames, implementTableName, parseImplementRow, builtTableScopeOf, builtFramingOf, builtTextOf, latestBuiltRowsSql, resultTableNameError, quoteTable } = require('./lib/inspireImplement');
+const { tableProbeStatement, tableAccessReason, samplesChoiceOfRun, isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyFailureKind, samplesNeedChoice, SAMPLES_CHOICE_TEXT, sampleCopyName, sampleCopyRefusal, sampleCopyStatement, sampleCopyTakenMessage, sampleSchemaMessage, sampleTableRef, schemaCreateStatement, describedColumnNames, implementTableName, parseImplementRow, builtTableScopeOf, builtFramingOf, builtTextOf, latestBuiltRowsSql, resultTableNameError, quoteTable } = require('./lib/inspireImplement');
 const { keepLongInteger, parseExactJson } = require('./lib/exactJson');
 const { int64Id, isInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const { dataFiltersOf, scopesOfSessions } = require('./lib/dataFilters');
@@ -2300,7 +2300,7 @@ app.post('/api/run/check', requireToken, async (req, res) => {
   try {
     const params = (req.body && req.body.params && typeof req.body.params === 'object') ? { ...req.body.params } : {};
     const { reads, access, model } = await checkLaunchReads(req, params);
-    if (reads.refusal) return PM_ERROR.sendFailure(res, reads.refusal.status, reads.refusal.message, { unreadable: reads.refusal.unreadable });
+    if (reads.refusal) return PM_ERROR.sendFailure(res, reads.refusal.status, reads.refusal.message, refusalExtra(reads.refusal));
     res.json({ permissions: [...model, ...access.permissions], warnings: access.warnings });
   } catch (err) {
     const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
@@ -2480,11 +2480,52 @@ async function droppedCatalogRefusal(req, params) {
   unreadable: dropped };
 }
 
+// SEC-01 (W5): the launcher's own read is checked again right before a job starts, so a read revoked between the pick and the launch
+// stops the run. The probe is a LIMIT 0 read with the launcher's sign-in. Nothing is granted: the refusal names a table-level SELECT.
+const LAUNCHER_PROBE_LIMIT = 50;
+async function launcherReadRefusal(req, scope) {
+  const person = forwardedTokenOf(req);
+  const { catalogs, schemas, tables: picked } = ucMetadataParts(scope);
+  const entries = [...picked, ...schemas, ...catalogs];
+  if (!person || !entries.length || !DEFAULT_WAREHOUSE_ID) return null;
+  const token = await appOwnToken();
+  if (!token) return null;
+  const { tables } = await scopeTables(dbFetch, req.dbHost, token, entries);
+  const lost = [];
+  await Promise.all(tables.slice(0, LAUNCHER_PROBE_LIMIT).map(async (table) => {
+    try {
+      const probe = tableProbeStatement(table);
+      await executeSql(req.dbHost, person, DEFAULT_WAREHOUSE_ID, probe.sql, probe.parameters);
+    } catch (err) {
+      if (tableAccessReason(table, err && err.message) === 'no read access') lost.push(table);
+    }
+  }));
+  if (!lost.length) return null;
+  const email = RP.forwardedPerson(req.headers);
+  const names = lost.sort();
+  const permission = permissionRequired({ statements: readStatementsFor(names, email || 'you'), principal: email || 'you',
+    why: `Discover starts only while you can read ${names.join(', ')}, and you can no longer read ${names.length === 1 ? 'it' : 'them'}.` });
+  return { status: 403, request: 'person', permissions: permission ? [permission] : [],
+    message: `You can no longer read ${names.join(', ')}, so the run did not start. Ask for access to ${names.length === 1 ? 'it' : 'them'}, or take ${names.length === 1 ? 'it' : 'them'} off your selection.`,
+    unreadable: names };
+}
+
+function refusalExtra(refusal) {
+  return { unreadable: refusal.unreadable, ...(refusal.request ? { request: refusal.request } : {}), ...(refusal.permissions ? { permissions: refusal.permissions } : {}) };
+}
+
 async function checkLaunchReads(req, params) {
   return raceLaunchCheck((async () => {
     const dropped = await droppedCatalogRefusal(req, params);
     if (dropped) return { reads: { refusal: dropped, skipped: [], warnings: [] }, access: { permissions: [], warnings: [] }, model: [] };
     const reads = await runReadPlan(dbFetch, req, discoverReads(params));
+    if (!reads.refusal) {
+      const lost = await launcherReadRefusal(req, reads.scope || params['01_uc_metadata']).catch((err) => {
+        console.warn(`launcher read check: ${err.message || err}`);
+        return null;
+      });
+      if (lost) return { reads: { ...reads, refusal: lost }, access: { permissions: [], warnings: [] }, model: [] };
+    }
     const access = reads.refusal ? { permissions: [], warnings: [] } : await discoverAppAccess(req, reads.scope || params['01_uc_metadata']);
     const model = await discoverModelAccess(req);
     return { reads, access, model };
@@ -2496,7 +2537,7 @@ async function launchDiscover(req, res, { params, notebook_path, cluster_id, pro
     const refused = LC.launchParamsProblem(params) || await launchSessionProblem(req, params);
     if (refused) return res.status(403).json(RP.refusalBody(req.policyKey, 'launcher', `${refused}.`));
     const { reads, access, model } = await checkLaunchReads(req, params);
-    if (reads.refusal) return PM_ERROR.sendFailure(res, reads.refusal.status, reads.refusal.message, { unreadable: reads.refusal.unreadable });
+    if (reads.refusal) return PM_ERROR.sendFailure(res, reads.refusal.status, reads.refusal.message, refusalExtra(reads.refusal));
     if (model.length) return PM_ERROR.sendFailure(res, 403, MODEL_ACCESS_BLOCK, { permissions: model });
     if (reads.scope) params['01_uc_metadata'] = reads.scope;
     const out = await triggerInspireNotebookJob(req.dbHost, req.dbToken, {
@@ -2531,22 +2572,11 @@ async function discoverAppAccess(req, scope) {
   try {
     const { tables, more } = await scopeTables(dbFetch, req.dbHost, token, entries);
     if (!tables.length) return none;
-    let found = await discoverAccess.sourceAccess(req, DEFAULT_WAREHOUSE_ID, tables, 'discover', { wholeCatalogs: catalogs });
+    const found = await discoverAccess.sourceAccess(req, DEFAULT_WAREHOUSE_ID, tables, 'discover', { wholeCatalogs: catalogs });
     const warnings = [];
     const permissions = [];
-    // The App's principal needs the grant, and an owner runs it. A person who can run it with their own sign-in does so here; otherwise the
-    // grant is named once as a Permission Required for the App's service principal, and nothing is asked of the person.
-    const person = personTokenOf(req);
-    if (found.app_unreadable && found.app_unreadable.can_grant && person) {
-      const offer = found.app_unreadable;
-      const { ran, failed } = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, offer.grants);
-      if (ran.length) console.log(`Discover: granted the App read access to ${plural(offer.tables.length, 'table')} with the sign-in: ${ran.join('; ')}`);
-      if (failed.length) {
-        const refused = permissionRequired({ statements: offer.grants, principal: offer.app.id || SP_CLIENT_ID, wholeCatalogs: catalogs, why: 'Discover reads these tables as the App, and the grant could not run with your sign-in. Ask your workspace admin to run it.' });
-        if (refused) permissions.push(refused);
-      }
-      found = await discoverAccess.sourceAccess(req, DEFAULT_WAREHOUSE_ID, tables, 'discover', { wholeCatalogs: catalogs });
-    }
+    // SEC-01 (W1): the App's principal needs the grant, and its owner runs it. Discover never runs a grant with the launcher's sign-in: the
+    // grant is named once as a Permission Required for the App's service principal.
     const read = appReadPermissions(found, SP_CLIENT_ID, { wholeCatalogs: catalogs });
     warnings.push(...read.warnings);
     permissions.push(...read.permissions);

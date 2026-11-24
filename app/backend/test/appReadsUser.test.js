@@ -118,8 +118,8 @@ test('a check with no grant lists what the viewer still needs and never runs a g
     const got = await call(url, `/api/inspire/implement/app-reads?${Q}`, {});
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(w.grants.length, 0, 'a check never grants');
-    // REQ-408: the copy the response carries is schema level; Grant (below) keeps the exact table statements.
-    assert.ok(got.data.tables.some((t) => t.grants.includes(`GRANT SELECT ON SCHEMA \`main\`.\`s\` TO \`${NEW}\``)));
+    // SEC-01 (W3): the copy the response carries is table level.
+    assert.ok(got.data.tables.some((t) => t.grants.includes(`GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders_scope\` TO \`${NEW}\``)));
   });
 });
 
@@ -152,7 +152,7 @@ test('a service-principal App with objects is checked and granted for its live s
     assert.equal(checked.status, 200, JSON.stringify(checked.data));
     assert.equal(checked.data.objects, true);
     assert.deepEqual(checked.data.principals, [SP], 'the live service principal is the principal');
-    assert.ok(checked.data.tables.some((t) => t.grants.includes(`GRANT READ METADATA ON SCHEMA \`main\`.\`s\` TO \`${SP}\``)));
+    assert.ok(checked.data.tables.some((t) => t.grants.includes(`GRANT READ METADATA ON TABLE \`main\`.\`s\`.\`orders_scope\` TO \`${SP}\``)));
     const got = await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'grant' });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.ok(w.grants.length > 0 && w.grants.every(([sql, token]) => sql.endsWith(`TO \`${SP}\``) && token === PERSON_TOKEN));

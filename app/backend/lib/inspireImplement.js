@@ -3181,7 +3181,7 @@ function outputAccess(rows, name, options = {}) {
   const readable = accessPlan(name, list, '', options);
   const app = missing ? { ok: false, detail: `a new App cannot read the table: ${missing}` }
     : readable.gaps.length
-      ? { ok: false, detail: appAccessMessage(table, readable.gaps), permission: appAccessPermission(readable.gaps, readable.me) }
+      ? { ok: false, detail: appAccessMessage(table, readable.gaps), permission: appAccessPermission(readable.gaps) }
       : { ok: true, detail: `Inspire can give a new App read access to ${table}` };
   return { table, exists, identity, write, grant, app };
 }
@@ -3638,25 +3638,8 @@ function newAppReadsWarning(unshared) {
 // FX-52 (D52): a source Inspire cannot share with the new App blocks the build. The flag and the exact GRANT for the data owner sit beside
 // `tables` in summary.app_reads; the plan warning text above is unchanged.
 function appReadsBlock(unshared) {
-  const grant = [...new Set((unshared || []).flatMap((t) => appAccessPermission(t.gaps || [], t.me || '').statements))];
+  const grant = [...new Set((unshared || []).flatMap((t) => appAccessPermission(t.gaps || []).statements))];
   return { blocking: true, grant };
-}
-
-// REQ-478, REQ-469: the signed-in person can give Inspire MANAGE on a source when they own or manage it, its schema or its catalog.
-const GRANT_REACH = { catalog: ['catalog'], schema: ['catalog', 'schema'], table: ['catalog', 'schema', 'table'] };
-function personCanGrant(gaps, rows) {
-  const holds = new Set((rows || []).filter((r) => (r.mine === true || str(r.mine).toLowerCase() === 'true')
-    && ['OWNER', 'MANAGE'].includes(privilegeOf(r.privilege))).map((r) => str(r.level).toLowerCase()));
-  return (gaps || []).length > 0 && gaps.every((g) => (GRANT_REACH[g.level] || []).some((level) => holds.has(level)));
-}
-
-// REQ-478, REQ-469: the one info line for sources Inspire shares with the new App using the signed-in person's permissions.
-function appReadsByYou(unshared, done = false) {
-  const tables = (unshared || []).map((t) => t.table);
-  const grant = appReadsBlock(unshared).grant;
-  const names = joinAnd(tables);
-  return { tables, grant, text: done ? `Inspire used your permissions to let the App it makes read ${names}`
-    : `When the build starts, Inspire uses your permissions to let the App it makes read ${names}` };
 }
 
 // Each data owner once, in order, across every gap left.
@@ -3667,8 +3650,12 @@ function appReadsOwners(unshared) {
 function refuseAppReadsBlocked(plan) {
   const reads = plan && plan.summary && plan.summary.app_reads;
   if (!reads || !reads.blocking) return;
-  throw badRequest(`Inspire cannot share ${joinAnd((reads.tables || []).map((t) => t.table))} with the App this build makes, so no build started. `
+  const err = badRequest(`Inspire cannot share ${joinAnd((reads.tables || []).map((t) => t.table))} with the App this build makes, so no build started. `
     + `Ask ${joinAnd([...new Set((reads.tables || []).map((t) => ownerLabel(t.owner)))])} to run: ${(reads.grant || []).join('; ')}. Then check again`, 403);
+  // SEC-01 (W1): the refusal carries the Permission Required payload (read-only, table-level), never a grant Inspire ran.
+  err.details = { request: 'person', permissions: [permissionRequired({ statements: reads.grant || [], principal: NEW_APP_PRINCIPAL,
+    why: 'The new App needs read access to this data, and only its owner can give it.' })].filter(Boolean) };
+  throw err;
 }
 
 function gapList(gaps) {
@@ -3681,10 +3668,12 @@ function accessGapMessage(who, gaps) {
     + `does not manage ${it}. If ${who} does not have ${it} yet, ask your data owner to give ${it} access: the details for your admin are in Permission Required`;
 }
 
-function appAccessPermission(gaps, me = '') {
-  const principal = me ? `\`${me}\`` : 'the identity Inspire runs as';
-  const statements = gaps.map((g) => `GRANT MANAGE ON ${g.level.toUpperCase()} ${g.object} TO ${principal}`); // PERMISSION_DIALOG
-  return { statements, principal: me || 'the identity Inspire runs as', why: 'Inspire needs to manage this table so it can give the new App read access.' };
+// SEC-01 (W1): what a new App lacks to read a source is asked as read-only, table-level grants for the new App; Inspire never asks for MANAGE.
+const NEW_APP_PRINCIPAL = "the new App's service principal";
+function appAccessPermission(gaps, app = '') {
+  const principal = app ? `\`${app}\`` : NEW_APP_PRINCIPAL;
+  const statements = [...new Set((gaps || []).filter((g) => g.privilege).map((g) => `GRANT ${g.privilege} ON ${g.level.toUpperCase()} ${g.object} TO ${principal}`))]; // PERMISSION_DIALOG
+  return { statements, principal: app || NEW_APP_PRINCIPAL, why: 'The new App needs read access to this data, and only its owner can give it.' };
 }
 
 function appAccessMessage(table, gaps) {
@@ -3826,7 +3815,7 @@ const USE_CASE_SCHEMA_FACT_OF_TAG = { [USE_CASE_SCHEMA_SESSION_TAG]: 'session', 
 const USE_CASE_SCHEMA_CREATE_RIGHTS = ['OWNER', 'ALL PRIVILEGES', 'CREATE SCHEMA'];
 // REQ-478: the rights on an existing use case schema that let Inspire write there and give a new App access.
 const USE_CASE_SCHEMA_USE_RIGHTS = ['OWNER', 'MANAGE', 'ALL PRIVILEGES'];
-const USE_CASE_SCHEMA_BUILDER_PRIVILEGES = 'USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT, MODIFY, MANAGE';
+const USE_CASE_SCHEMA_BUILDER_PRIVILEGES = 'USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT';
 
 function useCaseSchemaStatement(catalog, schemas) {
   const names = [...new Set((schemas || []).map((s) => str(s).toLowerCase()).filter(Boolean))];
@@ -4467,9 +4456,7 @@ module.exports = {
   useCaseSchemaOwner,
   ownSchemaStrandedNote,
   managedResultMove,
-  appReadsByYou,
   appReadsOwners,
-  personCanGrant,
   useCaseSchemaPlace,
   useCaseSchemaTagsSql,
   useCaseSchemaBuilderGrant,

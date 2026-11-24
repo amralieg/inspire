@@ -35,17 +35,17 @@ function sourceAccessFor() {
 const APP_TOKEN = 'app-token';
 const REQ = { dbHost: 'h.example.com', dbToken: PERSON, dbTokenKind: 'person', headers: { 'x-forwarded-access-token': PERSON } };
 
-test('a whole-catalog pick asks the App read at catalog level in the offer dialog', async () => {
+test('SEC-01 (W3): a whole-catalog pick asks the App read at table level in the offer dialog, never on the catalog', async () => {
   const sa = sourceAccessFor();
   const got = await sa.sourceAccess(REQ, 'wh', [TABLE], 'discover', { wholeCatalogs: ['main'] });
   const statements = got.app_unreadable.permissions[0].statements;
-  assert.ok(statements.includes(`GRANT SELECT ON CATALOG \`main\` TO \`${APP}\``), JSON.stringify(statements));
-  assert.equal(statements.filter((sql) => /ON (SCHEMA|TABLE) /.test(sql)).length, 0, `no schema or table line: ${JSON.stringify(statements)}`);
+  assert.ok(statements.includes(`GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders\` TO \`${APP}\``), JSON.stringify(statements));
+  assert.equal(statements.filter((sql) => /^GRANT (SELECT|READ METADATA) ON (CATALOG|SCHEMA) /.test(sql)).length, 0, `no catalog or schema read: ${JSON.stringify(statements)}`);
 });
 
-test('without a picked whole catalog the offer asks at schema level, as before', async () => {
+test('SEC-01 (W3): without a picked whole catalog the offer asks at table level too', async () => {
   const sa = sourceAccessFor();
   const got = await sa.sourceAccess(REQ, 'wh', [TABLE], 'discover');
   const statements = got.app_unreadable.permissions[0].statements;
-  assert.ok(statements.includes(`GRANT SELECT ON SCHEMA \`main\`.\`s\` TO \`${APP}\``), JSON.stringify(statements));
+  assert.ok(statements.includes(`GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders\` TO \`${APP}\``), JSON.stringify(statements));
 });
