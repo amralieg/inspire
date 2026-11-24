@@ -161,7 +161,7 @@ function FloatingSchemas({ opacity = 0.04 }) {
         return (
           <span
             key={schema}
-            className="absolute whitespace-nowrap font-mono text-[11px] animate-schema-float"
+            className="absolute whitespace-nowrap font-mono text-xs animate-schema-float"
             style={{
               top: `${top}%`,
               right: '-300px',
@@ -511,7 +511,7 @@ function InspireOrb({ progress, section }) {
 function UseCaseCard({ uc, index, visible, palette }) {
   return (
     <div
-      className={`flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-700 ${
+      className={`flex items-center gap-4 px-5 py-4 rounded-2xl transition-[opacity,transform] duration-700 ${
         visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
       }`}
       style={{ transitionDelay: `${index * 120}ms`, background: palette.cardBg, border: `1px solid ${palette.cardBorder}` }}
@@ -519,9 +519,9 @@ function UseCaseCard({ uc, index, visible, palette }) {
       <div className="w-2 h-2 rounded-full shrink-0" style={{ background: TONES[uc.tone].dot }} />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold truncate" style={{ color: palette.text }}>{uc.title}</p>
-        <p className="text-[11px]" style={{ color: palette.textMuted }}>{uc.domain}</p>
+        <p className="text-xs" style={{ color: palette.textMuted }}>{uc.domain}</p>
       </div>
-      <span className="text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0" style={{ background: TONES[uc.tone].bg, color: TONES[uc.tone].fg }}>
+      <span className="text-xs font-bold px-2.5 py-1 rounded-full shrink-0" style={{ background: TONES[uc.tone].bg, color: TONES[uc.tone].fg }}>
         {uc.priority}
       </span>
     </div>
@@ -556,7 +556,7 @@ function LandingActions({ onStart, large = false, className = '', style }) {
       <button
         type="button"
         onClick={onStart}
-        className={`group inline-flex items-center gap-2.5 bg-gradient-to-r from-db-red-solid to-db-red-solid-hover text-white font-bold rounded-xl transition-all duration-300 hover:-translate-y-0.5 ${size}`}
+        className={`group inline-flex items-center gap-2.5 bg-linear-to-r from-db-red-solid to-db-red-solid-hover text-white font-bold rounded-xl transition-[opacity,transform] duration-300 hover:-translate-y-0.5 ${size}`}
         style={{ boxShadow: START_GLOW }}
       >
         Get Started
@@ -576,7 +576,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
     <div className="h-screen overflow-hidden relative" style={{ backgroundColor: C.pageBg, color: C.text }}>
       {/* ═══ Progress bar ═══ */}
       <div className="fixed top-0 start-0 end-0 z-[100] h-[2px]">
-        <div className="h-full bg-gradient-to-r from-db-red to-db-red-hover" style={{ width: `${progress * 100}%`, transition: 'width 0.15s' }} />
+        <div className="h-full bg-linear-to-r from-db-red to-db-red-hover" style={{ width: `${progress * 100}%`, transition: 'width 0.15s' }} />
       </div>
 
       {/* ═══ The Inspire Orb — persistent scroll-linked object ═══ */}
@@ -584,7 +584,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
 
       {/* ═══ Nav — always visible ═══ */}
       <nav className="fixed top-0 start-0 end-0 z-50 backdrop-blur-2xl" style={{ borderBottom: `1px solid ${C.navBorder}`, backgroundColor: C.navBg }}>
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="w-full px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <DatabricksLogo className="w-8 h-8" />
             <span className="font-bold text-xl tracking-[-0.03em]" style={{ color: C.text }}>Inspire AI</span>
@@ -599,7 +599,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
                   const el = scrollContainerRef.current;
                   if (el) el.scrollTo({ top: i * el.clientHeight, behavior: reducedMotion() ? 'auto' : 'smooth' });
                 }}
-                className="px-3 py-1.5 rounded-full text-[11px] font-medium transition-all duration-300"
+                className="px-3 py-1.5 rounded-full text-xs font-medium transition-colors duration-300"
                 style={{
                   color: section === i ? 'var(--t-db-red-fg)' : C.textMuted,
                   backgroundColor: section === i ? 'var(--color-db-red-50)' : 'transparent',
@@ -612,7 +612,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
           <div className="flex items-center gap-2">
             <button
               onClick={toggle}
-              className="p-2.5 rounded-xl transition-all duration-300"
+              className="p-2.5 rounded-xl transition-colors duration-300"
               style={{ color: C.textMuted, backgroundColor: C.btnBg, border: `1px solid ${C.btnBorder}` }}
               title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
@@ -636,7 +636,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
           <div className="absolute top-[-20%] start-[-10%] w-[60%] h-[60%] rounded-full bg-db-red/[0.05] blur-[150px] animate-ambient-float" aria-hidden="true" />
           <div className="absolute bottom-[-10%] end-[10%] w-[40%] h-[40%] rounded-full bg-db-red/[0.03] blur-[120px] animate-ambient-float-delayed" aria-hidden="true" />
 
-          <div className="relative z-10 max-w-7xl mx-auto px-6 w-full pt-20">
+          <div className="relative z-10 w-full px-6 pt-20">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
               {/* Left: Text */}
               <div>
@@ -645,17 +645,17 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-db-red opacity-60" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-db-red" />
                   </span>
-                  <span className="text-[11px] font-medium" style={{ color: C.textMuted }}>Powered by Databricks Foundation Models</span>
+                  <span className="text-xs font-medium" style={{ color: C.textMuted }}>Powered by Databricks Foundation Models</span>
                 </div>
 
-                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.08] tracking-[-0.04em] mb-6">
+                <h1 className="text-display font-semibold tracking-[-0.04em] mb-6">
                   Discover{' '}
                   <span className="inline-grid">
                     {HERO_WORDS.map((word) => (
                       <span key={word} aria-hidden="true" className="invisible col-start-1 row-start-1">{word}|</span>
                     ))}
                     <span className="col-start-1 row-start-1">
-                      <span className="bg-gradient-to-r from-db-red-fg to-db-red bg-clip-text text-transparent">{typedText}</span>
+                      <span className="bg-linear-to-r from-db-red-fg to-db-red bg-clip-text text-transparent">{typedText}</span>
                       <span className="text-db-red-fg animate-cursor-blink">|</span>
                     </span>
                   </span>
@@ -707,7 +707,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
 
           {/* Scroll hint */}
           <div className="absolute bottom-8 start-1/2 -translate-x-1/2 flex flex-col items-center gap-2 [@media(max-height:820px)]:hidden">
-            <span className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.15em]">Scroll to explore</span>
+            <span className="text-xs font-medium text-text-tertiary uppercase tracking-[0.15em]">Scroll to explore</span>
             <ChevronDown size={16} className="text-text-tertiary animate-pulse" />
           </div>
         </section>
@@ -717,14 +717,14 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
           <FloatingSchemas opacity={0.02} />
           <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, ${C.pageBg}, ${C.pageBg})` }} />
 
-          <div className="relative z-10 max-w-6xl mx-auto px-6 w-full">
+          <div className="relative z-10 w-full px-6">
             <div className="text-center mb-8">
-              <span className="text-[11px] font-medium text-db-red-fg uppercase tracking-[0.15em] block mb-3">How Inspire Thinks</span>
-              <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-[-0.03em] transition-all duration-1000 ${section >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+              <span className="text-xs font-medium text-db-red-fg uppercase tracking-[0.15em] block mb-3">How Inspire Thinks</span>
+              <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-[-0.03em] transition-[opacity,transform] duration-1000 ${section >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
                 Your tables.{' '}
                 <span className="text-text-tertiary">Connected.</span>
               </h2>
-              <p className={`text-sm mt-3 max-w-md mx-auto transition-all duration-1000 delay-200 ${section >= 1 ? 'opacity-100' : 'opacity-0'}`} style={{ color: C.textMuted }}>
+              <p className={`text-sm mt-3 max-w-md mx-auto transition-[opacity,transform] duration-1000 delay-200 ${section >= 1 ? 'opacity-100' : 'opacity-0'}`} style={{ color: C.textMuted }}>
                 Inspire reads the table and column metadata, lineage and joins of the catalogs you pick, finds the tables several use cases share, and groups the use cases into business domains.
               </p>
             </div>
@@ -738,11 +738,11 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
             </div>
 
             {/* Domain legend */}
-            <div className={`flex justify-center gap-6 mt-6 transition-all duration-700 ${section >= 1 && progress > 0.3 ? 'opacity-100' : 'opacity-0'}`}>
+            <div className={`flex justify-center gap-6 mt-6 transition-[opacity,transform] duration-700 ${section >= 1 && progress > 0.3 ? 'opacity-100' : 'opacity-0'}`}>
               {DOMAIN_NAMES.map((name, i) => (
                 <div key={name} className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full" style={{ background: DOMAIN_COLORS[i] }} />
-                  <span className="text-[11px]" style={{ color: C.textMuted }}>{name}</span>
+                  <span className="text-xs" style={{ color: C.textMuted }}>{name}</span>
                 </div>
               ))}
             </div>
@@ -754,14 +754,14 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
           <div className="absolute inset-0" style={{ background: C.pageBg }} />
           <div className="absolute top-[30%] end-[-5%] w-[30%] h-[30%] rounded-full bg-db-red/[0.03] blur-[100px]" aria-hidden="true" />
 
-          <div className="relative z-10 max-w-6xl mx-auto px-6 w-full">
+          <div className="relative z-10 w-full px-6">
             <div className="text-center mb-12">
-              <span className="text-[11px] font-medium text-db-red-fg uppercase tracking-[0.15em] block mb-3">How it works</span>
-              <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-[-0.03em] transition-all duration-1000 ${section >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+              <span className="text-xs font-medium text-db-red-fg uppercase tracking-[0.15em] block mb-3">How it works</span>
+              <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-[-0.03em] transition-[opacity,transform] duration-1000 ${section >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
                 From your catalog{' '}
                 <span className="text-text-tertiary">to working MVPs.</span>
               </h2>
-              <p className={`text-sm mt-3 max-w-xl mx-auto transition-all duration-1000 delay-200 ${section >= 2 ? 'opacity-100' : 'opacity-0'}`} style={{ color: C.textMuted }}>
+              <p className={`text-sm mt-3 max-w-xl mx-auto transition-[opacity,transform] duration-1000 delay-200 ${section >= 2 ? 'opacity-100' : 'opacity-0'}`} style={{ color: C.textMuted }}>
                 Five tabs, in the order you use them.
               </p>
             </div>
@@ -771,7 +771,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
                 <li
                   key={step.label}
                   data-landing-step={step.label}
-                  className={`flex flex-col gap-3 px-5 py-5 rounded-2xl transition-all duration-700 hover:border-db-red/20 group ${
+                  className={`flex flex-col gap-3 px-5 py-5 rounded-2xl transition-[opacity,transform,border-color] duration-700 hover:border-db-red/20 group ${
                     section >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
                   }`}
                   style={{ background: C.cardBg, border: `1px solid ${C.cardBorder}`, transitionDelay: `${i * 150}ms` }}
@@ -781,7 +781,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
                       <step.icon size={20} aria-hidden="true" className="text-db-red-fg group-hover:scale-110 transition-transform" />
                     </div>
                     <div>
-                      <span className="block text-[10px] font-mono" style={{ color: C.textFaint }}>0{i + 1}</span>
+                      <span className="block text-xs font-mono" style={{ color: C.textFaint }}>0{i + 1}</span>
                       <h3 className="text-base font-semibold" style={{ color: C.text }}>{step.label}</h3>
                     </div>
                   </div>
@@ -799,10 +799,10 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
           <div className="absolute top-[20%] start-[30%] w-[40%] h-[50%] rounded-full bg-info/[0.06] blur-[120px]" aria-hidden="true" />
           <div className="absolute bottom-[10%] end-[20%] w-[25%] h-[30%] rounded-full bg-db-red/[0.04] blur-[100px]" aria-hidden="true" />
 
-          <div className="relative z-10 max-w-7xl mx-auto px-6 w-full">
+          <div className="relative z-10 w-full px-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
               {/* Left: Agent image */}
-              <div className={`relative transition-all duration-1000 ${section >= 3 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12'}`}>
+              <div className={`relative transition-[opacity,transform] duration-1000 ${section >= 3 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12'}`}>
                 <div className="absolute inset-0 z-10 pointer-events-none" style={{ background: `linear-gradient(to top, ${C.pageBg}, transparent)` }} />
                 <div className="absolute inset-0 z-10 pointer-events-none" style={{ background: `linear-gradient(to right, transparent, transparent 60%, ${C.pageBg})` }} />
                 <img
@@ -814,11 +814,11 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
               </div>
 
               {/* Right: Text */}
-              <div className={`transition-all duration-1000 delay-300 ${section >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-                <span className="text-[11px] font-medium text-db-red-fg uppercase tracking-[0.15em] block mb-4">Meet the Agent</span>
+              <div className={`transition-[opacity,transform] duration-1000 delay-300 ${section >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+                <span className="text-xs font-medium text-db-red-fg uppercase tracking-[0.15em] block mb-4">Meet the Agent</span>
                 <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-[-0.03em] leading-[1.1] mb-6">
                   Your AI-powered{' '}
-                  <span className="bg-gradient-to-r from-db-red-fg to-db-red bg-clip-text text-transparent">data strategist.</span>
+                  <span className="bg-linear-to-r from-db-red-fg to-db-red bg-clip-text text-transparent">data strategist.</span>
                 </h2>
                 <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: C.textMuted }}>
                   Inspire works like a senior data consultant. It reads the catalogs you pick, works out how the tables relate, and writes a ranked list of use cases for your business. Genie then builds the MVPs.
@@ -843,10 +843,10 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
 
           <div className="relative z-10 max-w-5xl mx-auto px-6 w-full">
             <div className="text-center mb-12">
-              <span className="text-[11px] font-medium text-db-red-fg uppercase tracking-[0.15em] block mb-3">What You Get</span>
-              <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-[-0.03em] transition-all duration-1000 ${section >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+              <span className="text-xs font-medium text-db-red-fg uppercase tracking-[0.15em] block mb-3">What You Get</span>
+              <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-[-0.03em] transition-[opacity,transform] duration-1000 ${section >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
                 Scored. Prioritized.{' '}
-                <span className="bg-gradient-to-r from-db-red-fg to-db-red bg-clip-text text-transparent">Ready to build.</span>
+                <span className="bg-linear-to-r from-db-red-fg to-db-red bg-clip-text text-transparent">Ready to build.</span>
               </h2>
             </div>
 
@@ -856,7 +856,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
               ))}
             </div>
 
-            <p className={`text-center text-sm text-text-tertiary mt-8 transition-all duration-700 delay-700 ${section >= 4 ? 'opacity-100' : 'opacity-0'}`}>
+            <p className={`text-center text-sm text-text-tertiary mt-8 transition-[opacity,transform] duration-700 delay-700 ${section >= 4 ? 'opacity-100' : 'opacity-0'}`}>
               Plus the domains, strategy coverage, Best of Best picks, a PDF catalog, and an MVP that Genie builds for each use case you pick.
             </p>
           </div>
@@ -868,32 +868,32 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
           <div className="absolute top-[40%] start-[40%] w-[30%] h-[30%] rounded-full bg-db-red/[0.06] blur-[120px]" aria-hidden="true" />
 
           <div className="relative z-10 text-center max-w-2xl mx-auto px-6">
-            <h2 className={`text-4xl sm:text-5xl lg:text-6xl font-bold tracking-[-0.03em] leading-[1.1] mb-6 transition-all duration-1000 ${section >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+            <h2 className={`text-4xl sm:text-5xl lg:text-6xl font-bold tracking-[-0.03em] leading-[1.1] mb-6 transition-[opacity,transform] duration-1000 ${section >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
               <span style={{ color: C.textFaint }}>Your data already has the answers.</span>
               <br />
-              <span className="bg-gradient-to-r from-db-red-fg to-db-red bg-clip-text text-transparent">Inspire finds the questions.</span>
+              <span className="bg-linear-to-r from-db-red-fg to-db-red bg-clip-text text-transparent">Inspire finds the questions.</span>
             </h2>
 
-            <p className={`mb-10 transition-all duration-700 delay-200 ${section >= 5 ? 'opacity-100' : 'opacity-0'}`} style={{ color: C.textMuted }}>
+            <p className={`mb-10 transition-[opacity,transform] duration-700 delay-200 ${section >= 5 ? 'opacity-100' : 'opacity-0'}`} style={{ color: C.textMuted }}>
               Point Inspire at your catalog to find your use cases.
             </p>
 
             <LandingActions
               onStart={onStart}
               large
-              className={`justify-center transition-all duration-700 ${section >= 5 ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+              className={`justify-center transition-[opacity,transform] duration-700 ${section >= 5 ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
               style={{ transitionDelay: '400ms' }}
             />
 
             <div className="flex items-center justify-center gap-3 mt-12">
               {['Unity Catalog', 'Foundation Models', 'Genie'].map((tag) => (
-                <span key={tag} className="text-[10px] font-medium px-3 py-1.5 rounded-lg" style={{ color: C.textFaint, background: C.btnBg, border: `1px solid ${C.btnBorder}` }}>{tag}</span>
+                <span key={tag} className="text-xs font-medium px-3 py-1.5 rounded-lg" style={{ color: C.textFaint, background: C.btnBg, border: `1px solid ${C.btnBorder}` }}>{tag}</span>
               ))}
             </div>
           </div>
 
           <footer role="contentinfo" aria-label="About Inspire" data-landing-about=""
-            className="absolute bottom-0 inset-x-0 z-10 px-6 pb-5 text-center text-[11px] leading-relaxed" style={{ color: C.textFaint }}>
+            className="absolute bottom-0 inset-x-0 z-10 px-6 pb-5 text-center text-xs leading-relaxed" style={{ color: C.textFaint }}>
             Inspire is open source and provided as is. Databricks Support does not cover it: ask questions and request features on the{' '}
             <a href={INSPIRE_ISSUES_URL} target="_blank" rel="noreferrer" className="underline hover:text-db-red-fg">Inspire GitHub Issues page</a>.
             {releaseTag && <span data-release-tag="" className="block mt-1 font-mono">{releaseTag}</span>}

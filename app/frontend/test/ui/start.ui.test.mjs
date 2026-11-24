@@ -478,17 +478,17 @@ const rc10Mount = (app) => {
 const boxOf = (page, selector) => page.locator(selector).boundingBox();
 
 // REQ-303 (Amr, 14:00 test): the Start column is the earlier narrow one. It was max-w-3xl (768px) until rc.10 (f0728c667) widened it.
-const NARROW_START_PX = 768;
+const START_GUTTER_PX = 48; // REQ-512: every page is full width, w-full px-6 (24px a side), no cap
 const VIEWPORTS = [{ width: 1440, height: 900 }, { width: 1280, height: 800 }];
 
-test('REQ-303 Start content is the earlier narrow column, 768px and centred, at 1440x900 and 1280x800', async () => {
+test('REQ-512 Start content is full width (w-full px-6, no cap) and centred, at 1440x900 and 1280x800', async () => {
   const ui = await openStart();
   const { page } = ui;
   try {
     for (const size of VIEWPORTS) {
       await page.setViewportSize(size);
       const box = await boxOf(page, '[data-start-choices]');
-      assert.ok(Math.abs(box.width - NARROW_START_PX) < 2, `${size.width}px: the Start column is ${Math.round(box.width)}px wide, expected ${NARROW_START_PX}px`);
+      assert.ok(Math.abs(box.width - (size.width - START_GUTTER_PX)) < 2, `${size.width}px: the Start column is ${Math.round(box.width)}px wide, expected ${size.width - START_GUTTER_PX}px (full width)`);
       assert.ok(Math.abs(box.x + box.width / 2 - size.width / 2) < 2, `${size.width}px: the Start column is not centred (left edge ${Math.round(box.x)}px)`);
     }
     assert.deepEqual(ui.pageErrors, []);

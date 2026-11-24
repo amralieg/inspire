@@ -3,9 +3,10 @@ import {
   CheckCircle2, XCircle, Loader2, ArrowRight, ArrowLeft,
   Globe2, Key, Database, Server, FileCode, ClipboardCheck, RefreshCw,
 } from 'lucide-react';
-import DatabricksLogo from '../components/DatabricksLogo';
 import { normalizeDatabricksHost } from '../lib/normalizeDatabricksHost';
 import { BOOT_TIMEOUT_TEXT, bootRead, responseError } from '../lib/apiClient';
+import PageHeader from '../components/ui/PageHeader';
+import Button from '../components/ui/Button';
 import CatalogPicker from '../components/CatalogPicker';
 import { CopySendChoice, PlainMessage, RetryChoice } from '../components/TechnicalDetails';
 
@@ -44,6 +45,8 @@ export default function SetupWizard({ settings, update, onComplete }) {
   const [publishResult, setPublishResult] = useState(null);
   const [creatingDb, setCreatingDb] = useState(false);
   const [isDatabricksApp, setIsDatabricksApp] = useState(false);
+  // The step list depends on /api/health (inside an App the token is supplied), so the count waits for that answer.
+  const [healthKnown, setHealthKnown] = useState(false);
   // The one alert for a page read that never answered: its text, and the action Try again runs.
   const [readError, setReadError] = useState({ text: '', retry: null });
   const [detectRound, setDetectRound] = useState(0);
@@ -72,6 +75,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
         }
 
         const health = (await bootRead('/api/health')) || {};
+        setHealthKnown(true);
 
         if (health.isDatabricksApp) {
           setIsDatabricksApp(true);
@@ -116,7 +120,8 @@ export default function SetupWizard({ settings, update, onComplete }) {
           }
         }
       } catch (err) {
-        // Other failures keep the form as it is.
+        // Other failures keep the form as it is, with every step counted.
+        setHealthKnown(true);
         failRead(err, retryDetect);
       }
     })();
@@ -249,6 +254,13 @@ export default function SetupWizard({ settings, update, onComplete }) {
     }
   };
 
+  // Inside a Databricks App the token is supplied, so the Authenticate step (index 1) is skipped both ways.
+  const skipAuth = isDatabricksApp;
+  const nextStep = (s) => { const n = Math.min(s + 1, STEPS.length - 1); return skipAuth && n === 1 ? 2 : n; };
+  const prevStep = (s) => { const n = Math.max(0, s - 1); return skipAuth && n === 1 ? 0 : n; };
+  const shown = STEPS.map((st, index) => ({ ...st, index })).filter((st) => !(skipAuth && st.id === 'auth'));
+  const position = shown.findIndex((st) => st.index === step);
+
   const handleNext = async () => {
     if (step === 3 && inspireDatabase) {
       await createDatabase();
@@ -263,41 +275,35 @@ export default function SetupWizard({ settings, update, onComplete }) {
       await runVerification();
       return;
     }
-    setStep(s => Math.min(s + 1, STEPS.length - 1));
+    setStep(s => nextStep(s));
   };
 
   return (
     <div className="min-h-screen bg-bg flex items-center justify-center px-6 py-12">
-      <div className="max-w-2xl w-full">
+      <div className="w-full">
         {readError.text && (
           <PlainMessage text={readError.text} role="alert" data-setup-error="" className="mb-4 px-4 py-3 rounded-xl border border-error/20 bg-error-bg text-xs text-error-fg"
             onRetry={() => { const { retry } = readError; setReadError({ text: '', retry: null }); retry(); }} />
         )}
         {/* Header */}
-        <div className="text-center mb-10">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <DatabricksLogo className="w-10 h-10" />
-            <h1 className="text-2xl font-bold text-text-primary">Inspire AI Setup</h1>
-          </div>
-          <p className="text-sm text-text-secondary">Let's get your workspace connected in under 2 minutes.</p>
-        </div>
+        <PageHeader className="mb-10" title="Inspire AI Setup" subtitle="Let's get your workspace connected in under 2 minutes." />
 
         {/* Step indicators */}
         <div className="flex items-center justify-center gap-1 mb-8">
-          {STEPS.map((s, i) => (
+          {healthKnown && shown.map((s, i) => (
             <div key={s.id} className="flex items-center">
               <button
-                onClick={() => i < step && setStep(i)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all ${
-                  i === step ? 'bg-db-red-solid text-white' :
-                  i < step ? 'bg-success/10 text-success-fg cursor-pointer hover:bg-success/20' :
+                onClick={() => s.index < step && setStep(s.index)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  s.index === step ? 'bg-primary-subtle text-primary' :
+                  s.index < step ? 'bg-success/10 text-success-fg cursor-pointer hover:bg-success/20' :
                   'bg-bg-subtle text-text-tertiary'
                 }`}
               >
-                {i < step ? <CheckCircle2 size={12} /> : <s.icon size={12} />}
+                {s.index < step ? <CheckCircle2 size={14} /> : <s.icon size={14} />}
                 <span className="hidden sm:inline">{s.label}</span>
               </button>
-              {i < STEPS.length - 1 && <div className={`w-6 h-px mx-1 ${i < step ? 'bg-success' : 'bg-border'}`} />}
+              {i < shown.length - 1 && <div className={`w-6 h-px mx-1 ${s.index < step ? 'bg-success' : 'bg-border'}`} />}
             </div>
           ))}
         </div>
@@ -305,7 +311,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
         {/* Step content */}
         <div className="glass rounded-2xl p-8 shadow-xl page-enter" key={step}>
           <h2 className="text-lg font-bold text-text-primary mb-1">{STEPS[step].desc}</h2>
-          <p className="text-xs text-text-tertiary mb-6">Step {step + 1} of {STEPS.length}</p>
+          {healthKnown && <p className="text-xs text-text-tertiary mb-6">Step {position + 1} of {shown.length}</p>}
 
           {/* Step 0: Connect */}
           {step === 0 && (
@@ -317,9 +323,9 @@ export default function SetupWizard({ settings, update, onComplete }) {
                   value={databricksHost}
                   onChange={(e) => update('databricksHost', normalizeDatabricksHost(e.target.value))}
                   placeholder="https://adb-xxxx.xx.azuredatabricks.net"
-                  className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-text-primary text-sm focus:border-db-red transition-all"
+                  className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-text-primary text-sm focus:border-db-red transition-colors"
                 />
-                <p className="text-[10px] text-text-tertiary mt-1.5">
+                <p className="text-xs text-text-tertiary mt-1.5">
                   Find this in your browser address bar when logged into Databricks, or in Workspace Settings.
                 </p>
               </div>
@@ -345,7 +351,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
                       <button
                         key={mode}
                         onClick={() => update('authMode', mode)}
-                        className={`flex-1 px-4 py-2.5 rounded-xl text-xs font-medium border transition-all ${
+                        className={`flex-1 px-4 py-2.5 rounded-xl text-xs font-medium border transition-colors ${
                           authMode === mode ? 'border-db-red bg-db-red-50 text-db-red-fg' : 'border-border text-text-secondary hover:border-border-strong'
                         }`}
                       >
@@ -362,9 +368,9 @@ export default function SetupWizard({ settings, update, onComplete }) {
                         value={token}
                         onChange={(e) => update('token', e.target.value)}
                         placeholder="dapi..."
-                        className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-text-primary text-sm font-mono focus:border-db-red transition-all"
+                        className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-text-primary text-sm font-mono focus:border-db-red transition-colors"
                       />
-                      <p className="text-[10px] text-text-tertiary mt-1.5">
+                      <p className="text-xs text-text-tertiary mt-1.5">
                         Generate at: Databricks &rarr; User Settings &rarr; Developer &rarr; Access Tokens &rarr; Generate New Token
                       </p>
                     </div>
@@ -412,14 +418,14 @@ export default function SetupWizard({ settings, update, onComplete }) {
                     <button
                       key={wh.id}
                       onClick={() => update('warehouseId', wh.id)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-start transition-all ${
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-start transition-colors ${
                         warehouseId === wh.id ? 'border-db-red bg-db-red-50' : 'border-border hover:border-border-strong bg-surface'
                       }`}
                     >
                       <div className={`w-2.5 h-2.5 rounded-full ${wh.state === 'RUNNING' ? 'bg-success' : wh.state === 'STOPPED' ? 'bg-text-disabled' : 'bg-warning'}`} />
                       <div className="flex-1">
                         <p className="text-sm font-medium text-text-primary">{wh.name}</p>
-                        <p className="text-[10px] text-text-tertiary">{wh.id} · {wh.state}{wh.enable_serverless_compute ? ' · Serverless' : ''}</p>
+                        <p className="text-xs text-text-tertiary">{wh.id} · {wh.state}{wh.enable_serverless_compute ? ' · Serverless' : ''}</p>
                       </div>
                       {warehouseId === wh.id && <CheckCircle2 size={16} className="text-db-red-fg" />}
                     </button>
@@ -465,13 +471,13 @@ export default function SetupWizard({ settings, update, onComplete }) {
                 </div>
               </div>
               {catalogsBusy && (
-                <p role="status" className="text-xs text-text-secondary flex items-center gap-2"><Loader2 size={12} className="animate-spin" /> Loading catalogs...</p>
+                <p role="status" className="text-xs text-text-secondary flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Loading catalogs...</p>
               )}
               {catalogsWhy && <PlainMessage as="p" text={catalogsWhy} onRetry={() => setCatalogsRound((n) => n + 1)} copy role="note" data-uc-why="" className="text-xs text-text-secondary" />}
               {inspireDatabase && inspireDatabase.includes('.') && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-info-bg text-info-fg text-xs">
                   <Database size={14} /> Will use <span className="font-mono font-bold">{inspireDatabase}</span>
-                  {creatingDb && <Loader2 size={12} className="animate-spin ms-1" />}
+                  {creatingDb && <Loader2 size={14} className="animate-spin ms-1" />}
                 </div>
               )}
             </div>
@@ -483,12 +489,9 @@ export default function SetupWizard({ settings, update, onComplete }) {
               {!verification && !verifying && (
                 <div className="text-center py-6">
                   <p className="text-sm text-text-secondary mb-4">Ready to verify your configuration.</p>
-                  <button
-                    onClick={runVerification}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-db-red-solid text-white text-sm font-semibold rounded-xl hover:bg-db-red-solid-hover transition-colors"
-                  >
+                  <Button onClick={runVerification} className="px-6 py-3">
                     <ClipboardCheck size={16} /> Run Verification
-                  </button>
+                  </Button>
                 </div>
               )}
 
@@ -506,7 +509,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
                       <StatusIcon status={check.ok ? 'ok' : 'error'} />
                       <div className="flex-1">
                         <p className="text-xs font-semibold text-text-primary capitalize">{key}</p>
-                        <PlainMessage as="p" text={check.message} className="text-[10px] text-text-secondary" />
+                        <PlainMessage as="p" text={check.message} className="text-xs text-text-secondary" />
                       </div>
                     </div>
                   ))}
@@ -519,13 +522,9 @@ export default function SetupWizard({ settings, update, onComplete }) {
                   )}
 
                   {verification.ok && !publishResult?.ok && (
-                    <button
-                      onClick={publishNotebook}
-                      disabled={publishing}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 mt-4 bg-db-red-solid text-white text-sm font-semibold rounded-xl hover:bg-db-red-solid-hover transition-colors disabled:opacity-50"
-                    >
+                    <Button onClick={publishNotebook} disabled={publishing} className="w-full mt-4 py-3">
                       {publishing ? <><Loader2 size={14} className="animate-spin" /> Publishing notebook...</> : <><FileCode size={14} /> Publish Notebook to Workspace</>}
-                    </button>
+                    </Button>
                   )}
 
                   {publishResult && !publishResult.ok && (
@@ -538,14 +537,14 @@ export default function SetupWizard({ settings, update, onComplete }) {
                       <CheckCircle2 size={16} className="text-success-fg" />
                       <div>
                         <p className="text-xs font-semibold text-success-fg">Notebook published!</p>
-                        <p className="text-[10px] text-text-secondary font-mono">{publishResult.path}</p>
+                        <p className="text-xs text-text-secondary font-mono">{publishResult.path}</p>
                       </div>
                     </div>
                   )}
 
                   {!verification.ok && (
                     <button onClick={runVerification} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 mt-2 border border-border text-text-secondary text-xs rounded-xl hover:bg-bg-subtle transition-colors">
-                      <RefreshCw size={12} /> Re-check after fixing
+                      <RefreshCw size={14} /> Re-check after fixing
                     </button>
                   )}
                 </div>
@@ -556,7 +555,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
           {/* Navigation */}
           <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
             <button
-              onClick={() => setStep(s => Math.max(0, s - 1))}
+              onClick={() => setStep(s => prevStep(s))}
               disabled={step === 0}
               className="flex items-center gap-1.5 px-4 py-2 text-sm text-text-secondary hover:text-text-primary disabled:opacity-30 transition-colors"
             >
@@ -566,17 +565,13 @@ export default function SetupWizard({ settings, update, onComplete }) {
             <div className="flex items-center gap-3">
               <button
                 onClick={onComplete}
-                className="text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"
+                className="text-xs text-text-tertiary hover:text-text-secondary transition-colors"
               >
                 Skip setup
               </button>
-              <button
-                onClick={handleNext}
-                disabled={!canProceed() && step < 4}
-                className="flex items-center gap-2 px-6 py-2.5 bg-db-red-solid text-white text-sm font-semibold rounded-xl hover:bg-db-red-solid-hover disabled:opacity-30 transition-all"
-              >
+              <Button onClick={handleNext} disabled={!canProceed() && step < 4} className="px-6 py-2.5">
                 {step === 4 ? (verification?.ok ? 'Get Started' : 'Verify') : 'Continue'} <ArrowRight size={14} />
-              </button>
+              </Button>
             </div>
           </div>
         </div>

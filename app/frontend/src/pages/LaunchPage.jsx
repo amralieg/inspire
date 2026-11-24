@@ -36,6 +36,8 @@ import {
   Sparkles,
   AlertTriangle,
 } from 'lucide-react';
+import PageHeader from '../components/ui/PageHeader';
+import Button from '../components/ui/Button';
 import DocumentLanguagesMultiselect from '../components/DocumentLanguagesMultiselect';
 import StrategyEditor from '../components/StrategyEditor';
 import { parseStrategicContext, splitPriorities, validateStrategicContextText, withPriorities } from '../lib/strategyContext';
@@ -1142,26 +1144,12 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
   return (
     <>
-    <div className="max-w-5xl mx-auto px-6 py-8">
+    <div className="w-full px-6 py-8">
       {/* Page Header */}
       <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2 min-w-0">
-          <div className="w-10 h-10 shrink-0 rounded-xl bg-linear-to-br from-db-red to-db-red-hover flex items-center justify-center shadow-sm">
-            <Rocket size={20} className="text-white" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h1
-              className="text-2xl font-bold text-text-primary line-clamp-2 wrap-break-word"
-              title={headlineBusiness ? launchPageHeading : undefined}
-              aria-live="polite"
-            >
-              {launchPageHeading}
-            </h1>
-            <p className="text-sm text-text-secondary">
-              Fill in the essentials below, then get started. Everything else is optional.
-            </p>
-          </div>
-        </div>
+        <PageHeader className="mb-2" icon={Rocket}
+          title={<span className="block line-clamp-2 wrap-break-word" title={headlineBusiness ? launchPageHeading : undefined} aria-live="polite">{launchPageHeading}</span>}
+          subtitle="Fill in the essentials below, then get started. Everything else is optional." />
         {draftBack && (
           <div role="note" aria-label="Your draft" data-launch-draft="" className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-info/20 bg-info-bg px-3 py-2 text-[12px] text-text-primary">
             <span>{DRAFT_BACK_NOTE}</span>
@@ -1184,7 +1172,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             <Layers size={16} className="text-db-red-fg shrink-0" aria-hidden />
             <div className="min-w-0 flex-1">
               <h2 className="text-sm font-semibold text-text-primary">Discovery Overview</h2>
-              <p className="text-[11px] text-text-secondary truncate">
+              <p className="text-xs text-text-secondary truncate">
                 {overviewLoading
                   // busy-ok: the list below this subtitle shows a spinning Loader2 while overviewLoading
                   ? 'Loading your recent runs…'
@@ -1196,7 +1184,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               </p>
             </div>
             <ChevronDown
-              size={18}
+              size={16}
               className={`shrink-0 text-text-tertiary transition-transform duration-200 ${experimentsOverviewExpanded ? 'rotate-180' : ''}`}
               aria-hidden
             />
@@ -1247,28 +1235,28 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-xs font-semibold text-text-primary truncate">{business}</span>
                             <LatestRunBadge session={s} />
-                            <span className="text-[10px] font-mono text-text-tertiary bg-bg-subtle px-1.5 py-0.5 rounded border border-border shrink-0">
+                            <span className="text-xs font-mono text-text-tertiary bg-bg-subtle px-1.5 py-0.5 rounded border border-border shrink-0">
                               {sidStr}
                             </span>
                             {sessionFailed(s) ? (
-                              <span className="text-[10px] font-medium text-error-fg bg-error-bg px-1.5 py-0.5 rounded border border-error/20">
+                              <span className="text-xs font-medium text-error-fg bg-error-bg px-1.5 py-0.5 rounded border border-error/20">
                                 Failed at {Math.round(pct)}%
                               </span>
                             ) : sessionFinished(s) ? (
-                              <span className="text-[10px] font-medium text-success-fg bg-success-bg px-1.5 py-0.5 rounded border border-success/20">
+                              <span className="text-xs font-medium text-success-fg bg-success-bg px-1.5 py-0.5 rounded border border-success/20">
                                 Complete
                               </span>
                             ) : (
-                              <span className="text-[10px] font-medium text-text-secondary bg-bg-subtle px-1.5 py-0.5 rounded border border-border">
+                              <span className="text-xs font-medium text-text-secondary bg-bg-subtle px-1.5 py-0.5 rounded border border-border">
                                 {Math.round(pct)}% done
                               </span>
                             )}
-                            <span className="text-[10px] text-text-tertiary">
+                            <span className="text-xs text-text-tertiary">
                               {count > 0 ? `${count} in table` : 'none in table yet'}
                             </span>
                           </div>
-                          <div className="flex items-center gap-1.5 text-[11px] text-text-secondary">
-                            <Calendar size={12} className="shrink-0 text-text-tertiary" aria-hidden />
+                          <div className="flex items-center gap-1.5 text-xs text-text-secondary">
+                            <Calendar size={14} className="shrink-0 text-text-tertiary" aria-hidden />
                             <span>{formatWhen(s.create_at, 'Date unknown')}</span>
                           </div>
                         </div>
@@ -1332,18 +1320,18 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                                         {title}
                                       </span>
                                       {score != null && Number.isFinite(score) && (
-                                        <span className="shrink-0 text-[10px] font-bold tabular-nums text-db-red-fg bg-db-red-50 border border-db-red/20 px-1.5 py-0.5 rounded">
+                                        <span className="shrink-0 text-xs font-bold tabular-nums text-db-red-fg bg-db-red-50 border border-db-red/20 px-1.5 py-0.5 rounded">
                                           {score.toFixed(1)}
                                         </span>
                                       )}
                                     </div>
                                     {(uc._domain || uc['Business Domain'] || uc.domain) && (
-                                      <p className="text-[10px] text-text-tertiary mt-0.5 truncate">
+                                      <p className="text-xs text-text-tertiary mt-0.5 truncate">
                                         {uc._domain || uc['Business Domain'] || uc.domain}
                                       </p>
                                     )}
                                     {blurb && (
-                                      <p className="text-[11px] text-text-secondary mt-1 line-clamp-2 leading-relaxed">
+                                      <p className="text-xs text-text-secondary mt-1 line-clamp-2 leading-relaxed">
                                         {blurb}
                                       </p>
                                     )}
@@ -1381,7 +1369,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               <h2 className="text-sm font-bold text-text-primary">Essentials</h2>
               <p className="text-xs text-text-secondary">Your business, the data Inspire should look at, and how it discovers</p>
             </div>
-            <span className="text-[10px] font-semibold text-db-red-fg bg-db-red-50 border border-db-red/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
+            <span className="text-xs font-semibold text-db-red-fg bg-db-red-50 border border-db-red/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
               Required
             </span>
           </div>
@@ -1433,39 +1421,39 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 {catalogsWhy && <PlainMessage text={catalogsWhy} role="note" data-uc-why="" className="mb-3 text-xs text-text-secondary" />}
                 {/* Selected Metadata Basket — always visible */}
                 {scope.entries.length === 0 && (
-                  <p data-scope-empty="" className="mb-3 text-[11px] text-text-tertiary">Nothing picked yet</p>
+                  <p data-scope-empty="" className="mb-3 text-xs text-text-tertiary">Nothing picked yet</p>
                 )}
                 {scope.entries.length > 0 && (
                   <div className="mb-3 rounded-lg border border-db-red/20 bg-db-red-50/50 p-3">
                     <div className="flex items-center gap-2 mb-2">
-                      <ShoppingCart size={12} className="text-db-red-fg" />
-                      <span className="text-[11px] font-bold text-db-red-fg">Selected Metadata</span>
-                      <span className="text-[10px] text-text-tertiary ms-auto">
+                      <ShoppingCart size={14} className="text-db-red-fg" />
+                      <span className="text-xs font-bold text-db-red-fg">Selected Metadata</span>
+                      <span className="text-xs text-text-tertiary ms-auto">
                         {scopeText}
                       </span>
                     </div>
                     <div className="max-h-32 overflow-y-auto flex flex-wrap gap-1">
                       {selectedTables.map((t, i) => (
-                        <span key={`${i}-${t}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
-                          <Table2 size={9} />
+                        <span key={`${i}-${t}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-xs font-medium border border-db-red/20">
+                          <Table2 size={14} />
                           {t.split('.').pop()}
-                          <button aria-label={`Remove ${t}`} onClick={() => setPickedChildren(selectedSchemas, selectedTables.filter((x) => x !== t))} className="hover:text-db-red-fg ms-0.5"><X size={8} /></button>
+                          <button aria-label={`Remove ${t}`} onClick={() => setPickedChildren(selectedSchemas, selectedTables.filter((x) => x !== t))} className="hover:text-db-red-fg ms-0.5"><X size={14} /></button>
                           {tableScopeOf(tableScopes, t) && (
                             <span data-table-scope-summary={t} className="text-text-secondary ms-0.5">{tableScopeSummary(tableScopeOf(tableScopes, t))}</span>
                           )}
                         </span>
                       ))}
                       {selectedSchemas.map((s, i) => (
-                        <span key={`${i}-${s}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-subtle text-text-secondary text-[10px] font-medium border border-border">
+                        <span key={`${i}-${s}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-subtle text-text-secondary text-xs font-medium border border-border">
                           {s}
-                          <button aria-label={`Remove ${s}`} onClick={() => setPickedChildren(selectedSchemas.filter((x) => x !== s), selectedTables)} className="hover:text-db-red-fg ms-0.5"><X size={8} /></button>
+                          <button aria-label={`Remove ${s}`} onClick={() => setPickedChildren(selectedSchemas.filter((x) => x !== s), selectedTables)} className="hover:text-db-red-fg ms-0.5"><X size={14} /></button>
                         </span>
                       ))}
                       {selectedCatalogs.map((c, i) => (
-                        <span key={`${i}-${c}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-subtle text-text-secondary text-[10px] font-medium border border-border">
-                          <Database size={9} />
+                        <span key={`${i}-${c}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-subtle text-text-secondary text-xs font-medium border border-border">
+                          <Database size={14} />
                           {c}
-                          <button aria-label={`Remove ${c}`} onClick={() => { setSelectedCatalogs((p) => p.filter((x) => x !== c)); setWholeCatalogs((p) => p.filter((x) => x !== c)); setSelectedSchemas((p) => p.filter((x) => !x.startsWith(c + '.'))); }} className="hover:text-db-red-fg ms-0.5"><X size={8} /></button>
+                          <button aria-label={`Remove ${c}`} onClick={() => { setSelectedCatalogs((p) => p.filter((x) => x !== c)); setWholeCatalogs((p) => p.filter((x) => x !== c)); setSelectedSchemas((p) => p.filter((x) => !x.startsWith(c + '.'))); }} className="hover:text-db-red-fg ms-0.5"><X size={14} /></button>
                         </span>
                       ))}
                     </div>
@@ -1492,7 +1480,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   </div>
                   {pickerExpanded ? 'Hide catalog browser' : 'Browse catalogs'}
                   {!pickerExpanded && scope.entries.length > 0 && (
-                    <span className="text-[10px] text-db-red-fg font-medium ms-1">
+                    <span className="text-xs text-db-red-fg font-medium ms-1">
                       ({scopeText} selected)
                     </span>
                   )}
@@ -1503,10 +1491,10 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     {/* Catalogs */}
                     <div>
                       <div className="flex items-center gap-1.5 mb-2">
-                        <span className="text-[11px] font-semibold text-text-secondary">Catalogs</span>
-                        {loadingCatalogs && <Loader2 size={10} className="animate-spin text-text-tertiary" />}
+                        <span className="text-xs font-semibold text-text-secondary">Catalogs</span>
+                        {loadingCatalogs && <Loader2 size={14} className="animate-spin text-text-tertiary" />}
                       </div>
-                      {droppedNote && <p data-dropped-catalogs="" className="mb-2 text-[11px] text-warning-fg">{droppedNote}</p>}
+                      {droppedNote && <p data-dropped-catalogs="" className="mb-2 text-xs text-warning-fg">{droppedNote}</p>}
                       <PickerList
                         items={filteredCatalogs}
                         selected={selectedCatalogs}
@@ -1523,7 +1511,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         getKey={(c) => c.name}
                         getLabel={(c) => c.name}
                         extraOf={(c) => (c.partial ? (
-                          <div data-catalog-partial={c.name} className="px-2.5 pb-1.5 text-[10px] text-warning-fg">
+                          <div data-catalog-partial={c.name} className="px-2.5 pb-1.5 text-xs text-warning-fg">
                             Inspire can read only part of this catalog.{' '}
                             <button type="button" className="font-semibold underline" onClick={() => raisePermissions(catalogPermissions)}>Show the missing grant</button>
                           </div>
@@ -1547,15 +1535,15 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         }
                       />
                       {catalogsCut && (
-                        <p data-catalog-note="" className="mt-1 text-[10px] text-text-tertiary">{catalogListNote(catalogs, true, typedCatalogItem ? catalogSearch : '')}</p>
+                        <p data-catalog-note="" className="mt-1 text-xs text-text-tertiary">{catalogListNote(catalogs, true, typedCatalogItem ? catalogSearch : '')}</p>
                       )}
                     </div>
 
                     {/* Schemas */}
                     <div>
                       <div className="flex items-center gap-1.5 mb-2">
-                        <span className="text-[11px] font-semibold text-text-secondary">Schemas</span>
-                        {loadingSchemas && <Loader2 size={10} className="animate-spin text-text-tertiary" />}
+                        <span className="text-xs font-semibold text-text-secondary">Schemas</span>
+                        {loadingSchemas && <Loader2 size={14} className="animate-spin text-text-tertiary" />}
                       </div>
                       <PickerList
                         items={filteredSchemas}
@@ -1580,15 +1568,15 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     {/* Tables */}
                     <div>
                       <div className="flex items-center gap-1.5 mb-2">
-                        <span className="text-[11px] font-semibold text-text-secondary">Tables</span>
-                        <span className="text-[10px] text-text-tertiary">primary selection</span>
-                        {loadingTables && <Loader2 size={10} className="animate-spin text-text-tertiary" />}
+                        <span className="text-xs font-semibold text-text-secondary">Tables</span>
+                        <span className="text-xs text-text-tertiary">primary selection</span>
+                        {loadingTables && <Loader2 size={14} className="animate-spin text-text-tertiary" />}
                       </div>
                       {filteredTables.length > 0 && (
                         <button
                           type="button"
                           onClick={toggleAllTables}
-                          className="mb-1.5 px-2.5 py-1 rounded-md text-[10px] font-semibold transition-smooth border border-border hover:border-border-strong text-text-secondary hover:text-db-red-fg"
+                          className="mb-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-smooth border border-border hover:border-border-strong text-text-secondary hover:text-db-red-fg"
                         >
                           {allTablesSelected ? 'Deselect All' : 'Select All'}
                         </button>
@@ -1611,7 +1599,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         emptyText={selectedSchemas.length === 0 ? 'Select schemas first' : loadingTables ? 'Loading...' : tablesReadError ? 'Inspire could not list the tables. The message above says why.' : `No tables you can see in ${selectedSchemas.join(', ')}`}
                       />
                       {tablesLeftOut.map((line) => (
-                        <p key={line} data-tables-left-out="" className="text-[11px] text-text-secondary px-1 pt-1">{line}</p>
+                        <p key={line} data-tables-left-out="" className="text-xs text-text-secondary px-1 pt-1">{line}</p>
                       ))}
                     </div>
                   </div>
@@ -1626,11 +1614,11 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                       className="w-full flex items-center gap-2 px-4 py-2.5 text-start hover:bg-success/5 transition-smooth"
                     >
                       <CheckCircle2 size={14} className="text-success-fg shrink-0" />
-                      <p className="text-[10px] text-success-fg font-semibold uppercase tracking-wider flex-1">Metadata Selected</p>
-                      <span className="text-[10px] text-success-fg font-mono">
+                      <p className="text-xs text-success-fg font-semibold uppercase tracking-wider flex-1">Metadata Selected</p>
+                      <span className="text-xs text-success-fg font-mono">
                         {scopeText}
                       </span>
-                      <ChevronDown size={12} className={`text-success-fg transition-transform duration-200 ${metadataPreviewExpanded ? 'rotate-180' : ''}`} />
+                      <ChevronDown size={14} className={`text-success-fg transition-transform duration-200 ${metadataPreviewExpanded ? 'rotate-180' : ''}`} />
                     </button>
                     {metadataPreviewExpanded && (
                       <div className="px-4 pb-3 max-h-32 overflow-y-auto">
@@ -1662,16 +1650,16 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                       }`}
                     >
                       <span className={`flex items-center gap-1.5 text-xs font-semibold ${active ? 'text-success-fg' : 'text-text-primary'}`}>
-                        <Icon size={13} className={active ? 'text-success-fg' : 'text-text-tertiary'} />
+                        <Icon size={14} className={active ? 'text-success-fg' : 'text-text-tertiary'} />
                         {opt.key}
-                        {opt.key === DISCOVERY_RECOMMENDED && <span className="text-[10px] font-normal text-text-tertiary">(default)</span>}
+                        {opt.key === DISCOVERY_RECOMMENDED && <span className="text-xs font-normal text-text-tertiary">(default)</span>}
                         {opt.badge && (
-                          <span data-discovery-badge={opt.key} className="ms-1 rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-fg">
+                          <span data-discovery-badge={opt.key} className="ms-1 rounded-full bg-success-bg px-2 py-0.5 text-xs font-semibold text-success-fg">
                             {opt.badge}
                           </span>
                         )}
                       </span>
-                      <p className="text-[10px] text-text-tertiary leading-snug mt-1">{opt.desc}</p>
+                      <p className="text-xs text-text-tertiary leading-snug mt-1">{opt.desc}</p>
                       {active && <CheckCircle2 size={14} className="absolute top-2.5 end-2.5 text-success-fg" />}
                     </button>
                   );
@@ -1680,24 +1668,24 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               <div data-discovery-panel className="mt-2.5 rounded-xl border border-success/30 bg-success-bg p-3.5">
                 <DiscoveryPromise />
                 <details data-discovery-more="" className="mt-2">
-                  <summary className="cursor-pointer text-[11px] font-semibold text-success-fg">How Inspire checks your data and keeps it private</summary>
+                  <summary className="cursor-pointer text-xs font-semibold text-success-fg">How Inspire checks your data and keeps it private</summary>
                 <div className="mt-2 grid grid-cols-1 gap-2.5 md:grid-cols-3">
                   {DISCOVERY_PANEL.map((part) => {
                     const PartIcon = part.icon;
                     return (
                       <div key={part.key} data-discovery-panel-part={part.key} className="rounded-lg bg-surface/70 p-2.5">
-                        <p className="flex items-center gap-1.5 text-[11px] font-semibold text-text-primary">
-                          <PartIcon size={12} className="text-success-fg" />
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-text-primary">
+                          <PartIcon size={14} className="text-success-fg" />
                           {part.title}
                         </p>
-                        <p className="mt-1 text-[11px] leading-snug text-text-secondary">{part.text}</p>
+                        <p className="mt-1 text-xs leading-snug text-text-secondary">{part.text}</p>
                       </div>
                     );
                   })}
                 </div>
                 </details>
               </div>
-              {prefillNote && <p className="text-[10px] text-text-tertiary mt-1.5">{prefillNote}</p>}
+              {prefillNote && <p className="text-xs text-text-tertiary mt-1.5">{prefillNote}</p>}
             </FieldSection>
 
             {/* Generation Instructions — optional */}
@@ -1741,7 +1729,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               )}
             </div>
             <div className={`transition-transform duration-200 ${showAdvanced ? 'rotate-180' : ''}`}>
-              <ChevronDown size={18} className="text-text-tertiary" />
+              <ChevronDown size={16} className="text-text-tertiary" />
             </div>
           </button>
 
@@ -1768,7 +1756,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                           <bp.icon size={13} className={active ? 'text-db-red-fg' : 'text-text-tertiary'} />
                           <span className="truncate">{bp.key}</span>
                         </span>
-                        {active && <CheckCircle2 size={12} className="absolute top-1.5 end-1.5 text-db-red-fg" />}
+                        {active && <CheckCircle2 size={14} className="absolute top-1.5 end-1.5 text-db-red-fg" />}
                       </button>
                     );
                   })}
@@ -1777,7 +1765,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                       key={name}
                       className="relative px-3 py-2 rounded-lg text-xs font-medium border border-db-red/30 bg-db-red-50 text-db-red-fg flex items-center gap-1.5"
                     >
-                      <Target size={13} className="text-db-red-fg shrink-0" />
+                      <Target size={14} className="text-db-red-fg shrink-0" />
                       <span className="truncate" title={name}>{name}</span>
                       <button
                         type="button"
@@ -1785,7 +1773,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         onClick={() => removeCustomPriority(name)}
                         className="ms-auto shrink-0 text-db-red-fg hover:text-text-primary transition-smooth"
                       >
-                        <X size={12} />
+                        <X size={14} />
                       </button>
                     </span>
                   ))}
@@ -1840,14 +1828,14 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   <Target size={14} className="text-text-tertiary mt-0.5 shrink-0" />
                   <span className="min-w-0">
                     <span className="block text-xs font-bold text-text-primary">Strategy (optional)</span>
-                    <span className="block text-[10px] text-text-tertiary">
+                    <span className="block text-xs text-text-tertiary">
                       Your levels, KPIs and sponsors. When you set them, every use case is aligned to them, measured by your KPIs
                       and sponsored by one of your roles. For example: Customer › Win loyalty, measured by Repeat purchase rate,
                       sponsored by the Chief Customer Officer.
                     </span>
                   </span>
                   {(strategyBase || strategyProblems.length > 0) && (
-                    <span className={`ms-auto text-[10px] font-semibold ${strategyProblems.length ? 'text-db-red-fg' : 'text-success-fg'}`}>
+                    <span className={`ms-auto text-xs font-semibold ${strategyProblems.length ? 'text-db-red-fg' : 'text-success-fg'}`}>
                       {strategyProblems.length ? `${strategyProblems.length} problem${strategyProblems.length > 1 ? 's' : ''}` : 'Set'}
                     </span>
                   )}
@@ -1878,12 +1866,12 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   <Table2 size={14} className="text-text-tertiary mt-0.5 shrink-0" />
                   <span className="min-w-0">
                     <span className="block text-xs font-bold text-text-primary">Data Management (optional)</span>
-                    <span className="block text-[10px] text-text-tertiary">
+                    <span className="block text-xs text-text-tertiary">
                       The columns Inspire reads and the rows it keeps, per table you picked. Leave it empty to read every column and every row.
                     </span>
                   </span>
                   {dataFilterProblems.length > 0 && (
-                    <span className="ms-auto text-[10px] font-semibold text-db-red-fg">
+                    <span className="ms-auto text-xs font-semibold text-db-red-fg">
                       {`${dataFilterProblems.length} problem${dataFilterProblems.length > 1 ? 's' : ''}`}
                     </span>
                   )}
@@ -1961,7 +1949,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         <span className={`text-xs font-semibold block ${active ? 'text-db-red-fg' : 'text-text-primary'}`}>
                           {opt.key}
                         </span>
-                        <p className="text-[10px] text-text-tertiary leading-snug mt-0.5">{opt.desc}</p>
+                        <p className="text-xs text-text-tertiary leading-snug mt-0.5">{opt.desc}</p>
                         {active && (
                           <CheckCircle2 size={14} className="absolute top-2.5 end-2.5 text-db-red-fg" />
                         )}
@@ -1970,7 +1958,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   })}
                 </div>
                 {!params['09_generation_options'] && (
-                  <p data-no-documents className="text-[11px] text-text-tertiary mt-2">
+                  <p data-no-documents className="text-xs text-text-tertiary mt-2">
                     No documents in this run. Create the strategy document or the use case catalog later from Review.
                   </p>
                 )}
@@ -2005,7 +1993,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     onChange={(v) => updateParam('12_documents_languages', v)}
                   />
                   {needsLanguage && selectedDocLanguages.length === 0 && (
-                    <p data-doc-language-default className="text-[11px] text-text-tertiary mt-2">
+                    <p data-doc-language-default className="text-xs text-text-tertiary mt-2">
                       {`No language picked, so the documents are in ${DEFAULT_DOCUMENT_LANGUAGE}.`}
                     </p>
                   )}
@@ -2020,7 +2008,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     onChange={(v) => updateParam('04_table_election', v)}
                     options={TABLE_ELECTION}
                   />
-                  <p className="text-[10px] text-text-tertiary mt-1">Which of the tables you picked Inspire reads</p>
+                  <p className="text-xs text-text-tertiary mt-1">Which of the tables you picked Inspire reads</p>
                 </FieldSection>
 
                 <FieldSection label="Use Cases Quality">
@@ -2032,7 +2020,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                           key={q}
                           type="button"
                           onClick={() => updateParam('05_use_cases_quality', q)}
-                          className={`flex-1 py-2 rounded-lg text-[11px] font-medium transition-smooth border ${
+                          className={`flex-1 py-2 rounded-lg text-xs font-medium transition-smooth border ${
                             active
                               ? 'border-db-red/30 bg-db-red-50 text-db-red-fg'
                               : 'border-border text-text-secondary hover:border-border-strong'
@@ -2101,20 +2089,20 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
         {canLaunch && (
           <div className="flex flex-wrap items-center gap-2 mb-5">
-            <Chip icon={<Building2 size={10} />}>{params['00_business_name']}</Chip>
-            <Chip icon={<Database size={10} />}>{params['02_inspire_database']}</Chip>
-            {scope.tables.length > 0 && <Chip icon={<Table2 size={10} />}>{counted(scope.tables.length, 'table')}</Chip>}
-            {scope.schemas.length > 0 && <Chip icon={<Layers size={10} />}>{counted(scope.schemas.length, 'schema')}</Chip>}
-            {scope.catalogs.length > 0 && <Chip icon={<Database size={10} />}>{counted(scope.catalogs.length, 'catalog')}</Chip>}
-            <Chip icon={<Sliders size={10} />}>{params['05_use_cases_quality']}</Chip>
-            <Chip icon={params['03_discovery_type'] === DISCOVERY_AI_ENHANCED ? <Sparkles size={10} /> : <Lock size={10} />}>
+            <Chip icon={<Building2 size={14} />}>{params['00_business_name']}</Chip>
+            <Chip icon={<Database size={14} />}>{params['02_inspire_database']}</Chip>
+            {scope.tables.length > 0 && <Chip icon={<Table2 size={14} />}>{counted(scope.tables.length, 'table')}</Chip>}
+            {scope.schemas.length > 0 && <Chip icon={<Layers size={14} />}>{counted(scope.schemas.length, 'schema')}</Chip>}
+            {scope.catalogs.length > 0 && <Chip icon={<Database size={14} />}>{counted(scope.catalogs.length, 'catalog')}</Chip>}
+            <Chip icon={<Sliders size={14} />}>{params['05_use_cases_quality']}</Chip>
+            <Chip icon={params['03_discovery_type'] === DISCOVERY_AI_ENHANCED ? <Sparkles size={14} /> : <Lock size={14} />}>
               {params['03_discovery_type'] || DISCOVERY_RECOMMENDED}
             </Chip>
-            {strategyBase && <Chip icon={<Target size={10} />}>Strategy set</Chip>}
-            <Chip icon={<Star size={10} />}>
+            {strategyBase && <Chip icon={<Target size={14} />}>Strategy set</Chip>}
+            <Chip icon={<Star size={14} />}>
               Stars: {bestOfBestText === '0' ? 'off' : bestOfBestText || '20'}
             </Chip>
-            <Chip icon={<Bot size={10} />}>
+            <Chip icon={<Bot size={14} />}>
               Genie:{' '}
               {['', '0'].includes(String(params['13_generate_genie_code_for'] || '').trim())
                 ? 'off'
@@ -2152,25 +2140,23 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             <span className="min-w-0 break-words">{liveRunNote}</span>
           </p>
         )}
-        <button
+        <Button size="md" className="w-full py-3.5 font-bold"
           onClick={handleLaunch}
           disabled={launching || !canLaunch || !outputCheck.ready}
           aria-describedby={launchBlock ? 'launch-block' : outputCheck.ready ? undefined : 'output-folder-check-launch'}
-          className="w-full py-3.5 bg-linear-to-r from-db-red-solid to-db-red-solid-hover text-white text-sm font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-smooth flex items-center justify-center gap-2.5 hover:-translate-y-0.5"
-          style={{ boxShadow: '0 0 0 1px rgba(255,54,33,0.3), 0 4px 12px rgba(255,54,33,0.2), 0 8px 30px rgba(255,54,33,0.15), 0 20px 60px rgba(255,54,33,0.1)' }}
         >
           {launching ? (
             <>
-              <Loader2 size={18} className="animate-spin" />
+              <Loader2 size={16} className="animate-spin" />
               Starting the run…
             </>
           ) : (
             <>
-              <Play size={18} />
+              <Play size={16} />
               Get Started
             </>
           )}
-        </button>
+        </Button>
         {launchBlock && !launching && <p id="launch-block" data-launch-block="" role="status" className="text-xs text-text-secondary mt-2 text-center">{launchBlock}</p>}
         {saveAsk && (
           <ModalDialog titleId="launch-save-profile-title" title="Save these settings as a business profile?"
@@ -2178,14 +2164,12 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             dialogAttrs={{ 'data-launch-save-profile': '' }}
             footer={(
               <>
-                <button type="button" data-launch-run-unsaved="" onClick={runWithoutSaving} disabled={saving}
-                  className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-text-primary hover:bg-bg-subtle disabled:opacity-50">
+                <Button variant="secondary" data-launch-run-unsaved="" onClick={runWithoutSaving} disabled={saving}>
                   Run without saving
-                </button>
-                <button type="button" data-launch-save-run="" onClick={saveAndRun} disabled={saving || !saveAsk.name.trim()}
-                  className="rounded-lg bg-db-red-solid px-4 py-2 text-sm font-bold text-white hover:bg-db-red-solid-hover disabled:opacity-50">
+                </Button>
+                <Button data-launch-save-run="" onClick={saveAndRun} disabled={saving || !saveAsk.name.trim()}>
                   {saving ? <><Loader2 size={14} className="animate-spin" aria-hidden /> Saving…</> : profileNamed(saveAsk.name) && saveAsk.confirmReplace ? 'Replace and run' : 'Save and run'}
-                </button>
+                </Button>
               </>
             )}>
             <label className="block text-xs font-semibold text-text-primary">
@@ -2230,14 +2214,14 @@ function Field({ label, required, icon: Icon, hint, children }) {
       <div className="flex items-center gap-2 mb-2">
         {Icon && (
           <div className="w-5 h-5 rounded flex items-center justify-center bg-bg-subtle">
-            <Icon size={12} className="text-text-tertiary" />
+            <Icon size={14} className="text-text-tertiary" />
           </div>
         )}
         <span className="text-xs font-bold text-text-primary">
           {label}
           {required && <span className="text-db-red-fg ms-0.5">*</span>}
         </span>
-        {hint && <span className="text-[10px] text-text-tertiary">{hint}</span>}
+        {hint && <span className="text-xs text-text-tertiary">{hint}</span>}
       </div>
       {children}
     </div>
@@ -2252,7 +2236,7 @@ function FieldSection({ label, required, hint, children }) {
           {label}
           {required && <span className="text-db-red-fg ms-0.5">*</span>}
         </span>
-        {hint && <span className="text-[10px] text-text-tertiary">{hint}</span>}
+        {hint && <span className="text-xs text-text-tertiary">{hint}</span>}
       </div>
       {children}
     </div>
@@ -2288,7 +2272,7 @@ function PickerList({ items, selected, onToggle, getKey, getLabel, extraOf = () 
   return (
     <div className="rounded-lg border border-border bg-bg overflow-hidden flex flex-col min-h-0">
       <div className="relative shrink-0">
-        <Search size={12} className="absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+        <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
         <input dir="auto"
           type="text"
           className="w-full bg-transparent border-b border-border ps-8 pe-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary"
@@ -2298,13 +2282,13 @@ function PickerList({ items, selected, onToggle, getKey, getLabel, extraOf = () 
         />
       </div>
       {items.length > 0 && (
-        <p className="text-[10px] text-text-tertiary px-2 py-1 border-b border-border bg-bg-subtle/40 shrink-0">
+        <p className="text-xs text-text-tertiary px-2 py-1 border-b border-border bg-bg-subtle/40 shrink-0">
           {items.length} item{items.length === 1 ? '' : 's'}. Scroll the list to see all of them
         </p>
       )}
       <div className="max-h-[min(22rem,55vh)] overflow-y-auto p-1.5 min-h-0">
         {items.length === 0 ? (
-          <p className="text-[10px] text-text-tertiary p-2 text-center">{emptyText}</p>
+          <p className="text-xs text-text-tertiary p-2 text-center">{emptyText}</p>
         ) : (
           items.map((item) => {
             const key = getKey(item);
@@ -2313,7 +2297,7 @@ function PickerList({ items, selected, onToggle, getKey, getLabel, extraOf = () 
             // A busy type check is not a verdict on the item: it is listed with Try again, which checks it again.
             if (onTryAgain && typeCheckBusyOf(item)) {
               return (
-                <div key={key} role="none" data-type-check-busy={key} className="w-full flex flex-wrap items-start gap-2 px-2.5 py-2 text-[11px] text-warning-fg">
+                <div key={key} role="none" data-type-check-busy={key} className="w-full flex flex-wrap items-start gap-2 px-2.5 py-2 text-xs text-warning-fg">
                   <TypeCheckBusyTryAgain name={label} onTryAgain={() => onTryAgain(item)} />
                 </div>
               );
@@ -2337,10 +2321,10 @@ function PickerList({ items, selected, onToggle, getKey, getLabel, extraOf = () 
                 <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 mt-0.5 ${
                   active ? 'bg-db-red border-db-red' : 'border-border-strong'
                 }`}>
-                  {active && <CheckCircle2 size={10} className="text-white" />}
+                  {active && <CheckCircle2 size={14} className="text-white" />}
                 </div>
                 <span className="font-mono break-all leading-snug">{label}</span>
-                {reason && <span data-unusable-reason="" className="text-[10px] text-error-fg leading-snug">{reason}</span>}
+                {reason && <span data-unusable-reason="" className="text-xs text-error-fg leading-snug">{reason}</span>}
               </button>
               {extraOf(item)}
               </div>
@@ -2354,7 +2338,7 @@ function PickerList({ items, selected, onToggle, getKey, getLabel, extraOf = () 
 
 function Chip({ children, icon }) {
   return (
-    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold border border-db-red/20 bg-db-red-50 text-db-red-fg">
+    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border border-db-red/20 bg-db-red-50 text-db-red-fg">
       {icon} {children}
     </span>
   );
@@ -2396,11 +2380,11 @@ function TableSelectionGuidanceWarning({
           <ul className="list-disc ps-4 space-y-1 text-xs sm:text-sm">
             <li>
               Prefer <strong className="text-text-primary">transactional</strong> tables that change often with new
-              data (for example <span className="font-mono text-[11px]">sales_transactions</span>).
+              data (for example <span className="font-mono text-xs">sales_transactions</span>).
             </li>
             <li>
               Static reference tables add little value (for example{' '}
-              <span className="font-mono text-[11px]">store_location</span>).
+              <span className="font-mono text-xs">store_location</span>).
             </li>
             <li>
               If relationships are not visible in metadata (no primary/foreign keys), describe joins in{' '}
