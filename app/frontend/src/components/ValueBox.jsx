@@ -10,7 +10,7 @@ const stop = (e) => e.stopPropagation();
 export const BOX = 'relative flex h-[6.25rem] w-[8.5rem] shrink-0 flex-col items-center justify-center rounded-xl border-2 text-center leading-tight';
 
 // REQ-516: the Review row's compact box, the same size for the score and the value.
-export const ROW_BOX = 'relative flex h-[5.25rem] w-[7.5rem] shrink-0 flex-col items-center justify-center rounded-xl border-2 text-center leading-tight';
+export const ROW_BOX = 'relative flex h-[6.5rem] w-[7.5rem] shrink-0 flex-col items-center justify-center rounded-xl border-2 text-center leading-tight';
 
 // REQ-432: an amount carries three significant digits at most ($405,556 reads $406K).
 export const moneyText = (unit, amount) => valueChips([{ kind: 'money', unit: unit || 'USD', amount: threeDigits(Number(amount)) }]).shown[0]?.text || '';
@@ -78,18 +78,18 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
     return undefined;
   }, [m.amount]);
   if (m.state === 'no_data') {
-    return <div data-value-box="" data-value-box-state="no_data" className={`${SZ} border-border bg-bg-subtle text-text-tertiary`}><span className="px-2 text-[11px]">No data to count</span></div>;
+    return <div data-value-box="" data-value-box-state="no_data" className={`${SZ} border-border bg-bg-subtle text-text-tertiary`}><span className="px-2 text-caption">No data to count</span></div>;
   }
   if (m.state === 'not_estimated') {
     const why = m.reason || 'This use case has no estimate of its own yet.';
     if (!canCalculate || readOnly) {
-      return <div data-value-box="" data-value-box-state="not_estimated" title={why} className={`${SZ} border-border bg-bg-subtle text-text-secondary`}><span className="px-2 text-[11px]">Not estimated</span></div>;
+      return <div data-value-box="" data-value-box-state="not_estimated" title={why} className={`${SZ} border-border bg-bg-subtle text-text-secondary`}><span className="px-2 text-caption">Not estimated</span></div>;
     }
     return (
       <button type="button" data-value-box="" data-value-box-state="not_estimated" data-value-calculate="" title={why} onClick={(e) => { e.stopPropagation(); onCalculate?.(); }} onKeyDown={stop}
         className={`${SZ} cursor-pointer border-dashed border-warning/60 bg-surface hover:bg-warning-bg`}>
-        <span className="text-[11px] font-semibold text-text-primary">Not estimated</span>
-        <span className="text-[11px] font-semibold text-db-red-fg">Calculate again</span>
+        <span className="text-caption font-semibold text-text-primary">Not estimated</span>
+        <span className="text-caption font-semibold text-db-red-fg">Calculate again</span>
       </button>
     );
   }
@@ -99,8 +99,8 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
       <button type="button" data-value-box="" data-value-box-state="none" data-value-calculate="" onClick={(e) => { e.stopPropagation(); onCalculate?.(); }} onKeyDown={stop}
         className={`${SZ} cursor-pointer border-dashed border-db-red/40 bg-surface hover:bg-db-red-50`}>
         <span className="text-[22px] leading-none text-db-red-fg">+</span>
-        <span className="text-[11px] font-semibold text-db-red-fg">Calculate value</span>
-        <span className="text-[10px] text-text-secondary">at stake</span>
+        <span className="text-caption font-semibold text-db-red-fg">Calculate value</span>
+        <span className="text-caption text-text-secondary">at stake</span>
       </button>
     );
   }
@@ -114,18 +114,18 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
   const note = <ValueCheckNote check={yearly?.check} notCounted={!m.calculated && m.state !== 'measured'} />;
   const box = (
     <div data-value-box="" data-value-box-state={m.state} data-value-yearly="" title={VALUE_DISCLAIMER} onClick={stop} onKeyDown={stop}
-      className={`${SZ} ${fill} ${inset ? 'pb-3' : ''} ${pulse ? 'animate-pulse' : ''}`}>
-      <span data-value-verb="" className={`${inset ? 'whitespace-nowrap text-[8.5px] font-semibold uppercase tracking-normal' : 'text-[11px] tracking-wide'} ${inset ? '' : 'text-text-primary'}`}>{m.verb}</span>
+      className={`${SZ} ${fill} ${inset ? 'pt-4 pb-5' : ''} ${pulse ? 'animate-pulse' : ''}`}>
+      <span data-value-verb="" className={`${inset ? 'whitespace-nowrap text-caption font-semibold uppercase tracking-normal' : 'text-caption tracking-wide'} ${inset ? '' : 'text-text-primary'}`}>{m.verb}</span>
       <span data-value-amount="" className={`${inset ? 'text-[20px] leading-6' : 'text-[22px]'} font-extrabold tabular-nums ${amt}`}>{text}</span>
-      <span data-value-qualifier="" className={inset ? 'sr-only' : 'text-[10px] text-text-secondary'}>{m.state === 'measured' ? '(measured)' : statusLabel(m.calculated)}</span>
-      <span data-value-period="" className={`text-[10px] ${sub}`}>Per year</span>
+      <span data-value-qualifier="" className={inset ? 'sr-only' : 'text-caption text-text-secondary'}>{m.state === 'measured' ? '(measured)' : statusLabel(m.calculated)}</span>
+      <span data-value-period="" className={`text-caption ${sub}`}>Per year</span>
       {!readOnly && onEdit && m.state !== 'measured' && (
         <button type="button" data-value-edit="" aria-label="Edit value" title="Edit value" onClick={(e) => { e.stopPropagation(); onEdit(); }}
           className={`absolute ${inset ? 'end-0.5 top-0.5 h-[16px] w-[16px]' : '-end-2.5 -top-2.5 h-[26px] w-[26px]'} flex items-center justify-center rounded-full border border-border bg-surface text-text-secondary shadow hover:border-primary-solid hover:text-db-red-fg`}>
           <Pencil size={inset ? 9 : 13} />
         </button>
       )}
-      <span data-value-tag="" className={`absolute ${inset ? 'bottom-1' : '-bottom-2.5'} rounded-full border px-2 py-px text-[9px] font-bold tracking-wide ${tagCls}`}>{tag}</span>
+      <span data-value-tag="" className={`absolute ${inset ? 'bottom-1' : '-bottom-2.5'} rounded-full border px-2 py-px text-caption font-bold tracking-wide ${tagCls}`}>{tag}</span>
     </div>
   );
   // FX-38b (W16 D25): the note sits under the box, past the pill that overhangs its bottom edge, so it never covers the pill or leaves the box.

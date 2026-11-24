@@ -19,7 +19,7 @@ const BTN = 'inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-
 // Dark mode keeps the light red under white text (white on the dark-mode primary is 3.3:1).
 const BTN_PRIMARY = `${BTN} border-primary-solid bg-primary-solid text-white hover:bg-primary-solid-hover`;
 const BTN_OUTLINE = `${BTN} border-border bg-surface text-text-primary hover:bg-bg-subtle`;
-const CHIP = 'inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md border shrink-0 leading-none';
+const CHIP = 'inline-flex items-center gap-1 text-caption font-semibold px-2 py-0.5 rounded-md border shrink-0 leading-none';
 
 // What the Build MVP cell says and does, by the MVP state (D4: the status column is gone, the label carries it).
 export function buildCell(status, { onImplement, onOpenMvp }) {
@@ -85,7 +85,7 @@ export default function UseCaseRow({
         <div className="mt-1 flex min-w-0 flex-nowrap gap-1.5 overflow-hidden max-md:flex-wrap [&>*]:min-w-0 [&>*]:max-w-full [&>*]:shrink [&>*]:truncate">
           {v130?.bestOfBest && (
             <span className={`${CHIP} border-warning/35 bg-warning-bg uppercase tracking-wide text-warning-fg`} title={bestOfBestLabel(v130.bestOfBest)}>
-              <Star size={11} className="fill-current" />Best of Best{v130.bestOfBest.rank ? ` #${v130.bestOfBest.rank}` : ''}
+              <Star size={14} className="fill-current" />Best of Best{v130.bestOfBest.rank ? ` #${v130.bestOfBest.rank}` : ''}
             </span>
           )}
           <QualityBarChip uc={uc} />
@@ -108,13 +108,13 @@ export default function UseCaseRow({
       </div>
       <div className="col-span-2 flex flex-col items-center gap-1.5 max-md:col-span-12 max-md:flex-row max-md:items-start">
         <button type="button" disabled={!build.run} onClick={(e) => { e.stopPropagation(); build.run?.(); }} className={`${build.primary ? BTN_PRIMARY : BTN_OUTLINE} max-w-[148px] max-md:max-w-none max-md:flex-1`}>
-          <BuildIcon size={13} className={build.busy ? 'animate-spin' : ''} aria-hidden />{build.label}
+          <BuildIcon size={14} className={build.busy ? 'animate-spin' : ''} aria-hidden />{build.label}
         </button>
         <div className="flex w-full max-w-[148px] flex-col items-stretch gap-1 max-md:max-w-none max-md:flex-1">
           <button type="button" disabled={!onGenerateDocs} onClick={(e) => { e.stopPropagation(); onGenerateDocs?.(); }} className={BTN_OUTLINE}>
-            <FileText size={13} aria-hidden />Generate docs
+            <FileText size={14} aria-hidden />Generate docs
           </button>
-          {docsMade && <span data-docs-made="" className="inline-flex items-center justify-center gap-1 text-[11px] font-medium text-success-fg"><Check size={11} aria-hidden />Docs made</span>}
+          {docsMade && <span data-docs-made="" className="inline-flex items-center justify-center gap-1 text-caption font-medium text-success-fg"><Check size={14} aria-hidden />Docs made</span>}
         </div>
       </div>
       <div className="flex justify-center max-md:col-span-6 max-md:justify-start max-md:pb-3"><InspireScoreBadge row score={inspireScoreFromUc(uc)} refinedFrom={uc.refined_from} onUndo={onUndoRefine} /></div>
