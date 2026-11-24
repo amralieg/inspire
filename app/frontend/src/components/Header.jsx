@@ -28,7 +28,7 @@ export default function Header({
 
   return (
     <header className="bg-surface/80 backdrop-blur-xl border-b border-border sticky top-0 z-40">
-      <div className="max-w-screen-xl mx-auto px-3 sm:px-6">
+      <div className="w-full px-6">
         <div className="flex items-center justify-between gap-2 h-14">
           {/* Brand */}
           <button
