@@ -29,7 +29,11 @@ const MODULE_MARK = /^\/\/ (\S+\.(?:js|cjs|mjs|json))$/gm;
 const URL_HOST = /\bhttps?:\/\/([^/'"`\s)\\]+)/g;
 const NETWORK_CALL = /\b(?:fetch|request|get)\(\s*['"`]https?:\/\/([^/'"`\s)\\]+)/g;
 const LOCAL_HOST = /^(localhost|127\.0\.0\.1)$|(^|\.)example\.com$|\.invalid$/;
-const MODULE_HOSTS = { 'server.js': new Set(['login.microsoftonline.com']) };
+// REQ-507: lib/macroSources.js reads public macro statistics when the user turns on outside data; these are its only hosts.
+const MODULE_HOSTS = {
+  'server.js': new Set(['login.microsoftonline.com']),
+  'lib/macroSources.js': new Set(['api.worldbank.org', 'www.imf.org', 'sdmx.oecd.org', 'ec.europa.eu', 'data.un.org']),
+};
 
 const hostOf = (raw) => raw.replace(/:[^:]*$/, '').toLowerCase();
 const excerpt = (text, at) => text.slice(Math.max(0, at - 40), at + 80).replace(/\s+/g, ' ');

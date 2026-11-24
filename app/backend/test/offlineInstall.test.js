@@ -153,6 +153,8 @@ test('the offline check passes the clean case and refuses every install step and
   assert.deepEqual(G.offlineProblems(CLEAN(), G.IMPORT_LIMIT - 1), []);
   const HOISTED = '\n// ../../shared/node_modules/debug/src/browser.js\nvar see = "https://stackoverflow.com/questions/1";';
   assert.deepEqual(G.offlineProblems(withEntry(G.BUNDLE, `${BUNDLE_TEXT}${HOISTED}`), 1), [], 'a package from a hoisted or linked node_modules may name a host');
+  const MACRO = '\n// lib/macroSources.js\nvar w = `https://api.worldbank.org/v2/x`; var i = `https://www.imf.org/a`; var o = `https://sdmx.oecd.org/b`; var e = `https://ec.europa.eu/c`; var u = `https://data.un.org/d`;';
+  assert.deepEqual(G.offlineProblems(withEntry(G.BUNDLE, `${BUNDLE_TEXT}${MACRO}`), 1), [], 'REQ-507: lib/macroSources.js may name its five macro statistics hosts');
   const refused = [
     [CLEAN(), G.IMPORT_LIMIT, /not under the 10000000-byte workspace import limit/],
     [withEntry('package.json', '{"name":"a","dependencies":{"express":"5"}}'), 1, /^package\.json: Databricks Apps installs/],
@@ -180,6 +182,8 @@ test('the offline check passes the clean case and refuses every install step and
     [withEntry(G.BUNDLE, `${BUNDLE_TEXT}\n// node_modules/@scarf/scarf/report.js\nhttps.get("https://scarf.sh/api/v1");`), 1, /node_modules\/@scarf\/scarf\/report\.js: calls the internet host scarf\.sh/],
     [withEntry(G.BUNDLE, `${BUNDLE_TEXT}\n// ../../shared/node_modules/evil/index.js\nfetch("https://telemetry.vendor.io/ping");`), 1, /shared\/node_modules\/evil\/index\.js: calls the internet host telemetry\.vendor\.io/],
     [withEntry(G.BUNDLE, `${BUNDLE_TEXT}\n// ../lib/own.js\nvar u = "https://telemetry.vendor.io/ping";`), 1, /\.\.\/lib\/own\.js: names the internet host telemetry\.vendor\.io/],
+    [withEntry(G.BUNDLE, `${BUNDLE_TEXT}\n// lib/macroSources.js\nvar x = "https://telemetry.vendor.io/ping";`), 1, /lib\/macroSources\.js: names the internet host telemetry\.vendor\.io/],
+    [withEntry(G.BUNDLE, `${BUNDLE_TEXT}\n// lib/other.js\nvar w = "https://api.worldbank.org/v2/x";`), 1, /lib\/other\.js: names the internet host api\.worldbank\.org/],
     [withEntry(G.BUNDLE, 'var a = 1;'), 1, /carries no esbuild module markers/],
   ];
   for (const [entries, bytes, expected] of refused) {
