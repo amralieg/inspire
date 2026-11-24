@@ -367,6 +367,8 @@ test('the browser print keeps the title, the filters in words and the data date 
   await page.waitForFunction(chartsDrawn, 4);
   await openGenieMode(page); // REQ-506: Genie fills the page, so the screen comes back before printing
   await page.locator('[data-mode="screen"]').click();
+  await goSection(page, 'dashboard');
+  await page.waitForFunction(chartsDrawn, 4);
   await page.locator('.print-filters').waitFor({ state: 'attached' });
   assert.equal(await page.locator('.print-filters').isVisible(), false, 'the filters in words are for paper only');
   assert.equal(await page.getByRole('button', { name: 'Print' }).count(), 0, 'printing is the browser\'s own command');
@@ -395,8 +397,8 @@ test('the browser print keeps the title, the filters in words and the data date 
     };
   });
   assert.ok(Object.values(report.hidden).every((v) => v === true || v === 'absent'), JSON.stringify(report.hidden));
-  assert.ok(['.ph-tools .btn', '.fbar', '.chips'].every((k) => report.hidden[k] === true), JSON.stringify(report.hidden));
-  assert.ok(['.genie', '.side'].every((k) => report.hidden[k] === true || report.hidden[k] === 'absent'), 'no Genie panel and no side rail on paper');
+  assert.ok(['.fbar', '.chips'].every((k) => report.hidden[k] === true), JSON.stringify(report.hidden));
+  assert.ok(['.ph-tools .btn', '.genie', '.side'].every((k) => report.hidden[k] === true || report.hidden[k] === 'absent'), 'no tool buttons, Genie panel or side rail on paper');
   assert.equal(report.title, 'Price-loss decision desk');
   assert.equal(report.words, 'Filters: Run date: last 12 months; Category: Music');
   assert.equal(report.order, true, 'title, data date, then the filters in words, all above the KPIs');
