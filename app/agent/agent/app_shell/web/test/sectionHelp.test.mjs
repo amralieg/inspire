@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { appInfo, goRail, openApp, serveDist } from './harness.mjs';
+import { appInfo, openApp, serveDist } from './harness.mjs';
 import { helpLine } from '../src/help.js';
 import { plainColumns, valueLine } from '../src/impact.js';
 
@@ -11,6 +11,12 @@ let browser;
 before(async () => { served = await serveDist(); base = served.base; browser = await chromium.launch(); });
 after(async () => { await browser?.close(); served?.close(); });
 
+const DASH = '#/n01_u05/dashboard';
+// REQ-506: no side rail; Settings is an item of the avatar menu.
+const goSettings = async (page) => {
+  await page.locator('[data-avatar-menu] button').first().click();
+  await page.getByRole('menuitem', { name: 'Settings' }).click();
+};
 const STILL = (p) => p.emulateMedia({ reducedMotion: 'reduce' });
 const VALUE = { promised: {
   value: 'The desk acts on the channels behind a revenue drop.',
@@ -34,12 +40,13 @@ test('valueLine keeps the first sentence of the value and drops the how-to-measu
   assert.equal(valueLine(''), '');
 });
 
-test('the top bar carries the guided tour icon, and it opens the page tour from the first step', async () => {
+test('the avatar menu carries the guided tour item, and it opens the page tour from the first step', async () => {
   const info = appInfo({}, 1, {});
-  const { page, context, seen } = await openApp(browser, base, info, { watch: STILL });
-  const icon = page.locator('[data-tour-top]');
+  const { page, context, seen } = await openApp(browser, base, info, { watch: STILL, hash: DASH });
+  await page.locator('[data-avatar-menu] button').first().click();
+  const icon = page.getByRole('menuitem', { name: 'Take the tour' });
   await icon.waitFor({ state: 'visible' });
-  assert.equal(await icon.getAttribute('aria-label'), 'Take the guided tour again');
+  assert.equal(await icon.isEnabled(), true);
   await icon.click();
   await page.waitForSelector('.tour-pop');
   assert.equal(await page.locator('#tour-t').textContent(), 'What this App is for');
@@ -51,7 +58,7 @@ test('the top bar carries the guided tour icon, and it opens the page tour from 
 
 test('each chart card has a ? that walks only that card and says what to do in it, by mouse and by keyboard', async () => {
   const info = appInfo({}, 1, {});
-  const { page, context, seen } = await openApp(browser, base, info, { watch: STILL });
+  const { page, context, seen } = await openApp(browser, base, info, { watch: STILL, hash: DASH });
   const card = page.locator('article.card[data-card]').first();
   const title = await card.locator('h2').textContent();
   const help = card.locator('[data-section-help]');
@@ -74,15 +81,24 @@ test('each chart card has a ? that walks only that card and says what to do in i
   await context.close();
 });
 
-test('the dashboard keeps one line about the value and sends how it is measured to Settings', async () => {
+// PRODUCT GAP (REQ-506): ValueStrip is deleted and the dashboard has no [data-value-estimate] line with a link to Settings (Page.jsx dashboard section).
+test('the dashboard keeps one line about the value, and its link goes to the measurement settings', async () => {
   const info = appInfo({}, 1, VALUE);
-  const { page, context, seen } = await openApp(browser, base, info, { watch: STILL });
+  const { page, context } = await openApp(browser, base, info, { watch: STILL, hash: DASH });
   const line = page.locator('[data-value-estimate]');
-  await line.waitFor({ state: 'visible' });
+  assert.equal(await line.count(), 1, 'PRODUCT GAP: the dashboard shows no line about the value estimate');
   const text = await line.textContent();
   assert.ok(text.includes('Value not measured yet.'), text);
   assert.ok(!text.includes('total_amount'), 'the long measuring text is not on the dashboard');
   await line.locator('button.link').click();
+  await page.waitForFunction(() => /settings/.test(location.hash));
+  await context.close();
+});
+
+test('Settings keeps how the value is measured in plain words, with no raw column id', async () => {
+  const info = appInfo({}, 1, VALUE);
+  const { page, context, seen } = await openApp(browser, base, info, { watch: STILL, hash: DASH });
+  await goSettings(page);
   await page.waitForFunction(() => /settings/.test(location.hash));
   const group = page.locator('[data-group="measurement"]');
   await group.waitFor({ state: 'visible' });
@@ -135,7 +151,7 @@ test('the target sits under Measurement in the shared settings row: Change, Save
     'settings/save': ({ route, json }) => { value = String(route.request().postDataJSON().value); json(200, targetView(value)); },
   };
   const { page, context, seen } = await openApp(browser, base, info, { watch: STILL, routes });
-  await goRail(page, 'settings');
+  await goSettings(page);
   const row = page.locator('[data-setting="kpi_target_value"]');
   await row.waitFor({ state: 'visible' });
   assert.equal(await page.locator('[data-group="impact"] [data-setting="kpi_target_value"]').count(), 0, 'the target is not under How the impact is worked out');
@@ -156,7 +172,7 @@ test('a target the person may not change shows the reason in its row and no Chan
     summary: ({ json }) => json(200, { run: KPI_RUN, categories: {}, note: '' }),
   };
   const { page, context } = await openApp(browser, base, info, { watch: STILL, routes });
-  await goRail(page, 'settings');
+  await goSettings(page);
   const row = page.locator('[data-setting="kpi_target_value"]');
   await row.waitFor({ state: 'visible' });
   assert.equal(await row.getByRole('button', { name: 'Change Target for the KPI' }).count(), 0);

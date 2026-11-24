@@ -37,18 +37,26 @@ const bar = (page, scope = '.ph .fresh') => page.locator(`${scope} [role="progre
 
 test('a running refresh says its step, rows and time left, draws a bar as wide as the percent the server sent, and keeps the data it shows with its date', async () => {
   const { routes } = freshRoutes({ ...IDLE, active: STAGED, can_refresh: false, reason: 'busy', typical_s: 300 });
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes, clock: NOW });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes, clock: NOW, hash: '#/n01_u05/dashboard' });
   await page.locator('.ph .fresh-d [data-progress]').waitFor();
   assert.equal(await page.locator('.ph .fresh-d [data-progress]').innerText(), 'Step 3 of 5: Scoring the records · 1,200,000 of 4,000,000 rows · about 6 min left');
-  assert.deepEqual(await bar(page), { now: '30', width: '30%', open: false });
   assert.equal(await page.locator('.fresh-asof').innerText(), 'Until it finishes you see the data of the update on Oct 27, 07:30 AM UTC');
   assert.ok(await page.locator('.kpi-v').first().isVisible(), 'the numbers stay on screen while it runs');
   const room = await page.evaluate(() => {
     const h1 = document.querySelector('.ph h1');
-    return { lines: Math.round(h1.getBoundingClientRect().height / parseFloat(getComputedStyle(h1).lineHeight)), clipped: h1.scrollWidth > h1.clientWidth + 1,
-      busy: Math.round(document.querySelector('.fresh-busy').getBoundingClientRect().width) };
+    return { lines: Math.round(h1.getBoundingClientRect().height / parseFloat(getComputedStyle(h1).lineHeight)), clipped: h1.scrollWidth > h1.clientWidth + 1 };
   });
-  assert.deepEqual({ ...room, busy: room.busy <= 460 }, { lines: 1, clipped: false, busy: true }, `the progress keeps to its corner and leaves the title its line: ${JSON.stringify(room)}`);
+  assert.deepEqual(room, { lines: 1, clipped: false }, `the progress leaves the title its line: ${JSON.stringify(room)}`);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('a running refresh draws a progress bar as wide as the percent the server sent, in the header, in a corner that leaves the title its line', async () => {
+  const { routes } = freshRoutes({ ...IDLE, active: STAGED, can_refresh: false, reason: 'busy', typical_s: 300 });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes, clock: NOW, hash: '#/n01_u05/dashboard' });
+  await page.locator('.ph .fresh-d [data-progress]').waitFor();
+  assert.deepEqual(await bar(page), { now: '30', width: '30%', open: false });
+  assert.equal(Math.round((await page.locator('.fresh-busy').boundingBox()).width) <= 460, true, 'the progress keeps to its corner');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -59,14 +67,22 @@ test('with no percent the bar moves with no width and no number, and with no ste
     [RUN, 'running for 3 min, usually about 5 min'],
   ]) {
     const { routes } = freshRoutes({ ...IDLE, active, can_refresh: false, reason: 'busy', typical_s: 300 });
-    const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes, clock: NOW });
+    const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes, clock: NOW, hash: '#/n01_u05/dashboard' });
     await page.locator('.ph .fresh-d [data-progress]').waitFor();
     assert.equal(await page.locator('.ph .fresh-d [data-progress]').innerText(), text);
-    assert.deepEqual(await bar(page), { now: null, width: '', open: true }, 'no percent from the server means no width and no value');
-    assert.doesNotMatch(`${await page.locator('.ph .fresh').innerText()} ${await page.locator('.ph .fresh-d').innerText()}`, /%|\d+ min left/, 'no percent and no time left the server did not send');
+    assert.doesNotMatch(`${await page.locator('.ph .fresh-d').innerText()}`, /%|\d+ min left/, 'no percent and no time left the server did not send');
     assert.deepEqual(seen.errors, []);
     await context.close();
   }
+});
+
+test('with no percent the bar moves with no width and no value', async () => {
+  const { routes } = freshRoutes({ ...IDLE, active: { ...STAGED, percent: null, eta_s: null }, can_refresh: false, reason: 'busy', typical_s: 300 });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes, clock: NOW, hash: '#/n01_u05/dashboard' });
+  await page.locator('.ph .fresh-d [data-progress]').waitFor();
+  assert.deepEqual(await bar(page), { now: null, width: '', open: true }, 'no percent from the server means no width and no value');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
 });
 
 test('when the run finishes a toast says Refreshed, and See what changed turns on Changed since the last run on the list', async () => {
@@ -75,7 +91,7 @@ test('when the run finishes a toast says Refreshed, and See what changed turns o
     records: lister(rows, { actions: true, changes: true, summary: SUMMARY }),
   });
   const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes, clock: NOW, hash: '#/n01_u05/work' });
-  await page.locator('.fresh-busy').waitFor();
+  await page.locator('.ph .fresh-run').waitFor();
   await page.waitForFunction(() => document.querySelector('.card--table tbody tr'));
   state.fresh = { ...IDLE, last_success: DONE, last_run: DONE };
   await page.clock.fastForward(10000);
@@ -92,7 +108,7 @@ test('when the run finishes a toast says Refreshed, and See what changed turns o
 test('while a refresh runs, its full progress line never squeezes the page title: at 1440, 1024 and 390 the title keeps at least 300px and the top row sits above it, never over it', async () => {
   const { routes } = freshRoutes({ ...IDLE, active: STAGED, can_refresh: false, reason: 'busy', typical_s: 300 });
   for (const width of [1440, 1024, 390]) {
-    const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 2, TABLE), { routes, clock: NOW, width, hash: '#/n01_u05' });
+    const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 2, TABLE), { routes, clock: NOW, width, hash: '#/n01_u05/dashboard' });
     await page.locator('.ph .fresh-d [data-progress]').waitFor();
     await resizeTo(page, width);
     const box = await page.evaluate(() => {

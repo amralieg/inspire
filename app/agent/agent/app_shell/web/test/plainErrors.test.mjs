@@ -41,7 +41,7 @@ test('the shell and the Inspire App split errors with one helper', () => {
 });
 
 test('a chart that cannot load says so in a sentence and keeps the error code and the grant under Details', async () => {
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(), { errors: { 'chart:pareto': DENIED } });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(), { hash: '#/n01_u05/dashboard', errors: { 'chart:pareto': DENIED } });
   const card = page.locator('[data-card="pareto"]');
   await card.locator('.tile-err').waitFor();
   const text = await card.locator('.tile-err').innerText();
@@ -57,7 +57,7 @@ test('a chart that cannot load says so in a sentence and keeps the error code an
 });
 
 test('an error without codes shows as it is, with no Details', async () => {
-  const { page, context } = await openApp(browser, served.base, appInfo(), { errors: { 'chart:pareto': 'the chart has no rows for this month' } });
+  const { page, context } = await openApp(browser, served.base, appInfo(), { hash: '#/n01_u05/dashboard', errors: { 'chart:pareto': 'the chart has no rows for this month' } });
   await page.locator('[data-card="pareto"] .tile-err').waitFor();
   assert.equal(await said(page.locator('[data-card="pareto"] .tile-err')), 'This chart could not load: the chart has no rows for this month');
   assert.equal(await page.locator('[data-card="pareto"] [data-technical-details]').count(), 0);
@@ -79,10 +79,9 @@ test('an App that cannot start reads as a sentence, and the error code sits unde
 
 test('the reason a page cannot be refreshed names no job', async () => {
   assert.ok(!/\bjob\b/i.test(NO_JOB.reason), NO_JOB.reason);
-  const { page, context } = await openApp(browser, served.base, appInfo());
-  const button = page.getByRole('button', { name: 'Refresh now' });
-  await button.waitFor();
-  assert.equal(await page.locator(`#${await button.getAttribute('aria-describedby')}`).innerText(), NO_JOB.reason);
+  const { page, context } = await openApp(browser, served.base, appInfo(), { hash: '#/n01_u05/dashboard' });
+  await page.getByRole('button', { name: 'Refresh now' }).waitFor();
+  assert.equal(await page.locator('.ph .fresh-why').innerText(), NO_JOB.reason);
   await context.close();
 });
 

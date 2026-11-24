@@ -28,7 +28,7 @@ test('a page whose data the App cannot read shows one banner naming the table an
   const errors = { 'chart:pareto': 'No access to main.pricing.items', 'chart:by_category': 'No access to main.pricing.items', 'kpi:total_loss': 'No access to main.pricing.items' };
   // REQ-311: the dialog checks Request for Access once; no destination is set here, so Advanced opens and Check again is in it.
   const routes = { 'access-request/check': ({ json }) => json(200, { offered: false, destinations: [], reason: 'no one has set up where access requests for these go yet' }) };
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({ unread: UNREAD, unread_owners: OWNERS }), { errors, routes });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({ unread: UNREAD, unread_owners: OWNERS }), { errors, routes, hash: '#/n01_u05/dashboard' });
   try {
     const banner = page.locator('[data-permission-dialog]');
     await banner.waitFor();
@@ -57,7 +57,7 @@ test('a page whose data the App cannot read shows one banner naming the table an
 
 test('without a recorded owner the banner says your data owner can grant it, and a per-user App says you', async () => {
   const errors = { 'chart:pareto': "No access to part of this App's data yet. Ask your data owner for read access, then try again." };
-  const { page, context } = await openApp(browser, served.base, appInfo({ auth: 'user' }), { errors });
+  const { page, context } = await openApp(browser, served.base, appInfo({ auth: 'user' }), { errors, hash: '#/n01_u05/dashboard' });
   try {
     const banner = page.locator('[data-permission-dialog]');
     await banner.waitFor();
@@ -72,7 +72,7 @@ test('without a recorded owner the banner says your data owner can grant it, and
 });
 
 test('an error that is not about access keeps its own words and raises no banner (must-exclude)', async () => {
-  const { page, context } = await openApp(browser, served.base, appInfo(), { errors: { 'chart:pareto': 'the warehouse is stopped' } });
+  const { page, context } = await openApp(browser, served.base, appInfo(), { errors: { 'chart:pareto': 'the warehouse is stopped' }, hash: '#/n01_u05/dashboard' });
   try {
     await page.locator('[data-card="pareto"] .tile-err').waitFor();
     assert.equal(await said(page.locator('[data-card="pareto"] .tile-err')), 'This chart could not load: the SQL warehouse is stopped, so start it on the SQL Warehouses page or ask its owner to, then try again.');

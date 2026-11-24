@@ -125,7 +125,7 @@ test('every money number on a use case dashboard and on Performance shows its fo
     + '$8,850. Open a record to see how its money is worked out.');
   const saved = page.locator('[data-tile="saved"] .kpi-v');
   assert.match(await tipOf(page, saved), /^The value at stake each fix had when it was fixed, less what a later run still finds, added up over the \d+ fixes? a later run confirmed = \$[\d,]+$/);
-  await page.locator('[data-rail="performance"]').click();
+  await page.evaluate(() => { location.hash = '#/n01_u05/performance'; }); // REQ-506: no side rail, Performance opens by its link
   const measured = page.locator('[data-promised-delivered] [data-figure="measured"] .fx-n');
   await measured.waitFor();
   assert.match(await tipOf(page, measured), /^On each of the 2 fixes a later run confirmed: \S.* at stake when fixed minus what that run still finds, added up = \$13,550$/);
@@ -135,7 +135,7 @@ test('every money number on a use case dashboard and on Performance shows its fo
 
 test('an owner reads how the money is worked out, changes an assumption with a note, and the page follows it', async () => {
   const seen = {};
-  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen) });
+  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen), hash: '#/n01_u05/dashboard' });
   await page.goto(`${served.base}#/n01_u05/dashboard`);
   const card = page.getByRole('region', { name: 'How the value at stake is worked out' });
   await card.waitFor();
@@ -168,8 +168,8 @@ test('the money card asks Genie with its rule, its tiers and each assumption as 
   const explain = [];
   const asks = { 'genie/explain': ({ route, json }) => { explain.push(route.request().postDataJSON()); return json(200, { conversation_id: 'c1', message_id: 'm1', question: 'q' }); },
     'genie/message': ({ json }) => json(200, { state: 'done', text: 'Genie answered.', sql: 'SELECT 1', columns: [], rows: [], truncated: false }) };
-  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: { ...routes(seen), ...asks } });
-  await page.goto(`${served.base}#/n01_u05`);
+  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: { ...routes(seen), ...asks }, hash: '#/n01_u05/dashboard' });
+  await page.goto(`${served.base}#/n01_u05/dashboard`);
   const card = page.getByRole('region', { name: 'How the value at stake is worked out' });
   await card.waitFor();
   const found = await page.evaluate(askAudit, ASK_GROUPS);
@@ -181,6 +181,8 @@ test('the money card asks Genie with its rule, its tiers and each assumption as 
   assert.deepEqual([explain[0].kind, explain[0].context.fields], ['text', { Assumption: 'Price', Value: '30 USD', 'Set by the run': '20 USD',
     'Last change': `${OWNER}, Oct 23, 2026`, Why: 'list price' }]);
   await page.locator('.msg-sql').first().waitFor({ timeout: 15000 });
+  await page.evaluate(() => { location.hash = '#/n01_u05/dashboard'; }); // REQ-506: Genie answers in the full pane; the card is on the dashboard
+  await card.waitFor();
   await card.getByRole('button', { name: 'Ask Genie about How the value at stake is worked out', exact: true }).click();
   await page.locator('form.ask-box .sugg').first().click();
   await until(() => explain.length === 2);
@@ -189,6 +191,8 @@ test('the money card asks Genie with its rule, its tiers and each assumption as 
     + ' A changed assumption moves records between these tiers on the next update.');
   assert.deepEqual(explain[1].context.fields, { Price: '30 USD', Keep: '50%' });
   await page.locator('.msg-sql').nth(1).waitFor({ timeout: 15000 });
+  await page.evaluate(() => { location.hash = '#/n01_u05/dashboard'; });
+  await card.waitFor();
   await card.getByRole('button', { name: 'Fold How the value at stake is worked out', exact: true }).click();
   await page.locator('section.money--folded').waitFor();
   assert.equal(await page.locator('section.money--folded').getByRole('button', { name: 'Ask Genie about How the value at stake is worked out', exact: true }).count(), 1);
@@ -199,8 +203,8 @@ test('the money card asks Genie with its rule, its tiers and each assumption as 
 test('a use case counted in hours names its formula card in hours, and a card that cannot load says amount', async () => {
   const seen = {};
   const hours = { ...MONEY, model: { ...MODEL, currency: '', unit: 'hours' } };
-  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen, hours) });
-  await page.goto(`${served.base}#/n01_u05`);
+  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen, hours), hash: '#/n01_u05/dashboard' });
+  await page.goto(`${served.base}#/n01_u05/dashboard`);
   const card = page.getByRole('region', { name: 'How the hours at stake is worked out' });
   await card.waitFor();
   assert.equal(await card.locator('h2').textContent(), 'How the hours at stake is worked out');
@@ -209,8 +213,8 @@ test('a use case counted in hours names its formula card in hours, and a card th
   assert.deepEqual(app.errors, []);
   await context.close();
   const broken = { ...routes({}), money: ({ json }) => json(500, { error: 'the warehouse is stopped' }) };
-  const second = await openApp(browser, served.base, INFO(), { width: 1440, routes: broken });
-  await second.page.goto(`${served.base}#/n01_u05`);
+  const second = await openApp(browser, served.base, INFO(), { width: 1440, routes: broken, hash: '#/n01_u05/dashboard' });
+  await second.page.goto(`${served.base}#/n01_u05/dashboard`);
   const failed = second.page.locator('.tile-err', { hasText: 'is worked out could not load' });
   await failed.waitFor();
   assert.equal(await said(failed), 'How the amount at stake is worked out could not load: the SQL warehouse is stopped, so start it on the SQL Warehouses page or ask its owner to, then try again.');
@@ -220,8 +224,8 @@ test('a use case counted in hours names its formula card in hours, and a card th
 test('a use case counted in FTE names its formula card and tiers in FTE, never a currency', async () => {
   const seen = {};
   const fte = { ...MONEY, model: { ...MODEL, currency: '', unit: 'FTE', impact_kind: 'number' } };
-  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen, fte) });
-  await page.goto(`${served.base}#/n01_u05`);
+  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen, fte), hash: '#/n01_u05/dashboard' });
+  await page.goto(`${served.base}#/n01_u05/dashboard`);
   const card = page.getByRole('region', { name: 'How the FTE at stake is worked out' });
   await card.waitFor();
   assert.ok((await card.locator('.rule').textContent()).endsWith('= its FTE at stake.'));
@@ -233,8 +237,8 @@ test('a use case counted in FTE names its formula card and tiers in FTE, never a
 
 test('the money panel fits a phone: the assumptions table scrolls inside its card, never the page', async () => {
   const seen = {};
-  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 390, routes: routes(seen) });
-  await page.goto(`${served.base}#/n01_u05`);
+  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 390, routes: routes(seen), hash: '#/n01_u05/dashboard' });
+  await page.goto(`${served.base}#/n01_u05/dashboard`);
   const card = page.getByRole('region', { name: 'How the value at stake is worked out' });
   await card.locator('tbody tr').first().waitFor();
   assert.equal(await card.locator('.tbl-wrap > table').count(), 1);
@@ -247,8 +251,8 @@ test('a formula of only the record\u2019s own numbers lists no assumption and ne
   const seen = {};
   const own = { ...MODEL, template: '{units:number} units lost', parts: [{ column: 'units', kind: 'number' }, { text: ' units lost' }], expression: null,
     recomputes: false, changed: false, assumptions: [] };
-  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen, { ...MONEY, model: own, history: [] }) });
-  await page.goto(`${served.base}#/n01_u05`);
+  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen, { ...MONEY, model: own, history: [] }), hash: '#/n01_u05/dashboard' });
+  await page.goto(`${served.base}#/n01_u05/dashboard`);
   const card = page.getByRole('region', { name: 'How the value at stake is worked out' });
   await card.waitFor();
   assert.equal(await card.locator('.rule').innerText(), 'Each record: units units lost = its value at stake.');
@@ -261,8 +265,8 @@ test('a formula of only the record\u2019s own numbers lists no assumption and ne
 test('the tiers of a use case that holds records back say what held back means', async () => {
   const seen = {};
   const held = 'Held back records were flagged Act now or Review but are kept off the to fix list on purpose.';
-  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen, { ...MONEY, held }) });
-  await page.goto(`${served.base}#/n01_u05`);
+  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen, { ...MONEY, held }), hash: '#/n01_u05/dashboard' });
+  await page.goto(`${served.base}#/n01_u05/dashboard`);
   const card = page.getByRole('region', { name: 'How the value at stake is worked out' });
   await card.waitFor();
   assert.equal(await card.locator('.tiers').innerText(), 'Act now from $5,000 at stake, Review from $1,000, every other record Monitor. A changed assumption moves records between these tiers on the next update. '
@@ -274,8 +278,8 @@ test('the tiers of a use case that holds records back say what held back means',
 test('someone who is not an owner sees the assumptions and why they cannot change them', async () => {
   const seen = {};
   const money = { ...MONEY, editable: false, why: 'Only the owners of this use case can change its assumptions' };
-  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen, money) });
-  await page.goto(`${served.base}#/n01_u05`);
+  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen, money), hash: '#/n01_u05/dashboard' });
+  await page.goto(`${served.base}#/n01_u05/dashboard`);
   const card = page.getByRole('region', { name: 'How the value at stake is worked out' });
   await card.waitFor();
   assert.equal(await card.getByRole('button', { name: /^Change/ }).count(), 0);
@@ -286,7 +290,7 @@ test('someone who is not an owner sees the assumptions and why they cannot chang
 
 test('the decision list shows the money an assumption change gives, with its formula in the list and in the record panel', async () => {
   const seen = {};
-  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen) });
+  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen), hash: '#/n01_u05/dashboard' });
   await page.goto(`${served.base}#/n01_u05/work`);
   const cell = page.locator('.card--table[aria-label="Decision list"] tbody tr').first().locator('.fx-n');
   await cell.waitFor();
@@ -303,12 +307,12 @@ test('the decision list shows the money an assumption change gives, with its for
 
 test('a prediction that is not ready says Nothing to act on yet with the run reason on its page', async () => {
   const seen = {};
-  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen) });
-  await page.goto(`${served.base}#/n02_u02`);
+  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen), hash: '#/n01_u05/dashboard' });
+  await page.goto(`${served.base}#/n02_u02/dashboard`);
   await page.waitForSelector('.uc-status.is-wait');
   assert.equal(await page.locator('.uc-status.is-wait').innerText(),
     'Not ready yet\nNothing to act on yet, because no model passed this use case\'s acceptance check in the last run, so no record is actionable yet. It is checked again on Oct 27.');
-  await page.goto(`${served.base}#/n02_u01`);
+  await page.goto(`${served.base}#/n02_u01/dashboard`);
   await page.waitForSelector('[data-nothing-fix] [data-nothing]');
   assert.equal(await page.locator('[data-nothing-fix] [data-nothing]').innerText(),
     'Nothing to act on yet, because no record reached Act now in the last update, and 1 record is worth a look');
@@ -320,8 +324,8 @@ test('a value outside the range the notebook declared cannot be saved from the m
   const seen = {};
   const ranged = { ...MONEY, model: { ...MODEL, assumptions: MODEL.assumptions.map((a) => (a.name === 'KEEP'
     ? { ...a, low: 0.2, high: 0.9, setting: { name: 'KEEP', kind: 'percent', low: 0.2, high: 0.9, allowed: '0.2 to 0.9' } } : a)) } };
-  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen, ranged) });
-  await page.goto(`${served.base}#/n01_u05`);
+  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen, ranged), hash: '#/n01_u05/dashboard' });
+  await page.goto(`${served.base}#/n01_u05/dashboard`);
   const card = page.getByRole('region', { name: 'How the value at stake is worked out' });
   await card.waitFor();
   await card.getByRole('button', { name: 'Change Keep' }).click();

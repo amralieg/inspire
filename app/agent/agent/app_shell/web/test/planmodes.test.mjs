@@ -292,38 +292,49 @@ test('forecast accuracy and plan results that could not load read one plain sent
   }
 });
 
-const railText = (page) => page.locator('nav.rail [data-rail]').evaluateAll((els) => els.map((e) => [e.dataset.rail, e.textContent.trim()]));
+// REQ-506: no side rail. Performance is an item of the owner's avatar menu, Work is the Screen button.
+const owned = (info) => ({ ...info, pages: info.pages.map((p) => ({ ...p, is_owner: true })) });
+const menuItems = async (page) => {
+  await page.locator('[data-avatar-menu] button').first().click();
+  const menu = page.getByRole('menu');
+  await menu.waitFor({ state: 'visible' });
+  return menu;
+};
+const menuTitles = async (page) => {
+  const menu = await menuItems(page);
+  const items = (await menu.getByRole('menuitem').allInnerTexts()).map((t) => t.trim());
+  await page.keyboard.press('Escape');
+  await menu.waitFor({ state: 'hidden' });
+  return items;
+};
+const pickMenu = async (page, name) => { const menu = await menuItems(page); await menu.getByRole('menuitem', { name }).click(); };
 
-test('in the App a planner page names its rail Plan and Performance and opens the plan versions, its lines and the plan against actuals', async () => {
+test('in the App a planner page names Performance in its menu and opens the plan versions, its lines and the plan against actuals', async () => {
   const versions = versionRoutes('plan');
   const results = { version: null, lines: [], missing: '' };
-  const { page, seen, context } = await openApp(browser, served.base, INFO.plan, { routes: { ...plannerRoutes([], []), ...versions.routes,
+  const { page, seen, context } = await openApp(browser, served.base, owned(INFO.plan), { routes: { ...plannerRoutes([], []), ...versions.routes,
     'plans/performance': ({ json }) => json(200, results) } });
-  await page.locator('nav.rail [data-rail="work"]').waitFor();
-  const rail = Object.fromEntries(await railText(page));
-  assert.equal(rail.work, 'Plan');
-  assert.equal(rail.performance, 'Performance');
-  await page.locator('nav.rail [data-rail="work"]').click();
+  await page.locator('[data-mode-switch]').waitFor();
+  assert.ok((await menuTitles(page)).includes('Performance'));
+  await page.locator('[data-mode="screen"]').click();
   await page.locator('[data-plan-section] [data-move="new"]').waitFor();
   await page.locator('[data-plan-row="K1"]').waitFor();
   assert.equal(await page.locator('[data-mode-pending]').count(), 0);
-  await page.locator('nav.rail [data-rail="performance"]').click();
+  await pickMenu(page, 'Performance');
   await page.locator('[data-plan-performance] [data-no-plan]').waitFor();
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
 
-test('in the App a forecast page names its rail Review and Accuracy and opens the review queue and the accuracy panel', async () => {
+test('in the App a forecast page names Accuracy in its menu and opens the review queue and the accuracy panel', async () => {
   const accuracy = { points: 4, series: 1, error: 0.2, bias: 0.1, mase: 1.3, overrides: 0, helped: 0, hurt: 0, lift: null, lift_note: '' };
-  const { page, seen, context } = await openApp(browser, served.base, INFO.forecast, { routes: { ...forecastRoutes([]), ...reviewRoutes(null, []),
+  const { page, seen, context } = await openApp(browser, served.base, owned(INFO.forecast), { routes: { ...forecastRoutes([]), ...reviewRoutes(null, []),
     'forecast/accuracy': ({ json }) => json(200, accuracy) } });
-  await page.locator('nav.rail [data-rail="work"]').waitFor();
-  const rail = Object.fromEntries(await railText(page));
-  assert.equal(rail.work, 'Review');
-  assert.equal(rail.performance, 'Accuracy');
-  await page.locator('nav.rail [data-rail="work"]').click();
+  await page.locator('[data-mode-switch]').waitFor();
+  assert.ok((await menuTitles(page)).includes('Accuracy'));
+  await page.locator('[data-mode="screen"]').click();
   await page.locator('[data-review-section] [data-series="S1"]').waitFor();
-  await page.locator('nav.rail [data-rail="performance"]').click();
+  await pickMenu(page, 'Accuracy');
   await page.locator('[data-accuracy] [data-stat="error"]').waitFor();
   assert.match(await page.locator('[data-stat="error"]').innerText(), /20\.0%/);
   assert.deepEqual(seen.errors, []);
@@ -451,15 +462,25 @@ test('the forecast Plan section compares each past forecast with its actual, and
   await later.context.close();
 });
 
-test('in the App a forecast page names a Plan rail item between Review and Accuracy and opens plan against actuals', async () => {
+test('in the App a forecast page opens plan against actuals from a link to its Plan section', async () => {
   const results = { version: null, forecast: true, empty: FORECAST_EMPTY, lines: [], counted: 0, missing: '' };
-  const { page, context, seen } = await openApp(browser, served.base, INFO.forecast, { routes: { ...forecastRoutes([]), ...reviewRoutes(null, []),
+  const { page, context, seen } = await openApp(browser, served.base, owned(INFO.forecast), { hash: `#/${PAGE.forecast}/plan`, ready: '[data-ready]', routes: { ...forecastRoutes([]), ...reviewRoutes(null, []),
     'plans/performance': ({ json }) => json(200, results) } });
-  await page.locator('nav.rail [data-rail="plan"]').waitFor();
-  const order = await page.locator('nav.rail [data-rail]').evaluateAll((els) => els.map((e) => e.dataset.rail));
-  assert.ok(order.indexOf('work') < order.indexOf('plan') && order.indexOf('plan') < order.indexOf('performance'), order.join(','));
-  assert.equal(Object.fromEntries(await railText(page)).plan, 'Plan');
-  await page.locator('nav.rail [data-rail="plan"]').click();
+  await page.locator('[data-no-plan]').waitFor();
+  assert.equal((await page.locator('[data-no-plan]').innerText()).trim(), FORECAST_EMPTY);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('in the App a forecast page names a Plan menu item between Accuracy and the other owner items and opens plan against actuals', async () => {
+  const results = { version: null, forecast: true, empty: FORECAST_EMPTY, lines: [], counted: 0, missing: '' };
+  const { page, context, seen } = await openApp(browser, served.base, owned(INFO.forecast), { routes: { ...forecastRoutes([]), ...reviewRoutes(null, []),
+    'plans/performance': ({ json }) => json(200, results) } });
+  await page.locator('[data-mode-switch]').waitFor();
+  const items = await menuTitles(page);
+  assert.ok(items.includes('Plan'), `the menu has a Plan item: ${JSON.stringify(items)}`);
+  assert.ok(items.indexOf('Plan') < items.indexOf('Accuracy'), items.join(','));
+  await pickMenu(page, 'Plan');
   assert.equal((await page.locator('[data-no-plan]').innerText()).trim(), FORECAST_EMPTY);
   assert.deepEqual(seen.errors, []);
   await context.close();

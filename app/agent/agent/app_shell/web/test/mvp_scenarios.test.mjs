@@ -18,7 +18,7 @@ test('every page kind fits a 1280x800 screen with no sideways scroll and no raw 
     ['examples/dashboard.json', dashboardRoutes([])], ['examples/scenario_lab.json', scenarioRoutes([], [])]];
   for (const [file, routes] of kinds) {
     const info = appInfo(DECIDE, 1, {}, file);
-    const { page, seen, context } = await openApp(browser, served.base, info, { routes, width: 1280, height: 800 });
+    const { page, seen, context } = await openApp(browser, served.base, info, { routes, width: 1280, height: 800, hash: `#/${info.pages[0].id}/dashboard` });
     await page.waitForFunction(() => document.querySelectorAll('[data-section] canvas').length >= 1 || document.querySelector('[data-lever]'));
     await idle(page);
     const { scroll, text } = await screenAudit(page);
@@ -45,7 +45,7 @@ test('a list of 10,000 records pages 25 at a time and says how many there are, w
     return json(200, { rows, total: 10000, offset: body.offset || 0, limit: body.limit || 25, actions: true, changes: true,
       summary: { open: 0, done: 0, resolved: 0, left: 0, owners: [] }, errors: {} });
   };
-  const { page, seen, context } = await openApp(browser, served.base, info, { routes, width: 1280, height: 800 });
+  const { page, seen, context } = await openApp(browser, served.base, info, { routes, width: 1280, height: 800, hash: `#/${info.pages[0].id}/dashboard` });
   await page.getByText('Item number 1', { exact: true }).first().waitFor();
   const main = await page.locator('main').innerText();
   assert.match(main, /10,000/);
@@ -83,7 +83,7 @@ test('a list the App may not read says so in a sentence, never raw JSON, and off
   const info = appInfo(DECIDE, 1, TABLE);
   const { routes } = tracked();
   routes.records = ({ json }) => json(403, { error: 'This App may not read part of its data yet: ask a data owner to give it SELECT on c.s.orders' });
-  const { page, seen, context } = await openApp(browser, served.base, info, { routes, width: 1280, height: 800, ready: 'main' });
+  const { page, seen, context } = await openApp(browser, served.base, info, { routes, width: 1280, height: 800, ready: 'main', hash: `#/${info.pages[0].id}/dashboard` });
   await page.getByText(/may not read part of its data/).first().waitFor();
   const text = await page.locator('main').innerText();
   assert.doesNotMatch(text, JUNK);
@@ -102,7 +102,7 @@ test('an empty run says the list is empty, offers no bulk action and counts noth
     return json(200, { rows: [], total: 0, offset: 0, limit: body.limit || 25, actions: true, changes: true,
       summary: { open: 0, done: 0, resolved: 0, left: 0, owners: [] }, errors: {} });
   };
-  const { page, seen, context } = await openApp(browser, served.base, info, { routes, width: 1280, height: 800, ready: 'main' });
+  const { page, seen, context } = await openApp(browser, served.base, info, { routes, width: 1280, height: 800, ready: 'main', hash: `#/${info.pages[0].id}/dashboard` });
   await page.locator('[data-section="todo"] [data-todo-count]').waitFor();
   assert.equal(await page.locator('[data-section="todo"] [data-todo-count]').innerText(), 'Nothing is waiting for you right now');
   assert.equal(await page.locator('.todo-bar').count(), 0);

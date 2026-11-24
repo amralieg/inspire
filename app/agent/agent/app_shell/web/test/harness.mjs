@@ -123,16 +123,29 @@ export async function holdClock(page) {
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
 }
 
+// REQ-506: no side rail and no header menu. Settings, Runs, Alerts, Performance and Impact are items of the avatar menu; Report an issue is in Settings, Feedback group.
+const MENU_TITLES = { settings: 'Settings', runs: 'Runs', alerts: 'Alerts', performance: null, impact: 'Impact' };
+
 export async function reportIssue(page) {
-  const more = page.locator('[data-head-more]');
-  if (!(await more.evaluate((d) => d.open))) await more.locator('> summary').click();
-  await page.locator('[data-feedback-open]').click();
+  await goRail(page, 'settings');
+  const group = page.locator('[data-group="feedback"]');
+  await group.waitFor();
+  await group.locator('[data-feedback-open]').click();
 }
 
 export async function goRail(page, id) {
-  const menu = page.getByRole('button', { name: 'Open the sections' });
-  if (await menu.isVisible()) await menu.click();
-  await page.locator(`[data-rail="${id}"]`).click();
+  if (id in MENU_TITLES) {
+    await page.locator('[data-avatar-menu] button').first().click();
+    const items = page.locator('[data-avatar-menu] [role="menuitem"]');
+    const title = MENU_TITLES[id];
+    await (title ? items.filter({ hasText: new RegExp(`^${title}$`) }) : items.filter({ hasText: /^(Performance|Accuracy|Usage)$/ })).first().click();
+    return;
+  }
+  // Work and Dashboard have no control of their own: they are the page body, reached by its link.
+  await page.evaluate((section) => {
+    const route = decodeURIComponent(location.hash.replace(/^#\/?/, '').split(/[/?]/)[0]);
+    location.hash = `#/${encodeURIComponent(route)}/${section}`;
+  }, id);
 }
 
 export async function pickCase(page, title) {

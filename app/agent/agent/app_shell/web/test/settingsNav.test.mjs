@@ -3,6 +3,12 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { appInfo, openApp, serveDist, toastSays } from './harness.mjs';
 
+// REQ-506: no side rail; Settings is an item of the avatar menu.
+const goSettings = async (page) => {
+  await page.locator('[data-avatar-menu] button').first().click();
+  await page.getByRole('menuitem', { name: 'Settings' }).click();
+};
+
 let served;
 let browser;
 
@@ -36,12 +42,15 @@ function ownerInfo() {
   return info;
 }
 
-test('the left nav has no Feedback or Reported issues entry, even for the owner', async () => {
+test('the avatar menu has no Feedback or Reported issues entry, even for the owner', async () => {
   const { page, context } = await openApp(browser, served.base, ownerInfo(), {});
   try {
-    await page.locator('[data-rail="settings"]').waitFor({ timeout: 20000 });
-    assert.equal(await page.locator('[data-rail="feedback"]').count(), 0, 'Feedback left the nav');
-    assert.equal(await page.locator('[data-rail="reports"]').count(), 0, 'Reported issues left the nav');
+    await page.locator('[data-avatar-menu] button').first().click();
+    await page.getByRole('menuitem', { name: 'Settings' }).waitFor({ timeout: 20000 });
+    const names = await page.locator('[data-avatar-menu] [role="menuitem"]').evaluateAll((all) => all.map((m) => m.textContent.trim()));
+    assert.ok(!names.some((n) => /feedback/i.test(n)), `Feedback is not in the menu: ${names}`);
+    assert.ok(!names.some((n) => /reported issues/i.test(n)), `Reported issues is not in the menu: ${names}`);
+    assert.equal(await page.locator('.side, [data-rail]').count(), 0, 'there is no left nav');
   } finally {
     await context.close();
   }
@@ -51,7 +60,7 @@ test('Settings holds Feedback with a Report an issue button, and the owner sees 
   const sent = [];
   const { page, seen, context } = await openApp(browser, served.base, ownerInfo(), { routes: owned(sent) });
   try {
-    await page.locator('[data-rail="settings"]').click();
+    await goSettings(page);
     const feedback = page.locator('[data-group="feedback"]');
     await feedback.waitFor({ timeout: 20000 });
     assert.equal(await feedback.locator('h3').innerText(), 'Feedback');
@@ -79,7 +88,7 @@ test('Settings holds Feedback with a Report an issue button, and the owner sees 
 test('the owner sees the empty Reported issues note, and a non-owner gets no Reported issues group', async () => {
   const owner = await openApp(browser, served.base, ownerInfo(), { routes: owned([]) });
   try {
-    await owner.page.locator('[data-rail="settings"]').click();
+    await goSettings(owner.page);
     await owner.page.locator('[data-group="reports"] [data-feedback-empty]').waitFor({ timeout: 20000 });
     assert.equal(await owner.page.locator('[data-group="reports"] [data-feedback-empty]').innerText(), 'Nobody has reported an issue with this App yet.');
   } finally {
@@ -87,7 +96,7 @@ test('the owner sees the empty Reported issues note, and a non-owner gets no Rep
   }
   const member = await openApp(browser, served.base, appInfo(), { routes: owned([]) });
   try {
-    await member.page.locator('[data-rail="settings"]').click();
+    await goSettings(member.page);
     await member.page.locator('[data-group="feedback"]').waitFor({ timeout: 20000 });
     assert.equal(await member.page.locator('[data-group="reports"]').count(), 0, 'only the owner gets Reported issues');
   } finally {

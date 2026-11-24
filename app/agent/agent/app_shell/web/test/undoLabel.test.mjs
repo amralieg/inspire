@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { CURRENT, DECIDE, FIELDS, ROWS, TABLE, appInfo, goRail, openApp, pageData, serveDist } from './harness.mjs';
+import { CURRENT, DECIDE, FIELDS, ROWS, TABLE, appInfo, openApp, pageData, serveDist } from './harness.mjs';
 
 let served;
 let browser;
@@ -32,7 +32,6 @@ async function openClosedRecord(info) {
   const history = ({ json }) => json(200, { record_key: ROWS[0].record_key, fields: FIELDS, versions: [CURRENT],
     current: { ...CURRENT, ...CLOSED, action_status: 'Done', record_key: ROWS[0].record_key }, deleted: false, truncated: false });
   const opened = await openApp(browser, served.base, info, { routes: { records, 'records/history': history } });
-  await goRail(opened.page, 'work');
   await opened.page.locator('.card--table tbody tr .cell-t').first().waitFor({ timeout: 20000 });
   await opened.page.locator('.cell-t').first().click();
   await opened.page.locator('dialog[open] footer').waitFor({ timeout: 15000 });

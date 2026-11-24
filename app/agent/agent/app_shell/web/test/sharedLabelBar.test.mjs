@@ -40,7 +40,7 @@ test('two tables that filter the same label show one Category filter in the bar,
     filters: ({ json }) => json(200, { filters: FILTERS.filters.filter((f) => f.type === 'date_range'), columns }),
     page: ({ route, json, seen }) => pagedTables(route, json, seen),
   };
-  const opened = await openApp(browser, served.base, info, { routes });
+  const opened = await openApp(browser, served.base, info, { routes, hash: '#/n01_u05/dashboard' });
   const { page, seen, context } = opened;
   try {
     await card(page, 'Worst categories').locator('tbody tr').first().waitFor();

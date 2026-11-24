@@ -16,8 +16,7 @@ async function load(file) {
   const code = out.outputFiles[0].text.replace(/from "(react[^"]*)"/g, (_m, id) => `from "${pathToFileURL(need.resolve(id)).href}"`);
   return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
 }
-const { CounterView: ValueCounter } = await load('ValueCounter.jsx');
-const { default: ValueStrip } = await load('ValueStrip.jsx');
+const { CounterView: ValueCounter, ValueChip } = await load('ValueCounter.jsx');
 
 const DISCLAIMER = { short: 'Unverified estimate', full: 'A specialist must verify every number.' };
 const counter = (extra = {}) => ({
@@ -67,8 +66,8 @@ test('badges and the next one show for the person only, with no ranks', () => {
   assert.doesNotMatch(out, /rank|leader/i);
 });
 
-test('the strip with no counter keeps its DOM free of the counter', () => {
-  const page = { id: 'p', title: 'T', kpis: [{ id: 'k', label: 'At risk', format: 'currency', currency: 'USD' }] };
-  const out = renderToStaticMarkup(createElement(ValueStrip, { page, data: { kpis: { k: { now: 5 } } }, app: {} }));
+test('the value chip with no counter keeps its DOM free of the counter lines', () => {
+  const out = renderToStaticMarkup(createElement(ValueChip, { page: { id: 'p', title: 'T' } }));
+  assert.match(out, /data-value-chip/);
   assert.doesNotMatch(out, /data-value-mine|data-value-disclaimer|data-value-team/);
 });

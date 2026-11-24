@@ -20,27 +20,27 @@ after(async () => {
 const copies = (region, item, n) => ({ fill: () => fillWithCopies(region, item, n), unfill: () => dropCopies(region) });
 const real = (errors) => errors.filter((e) => !/Failed to load resource/.test(e));
 
-test('the mouse wheel scrolls the Ask Genie conversation to its last message at 1280x800 and 1024x700', async () => {
+test('the mouse wheel scrolls the Genie conversation to its last message at 1280x800 and 1024x700', async () => {
   const { page, seen, context } = await openApp(browser, served.base, appInfo(), { width: 1280, height: 800, routes: tracked().routes });
-  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
-  const box = page.locator('aside.genie').getByRole('textbox', { name: 'Your question' });
+  await page.locator('[data-mode-switch] [data-mode="genie"]').click();
+  const box = page.locator('[data-genie-full]').getByRole('textbox', { name: 'Your question' });
   await box.fill('Which category lost the most?');
   await box.press('Enter');
   const log = page.getByRole('log', { name: 'Genie conversation' });
   await log.locator('.msg--genie .msg-b').first().waitFor({ timeout: 15000 });
-  await wheelScrolls(page, log, () => log.locator('[data-wheel-copy]').last(), { name: 'Ask Genie conversation', ...copies(log, ':scope > *', 12) });
+  await wheelScrolls(page, log, () => log.locator('[data-wheel-copy]').last(), { name: 'Genie conversation', ...copies(log, ':scope > *', 12) });
   assert.deepEqual(real(seen.errors), []);
   await context.close();
 });
 
-test('Ask Genie follows a streaming answer only while the person is at the bottom, and wheel up keeps their place with a New messages button', async () => {
+test('Genie follows a streaming answer only while the person is at the bottom, and wheel up keeps their place with a New messages button', async () => {
   const streamed = { 'genie/message': ({ json }) => json(200, { state: 'done', text: STREAMED_ANSWER, sql: 'SELECT 1', columns: [], rows: [], truncated: false }) };
   const { page, seen, context } = await openApp(browser, served.base, appInfo(), { width: 1024, height: 700, routes: tracked(streamed).routes });
-  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
-  const box = page.locator('aside.genie').getByRole('textbox', { name: 'Your question' });
+  await page.locator('[data-mode-switch] [data-mode="genie"]').click();
+  const box = page.locator('[data-genie-full]').getByRole('textbox', { name: 'Your question' });
   await box.fill('List every line');
   await box.press('Enter');
-  await followsOnlyAtBottom(page, page.getByRole('log', { name: 'Genie conversation' }), 'Ask Genie');
+  await followsOnlyAtBottom(page, page.getByRole('log', { name: 'Genie conversation' }), 'Genie');
   assert.deepEqual(real(seen.errors), []);
   await context.close();
 });
@@ -59,7 +59,7 @@ test('the mouse wheel scrolls a filter with 500 choices to the last of the 200 i
 });
 
 test('the mouse wheel scrolls a chart Export menu to its last item at 1280x800 and 1024x700', async () => {
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(), { width: 1280, height: 800, routes: tracked().routes });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(), { width: 1280, height: 800, routes: tracked().routes, hash: '#/n01_u05/dashboard' }); // REQ-506: charts live on the Dashboard, Work is the home
   await page.getByRole('button', { name: 'Export Where the loss sits' }).click();
   const menu = page.getByRole('menu', { name: 'Export Where the loss sits' });
   await menu.waitFor();

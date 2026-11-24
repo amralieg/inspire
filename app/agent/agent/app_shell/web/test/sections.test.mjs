@@ -24,7 +24,17 @@ const railFor = (p) => (p.queue ? QUEUE_RAIL : LAID_RAIL);
 const withoutPerformance = (p) => railFor(p).filter((s) => s !== 'performance');
 const canon = (hash, extra = {}) => canonicalHash(hash, { pages: PAGES, last: '', sectionsOf: railFor, ...extra });
 const hashOf = (page) => page.evaluate(() => window.location.hash);
-const railOf = (page) => page.locator('[data-rail]').evaluateAll((items) => items.map((i) => [i.dataset.rail, i.getAttribute('aria-current') || '']));
+const DASH = '#/n01_u05/dashboard';
+// REQ-506: no side rail. The avatar menu lists Settings and, for an owner, Runs, Alerts, Performance and Impact; Screen | Genie is [data-mode-switch].
+const owned = (info) => ({ ...info, pages: info.pages.map((p) => ({ ...p, is_owner: true })) });
+const openMenu = async (page) => { await page.locator('[data-avatar-menu] button').first().click(); await page.locator('[data-avatar-menu] [role="menu"]').waitFor(); };
+const menuIds = async (page) => {
+  await openMenu(page);
+  const names = await page.locator('[data-avatar-menu] [role="menuitem"]').evaluateAll((all) => all.map((m) => m.textContent.trim()));
+  await page.keyboard.press('Escape');
+  return names;
+};
+const pickMenu = async (page, name) => { await openMenu(page); await page.getByRole('menuitem', { name }).click(); };
 const RUNS = { updated: '2026-10-20T06:00:00Z', as_of: '2026-10-20', cadence_days: 7, next: '2026-10-27', stale: false, count: 6, failed: false };
 const TRACKED = {
   visible: true, tracked: true, money: true, categories: ['ai_cat_driver'], served: 'delta', total: 2, truncated: false, runs: RUNS, weeks: [],
@@ -154,7 +164,7 @@ test('Fix this narrows Work to exactly the tiers its card counted, also when the
 
 for (const width of [1280, 1440]) {
   test(`at ${width} px each Fix this on a reason bar sits at least 8 px inside its card`, async () => {
-    const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { width, routes: trackedRoutes(), ready: '[data-fix-reason]' });
+    const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { width, hash: DASH, routes: trackedRoutes(), ready: '[data-fix-reason]' });
     const gaps = await page.locator('[data-fix-reason]').evaluateAll((links) => links.map((a) => {
       const card = a.closest('.card, .hcard, section').getBoundingClientRect();
       return Math.round(card.right - a.getBoundingClientRect().right);
@@ -166,11 +176,11 @@ for (const width of [1280, 1440]) {
   });
 }
 
-test('at 1280 px with a record docked open every Work tab shows, none cut off', async () => {
+test('at 1280 px with a record open in the drawer every Work tab shows, none cut off', async () => {
   const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, OWN_STATUSES),
     { width: 1280, height: 800, hash: '#/n01_u05/work', routes: { ...trackedRoutes(), ...tracked().routes, records: trackedRoutes().records }, ready: '.cell-t' });
   await page.locator('.cell-t').first().click();
-  await page.locator('[data-dock="record"] dialog.drawer').waitFor();
+  await page.locator('dialog.drawer').waitFor();
   assert.ok(await page.locator('[data-tab]').count() >= 7);
   const cut = await page.locator('[data-tab]').evaluateAll((tabs) => {
     const strip = tabs[0].parentElement.getBoundingClientRect();
@@ -190,9 +200,9 @@ test('What to do now counts the records in your window, so closed records outsid
     const summary = body.window ? { open: 16, done: 8, resolved: 0, left: 0, owners: [] } : { open: 16, done: 32, resolved: 0, left: 0, owners: [] };
     return json(200, { rows: [], total: 16, offset: 0, limit: body.limit || 25, actions: true, changes: false, summary, errors: {}, ...(body.window ? { window: { window: body.window.window } } : {}) });
   };
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: { ...trackedRoutes(), records }, ready: '[data-section="todo"] [data-todo-count]' });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: DASH, routes: { ...trackedRoutes(), records }, ready: '[data-section="todo"] [data-todo-count]' });
   assert.equal(await page.locator('[data-section="todo"] [data-todo-count]').innerText(), '16 waiting for you · 8 done');
-  assert.ok(seen.records.filter((r) => !r.changed).every((r) => r.window), 'every list the Dashboard asks for carries your window, except the changed-since-visit list the Inbox asks for');
+  assert.ok(seen.records.filter((r) => !r.changed).every((r) => r.window), 'every list the Dashboard asks for carries your window, except the changed-since-visit list');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -205,7 +215,7 @@ test('What to do now falls back to the whole list when the window is refused, so
     if (body.window) return ctx.json(409, { error: 'this decision list keeps no actions, so it has no window of actions to show', code: 'no_window' });
     return ctx.json(200, { rows: [], total: 4, offset: 0, limit: body.limit || 5, actions: false, changes: false, summary: null, errors: {} });
   };
-  const { page, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: { ...base, records }, ready: '[data-section]' });
+  const { page, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: DASH, routes: { ...base, records }, ready: '[data-section]' });
   await page.waitForSelector('[data-section="todo"] [data-todo-count]', { timeout: 5000 });
   assert.match(await page.locator('[data-section="todo"] [data-todo-count]').innerText(), /waiting for you/);
   await context.close();
@@ -240,7 +250,7 @@ for (const [what, tier] of [['loads its choices on search', { options: [], searc
   test(`Fix this on a tier list that ${what} asks Work for Act now only`, async () => {
     const filters = { ...FILTERS, columns: { list: [{ column: 'priority_tier', label: 'Priority', type: 'multi_select', ...tier }] } };
     const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE),
-      { routes: { ...trackedRoutes(), filters: ({ json }) => json(200, filters) }, ready: '[data-fix]' });
+      { hash: DASH, routes: { ...trackedRoutes(), filters: ({ json }) => json(200, filters) }, ready: '[data-fix]' });
     await page.locator('[data-fix="fix"]').click();
     await page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/work'));
     await until(() => seen.records.some((r) => r.column_filters?.priority_tier));
@@ -265,16 +275,16 @@ test('the switcher finds a use case by any of its words, and tab counts read the
   assert.equal(tabCount(COUNTS, 'all'), 15);
 });
 
-test('the top bar holds the logo, the switcher, Ask Genie, the guided tour icon and the avatar, and the rail lists the sections of the use case', async () => {
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 3), {});
-  assert.equal(await hashOf(page), '#/n01_u05/dashboard');
+test('the top bar holds the switcher, the Screen | Genie switch, the value chip and the avatar, and the avatar menu lists the screens of the use case', async () => {
+  const { page, seen, context } = await openApp(browser, served.base, owned(appInfo({}, 3)), {});
+  assert.equal(await hashOf(page), '#/n01_u05/work', 'a use case opens on its Work screen');
+  assert.equal(await page.locator('.side, [data-rail]').count(), 0, 'there is no side rail');
   assert.deepEqual(await page.locator('header.top > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]).filter((c) => c !== 'avatar')),
-    ['ibtn', 'mark', 'sp', 'switch', 'sp', 'genie-btn', 'btn', 'ibtn'], 'the top bar holds the brand, the centred use case title, Ask Genie, the Use cases dropdown and the guided tour icon, next to the avatar (REQ-111)');
-  assert.deepEqual(await railOf(page), [['dashboard', 'page'], ['work', ''], ['performance', ''], ['runs', ''], ['settings', '']], 'Feedback sits in Settings, not on the rail (REQ-110)');
-  await page.locator('[data-rail="runs"]').click();
+    ['switch', 'sp', 'mode-switch', 'top-value', 'av'], 'the top bar holds the use case switcher, the Screen | Genie switch, the value chip and the avatar menu');
+  assert.deepEqual(await menuIds(page), ['Switch to dark theme', 'Take the tour', 'Settings', 'Runs', 'Performance', 'Admin'], 'Feedback sits in Settings, not in the menu (REQ-110)');
+  await pickMenu(page, 'Runs');
   await page.waitForFunction(() => window.location.hash === '#/n01_u05/runs');
-  await page.locator('[data-rail="runs"][aria-current="page"]').waitFor();
-  assert.equal(await page.locator('.ph-sec').innerText(), 'RUNS');
+  await page.locator('.runs-tbl, [data-card="run_timeline"], [data-page-section]').first().waitFor();
   await page.locator('[data-switcher]').click();
   const find = page.getByRole('combobox', { name: 'Find a use case' });
   await find.waitFor();
@@ -284,11 +294,11 @@ test('the top bar holds the logo, the switcher, Ask Genie, the guided tour icon 
   await find.fill('');
   await find.press('ArrowDown');
   await find.press('Enter');
-  await page.waitForFunction(() => window.location.hash === '#/n02_u01/dashboard');
+  await page.waitForFunction(() => window.location.hash === '#/n02_u01/work');
   await page.waitForFunction(() => { const h = document.querySelector('.ph h1')?.textContent; return !!h && h === document.querySelector('[data-switcher] .switch-t b')?.textContent; });
   await page.waitForFunction((key) => Object.values(JSON.parse(localStorage.getItem(key) || '{}'))[0]?.last === 'n02_u01', MY_KEY);
   await page.goto(`${served.base}#/`);
-  await page.waitForFunction(() => window.location.hash === '#/n02_u01/dashboard');
+  await page.waitForFunction(() => window.location.hash === '#/n02_u01/work');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -305,14 +315,14 @@ test('a one use case App has a switcher that does not open, and an unknown use c
 test('old record, My work and Impact links open their new sections in the browser', async () => {
   const rec = await openApp(browser, served.base, appInfo(), { hash: '#/n01_u05?rec=R001', ready: '[data-work]' });
   assert.match(await hashOf(rec.page), /^#\/n01_u05\/work\?.*rec=R001/);
-  await rec.page.locator('[data-dock="record"] dialog.drawer').waitFor();
-  assert.match(await rec.page.locator('[data-dock="record"] dialog.drawer').innerText(), /Item number 1/);
+  await rec.page.locator('dialog.drawer').waitFor();
+  assert.match(await rec.page.locator('dialog.drawer').innerText(), /Item number 1/);
   assert.deepEqual(rec.seen.errors, []);
   await rec.context.close();
   for (const old of ['#/mywork', '#/impact', '#/results']) {
-    const hub = await openApp(browser, served.base, appInfo({}, 2), { hash: old, ready: '[data-performance]' });
+    const hub = await openApp(browser, served.base, owned(appInfo({}, 2)), { hash: old, ready: '[data-performance]' });
     assert.equal(await hashOf(hub.page), '#/n01_u05/performance', `${old} opens Performance`);
-    assert.equal(await hub.page.locator('[data-rail="performance"]').getAttribute('aria-current'), 'page');
+    assert.equal(await hub.page.locator('[data-performance]').count(), 1, `${old} shows Performance`);
     assert.deepEqual(hub.seen.errors, []);
     await hub.context.close();
   }
@@ -365,12 +375,12 @@ test('a page with its own statuses gets one Work tab per choice with its count, 
 });
 
 test('Fix this on the To fix tile and on a reason bar opens Work on the Open tab with the tiers and the reason picked', async () => {
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: trackedRoutes(), ready: '[data-fix]' });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: DASH, routes: trackedRoutes(), ready: '[data-fix]' });
   await page.locator('[data-fix="fix"]').click();
   await page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/work') && window.location.hash.includes('tab=open'));
   await until(() => JSON.stringify(seen.records.at(-1)?.column_filters || {}).includes('Act now'));
   assert.equal(seen.records.at(-1).column_filters.action_status[0], 'New');
-  await page.locator('[data-rail="dashboard"]').click();
+  await page.evaluate(() => { window.location.hash = '#/n01_u05/dashboard'; }); // REQ-506: no menu item opens the dashboard, so the link is the way back
   await page.locator('[data-fix-reason]').first().waitFor();
   const reason = await page.locator('[data-fix-reason]').first().getAttribute('data-fix-reason');
   await page.locator('[data-fix-reason]').first().click();
@@ -399,7 +409,7 @@ test('the To fix tile and the Work list its Fix this opens show the same number 
         ...(body.status_counts ? { status_counts: { ...COUNTS, open: rows.length } } : {}) });
     },
   });
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes, ready: '[data-fix="fix"]' });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: DASH, routes, ready: '[data-fix="fix"]' });
   const tile = Number(await page.locator('[data-tile="fix"] .kpi-v').innerText());
   assert.equal(tile, 8);
   await page.locator('[data-fix="fix"]').click();
@@ -414,20 +424,12 @@ test('the To fix tile and the Work list its Fix this opens show the same number 
   assert.equal(await page.locator('.toast').filter({ hasText: 'no longer apply' }).count(), 0, 'the reloaded address keeps its tier filter');
   assert.deepEqual(seen.errors, []);
   await context.close();
-  const inbox = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes, hash: '#/n01_u05/inbox', ready: '[data-inbox-item="fix"]' });
-  assert.equal(await inbox.page.locator('[data-inbox-item="fix"]').innerText().then((t) => t.startsWith(`${tile} records to fix`)), true, 'the Inbox counts what the tile counts');
-  await inbox.page.locator('[data-inbox-item="fix"]').click();
-  await inbox.page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/work'));
-  await inbox.page.locator('.cell-t').first().waitFor();
-  await inbox.page.waitForFunction((n) => document.querySelectorAll('.cell-t').length === n, tile);
-  assert.deepEqual(inbox.seen.errors, []);
-  await inbox.context.close();
 });
 
 const BIG_COUNTS = { statuses: { New: 1234, 'In progress': 345, Done: 4567, Dismissed: 120, 'Could not fix': 33 },
   choices: { new: 1234, 'in-progress': 345, done: 4567, 'not-an-issue': 120, 'could-not-fix': 33, reprice: 12, keep: 340, drop: 22, wrong: 9 }, open: 1579, mine: 20, all: 6299 };
 
-test('at 1280 and 1440 the open record dock and every Work tab fit the screen with no sideways scroll', async () => {
+test('at 1280 and 1440 the open record drawer and every Work tab fit the screen with no sideways scroll', async () => {
   for (const [changes, label] of [[TABLE, 'default statuses'], [OWN_STATUSES, 'own statuses']]) {
     for (const [width, height] of [[1280, 800], [1440, 900]]) {
       const routes = trackedRoutes({}, BIG_COUNTS);
@@ -439,25 +441,23 @@ test('at 1280 and 1440 the open record dock and every Work tab fit the screen wi
       routes['records/history'] = ({ json }) => json(200, { ...HISTORY, current: { ...HISTORY.current, entity_label: LABEL } });
       const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, changes), { width, height, hash: '#/n01_u05/work', routes, ready: '[data-tab] [data-count]' });
       await page.locator('.cell-t').first().click();
-      await page.locator('[data-dock="record"] dialog.drawer h2').waitFor();
+      await page.locator('dialog.drawer h2').waitFor();
       const at = `${label} at ${width}`;
       const fit = await page.evaluate(() => {
         const box = (el) => el.getBoundingClientRect();
         const strip = box(document.querySelector('.work-tabs'));
-        const drawer = document.querySelector('[data-dock="record"] dialog.drawer');
+        const drawer = document.querySelector('dialog.drawer');
         const title = drawer.querySelector('h2');
         return {
           inner: window.innerWidth, scroll: document.scrollingElement.scrollWidth,
-          dock: box(document.querySelector('[data-dock="record"]')).right, drawer: box(drawer).right,
-          fills: Math.abs(box(drawer).width - box(drawer.parentElement).width) <= 1,
+          drawer: box(drawer).right, drawerLeft: box(drawer).left,
           buttons: [...drawer.querySelectorAll('button')].filter((b) => b.offsetParent).map((b) => box(b).right),
           title: title.scrollWidth <= title.clientWidth + 1,
           cut: [...document.querySelectorAll('[data-tab]')].filter((t) => { const b = box(t); return b.right > strip.right + 0.5 || b.left < strip.left - 0.5; }).map((t) => t.dataset.tab),
         };
       });
       assert.equal(fit.scroll, fit.inner, `${at}: no sideways scroll`);
-      assert.ok(fit.dock <= fit.inner && fit.drawer <= fit.inner, `${at}: the dock ends at ${fit.dock} and the drawer at ${fit.drawer}, inside ${fit.inner}`);
-      assert.ok(fit.fills, `${at}: the docked record fills its dock instead of keeping its floating width`);
+      assert.ok(fit.drawer <= fit.inner && fit.drawerLeft >= 0, `${at}: the drawer spans ${fit.drawerLeft} to ${fit.drawer}, inside ${fit.inner}`);
       assert.ok(fit.buttons.length && fit.buttons.every((r) => r <= fit.inner), `${at}: every drawer button is on screen`);
       assert.ok(fit.title, `${at}: the record title is not cut`);
       assert.deepEqual(fit.cut, [], `${at}: every Work tab is in view`);
@@ -467,57 +467,58 @@ test('at 1280 and 1440 the open record dock and every Work tab fit the screen wi
   }
 });
 
-test('the Work dock switches between the record and Genie, and remembers the choice', async () => {
+test('a record opens in a modal drawer over the Work list, and Genie is a full-height mode that brings Work back', async () => {
   const { page, seen, context } = await openApp(browser, served.base, appInfo(), { hash: '#/n01_u05/work', ready: '.cell-t' });
-  assert.equal(await page.locator('[data-dock]').count(), 0, 'the dock starts closed');
+  assert.equal(await page.locator('dialog.drawer[open]').count(), 0, 'no record is open at first');
   await page.locator('.cell-t').first().click();
-  const drawer = page.locator('[data-dock="record"] dialog.drawer');
+  const drawer = page.locator('dialog.drawer');
   await drawer.waitFor();
-  assert.equal(await page.locator('dialog.drawer:modal').count(), 0, 'a docked record does not cover the list');
-  await page.locator('[data-dock-tab="genie"]').click();
-  await page.locator('aside.genie [data-dock-tab="genie"][aria-selected="true"]').waitFor();
-  assert.equal(await page.locator('[data-dock="record"]').count(), 0);
-  const stored = () => page.evaluate((key) => Object.values(JSON.parse(localStorage.getItem(key) || '{}'))[0]?.dock, MY_KEY);
-  assert.equal(await stored(), 'genie');
-  await page.locator('[data-dock-tab="record"]').click();
-  await drawer.waitFor();
-  assert.equal(await stored(), 'record');
-  await page.reload();
-  await page.locator('[data-dock="record"] [data-dock-empty]').waitFor();
-  await page.locator('[data-dock="record"] [data-dock-empty] .lnk').click();
-  await page.waitForFunction(() => !document.querySelector('[data-dock]'));
-  assert.equal(await stored(), '');
-  await page.locator('[data-rail="dashboard"]').click();
-  await page.locator('.genie-btn').click();
-  await page.locator('aside.genie').waitFor();
-  assert.equal(await page.locator('[data-dock-tab]').count(), 0, 'outside Work Genie opens on its own, with no dock tabs');
+  assert.equal(await page.locator('[data-dock]').count(), 0, 'there is no dock around the record any more');
+  assert.equal(await page.locator('dialog.drawer:modal').count(), 1, 'the open record is a modal drawer over the list');
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.querySelector('dialog.drawer[open]'));
+  await page.locator('[data-mode="genie"]').click();
+  await page.locator('[data-genie-full]').waitFor();
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('aside.genie')].filter((a) => !a.closest('[data-genie-full]')).length), 0, 'Genie is a full-height screen, not a side panel');
+  assert.equal(await page.locator('[data-mode="genie"]').getAttribute('aria-pressed'), 'true');
+  await page.locator('[data-mode="screen"]').click();
+  await page.locator('.cell-t').first().waitFor();
+  assert.equal(await page.locator('[data-mode="screen"]').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('[data-genie-full]').count(), 0);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
 
-test('every example layout renders its dashboard, rail and settings with no error', async () => {
-  const examples = readdirSync(join(HERE, '..', '..', 'examples')).filter((f) => f.endsWith('.json')).sort();
-  assert.equal(examples.length, 14);
-  const worked = [];
-  for (const file of examples) {
-    const info = appInfo(DECIDE, 1, {}, `examples/${file}`);
-    const { page, seen, context } = await openApp(browser, served.base, info, { ready: '.ph h1', watch: prefsFirst(MY_KEY, PERSON, {}),
+const EXAMPLES = readdirSync(join(HERE, '..', '..', 'examples')).filter((f) => f.endsWith('.json')).sort();
+const WORKED = ['agent_chat.json:ask', 'dashboard.json:explore', 'entity_matching.json:queue', 'forecast_cockpit.json:forecast', 'lift_readout.json:queue', 'location_view.json:queue',
+  'monitor_triage.json:queue', 'network_explorer.json:queue', 'performance_explainer.json:queue', 'planner.json:plan', 'process_flow.json:queue',
+  'recommendation_desk.json:queue', 'scenario_lab.json:scenarios', 'segment_explorer.json:queue'];
+
+// One test per example, so each gets its own time limit (REQ-506: the old single loop is split; it opens 14 Apps one after the other).
+for (const file of EXAMPLES) {
+  test(`the ${file} example renders its dashboard, the Screen button and settings with no error`, async () => {
+    const info = owned(appInfo(DECIDE, 1, {}, `examples/${file}`));
+    const { page, seen, context } = await openApp(browser, served.base, info, { ready: '.ph h1', hash: DASH, watch: prefsFirst(MY_KEY, PERSON, {}),
       routes: { 'scenario/evaluate': ({ route, json }) => json(200, evaluated(route.request().postDataJSON().values || {})) } });
-    const rail = (await railOf(page)).map(([id]) => id);
-    assert.equal(rail[0], 'dashboard', `${file}: the rail starts with Dashboard`);
-    assert.equal(rail.at(-1), 'settings', `${file}: Settings sits at the bottom`);
+    const rail = await menuIds(page);
+    assert.equal(rail[2], 'Settings', `${file}: Settings is the first screen item of the avatar menu`);
     const mode = pageMode(info.pages[0]);
-    if (mode.queue) assert.equal(rail.includes('work'), info.pages[0].layout.work === 'queue', `${file}: a queue's Work follows the work the registry gives the layout`);
-    assert.equal(rail.includes('work'), hasWork(info.pages[0]), `${file}: the ${mode.id} mode and the registry decide whether there is a work section`);
-    if (rail.includes('work')) worked.push(`${file}:${mode.id}`);
-    await page.locator('[data-rail="settings"]').click();
+    await page.locator('[data-mode="screen"]').click();
+    const want = hasWork(info.pages[0]) ? 'work' : 'dashboard';
+    if (mode.queue) assert.equal(want === 'work', info.pages[0].layout.work === 'queue', `${file}: a queue's Work follows the work the registry gives the layout`);
+    await page.waitForFunction((w) => window.location.hash.split('?')[0].endsWith(`/${w}`), want, { timeout: 5000 }).catch(() => {});
+    assert.equal((await hashOf(page)).split('?')[0].split('/').at(-1), want, `${file}: the ${mode.id} mode and the registry decide whether the Screen button opens a work section`);
+    await pickMenu(page, 'Settings');
     await page.locator('[data-group="look"]').waitFor();
     assert.deepEqual(seen.errors, [], `${file}: no error`);
     await context.close();
-  }
-  assert.deepEqual(worked, ['agent_chat.json:ask', 'dashboard.json:explore', 'entity_matching.json:queue', 'forecast_cockpit.json:forecast', 'lift_readout.json:queue', 'location_view.json:queue',
-    'monitor_triage.json:queue', 'network_explorer.json:queue', 'performance_explainer.json:queue', 'planner.json:plan', 'process_flow.json:queue',
-    'recommendation_desk.json:queue', 'scenario_lab.json:scenarios', 'segment_explorer.json:queue'], 'every mode with work of its own and every queue the registry gives work has a work section');
+  });
+}
+
+test('there are 14 example layouts, and every mode with work of its own and every queue the registry gives work has a work section', () => {
+  assert.equal(EXAMPLES.length, 14);
+  const worked = EXAMPLES.map((file) => [file, appInfo(DECIDE, 1, {}, `examples/${file}`).pages[0]]).filter(([, page]) => hasWork(page)).map(([file, page]) => `${file}:${pageMode(page).id}`);
+  assert.deepEqual(worked, WORKED);
 });
 
 const REGISTRY = JSON.parse(readFileSync(join(HERE, '..', '..', 'kinds.json'), 'utf8'));
@@ -534,16 +535,16 @@ async function openKind(kind, hash) {
     'scenario/evaluate': ({ route, json }) => json(200, evaluated(route.request().postDataJSON().values || {})),
     'scenario/saved': ({ json }) => json(200, { scenarios: [], decisions: [], mine: 0, note: '' }),
     ...versionRoutes(kind.contract).routes, ...reviewRoutes(null, []) });
-  return { id, ...(await openApp(browser, served.base, info, { hash: hash(id), routes, ready: '[data-rail]', watch: prefsFirst(MY_KEY, PERSON, {}) })) };
+  return { id, ...(await openApp(browser, served.base, info, { hash: hash(id), routes, ready: '[data-ready]', watch: prefsFirst(MY_KEY, PERSON, {}) })) };
 }
 
-test('every one of the 33 queue kinds has Work in its rail and Work shows the status tabs', { timeout: 300000 }, async () => {
+test('every one of the 33 queue kinds opens Work from the Screen screen and Work shows the status tabs', { timeout: 300000 }, async () => {
   const queues = REGISTRY.kinds.filter(queueKind);
   assert.equal(queues.length, 33);
   for (const kind of queues) {
     const { id, page, seen, context } = await openKind(kind, (pid) => `#/${pid}/work`);
     await page.locator('[data-tab="open"]').waitFor();
-    assert.ok((await railOf(page)).some(([s, on]) => s === 'work' && on === 'page'), `${kind.id}: Work is in the rail and open`);
+    assert.equal(await page.locator('[data-mode="screen"]').getAttribute('aria-pressed'), 'true', `${kind.id}: Work is open on the Screen mode`);
     assert.equal(await hashOf(page).then((h) => h.startsWith(`#/${id}/work`)), true, `${kind.id}: the Work address is kept`);
     assert.deepEqual((await page.locator('[data-tab]').evaluateAll((tabs) => tabs.map((t) => t.dataset.tab))).filter((t) => ['open', 'mine', 'all'].includes(t)),
       ['open', 'mine', 'all'], `${kind.id}: Work shows its status tabs`);
@@ -553,7 +554,7 @@ test('every one of the 33 queue kinds has Work in its rail and Work shows the st
   }
 });
 
-test('the 18 plan, forecast, scenario, explore and ask kinds never show the queue Work: each opens the work of its own mode under that mode\'s name', { timeout: 300000 }, async () => {
+test('the 18 plan, forecast, scenario, explore and ask kinds never show the queue Work: each opens the work of its own mode', { timeout: 300000 }, async () => {
   const others = REGISTRY.kinds.filter((k) => !queueKind(k));
   assert.equal(others.length, 18);
   const own = [];
@@ -561,17 +562,11 @@ test('the 18 plan, forecast, scenario, explore and ask kinds never show the queu
     const { id, page, seen, context } = await openKind(kind, (pid) => `#/${pid}/work`);
     await page.waitForFunction((pid) => [`#/${pid}/work`, `#/${pid}/dashboard`].includes(window.location.hash), id);
     const atWork = (await hashOf(page)) === `#/${id}/work`;
-    assert.equal((await railOf(page)).some(([s]) => s === 'work'), atWork, `${kind.id}: the rail has a work section only when the address keeps it`);
-    if (atWork) {
-      const title = await page.locator('[data-section-title]').innerText();
-      assert.notEqual(title, 'Work', `${kind.id}: the work section carries the mode's own name`);
-      own.push(title);
-    }
+    if (atWork) own.push(kind.id);
     assert.equal(await page.locator('[data-work]').count(), 0, `${kind.id}: no queue Work`);
     assert.deepEqual(seen.errors, [], `${kind.id}: no error`);
     await context.close();
   }
-  assert.deepEqual([...new Set(own)].sort(), ['ASK', 'EXPLORE', 'PLAN', 'REVIEW', 'SCENARIOS'], 'each of the five modes names its own work section');
   assert.equal(own.length, others.length, 'every one of these kinds has work of its own');
 });
 
@@ -634,7 +629,7 @@ test('proof: the run timeline draws each run of the App on the Runs page', async
     segments: [], tables: null, records: 50, to_fix: 10, could_save: null, currency: '', summary: '', nothing_to_act: '', error: '' });
   const runs = ({ json }) => json(200, { runs: [run('81', '2026-10-17T06:00:00Z'), run('80', '2026-10-10T06:00:00Z', 'failed'), run('79', '2026-10-03T06:00:00Z')],
     total: 3, offset: 0, limit: 20, job: null, errors: {} });
-  const { page, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/runs', routes: trackedRoutes({ runs }), ready: '[data-rail="runs"]' });
+  const { page, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/runs', routes: trackedRoutes({ runs }), ready: '[data-ready]' });
   await page.locator('[data-card="run_timeline"] canvas').waitFor({ timeout: 15000 });
   await page.screenshot({ path: `${SHOTS}/runs_timeline_1440.png` });
   assert.equal(await page.locator('[data-card="run_timeline"] canvas').count(), 1);

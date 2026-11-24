@@ -48,7 +48,7 @@ test('one error on several cards is named once for the page, a card with its own
 
 async function grouped(scheme = 'light', width = 1440) {
   const errors = Object.fromEntries(FAILED.map((k) => [k, LONG]));
-  const opened = await openApp(browser, served.base, appInfo(), { scheme, width, errors, ready: '[data-page-failure]' });
+  const opened = await openApp(browser, served.base, appInfo(), { scheme, width, errors, hash: '#/n01_u05/dashboard', ready: '[data-page-failure]' });
   await opened.page.locator('[data-card="pareto"] canvas').waitFor();
   return opened;
 }
@@ -121,7 +121,7 @@ test('the page message keeps its focus ring, contrast and fit in light, dark and
 
 test('a page that cannot load at all says so once, and no card keeps loading beside it', async () => {
   const routes = { page: ({ json }) => json(502, { error: LONG }) };
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes, ready: '[data-page-failure]' });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes, hash: '#/n01_u05/dashboard', ready: '[data-page-failure]' });
   assert.match(await page.locator('[data-page-failure] p').innerText(), /^This page could not load: The SQL warehouse/);
   await page.waitForFunction(() => !document.querySelector('.kpi .skel, [data-card] .chart-skel'));
   const cards = EXAMPLE.kpis.length + EXAMPLE.charts.length;

@@ -428,20 +428,26 @@ test('at 1280 with a long use-case title beside a narrower page, the title wraps
   await context.close();
 });
 
-test('on a phone the page tools shrink to labelled icons and the page still fits', async () => {
+test('on a phone the page tools are the Refresh now dot, the avatar menu and Settings feedback, and the page still fits', async () => {
   const { page, seen, context } = await openApp(browser, base, appInfo({ layout: 'tabs' }, 2), { width: 375 });
   await page.goto(`${base}#/n01_u05`);
-  await page.waitForFunction(chartsDrawn, 4);
-  const tools = await page.evaluate(() => [...document.querySelectorAll('.ph-tools .btn')].filter((b) => b.getClientRects().length > 0 && !b.closest('.head-more-menu')).map((b) => {
+  await page.locator('[data-fresh-dot]').waitFor();
+  // REQ-506: no .ph-tools icon row and no More actions menu; the header carries the dot and the avatar.
+  assert.equal(await page.locator('.head-more, [aria-label="More actions"]').count(), 0, 'no More actions menu');
+  const dot = page.locator('[data-fresh-dot]');
+  assert.equal(await dot.getAttribute('aria-label'), 'Refresh now');
+  const targets = await page.evaluate(() => [...document.querySelectorAll('[data-fresh-dot], [data-avatar-menu] button')].filter((b) => b.getClientRects().length > 0).map((b) => {
     const r = b.getBoundingClientRect();
-    return { name: b.getAttribute('aria-label'), width: Math.round(r.width), label: getComputedStyle(b.querySelector('span')).display, inView: r.left >= 0 && r.right <= window.innerWidth };
+    return { name: b.getAttribute('aria-label'), width: Math.round(r.width), height: Math.round(r.height), inView: r.left >= 0 && r.right <= window.innerWidth };
   }));
-  assert.deepEqual(tools.map((t) => t.name).sort(), ['More actions', 'Refresh now', 'Views'], 'the More menu joins the tools as an icon-labelled button');
-  assert.ok(tools.every((t) => t.width >= 40 && t.width <= 44 && t.label === 'none' && t.inView), JSON.stringify(tools));
+  assert.equal(targets.length, 2, JSON.stringify(targets));
+  assert.ok(targets.every((t) => t.width >= 40 && t.height >= 40 && t.inView), `phone targets are at least 40px and inside the screen: ${JSON.stringify(targets)}`);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'the page fits at 375');
+  await page.locator('[data-avatar-menu] button').first().click();
+  await page.getByRole('menuitem', { name: 'Settings' }).waitFor();
+  await page.getByRole('menuitem', { name: 'Settings' }).click();
+  await page.locator('[data-group="feedback"] [data-feedback-open]').waitFor();
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
-  await page.getByRole('button', { name: 'Views', exact: true }).click();
-  const pop = await steadyBox(page, page.getByRole('dialog', { name: 'Saved views' }));
-  assert.ok(pop.x >= 0 && pop.x + pop.width <= 375, JSON.stringify(pop));
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

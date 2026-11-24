@@ -3,7 +3,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { CURRENT, DECIDE, FIELDS, ROWS, TABLE, appInfo, goRail, openApp, pageData, serveDist } from './harness.mjs';
+import { CURRENT, DECIDE, FIELDS, ROWS, TABLE, appInfo, openApp, pageData, serveDist } from './harness.mjs';
 
 let served;
 let browser;
@@ -41,7 +41,6 @@ async function openMerged(info) {
 test('Unmerge in the record panel: the confirm button repeats the trigger word and sends records/undo, then reloads', async () => {
   const { page, context, seen } = await openMerged(appInfo({ ...DECIDE }, 1, { ...TABLE }, 'examples/entity_matching.json'));
   try {
-    await goRail(page, 'work');
     await page.locator('.card--table tbody tr .cell-t').first().waitFor({ timeout: 20000 });
     await page.locator('.cell-t').first().click();
     const trigger = page.locator('dialog[open] footer [data-undo-close]');
