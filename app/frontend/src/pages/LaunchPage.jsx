@@ -37,6 +37,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
+import MoreMenu from '../components/ui/MoreMenu';
 import Button from '../components/ui/Button';
 import DocumentLanguagesMultiselect from '../components/DocumentLanguagesMultiselect';
 import StrategyEditor from '../components/StrategyEditor';
@@ -312,6 +313,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const [quickViewLoading, setQuickViewLoading] = useState(null);
   /** Experiments list + quick view — collapsed by default to keep Get Started above the fold */
   const [experimentsOverviewExpanded, setExperimentsOverviewExpanded] = useState(false);
+  // Page More: the past-runs overview and the privacy note stay off the form until picked (REQ-510 L3).
+  const [showRecentRuns, setShowRecentRuns] = useState(false);
+  const [showPrivacyNote, setShowPrivacyNote] = useState(false);
 
   // ── Metadata picker state ──
   const [pickerExpanded, setPickerExpanded] = useState(true);
@@ -483,6 +487,15 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     },
     [quickViewSid, allCreatedUcs, quickViewCache, fetchUseCasesForSession]
   );
+
+  // "More > Recent runs" opens the list with the latest run's Quick view already showing (REQ-510 L3).
+  const autoQuickViewDone = useRef(false);
+  useEffect(() => {
+    if (!showRecentRuns || autoQuickViewDone.current || sessionsList.length === 0) return;
+    autoQuickViewDone.current = true;
+    onQuickViewToggle(sessionsList[0].session_id);
+  }, [showRecentRuns, sessionsList, onQuickViewToggle]);
+
 
   // v1.2.0 generation options only control document artifacts.
   // Auto-Genie is independently controlled by 13_generate_genie_code_for.
@@ -1149,7 +1162,11 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
       <div className="mb-8">
         <PageHeader className="mb-2" icon={Rocket}
           title={<span className="block line-clamp-2 wrap-break-word" title={headlineBusiness ? launchPageHeading : undefined} aria-live="polite">{launchPageHeading}</span>}
-          subtitle="Fill in the essentials below, then get started. Everything else is optional." />
+          subtitle="Fill in the essentials below, then get started. Everything else is optional."
+          actions={<MoreMenu items={[
+            { label: 'Recent runs', onSelect: () => { setShowRecentRuns(true); setExperimentsOverviewExpanded(true); } },
+            { label: 'How Inspire keeps your data private', onSelect: () => setShowPrivacyNote(true) },
+          ]} />} />
         {draftBack && (
           <div role="note" aria-label="Your draft" data-launch-draft="" className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-info/20 bg-info-bg px-3 py-2 text-[12px] text-text-primary">
             <span>{DRAFT_BACK_NOTE}</span>
@@ -1158,7 +1175,30 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
         )}
       </div>
 
-      {(token || serverEnvHasPat) && warehouseId && previewDb && (
+      {showPrivacyNote && (
+        <section role="note" aria-label="How Inspire keeps your data private" data-discovery-more="" className="mb-8 rounded-xl border border-success/30 bg-success-bg p-3.5">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-xs font-semibold text-success-fg">How Inspire keeps your data private</h2>
+            <button type="button" onClick={() => setShowPrivacyNote(false)} className="text-xs font-medium text-success-fg underline-offset-2 hover:underline glow-focus">Hide</button>
+          </div>
+                <div className="mt-2 grid grid-cols-1 gap-2.5 md:grid-cols-3">
+                  {DISCOVERY_PANEL.map((part) => {
+                    const PartIcon = part.icon;
+                    return (
+                      <div key={part.key} data-discovery-panel-part={part.key} className="rounded-lg bg-surface/70 p-2.5">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-text-primary">
+                          <PartIcon size={14} className="text-success-fg" />
+                          {part.title}
+                        </p>
+                        <p className="mt-1 text-xs leading-snug text-text-secondary">{part.text}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+        </section>
+      )}
+
+      {showRecentRuns && (token || serverEnvHasPat) && warehouseId && previewDb && (
         <section
           className="mb-8 rounded-xl border border-border bg-surface/80 backdrop-blur-sm shadow-sm overflow-hidden"
           aria-label="Discovery Overview"
@@ -1667,23 +1707,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               </div>
               <div data-discovery-panel className="mt-2.5 rounded-xl border border-success/30 bg-success-bg p-3.5">
                 <DiscoveryPromise />
-                <details data-discovery-more="" className="mt-2">
-                  <summary className="cursor-pointer text-xs font-semibold text-success-fg">How Inspire checks your data and keeps it private</summary>
-                <div className="mt-2 grid grid-cols-1 gap-2.5 md:grid-cols-3">
-                  {DISCOVERY_PANEL.map((part) => {
-                    const PartIcon = part.icon;
-                    return (
-                      <div key={part.key} data-discovery-panel-part={part.key} className="rounded-lg bg-surface/70 p-2.5">
-                        <p className="flex items-center gap-1.5 text-xs font-semibold text-text-primary">
-                          <PartIcon size={14} className="text-success-fg" />
-                          {part.title}
-                        </p>
-                        <p className="mt-1 text-xs leading-snug text-text-secondary">{part.text}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-                </details>
+
               </div>
               {prefillNote && <p className="text-xs text-text-tertiary mt-1.5">{prefillNote}</p>}
             </FieldSection>
