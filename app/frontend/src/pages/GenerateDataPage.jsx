@@ -97,8 +97,9 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
 
       <PageHeader className="mb-8" icon={Sparkles} title="I don't have data"
         subtitle={<>
-          Describe the demo you need. Inspire writes <strong>{plural(demoTablesTotal(), 'table')}</strong> of made-up data
-          {inspireDatabase ? <> in <code className="font-mono text-xs">{inspireDatabase.split('.')[0]}</code></> : ''} and finds use cases in them.
+          Describe the demo you need. Inspire writes and runs the code that builds <strong>{plural(demoTablesTotal(), 'table')}</strong> of
+          made-up data, each with a description, in the catalog of your Inspire database{inspireDatabase ? <> (<code className="font-mono text-xs">{inspireDatabase.split('.')[0]}</code>)</> : ''}.
+          Inspire then finds use cases in those tables.
         </>} />
 
       {!canCallApi && (
@@ -142,7 +143,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
             required
           />
           <p className="text-xs text-text-tertiary mt-1.5">
-            {plural(DEMO_GENERATED_TABLES, 'table')} from your description, plus {plural(DEMO_KIND_SIGNAL_TABLES, 'table')} every use-case kind needs.
+            {plural(DEMO_GENERATED_TABLES, 'table')} from your description, plus {DEMO_KIND_SIGNAL_TABLES} for every use-case kind.
           </p>
           <TechnicalDetails className="mt-1" items={[
             `Tables: ${inspireDatabase?.split('.')[0] || 'catalog'}.${demoSchema.trim() || 'inspire_demo_*'}`,
@@ -164,7 +165,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
             className="w-full px-4 py-2.5 text-sm font-mono border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth"
           />
           <p className={`text-xs mt-1.5 ${demoSchemaError(demoSchema) ? 'text-error-fg' : 'text-text-tertiary'}`}>
-            {demoSchemaError(demoSchema) || 'Empty: Inspire names a new schema.'}
+            {demoSchemaError(demoSchema) || 'Blank: Inspire picks a name.'}
           </p>
         </div>
 

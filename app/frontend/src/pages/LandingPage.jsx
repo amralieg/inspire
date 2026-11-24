@@ -664,7 +664,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
                 </h1>
 
                 <p className="text-base sm:text-lg mb-8 max-w-lg leading-relaxed" style={{ color: C.textMuted }}>
-                  Inspire reads your Unity Catalog metadata, checks your data and writes use cases ranked for your business. Genie then builds an MVP for each one you pick.
+                  Inspire reads your Unity Catalog metadata and writes ranked use cases. Genie then builds an MVP for each one you pick.
                 </p>
 
                 <LandingActions onStart={onStart} />

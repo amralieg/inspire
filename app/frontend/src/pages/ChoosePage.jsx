@@ -548,8 +548,8 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                     <div className="flex-shrink-0 flex items-center gap-2">
                       <div className="relative z-10">
                         <MoreMenu label={`More for ${name}`} items={[
-                          ...(session.profile_id ? [{ label: 'Download profile', onSelect: () => downloadProfile(session.profile_id, sidStr) }] : []),
-                          ...(buildFilter ? [{ label: 'Go to Build', onSelect: () => onOpenBuild?.(buildFilter) }] : []),
+                          { label: 'Download profile', disabled: !session.profile_id, onSelect: () => downloadProfile(session.profile_id, sidStr) },
+                          { label: 'Go to Build', disabled: !buildFilter, onSelect: () => onOpenBuild?.(buildFilter) },
                           ...(canQuickView ? [{ label: isQuickOpen ? 'Hide quick view' : 'Quick view', onSelect: () => toggleQuickView(session, isQuickOpen, legacySummary, listOverview, sidStr) }] : []),
                           ...(showcase ? [] : [{ label: 'Delete run', danger: true, onSelect: () => setConfirmDelete(session.session_id) }]),
                         ]} />
@@ -563,6 +563,13 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                         <div data-run-building="" className="relative z-10 flex items-center gap-2 rounded-lg border border-border bg-bg-subtle px-2.5 py-1.5 text-xs font-medium text-text-primary">
                           <Loader2 data-run-building-spinner="" size={14} aria-hidden className="shrink-0 animate-spin motion-reduce:animate-none text-text-secondary" />
                           <span className="tabular-nums">{buildingCount.toLocaleString('en-US')} building</span>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onOpenBuild?.(buildFilter); }}
+                            className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2 py-0.5 text-xs font-semibold text-text-primary hover:bg-bg-subtle"
+                          >
+                            Go to Build <ArrowRight size={14} aria-hidden />
+                          </button>
                         </div>
                       )}
                       {status === 'running' && (
