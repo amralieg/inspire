@@ -3624,7 +3624,7 @@ function registerImplementRoutes(app, deps) {
       let parsed = null;
       try {
         const body = /\{[\s\S]*\}/.exec(raw);
-        parsed = body ? JSON.parse(body[0]) : null;
+        parsed = body ? parseExactJson(body[0]) : null;
       } catch (_) { parsed = null; }
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw I.badRequest('The model gave no usable translation.', 502);
       const out = {};
