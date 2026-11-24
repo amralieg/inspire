@@ -460,7 +460,7 @@ def test_a_rebuild_that_did_not_end_written_puts_the_notebook_back_so_the_job_ke
     inst._implement_one_locked = inst._implement_one_locked
     assert inst._implement_one(REFILL) == "failed"
     assert [text for _p, _f, text in notebooks.imported] == ["half-built notebook", "built notebook v2"]
-    assert notebooks.imported[-1][:2] == ("/W/nb", "JUPYTER")
+    assert [getattr(part, "value", part) for part in notebooks.imported[-1][:2]] == ["/W/nb", "JUPYTER"]
     final = inst.updates[-1]
     assert final["status"] == "failed"
     assert final["asset_status"]["notebook"] == {"modified_at": 3000, "spec_version": 2}, \
