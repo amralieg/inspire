@@ -828,7 +828,9 @@ def _error_words(exc, limit=160):
     return text if limit is None else text[:limit]
 
 
-def _rights_unread(exc, name, person):
+def _rights_unread(exc, ctx):
+    """The ask is about Inspire's own catalog, so the target is bound to ctx["CATALOG"] and never a customer catalog."""
+    name, person = ctx["CATALOG"], ctx["USER_EMAIL"]
     if getattr(getattr(exc, "response", None), "status_code", None) == 403:
         return (f"you cannot see who can grant on catalog `{name}` (HTTP 403). A catalog owner can run "
                 f"GRANT MANAGE ON CATALOG `{name}` TO `{person}`")
@@ -1547,7 +1549,7 @@ def _new_apps_access_check(ctx, sp):
     manage = f"GRANT MANAGE ON CATALOG `{catalog}` TO `{sp}`"
     needed = [sql for sql in statements if sql != manage]
     raise RuntimeError(f"{line[3:] if line.startswith('⚠️ ') else line}. A catalog owner runs {' and '.join(needed)} (opens no data), "
-                       f"or {manage} so Inspire can grant it. Or pick another catalog, or set "
+                       f"or, because `{catalog}` is Inspire's own catalog, {manage} so Inspire can grant it. Or pick another catalog, or set "
                        f'NEW_APPS_CATALOG_ACCESS = "{NEW_APPS_OFF}" to accept that Build cannot share results. '
                        "Inspire stopped before it deploys the new App version, so the App keeps its last working version. "
                        "Then run this installer again.")
@@ -2190,7 +2192,6 @@ def step_grant_permissions(ctx):
         _leave_out_unmanaged_catalogs(ctx, sp)
         account_failed = _grant_account_users(ctx)
         _grant_data_catalogs(ctx, sp)
-        _grant_data_manage(ctx, sp)
         blocking = _blocking_read_grants(failed)
         if blocking:
             shown = "; ".join(f"{sql}: {str(error)[:160]}" for sql, error in blocking.items())
@@ -2412,79 +2413,9 @@ def _person_privileges(full, held):
     return (["OWNER"] if full else []) + sorted(held)
 
 
-MANAGE_ADMIN_HEADER = "An admin still grants these, so Inspire can share all of this data with the Apps it builds:"
-
-
-def _mine_sql(column):
-    return f"(lower({column}) = lower(current_user()) OR is_account_group_member({column}))"
-
-
-def _managed_objects_sql(catalog):
-    """REQ-478: the schemas and tables in one catalog the installer person owns or holds MANAGE on, read as the person."""
-    isc = f"`{catalog}`.information_schema"
-    return (f"SELECT 'schema' AS level, schema_name, '' AS table_name FROM {isc}.schemata "
-            f"WHERE schema_name <> 'information_schema' AND {_mine_sql('schema_owner')} "
-            f"UNION ALL SELECT 'schema', schema_name, '' FROM {isc}.schema_privileges "
-            f"WHERE privilege_type = 'MANAGE' AND schema_name <> 'information_schema' AND {_mine_sql('grantee')} "
-            f"UNION ALL SELECT 'table', table_schema, table_name FROM {isc}.tables "
-            f"WHERE table_schema <> 'information_schema' AND {_mine_sql('table_owner')} "
-            f"UNION ALL SELECT 'table', table_schema, table_name FROM {isc}.table_privileges "
-            f"WHERE privilege_type = 'MANAGE' AND table_schema <> 'information_schema' AND {_mine_sql('grantee')}")
-
-
-def _manage_targets(rows, catalog):
-    """Each owned or managed schema, then each owned or managed table outside those schemas, once and in order."""
-    schemas = list(dict.fromkeys(str(r.get("schema_name") or "") for r in rows if str(r.get("level") or "") == "schema"))
-    inside = {s.lower() for s in schemas}
-    tables = list(dict.fromkeys(f"{r.get('schema_name')}.{r.get('table_name')}" for r in rows
-                                if str(r.get("level") or "") == "table" and str(r.get("schema_name") or "").lower() not in inside))
-    return [("schema", f"{catalog}.{s}") for s in schemas if s] + [("table", f"{catalog}.{t}") for t in tables]
-
-
-def _grant_data_manage(ctx, sp):
-    """REQ-478, REQ-469: MANAGE for Inspire's App on the data it reads, at the highest level the installer person can grant.
-
-    The catalog when the person owns or manages it, else each schema the person owns or manages, else each table. With MANAGE,
-    Inspire shares that data with every App it builds, so no Build waits on a permission. One block lists, in full, the catalogs
-    an admin still grants. It never stops the install: the read grants are already in place.
-    """
-    w, warehouse_id, api = ctx["w"], ctx["WAREHOUSE_ID"], ctx["api"]
-    data = ctx.get("DATA_CATALOGS") or []
-    targets = list(dict.fromkeys(list(ctx.get("READ_GRANTED") or []) + ([ctx["CATALOG"]] if ctx.get("CATALOG") in data else [])))
-    if not targets:
-        return []
-
-    def patch(securable, name):
-        resp = api("PATCH", f"/api/2.1/unity-catalog/permissions/{securable}/{urllib.parse.quote(name)}",
-                   {"changes": [{"principal": sp, "add": ["MANAGE"]}]})
-        return resp.status_code == 200
-
-    admin, counts = [], {"catalog": 0, "schema": 0, "table": 0}
-    for catalog in targets:
-        try:
-            whole = _can_grant(_person_privileges(*_catalog_privileges(ctx, catalog)))
-            if whole:
-                if patch("catalog", catalog):
-                    counts["catalog"] += 1
-                else:
-                    admin.append(catalog)
-                continue
-            for securable, name in _manage_targets(_statement_rows(w, warehouse_id, _managed_objects_sql(catalog)), catalog):
-                if patch(securable, name):
-                    counts[securable] += 1
-        except Exception:
-            pass
-        admin.append(catalog)
-    print(f"  MANAGE for Inspire's App, so it can share your data with the Apps it builds: {_plural(counts['catalog'], 'catalog', 'catalogs')}, "
-          f"{_plural(counts['schema'], 'schema', 'schemas')}, {_plural(counts['table'], 'table', 'tables')} {'✅' if not admin else '⚠️'}")
-    if admin:
-        print(MANAGE_ADMIN_HEADER)
-        for catalog in dict.fromkeys(admin):
-            print(f"GRANT MANAGE ON CATALOG `{catalog}` TO `{sp}`")
-    return list(dict.fromkeys(admin))
-
-
-def _grant_refusal(name, person, held):
+def _grant_refusal(ctx, held):
+    """Inspire's own catalog only: the target is bound to ctx["CATALOG"]."""
+    name, person = ctx["CATALOG"], ctx["USER_EMAIL"]
     why = " (ALL PRIVILEGES does not include MANAGE)" if "ALL_PRIVILEGES" in held else ""
     return (f"you are not its owner or a metastore admin and hold no MANAGE on it{why}. The catalog owner can run "
             f"GRANT MANAGE ON CATALOG `{name}` TO `{person}`, or make you the owner of `{name}`")
@@ -2497,7 +2428,7 @@ def _schema_mode_problems(ctx):
     try:
         full, held = _catalog_privileges(ctx, catalog)
     except Exception as exc:
-        return [f"Inspire cannot check catalog `{catalog}`: {_rights_unread(exc, catalog, person)}."]
+        return [f"Inspire cannot check catalog `{catalog}`: {_rights_unread(exc, ctx)}."]
     try:
         existing = ctx["w"].schemas.get(f"{catalog}.{schema}")
     except Exception:
@@ -2560,12 +2491,12 @@ def step_preflight(ctx):
             rights = _catalog_rights(ctx)
             if not rights["grant"]:
                 problems.append(f"You cannot grant on catalog `{catalog}`, and the Inspire App needs USE CATALOG on it: "
-                                f"{_grant_refusal(catalog, ctx['USER_EMAIL'], rights['held'])}.")
+                                f"{_grant_refusal(ctx, rights['held'])}.")
             if not rights["schema"]:
                 problems.append(f"You cannot create the schema `{catalog}`.`{schema}`. A catalog owner can run "
                                 f"GRANT CREATE SCHEMA ON CATALOG `{catalog}` TO `{ctx['USER_EMAIL']}`.")
         except Exception as exc:
-            problems.append(f"Inspire cannot check catalog `{catalog}`: {_rights_unread(exc, catalog, ctx['USER_EMAIL'])}.")
+            problems.append(f"Inspire cannot check catalog `{catalog}`: {_rights_unread(exc, ctx)}.")
     for folder in ((ctx["APP_FOLDER"], _workspace_api_path(ctx["BUNDLE_ROOT"]), _workspace_api_path(ctx["ASSETS_PARENT"]))
                    if not problems else ()):
         made = api("POST", "/api/2.0/workspace/mkdirs", {"path": folder})
