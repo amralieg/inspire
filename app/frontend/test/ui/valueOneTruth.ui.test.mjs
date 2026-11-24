@@ -76,7 +76,7 @@ test('2b: the Business rows show counted-in amounts that sum to the run total, a
   const ui = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS }, '', { mount });
   try {
     const { page } = ui;
-    await page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]').first().waitFor();
+    await page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]').first().waitFor();
     await toView(page, 'Business');
     const panel = page.locator('[data-value-run-panel]');
     await panel.waitFor({ timeout: 15000 });
@@ -98,7 +98,7 @@ test('2d: a bar label that does not fit its segment is hidden and moves to the t
   try {
     const { page } = ui;
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]').first().waitFor();
+    await page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]').first().waitFor();
     await toView(page, 'Business');
     const panel = page.locator('[data-value-run-panel]');
     await panel.waitFor({ timeout: 15000 });

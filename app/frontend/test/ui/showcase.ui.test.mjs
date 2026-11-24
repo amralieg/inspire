@@ -260,7 +260,7 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     const read = { sql: made.sqlCalls.length, fetches: made.fetches.length };
     await page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().click();
     await demoBar(page).getByText(SHOWCASE_NOTE).waitFor();
-    const cards = list(page).locator('[aria-expanded]');
+    const cards = list(page).locator('[data-use-case-row]');
     await cards.first().waitFor();
     assert.equal(await cards.count(), 6);
     await toView(page, 'Business');
@@ -521,7 +521,7 @@ async function openDemoBuild(history) {
   try {
     await openShowcase(ui.page);
     await demoBar(ui.page).getByText(SHOWCASE_NOTE).waitFor();
-    await list(ui.page).locator('[aria-expanded]').filter({ hasText: 'Predict churn' }).click();
+    await list(ui.page).locator('[data-use-case-row]').filter({ hasText: 'Predict churn' }).click();
     await settle();
     await list(ui.page).getByRole('button', { name: 'Open MVP' }).click();
     await ui.page.locator('[data-asset-tiles]').waitFor();
@@ -676,7 +676,7 @@ test('a change the demo refuses shows as a calm note in plain words, and any oth
   const calm = list(page).locator('[data-demo-note]');
   const red = list(page).locator('p.text-error-fg');
   try {
-    await list(page).locator('[aria-expanded]').filter({ hasText: 'Predict churn' }).click();
+    await list(page).locator('[data-use-case-row]').filter({ hasText: 'Predict churn' }).click();
     await list(page).getByRole('button', { name: 'Accepted', exact: true }).click();
     await calm.waitFor();
     assert.equal(await calm.innerText(), SHOWCASE_READ_ONLY);

@@ -24,7 +24,7 @@ const DEFAULTS = {
 };
 const SHELL = { 'static/index.html': '<!doctype html><html><body><main class="app">MVP</main></body></html>' };
 const demoBar = (page) => page.getByRole('region', { name: 'Demo' });
-const cardsOf = (page) => page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]');
+const cardsOf = (page) => page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]');
 const useCasesOf = (bundle) => bundle.inspire[`GET /api/inspire/usecases?session_id=${bundle.session_id}`].body.usecases;
 
 async function openDemoApp(dir, shellFiles = SHELL) {

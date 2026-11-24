@@ -37,7 +37,7 @@ test('the card value box carries the full text in its tooltip', async () => {
   const ui = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS }, '', { mount });
   const { page } = ui;
   try {
-    const card = page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]').filter({ hasText: 'Predict churn' });
+    const card = page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]').filter({ hasText: 'Predict churn' });
     const line = card.locator('[data-value-yearly]');
     await line.waitFor({ timeout: 15000 });
     assert.equal((await line.locator('[data-value-period]').innerText()).trim(), 'Per year');

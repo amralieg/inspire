@@ -28,8 +28,8 @@ test('a measured card shows the value box with the verb, "$15M", "(estimated)" a
   const { page } = ui;
   try {
     const list = page.getByRole('region', { name: 'Use case list' });
-    await list.locator('[aria-expanded]').first().waitFor();
-    const card = (name) => list.locator('[aria-expanded]').filter({ hasText: name });
+    await list.locator('[data-use-case-row]').first().waitFor();
+    const card = (name) => list.locator('[data-use-case-row]').filter({ hasText: name });
     const line = card('Predict churn').locator('[data-value-yearly]');
     await line.waitFor({ timeout: 15000 });
     assert.equal((await line.locator('[data-value-verb]').innerText()).trim().toUpperCase(), 'INCREASE REVENUE');
@@ -60,8 +60,8 @@ test('Calculate opens the wizard, Save on its last step saves the answers on the
   const { page } = ui;
   try {
     const list = page.getByRole('region', { name: 'Use case list' });
-    await list.locator('[aria-expanded]').first().waitFor();
-    const card = list.locator('[aria-expanded]').filter({ hasText: 'Predict churn' });
+    await list.locator('[data-use-case-row]').first().waitFor();
+    const card = list.locator('[data-use-case-row]').filter({ hasText: 'Predict churn' });
     await card.locator('[data-value-calculate]').click();
     const dialog = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
     await dialog.waitFor();
@@ -95,8 +95,8 @@ test('a failed save shows its one line in the box, keeps the box open, and the c
   const { page } = ui;
   try {
     const list = page.getByRole('region', { name: 'Use case list' });
-    await list.locator('[aria-expanded]').first().waitFor();
-    const card = list.locator('[aria-expanded]').filter({ hasText: 'Predict churn' });
+    await list.locator('[data-use-case-row]').first().waitFor();
+    const card = list.locator('[data-use-case-row]').filter({ hasText: 'Predict churn' });
     await card.locator('[data-value-calculate]').click();
     const dialog = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
     await goTo(dialog, 'save');

@@ -9,7 +9,7 @@ import { archiveKeyOf, inArchiveView, loadArchiveMap, toggledArchive } from '../
 test.after(closeBrowser);
 
 const list = (page) => page.getByRole('region', { name: 'Use case list' });
-const cards = (page) => list(page).locator('[aria-expanded]');
+const cards = (page) => list(page).locator('[data-use-case-row]');
 const cardOf = (page, no) => page.locator(`[data-use-case-no="${no}"]`);
 const shownNos = (page) => page.locator('[data-use-case-no]').evaluateAll((els) => els.map((el) => el.getAttribute('data-use-case-no')));
 const view = (page, id) => page.locator(`[data-archive-view="${id}"]`);

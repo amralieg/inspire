@@ -35,7 +35,7 @@ test('the run panel marks shared values, flagged values and what the total leave
   const ui = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS }, '', { mount });
   try {
     const list = ui.page.getByRole('region', { name: 'Use case list' });
-    await list.locator('[aria-expanded]').first().waitFor();
+    await list.locator('[data-use-case-row]').first().waitFor();
     await toView(ui.page, 'Business');
     const panel = ui.page.locator('[data-value-run-panel]');
     await panel.waitFor({ timeout: 15000 });

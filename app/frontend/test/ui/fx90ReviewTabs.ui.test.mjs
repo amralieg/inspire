@@ -9,7 +9,7 @@ test.after(closeBrowser);
 const STATE = { ...REVIEW_STATE, sessions: REVIEW_SESSIONS };
 const tablist = (page) => page.getByRole('tablist');
 const tab = (page, name) => tablist(page).getByRole('tab', { name: new RegExp(`^${name}\\b`) });
-const cards = (page) => page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]');
+const cards = (page) => page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]');
 
 for (const [width, height] of [[1440, 900], [1280, 800]]) {
   test(`REQ-490: at ${width}x${height} the Review page has Use cases, Business and Assets as tabs above the content`, async () => {

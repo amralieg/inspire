@@ -14,7 +14,7 @@ const AdmZip = createRequire(import.meta.url)('../../../backend/node_modules/adm
 test.after(closeBrowser);
 
 const list = (page) => page.getByRole('region', { name: 'Use case list' });
-const cards = (page) => list(page).locator('[aria-expanded]');
+const cards = (page) => list(page).locator('[data-use-case-row]');
 const card = (page, name) => cards(page).filter({ hasText: name });
 const portfolio = (page) => page.getByRole('region', { name: 'Across all runs' });
 const insight = (page, title) => page.locator(`[data-insight="${title}"]`);

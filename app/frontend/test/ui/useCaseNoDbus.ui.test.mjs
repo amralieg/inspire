@@ -24,7 +24,7 @@ test('a use case card shows its asset flags and no DBU text, and the page makes 
   const { page } = ui;
   try {
     const list = page.getByRole('region', { name: 'Use case list' });
-    await list.locator('[aria-expanded]').first().waitFor();
+    await list.locator('[data-use-case-row]').first().waitFor();
     const assets = list.locator('[data-use-case-assets]').first();
     await assets.waitFor({ timeout: 15000 });
     assert.match((await assets.innerText()).replace(/\s+/g, ' '), /Agentic App: Yes.*Dashboard: No.*Lakebase: Yes.*Genie Agent: No/);

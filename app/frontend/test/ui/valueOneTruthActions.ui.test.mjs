@@ -48,7 +48,7 @@ test('2c: bulk calculate on an estimated row sends the requests and the row ends
   const ui = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS }, '', { mount: mountWith({ answers, puts }) });
   try {
     const { page } = ui;
-    await page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]').first().waitFor();
+    await page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]').first().waitFor();
     for (const n of ['Predict churn', 'Score upsell']) await page.getByRole('checkbox', { name: `Select ${n}`, exact: true }).check();
     await page.getByRole('button', { name: 'Calculate value for 2', exact: true }).click();
     const panel = page.getByRole('dialog', { name: 'Calculating value' });

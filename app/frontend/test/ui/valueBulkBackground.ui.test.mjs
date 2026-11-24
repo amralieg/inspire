@@ -56,7 +56,7 @@ function mountBulk(state) {
 async function openBulk(state) {
   const ui = await openUi('app', { ...REVIEW_STATE, results: RESULTS, knownRuns: ['42'] }, '&review=42', { mount: mountBulk(state) });
   const list = ui.page.getByRole('region', { name: 'Use case list' });
-  await list.locator('[aria-expanded]').first().waitFor({ timeout: 20000 });
+  await list.locator('[data-use-case-row]').first().waitFor({ timeout: 20000 });
   return { ui, page: ui.page };
 }
 const pick = async (page, names) => { for (const n of names) await page.getByRole('checkbox', { name: `Select ${n}`, exact: true }).check(); };

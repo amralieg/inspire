@@ -33,8 +33,8 @@ for (const width of [1280, 1440]) {
     try {
       await page.setViewportSize({ width, height: 800 });
       const list = page.getByRole('region', { name: 'Use case list' });
-      await list.locator('[aria-expanded]').first().waitFor();
-      const card = list.locator('[aria-expanded]').filter({ has: page.locator('[data-testid="quality-bar-reason"]') }).first();
+      await list.locator('[data-use-case-row]').first().waitFor();
+      const card = list.locator('[data-use-case-row]').filter({ has: page.locator('[data-testid="quality-bar-reason"]') }).first();
       await card.locator('[data-value-calculate]').waitFor();
       const reason = await card.locator('[data-testid="quality-bar-reason"]').innerText();
       const ctas = (await card.locator('[data-value-calculate]').count()) + (await card.locator('[data-value-estimate="set-rule"]').count());

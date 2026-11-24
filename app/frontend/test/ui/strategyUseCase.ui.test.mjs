@@ -7,7 +7,7 @@ import * as V from '../../src/lib/v130UseCase.js';
 test.after(closeBrowser);
 
 const list = (page) => page.getByRole('region', { name: 'Use case list' });
-const cards = (page) => list(page).locator('[aria-expanded]');
+const cards = (page) => list(page).locator('[data-use-case-row]');
 const card = (page, name) => cards(page).filter({ hasText: name });
 const panel = (page, title) => page.getByRole('button', { name: new RegExp(`^${title}\\b`) }).first();
 const NAMES = ['Predict churn', 'Score upsell', 'Segment shoppers', 'Price elasticity', 'Forecast stock', 'Spot late suppliers'];

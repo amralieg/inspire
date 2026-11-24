@@ -44,7 +44,7 @@ const mount = (app) => {
   app.post('/api/inspire/score-refine/undo', (req, res) => answer('undo', req, res, { restored: req.body.use_case_ids }));
 };
 const open = () => openUi('results', { ...REVIEW_STATE, results: results() }, '', { mount });
-const scoreOf = (page, name) => page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]').filter({ hasText: name }).locator('[title^="Inspire composite score"]').first();
+const scoreOf = (page, name) => page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]').filter({ hasText: name }).locator('[title^="Inspire composite score"]').first();
 
 test('the banner names the pair, previews old to new, and carries the full disclaimer', async () => {
   const ui = await open();
@@ -126,7 +126,7 @@ test('after a reload the refined score still offers Undo on its card, and Undo r
   }
 });
 
-const cardNames = (page) => page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]').allInnerTexts();
+const cardNames = (page) => page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]').allInnerTexts();
 const rowOf = (names, name) => names.findIndex((t) => t.includes(name));
 
 test('REQ-433: a pair in different quality-bar tiers shows no banner', async () => {

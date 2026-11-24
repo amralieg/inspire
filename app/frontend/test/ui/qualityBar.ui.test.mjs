@@ -35,7 +35,7 @@ const MIXED = {
 };
 
 const list = (page) => page.getByRole('region', { name: 'Use case list' });
-const cards = (page) => list(page).locator('[aria-expanded]');
+const cards = (page) => list(page).locator('[data-use-case-row]');
 
 async function ready(page) {
   await list(page).waitFor();

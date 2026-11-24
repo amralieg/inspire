@@ -60,8 +60,8 @@ const withTotals = (id, entry) => ({ ...RUN_TOTALS, use_cases: { ...RUN_TOTALS.u
 async function openCard(state) {
   const ui = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS }, '', { mount: mountWith(state) });
   const list = ui.page.getByRole('region', { name: 'Use case list' });
-  await list.locator('[aria-expanded]').first().waitFor();
-  const card = list.locator('[aria-expanded]').filter({ hasText: 'Predict churn' });
+  await list.locator('[data-use-case-row]').first().waitFor();
+  const card = list.locator('[data-use-case-row]').filter({ hasText: 'Predict churn' });
   return { ui, card, page: ui.page, list };
 }
 const text = async (loc) => (await loc.innerText()).replace(/\s+/g, ' ').trim();

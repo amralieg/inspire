@@ -25,7 +25,7 @@ const familyColor = (id) => KINDS.families.find((f) => f.id === id).color;
 const rgb = (hex) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
 
 const list = (page) => page.getByRole('region', { name: 'Use case list' });
-const cards = (page) => list(page).locator('[aria-expanded]');
+const cards = (page) => list(page).locator('[data-use-case-row]');
 const card = (page, name) => list(page).locator('.lift-on-hover').filter({ hasText: name });
 
 async function ready(page) {
@@ -96,7 +96,7 @@ test('an open card says what you get above the problem statement, with the 3 lin
   try {
     await ready(page);
     const forecast = card(page, 'Forecast stock');
-    await forecast.locator('[aria-expanded]').click();
+    await forecast.locator('[data-use-case-row]').click();
     const section = forecast.locator('[data-what-you-get]');
     await section.waitFor();
     assert.deepEqual(await section.locator('[data-kind-line]').allInnerTexts(), [
@@ -116,13 +116,13 @@ test('an open card says what you get above the problem statement, with the 3 lin
     assert.ok(dark.checked >= 4 && dark.low.length === 0, `the section reads in the dark theme too: ${JSON.stringify(dark)}`);
     await setDark(page, false);
     const churn = card(page, 'Predict churn');
-    await churn.locator('[aria-expanded]').click();
+    await churn.locator('[data-use-case-row]').click();
     const old = churn.locator('[data-what-you-get]');
     await old.waitFor();
     assert.equal(await old.locator('[data-kind-line]').count(), 0);
     assert.match(await old.innerText(), new RegExp(KINDS.kinds.find((k) => k.id === 'risk_propensity').question.replace(/[?.()]/g, '\\$&')));
     const upsell = card(page, 'Score upsell');
-    await upsell.locator('[aria-expanded]').click();
+    await upsell.locator('[data-use-case-row]').click();
     await upsell.getByText('Problem Statement').waitFor();
     assert.equal(await upsell.locator('[data-what-you-get]').count(), 0, 'no kind, no section');
     assert.deepEqual(ui.pageErrors, []);
@@ -138,7 +138,7 @@ test('the card title is the name with its technique in lower case, and a use cas
     await ready(page);
     const forecast = card(page, 'Forecast stock');
     assert.equal(await forecast.count(), 1);
-    await forecast.locator('[aria-expanded]').click();
+    await forecast.locator('[data-use-case-row]').click();
     await forecast.locator('[data-what-you-get]').waitFor();
     assert.match(await forecast.innerText(), /^Forecast stock$/m, 'the open card keeps the same title, the plain name (REQ-175)');
     assert.doesNotMatch(await forecast.innerText(), /using forecasting/, 'the technique is not in the title');

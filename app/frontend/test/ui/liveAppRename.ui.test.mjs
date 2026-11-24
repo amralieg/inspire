@@ -40,9 +40,9 @@ test('after a rename, the live App offers one Update button; clicking it posts t
   const { page } = ui;
   try {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await cardOf(page, 'N01-U01').locator('[aria-expanded]').first().waitFor();
+    await cardOf(page, 'N01-U01').locator('[data-use-case-row]').first().waitFor();
     await idle(page);
-    await cardOf(page, 'N01-U01').locator('[aria-expanded]').first().click();
+    await cardOf(page, 'N01-U01').locator('[data-use-case-row]').first().click();
     assert.equal(await page.getByRole('button', { name: UPDATE }).count(), 0, 'no rename, no update button');
 
     const before = await cardOf(page, 'N01-U01').locator('h3').innerText();

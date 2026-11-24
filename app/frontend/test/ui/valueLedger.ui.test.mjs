@@ -65,8 +65,8 @@ test('the use case card headlines the largest at stake amount, the saved amount 
   const { page } = ui;
   try {
     const list = page.getByRole('region', { name: 'Use case list' });
-    await list.locator('[aria-expanded]').first().waitFor();
-    const card = (name) => list.locator('[aria-expanded]').filter({ hasText: name });
+    await list.locator('[data-use-case-row]').first().waitFor();
+    const card = (name) => list.locator('[data-use-case-row]').filter({ hasText: name });
     const badge = card('Predict churn').locator('[data-value-badge]');
     await badge.waitFor({ timeout: 15000 });
     assert.equal((await badge.locator('[data-value-headline="at stake"]').innerText()).trim(), 'AED 3K');

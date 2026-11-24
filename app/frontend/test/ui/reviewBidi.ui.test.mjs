@@ -93,7 +93,7 @@ test('an Arabic use case card reads right to left, isolates every value it joins
       'each value of the domain line sits in its own bdi, so the separators stay between them');
     assert.equal(await arabic.locator('[data-technique-chip]').count(), 0, 'with no kind, the technique is on the meta line');
 
-    await arabic.locator('[aria-expanded]').click();
+    await arabic.locator('[data-use-case-row]').click();
     const statement = arabic.locator('[data-use-case-text="statement"]');
     await statement.waitFor();
     const side = await statement.evaluate(sideOf);
@@ -105,7 +105,7 @@ test('an Arabic use case card reads right to left, isolates every value it joins
     assert.deepEqual(clipped, [], 'nothing in the Arabic card runs past its edge');
 
     const englishCard = cardOf(page, 'Score upsell');
-    await englishCard.locator('[aria-expanded]').click();
+    await englishCard.locator('[data-use-case-row]').click();
     const plain = englishCard.locator('[data-use-case-text="statement"]');
     await plain.waitFor();
     const left = await plain.evaluate(sideOf);
@@ -121,7 +121,7 @@ test('on a phone the Arabic card and its details wrap inside the card instead of
   const { page } = ui;
   try {
     const arabic = cardOf(page, AR.name);
-    await arabic.locator('[aria-expanded]').click();
+    await arabic.locator('[data-use-case-row]').click();
     await arabic.locator('[data-use-case-text="statement"]').waitFor();
     const { clipped } = await arabic.evaluate(layout);
     assert.deepEqual(clipped, [], 'nothing in the Arabic card runs past its edge on a 390 px screen');

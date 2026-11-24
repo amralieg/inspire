@@ -60,7 +60,7 @@ test('S3 (REQ-472 c): a card whose saved value carries a review shows the review
     await line.waitFor({ timeout: 15000 });
     assert.equal(await flat(line), 'Reviewed by m1: fits the business size');
     const list = page.getByRole('region', { name: 'Use case list' });
-    assert.equal(await list.locator('[aria-expanded]').filter({ hasText: 'Score upsell' }).locator('[data-value-review]').count(), 0);
+    assert.equal(await list.locator('[data-use-case-row]').filter({ hasText: 'Score upsell' }).locator('[data-value-review]').count(), 0);
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
 });

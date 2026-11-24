@@ -8,7 +8,7 @@ import { REVIEW_SESSIONS, REVIEW_STATE } from './reviewFixtures.js';
 test.after(closeBrowser);
 
 const list = (page) => page.getByRole('region', { name: 'Use case list' });
-const cards = (page) => list(page).locator('[aria-expanded]');
+const cards = (page) => list(page).locator('[data-use-case-row]');
 const heading = (page) => page.locator('[data-run-heading]');
 const poll = async (check, what, timeout = 10000) => {
   const end = Date.now() + timeout;

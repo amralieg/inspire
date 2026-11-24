@@ -33,8 +33,8 @@ test('the catalog list shows the value line on each card, bold when measured and
   const { page } = ui;
   try {
     const list = page.getByRole('region', { name: 'Use case list' });
-    await list.locator('[aria-expanded]').first().waitFor();
-    const card = (name) => list.locator('[aria-expanded]').filter({ hasText: name });
+    await list.locator('[data-use-case-row]').first().waitFor();
+    const card = (name) => list.locator('[data-use-case-row]').filter({ hasText: name });
     assert.equal((await card('Predict churn').locator('[data-value-estimate="measured"]').innerText()).trim(), MEASURED);
     assert.equal((await card('Score upsell').locator('[data-value-estimate="not-measured"]').innerText()).trim(), NOT_MEASURED);
     assert.equal(await card('Forecast stock').locator('[data-value-estimate]').count(), 0, 'no value line without an estimate');

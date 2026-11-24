@@ -40,8 +40,8 @@ for (const [name, width, dir, dark] of SETUPS) {
       await page.evaluate((d) => { document.documentElement.dir = d; }, dir);
       await setDark(page, dark);
       const list = page.getByRole('region', { name: 'Use case list' });
-      await list.locator('[aria-expanded]').first().waitFor();
-      const card = list.locator('[aria-expanded]').filter({ hasText: 'Predict churn' });
+      await list.locator('[data-use-case-row]').first().waitFor();
+      const card = list.locator('[data-use-case-row]').filter({ hasText: 'Predict churn' });
       const note = card.locator('[data-value-check]');
       await note.waitFor({ timeout: 15000 });
       await page.waitForTimeout(700);
@@ -69,7 +69,7 @@ const calcMount = (app) => {
   app.put('/api/inspire/value/answers', (req, res) => { PUTS.push(req.body); res.json({ version: 1, yearly: YEARLY(405556), disclaimer: '' }); });
   baseMount(app);
 };
-const cardOf = (page, name) => page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]').filter({ hasText: name });
+const cardOf = (page, name) => page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]').filter({ hasText: name });
 async function openCalc(page, name) {
   const card = cardOf(page, name);
   await card.first().waitFor();

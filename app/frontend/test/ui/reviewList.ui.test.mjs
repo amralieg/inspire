@@ -6,7 +6,7 @@ import { REVIEW_STATE } from './reviewFixtures.js';
 test.after(closeBrowser);
 
 const list = (page) => page.getByRole('region', { name: 'Use case list' });
-const cards = (page) => list(page).locator('[aria-expanded]');
+const cards = (page) => list(page).locator('[data-use-case-row]');
 const shownNames = async (page) => (await cards(page).evaluateAll((els) => els.map((el) => el.innerText))).map((t) => ['Alpha basket', 'Middle stock', 'Twin one', 'Twin two', 'Zeta churn'].find((n) => t.includes(n)));
 
 const uc = (no, name, extra = {}) => ({
