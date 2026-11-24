@@ -385,7 +385,7 @@ button.hb:hover,button.hb.is-on{background:var(--well)}
   .top{padding:8px 12px;gap:6px}
   .top .fresh{display:none}
   .fresh-d .fresh-pt{display:flex}
-  .top>.mark{min-width:0}
+  .top>.mark{position:absolute;width:1px;height:1px;min-width:0;overflow:hidden;clip:rect(0 0 0 0)}
   .genie-btn span{display:none}
   .genie-btn{padding:7px 9px}
   :is(.top,.ph-tools) :is(.top-ic,.top-ic2)>span{display:none}

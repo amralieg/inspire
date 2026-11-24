@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from './icons.jsx';
 import './styles/pagework.css';
 
@@ -7,7 +7,15 @@ export function MoreMenu({ items, buttonRef = null, label = 'More' }) {
   const [open, setOpen] = useState(false);
   const box = useRef(null);
   const own = useRef(null);
+  const menu = useRef(null);
   const shown = (items || []).filter(Boolean);
+  // Right-anchored under the button; when that pushes the menu past the left edge of the screen (a More button wrapped to the start of a narrow footer), anchor it to the left instead.
+  useLayoutEffect(() => {
+    const el = menu.current;
+    if (!open || !el) return;
+    el.style.left = ''; el.style.right = '';
+    if (el.getBoundingClientRect().left < 0) { el.style.left = '0'; el.style.right = 'auto'; }
+  }, [open]);
   useEffect(() => {
     if (!open) return undefined;
     const outside = (e) => { if (!box.current?.contains(e.target)) setOpen(false); };
@@ -23,9 +31,9 @@ export function MoreMenu({ items, buttonRef = null, label = 'More' }) {
         <Icon name="dots" size={14} />{label}
       </button>
       {open && (
-        <div className="more-menu" role="menu" aria-label={`${label} actions`}>
+        <div className="more-menu" ref={menu} role="menu" aria-label={`${label} actions`}>
           {shown.map((item) => (
-            <button key={item.label} type="button" role="menuitem" className="more-i" disabled={item.disabled} onClick={() => { setOpen(false); item.run(); }} {...(item.attrs || {})}>
+            <button key={item.label} type="button" role="menuitem" className="more-i" disabled={item.disabled} title={item.title} onClick={() => { setOpen(false); item.run(); }} {...(item.attrs || {})}>
               {item.label}
             </button>
           ))}

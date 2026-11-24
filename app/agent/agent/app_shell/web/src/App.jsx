@@ -136,6 +136,7 @@ function Shell({ app, onRefreshSiblings }) {
   }), []);
   const [view, setView] = useState(DEFAULT_VIEW);
   const [touring, setTouring] = useState('');
+  const [railCounts, setRailCounts] = useState({});
   const [tourFacts, setTourFacts] = useState({});
   const [helping, setHelping] = useState(null);
   const admin = route === ADMIN_ROUTE;
@@ -242,6 +243,10 @@ function Shell({ app, onRefreshSiblings }) {
     <div className="stage">
       <div className="app" data-ready="" data-layout={app.layout} data-density={prefs.density} data-app-style={styleOfPage(page)?.id}>
         <header className="top">
+          <button type="button" className="mark" onClick={() => go('')} aria-label={`${app.title}, home`} title={app.title}>
+            <span className="mark-tile logo"><img src={logo} alt="" width="22" height="22" /></span>
+            <span className="mark-t"><b>{app.title}</b></span>
+          </button>
           <Switcher pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={() => { loadHub(); onRefreshSiblings?.(); }} siblings={app.siblings || []} />
           <span className="sp" />
           {page && !admin && (
@@ -251,7 +256,7 @@ function Shell({ app, onRefreshSiblings }) {
             </div>
           )}
           <span className="top-value" data-top-value>{page && !admin && <ValueChip page={page} />}</span>
-          <AvatarMenu user={app.user} chrome={chrome} page={page} app={app} sections={sectionsHere} onSection={goSection} onTour={takeTour} canTour={!!page?.tour && !admin} />
+          <AvatarMenu user={app.user} chrome={chrome} page={page} app={app} sections={sectionsHere} section={section} onSection={goSection} counts={railCounts.page === page?.id ? railCounts : {}} onTour={takeTour} canTour={!!page?.tour && !admin} />
         </header>
         <div className="body">
           <main className="main" tabIndex={-1}>
@@ -268,16 +273,16 @@ function Shell({ app, onRefreshSiblings }) {
               </GenieScope.Provider>
             )}
             {!admin && page && !aside && section === 'plan' && <ModeView key={page.id} mode={mode.id} part="Plan" app={app} page={page} />}
-            {genieFull && !aside && <div className="genie-full" data-genie-full=""><GeniePanel {...genieProps} onClose={showScreen} /></div>}
             {!admin && page && !aside && section !== 'performance' && section !== 'plan' && section !== 'genie' && (
               <Page key={page.id} app={app} page={page} meta={metas[page.id]} state={states[page.id]} onState={setPageState(page.id)} look={looks[page.id] || EMPTY_LOOK}
                 onLook={setPageLook(page.id)} themeKey={themeKey} onAsk={ask} onExplain={explain} genieBusy={genie.busy} hubEntry={hub?.pages?.[page.id]}
                 summary={summaries[page.id]} view={view} onView={setView} genie={genie} section={section} tab={link.tab} focus={link.focus} chrome={chrome}
-                onRecord={openRecord} onRetryMeta={() => retryMeta(page.id)} onRetrySummary={() => summarize(page.id)}
+                onCounts={setRailCounts} onRecord={openRecord} onRetryMeta={() => retryMeta(page.id)} onRetrySummary={() => summarize(page.id)}
                 onTour={page.tour ? takeTour : null} onTourFacts={keepFacts} />
             )}
             </RetryProvider>
             </NoAccessScope>
+            {genieFull && !aside && <div className="genie-full" data-genie-full=""><GeniePanel {...genieProps} onClose={showScreen} /></div>}
           </main>
         </div>
         {page && (helping || touring === page.id) && page.tour && (

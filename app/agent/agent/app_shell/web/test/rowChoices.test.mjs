@@ -32,9 +32,9 @@ test('every row of a decision list carries its own Mark done and Could not fix b
   const writes = [];
   const { page, seen, context } = await openList(listRoutes(writes));
   const firstRow = page.locator('.card--table tbody tr').first();
-  assert.deepEqual(await firstRow.locator('[data-row-choice]').evaluateAll((b) => b.map((x) => x.dataset.rowChoice)), ['done', 'not-an-issue', 'could-not-fix'],
+  assert.deepEqual(await firstRow.locator('[data-row-choice]').evaluateAll((b) => b.map((x) => x.dataset.rowChoice)), ['not-an-issue', 'could-not-fix'],
     'the page\'s closing choices, one button each, on the row');
-  await firstRow.locator('[data-row-choice="done"]').click();
+  await firstRow.locator('[data-resolve]').click();
   await page.waitForTimeout(300);
   assert.equal(writes.length, 1, 'one click, one write');
   assert.deepEqual(writes[0].values, { action_status: 'Done' });

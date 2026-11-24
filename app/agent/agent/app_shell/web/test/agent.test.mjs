@@ -130,6 +130,14 @@ async function askAgent(page, question) {
 
 const lastFilters = (seen) => seen.records[seen.records.length - 1]?.filters || {};
 
+// REQ-506: in Genie the Screen is not mounted, so the Work list reads its rows again only when the person goes back to Screen: look there, then return to Genie.
+async function onScreen(page, check) {
+  await page.locator('[data-mode-switch] [data-mode="screen"]').click();
+  await until(check);
+  await page.locator('[data-mode-switch] [data-mode="genie"]').click();
+  await page.locator('[data-genie-full]').waitFor({ state: 'visible' });
+}
+
 test('the agent chat shows its steps, applies its view change with an undo, and writes only after the person confirms', async () => {
   const { calls, acted, routes } = agentRoutes();
   const { page, seen, context } = await openApp(browser, served.base, appInfo({ ...DECIDE }), { routes, hash: '#/n01_u05/work' });
@@ -143,7 +151,7 @@ test('the agent chat shows its steps, applies its view change with an undo, and 
     assert.ok(asked.visible.every((r) => Object.keys(r).every((k) => !k.startsWith('_inspire_') || k === '_inspire_status')));
     assert.ok(asked.view && asked.view.filters && asked.view.look, 'the current filters and look go with the question');
     for (const text of ['Asked Genie: Which region lost the most?', 'Filtered to Region = North']) await page.getByText(text).first().waitFor();
-    await until(() => JSON.stringify(lastFilters(seen).region) === JSON.stringify(['North']));
+    await onScreen(page, () => JSON.stringify(lastFilters(seen).region) === JSON.stringify(['North']));
     assert.equal(acted.acts.length, 0, 'nothing is written before the person confirms');
     const card = page.getByRole('group', { name: 'Mark done: 2 records' });
     await card.getByText('Item 1').waitFor();
@@ -156,7 +164,7 @@ test('the agent chat shows its steps, applies its view change with an undo, and 
     assert.deepEqual(calls.undos, [{ page: 'n01_u05', batch_id: 'b'.repeat(32) }]);
     await page.locator('[data-view-undo="ready"]').getByRole('button', { name: 'Undo' }).click();
     await page.locator('[data-view-undo="done"]').waitFor();
-    await until(() => lastFilters(seen).region === undefined);
+    await onScreen(page, () => lastFilters(seen).region === undefined);
     await page.locator('.genie [data-rating="POSITIVE"]').click();
     await until(() => calls.feedback.length === 1);
     assert.deepEqual(calls.feedback, [{ turn_id: 't1', rating: 'POSITIVE' }]);

@@ -179,7 +179,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
         { label: 'Set status\u2026', run: () => setOpen('status') },
         onAccept ? { label: 'Accept the suggestions', run: onAccept, attrs: { 'data-accept-picked': '' } } : null,
         onSimilar && !matching && picked.size <= SIMILAR_KEYS ? { label: 'Apply to similar\u2026', run: onSimilar, disabled: busy, attrs: { 'data-bulk': 'similar' } } : null,
-        onDraft && !matching ? { label: DRAFT_LABEL, run: onDraft, disabled: picked.size > DRAFT_RECORDS, attrs: { 'data-bulk': 'draft' } } : null,
+        onDraft && !matching ? { label: DRAFT_LABEL, run: onDraft, disabled: picked.size > DRAFT_RECORDS, title: picked.size > DRAFT_RECORDS ? `One message covers at most ${DRAFT_RECORDS} records: select fewer to draft one` : undefined, attrs: { 'data-bulk': 'draft' } } : null,
         !matching && canMatch && allOnPage && total > picked.size ? { label: `Select all ${capped ? 'more than ' : ''}${integer(total)} matching`, run: onAll } : null,
         { label: 'Clear selection', run: onClear },
       ]} />
