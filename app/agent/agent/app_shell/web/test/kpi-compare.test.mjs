@@ -23,7 +23,8 @@ async function open(items, kpis = KPIS) {
       return json(200, { ...data, kpis: { ...data.kpis, total_loss: { now: 1234567, before: 1100000 }, items }, errors: {} });
     },
   };
-  const opened = await openApp(browser, served.base, appInfo({}, 1, { kpis }), { routes });
+  const info = appInfo({}, 1, { kpis });
+  const opened = await openApp(browser, served.base, info, { routes, hash: `#/${info.pages[0].id}/dashboard` });
   await opened.page.waitForFunction(() => document.querySelectorAll('.kpi .kpi-v').length === 3);
   return opened;
 }
