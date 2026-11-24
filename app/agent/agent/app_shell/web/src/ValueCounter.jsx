@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { getValueCounter } from './api.js';
-import { counterLines, counterTitle } from './valueCounter.js';
+import { getValueCounter, getValueLeaders } from './api.js';
+import { chipLines, counterLines, counterTitle } from './valueCounter.js';
+import Leaders from './Leaders.jsx';
 
 export default function ValueCounter({ page }) {
   const [data, setData] = useState(null);
@@ -29,5 +30,32 @@ export function CounterView({ data }) {
         </p>
       )}
     </div>
+  );
+}
+
+// REQ-506: the value chip next to the user's name; a click opens the board.
+export function ValueChip({ page }) {
+  const [counter, setCounter] = useState(null);
+  const [leaders, setLeaders] = useState(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    let live = true;
+    getValueCounter(page.id).then((c) => {
+      if (!live) return;
+      setCounter(c);
+      if (c && c.shown) getValueLeaders(page.id).then((l) => { if (live) setLeaders(l); }).catch(() => { if (live) setLeaders(null); });
+    }).catch(() => { if (live) setCounter(null); });
+    return () => { live = false; };
+  }, [page.id]);
+  const lines = chipLines(counter, leaders);
+  return (
+    <span className="value-chip-wrap">
+      <button type="button" className={`value-chip${lines.set ? '' : ' is-unset'}`} data-value-chip="" data-tour="value" aria-expanded={open}
+        title={counter && counter.shown ? counterTitle(counter) : undefined} onClick={() => setOpen((o) => !o)}>
+        <span data-chip-value="" data-tour="saved">{lines.value}</span>
+        {lines.rank && <span className="value-chip-rank" data-chip-rank="">{lines.rank}</span>}
+      </button>
+      {open && <Leaders data={leaders} onClose={() => setOpen(false)} />}
+    </span>
   );
 }

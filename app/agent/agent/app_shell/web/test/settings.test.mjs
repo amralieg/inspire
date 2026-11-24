@@ -4,12 +4,18 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { TABLE, appInfo, goRail, openApp, serveDist, toastSays, until } from './harness.mjs';
+import { TABLE, appInfo, openApp, serveDist, toastSays, until } from './harness.mjs';
 import { CUSTOM_SQL_REFUSED, groupsOf, historyLines, inputText, settingProblem, storedText, valueText } from '../src/settings.js';
 import { dayLabel } from '../src/format.js';
 
 const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', 'tests', 'fixtures', 'implement_change_classes.json');
 const OWNER = ['owner', 'example.com'].join('@');
+
+// REQ-506: no side rail; Settings is an item of the avatar menu.
+const goSettings = async (page) => {
+  await page.locator('[data-avatar-menu] button').first().click();
+  await page.getByRole('menuitem', { name: 'Settings' }).click();
+};
 
 let served;
 let browser;
@@ -77,7 +83,7 @@ function routes(seen) {
 test('an owner changes a cutoff with a live preview and a note, and starts a run', async () => {
   const seen = {};
   const { page, seen: app, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: routes(seen) });
-  await goRail(page, 'settings');
+  await goSettings(page);
   await page.waitForSelector('[data-settings] [data-group="impact"]');
   await page.waitForSelector('[data-settings] [data-group="feedback"]');
   assert.deepEqual(await page.$$eval('[data-settings] [data-group]', (els) => els.map((e) => e.dataset.group)),
@@ -116,7 +122,7 @@ test('Save is busy while the change is written, then reports it saved', async ()
   const held = new Promise((r) => { release = r; });
   const gated = { ...base, 'settings/save': async (args) => { await held; return base['settings/save'](args); } };
   const { page, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: gated });
-  await goRail(page, 'settings');
+  await goSettings(page);
   await page.waitForSelector('[data-setting="act_now_amount"] button');
   await page.click('[data-setting="act_now_amount"] button');
   await page.locator('input[name="setting_act_now_amount"]').fill('1000');
@@ -135,9 +141,9 @@ test('Save is busy while the change is written, then reports it saved', async ()
 
 test('a viewer who is not an owner gets Settings with only their own My view, and no use-case setting or Run now', async () => {
   const { page, seen: app, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE));
-  await page.waitForSelector('[data-rail="settings"]');
+  await page.waitForSelector('[data-avatar-menu]');
   assert.equal(await page.locator('[data-settings]').count(), 0, 'Settings shows only on its own section');
-  await goRail(page, 'settings');
+  await goSettings(page);
   await page.waitForSelector('[data-settings] [data-group="access"]');
   await page.waitForSelector('[data-settings] [data-group="feedback"]');
   assert.deepEqual(await page.$$eval('[data-settings] [data-group]', (els) => els.map((e) => e.dataset.group)), ['my_view', 'look', 'measurement', 'help', 'share', 'access', 'feedback']);
@@ -156,7 +162,7 @@ test('an owner changes the alert threshold when the alert reads the App settings
   const state = { view: { ...VIEW, settings: editable } };
   r.settings = ({ json }) => json(200, state.view);
   const { page, seen: app, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: r });
-  await goRail(page, 'settings');
+  await goSettings(page);
   await page.waitForSelector('[data-settings] [data-setting="alert_threshold"]');
   assert.doesNotMatch(await page.locator('[data-setting="alert_threshold"]').innerText(), /Build page/);
   await page.click('[data-setting="alert_threshold"] button');
@@ -192,7 +198,7 @@ test('an owner sets the team capacity on the App Settings page, checked as the r
     return json(200, state.view);
   };
   const { page, seen: app, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: r });
-  await goRail(page, 'settings');
+  await goSettings(page);
   await page.waitForSelector('[data-setting="act_now_capacity"]');
   assert.match(await page.locator('[data-setting="act_now_capacity"]').innerText(), /Team capacity/);
   await page.click('[data-setting="act_now_capacity"] button');

@@ -36,7 +36,7 @@
 .msel-hint{margin:0 0 4px;padding:0 8px 6px;font-size:12px;color:var(--muted)}
 .dr-tags{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .dr-tags .chg-b{margin:0}
-.dr-act{margin-top:4px}
+.dr-act,.dr-form{margin-top:4px}
 .act-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .act-form .in--wide{grid-column:1/-1}
 .act-form textarea{resize:vertical}

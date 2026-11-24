@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createPortal, flushSync } from 'react-dom';
+import { flushSync } from 'react-dom';
 import DataTable, { FieldGrid, recordColumns } from './DataTable.jsx';
 import { GenieMark, Icon } from './icons.jsx';
 import { ExplainButton } from './Genie.jsx';
@@ -10,7 +10,7 @@ import { BUSY_TITLE, fieldsOf, tableContext } from './explain.js';
 import { AskGenie } from './AskGenie.jsx';
 import { DraftDialog } from './Draft.jsx';
 import { OPEN_TAB, UNCHECKED_TAB, tabChoice, withRecord, withoutRecord } from './links.js';
-import { useDock } from './Dock.jsx';
+import { MoreMenu } from './MoreMenu.jsx';
 import { addCounts, addedParts, cap, compareValues, dayLabel, entityName, integer, kindOf, plainText, savedWords, shownUnit, unitOf } from './format.js';
 import { foundNothingText } from './zeroState.js';
 
@@ -29,7 +29,7 @@ import { WindowChips, useFocusList, useMyView } from './MyView.jsx';
 import { EVERYTHING, listLimit, listWindow, localDay, markVisit, narrowWindow, nextDay, visitedAt, windowLabel } from './prefs.js';
 import { BatchesDialog, BulkBar, CaughtUp, ChoiceSelect, ConflictNote, HelpDialog, SimilarDialog, isTyping, useActs } from './Work.jsx';
 import { recordName, recordSentenceName,
-  DRAFT_LABEL, ACT_LIMIT, CHOICE_COLUMN, CLOSED_STATUSES, DONE, HELD, NOTE_CHARS, PAGE_SIZES, REASON_CHARS, UNEXPLAINED, actionForm, actionProblem, actionValues, pageChoices, pickChoice, statusKind, OPEN_STATUSES, isOpenStatus, choiceLabel, closingChoices, isDefaultChoice, QUICK_CLOSE,
+  DRAFT_LABEL, ACT_LIMIT, CHOICE_COLUMN, CLOSED_STATUSES, DONE, HELD, NOTE_CHARS, PAGE_SIZES, REASON_CHARS, UNEXPLAINED, actionForm, actionProblem, actionValues, pageChoices, pickChoice, statusKind, OPEN_STATUSES, isOpenStatus, choiceLabel, closingChoices, isDefaultChoice, QUICK_CLOSE, resolveText,
   aiValue, askQuestions, changeBadge, doneText, dueText, explainContext, heldBack, heldText, impactText, initials, isOverdue, keptText, leftText, matchOf,
   missingSince, NOT_IN_RUN, notInRunText, overdueFirst, pageText, recordCurrency, recordKeyOf, recordRef, recordView, recordsText, savingText, savingView, statusClass,
   actionPhrase, recordHeading, goalLine,
@@ -165,7 +165,7 @@ function SnoozeButton({ action, tomorrow }) {
   };
   return (
     <>
-      <SaveButton write={SNOOZE_WRITE} ref={anchor} onClick={() => setOpen(!open)} aria-expanded={open}>Snooze…</SaveButton>
+      <SaveButton write={SNOOZE_WRITE} ref={anchor} onClick={() => setOpen(!open)} aria-expanded={open}>Later</SaveButton>
       {open && (
         <Popover anchor={anchor.current} onClose={close} label="Snooze this record" width={260}>
           <form className="bulk-pop" onSubmit={submit}>
@@ -222,7 +222,7 @@ function ActionPanel({ action, owners, pageId, reason, owner, closing, unit, kin
     action.save(form, SAVED, SAVE_WRITE);
   };
   return (
-    <section className="sec dr-act" aria-label="Action">
+    <section className="sec dr-form" aria-label="Action">
       <h3><Icon name="users" size={13} />Action</h3>
       <form className="act-form" onSubmit={submit} noValidate>
         <fieldset className="act-fs" disabled={saving}>
@@ -296,10 +296,8 @@ function AskAbout({ meta, onAsk, busy }) {
 }
 
 function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners, app, pageId, nonce, aliases, onEdit, onDelete, acts, onExplain, genieBusy, model,
-  work, tomorrow, today, focusOwner, closedReadOnly, dock = null, clusterRows = [], onActed }) {
-  const modal = useDialog(!dock && !!given, onClose);
-  const docked = useRef(null);
-  const ref = dock ? docked : modal;
+  work, tomorrow, today, focusOwner, closedReadOnly, clusterRows = [], onActed }) {
+  const ref = useDialog(!!given, onClose);
   const log = useHistory(pageId, history && given ? recordRef(meta, given) : null, nonce);
   const person = app.user?.email || '';
   const current = log.data?.current || null;
@@ -326,9 +324,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
   const readOnly = closed && !!closedReadOnly;
   const [undoAsk, setUndoAsk] = useState(false);
   const [drafting, setDrafting] = useState(false);
-  const [more, setMore] = useState(false);
   useEffect(() => { setUndoAsk(false); }, [linkKey, undoBatch]);
-  useEffect(() => { setMore(false); }, [linkKey]);
   const modify = canModify && !deleted && !readOnly;
   const modifyButtons = [
     <button key="delete" className="btn" onClick={() => onDelete(row)}><Icon name="trash" size={14} />Delete</button>,
@@ -372,8 +368,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
     flushSync(() => action.setForm((f) => pickChoice(f, choices, choice.id)));
     reason.current?.focus();
   };
-  const giveTo = (e) => {
-    const who = e.target.value;
+  const giveTo = (who) => {
     if (who === SOMEONE_ELSE) {
       ownerInput.current?.focus();
       ownerInput.current?.select();
@@ -389,10 +384,29 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
   const details = recordDetails(meta, row, unit, kind);
   const heading = recordHeading(actionPhrase(useCase?.title), title);
   const goal = goalLine(useCase?.question);
+  // REQ-506: three actions in the open (Resolve, Not an issue, Later) and More for the rest.
+  const ways = closingChoices(choices).map((c) => ({ c, kind: statusKind(c.status), text: isDefaultChoice(c) ? QUICK_CLOSE[statusKind(c.status)][0] : c.label }));
+  const resolveWay = ways.find((w) => w.kind === 'done');
+  const notIssue = ways.find((w) => w.kind === 'dismissed');
+  const finish = (c) => async () => {
+    const saved = await action.save(pickChoice(action.form, choices, c.id), doneText({ action_status: c.status, [CHOICE_COLUMN]: c.id }, '', '', choices), closeWrite(c),
+      () => window.dispatchEvent(new CustomEvent(AGENT_OPEN, { detail: { pageId, recordKey: linkKey } })));
+    if (saved && statusKind(c.status) === 'done') onClose();
+  };
+  const open3 = acting && !closed && !work;
+  const menu = acting && !readOnly ? [
+    ...(open3 ? ways.filter((w) => w !== resolveWay && w !== notIssue).map((w) => ({ label: w.text, run: w.kind === 'dismissed' ? () => dismiss(w.c) : finish(w.c), attrs: { 'data-choice': w.c.id } })) : []),
+    ...(person && person !== owner ? [{ label: 'Give to me', run: () => giveTo(person) }] : []),
+    ...(owner ? [{ label: 'Clear the owner', run: () => giveTo(CLEAR_OWNER) }] : []),
+    { label: 'Give to someone\u2026', run: () => giveTo(SOMEONE_ELSE) },
+    { label: 'Set status', run: () => ref.current?.querySelector(`[name="${CHOICE_COLUMN}"]`)?.focus() },
+    { label: DRAFT_LABEL, run: () => setDrafting(true), attrs: { 'data-act': 'draft' } },
+    ...(genieOn(app, pageId) ? [{ label: 'Ask Genie to fix', run: () => ask(fixQuestion(title)), attrs: { 'data-act': 'genie' } }] : []),
+    ...(modify ? [{ label: 'Edit', run: () => onEdit(row) }, { label: 'Delete', run: () => onDelete(row) }] : []),
+  ] : [];
   const shown = (
-    <dialog ref={ref} className={`drawer panel ${dock ? 'drawer--docked' : ''}`} aria-label={row ? heading : 'Record'} data-closed={closed ? '' : undefined}
-      open={dock ? !!row : undefined} onClick={(e) => { if (!dock && e.target === ref.current) onClose(); }}
-      onKeyDown={dock ? (e) => { if (e.key === 'Escape' && !e.defaultPrevented && e.target.closest('dialog') === e.currentTarget) { e.preventDefault(); onClose(); } } : undefined}>
+    <dialog ref={ref} className="drawer panel" aria-label={row ? heading : 'Record'} data-closed={closed ? '' : undefined}
+      onClick={(e) => { if (e.target === ref.current) onClose(); }}>
       {row && (
         <div className="dr">
           <header className="panel-h">
@@ -450,6 +464,20 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
                 )}
               </section>
             )}
+            {acting && !readOnly && (
+              <section className="sec dr-act" aria-label="Actions">
+                <div className="dr-acts">
+                  {open3 && resolveWay && (
+                    <SaveButton write={closeWrite(resolveWay.c)} className="btn btn--pri" data-act={QUICK_CLOSE.done[1]} data-choice={resolveWay.c.id} data-key="d" onClick={finish(resolveWay.c)}>
+                      <Icon name="check" size={15} />{resolveText(current?.value_at_stake ?? row.value_at_stake, shownUnit(unit, recordCurrency(meta, current, row), kind), kind)}
+                    </SaveButton>
+                  )}
+                  {open3 && notIssue && <button type="button" className="btn" data-act={QUICK_CLOSE.dismissed[1]} data-choice={notIssue.c.id} disabled={action.saving} onClick={() => dismiss(notIssue.c)}>{notIssue.text}</button>}
+                  {open3 && <SnoozeButton key="snooze" action={action} tomorrow={tomorrow} />}
+                  <MoreMenu items={menu} />
+                </div>
+              </section>
+            )}
             {acting && !readOnly && <ActionPanel action={action} owners={owners} pageId={pageId} reason={reason} owner={ownerInput} closing={closing} unit={unit} kind={kind} />}
             {genieOn(app, pageId) && <AskAbout meta={meta} onAsk={ask} busy={genieBusy} />}
             {details.length > 0 && (
@@ -475,54 +503,6 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
               {action.failure?.stale && <button type="button" className="link" onClick={() => log.reload().catch(() => {})}><Icon name="undo" size={13} />Reload the record</button>}
             </Failure>
             {work && <WorkBar key={linkKey} work={work} action={action} tomorrow={tomorrow} canAct={acting} />}
-            {acting && !work && !closed && (() => {
-              const picks = closingChoices(choices);
-              const kinds = picks.map((c) => statusKind(c.status));
-              const closers = picks.map((c, i) => {
-                const [text, act] = isDefaultChoice(c) ? QUICK_CLOSE[statusKind(c.status)] : [c.label, `choice-${c.id}`];
-                const done = statusKind(c.status) === 'done';
-                const shape = { className: `btn ${i === 0 && done ? 'btn--pri' : ''}`, 'data-act': act, 'data-choice': c.id, ...(i === 0 && done ? { 'data-key': 'd' } : {}) };
-                const face = <>{i === 0 && done && <Icon name="check" size={15} />}{text}</>;
-                if (statusKind(c.status) === 'dismissed') return <button key={c.id} {...shape} disabled={action.saving} onClick={() => dismiss(c)}>{face}</button>;
-                const write = closeWrite(c);
-                const finish = async () => {
-                  const saved = await action.save(pickChoice(action.form, choices, c.id), doneText({ action_status: c.status, [CHOICE_COLUMN]: c.id }, '', '', choices), write,
-                    () => window.dispatchEvent(new CustomEvent(AGENT_OPEN, { detail: { pageId, recordKey: linkKey } })));
-                  if (saved && statusKind(c.status) === 'done') onClose();
-                };
-                return (
-                  <SaveButton key={c.id} write={write} {...shape}
-                    onClick={finish}>
-                    {face}
-                  </SaveButton>
-                );
-              });
-              // REQ-397: one primary action, a short row (Not an issue, Give to someone, Snooze), and More for the rest.
-              const primary = closers.filter((_, i) => kinds[i] === 'done');
-              const dismissals = closers.filter((_, i) => kinds[i] === 'dismissed');
-              const rest = [
-                ...closers.filter((_, i) => kinds[i] !== 'done' && kinds[i] !== 'dismissed'),
-                <button key="draft" type="button" className="btn" onClick={() => setDrafting(true)} data-act="draft"><Icon name="send" size={14} />{DRAFT_LABEL}</button>,
-                genieOn(app, pageId) && <button key="genie" type="button" className="btn" onClick={() => ask(fixQuestion(title))} data-act="genie"><GenieMark size={14} />Ask Genie to fix</button>,
-                ...(modify ? modifyButtons : []),
-              ].filter(Boolean);
-              return (
-                <>
-                  {primary}
-                  {dismissals}
-                  <select className="btn" aria-label="Give to someone" value="" onChange={giveTo} disabled={action.saving} aria-busy={action.mine(GIVE_WRITE) || undefined}>
-                    <option value="">{action.mine(GIVE_WRITE) ? savingLabel(action.slow) : owner ? `With ${owner}` : 'Give to someone'}</option>
-                    {owner && <option value={CLEAR_OWNER}>Clear the owner</option>}
-                    {person && person !== owner && <option value={person}>Give to me</option>}
-                    {owners.filter((o) => o !== owner && o !== person).map((o) => <option key={o} value={o}>Give to {o}</option>)}
-                    <option value={SOMEONE_ELSE}>Someone else…</option>
-                  </select>
-                  <SnoozeButton key="snooze" action={action} tomorrow={tomorrow} />
-                  <button type="button" className="btn" aria-expanded={more} onClick={() => setMore(!more)} data-act="more"><Icon name="dots" size={14} />{more ? 'Fewer' : 'More'}</button>
-                  {more && rest}
-                </>
-              );
-            })()}
             {acting && !closed && snoozeOf(current) >= today && (
               <AskFirst word={WAKE_WORD} ask={WAKE_ASK} name={title} write="drawer:wake" data-wake
                 run={() => action.send({ snooze_until: null }, WOKE, 'drawer:wake')} />
@@ -541,15 +521,14 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
               <AskFirst word={REOPEN} ask={REOPEN_ASK} name={title} write="drawer:reopen" data-reopen run={() => action.send(REOPENED, REOPENED_SAID, 'drawer:reopen')} />
             )}
             <span className="sp" />
-            {modify && !(acting && !work && !closed) && modifyButtons}
+            {modify && !(acting && !readOnly) && modifyButtons}
             {!modify && !(acting && !closed) && <button className="btn" onClick={onClose}>Close</button>}
           </footer>
         </div>
       )}
     </dialog>
   );
-  if (!dock) return shown;
-  return dock.tab === 'record' && dock.slot && row ? createPortal(shown, dock.slot) : null;
+  return shown;
 }
 
 export function RecordPanel({ meta, app, pageId, row, list, onClose, onChanged, similarBy, onExplain, genieBusy }) {
@@ -594,7 +573,7 @@ function emptyState({ search, mine, changed, fresh, windowed, narrowedAny, range
 
 export default function Records({ meta, app, pageId, filters, ai, onFilter, history = false, onChanged, nonce = 0, ready = true, onExplain, genieBusy, openKey,
   columnMeta, columnValues, onColumn, onClearColumns, onClearFilters, seeChanged = 0, onShowRuns, similarBy, keepsActions, onList, onOpen, section, sort: lookSort, onSort: onLookSort,
-  tab, focus: only, docked = false, onTab, raise, runChecked = null }) {
+  tab, focus: only, onTab, raise, runChecked = null }) {
   const { prefs, update } = useMyView();
   const [query, setQuery] = useState('');
   const search = useDebounced(query.trim(), 300);
@@ -611,8 +590,6 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const tabOpen = tab === OPEN_TAB;
   const unchecked = tab === UNCHECKED_TAB;
   const mine = tab ? tab === 'mine' : ownMine;
-  const dockNow = useDock();
-  const dock = docked ? dockNow : null;
   const [changed, setChanged] = useState(false);
   const [fresh, setFresh] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -651,12 +628,6 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
     } else if (typeof list.data?.actions === 'boolean') KEPT.set(pageId, list.data.actions);
   }, [list.unwindowed, list.data, pageId]);
   const [open, setOpen] = useState(() => (openKey ? { record_key: String(openKey) } : null));
-  useEffect(() => {
-    if (!dock) return;
-    dock.onShowing(!!open);
-    if (open) dock.onTab('record');
-  }, [open, !!dock]);
-  useEffect(() => () => dock?.onShowing(false), [!!dock]);
   const [form, setForm] = useState(null);
   const [doomed, setDoomed] = useState(null);
   const [drawerNonce, setDrawerNonce] = useState(0);
@@ -874,7 +845,6 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       if (e.key === '/' && !drawer) { e.preventDefault(); searchBox.current?.focus(); return; }
       if (e.key === 'Escape') {
         if (!drawer) setCursorKey('');
-        else if (drawer.classList.contains('drawer--docked')) { e.preventDefault(); k.close(); }
         return;
       }
       const at = k.rows.findIndex((r) => k.keyOf(r) === (drawer && k.open ? k.keyOf(k.open) : k.cursorKey));
@@ -1024,7 +994,11 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
                 <RejectAsk name={name} write={`reject:${keyOf(r)}`} run={(reason) => quick(r, approvalValues('reject', reason), 'Rejected', `reject:${keyOf(r)}`)} />
               </>
             )}
-            {closingChoices(choices).filter((c) => c.id !== now).map((c) => {
+            {closingChoices(choices).some((c) => statusKind(c.status) === 'done') && (
+              <SaveButton write={`resolve:${keyOf(r)}`} className="btn btn--sm btn--pri" data-resolve={keyOf(r)} aria-label={`Resolve ${name}`}
+                onClick={stop(() => quick(r, { action_status: DONE }, undefined, `resolve:${keyOf(r)}`, { action: 'done' }))}>{resolveText(r.value_at_stake, shownUnit(unitOf(data?.money), recordCurrency(meta, null, r), kindOf(data?.money)), kindOf(data?.money))}</SaveButton>
+            )}
+            {closingChoices(choices).filter((c) => c.id !== now && statusKind(c.status) !== 'done').map((c) => {
               const label = isDefaultChoice(c) ? QUICK_CLOSE[statusKind(c.status)]?.[0] || c.label : c.label;
               const name = recordSentenceName(r, meta);
               if (statusKind(c.status) === 'dismissed') {
@@ -1175,7 +1149,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       <Drawer meta={meta} row={shown} onClose={work ? stopWork : close} history={history} canModify={canModify} tracker={tracker} owners={owners} app={app} pageId={pageId} onActed={acted} clusterRows={data?.rows || []}
         nonce={drawerNonce} aliases={aliases} onEdit={edit} onDelete={setDoomed} acts={acts} onExplain={onExplain} genieBusy={genieBusy} model={data?.money}
         work={work && !work.ended && shown ? { text: workText, next: workNext } : null} tomorrow={tomorrow} today={today} focusOwner={ownerFocus}
-        closedReadOnly={everything} dock={dock} />
+        closedReadOnly={everything} />
       {form && <RecordForm mode={form.mode} target={form.target} meta={meta} pageId={pageId} rows={rows} onClose={() => setForm(null)} onSaved={saved} />}
       {doomed && <DeleteDialog target={recordRef(meta, doomed)} label={recordName(doomed, meta) || 'this record'} pageId={pageId} onClose={() => setDoomed(null)} onSaved={saved} />}
       {acts.similar && <SimilarDialog similar={acts.similar} meta={meta} pageId={pageId} model={data?.money} choices={choices} onClose={acts.closeSimilar} onApply={acts.applySimilar} />}

@@ -37,6 +37,8 @@ export const rowChoice = (choices, row) => choiceOf(choices, row?._inspire_statu
 export const rowChoiceId = (row) => row?._inspire_choice ?? row?.[CHOICE_COLUMN] ?? null;
 export const choiceLabel = (choices, row) => rowChoice(choices, row)?.label || statusLabel(row?._inspire_status || row?.action_status || NEW);
 export const closingChoices = (choices) => (choices || []).filter((c) => !isOpenStatus(c.status));
+// REQ-506: the one button that earns value shows the record's own value at stake, and a plain word when there is none.
+export const resolveText = (amount, currency, kind) => (isAmount(amount) ? `Resolve +${wholeMoney(countOf(amount), currency, kind)}` : 'Resolve');
 export const QUICK_CLOSE = { done: ['Mark done', 'done'], dismissed: ['Not an issue', 'dismiss'], could_not: ['Could not fix', 'could-not-fix'] };
 export const writesChoice = (choices) => !(choices?.length === DEFAULT_CHOICES.length && choices.every(isDefaultChoice));
 export function choiceValues(choice, detail = '', choices = [choice]) {

@@ -85,17 +85,15 @@ test('a drawer action shows Saving… with a spinner at once, locks the other wr
   const drawer = page.locator('dialog.drawer');
   await page.locator('.cell-t').first().click();
   await drawer.locator('.dr-act').waitFor();
-  await footerActions(drawer);
   const hold = writes.hold();
   const ms = await spinnerWithin(page, 'dialog.drawer [data-act="done"]');
   assert.ok(ms < 100, `the spinner showed after ${ms} ms`);
   assert.equal(await drawer.locator('[data-saving]').innerText(), 'Saving…');
   assert.equal(await drawer.locator('[data-act="done"]').getAttribute('aria-busy'), 'true');
-  await footerActions(drawer);
-  for (const name of ['Could not fix', 'Snooze…', 'Save action']) {
+  for (const name of ['Not an issue', 'Later', 'Save action']) { // REQ-506: Could not fix moved into More, Snooze… is Later
     assert.equal(await drawer.getByRole('button', { name, exact: true }).isDisabled(), true, `${name} waits for the save`);
   }
-  assert.equal(await drawer.getByRole('combobox', { name: 'Give to someone' }).isDisabled(), true);
+  assert.equal(await drawer.locator('input[name="action_owner"]').isDisabled(), true, 'the owner field waits for the save'); // REQ-506: Give to someone… is the owner field under More
   assert.equal(await drawer.locator('select[name="action_choice"]').isDisabled(), true, 'the record form is locked while it saves');
   assert.equal(await drawer.locator('.panel-b').getAttribute('aria-busy'), 'true');
   await shot(page, 'drawer_saving');
@@ -118,29 +116,31 @@ test('a closing choice of the page\'s own statuses saves through the same busy s
   const { page, seen, context } = await openList(listRoutes(writes), OWN_STATUSES);
   const drawer = page.locator('dialog.drawer');
   await page.locator('.cell-t').first().click();
-  await drawer.locator('[data-act="choice-drop"]').waitFor();
-  assert.deepEqual(await drawer.locator('button[data-act^="choice-"]').evaluateAll((b) => b.map((x) => x.dataset.choice)), ['keep', 'drop', 'wrong']);
+  // REQ-506: the page's own closing statuses are Resolve (the first Done choice, keep), Not an issue (wrong) and the rest under More (drop).
+  await drawer.locator('[data-act="done"]').waitFor();
+  assert.deepEqual(await drawer.locator('.dr-acts button[data-choice]').evaluateAll((b) => b.map((x) => x.dataset.choice)), ['keep', 'wrong']);
+  await drawer.locator('[data-act="more"]').click();
+  assert.deepEqual(await drawer.locator('[role="menu"] [data-choice]').evaluateAll((b) => b.map((x) => x.dataset.choice)), ['drop'], 'the other closing choice is under More');
+  await drawer.locator('[data-act="more"]').click();
   const hold = writes.hold();
   hold.fail = { status: 502, error: 'The warehouse is busy' };
-  const ms = await spinnerWithin(page, 'dialog.drawer [data-act="choice-drop"]');
+  const ms = await spinnerWithin(page, 'dialog.drawer [data-act="done"]');
   assert.ok(ms < 100, `the spinner showed after ${ms} ms`);
-  assert.equal(await drawer.locator('[data-act="choice-drop"]').getAttribute('aria-busy'), 'true');
-  for (const act of ['choice-keep', 'choice-wrong']) {
-    assert.equal(await drawer.locator(`[data-act="${act}"]`).isDisabled(), true, `${act} waits for the save`);
-  }
+  assert.equal(await drawer.locator('[data-act="done"]').getAttribute('aria-busy'), 'true');
+  assert.equal(await drawer.locator('[data-act="dismiss"]').isDisabled(), true, 'the other closing choice waits for the save');
   assert.equal(await drawer.locator('select[name="action_choice"]').isDisabled(), true);
   await page.keyboard.press('d');
   assert.equal(writes.writes.length, 1, 'a double click and the d key while saving send no second write');
-  assert.deepEqual(writes.writes[0].values, { action_owner: PERSON, action_status: 'Done', action_choice: 'drop' });
+  assert.deepEqual(writes.writes[0].values, { action_owner: PERSON, action_status: 'Done', action_choice: 'keep' });
   hold.open();
   await page.waitForFunction(() => !document.querySelector('[data-saving]'));
   await drawer.locator('.fail, [role="alert"]').first().waitFor();
-  assert.equal(await drawer.locator('[data-act="choice-drop"]').innerText(), 'Drop the item');
-  assert.equal(await drawer.locator('[data-act="choice-drop"]').isDisabled(), false, 'the failed choice can be pressed again');
-  await drawer.locator('[data-act="choice-drop"]').click();
+  assert.match(await drawer.locator('[data-act="done"]').innerText(), /^Resolve/);
+  assert.equal(await drawer.locator('[data-act="done"]').isDisabled(), false, 'the failed choice can be pressed again');
+  await drawer.locator('[data-act="done"]').click();
   await until(() => writes.writes.length === 2);
   assert.deepEqual(writes.writes[1].values, writes.writes[0].values, 'the retry sends the same choice');
-  await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent?.startsWith('Marked Drop the item'));
+  await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent?.startsWith('Marked Keep the price'));
   assert.deepEqual(seen.errors.filter((e) => !/502/.test(e)), []);
   await context.close();
 });
@@ -151,7 +151,8 @@ test('a choice row of a custom layout saves through the same busy state: Saving�
   const spec = JSON.parse(readFileSync(new URL(`../../examples/${id}.json`, import.meta.url), 'utf8'));
   const acts = [];
   const routes = kindRoutes(CASES[id].data(), CASES[id].rows.map((row) => ({ ...row })), acts, spec, { 'records/act': ({ route, json }) => writes.route(route, json, written) });
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, {}, `examples/${id}.json`), { routes, clock: CLOCK });
+  const info = appInfo(DECIDE, 1, {}, `examples/${id}.json`);
+  const { page, seen, context } = await openApp(browser, served.base, info, { routes, clock: CLOCK, hash: `#/${info.pages[0].id}/dashboard` }); // REQ-506: a custom layout lives on the dashboard section
   const first = page.locator('[data-choice-row="K1"]');
   await first.locator('[data-choice="send"]').waitFor();
   const hold = writes.hold();
@@ -192,15 +193,18 @@ test('a bulk action locks its rows and the other writes, the list still pages wh
   const { page, seen, context } = await openList(listRoutes(writes));
   await page.getByRole('checkbox', { name: `Select ${label(1)}` }).check();
   await page.getByRole('checkbox', { name: `Select ${label(2)}` }).check();
-  await page.getByRole('button', { name: 'Mark done…' }).click();
+  await page.locator('[data-bulk="done"]').click(); // REQ-506: Mark done… is Resolve
   await page.locator('textarea[name="bulk_note"]').fill('Closed with the supplier');
   const hold = writes.hold();
   hold.fail = { status: 500, error: 'The SQL warehouse did not answer in time' };
   const ms = await spinnerWithin(page, '.pop button[type="submit"]');
   assert.ok(ms < 100, `the spinner showed after ${ms} ms`);
-  for (const name of ['Snooze…', 'Assign to…', 'Set status…', 'Not an issue…']) {
+  for (const name of ['Not an issue', 'Later']) { // REQ-506: Snooze… is Later; Assign to… and Set status… moved into More
     assert.equal(await page.locator('.bulk').getByRole('button', { name, exact: true }).isDisabled(), true, `${name} waits for the save`);
   }
+  await page.locator('.bulk [data-act="more"]').click();
+  await page.getByRole('menuitem', { name: 'Assign to…' }).click();
+  assert.equal(await page.locator('.pop button[type="submit"]').isDisabled(), true, 'Assign to… (under More) waits for the save');
   assert.deepEqual(await page.locator('.card--table tbody tr.is-saving .cell-t b').allInnerTexts(), [label(1), label(2)], 'only the rows being saved are locked');
   assert.equal(await page.getByRole('checkbox', { name: `Select ${label(3)}` }).isDisabled(), true, 'no new pick while it saves');
   await shot(page, 'bulk_saving');
@@ -215,7 +219,7 @@ test('a bulk action locks its rows and the other writes, the list still pages wh
   await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'The SQL warehouse did not answer in time');
   await page.waitForFunction(() => !document.querySelector('[data-saving]'));
   assert.equal(await page.locator('.bulk b').innerText(), '2 selected:', 'the selection survives the failure');
-  if (!(await page.locator('textarea[name="bulk_note"]').count())) await page.getByRole('button', { name: 'Mark done…' }).click();
+  if (!(await page.locator('textarea[name="bulk_note"]').count())) await page.locator('[data-bulk="done"]').click();
   assert.equal(await page.locator('textarea[name="bulk_note"]').inputValue(), 'Closed with the supplier', 'the note survives the failure');
   assert.equal(await page.locator('.card--table tbody tr.is-saving').count(), 0);
   await page.locator('.pop button[type="submit"]').click();
@@ -265,8 +269,9 @@ test('an Ask Genie confirmation shows Saving… at once, locks Cancel, keeps the
     'agent/ask': ({ json }) => json(200, { ...TURN, state: 'running', answer: '', confirm: null }),
     'agent/turn': ({ json }) => json(200, TURN),
   });
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({ ...DECIDE }), { routes });
-  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({ ...DECIDE }), { routes, hash: '#/n01_u05/work' });
+  await page.locator('[data-mode-switch] [data-mode="genie"]').click(); // REQ-506: the Ask Genie button is the Genie mode switch
+  await page.locator('[data-genie-full]').waitFor({ state: 'visible' });
   await page.getByRole('textbox', { name: 'Your question' }).fill('Mark the critical ones done');
   await page.getByRole('button', { name: 'Send' }).click();
   const card = page.getByRole('group', { name: 'Mark done: 2 records' });

@@ -41,6 +41,11 @@ function routesFor(reply, more = {}) {
   });
 }
 
+const moreItem = async (page, name) => {
+  await page.locator('.bulk [data-act="more"]').click();
+  await page.getByRole('menuitem', { name }).click();
+};
+
 async function openList(routes, info = appInfo(DECIDE, 1, TABLE)) {
   const opened = await openApp(browser, served.base, info, { routes, clock: CLOCK, timezone: 'Asia/Dubai', hash: '#/n01_u05/work' });
   await opened.page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length > 0 && document.querySelector('.list-tools'));
@@ -56,14 +61,15 @@ test('Select all matching acts on every matching record with the load time and t
   const { page, seen, context } = await openList(routes);
   await page.getByRole('checkbox', { name: 'Select every record on this page' }).check();
   assert.equal(await page.locator('.bulk b').innerText(), '25 selected:');
-  await page.getByRole('button', { name: 'Select all 30 matching' }).click();
+  await page.locator('.bulk').getByRole('button', { name: 'More' }).click();
+  await page.getByRole('menuitem', { name: 'Select all 30 matching' }).click();
   assert.equal(await page.locator('.bulk b').innerText(), 'All 30 open records selected');
   assert.equal(await page.locator('.bulk-asof').innerText(), 'As of Oct 27, 2026, 09:29 AM UTC. A record that changes after that is left as it is.');
   const loaded = seen.records.at(-1);
-  await page.getByRole('button', { name: 'Mark all as done…' }).click();
+  await page.getByRole('button', { name: 'Resolve all' }).click();
   assert.equal(await page.locator('textarea[name="bulk_note"]').getAttribute('maxlength'), '500');
   await page.locator('textarea[name="bulk_note"]').fill('Closed the promo for all of them');
-  await page.getByRole('button', { name: 'Mark 30 open records as done?' }).click();
+  await page.getByRole('button', { name: 'Resolve 30 open records?' }).click();
   await until(() => seen.acts?.length === 1);
   const act = seen.acts[0];
   assert.deepEqual(Object.keys(act).sort(), ['match', 'page', 'values'], 'a select-all act names no record_keys and no seen versions');
@@ -98,7 +104,7 @@ test('every status takes a note, a dismissal still needs its reason, and Snooze 
     await page.getByRole('checkbox', { name: `Select ${label(2)}` }).check();
   };
   await pick();
-  await page.getByRole('button', { name: 'Set status…' }).click();
+  await moreItem(page, 'Set status…');
   await page.locator('select[name="bulk_choice"]').selectOption('In progress');
   await page.locator('textarea[name="bulk_note"]').fill('Called both stores');
   await page.getByRole('button', { name: 'Set status of 2 records' }).click();
@@ -107,11 +113,11 @@ test('every status takes a note, a dismissal still needs its reason, and Snooze 
     values: { action_status: 'In progress', note: 'Called both stores' } });
   await page.waitForFunction(() => !document.querySelector('.bulk'));
   await pick();
-  await page.getByRole('button', { name: 'Set status…' }).click();
+  await moreItem(page, 'Set status…');
   await page.locator('select[name="bulk_choice"]').selectOption('Not an issue');
   assert.equal(await page.getByRole('button', { name: 'Set status of 2 records' }).isDisabled(), true, 'a dismissal still needs its reason');
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'Snooze…' }).click();
+  await page.locator('.bulk').getByRole('button', { name: 'Later' }).click();
   const until_ = page.locator('input[name="bulk_snooze"]');
   assert.deepEqual([await until_.inputValue(), await until_.getAttribute('min')], [TOMORROW, TOMORROW]);
   await until_.fill('2026-10-27');
@@ -146,7 +152,7 @@ async function openSimilar(found, reply = {}) {
   const { page, seen } = opened;
   await page.locator('.cell-t').first().click();
   await page.locator('dialog.drawer .dr-act').waitFor();
-  await page.locator('dialog.drawer').getByRole('button', { name: 'Mark done' }).click();
+  await page.locator('dialog.drawer').getByRole('button', { name: /^Resolve/ }).click();
   await until(() => seen.acts?.length === 1);
   await page.waitForFunction(() => [...document.querySelectorAll('.toast.is-on .toast-a button')].some((b) => /^Apply to \d+ similar$/.test(b.textContent)));
   await page.locator('.toast-a').getByRole('button', { name: /^Apply to \d+ similar$/ }).click();
@@ -260,7 +266,7 @@ test('when every reviewed record changed meanwhile, Apply to similar says nothin
   const { page, seen, context } = await openList(routes, appInfo(DECIDE, 1, { ...TABLE, similar_by: ['category', 'region'] }));
   await page.locator('.cell-t').first().click();
   await page.locator('dialog.drawer .dr-act').waitFor();
-  await page.locator('dialog.drawer').getByRole('button', { name: 'Mark done' }).click();
+  await page.locator('dialog.drawer').getByRole('button', { name: /^Resolve/ }).click();
   await page.waitForFunction(() => [...document.querySelectorAll('.toast.is-on .toast-a button')].some((b) => b.textContent === 'Apply to 2 similar'));
   await page.locator('.toast-a').getByRole('button', { name: 'Apply to 2 similar' }).click();
   const dialog = page.getByRole('dialog', { name: 'Apply to similar records' });
@@ -492,9 +498,9 @@ test('a refresh that fails after an act keeps the rows and their actions on scre
   const before = await rowChecks(page);
   assert.ok(before > 0, 'the list shows records that can be acted on');
   await page.getByRole('checkbox', { name: 'Select every record on this page' }).check();
-  await page.getByRole('button', { name: 'Mark done…' }).click();
+  await page.locator('.bulk').getByRole('button', { name: 'Resolve', exact: true }).click();
   await page.locator('textarea[name="bulk_note"]').fill('Merged into the surviving record');
-  await page.getByRole('button', { name: /^Mark \d+ records? done$/ }).click();
+  await page.getByRole('button', { name: /^Resolve \d+ records?$/ }).click();
   await page.getByText('The list could not load:').waitFor();
   assert.equal(await rowChecks(page), before, 'the rows and their actions stay after the refresh fails');
 });
@@ -513,7 +519,7 @@ test('a list whose new search fails shows none of the records of the old list', 
   assert.equal(await rowChecks(page), 0, 'a list of another search never shows the old records with their actions');
 });
 
-test('REQ-398: Mark done closes the record panel, its toast reads on at most two lines with Undo and Apply to similar, and Undo puts the record back and reopens the same panel', async () => {
+test('REQ-398: Resolve closes the record panel, its toast reads on at most two lines with Undo and Apply to similar, and Undo puts the record back and reopens the same panel', async () => {
   const { routes } = routesFor({}, {
     'records/similar': ({ json, url }) => json(200, { by: SIM_BY, count: 3, sample: [], match: SIM_MATCH(url.searchParams.get('record_key')) }),
     // A slow history read: the reopened panel must not rely on it having loaded when it appears.
@@ -530,10 +536,10 @@ test('REQ-398: Mark done closes the record panel, its toast reads on at most two
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
   const title = await drawer.locator('.panel-h h2').innerText();
-  await drawer.getByRole('button', { name: 'Mark done' }).click();
+  await drawer.getByRole('button', { name: /^Resolve/ }).click();
   await until(() => seen.acts?.length === 1);
   await page.waitForFunction(() => [...document.querySelectorAll('.toast.is-on .toast-a button')].some((b) => /^Apply to \d+ similar$/.test(b.textContent)));
-  assert.equal(await page.locator('dialog.drawer[open]').count(), 0, 'Mark done closes the record panel');
+  assert.equal(await page.locator('dialog.drawer[open]').count(), 0, 'Resolve closes the record panel');
   assert.deepEqual(await toastButtons(page), ['Undo', 'Apply to 3 similar']);
   const lines = await page.evaluate(() => {
     const t = document.querySelector('.toast.is-on .toast-t');
@@ -544,7 +550,7 @@ test('REQ-398: Mark done closes the record panel, its toast reads on at most two
   await until(() => seen.undos?.length === 1);
   await page.waitForFunction((t) => document.querySelector('dialog.drawer[open] .panel-h h2')?.textContent === t, title);
   await page.locator('dialog.drawer[open] .dr-act').waitFor();
-  assert.equal(await page.locator('dialog.drawer[open] .dr-act').count(), 1, 'the reopened panel offers Mark done again');
+  assert.equal(await page.locator('dialog.drawer[open] .dr-act').count(), 1, 'the reopened panel offers Resolve again');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

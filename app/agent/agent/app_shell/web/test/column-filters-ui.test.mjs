@@ -59,6 +59,8 @@ async function openList(hash = '#/n01_u05/work', columns = COLUMNS, info = appIn
   return opened;
 }
 
+// REQ-506: saved views live under Settings (Share and follow); Work has no Views button. The filters ride in the hash, so a section switch keeps them.
+const inSection = (page, section) => page.evaluate((s) => { location.hash = location.hash.replace(/^#\/([^/?]+)\/[^?]*/, `#/$1/${s}`); }, section);
 const lastList = (seen) => seen.records.at(-1);
 const shownTiers = (page) => card(page, LIST).locator('tbody .tier').allInnerTexts();
 
@@ -128,6 +130,7 @@ test('a link and a saved view carry the column filters, and opening them narrows
   await page.waitForFunction(() => /^10 records/.test(document.querySelector('section.card--table .card-h p')?.textContent || ''));
   assert.deepEqual([...new Set(await shownTiers(page))], ['Review']);
   assert.equal(await page.locator('.toast').count(), 0);
+  await inSection(page, 'settings');
   await page.getByRole('button', { name: 'Views', exact: true }).click();
   await page.getByRole('dialog', { name: 'Saved views' }).getByRole('button', { name: 'Save this view' }).click();
   const dialog = page.getByRole('dialog', { name: 'Save this view' });
@@ -136,8 +139,10 @@ test('a link and a saved view carry the column filters, and opening them narrows
   await toastSays(page, 'Saved the view "Review only"');
   const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), VIEWS_KEY);
   assert.deepEqual(stored.n01_u05, [{ name: 'Review only', view: 'work', filters: { c: { l: { priority_tier: ['Review'] } } } }]);
+  await inSection(page, 'work');
   await card(page, LIST).getByRole('button', { name: 'Clear filters' }).click();
   await until(() => !('column_filters' in lastList(seen)));
+  await inSection(page, 'settings');
   await page.getByRole('button', { name: 'Views', exact: true }).click();
   await page.getByRole('dialog', { name: 'Saved views' }).getByRole('button', { name: 'Review only', exact: true }).click();
   await toastSays(page, 'Showing the view "Review only"');
@@ -187,6 +192,7 @@ test('a table column with no top filter of its label narrows only that table, an
     segments: [{ column: 'segment', type: 'multi_select', label: 'Segment', options: SEGS, searchable: false }] } };
   const opened = await openApp(browser, base, info, {
     routes: { ...routes(columns), page: ({ route, json, seen: s }) => pagedTables(route, json, s, { worst: ['category', CATS], segments: ['segment', SEGS] }) },
+    hash: '#/n01_u05/dashboard', // REQ-506: tables live on the dashboard section, not on Work
   });
   const { page, seen, context } = opened;
   try {
@@ -220,6 +226,7 @@ test('a column with the same label as a top filter moves the top bar and every t
     shares: [{ column: 'category', type: 'multi_select', label: 'Category', options: CATS, searchable: false }] } };
   const opened = await openApp(browser, base, info, {
     routes: { ...routes(columns), page: ({ route, json, seen: s }) => pagedTables(route, json, s, { worst: ['category', CATS], shares: ['category', CATS] }) },
+    hash: '#/n01_u05/dashboard', // REQ-506: tables live on the dashboard section, not on Work
   });
   const { page, seen, context } = opened;
   try {

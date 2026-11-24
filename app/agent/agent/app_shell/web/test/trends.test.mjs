@@ -132,7 +132,7 @@ test('a focus pre-filter lands on the All tab, rides in the Work address and is 
 
 test('the dashboard shows the trend cards, and Fix this on Overdue opens Work on All with only the overdue records', async () => {
   const { routes: r, calls } = routes();
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: r, ready: '[data-trends] [data-tile="overdue"] .kpi-v' });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/dashboard', routes: r, ready: '[data-trends] [data-tile="overdue"] .kpi-v' });
   assert.equal(await page.locator('[data-trends] [data-tile="overdue"] .kpi-v').innerText(), '2');
   assert.equal(await page.locator('[data-trends] [data-tile="false_alarms"] .kpi-v').innerText(), '40%');
   await page.locator('[data-card="trend_flow"] canvas').waitFor();
@@ -164,7 +164,7 @@ test('the dashboard shows the trend cards, and Fix this on Overdue opens Work on
 
 test('Fix this on the over 30 days bar and on a Could save reason pre-filter Work', async () => {
   const { routes: r } = routes();
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: r, ready: '[data-bars="trend_ages"] [data-fix-reason="over_30"]' });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/dashboard', routes: r, ready: '[data-bars="trend_ages"] [data-fix-reason="over_30"]' });
   await page.locator('[data-bars="trend_ages"] [data-fix-reason="over_30"]').click();
   await until(() => seen.records.at(-1)?.focus === 'older');
   await page.evaluate(() => { window.location.hash = '#/n01_u05/dashboard'; });
@@ -177,7 +177,7 @@ test('Fix this on the over 30 days bar and on a Could save reason pre-filter Wor
 
 test('a use case without actions shows no trend cards and no error', async () => {
   const { routes: r } = routes({ trends: ({ json }) => json(200, { visible: true, tracked: true, actions: false, note: 'no actions' }) });
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: r, ready: '[data-fix]' });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/dashboard', routes: r, ready: '[data-fix]' });
   await page.waitForTimeout(300);
   assert.equal(await page.locator('[data-trends]').count(), 0);
   assert.deepEqual(seen.errors, []);
@@ -186,7 +186,7 @@ test('a use case without actions shows no trend cards and no error', async () =>
 
 test('the trend cards say so when they cannot load', async () => {
   const { routes: r } = routes({ trends: ({ json }) => json(500, { error: 'the warehouse is asleep' }) });
-  const { page, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: r, ready: '[data-trends-error]' });
+  const { page, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/dashboard', routes: r, ready: '[data-trends-error]' });
   assert.match(await page.locator('[data-trends-error]').innerText(), /the warehouse is asleep/);
   await context.close();
 });
@@ -212,14 +212,19 @@ test('Runs hides Run now from someone who may not run the use case', async () =>
   await context.close();
 });
 
-test('with alerting on, the Alerts list sits under Runs and the rail has no separate Alerts item', async () => {
+test('with alerting on, the Alerts list sits under Runs and the avatar menu has no separate Alerts item', async () => {
   const ON = { options: { modify: false, replace_edits: false, decisions: true, alerts: true }, alert_folder: '/Workspace/Shared/acme/alerts' };
   const listing = { on: true, reason: '', built: '', unread: 0, admin: false, caps: { app: 20, person: 10, used: 0, mine: 0 }, schedules: [],
     operators: ['>='], baseline_operators: ['>='], measures: [], alerts: [] };
   const { routes: r } = routes({ alerts: ({ json }) => json(200, listing), runs: ({ json }) => json(200, { ...NO_RUNS, runs: RUN_ROWS, total: 3 }) });
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(ON, 1, TABLE), { hash: '#/n01_u05/runs', routes: r, ready: 'section.alerts' });
-  assert.equal(await page.locator('[data-rail="alerts"]').count(), 0);
-  assert.equal(await page.locator('[data-rail="runs"]').getAttribute('aria-current'), 'page');
+  const info = appInfo(ON, 1, TABLE);
+  info.pages = info.pages.map((p) => ({ ...p, is_owner: true }));
+  const { page, seen, context } = await openApp(browser, served.base, info, { hash: '#/n01_u05/runs', routes: r, ready: 'section.alerts' });
+  await page.locator('[data-avatar-menu] button').first().click();
+  await page.getByRole('menuitem', { name: 'Runs' }).waitFor();
+  const names = await page.locator('[data-avatar-menu] [role="menuitem"]').evaluateAll((all) => all.map((m) => m.textContent.trim()));
+  assert.ok(!names.some((n) => /alerts/i.test(n)), `no separate Alerts item: ${names}`);
+  await page.keyboard.press('Escape');
   const order = await page.evaluate(() => {
     const runs = document.querySelector('section.runs');
     const alerts = document.querySelector('section.alerts');
@@ -228,7 +233,20 @@ test('with alerting on, the Alerts list sits under Runs and the rail has no sepa
   assert.ok(order, 'the alerts come after the runs');
   await page.goto(`${served.base}#/n01_u05/alerts`);
   await page.locator('section.alerts').waitFor();
-  assert.equal(await page.locator('[data-rail="runs"]').getAttribute('aria-current'), 'page', 'an alerts link still lights up Runs');
   assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+// PRODUCT GAP (REQ-506): AvatarMenu.jsx:30 marks no current item, so an alerts link no longer lights up Runs (it did, as aria-current, in the old rail).
+test('an alerts link still lights up Runs in the avatar menu', async () => {
+  const ON = { options: { modify: false, replace_edits: false, decisions: true, alerts: true }, alert_folder: '/Workspace/Shared/acme/alerts' };
+  const listing = { on: true, reason: '', built: '', unread: 0, admin: false, caps: { app: 20, person: 10, used: 0, mine: 0 }, schedules: [],
+    operators: ['>='], baseline_operators: ['>='], measures: [], alerts: [] };
+  const { routes: r } = routes({ alerts: ({ json }) => json(200, listing), runs: ({ json }) => json(200, { ...NO_RUNS, runs: RUN_ROWS, total: 3 }) });
+  const info = appInfo(ON, 1, TABLE);
+  info.pages = info.pages.map((p) => ({ ...p, is_owner: true }));
+  const { page, context } = await openApp(browser, served.base, info, { hash: '#/n01_u05/alerts', routes: r, ready: 'section.alerts' });
+  await page.locator('[data-avatar-menu] button').first().click();
+  assert.equal(await page.getByRole('menuitem', { name: 'Runs' }).getAttribute('aria-current', { timeout: 3000 }), 'page');
   await context.close();
 });

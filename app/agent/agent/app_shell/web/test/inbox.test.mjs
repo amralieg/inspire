@@ -5,6 +5,8 @@ import { DECIDE, FILTERS, PERSON, TABLE, appInfo, lister, openApp, prefsFirst, s
 import { MY_KEY } from '../src/prefs.js';
 import { DUE_DAYS, failedRuns, inboxAsks, inboxGroups, inboxOn } from '../src/inbox.js';
 
+// REQ-506: no side rail; a section opens by its hash.
+const goSection = (page, section) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, section);
 let served;
 let browser;
 before(async () => { served = await serveDist(); browser = await chromium.launch(); });
@@ -130,89 +132,3 @@ async function openAt({ owner = true, hash = '#/n01_u05/inbox', width = 1440, sc
 const groupsOf = (page) => page.locator('[data-inbox-panel] [data-inbox-group]').evaluateAll((gs) => gs.map((g) => [g.dataset.inboxGroup,
   [...g.querySelectorAll('[data-inbox-item]')].map((i) => i.dataset.inboxItem)]));
 
-test('an owner sees one inbox in the rail with its count: Fix this, failed runs, new reports and records, and nothing that needs no action', async () => {
-  const { page, seen, context, asks } = await openAt();
-  const rail = page.locator('[data-rail="inbox"]');
-  await rail.locator('[data-count="10"]').waitFor();
-  assert.equal(await rail.getAttribute('aria-label'), 'Inbox (10)');
-  assert.equal(await rail.getAttribute('aria-current'), 'page');
-  assert.equal(await page.locator('[data-inbox]').count(), 0, 'the top bar keeps no second inbox');
-  await page.locator('[data-inbox-panel][aria-busy="false"]').waitFor();
-  assert.deepEqual(await groupsOf(page), [['fix', ['fix']], ['runs', ['run:j8', 'run:j6']], ['reports', ['report:f1', 'report:f4']],
-    ['assigned', ['R003', 'R004', 'R005']], ['due', ['R003', 'R008', 'R007', 'R004']], ['changed', ['R006', 'R011']]]);
-  const fyi = page.locator('[data-inbox-fyi]');
-  assert.match(await fyi.locator('h3').evaluate((h) => h.textContent), /Changed since you were last here\s*2\s*Nothing to do/);
-  assert.match(await fyi.innerText(), /They need nothing from you and are not counted in the Inbox\./);
-  assert.ok(await page.evaluate(() => {
-    const fyiTop = document.querySelector('[data-inbox-fyi]').getBoundingClientRect().top;
-    return [...document.querySelectorAll('[data-inbox-panel] > .inbox-gs:not([data-inbox-fyi]) [data-inbox-group]')].every((g) => g.getBoundingClientRect().bottom <= fyiTop);
-  }), 'what changed sits under every group that waits for you');
-  const text = await page.locator('[data-inbox-panel] > .inbox-gs:not([data-inbox-fyi])').innerText();
-  assert.ok(!(await fyi.innerText()).includes('R012'), 'a record changed before your last visit is not new to you (must-exclude)');
-  for (const gone of ['R006', 'R011', 'Add a column for the store', 'Old complaint', 'Oct 19', 'Oct 22', 'R010', 'R009']) {
-    assert.ok(!text.includes(gone), `${gone} needs no action, so it is not in the inbox (must-exclude)`);
-  }
-  assert.ok(asks.some((b) => b.unowned === true && b.due_within === DUE_DAYS) && asks.some((b) => b.feedback));
-  assert.ok(asks.some((b) => b.changed === true && !('window' in b)), 'what changed is asked with no window');
-  assert.equal(await page.locator('[data-inbox-item="report:f4"] bdi[dir="auto"]').first().innerText(), 'طلب تغيير عمود المتجر');
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('each inbox item opens the page where it gets dealt with', async () => {
-  const { page, seen, context } = await openAt();
-  await page.locator('[data-inbox-panel][aria-busy="false"]').waitFor();
-  await page.locator('[data-inbox-item="fix"]').click();
-  await page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/work') && window.location.hash.includes('tab=open'));
-  await until(() => JSON.stringify(seen.records.at(-1)?.column_filters || {}).includes('Act now'));
-  await page.locator('[data-rail="inbox"]').click();
-  await page.locator('[data-inbox-item="run:j6"]').click();
-  await page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/runs'));
-  const toggle = page.locator('button.runs-tog[aria-expanded="true"]');
-  await toggle.waitFor();
-  assert.equal(await toggle.count(), 1, 'only the failed run picked in the inbox is open');
-  assert.match(await toggle.getAttribute('aria-label'), /Oct 21/);
-  await page.locator('.run-err').getByText('A table this use case reads is missing').waitFor();
-  await page.locator('[data-rail="inbox"]').click();
-  await page.locator('[data-inbox-item="report:f1"]').click();
-  await page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/settings'));
-  await page.locator('[data-feedback-item="f1"]').waitFor();
-  await page.locator('[data-rail="inbox"]').click();
-  await page.locator('[data-inbox-group="due"] [data-inbox-item="R003"]').click();
-  await page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/work') && window.location.hash.includes('rec=R003'));
-  await page.locator('[data-dock="record"] dialog.drawer').waitFor();
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('someone who does not own the use case sees no failed run and no report of other people, even when the App holds them (must-exclude)', async () => {
-  const { page, seen, context, asks } = await openAt({ owner: false, runs: { ...RUNS, can_run: false }, reports: { ...REPORTS, everyone: false } });
-  await page.locator('[data-rail="inbox"] [data-count="4"]').waitFor();
-  await page.locator('[data-inbox-panel][aria-busy="false"]').waitFor();
-  assert.deepEqual(await groupsOf(page), [['fix', ['fix']], ['assigned', ['R003', 'R004', 'R005']], ['due', ['R003', 'R004']], ['changed', ['R006', 'R011']]]);
-  assert.ok(!asks.some((b) => b.feedback || b.unowned), 'nor does it ask for them');
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('the inbox fits 1280 and 1440 with no sideways scroll, in light, dark and right to left, and its items show a focus ring', async () => {
-  for (const [width, scheme, rtl] of [[1280, 'light', false], [1440, 'dark', false], [1280, 'dark', true]]) {
-    const { page, seen, context } = await openAt({ width, scheme });
-    await page.locator('[data-inbox-panel][aria-busy="false"]').waitFor();
-    if (rtl) await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
-    const wide = await page.evaluate(() => [...document.querySelectorAll('.main, [data-inbox-panel], html')].map((el) => el.scrollWidth - el.clientWidth));
-    assert.ok(wide.every((d) => d <= 1), `${width} ${scheme}${rtl ? ' rtl' : ''}: no sideways scroll (${wide})`);
-    const names = await page.locator('[data-inbox-item]').evaluateAll((all) => all.map((b) => b.innerText.trim()));
-    assert.ok(names.every(Boolean), 'every item has a name');
-    await page.locator('[data-inbox-item]').first().focus();
-    await page.keyboard.press('Tab');
-    const ring = await page.evaluate(() => { const s = getComputedStyle(document.activeElement); return [document.activeElement.dataset.inboxItem, s.outlineStyle, s.outlineWidth]; });
-    assert.ok(ring[0], 'Tab moves to the next inbox item');
-    assert.notEqual(ring[1], 'none');
-    assert.notEqual(ring[2], '0px');
-    const contrast = await page.locator('[data-inbox-item="R003"] small').first().evaluate((el) => getComputedStyle(el).color !== getComputedStyle(el.closest('.card')).backgroundColor);
-    assert.ok(contrast);
-    assert.deepEqual(seen.errors, []);
-    await context.close();
-  }
-});

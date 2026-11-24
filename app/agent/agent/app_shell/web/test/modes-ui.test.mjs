@@ -9,7 +9,17 @@ let browser;
 before(async () => { served = await serveDist(); browser = await chromium.launch(); });
 after(async () => { await browser?.close(); served?.close(); });
 
-const railOf = (page) => page.locator('[data-rail]').evaluateAll((items) => items.map((i) => [i.dataset.rail, i.textContent.trim()]));
+// REQ-506: no side rail. The mode names show where the owner reaches them: the section title on the work screen and the avatar menu.
+const menuTitles = async (page) => {
+  await page.locator('[data-avatar-menu] button').first().click();
+  const menu = page.getByRole('menu');
+  await menu.waitFor({ state: 'visible' });
+  const items = (await menu.getByRole('menuitem').allInnerTexts()).map((t) => t.trim());
+  await page.keyboard.press('Escape');
+  await menu.waitFor({ state: 'hidden' });
+  return items;
+};
+const asOwner = (info) => { info.pages.forEach((p) => { p.is_owner = true; }); return info; };
 const go = async (page, id, section) => {
   await page.evaluate(([p, s]) => { window.location.hash = `#/${p}/${s}`; }, [id, section]);
   await page.waitForFunction((s) => window.location.hash.includes(`/${s}`), section);
@@ -20,35 +30,31 @@ const noQueue = async (page) => {
 };
 
 test('a queue keeps Work and Performance', async () => {
-  const info = appInfo(DECIDE);
-  const { page, seen, context } = await openApp(browser, served.base, info);
+  const info = asOwner(appInfo(DECIDE));
+  const { page, seen, context } = await openApp(browser, served.base, info, { ready: '[data-ready]' });
   const id = info.pages[0].id;
-  await page.locator('[data-rail]').first().waitFor();
-  const rail = Object.fromEntries(await railOf(page));
-  assert.equal(rail.work, 'Work');
-  assert.equal(rail.performance, 'Performance');
+  await page.locator('[data-mode-switch]').waitFor();
+  const items = await menuTitles(page);
+  assert.ok(items.includes('Performance'), `the avatar menu lists Performance: ${JSON.stringify(items)}`);
   await go(page, id, 'work');
   await page.locator('[data-work]').waitFor();
   assert.equal(await page.locator('[data-mode-work]').count(), 0);
-  assert.equal(await page.locator('[data-section-title]').textContent(), 'Work');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
 
 test('Explore shows the tables with saved views and Notify me, no queue, and Usage under Performance', async () => {
-  const info = appInfo(DECIDE, 1, {}, 'examples/dashboard.json');
+  const info = asOwner(appInfo(DECIDE, 1, {}, 'examples/dashboard.json'));
   const asked = [];
-  const { page, seen, context } = await openApp(browser, served.base, info, { routes: dashboardRoutes(asked) });
+  const { page, seen, context } = await openApp(browser, served.base, info, { routes: dashboardRoutes(asked), ready: '[data-ready]' });
   const id = info.pages[0].id;
-  await page.locator('[data-rail]').first().waitFor();
-  const rail = Object.fromEntries(await railOf(page));
-  assert.equal(rail.work, 'Explore');
-  assert.equal(rail.performance, 'Usage');
+  await page.locator('[data-mode-switch]').waitFor();
+  const items = await menuTitles(page);
+  assert.ok(items.includes('Usage'), `the avatar menu names Performance Usage: ${JSON.stringify(items)}`);
   await go(page, id, 'work');
   await page.locator('[data-mode-work="explore"]').waitFor();
   await page.locator('[data-mode-work="explore"] tbody tr').first().waitFor();
   assert.equal(await page.locator('[data-explore-tools]').count(), 1);
-  assert.equal(await page.locator('[data-section-title]').textContent(), 'Explore');
   await noQueue(page);
   assert.deepEqual(asked, [], 'Explore never asks for a decision list');
   await go(page, id, 'performance');
@@ -60,18 +66,17 @@ test('Explore shows the tables with saved views and Notify me, no queue, and Usa
 });
 
 test('Ask is one full-page chat, no queue, and Answer quality under Performance', async () => {
-  const info = appInfo(DECIDE, 1, {}, 'examples/agent_chat.json');
-  const { page, seen, context } = await openApp(browser, served.base, info);
+  const info = asOwner(appInfo(DECIDE, 1, {}, 'examples/agent_chat.json'));
+  const { page, seen, context } = await openApp(browser, served.base, info, { ready: '[data-ready]' });
   const id = info.pages[0].id;
-  await page.locator('[data-rail]').first().waitFor();
-  const rail = Object.fromEntries(await railOf(page));
-  assert.equal(rail.work, 'Ask');
-  assert.equal(rail.performance, 'Answer quality');
+  await page.locator('[data-mode-switch]').waitFor();
+  const items = await menuTitles(page);
+  assert.ok(items.includes('Answer quality'), `the avatar menu names Performance Answer quality: ${JSON.stringify(items)}`);
   await go(page, id, 'work');
   await page.locator('[data-mode-work="ask"] [data-genie-full]').waitFor();
   await noQueue(page);
-  await page.getByRole('button', { name: 'Ask Genie' }).click();
-  assert.equal(await page.locator('aside.genie').count(), 1, 'the top-bar button reuses the page chat');
+  await page.locator('[data-mode-switch] [data-mode="genie"]').click();
+  assert.equal(await page.locator('[data-genie-full]').count(), 1, 'the top-bar Genie switch reuses the page chat');
   await page.waitForFunction(() => document.activeElement?.matches('[data-genie-full] .g-in input'));
   await page.waitForFunction(() => document.activeElement?.matches('[data-genie-full] .g-in input'));
   assert.equal(await page.locator('[data-genie-full] [aria-label="Close"]').count(), 0);
@@ -84,7 +89,7 @@ test('Ask is one full-page chat, no queue, and Answer quality under Performance'
 });
 
 test('Scenarios saves, compares, shares and records the choice in the decision log', async () => {
-  const info = appInfo(DECIDE, 1, {}, 'examples/scenario_lab.json');
+  const info = asOwner(appInfo(DECIDE, 1, {}, 'examples/scenario_lab.json'));
   const id = info.pages[0].id;
   const library = { scenarios: [], decisions: [], mine: 0, note: '' };
   const posted = [];
@@ -116,11 +121,10 @@ test('Scenarios saves, compares, shares and records the choice in the decision l
       return json(200, library);
     },
   };
-  const { page, seen, context } = await openApp(browser, served.base, info, { routes });
-  await page.locator('[data-rail]').first().waitFor();
-  const rail = Object.fromEntries(await railOf(page));
-  assert.equal(rail.work, 'Scenarios');
-  assert.equal(rail.performance, 'Performance');
+  const { page, seen, context } = await openApp(browser, served.base, info, { routes, ready: '[data-ready]' });
+  await page.locator('[data-mode-switch]').waitFor();
+  const items = await menuTitles(page);
+  assert.ok(items.includes('Performance'), `the avatar menu lists Performance: ${JSON.stringify(items)}`);
   await go(page, id, 'work');
   const work = page.locator('[data-mode-work="scenarios"]');
   await work.locator('[data-lever="price"]').waitFor();
@@ -159,7 +163,7 @@ test('Scenarios saves, compares, shares and records the choice in the decision l
 });
 
 test('saved scenarios that could not load read one plain sentence with the code under Details, and Try again lists them', async () => {
-  const info = appInfo(DECIDE, 1, {}, 'examples/scenario_lab.json');
+  const info = asOwner(appInfo(DECIDE, 1, {}, 'examples/scenario_lab.json'));
   const id = info.pages[0].id;
   let failing = true;
   const library = { scenarios: [{ id: 'a'.repeat(32), name: 'Base plan', note: '', levers: {}, by: PERSON, at: '2026-11-08T10:00:00', shared: false, mine: true, outcome: { p50: 1 } }], decisions: [], mine: 1, note: '' };
@@ -167,8 +171,8 @@ test('saved scenarios that could not load read one plain sentence with the code 
     ...scenarioRoutes([], []),
     'scenario/saved': ({ json }) => (failing ? json(403, { error: 'PERMISSION_DENIED: User does not have SELECT on table main.app.sales_scenarios' }) : json(200, library)),
   };
-  const { page, context } = await openApp(browser, served.base, info, { routes });
-  await page.locator('[data-rail]').first().waitFor();
+  const { page, context } = await openApp(browser, served.base, info, { routes, ready: '[data-ready]' });
+  await page.locator('[data-mode-switch]').waitFor();
   await go(page, id, 'performance');
   const box = page.locator('[data-mode-performance="scenarios"] .tile-err');
   await box.waitFor();
@@ -182,17 +186,20 @@ test('saved scenarios that could not load read one plain sentence with the code 
   await context.close();
 });
 
-test('switching use case in a hub re-labels the rail by the mode of the open use case', async () => {
+test('switching use case in a hub re-labels the avatar menu by the mode of the open use case', async () => {
   const explore = appInfo(DECIDE, 1, {}, 'examples/dashboard.json');
   const ask = appInfo(DECIDE, 1, {}, 'examples/agent_chat.json');
-  const info = { ...explore, pages: [explore.pages[0], ask.pages[0]] };
-  const { page, context } = await openApp(browser, served.base, info, { routes: dashboardRoutes([]) });
-  await page.locator('[data-rail]').first().waitFor();
-  assert.equal(Object.fromEntries(await railOf(page)).work, 'Explore');
-  await go(page, ask.pages[0].id, 'dashboard');
-  await page.waitForFunction(() => [...document.querySelectorAll('[data-rail="work"]')].some((i) => i.textContent.trim() === 'Ask'));
-  assert.equal(Object.fromEntries(await railOf(page)).performance, 'Answer quality');
-  await go(page, explore.pages[0].id, 'dashboard');
-  await page.waitForFunction(() => [...document.querySelectorAll('[data-rail="work"]')].some((i) => i.textContent.trim() === 'Explore'));
+  const info = asOwner({ ...explore, pages: [explore.pages[0], ask.pages[0]] });
+  const { page, context } = await openApp(browser, served.base, info, { routes: dashboardRoutes([]), ready: '[data-ready]' });
+  await page.locator('[data-mode-switch]').waitFor();
+  assert.ok((await menuTitles(page)).includes('Usage'));
+  await go(page, explore.pages[0].id, 'work');
+  await page.locator('[data-mode-work="explore"]').waitFor();
+  await go(page, ask.pages[0].id, 'work');
+  await page.locator('[data-mode-work="ask"]').waitFor();
+  assert.ok((await menuTitles(page)).includes('Answer quality'));
+  await go(page, explore.pages[0].id, 'work');
+  await page.locator('[data-mode-work="explore"]').waitFor();
+  assert.ok((await menuTitles(page)).includes('Usage'));
   await context.close();
 });

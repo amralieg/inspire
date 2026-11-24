@@ -10,7 +10,8 @@ before(async () => { served = await serveDist(); browser = await chromium.launch
 after(async () => { await browser?.close(); served?.close(); });
 
 test('charts draw after ECharts loads on first use, and a chart still exports after the lazy init', async () => {
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({ auth: 'sp' }, 1), { ready: '[data-card] canvas' });
+  const info = appInfo({ auth: 'sp' }, 1);
+  const { page, seen, context } = await openApp(browser, served.base, info, { ready: '[data-card] canvas', hash: `#/${info.pages[0].id}/dashboard` }); // REQ-506: charts live on the dashboard section, not on Work
   try {
     const canvas = page.locator('[data-card] canvas').first();
     await canvas.waitFor();
@@ -31,8 +32,9 @@ test('a chart with a click filter sends its pick to the server after the lazy in
   const charts = example.charts.map((c) => (c.id === 'by_category' ? { ...c, click_filter: 'category' } : c));
   const urls = [];
   const watch = (page) => page.on('request', (r) => { if (r.url().includes('/api/')) urls.push(`${r.url()} ${r.postData() || ''}`); });
-  const { page, context, seen } = await openApp(browser, served.base, appInfo({ auth: 'sp' }, 1, { charts }), {
-    ready: '[data-card] canvas', watch,
+  const info = appInfo({ auth: 'sp' }, 1, { charts });
+  const { page, context, seen } = await openApp(browser, served.base, info, {
+    ready: '[data-card] canvas', watch, hash: `#/${info.pages[0].id}/dashboard`, // REQ-506: charts live on the dashboard section
   });
   try {
     const card = (title) => page.locator('[data-card]').filter({ hasText: title }).locator('canvas').first();

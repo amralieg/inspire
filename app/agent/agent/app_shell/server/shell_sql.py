@@ -6427,12 +6427,29 @@ def resolved_counts_query(page: dict, names: set, person: str, since_us: int, hi
     scope = use_case_scope(page, params)
     who, since = params.add(str(person).strip().lower()), params.add(str(int(since_us)), "BIGINT")
     ctes = closing_ctes(table, names, label, scope, history)
-    ctes["vp"] = (f"SELECT `_inspire_closer`, `_inspire_closed` FROM hm WHERE `_inspire_status` = '{DONE}' AND "
+    valued = "value_at_stake" in names
+    ctes["vp"] = (f"SELECT `_inspire_closer`, `_inspire_closed`, `_inspire_at_close` FROM hm WHERE `_inspire_status` = '{DONE}' AND "
                   f"`_inspire_closed` IS NOT NULL AND unix_micros(`_inspire_closed`) >= {since}")
     ctes["vw"] = (f"SELECT DISTINCT CAST(date_trunc('week', `_inspire_closed`) AS DATE) AS `_v_week` FROM vp WHERE lower(`_inspire_closer`) = {who} "
                   f"ORDER BY `_v_week` DESC LIMIT {VALUE_COUNTER_WEEKS}")
+    worth = (f"CAST(SUM(CASE WHEN lower(`_inspire_closer`) = {who} THEN `_inspire_at_close` END) AS DOUBLE) AS `mine_v`, "
+             f"CAST(SUM(`_inspire_at_close`) AS DOUBLE) AS `team_v`, ") if valued else ""
     sql = (f"{_with(ctes, VALUE_COUNTER_ORDER)} SELECT CAST(SUM(CASE WHEN lower(`_inspire_closer`) = {who} THEN 1 ELSE 0 END) AS BIGINT) AS `mine_n`, "
-           f"CAST(COUNT(*) AS BIGINT) AS `team_n`, (SELECT array_join(collect_list(CAST(`_v_week` AS STRING)), ',') FROM vw) AS `weeks` FROM vp")
+           f"CAST(COUNT(*) AS BIGINT) AS `team_n`, {worth}(SELECT array_join(collect_list(CAST(`_v_week` AS STRING)), ',') FROM vw) AS `weeks` FROM vp")
+    return sql, params.items
+
+
+def value_leaders_query(page: dict, names: set, since_us: int, history=None) -> tuple:
+    """One row per closer: records closed Done since go-live and their value (SUM of the value at stake at close, NULL when unknown)."""
+    params, table, label = _Params(), table_name(page["result_table"]), (page.get("records") or {}).get("label")
+    scope = use_case_scope(page, params)
+    since = params.add(str(int(since_us)), "BIGINT")
+    ctes = closing_ctes(table, names, label, scope, history)
+    ctes["vp"] = (f"SELECT `_inspire_closer`, `_inspire_closed`, `_inspire_at_close` FROM hm WHERE `_inspire_status` = '{DONE}' AND "
+                  f"`_inspire_closed` IS NOT NULL AND unix_micros(`_inspire_closed`) >= {since}")
+    worth = "CAST(SUM(`_inspire_at_close`) AS DOUBLE)" if "value_at_stake" in names else "CAST(NULL AS DOUBLE)"
+    sql = (f"{_with(ctes, (*CLOSING_ORDER, 'vp'))} SELECT `_inspire_closer` AS `closer`, CAST(COUNT(*) AS BIGINT) AS `records`, {worth} AS `value` "
+           f"FROM vp WHERE `_inspire_closer` IS NOT NULL GROUP BY `_inspire_closer`")
     return sql, params.items
 
 

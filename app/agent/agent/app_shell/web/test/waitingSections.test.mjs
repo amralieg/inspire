@@ -89,7 +89,7 @@ test('Genie shows the one waiting text in its answer when the App cannot read th
     },
   });
   try {
-    await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
+    await page.locator('[data-mode="genie"]').click();
     await page.getByRole('textbox', { name: 'Your question' }).fill('Why is there no data?');
     await page.getByRole('button', { name: 'Send' }).click();
     await assertCompact(page);

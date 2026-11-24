@@ -28,7 +28,8 @@ const PLACED = [text('top', 'top'), text('by_filters', 'after', 'filters'), text
 const UNSAFE_LINK = '## Read me\nSee **this** and [the guide](https://docs.example.org/g) but not [that](javascript:alert(1)).';
 
 async function open(info, options = {}) {
-  const opened = await openApp(browser, served.base, info, { width: 1440, ...options });
+  // REQ-506: the App lands on Work; these walks read the dashboard, so they start there.
+  const opened = await openApp(browser, served.base, info, { width: 1440, hash: `#/${info.pages[0].id}/dashboard`, ...options });
   await opened.page.route('**/blocks/**', (route) => route.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
   await opened.page.reload();
   await opened.page.waitForSelector('.kpi-v, .hcard');
@@ -81,7 +82,7 @@ test('each block shows at the place the page names, the image from the App\u2019
   assert.ok((await end.innerText()).includes('but not that'));
   const html = await page.content();
   assert.ok(!html.includes(URL_SEEN), 'the page never loads or names the image\u2019s web address');
-  await page.click('[data-rail="work"]');
+  await page.evaluate(() => { location.hash = `#/${location.hash.split('/')[1]}/work`; });
   await page.waitForSelector('.blk-beside .blk-main');
   const beside = page.locator('.blk-beside');
   assert.equal(await beside.locator('[data-block="beside_list"]').count(), 1);
@@ -147,7 +148,7 @@ test('a style sheet in an html block styles only its own block', async () => {
     getComputedStyle(document.querySelector('.kpi-v')).color]);
   assert.equal(inside, 'rgb(9, 99, 199)');
   assert.notEqual(kpi, 'rgb(9, 99, 199)');
-  const [box, block] = await page.evaluate(() => ['.main', '[data-block="card"]'].map((s) => document.querySelector(s).getBoundingClientRect())
+  const [box, block] = await page.evaluate(() => ['.page', '[data-block="card"]'].map((s) => document.querySelector(s).getBoundingClientRect())
     .map((r) => ({ right: r.right, width: r.width })));
   assert.ok(Math.abs(block.right - box.right) < 40 && block.width < box.width * 0.6, 'a half block aligned right sits on the right');
   await context.close();
@@ -199,7 +200,7 @@ test('on a page that tracks its decision list the blocks sit by the tiles, the c
   assert.equal(await page.locator('section.charts').first().locator('.card--wide').count(), 0,
     'the trend chart keeps its half of the row beside the reason bars, as it did before blocks');
   assert.ok(await follows(page, 'section.charts', '[data-block="end"]'));
-  await page.click('[data-rail="work"]');
+  await page.evaluate(() => { location.hash = `#/${location.hash.split('/')[1]}/work`; });
   await page.waitForSelector('.blk-beside .blk-main');
   assert.equal(await page.locator('.blk-beside [data-block="by_list"]').count(), 1);
   const order = await page.locator('.blk-beside').evaluate((el) => [...el.children].map((c) => c.dataset.block || c.className));

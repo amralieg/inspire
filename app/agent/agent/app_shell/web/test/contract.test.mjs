@@ -47,6 +47,12 @@ async function openWith(info, routes, { prefs, hash = `#/${PAGE}/work` } = {}) {
   return openApp(browser, served.base, info, { routes, clock: CLOCK, timezone: 'Asia/Dubai', hash, watch: prefs && prefsFirst(MY, PERSON, prefs) });
 }
 
+// REQ-506: no side rail and no inline Select all / Set status buttons: sections open by hash, the rest sits under More.
+const goSection = (page, section) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, section);
+const fromMore = async (page, name) => {
+  await page.locator('.bulk [data-act="more"]').click();
+  await page.getByRole('menuitem', { name }).click();
+};
 const waitList = (page) => page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length > 0 && document.querySelector('.list-tools'));
 
 test('a running refresh shows the step, rows, percent and time left the contract freshness sends, and no time left when it sends none', async () => {
@@ -58,9 +64,9 @@ test('a running refresh shows the step, rows, percent and time left the contract
     const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes, clock: CLOCK });
     await page.locator('.ph .fresh-d [data-progress]').waitFor();
     assert.equal(await page.locator('.ph .fresh-d [data-progress]').innerText(), text);
-    const bar = await page.locator('.ph .fresh [role="progressbar"]').first().evaluate((el) => [el.getAttribute('aria-valuenow'), el.querySelector('i').style.width]);
+    const bar = await page.locator('.ph .fresh-d [role="progressbar"]').first().evaluate((el) => [el.getAttribute('aria-valuenow'), el.querySelector('i').style.width]);
     assert.deepEqual(bar, [percent, `${percent}%`]);
-    if (active.eta_s == null) assert.doesNotMatch(`${await page.locator('.ph .fresh').innerText()} ${await page.locator('.ph .fresh-d').innerText()}`, /left/, 'no time left that the server did not send');
+    if (active.eta_s == null) assert.doesNotMatch(`${await page.locator('.ph .fresh-d').innerText()} ${await page.locator('.ph .fresh-d').innerText()}`, /left/, 'no time left that the server did not send');
     assert.deepEqual(seen.errors, []);
     await context.close();
   }
@@ -73,7 +79,7 @@ test('an opened run lists how long each step took from the contract run fields, 
     { ...base, run_id: 'u1', started: '2026-10-20T06:00:00Z', duration_s: 280 }];
   const routes = { runs: ({ json }) => json(200, { ...NO_RUNS, runs, total: 2 }) };
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes, clock: CLOCK });
-  await page.locator('[data-rail="runs"]').click();
+  await goSection(page, 'runs');
   const rows = page.locator('.runs-tbl > tbody > tr:not(.runs-d)');
   await rows.first().waitFor();
   await rows.nth(0).locator('.runs-tog').click();
@@ -131,12 +137,12 @@ test('Select all matching under a limit acts on what the limit shows: the match 
       assert.equal(await page.locator('textarea[name="bulk_note"]').inputValue(), C.act_match.request.body.values.note, 'a refused act keeps the note');
     } else {
       await page.getByRole('checkbox', { name: 'Select every record on this page' }).check();
-      await page.getByRole('button', { name: 'Select all 50 matching' }).click();
+      await fromMore(page, 'Select all 50 matching');
       assert.equal(await page.locator('.bulk b').innerText(), 'All 50 open records selected', 'the count is what the limit shows, not the 60 that match');
-      await page.getByRole('button', { name: 'Mark all as done…' }).click();
+      await page.getByRole('button', { name: 'Resolve all', exact: true }).click();
       await page.locator('textarea[name="bulk_note"]').fill(C.act_match.request.body.values.note);
     }
-    await page.getByRole('button', { name: 'Mark 50 open records as done?' }).click();
+    await page.getByRole('button', { name: 'Resolve 50 open records?' }).click();
   };
   await markAll();
   await until(() => asked.acts.length === 1);
@@ -171,7 +177,7 @@ test('acting on picked records sends the contract act and snooze bodies, and Und
   const { page, seen, context } = await openWith(appInfo(DECIDE, 1, TABLE), routes);
   await waitList(page);
   await page.getByRole('checkbox', { name: `Select ${label(1)}` }).check();
-  await page.getByRole('button', { name: 'Set status…' }).click();
+  await fromMore(page, 'Set status…');
   await page.locator('select[name="bulk_choice"]').selectOption(C.act_keys.request.body.values.action_status);
   await page.locator('textarea[name="bulk_note"]').fill(C.act_keys.request.body.values.note);
   await page.getByRole('button', { name: 'Set status of 1 record' }).click();
@@ -183,7 +189,7 @@ test('acting on picked records sends the contract act and snooze bodies, and Und
   assert.deepEqual(asked.undos[0], C.undo.request.body);
   await toastSaid(page, `Undone: 1 record is back as it was. 1 record changed since and was left as it is: ${label(2)}.`);
   await page.getByRole('checkbox', { name: `Select ${label(1)}` }).check();
-  await page.getByRole('button', { name: 'Snooze…' }).click();
+  await page.locator('.bulk').getByRole('button', { name: 'Later', exact: true }).click();
   await page.locator('input[name="bulk_snooze"]').fill(C.snooze.request.body.values.snooze_until);
   await page.getByRole('button', { name: 'Snooze 1 record' }).click();
   await until(() => asked.acts.length === 2);
@@ -201,7 +207,7 @@ test('Apply to similar asks by the ids the page names in one by value, shows the
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
-  await drawer.getByRole('button', { name: 'Mark done' }).click();
+  await drawer.locator('[data-act="done"]').click();
   await until(() => asked.acts.length === 1 && asked.similar.length === 1);
   assert.deepEqual([asked.acts[0].record_keys, asked.acts[0].seen], [C.act_keys.request.body.record_keys, C.act_keys.request.body.seen]);
   assert.deepEqual(asked.similar[0], C.similar.request.query);
@@ -249,7 +255,7 @@ test('Select all refuses with a plain reload note when the list did not say when
     const { page, seen, context } = await openWith(appInfo(DECIDE, 1, TABLE), routes);
     await waitList(page);
     await page.getByRole('checkbox', { name: 'Select every record on this page' }).check();
-    await page.getByRole('button', { name: 'Select all 30 matching' }).click();
+    await fromMore(page, 'Select all 30 matching');
     await toastSaid(page, 'The App cannot tell when this list was read, so it cannot act on every matching record. Reload the list and try again.');
     assert.equal(await page.locator('.bulk b').innerText(), '25 selected:', 'the selection stays on the records picked');
     assert.equal(await page.locator('.bulk-asof').count(), 0);
@@ -285,9 +291,9 @@ test('a run the server says has gone quiet shows the server note, with no bar, n
     const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes, clock: CLOCK });
     await page.locator('.ph .fresh-d [data-progress]').waitFor();
     assert.equal(await page.locator('.ph .fresh-d [data-progress]').innerText(), SILENT.message);
-    assert.equal(await page.locator('.ph .fresh [role="progressbar"]').count(), 0, 'no bar, moving or not');
-    assert.equal(await page.locator('.ph .fresh .fresh-dots').count(), 0, 'no moving dots');
-    assert.doesNotMatch(`${await page.locator('.ph .fresh').innerText()} ${await page.locator('.ph .fresh-d').innerText()}`, /running for|left|%/);
+    assert.equal(await page.locator('.ph .fresh-d [role="progressbar"]').count(), 0, 'no bar, moving or not');
+    assert.equal(await page.locator('.ph .fresh-d .fresh-dots').count(), 0, 'no moving dots');
+    assert.doesNotMatch(`${await page.locator('.ph .fresh-d').innerText()} ${await page.locator('.ph .fresh-d').innerText()}`, /running for|left|%/);
     assert.deepEqual(seen.errors, []);
     await context.close();
   }

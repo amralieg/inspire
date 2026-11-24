@@ -209,6 +209,59 @@ function Email({ block }) {
   );
 }
 
+// compare: 2-4 options side by side; the button of an option sends its follow-up question.
+function Compare({ block, ctx }) {
+  return (
+    <section className="agp-compare" aria-label={block.title || 'Compare'}>
+      {block.title && <p className="agp-prompt">{block.title}</p>}
+      <div className="agp-options">
+        {block.options.map((o) => (
+          <article key={o.id} className="agp-option" data-option={o.id}>
+            <button type="button" className="btn btn--sm btn--pri" onClick={() => ctx.ask(askText(o))}>{o.label}</button>
+            {o.detail && <p className="agp-why">{o.detail}</p>}
+            {o.facts?.length > 0 && (
+              <dl className="agp-facts">
+                {o.facts.map((f, i) => <div key={`${f.label}-${i}`}><dt>{f.label}</dt><dd>{f.value}</dd></div>)}
+              </dl>
+            )}
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// resolve: one click prepares "done" for the record and writes the prepared change (ctx.resolve); then it shows what was gained.
+function Resolve({ block, ctx }) {
+  const [state, setState] = useState('idle');
+  const [error, setError] = useState('');
+  const stake = stakeText(block.value_at_stake, ctx.page);
+  const gained = stake ? `+${stake.replace(/^\+/, '')}` : '';
+  const click = async () => {
+    setState('saving');
+    setError('');
+    try {
+      await ctx.resolve(block.record_key);
+      setState('done');
+    } catch (e) {
+      setError(e.message);
+      setState('idle');
+    }
+  };
+  return (
+    <article className="agp-resolve" aria-label={block.label}>
+      <header>
+        <button type="button" className="agp-link" onClick={() => ctx.openRecord?.(block.record_key)}>{block.label}</button>
+        {block.status && <small className="agp-meta">{block.status}</small>}
+      </header>
+      {state === 'done'
+        ? <p className="agp-gained" data-gained>{gained || 'Resolved'}</p>
+        : <button type="button" className="btn btn--sm btn--pri" disabled={state === 'saving'} onClick={click}>Resolve{gained && <> <b>{gained}</b></>}</button>}
+      {error && <PlainNote text={error} className="g-err" role="alert" />}
+    </article>
+  );
+}
+
 export function Block({ block, ctx }) {
   switch (block.type) {
     case 'text': return <div className="agp-text"><Markdown text={block.markdown} /></div>;
@@ -227,6 +280,8 @@ export function Block({ block, ctx }) {
         {block.note && <p className="agp-meta">{block.note}</p>}
       </div>
     );
+    case 'compare': return <Compare block={block} ctx={ctx} />;
+    case 'resolve': return <Resolve block={block} ctx={ctx} />;
     case 'email': return <Email block={block} />;
     case 'feedback': return <Rate message={{ turn_id: ctx.turnId, refused: false }} onRate={ctx.rate} />;
     default: return null;

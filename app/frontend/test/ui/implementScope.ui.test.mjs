@@ -556,7 +556,7 @@ test('the Run tab states the scope of the last run, changes Data groups and Firs
     assert.equal(await section.locator('[data-run-everything-estimate]').textContent(), 'Run on everything covers all 48,210 records, about 4 to 10 minutes.');
     await atWidths(page, 'run_tab', section);
     const runAll = section.getByRole('button', { name: 'Run on everything', exact: true });
-    assert.equal(await runAll.evaluate((b) => b.className.includes('bg-db-red-solid')), true, 'Run on everything is the main red button');
+    assert.equal(await runAll.evaluate((b) => b.className.includes('bg-primary-solid')), true, 'Run on everything is the main red button');
     await runAll.click();
     assert.equal(await section.locator('[data-run-everything-confirm], [role="alertdialog"]').count(), 0, 'one click starts the run with no extra confirm (must-exclude)');
     await until(() => made.appCalls.some((c) => c.url.endsWith('/api/settings/run')), 'the run on everything', 30000);

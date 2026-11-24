@@ -1,7 +1,9 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { DECIDE, appInfo, goRail, openApp, serveDist } from './harness.mjs';
+import { DECIDE, appInfo, openApp, serveDist } from './harness.mjs';
+// REQ-506: no side rail; a section opens by its hash.
+const goRail = (page, id) => page.evaluate((s) => { location.hash = `#/${location.hash.split('/')[1]}/${s}`; }, id);
 
 let served;
 let base;
@@ -19,7 +21,7 @@ test('the page header is one title, one question and one meta line, with one Ask
   assert.equal(await header.locator('.ph-q').count(), 1, 'one question');
   assert.equal(await header.locator('form.ask').count(), 0, 'no second Ask Genie form in the header');
   assert.equal(await header.getByRole('button', { name: 'Ask Genie' }).count(), 0, 'no Ask Genie chip in the header');
-  assert.equal(await page.locator('header.top [data-genie], header.top .genie-btn').count(), 1, 'one Ask Genie entry in the top bar');
+  assert.equal(await page.locator('header.top [data-mode="genie"]').count(), 1, 'one Genie entry in the top bar (REQ-506: the Screen | Genie switch)');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -36,6 +38,7 @@ test('the value line is a small chip that sends the reader to how it is measured
 
 test('the question is not repeated inside What to do now', async () => {
   const { page, context, seen } = await openApp(browser, base, MONITOR(), { watch: STILL });
+  await goRail(page, 'dashboard'); // REQ-506: What to do now is on the Dashboard; the page opens on Work
   const todo = page.locator('[data-section="todo"]');
   await todo.waitFor({ state: 'visible' });
   const question = (await page.locator('.ph-q').textContent()).trim();
@@ -46,27 +49,30 @@ test('the question is not repeated inside What to do now', async () => {
   await context.close();
 });
 
-test('the guided tour button sits right after the user avatar and stays enabled on every page', async () => {
+test('the guided tour entry sits in the avatar menu and stays enabled on every page', async () => {
   const { page, context, seen } = await openApp(browser, base, MONITOR(), { watch: STILL });
-  const tour = page.locator('[data-tour-top]');
-  await tour.waitFor({ state: 'visible' });
-  assert.equal(await tour.isEnabled(), true);
-  assert.equal(await tour.evaluate((el) => el.previousElementSibling?.classList.contains('avatar') === true), true, 'the tour button follows the avatar');
-  assert.equal(await tour.getAttribute('aria-label'), 'Take the guided tour again');
+  // REQ-506: the tour is an item of the avatar menu, no longer a button beside the avatar.
+  const tourItem = async () => {
+    await page.locator('[data-avatar-menu] button').first().click();
+    const item = page.getByRole('menu').getByRole('menuitem', { name: 'Take the tour' });
+    await item.waitFor({ state: 'visible' });
+    return item;
+  };
+  assert.equal(await (await tourItem()).isEnabled(), true);
+  await page.keyboard.press('Escape');
   await goRail(page, 'settings');
   await page.locator('[data-group="measurement"]').waitFor({ state: 'visible' });
-  await tour.waitFor({ state: 'visible' });
-  assert.equal(await tour.isEnabled(), true, 'still there on Settings');
+  assert.equal(await (await tourItem()).isEnabled(), true, 'still there on Settings');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
 
-test('Report an issue sits in the More menu, closed until opened', async () => {
+test('Report an issue stays off the work screen and sits in Settings, one avatar-menu step away', async () => {
   const { page, context, seen } = await openApp(browser, base, MONITOR(), { watch: STILL });
-  const menu = page.locator('[data-head-more]');
-  await menu.waitFor({ state: 'attached' });
-  assert.equal(await page.locator('[data-feedback-open]').isVisible(), false, 'hidden until the menu opens');
-  await menu.locator('> summary').click();
+  await page.locator('.top [data-avatar-menu]').waitFor();
+  assert.equal(await page.locator('[data-feedback-open]').count(), 0, 'not on the work screen');
+  await page.locator('[data-avatar-menu] button').first().click();
+  await page.getByRole('menu').getByRole('menuitem', { name: 'Settings' }).click();
   await page.locator('[data-feedback-open]').waitFor({ state: 'visible' });
   assert.deepEqual(seen.errors, []);
   await context.close();

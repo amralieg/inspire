@@ -53,12 +53,14 @@ const open = (info, routes, options = {}) => openApp(browser, base, info, { hash
 
 test('without the modify option the list shows no edit control, and the drawer still shows the history', async () => {
   const { calls, routes } = recorder();
-  const { page, seen, context } = await open(appInfo({}, 1, TABLE), routes);
+  const { page, seen, context } = await open({ ...appInfo({}, 1, TABLE), is_owner: true }, routes);
   assert.equal(await page.getByRole('button', { name: 'Add record' }).count(), 0);
   assert.equal(await page.getByRole('button', { name: /^Edit / }).count(), 0);
   assert.equal(await page.getByRole('button', { name: /^Delete / }).count(), 0);
   assert.equal(await page.locator('.card--table .note').count(), 0);
-  assert.equal(await page.locator('[data-rail="runs"]').count(), 1);
+  await page.locator('[data-avatar-menu] .av-b').click();
+  assert.equal(await page.locator('[data-avatar-menu]').getByRole('menuitem', { name: 'Runs', exact: true }).count(), 1, 'Runs is in the avatar menu');
+  await page.keyboard.press('Escape');
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.hist-i').first().waitFor();
@@ -78,7 +80,8 @@ test('a page without a result table offers Things to fix and Runs, but no histor
   const { calls, routes } = recorder();
   const { page, seen, context } = await open(appInfo(), routes);
   assert.equal(await page.locator('[role="tab"]').count(), 0);
-  assert.equal(await page.locator('[data-rail="work"]').getAttribute('aria-current'), 'page');
+  await page.locator('[data-page-section="work"]').waitFor();
+  assert.match(await page.evaluate(() => location.hash), /^#\/n01_u05\/work/);
   await page.locator('.cell-t').first().click();
   await page.locator('dialog.drawer').waitFor({ state: 'visible' });
   assert.equal(await page.locator('.dr-hist').count(), 0);
@@ -224,11 +227,12 @@ test('the Runs button opens from the keyboard and hides the filters', async () =
     segments: [], tables: null, records: 50, to_fix: 20, could_save: null, currency: '', summary: '', nothing_to_act: '', error: '' });
   const runs = [run('81', '2026-10-17T06:00:00Z'), run('80', '2026-09-26T06:00:00Z'), run('79', '2026-09-15T06:00:00Z'), run('78', '2026-09-08T06:00:00Z')];
   const { calls, routes } = recorder({ runs: ({ json }) => { calls.runs += 1; return json(200, { runs, total: 4, offset: 0, limit: 20, job: null, errors: {} }); } });
-  const { page, seen, context } = await open(appInfo({}, 1, TABLE), routes);
-  await page.locator('[data-rail="runs"]').focus();
+  const { page, seen, context } = await open({ ...appInfo({}, 1, TABLE), is_owner: true }, routes);
+  await page.locator('[data-avatar-menu] .av-b').focus();
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => document.querySelector('[data-rail="runs"]')?.getAttribute('aria-current') === 'page');
-  assert.equal(await page.evaluate(() => document.activeElement?.dataset.rail), 'runs');
+  await page.getByRole('menuitem', { name: 'Runs', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => location.hash.startsWith('#/n01_u05/runs'));
   await page.locator('.runs tbody tr').first().waitFor();
   assert.equal(calls.runs, 1);
   assert.equal(await page.locator('.fbar').count(), 0);

@@ -19,10 +19,12 @@ after(async () => {
   served?.close();
 });
 
-async function openExample(file, size) {
+async function openExample(file, size, section = 'dashboard', ready) {
   const example = EXAMPLES[file];
-  const opened = await openApp(browser, served.base, appInfo(example.settings, 1, {}, `examples/${file}`), { ...size, routes: example.routes() });
-  await example.ready(opened.page);
+  const info = appInfo(example.settings, 1, {}, `examples/${file}`);
+  // REQ-506: a queue page opens on Work now; the example screens these checks walk live on the Dashboard section, reached by its deep link.
+  const opened = await openApp(browser, served.base, info, { ...size, routes: example.routes(), hash: `#/${info.pages[0].id}/${section}`, ...(ready ? { ready } : {}) });
+  if (section === 'dashboard') await example.ready(opened.page);
   return opened;
 }
 
@@ -68,6 +70,8 @@ test('a menu opened from the keyboard and the Views popover show a 3:1 ring on t
     assert.match(item.what, /^button /);
     assert.ok(item.ok, `the menu item ${item.what} shows ${item.strong} of ${item.need} ring pixels`);
     await page.keyboard.press('Escape');
+    // REQ-506: Views moved from the page header to "Share and follow" in Settings.
+    await page.evaluate(() => { location.hash = location.hash.replace(/\/[^/]+$/, '/settings'); });
     await page.getByRole('button', { name: 'Views', exact: true }).focus();
     await page.keyboard.press('Enter');
     await page.getByRole('button', { name: 'Save this view' }).waitFor();
@@ -82,7 +86,7 @@ test('a menu opened from the keyboard and the Views popover show a 3:1 ring on t
 });
 
 test('under right to left the back, next, send and undo icons point the reading way (must-exclude: left to right and other icons stay as drawn)', async () => {
-  const { page, context } = await openExample('forecast_cockpit.json', { width: 1280, height: 800 });
+  const { page, context } = await openExample('forecast_cockpit.json', { width: 1280, height: 800 }, 'genie', '[data-genie-full]'); // REQ-506: the Dashboard header lost its turning icons; the full Genie pane still draws the send arrow
   try {
     const read = () => page.evaluate(() => [...document.querySelectorAll('svg.i')].filter((el) => el.getClientRects().length)
       .map((el) => [/\bi-(left|right|send|undo)\b/.test(el.getAttribute('class')), getComputedStyle(el).scale]));

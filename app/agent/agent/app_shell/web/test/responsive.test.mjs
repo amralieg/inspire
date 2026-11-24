@@ -22,7 +22,7 @@ function measure(scrollers) {
   const shown = (el) => !!el && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden' && el.getBoundingClientRect().width > 0;
   const inView = (el) => { const r = el.getBoundingClientRect(); return r.left >= -1 && r.right <= window.innerWidth + 1; };
   const bleeding = [...document.querySelectorAll('.app *')].filter((el) => {
-    if (!shown(el) || el.closest(scrollers) || el.closest('.side:not(.is-open)')) return false;
+    if (!shown(el) || el.closest(scrollers)) return false;
     const r = el.getBoundingClientRect();
     return r.right > window.innerWidth + 1 || r.left < -1;
   }).slice(0, 5).map((el) => `${el.tagName.toLowerCase()}.${[...el.classList].join('.')}`);
@@ -35,20 +35,32 @@ function measure(scrollers) {
     chartColumns: getComputedStyle(document.querySelector('.charts')).gridTemplateColumns.split(' ').length,
     chartWidths: cards.map((c) => Math.round(c.querySelector('canvas')?.getBoundingClientRect().width || 0)),
     chartsFit: cards.every((c) => { const cv = c.querySelector('canvas'); return cv && cv.getBoundingClientRect().width <= c.getBoundingClientRect().width + 1; }),
-    menu: shown(document.querySelector('.menu-btn')),
     tabs: shown(document.querySelector('.tabs')),
-    drawerOpen: shown(document.querySelector('.side')) && inView(document.querySelector('.side')),
-    sideInline: shown(document.querySelector('.side')) && getComputedStyle(document.querySelector('.side')).position !== 'absolute',
+    // REQ-506: no side rail and no menu button; the header carries the use case switcher, the Screen | Genie switch and the avatar.
+    rail: document.querySelectorAll('.side, [data-rail], .menu-btn').length,
+    header: ['[data-switcher]', '[data-mode-switch]', '[data-avatar-menu]'].map((q) => shown(document.querySelector(q)) && inView(document.querySelector(q))),
+    headerFits: document.querySelector('.top').scrollWidth <= document.querySelector('.top').clientWidth + 1,
   };
 }
 
-const snapshot = (page) => page.evaluate(measure, SCROLLERS);
-const FIRST = '#/n01_u05';
+// The dashboard KPIs and charts are not drawn on the Genie screen, so only the width checks apply there.
+function measureGenie(scrollers) {
+  const bleeding = [...document.querySelectorAll('.app *')].filter((el) => {
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || el.getBoundingClientRect().width <= 0 || el.closest(scrollers)) return false;
+    const r = el.getBoundingClientRect();
+    return r.right > window.innerWidth + 1 || r.left < -1;
+  }).slice(0, 5).map((el) => `${el.tagName.toLowerCase()}.${[...el.classList].join('.')}`);
+  return { pageScroll: document.documentElement.scrollWidth - window.innerWidth, bleeding };
+}
 
-async function openPage(info, width) {
+const snapshot = (page) => page.evaluate(measure, SCROLLERS);
+const FIRST = '#/n01_u05/dashboard';
+
+async function openPage(info, width, heading = 'Price-loss decision desk') {
   const opened = await openApp(browser, served.base, info, { width });
   await opened.page.goto(`${served.base}${FIRST}`);
-  await opened.page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk');
+  await opened.page.waitForFunction((h) => document.querySelector('.ph h1')?.textContent === h, heading);
   return opened;
 }
 
@@ -76,10 +88,10 @@ for (const layout of ['sidebar', 'tabs', 'home']) {
       assert.equal(m.kpiColumns, width >= 1280 ? 3 : 2, `${at} KPI columns`);
       assert.equal(m.chartColumns, width >= 1280 ? 2 : 1, `${at} chart columns`);
       assert.ok(m.chartsFit, `${at} draws a chart wider than its card`);
-      assert.equal(m.menu, width < 860, `${at} menu button`);
-      assert.equal(m.drawerOpen, width >= 860, `${at} section rail`);
+      assert.equal(m.rail, 0, `${at} has no side rail and no menu button`);
+      assert.deepEqual(m.header, [true, true, true], `${at} header switcher, Screen | Genie switch and avatar are on screen`);
+      assert.ok(m.headerFits, `${at} header does not overflow`);
       assert.equal(m.tabs, false, `${at} tab strip`);
-      assert.equal(m.sideInline, width >= 860, `${at} inline rail`);
     }
     assert.ok(widths[375][0] < widths[768][0] && widths[768][0] <= widths[1600][0], `charts resize with the screen: ${JSON.stringify(widths)}`);
     assert.deepEqual(seen.errors, []);
@@ -87,28 +99,26 @@ for (const layout of ['sidebar', 'tabs', 'home']) {
   });
 }
 
-const sideOpen = (page) => page.evaluate(() => {
-  const el = document.querySelector('.side');
-  const r = el.getBoundingClientRect();
-  return getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden' && r.width > 0 && r.left >= -1 && r.right <= window.innerWidth + 1;
-});
+const owned = (info) => ({ ...info, pages: info.pages.map((p) => ({ ...p, is_owner: true })) });
+const menuNames = (page) => page.locator('[data-avatar-menu] [role="menuitem"]').evaluateAll((all) => all.map((m) => m.textContent.trim()));
+const menuOpen = (page) => page.locator('[data-avatar-menu] [role="menu"]').isVisible();
 
-test('on a phone the sections sit behind the menu and the switcher lists every use case', async () => {
-  const { page, seen, context } = await openPage(appInfo({}, 6), 375);
+test('on a phone the other screens sit behind the avatar menu and the switcher lists every use case', async () => {
+  const { page, seen, context } = await openPage(owned(appInfo({}, 6)), 375);
   await page.waitForFunction(chartsDrawn, 4);
-  assert.equal(await page.locator('.side').isVisible(), false);
-  await page.getByRole('button', { name: 'Open the sections' }).click();
-  await page.waitForTimeout(300);
-  assert.ok(await sideOpen(page), 'the menu opens the sections on screen');
-  assert.deepEqual(await page.locator('[data-rail]').evaluateAll((all) => all.map((r) => r.dataset.rail)), ['dashboard', 'work', 'performance', 'runs', 'settings']);
-  await page.locator('[data-rail="runs"]').click();
-  await page.waitForTimeout(300);
-  assert.equal(await sideOpen(page), false, 'picking a section closes the menu');
-  await page.getByRole('button', { name: 'Open the sections' }).click();
-  await page.waitForTimeout(300);
+  assert.equal(await page.locator('.side, [data-rail]').count(), 0);
+  assert.equal(await menuOpen(page), false);
+  await page.locator('[data-avatar-menu] button').first().click();
+  await page.locator('[data-avatar-menu] [role="menu"]').waitFor();
+  assert.deepEqual(await menuNames(page), ['Switch to dark theme', 'Take the tour', 'Settings', 'Runs', 'Performance', 'Admin']);
+  await page.getByRole('menuitem', { name: 'Runs' }).click();
+  await page.waitForFunction(() => window.location.hash === '#/n01_u05/runs');
+  assert.equal(await menuOpen(page), false, 'picking a section closes the menu');
+  await page.locator('[data-avatar-menu] button').first().click();
+  await page.locator('[data-avatar-menu] [role="menu"]').waitFor();
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
-  assert.equal(await sideOpen(page), false, 'Escape closes the menu');
+  await page.locator('[data-avatar-menu] [role="menu"]').waitFor({ state: 'detached' });
+  assert.equal(await menuOpen(page), false, 'Escape closes the menu');
   await page.locator('[data-switcher]').click();
   await page.locator('[data-case]').first().waitFor();
   assert.equal(await page.locator('[data-case]').count(), 6);
@@ -118,48 +128,59 @@ test('on a phone the sections sit behind the menu and the switcher lists every u
   await context.close();
 });
 
-test('the three styles and the open Genie panel stay on a phone screen', async () => {
+test('the three styles and the full-height Genie screen stay on a phone screen', async () => {
   for (const style of ['a', 'b', 'c']) {
     const { page, seen, context } = await openPage(appInfo({ style, layout: 'tabs' }, 6), 375);
     await page.waitForFunction(chartsDrawn, 4);
     let m = await snapshot(page);
     assert.equal(m.pageScroll, 0, `style ${style}`);
     assert.deepEqual(m.bleeding, [], `style ${style}`);
-    await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
-    await page.locator('.genie').waitFor();
-    m = await snapshot(page);
-    assert.equal(m.pageScroll, 0, `style ${style} with Ask Genie open`);
-    assert.deepEqual(m.bleeding, [], `style ${style} with Ask Genie open`);
+    await page.locator('[data-mode="genie"]').click();
+    await page.locator('[data-genie-full]').waitFor();
+    m = await page.evaluate(measureGenie, SCROLLERS);
+    assert.equal(m.pageScroll, 0, `style ${style} with Genie open`);
+    assert.deepEqual(m.bleeding, [], `style ${style} with Genie open`);
     assert.deepEqual(seen.errors, []);
     await context.close();
   }
 });
 
-test('a long App title and subtitle end in an ellipsis instead of widening the page', async () => {
+test('a long use case title ends in an ellipsis in the switcher instead of widening the page', async () => {
   const title = 'N05-U01 Recommend Cross-Sell Item Bundles with Next-Best-Offer Playbook';
   for (const layout of ['sidebar', 'tabs', 'home']) {
-    const { page, seen, context } = await openPage(appInfo({ layout, title, subtitle: `${title} · built by Inspire` }, 2), 1600);
+    const { page, seen, context } = await openPage(appInfo({ layout, title, subtitle: `${title} · built by Inspire` }, 2, { title }), 1600, title);
     await page.waitForFunction(chartsDrawn, 4);
     for (const width of [1280, 768, 375]) {
       await resize(page, width);
       const at = `${layout} at ${width}px`;
       assert.equal((await snapshot(page)).pageScroll, 0, `${at} scrolls sideways`);
-      const cut = await page.locator('.mark-t b').evaluate((b) => ({
+      const cut = await page.locator('[data-switcher] .switch-t b').first().evaluate((b) => ({
         ellipsis: getComputedStyle(b).textOverflow === 'ellipsis', clipped: b.scrollWidth > b.clientWidth, right: Math.round(b.getBoundingClientRect().right),
       }));
       assert.ok(cut.right <= width, `${at}: the title ends on screen ${JSON.stringify(cut)}`);
       if (width === 375) assert.ok(cut.clipped && cut.ellipsis, `${at}: the title is cut with an ellipsis ${JSON.stringify(cut)}`);
-      assert.ok(await page.getByRole('button', { name: 'Ask Genie', exact: true }).isVisible(), `${at}: Ask Genie stays on screen`);
+      assert.ok(await page.locator('[data-mode="genie"]').isVisible(), `${at}: the Genie switch stays on screen`);
+      assert.ok(await page.locator('[data-mode="genie"]').evaluate((b) => b.getBoundingClientRect().right <= window.innerWidth), `${at}: the Genie switch is inside the screen`);
     }
     assert.deepEqual(seen.errors, []);
     await context.close();
   }
 });
 
+// PRODUCT GAP (REQ-506): the shell draws no App title or subtitle any more; the App title is only the document title (App.jsx:184).
+test('the App title and subtitle are in the browser tab title even though the header shows the use case', async () => {
+  const title = 'N05-U01 Recommend Cross-Sell Item Bundles with Next-Best-Offer Playbook';
+  const { page, context } = await openPage(appInfo({ title, subtitle: `${title} · built by Inspire` }, 1), 375);
+  assert.ok((await page.title()).endsWith(` · ${title}`), await page.title());
+  assert.ok((await page.locator('.top').innerText()).includes(title), 'the header says which App this is (PRODUCT GAP: it shows the use case only)');
+  await context.close();
+});
+
 test('on a phone the calendar icon stays beside the first line of the data date when the line wraps', async () => {
   const sponsor = 'Head of Merchandising and Category Planning for the Gulf region';
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, { sponsor }), { width: 375 });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, { sponsor }), { width: 375, hash: FIRST });
   await page.waitForFunction(chartsDrawn, 4);
+  assert.equal(await page.locator('.ph-meta').count(), 1, 'PRODUCT GAP: the header has no line with the sponsor and the data date any more');
   const meta = () => page.locator('.ph-meta').evaluate((el) => {
     const icon = el.querySelector('svg').getBoundingClientRect();
     const text = el.querySelector('span') || el;

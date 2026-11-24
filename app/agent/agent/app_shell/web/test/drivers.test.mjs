@@ -23,7 +23,7 @@ test('the page shows the same Drivers heading and reading guide as the dashboard
   assert.deepEqual(info.pages[0].drivers, { title: 'Drivers', charts: ['by_category'], guide: GUIDE }, 'the one page spec gives both');
   assert.deepEqual(info.pages[0].charts.map((c) => [c.id, c.driver]),
     [['loss_trend', false], ['by_category', true], ['channel_mix', false], ['pareto', false]]);
-  const { page, seen, context } = await openApp(browser, served.base, info);
+  const { page, seen, context } = await openApp(browser, served.base, info, { hash: '#/n01_u05/dashboard' }); // REQ-506: the App lands on Work; the charts are on the dashboard
   try {
     await page.waitForFunction(chartsDrawn, 4);
     const drivers = page.getByRole('region', { name: 'Drivers' });
@@ -42,7 +42,7 @@ test('a page with no Drivers chart shows no Drivers section', async () => {
   const plain = appInfo({}, 1, TABLE);
   const charts = plain.pages[0].charts.map((c) => ({ ...c, driver: false }));
   const info = { ...plain, pages: [{ ...plain.pages[0], charts, drivers: null }] };
-  const { page, seen, context } = await openApp(browser, served.base, info);
+  const { page, seen, context } = await openApp(browser, served.base, info, { hash: '#/n01_u05/dashboard' }); // REQ-506: the App lands on Work; the charts are on the dashboard
   try {
     await page.waitForFunction(chartsDrawn, 4);
     assert.equal(await page.locator('[data-drivers]').count(), 0);

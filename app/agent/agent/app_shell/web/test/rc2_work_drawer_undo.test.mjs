@@ -2,7 +2,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { CURRENT, DECIDE, FIELDS, ROWS, TABLE, appInfo, goRail, openApp, pageData, serveDist } from './harness.mjs';
+import { CURRENT, DECIDE, FIELDS, ROWS, TABLE, appInfo, openApp, pageData, serveDist } from './harness.mjs';
 
 let served;
 let browser;
@@ -38,7 +38,7 @@ async function openMerged(info) {
 test('a merged row in Work mode offers Unmerge in the record panel, the same word as the list', async () => {
   const { page, context } = await openMerged(appInfo({ ...DECIDE }, 1, { ...TABLE }, 'examples/entity_matching.json'));
   try {
-    await goRail(page, 'work');
+    await page.locator('[data-mode="screen"]').click();
     await page.locator('.card--table tbody tr .cell-t').first().waitFor({ timeout: 20000 });
     await page.getByRole('button', { name: 'Start working' }).click();
     const drawer = page.locator('dialog[open]');

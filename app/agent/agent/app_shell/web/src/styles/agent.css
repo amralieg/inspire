@@ -56,3 +56,16 @@
 .agp-email p{margin:0}
 .agp-subject{font-weight:600}
 .agp-body{white-space:pre-wrap;font:inherit;margin:0;font-size:13px}
+
+/* REQ-506 lane 3: compare (options side by side) and resolve (one click, shows the gain). */
+.agp-compare{display:flex;flex-direction:column;gap:8px}
+.agp-options{display:flex;flex-direction:row;gap:8px;align-items:stretch}
+.agp-option{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:6px;border:1px solid var(--line-strong);border-radius:10px;padding:10px 12px;background:var(--card)}
+.agp-option .btn{align-self:flex-start;max-width:100%;white-space:normal;text-align:start}
+.agp-facts{margin:0;display:flex;flex-direction:column;gap:2px;font-size:12.5px}
+.agp-facts div{display:flex;justify-content:space-between;gap:8px}
+.agp-facts dt{color:var(--muted)}
+.agp-facts dd{margin:0;font-weight:650}
+.agp-resolve{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border:1px solid var(--line-strong);border-radius:10px;padding:8px 12px;background:var(--card)}
+.agp-resolve header{display:flex;flex-direction:column;min-width:0}
+.agp-gained{margin:0;font-weight:700;color:var(--ok, #1a7f4b)}

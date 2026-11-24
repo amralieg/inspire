@@ -78,7 +78,7 @@ test('1: a calculated card shows two boxes of the same size, the score box solid
     assert.ok(Math.abs(a.y - b.y) <= 1 && b.x > a.x, 'side by side');
     const probe = await page.evaluate(() => {
       const el = document.createElement('div');
-      el.className = 'bg-db-red-solid';
+      el.className = 'bg-primary-solid';
       document.body.appendChild(el);
       const css = getComputedStyle(el).backgroundColor;
       el.remove();

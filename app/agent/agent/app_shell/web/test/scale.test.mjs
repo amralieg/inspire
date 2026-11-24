@@ -10,6 +10,9 @@ after(async () => { await browser?.close(); served?.close(); });
 
 const overviews = (seen) => (seen.hub || []).filter((body) => !body.page);
 
+// REQ-506: Performance is an owner item of the avatar menu.
+const owned = (info) => ({ ...info, pages: info.pages.map((p) => ({ ...p, is_owner: true })) });
+
 function counting() {
   return {
     overview: ({ route, json, seen }) => {
@@ -99,7 +102,7 @@ test('the decision list and the page start with the stored default dates while t
   assert.ok(seen.records.length >= 1 && seen.records[0].at < marks.filters, 'the list asked before the filter bar answered');
   assert.deepEqual(seen.records[0].filters, { run_date: { from: '2025-11-01', to: '2026-10-15' } });
   assert.equal(seen.records.length, 1, 'the filter bar starts on the same dates, so nothing loads twice');
-  await page.locator('[data-rail="dashboard"]').click();
+  await page.evaluate(() => { window.location.hash = '#/n01_u05/dashboard'; }); // REQ-506: no rail; the menus have no Dashboard item, so the link is the way in
   await page.waitForTimeout(500);
   assert.deepEqual(seen.pages[0].filters, { run_date: { from: '2025-11-01', to: '2026-10-15' } });
   assert.equal(seen.pages.length, 1);
@@ -108,17 +111,18 @@ test('the decision list and the page start with the stored default dates while t
 });
 
 test('opening a use case page never asks for the overview of every use case or for Performance, and Performance asks for its own use case once it opens', async () => {
-  const single = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: counting() });
+  const single = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: counting(), hash: '#/n01_u05/dashboard' });
   await single.page.locator('.kpi-v').first().waitFor();
   await idle(single.page);
   assert.deepEqual(overviews(single.seen), [], 'a one use case App never reads every use case');
   assert.ok((single.seen.hub || []).every((body) => body.page === 'n01_u05'), 'the page reads its own things to fix');
   await single.context.close();
-  const hub = await openApp(browser, served.base, appInfo({ business: 'Contoso Retail' }, 2, TABLE), { routes: counting() });
+  const hub = await openApp(browser, served.base, owned(appInfo({ business: 'Contoso Retail' }, 2, TABLE)), { routes: counting(), hash: '#/n01_u05/dashboard' });
   await hub.page.locator('.kpi-v').first().waitFor();
   await hub.page.waitForTimeout(500);
   assert.deepEqual([overviews(hub.seen), hub.seen.work || []], [[], []], 'a use case dashboard never reads every use case, nor Performance');
-  await hub.page.locator('[data-rail="performance"]').click();
+  await hub.page.locator('[data-avatar-menu] button').first().click();
+  await hub.page.getByRole('menuitem', { name: 'Performance' }).click();
   await hub.page.locator('[data-performance]').waitFor();
   await hub.page.waitForTimeout(300);
   assert.deepEqual(overviews(hub.seen), [], 'Performance never reads every use case');

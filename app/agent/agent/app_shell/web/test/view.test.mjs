@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import {
-  CONTRACT, CURRENT, DECIDE, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, appInfo, chartsDrawn, isInboxAsk, lister, myWorkOf, openApp, prefsFirst, resizeTo, serveDist, tracked, until, pickCase, goRail,
+  CONTRACT, CURRENT, DECIDE, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, appInfo, chartsDrawn, isInboxAsk, lister, myWorkOf, openApp, prefsFirst, resizeTo, serveDist, tracked, until, pickCase,
 } from './harness.mjs';
 import { monitorRoutes } from './exampleRoutes.mjs';
 import { encodeFilters } from '../src/links.js';
@@ -34,6 +34,12 @@ async function openWith(info, routes, { prefs, hash = '#/n01_u05/work', init, wi
   return openApp(browser, served.base, info, { routes, clock: CLOCK, width, timezone: 'Asia/Dubai', hash, watch });
 }
 
+const goSettings = async (page) => {
+  await page.locator('[data-avatar-menu] button').first().click();
+  await page.getByRole('menuitem', { name: 'Settings' }).click();
+};
+const goWork = (page) => page.evaluate(() => { window.location.hash = '#/n01_u05/work'; });
+
 const lists = (seen) => seen.records.filter((b) => !isInboxAsk(b));
 const waitList = (page) => page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length > 0 && document.querySelector('.list-tools'));
 
@@ -62,12 +68,12 @@ test('My view is in Settings for everyone, the window chips follow it, it surviv
   await waitList(page);
   assert.deepEqual([lists(seen)[0].window, lists(seen)[0].time_zone, 'window_limit' in lists(seen)[0]], ['all', 'Asia/Dubai', false],
     'All open names its window from the first read, with no limit');
-  await goRail(page, 'settings');
+  await goSettings(page);
   await page.locator('[data-settings] [data-group="my_view"]').waitFor();
   assert.equal(await page.locator('select[name="my_window"]').inputValue(), 'all');
   assert.equal(await page.locator('select[name="my_limit"]').inputValue(), '0');
   await page.locator('select[name="my_window"]').selectOption('week');
-  await goRail(page, 'work');
+  await goWork(page);
   await until(() => lists(seen).at(-1).window === 'week');
   assert.equal(lists(seen).at(-1).time_zone, 'Asia/Dubai', 'the list says which week it means, here in Dubai time');
   const chips = page.getByRole('group', { name: 'Your window' });
@@ -81,16 +87,16 @@ test('My view is in Settings for everyone, the window chips follow it, it surviv
   assert.equal(lists(seen)[before].window, 'week', 'the first list request after a reload already asks for the window');
   await chips.getByRole('button', { name: 'Today' }).click();
   await until(() => lists(seen).at(-1).window === 'today');
-  await goRail(page, 'settings');
+  await goSettings(page);
   assert.equal(await page.locator('select[name="my_window"]').inputValue(), 'today', 'the setting follows the chip');
-  await goRail(page, 'work');
+  await goWork(page);
   await chips.getByRole('button', { name: 'All open' }).click();
   await until(() => lists(seen).at(-1).window === 'all');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
 
-test('a window chip hides a record outside the window while an overdue record stays, first, on the list and in the inbox', async () => {
+test('a window chip hides a record outside the window while an overdue record stays, first, on the list', async () => {
   const rows = [{ ...ROWS[0], _inspire_due: TODAY }, { ...ROWS[1], _inspire_due: '2026-11-04' }, { ...ROWS[2], _inspire_due: '2026-10-20', _inspire_status: null }];
   const { routes } = tracked({ records: dueList(rows) });
   const { page, seen, context } = await openWith(appInfo(DECIDE, 1, TABLE), routes);
@@ -102,11 +108,6 @@ test('a window chip hides a record outside the window while an overdue record st
   await page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length === 2);
   assert.deepEqual(await labels(page), [label(3), label(1)]);
   assert.ok(!(await labels(page)).includes(label(2)), 'the record due next week is outside Today');
-  await page.locator('[data-rail="inbox"]').click();
-  const due = page.locator('[data-inbox-group="due"] [data-inbox-item]');
-  await due.first().waitFor();
-  assert.deepEqual(await due.locator('.inbox-t bdi').allInnerTexts(), [label(3), label(1)], 'the inbox lists the overdue record first and leaves out the one due next week');
-  assert.match(await due.first().locator('small').innerText(), /Overdue since/);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -130,10 +131,10 @@ test('Compact density fits more rows, and it and the rows per page are kept for 
   await waitList(page);
   const pad = () => page.locator('.card--table tbody td').nth(1).evaluate((td) => getComputedStyle(td).paddingTop);
   assert.equal(await pad(), '9px');
-  await goRail(page, 'settings');
+  await goSettings(page);
   await page.locator('select[name="my_density"]').selectOption('compact');
   assert.equal(await page.locator('.app').getAttribute('data-density'), 'compact');
-  await goRail(page, 'work');
+  await goWork(page);
   await waitList(page);
   assert.equal(await pad(), '5px');
   assert.equal((await mine(page)).density, 'compact');
@@ -170,10 +171,12 @@ test('each chart, the key numbers and a block fold with a one-line summary, stay
   assert.deepEqual({ ...(await state()), sum: '' }, { ...folded, sum: '' }, 'the folds come back after a reload');
   await pickCase(page, 'Second desk 1');
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
+  await page.evaluate(() => { window.location.hash = '#/n02_u01/dashboard'; }); // REQ-506: picking a use case lands on its Work, so go to the Dashboard
   await page.waitForFunction(chartsDrawn, 4);
   assert.equal(await page.locator('.card--folded, .fold-s.is-folded').count(), 0, 'another page keeps its own folds');
   assert.equal(await page.getByRole('button', { name: 'Unfold Loss to discounts by month' }).count(), 0);
   await pickCase(page, 'Price-loss decision desk');
+  await page.evaluate(() => { window.location.hash = '#/n01_u05/dashboard'; });
   await page.waitForFunction(chartsDrawn, 3);
   await page.getByRole('button', { name: 'Unfold Loss to discounts by month' }).click();
   await page.waitForFunction(chartsDrawn, 4);
@@ -208,12 +211,23 @@ test('Focus on the list folds every chart and the key numbers of a page that sho
   const { routes } = tracked();
   const work = await openWith(appInfo(DECIDE, 1, TABLE), routes);
   await waitList(work.page);
-  assert.equal(await work.page.getByRole('button', { name: 'Focus on the list' }).count(), 0, 'Work holds no chart or key number, so there is nothing to fold');
+  // REQ-506: Work now opens with the Overview strip, which holds the key numbers, so Focus folds those (Work still holds no chart)
+  const workFocus = work.page.getByRole('button', { name: 'Focus on the list' });
+  assert.equal(await workFocus.count(), 1, 'Work holds the key numbers in its Overview strip, so Focus is offered');
+  assert.equal(await work.page.locator('[data-section] canvas').count(), 0, 'Work holds no chart');
+  await work.page.waitForFunction(() => document.querySelectorAll('.kpi').length > 0);
+  await workFocus.click();
+  await work.page.waitForFunction(() => document.querySelectorAll('.kpi').length === 0);
+  assert.equal(await workFocus.getAttribute('aria-pressed'), 'true');
+  await workFocus.click();
+  await work.page.waitForFunction(() => document.querySelectorAll('.kpi').length > 0);
+  assert.equal(await workFocus.getAttribute('aria-pressed'), 'false');
   assert.deepEqual(work.seen.errors, []);
   await work.context.close();
   const info = appInfo(DECIDE, 1, {}, 'examples/monitor_triage.json');
   const { page, seen, context } = await openApp(browser, served.base, info, { routes: monitorRoutes(), clock: CLOCK, timezone: 'Asia/Dubai' });
   const drawn = () => page.evaluate(() => document.querySelectorAll('[data-section] canvas').length);
+  await page.evaluate(() => { window.location.hash = '#/n01_u05/dashboard'; }); // REQ-506: the app lands on Work, so go to the Dashboard where the charts are
   await page.waitForFunction(() => document.querySelectorAll('[data-section] canvas').length >= 3);
   const charts = await drawn();
   const expanded = () => page.locator('[data-fold]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-expanded')));
@@ -435,17 +449,15 @@ test('a window reaches only lists that keep actions: a list that keeps none read
   const listed = (page) => page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length > 0);
   const { page, seen, context } = await openWith(appInfo(DECIDE, 2, TABLE), tracked({ records }).routes, { prefs: { window: 'today', limit: 10 } });
   await waitList(page);
-  await page.locator('[data-rail="inbox"]').waitFor();
   assert.deepEqual([lists(seen)[0].page, lists(seen)[0].window, lists(seen)[0].window_limit], ['n01_u05', 'today', 10],
     'a list that keeps actions gets the window and the limit on its first read');
   await page.goto(`${served.base}#/n02_u01/work`);
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
   await listed(page);
   assert.equal(refused.length, 1, 'the one refused read is asked again without the window');
-  await until(() => seen.records.some((b) => b.page === 'n02_u01' && b.changed));
-  await page.waitForFunction(() => !document.querySelector('[data-rail="inbox"]'));
+  // REQ-506: the Inbox is gone, so no inbox read follows the list read; wait for the list read of this page instead
+  await until(() => seen.records.some((b) => b.page === 'n02_u01'));
   assert.deepEqual(seen.records.filter((b) => b.page === 'n02_u01' && (b.mine || b.unowned)), [], 'the inbox never asks a list that keeps no actions for your records');
-  assert.equal(await page.locator('[data-rail="inbox"]').count(), 0, 'a list that keeps no actions has no inbox and never asks it for your records');
   assert.equal(await page.locator('.card--table tbody tr').count(), 25, 'no limit applies to a list that keeps no actions');
   assert.equal(await page.locator('.tile-err').count(), 0, 'the refusal is not shown as an error');
   await until(() => !('window' in seen.records.at(-1)));
@@ -510,11 +522,11 @@ test('Everything shows the fixed and dismissed records All open hides, each with
   const { page, seen, context } = await openWith(appInfo(DECIDE, 1, TABLE), routes);
   await waitList(page);
   assert.deepEqual(await labels(page), [label(1)], 'All open shows the open record only');
-  await goRail(page, 'settings');
+  await goSettings(page);
   await page.locator('[data-settings] [data-group="my_view"]').waitFor();
   assert.deepEqual(await page.locator('select[name="my_window"] option').allInnerTexts(), ['This hour', 'Today', 'This week', 'This month', 'All open', 'Everything']);
   await page.locator('select[name="my_window"]').selectOption('everything');
-  await goRail(page, 'work');
+  await goWork(page);
   await until(() => !('window' in seen.records.at(-1)));
   assert.equal((await mine(page)).window, 'everything', 'the window is kept in this browser like the others');
   const before = seen.records.length;
@@ -654,9 +666,11 @@ test('in Everything the keys and the selection skip closed records and say how m
   await page.getByRole('checkbox', { name: 'Select every record on this page' }).check();
   await page.waitForFunction((text) => document.querySelector('.toast.is-on .toast-t')?.textContent === text, SKIPPED(2));
   assert.equal(await page.locator('.bulk b').innerText(), '1 selected:');
-  assert.equal(await page.locator('.bulk').getByRole('button', { name: /^Select all \d+ matching/ }).count(), 1, 'Everything offers Select all of the open matches only, never the closed ones');
-  await page.locator('.bulk').getByRole('button', { name: 'Mark done…' }).click();
-  await page.getByRole('button', { name: 'Mark 1 record done' }).click();
+  await page.locator('.bulk').getByRole('button', { name: 'More' }).click();
+  assert.equal(await page.getByRole('menuitem', { name: /^Select all \d+ matching/ }).count(), 1, 'Everything offers Select all of the open matches only, never the closed ones');
+  await page.keyboard.press('Escape');
+  await page.locator('.bulk [data-bulk="done"]').click();
+  await page.getByRole('button', { name: 'Resolve 1 record', exact: true }).click();
   await until(() => made.acts.length === 1);
   assert.deepEqual(made.acts[0].record_keys, [OPEN.record_key], 'the act names the open record only');
   assert.equal(made.acts[0].match, undefined);

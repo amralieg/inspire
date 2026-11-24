@@ -6,7 +6,7 @@ export const WINDOWS = [['hour', 'This hour'], ['today', 'Today'], ['week', 'Thi
 export const LIMITS = [10, 25, 50, 100, 200];
 export const DENSITIES = [['comfortable', 'Comfortable'], ['compact', 'Compact']];
 export const DOCKS = ['genie', 'record'];
-export const DEFAULT_PREFS = { window: 'all', limit: 0, density: 'comfortable', rows: PAGE_SIZES[0], folds: {}, seen: {}, columns: {}, dock: '', last: '' };
+export const DEFAULT_PREFS = { window: 'all', limit: 0, density: 'comfortable', rows: PAGE_SIZES[0], folds: {}, seen: {}, columns: {}, dock: '', last: '', welcomed: {} };
 export const GRID_CAPS = { grids: 200, keys: 100, chars: 200 };
 const DAY_MS = 86400000;
 
@@ -42,6 +42,11 @@ function cleanColumns(raw) {
   return out;
 }
 
+function cleanWelcomed(raw) {
+  if (!isObject(raw)) return {};
+  return Object.fromEntries(Object.entries(raw).filter(([id, done]) => shortText(id) && done === true).slice(-GRID_CAPS.grids));
+}
+
 export function cleanPrefs(raw) {
   const p = isObject(raw) ? raw : {};
   return {
@@ -54,6 +59,7 @@ export function cleanPrefs(raw) {
     columns: cleanColumns(p.columns),
     dock: DOCKS.includes(p.dock) ? p.dock : '',
     last: shortText(p.last) ? p.last : '',
+    welcomed: cleanWelcomed(p.welcomed),
   };
 }
 

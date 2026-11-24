@@ -50,7 +50,7 @@ const grants = (state) => state.bodies.filter((b) => b.step === 'grant');
 test('the banner grants with the person\'s permissions only after Confirm, sends no statement, and reloads the page clear', async () => {
   const errors = { 'chart:pareto': `No access to ${TABLE}` };
   const { state, routes } = accessRoutes();
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({ unread: UNREAD, unread_owners: OWNERS }), { errors, routes });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({ unread: UNREAD, unread_owners: OWNERS }), { errors, routes, hash: '#/n01_u05/dashboard' });
   try {
     const banner = page.locator('[data-permission-dialog]');
     await banner.getByRole('button', { name: 'Grant access with my permissions' }).waitFor();
@@ -79,7 +79,7 @@ test('the banner grants with the person\'s permissions only after Confirm, sends
 test('a refused grant names the owner, keeps the buttons, and Copy shows the server SQL', async () => {
   const errors = { 'chart:pareto': `No access to ${TABLE}` };
   const { state, routes } = accessRoutes({ refuse: true });
-  const { page, context } = await openApp(browser, served.base, appInfo({ unread: UNREAD, unread_owners: OWNERS }), { errors, routes });
+  const { page, context } = await openApp(browser, served.base, appInfo({ unread: UNREAD, unread_owners: OWNERS }), { errors, routes, hash: '#/n01_u05/dashboard' });
   try {
     const banner = page.locator('[data-permission-dialog]');
     await banner.getByRole('button', { name: 'Grant access with my permissions' }).click();
@@ -111,9 +111,10 @@ test('Genie answers why there is no data with the banner\'s own buttons, and its
     'agent/ask': ({ json }) => json(200, { ...turn, state: 'running', answer: '', confirm: null }),
     'agent/turn': ({ json }) => json(200, turn),
   });
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({ unread: UNREAD, unread_owners: OWNERS }), { errors, routes });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({ unread: UNREAD, unread_owners: OWNERS }), { errors, routes, hash: '#/n01_u05/dashboard' });
   try {
-    await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
+    await page.locator('[data-mode-switch] [data-mode="genie"]').click();
+    await page.locator('[data-genie-full]').waitFor();
     await page.getByRole('textbox', { name: 'Your question' }).fill('Why is this chart red and why is there no data?');
     await page.getByRole('button', { name: 'Send' }).click();
     const card = page.locator('[data-confirm="access"] [data-access-actions]');
@@ -142,7 +143,7 @@ test('Genie answers why there is no data with the banner\'s own buttons, and its
 test('a person who cannot grant sees Copy the grant SQL and the owner, and no grant button (REQ-082)', async () => {
   const cannot = { ...FOUND, tables: [{ ...FOUND.tables[0], you_can_grant: false }], you_can_grant: false };
   const routes = { access: ({ route, json }) => json(200, cannot) };
-  const { page, context } = await openApp(browser, served.base, appInfo({ unread: UNREAD, unread_owners: OWNERS }), { errors: { 'chart:pareto': `No access to ${TABLE}` }, routes });
+  const { page, context } = await openApp(browser, served.base, appInfo({ unread: UNREAD, unread_owners: OWNERS }), { errors: { 'chart:pareto': `No access to ${TABLE}` }, routes, hash: '#/n01_u05/dashboard' });
   try {
     const banner = page.locator('[data-permission-dialog]');
     await banner.getByRole('button', { name: 'Copy the grant SQL' }).waitFor();

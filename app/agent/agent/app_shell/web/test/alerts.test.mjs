@@ -68,6 +68,17 @@ function alertRoutes(listing = LISTING, overrides = {}) {
 
 const open = (info, routes, options = {}) => openApp(browser, served.base, info, { clock: NOW, ...options, routes });
 
+// REQ-506: no side rail; a place opens by its deep link, from the avatar menu for the owner screens.
+const goSection = (page, id) => page.evaluate((to) => { location.hash = `#/${location.hash.split('/')[1].split('?')[0]}/${to}`; }, id);
+const avatarItems = async (page) => {
+  await page.locator('[data-avatar-menu] button').first().click();
+  const menu = page.getByRole('menu');
+  await menu.waitFor({ state: 'visible' });
+  const items = (await menu.getByRole('menuitem').allInnerTexts()).map((t) => t.trim());
+  await page.keyboard.press('Escape');
+  return items;
+};
+
 async function alertsTab(page) {
   await page.goto(`${served.base}#/n01_u05?v=alerts`);
   await page.locator('section.alerts').waitFor();
@@ -172,6 +183,10 @@ test('every alert and the Alerts card show a visible Ask Genie, and an alert sen
   await page.locator('.alerts-tbl tbody tr').nth(2).waitFor();
   const found = await page.evaluate(askAudit, { card: 'section.card--table', row: '.alerts-tbl tbody tr' });
   assert.deepEqual([found.missing, found.hidden, found.counts], [[], [], { card: 1, row: 3 }]);
+  // REQ-506: sending a question opens Genie full height in place of the page, so the Alerts card is read first.
+  await page.getByRole('button', { name: 'Ask Genie about Alerts', exact: true }).click();
+  assert.match(await page.locator('form.ask-box [data-receives]').innerText(), /3 rows/);
+  await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Ask Genie about Loss jumps', exact: true }).click();
   await page.getByLabel('Your question about Loss jumps').fill('Why is it OK?');
   await page.locator('form.ask-box button[type="submit"]').click();
@@ -179,8 +194,6 @@ test('every alert and the Alerts card show a visible Ask Genie, and an alert sen
   const sent = explained[0];
   assert.deepEqual([sent.kind, sent.page, sent.title, sent.context.hint], ['record', 'n01_u05', 'Loss jumps', 'An alert of this use case.']);
   assert.deepEqual([sent.context.fields.Alert, sent.context.fields.State, sent.context.fields['What it checks']], ['Loss jumps', 'OK', 'Total loss is more than 250,000']);
-  await page.getByRole('button', { name: 'Ask Genie about Alerts', exact: true }).click();
-  assert.match(await page.locator('form.ask-box [data-receives]').innerText(), /3 rows/);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -279,15 +292,16 @@ test('the owner changes, pauses and deletes an alert, and a full App offers no n
   await second.context.close();
 });
 
-test('Notify me in Settings opens the Alerts section when alerts are on, the rail returns to the dashboard, and an App without alerts shows no Notify me', async () => {
+test('Notify me in Settings opens the Alerts section when alerts are on, Work and the dashboard link return from it, and an App without alerts shows no Notify me', async () => {
   const { routes } = alertRoutes();
-  const { page, context } = await open(appInfo(ON, 1, TABLE), routes, { hash: '#/n01_u05/settings' });
+  const { page, context } = await open(appInfo({ ...ON, use_case_owners: { n01_u05: [PERSON] } }, 1, TABLE), routes, { hash: '#/n01_u05/settings' });
   await page.getByRole('button', { name: 'Notify me' }).click();
   await page.locator('section.alerts').waitFor();
   assert.equal(new URL(page.url()).hash, '#/n01_u05/alerts');
-  assert.equal(await page.locator('[data-rail="alerts"]').count(), 0, 'the alerts sit under Runs, so the rail has no Alerts item');
-  assert.equal(await page.locator('[data-rail="runs"]').getAttribute('aria-current'), 'page');
-  await page.locator('[data-rail="dashboard"]').click();
+  const items = await avatarItems(page);
+  assert.ok(items.some((t) => /^runs$/i.test(t)), `an owner reaches Runs from the avatar menu: ${items.join(', ')}`);
+  assert.ok(!items.some((t) => /^alerts$/i.test(t)), 'the alerts sit under Runs, so the avatar menu has no separate Alerts item');
+  await goSection(page, 'dashboard');
   await page.locator('section.alerts').waitFor({ state: 'detached' });
   assert.equal(new URL(page.url()).hash, '#/n01_u05/dashboard');
   await context.close();
@@ -295,8 +309,8 @@ test('Notify me in Settings opens the Alerts section when alerts are on, the rai
   await off.page.goto(`${served.base}#/n01_u05?v=alerts`);
   await off.page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
   assert.equal(await off.page.locator('section.alerts').count(), 0, 'an App built without alerts opens no alerts, even from an old link');
-  assert.equal(await off.page.locator('[data-rail="alerts"]').count(), 0, 'the rail has no Alerts section');
-  await off.page.locator('[data-rail="settings"]').click();
+  assert.ok(!(await avatarItems(off.page)).some((t) => /alerts/i.test(t)), 'the avatar menu has no Alerts section');
+  await goSection(off.page, 'settings');
   await off.page.locator('[data-settings] [data-auth]').waitFor();
   assert.equal(await off.page.getByRole('button', { name: 'Notify me' }).count(), 0);
   await off.context.close();
@@ -315,7 +329,7 @@ test('Notify me opens a new alert ready to fill in, a link to the alerts alone d
   await page.reload();
   await page.getByText('No alerts on this page yet.').waitFor();
   assert.equal(await form.count(), 0, 'opening the alerts from a link shows the list');
-  await page.locator('[data-rail="settings"]').click();
+  await goSection(page, 'settings');
   await page.getByRole('button', { name: 'Notify me' }).click();
   await form.waitFor();
   assert.deepEqual(seen.errors, []);
@@ -340,14 +354,13 @@ test('an App where each person signs in as themselves shows no Alerts tab and no
   assert.equal(info.alerts.n01_u05, BUILT, 'the alert set up at build is there, so only the per-person rule keeps Notify me away');
   const { page, seen, context } = await open(info, routes);
   await page.goto(`${served.base}#/n01_u05?v=alerts`);
-  await page.locator('.kpi-l', { hasText: 'To fix' }).waitFor();
-  assert.equal(new URL(page.url()).hash, '#/n01_u05/dashboard');
+  await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
   assert.equal(await page.locator('section.alerts').count(), 0);
-  assert.equal(await page.locator('[data-rail="alerts"]').count(), 0);
-  await page.locator('[data-rail="settings"]').click();
+  assert.ok(!(await avatarItems(page)).some((t) => /alerts/i.test(t)));
+  await goSection(page, 'settings');
   await page.locator('[data-settings] [data-auth]').waitFor();
   assert.equal(await page.getByText('Notify me').count(), 0, 'neither the Alerts button nor the link to the built alert');
-  await page.locator('[data-rail="runs"]').click();
+  await goSection(page, 'runs');
   await page.locator('section.runs').waitFor();
   assert.equal(await page.getByText('Notify me').count(), 0);
   assert.equal(await page.locator('section.alerts').count(), 0);
@@ -373,7 +386,8 @@ test('assigning records tells the person who assigned them that the owner gets a
   const { page, seen, context } = await open(appInfo(ON, 1, TABLE), routes, { hash: '#/n01_u05/work' });
   await page.waitForFunction(() => document.querySelectorAll('.card--table tbody input[type="checkbox"]').length === 25);
   await page.getByRole('checkbox', { name: 'Select Item number 1 with a long descriptive name' }).check();
-  await page.getByRole('button', { name: 'Assign to…' }).click();
+  await page.getByRole('region', { name: 'Selected records' }).getByRole('button', { name: 'More' }).click();
+  await page.getByRole('menuitem', { name: 'Assign to…' }).click();
   await page.locator('input[name="bulk_owner"]').fill(SAM);
   await page.getByRole('button', { name: 'Assign 1 record' }).click();
   await until(() => acts.length === 1);

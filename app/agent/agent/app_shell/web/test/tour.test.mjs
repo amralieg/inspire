@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { SRC, appInfo, bundleEntry, goRail, openApp, openBundle, pageData, serveDist } from './harness.mjs';
+import { SRC, appInfo, bundleEntry, openApp, openBundle, pageData, serveDist } from './harness.mjs';
 import { EXAMPLES } from './exampleRoutes.mjs';
 import { fillTourText, holeOf, pickTourLanguage, placeTour, sentencesOf, tourSection } from '../src/tour.js';
 
@@ -29,6 +29,13 @@ let browser;
 before(async () => { served = await serveDist(); base = served.base; browser = await chromium.launch(); });
 after(async () => { await browser?.close(); served?.close(); });
 
+// REQ-506: no side rail; Take the tour is an item of the avatar menu. A step whose anchor is not on the screen is skipped after TOUR_WAIT_MS, so the waits allow for several in a row.
+const STEP_WAIT = 45000;
+const takeTour = async (page) => {
+  await page.locator('[data-avatar-menu] button').first().click();
+  await page.getByRole('menuitem', { name: 'Take the tour' }).click();
+};
+
 const written = (steps = WRITTEN, languages = ['English']) => ({ tour: { languages, steps: { English: steps } } });
 
 async function stepNow(page, after = 0) {
@@ -44,7 +51,7 @@ async function stepNow(page, after = 0) {
     const r = target.getBoundingClientRect();
     const near = (a, b) => Math.abs(a - b) <= 8;
     return near(hole.left, Math.max(r.left - 6, 2)) && near(hole.top, Math.max(r.top - 6, 2)) ? 'shown' : false;
-  }, after, { timeout: 15000 });
+  }, after, { timeout: STEP_WAIT });
   if (await shown.jsonValue() === 'ended') return null;
   let words = '';
   for (let still = 0; still < 4;) {
@@ -73,11 +80,12 @@ async function walk(page) {
     if (!now) return seen;
     seen.push(now);
     at = now.at;
-    await page.locator('[data-tour-next]').click();
+    // the pop re-anchors between steps on the location_view page, so Playwright never sees the button stable; the click event is sent to it directly
+    await page.locator('[data-tour-next]').dispatchEvent('click', null, { timeout: STEP_WAIT });
     const going = await page.waitForFunction((was) => {
       const tour = document.querySelector('.tour');
       return !tour ? 'ended' : Number(tour.dataset.tourStep) !== was ? 'next' : null;
-    }, at, { timeout: 15000 });
+    }, at, { timeout: STEP_WAIT });
     if (await going.jsonValue() === 'ended') return seen;
   }
 }
@@ -167,6 +175,7 @@ test('an automated browser opens the App without a tour, and a first visit asked
 test('the tour walks every step it can show, skips a missing anchor, fills live facts and goes back where it started', async () => {
   const info = appInfo({}, 1, written());
   const { page, context, seen } = await openApp(browser, base, info, { watch: STILL, hash: '?tour=1' });
+  const startedAt = await page.evaluate(() => location.hash);
   const steps = await walk(page);
   assert.deepEqual(steps.map((s) => s.anchor), ['decision', 'todo', 'kpis', 'records', 'top_record', 'genie'], 'alerts is off in this App, so the tour writes no alerts step and the template fills the place with the first unused stop, What to do now');
   assert.equal(steps[0].text, 'This desk ranks discounts by the margin they lose.', 'the open count had not loaded on the dashboard, so its sentence is dropped');
@@ -176,7 +185,7 @@ test('the tour walks every step it can show, skips a missing anchor, fills live 
   assert.equal(steps[4].text, `Start with ${ROWS[0].entity_label}, it loses the most margin.`);
   assert.match(steps[3].hash, /work/, 'the list lives on the work section of a queue page');
   assert.deepEqual(steps.map((s) => s.count), ['1 / 6', '2 / 6', '3 / 6', '4 / 6', '5 / 6', '6 / 6']);
-  await page.waitForFunction(() => !/work/.test(location.hash));
+  await page.waitForFunction((h) => location.hash === h, startedAt);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -184,8 +193,8 @@ test('the tour walks every step it can show, skips a missing anchor, fills live 
 test('keys move, Tab stays in the popover, Esc closes and focus returns to Take the tour', async () => {
   const info = appInfo({}, 1, written());
   const { page, context } = await openApp(browser, base, info, { watch: STILL });
-  await goRail(page, 'settings');
-  await page.locator('[data-take-tour]').click();
+  const startedAt = await page.evaluate(() => location.hash);
+  await takeTour(page);
   await stepNow(page);
   await page.waitForFunction(() => document.activeElement?.hasAttribute('data-tour-next'), null, { timeout: 3000 });
   await page.keyboard.press('ArrowRight');
@@ -200,9 +209,9 @@ test('keys move, Tab stays in the popover, Esc closes and focus returns to Take 
   assert.ok(await page.evaluate(() => document.querySelector('.tour-pop').contains(document.activeElement)));
   await page.keyboard.press('Escape');
   await page.waitForSelector('.tour', { state: 'detached' });
-  await page.waitForFunction(() => document.activeElement?.hasAttribute('data-take-tour'));
-  assert.match(await page.evaluate(() => location.hash), /settings/, 'the tour returns to the section it started from');
-  await page.locator('[data-take-tour]').click();
+  await page.waitForFunction(() => document.activeElement?.closest('[data-avatar-menu]') !== null);
+  assert.equal(await page.evaluate(() => location.hash), startedAt, 'the tour returns to the section it started from');
+  await takeTour(page);
   await stepNow(page);
   await page.locator('[data-tour-skip]').click();
   await page.waitForSelector('.tour', { state: 'detached' });

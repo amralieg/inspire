@@ -5,6 +5,7 @@ import { useHistory } from './History.jsx';
 import { withNotice } from './alerts.js';
 import { compareValues, countOf, integer, kindOf, plainText, unitOf } from './format.js';
 import { Icon } from './icons.jsx';
+import { MoreMenu } from './MoreMenu.jsx';
 import { Popover, SaidNote, useDialog, useToast, PlainNote, toastFailure } from './ui.jsx';
 import { SaveButton, missingWhy, runWrite, useWrite } from './saving.jsx';
 import { localDay, nextDay } from './prefs.js';
@@ -143,7 +144,7 @@ export function ConflictNote({ conflicts, labelOf, onClose }) {
 export function BulkBar({ picked, matching, total, capped = false, allOnPage, owners, person, tomorrow, canMatch = true, onAct, onAll, onClear, onAccept = null,
   onSimilar = null, onDraft = null, choices = DEFAULT_CHOICES }) {
   const { busy } = useWrite();
-  const anchors = { done: useRef(null), dismiss: useRef(null), assign: useRef(null), status: useRef(null), snooze: useRef(null) };
+  const anchors = { done: useRef(null), dismiss: useRef(null), snooze: useRef(null), more: useRef(null) };
   const [open, setOpen] = useState('');
   const [owner, setOwner] = useState(person);
   const [choiceId, setChoiceId] = useState(() => firstChoice(choices, IN_PROGRESS)?.id || '');
@@ -170,29 +171,25 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
   return (
     <div className="bulk" role="region" aria-label="Selected records">
       {matching ? <b>All {over}{integer(matching.total)} open records selected{matching.closed ? `. ${integer(matching.closed)} closed stay as they are` : ''}</b> : <b>{n} selected:</b>}
-      {onAccept && <SaveButton write="bulk:accept" className="btn btn--pri" onClick={onAccept} data-accept-picked><Icon name="check" size={14} />Accept the suggestions</SaveButton>}
-      {closes('done') && <SaveButton write="bulk:done" ref={anchors.done} onClick={toggle('done')} aria-expanded={open === 'done'} data-bulk="done"><Icon name="check" size={14} />{matching ? 'Mark all as done…' : 'Mark done…'}</SaveButton>}
-      {closes('dismissed') && <SaveButton write="bulk:dismiss" ref={anchors.dismiss} onClick={toggle('dismiss')} aria-expanded={open === 'dismiss'} data-bulk="dismiss">{matching ? 'Not an issue for all…' : 'Not an issue…'}</SaveButton>}
-      <SaveButton write="bulk:assign" ref={anchors.assign} onClick={toggle('assign')} aria-expanded={open === 'assign'}>Assign to…</SaveButton>
-      <SaveButton write="bulk:status" ref={anchors.status} onClick={toggle('status')} aria-expanded={open === 'status'}>Set status…</SaveButton>
-      <SaveButton write="bulk:snooze" ref={anchors.snooze} onClick={toggle('snooze')} aria-expanded={open === 'snooze'} data-bulk="snooze">{matching ? 'Snooze all…' : 'Snooze…'}</SaveButton>
-      {onSimilar && !matching && picked.size <= SIMILAR_KEYS && <button className="btn" onClick={onSimilar} disabled={busy} data-bulk="similar">Apply to similar…</button>}
-      {onDraft && !matching && (
-        <button className="btn" onClick={onDraft} disabled={picked.size > DRAFT_RECORDS} data-bulk="draft"
-          title={picked.size > DRAFT_RECORDS ? `One message covers at most ${DRAFT_RECORDS} records: select fewer to draft one` : undefined}>
-          <Icon name="send" size={14} />{DRAFT_LABEL}
-        </button>
-      )}
-      {!matching && canMatch && allOnPage && total > picked.size && <button className="link" onClick={onAll}>Select all {capped ? 'more than ' : ''}{integer(total)} matching</button>}
-      <span className="sp" />
-      <button className="link" onClick={onClear}>Clear selection</button>
+      {closes('done') && <SaveButton write="bulk:done" ref={anchors.done} onClick={toggle('done')} aria-expanded={open === 'done'} data-bulk="done" className="btn btn--pri"><Icon name="check" size={14} />{matching ? 'Resolve all' : 'Resolve'}</SaveButton>}
+      {closes('dismissed') && <SaveButton write="bulk:dismiss" ref={anchors.dismiss} onClick={toggle('dismiss')} aria-expanded={open === 'dismiss'} data-bulk="dismiss">{matching ? 'Not an issue for all' : 'Not an issue'}</SaveButton>}
+      <SaveButton write="bulk:snooze" ref={anchors.snooze} onClick={toggle('snooze')} aria-expanded={open === 'snooze'} data-bulk="snooze">Later</SaveButton>
+      <MoreMenu buttonRef={anchors.more} items={[
+        { label: 'Assign to\u2026', run: () => setOpen('assign') },
+        { label: 'Set status\u2026', run: () => setOpen('status') },
+        onAccept ? { label: 'Accept the suggestions', run: onAccept, attrs: { 'data-accept-picked': '' } } : null,
+        onSimilar && !matching && picked.size <= SIMILAR_KEYS ? { label: 'Apply to similar\u2026', run: onSimilar, disabled: busy, attrs: { 'data-bulk': 'similar' } } : null,
+        onDraft && !matching ? { label: DRAFT_LABEL, run: onDraft, disabled: picked.size > DRAFT_RECORDS, attrs: { 'data-bulk': 'draft' } } : null,
+        !matching && canMatch && allOnPage && total > picked.size ? { label: `Select all ${capped ? 'more than ' : ''}${integer(total)} matching`, run: onAll } : null,
+        { label: 'Clear selection', run: onClear },
+      ]} />
       {matching && <small className="bulk-asof">As of {asOfText(matching.as_of_us)}. A record that changes after that is left as it is.</small>}
       {open === 'done' && (
         <Popover anchor={anchors.done.current} onClose={close} label="Mark the selected records done" width={300}>
           <form className="bulk-pop" onSubmit={submit('done', { action_status: DONE }, 'done')}>
             {note500}
             {matching?.closed > 0 && <small className="faint" data-closed-note>{integer(matching.closed)} closed {matching.closed === 1 ? 'record stays' : 'records stay'} as {matching.closed === 1 ? 'it is' : 'they are'}.</small>}
-            <SaveButton write="bulk:done" type="submit" className="btn btn--pri"><Icon name="check" size={14} />{matching ? `Mark ${what} as done?` : `Mark ${what} done`}</SaveButton>
+            <SaveButton write="bulk:done" type="submit" className="btn btn--pri"><Icon name="check" size={14} />{matching ? `Resolve ${what}?` : `Resolve ${what}`}</SaveButton>
           </form>
         </Popover>
       )}
@@ -210,7 +207,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
         </Popover>
       )}
       {open === 'assign' && (
-        <Popover anchor={anchors.assign.current} onClose={close} label="Assign the selected records" width={300}>
+        <Popover anchor={anchors.more.current} onClose={close} label="Assign the selected records" width={300}>
           <form className="bulk-pop" onSubmit={submit('assign', { action_owner: owner.trim() })}>
             <label className="in"><span>Owner</span><input dir="auto" name="bulk_owner" autoFocus value={owner} onChange={(e) => setOwner(e.target.value)} list="owners-bulk" maxLength={254} autoComplete="off" /></label>
             <datalist id="owners-bulk">{owners.map((o) => <option key={o} value={o} />)}</datalist>
@@ -220,7 +217,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
         </Popover>
       )}
       {open === 'status' && (
-        <Popover anchor={anchors.status.current} onClose={close} label="Set the status of the selected records" width={300}>
+        <Popover anchor={anchors.more.current} onClose={close} label="Set the status of the selected records" width={300}>
           <form className="bulk-pop" onSubmit={(e) => (choice ? submit('status', choiceForm(choices, choice, reason))(e) : e.preventDefault())}>
             <label className="in"><span>Status</span><ChoiceSelect name="bulk_choice" choices={choices} value={choiceId} status={status} onChange={setChoiceId} /></label>
             {statusKind(status) === 'dismissed' && (

@@ -87,7 +87,7 @@ test('Performance shows the person\'s numbers for this use case only, with the w
   assert.equal(await page.locator('[data-my-work], .imp-page').count(), 0, 'the old My work and Impact pages are gone');
   await page.locator('[data-overdue-row="R001"]').click();
   await page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/work') && window.location.hash.includes('rec=R001'));
-  await page.locator('[data-dock="record"] dialog.drawer').waitFor();
+  await page.locator('dialog.drawer').waitFor();
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
