@@ -22,7 +22,7 @@ test('the first-record step never names a record by its raw key when the record 
   const info = appInfo(ex.settings, 1, {}, 'examples/network_explorer.json');
   const base = ex.routes();
   const routes = { ...base, records: (arg) => base.records({ ...arg, json: (status, data) => arg.json(status, { ...data, rows: data.rows.map(({ entity_label: _label, ...row }) => row) }) }) };
-  const { page, context, seen } = await openApp(browser, served.base, info, { routes });
+  const { page, context, seen } = await openApp(browser, served.base, info, { routes, hash: '#/n08_u01/dashboard' }); // REQ-506: the to-do step is on the dashboard, the App lands on Work
   await ex.ready(page);
   const todo = await page.locator('[data-section="todo"]').innerText();
   assert.doesNotMatch(todo, /Start with [A-Z]+\d+/, `the step names a raw id: ${todo.replace(/\n+/g, ' | ')}`);
@@ -36,7 +36,7 @@ test('a plan line with no label names itself by its rank, never by its raw key',
   const info = appInfo(ex.settings, 1, {}, 'examples/planner.json');
   const base = ex.routes();
   const routes = { ...base, records: (arg) => base.records({ ...arg, json: (status, data) => arg.json(status, { ...data, rows: data.rows.map(({ entity_label: _label, ...row }) => row) }) }) };
-  const { page, context, seen } = await openApp(browser, served.base, info, { routes });
+  const { page, context, seen } = await openApp(browser, served.base, info, { routes, hash: '#/n03_u02/dashboard' }); // REQ-506: the to-do step is on the dashboard, the App lands on Work
   await ex.ready(page);
   const plan = await page.locator('[data-section="plan_table"]').innerText();
   assert.doesNotMatch(plan, /\bK\d+\b/, `a plan line shows its raw key: ${plan.replace(/\n+/g, ' | ').slice(0, 200)}`);
@@ -50,7 +50,7 @@ test('the first-record step never names a record by a numeric id stored in its l
   const info = appInfo(ex.settings, 1, {}, 'examples/network_explorer.json');
   const base = ex.routes();
   const routes = { ...base, records: (arg) => base.records({ ...arg, json: (status, data) => arg.json(status, { ...data, rows: data.rows.map((row, i) => (i === 0 ? { ...row, entity_label: '4411' } : row)) }) }) };
-  const { page, context, seen } = await openApp(browser, served.base, info, { routes });
+  const { page, context, seen } = await openApp(browser, served.base, info, { routes, hash: '#/n08_u01/dashboard' }); // REQ-506: the to-do step is on the dashboard, the App lands on Work
   await ex.ready(page);
   const todo = await page.locator('[data-section="todo"]').innerText();
   assert.doesNotMatch(todo, /4411/, `the step names a raw id: ${todo.replace(/\n+/g, ' | ')}`);
