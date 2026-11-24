@@ -33,7 +33,10 @@ export const DELIVERY_QUESTION = 'How will people use this use case?';
 export const BUILD_IT_LABEL = 'All Good, Build it Now';
 export const BACK_TO_SUMMARY = 'Back to Summary';
 export const WIZARD_LINE = 'From your data to people using it';
-export const NOTEBOOK_CARD = { id: 'notebook', label: 'Notebook', blurb: 'The notebook that reads your data and fills the result table. Always built.' };
+// REQ-514: an MVP is the App with its Genie Agent, always built; Dashboard and Alert are the only options.
+export const APP_CARD = { id: 'app', label: 'App with Genie', blurb: 'A Databricks App with the decision list, row detail and Ask, and the Genie Agent that answers Ask. Always built.' };
+export const OPTIONAL_OUTPUTS = ['dashboard', 'alert'];
+export const withFixedApp = (spec) => (spec?.outputs ? { ...spec, outputs: { ...spec.outputs, app: true, genie_space: true } } : spec);
 export const RUN_IT_TITLE = 'How often should it run?';
 export const APP_ACCESS_QUESTION = 'Who sees which rows?';
 export const USE_CASE_DETAILS_LABEL = 'Details';

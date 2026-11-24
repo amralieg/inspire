@@ -75,8 +75,8 @@ test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step h
     assert.equal(await page.getByRole('button', { name: /vibes/i }).count(), 0, 'Delivery has no vibes button');
     assert.equal(await page.getByRole('textbox', { name: /vibes/i }).count(), 0, 'Delivery has no vibes box');
     assert.equal(await page.getByRole('region', { name: 'Vibes' }).count(), 0);
-    await page.getByRole('checkbox', { name: /^Agentic App A Databricks/ }).uncheck();
-    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. How to build', '2. What to deliver', '3. Data & results', '4. First run', '5. Review & build'], 'Summary stays last without an App');
+    assert.equal(await page.getByRole('checkbox', { name: /^Agentic App/ }).count(), 0, 'REQ-514: the App is not a choice');
+    assert.deepEqual(await page.locator('ol li').allTextContents(), STEPS_WITH_APP, 'Summary stays last');
     await toVibes(page);
     const panel = page.getByRole('region', { name: 'Vibes' });
     await panel.getByRole('heading', { name: 'Anything else Genie should build in?' }).waitFor();
