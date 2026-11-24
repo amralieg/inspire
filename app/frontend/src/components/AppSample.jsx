@@ -215,7 +215,7 @@ function FixPage({ look, title, compact, s }) {
       <PageTitle look={look} title={title} sub="Updated Oct 27, 06:00 · 128 records to fix" />
       <Kpis look={look} s={s} />
       {!compact && (
-        <div className="grid h-[62px] grid-cols-2 gap-1.5">
+        <div className="grid h-[68px] grid-cols-2 gap-1.5">
           <Card look={look} title="To fix by week" hue="blue" explain><Trend /></Card>
           <Card look={look} title="Records by tier" hue="amber" explain><Donut /></Card>
         </div>
@@ -360,11 +360,11 @@ function HomeCards({ look, title, impact, s }) {
 export default function AppSample({ palette, look, appName, title, view = 'fix', shared = true, label, charts = ['trend', 'bars', 'pareto'], impact = true, stake = null }) {
   const vars = paletteVars(palette, look.theme);
   const s = sampleStake(stake);
-  if (!vars) return <div aria-hidden="true" data-app-sample="" className="h-[296px] rounded-lg bg-bg-subtle animate-pulse" />;
+  if (!vars) return <div aria-hidden="true" data-app-sample="" className="h-[340px] rounded-lg bg-bg-subtle animate-pulse" />;
   return (
     <div role="img" aria-label={label} data-app-sample={view} data-sample-style={look.style} data-sample-layout={look.layout} data-sample-palette={look.palette} data-sample-theme={look.theme}
       data-sample-charts={charts.filter((id) => CHART_CARDS[id]).join(',')} data-sample-impact={impact ? 'on' : 'off'}
-      className="flex h-[296px] flex-col overflow-hidden rounded-lg text-start" style={{ ...vars, background: pv('bg'), border: `1px solid ${pv('line-strong')}`, colorScheme: look.theme }}>
+      className="flex h-[340px] flex-col overflow-hidden rounded-lg text-start" style={{ ...vars, background: pv('bg'), border: `1px solid ${pv('line-strong')}`, colorScheme: look.theme }}>
       <TopBar look={look} appName={appName} title={title} shared={shared} impact={impact} />
       <div className="flex min-h-0 flex-1">
         {look.layout === 'sidebar' && <SideNav look={look} title={title} impact={impact} />}
