@@ -102,7 +102,8 @@ test('4: Save sends one PUT with the toggled holdout and the panel money', async
     await dialog.locator('[data-measure-editor]').getByLabel('Hold back').check();
     await goTo(dialog, 'save');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-    await button(dialog, 'Save').click();
+    await dialog.getByLabel('I have read and accept these terms').check();
+    await button(dialog, 'Accept and save').click();
     await dialog.waitFor({ state: 'detached' });
     assert.equal(state.puts.length, 1);
     assert.equal(state.puts[0].answers.holdout.enabled, true);
@@ -120,7 +121,8 @@ test('5: without a measure prop the dialog shows no measure section and Save car
     assert.equal(await dialog.locator('[data-measure-settings]').count(), 0);
     await goTo(dialog, 'save');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-    await button(dialog, 'Save').click();
+    await dialog.getByLabel('I have read and accept these terms').check();
+    await button(dialog, 'Accept and save').click();
     await dialog.waitFor({ state: 'detached' });
     assert.equal(state.puts.length, 1);
     assert.deepEqual(state.puts[0].answers.money, MONEY);

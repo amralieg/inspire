@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, lowContrast, openUi, setDark, totalsQueryMissing } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
+import { openReader, closeReader } from './reviewRows.mjs';
 import { valueChips } from '../../src/lib/valueLedger.js';
 import { SHOWCASE_NOTE } from '../../src/lib/showcase.js';
 import { openShowcase } from '../../../scripts/showcaseRecorder.mjs';
@@ -67,7 +68,8 @@ test('the use case card headlines the largest at stake amount, the saved amount 
     const list = page.getByRole('region', { name: 'Use case list' });
     await list.locator('[data-use-case-row]').first().waitFor();
     const card = (name) => list.locator('[data-use-case-row]').filter({ hasText: name });
-    const badge = card('Predict churn').locator('[data-value-badge]');
+    // REQ-511: the value badge lives in the reader (the full card), not the row.
+    const badge = (await openReader(page, card('Predict churn'))).locator('[data-value-badge]');
     await badge.waitFor({ timeout: 15000 });
     assert.equal((await badge.locator('[data-value-headline="at stake"]').innerText()).trim(), 'AED 3K');
     assert.equal((await badge.locator('[data-value-headline="saved"]').innerText()).trim(), 'AED 900');
@@ -77,12 +79,15 @@ test('the use case card headlines the largest at stake amount, the saved amount 
     assert.equal(await badge.locator('[data-value-headline="at stake"]').evaluate((el) => getComputedStyle(el).color === getComputedStyle(document.body).color), false, 'headline is not the body colour');
     assert.equal(await badge.locator('[data-value-headline="saved"]').evaluate((el) => getComputedStyle(el).color.replace(/\s/g, '') !== 'rgb(220,38,38)'), true, 'saved is not an error red');
 
-    const notMeasured = card('Score upsell');
+    await closeReader(page);
+    const notMeasured = await openReader(page, card('Score upsell'));
     await notMeasured.locator('[data-value-state="not-measured"]').waitFor();
     assert.equal((await notMeasured.locator('[data-value-state="not-measured"]').innerText()).trim(), 'Not measured yet');
     assert.equal(await notMeasured.locator('[data-value-headline]').count(), 0, 'no number is shown for a value that is not measured');
 
-    assert.equal(await card('Forecast stock').locator('[data-value-badge], [data-value-state]').count(), 0, 'no MVP, no value on the card');
+    await closeReader(page);
+    const noValue = await openReader(page, card('Forecast stock'));
+    assert.equal(await noValue.locator('[data-value-badge], [data-value-state]').count(), 0, 'no MVP, no value on the card');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -95,7 +100,7 @@ test('the run header shows the run value from the totals, with its counts and th
   const ui = await openUi('results', withValue(REVIEW_RESULTS, {}), '', { mount: mountValue });
   const { page } = ui;
   try {
-    const header = page.locator('[data-run-heading] [data-run-header-value]');
+    const header = page.locator('[data-run-box] [data-run-header-value]');
     await header.locator('[data-run-value-total]').waitFor({ timeout: 15000 });
     assert.equal((await header.locator('[data-run-value-total]').innerText()).trim(), 'AED 12K');
     assert.match(await header.innerText(), /1 reviewed calculation · 1 provisional estimate/);
@@ -158,10 +163,10 @@ test('value chips and the overall banner keep 4.5:1 contrast in light and dark',
   const ui = await openUi('results', withValue(REVIEW_RESULTS, {}), '', { mount: mountValue });
   const { page } = ui;
   try {
-    await page.locator('[data-run-heading] [data-run-value-total]').waitFor({ timeout: 15000 });
+    await page.locator('[data-run-box] [data-run-header-value] [data-run-value-total]').waitFor({ timeout: 15000 });
     for (const dark of [false, true]) {
       await setDark(page, dark);
-      const measured = await lowContrast(page, ['[data-run-heading]', '[data-use-case-no="N01-U01"]', '[data-use-case-no="N01-U02"]']);
+      const measured = await lowContrast(page, ['[data-run-box]', '[data-use-case-no="N01-U01"]', '[data-use-case-no="N01-U02"]']);
       assert.ok(measured.checked >= 6, `${dark ? 'dark' : 'light'}: measured ${measured.checked}`);
       assert.deepEqual(measured.low, [], `${dark ? 'dark' : 'light'} value text`);
     }

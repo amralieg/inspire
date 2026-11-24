@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { closeBrowser, idle, openUi } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
 import { goTo, mountWizard, openCard, openWizard } from './valueWizardSupport.mjs';
+import { openReader } from './reviewRows.mjs';
 
 test.after(closeBrowser);
 
@@ -143,7 +144,8 @@ for (const [width, rtl] of [[1280, false], [1280, true], [390, false], [390, tru
     try {
       await page.setViewportSize({ width, height: 800 });
       if (rtl) await page.evaluate(() => { document.documentElement.dir = 'rtl'; });
-      const card = page.locator('[data-use-case-no="N01-U01"]');
+      // REQ-511: the full card (name, pencil, yearly value box) lives in the reader, not the row.
+      const card = await openReader(page, page.locator('[data-use-case-no="N01-U01"]'));
       await card.locator('[data-value-yearly]').waitFor({ timeout: 15000 });
       await idle(page);
       const m = await card.evaluate((root, isRtl) => {

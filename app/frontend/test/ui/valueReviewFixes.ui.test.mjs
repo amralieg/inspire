@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { closeBrowser, goToStep, onStep, openUi, profileAt, stubMoney } from './uiSupport.mjs';
 import { LIVE_RATES, MONEY_PROFILE } from './implementFixtures.js';
 import { PLAN, fakeYearly, goTo, mountWizard, openCard, openWizard } from './valueWizardSupport.mjs';
+import { openReader, closeReader } from './reviewRows.mjs';
 import { initialAnswers } from '../../src/lib/valueWizard.js';
 
 test.after(closeBrowser);
@@ -32,7 +33,8 @@ const saveWith = async (review) => {
     const dialog = await openWizard(page, card);
     await goTo(dialog, 'save');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await dialog.getByLabel('I have read and accept these terms').check();
+    await dialog.getByRole('button', { name: 'Accept and save', exact: true }).click();
     for (let i = 0; i < 100 && !puts.length; i += 1) await page.waitForTimeout(100);
     assert.equal(puts.length, 1, 'one save');
     assert.deepEqual(ui.pageErrors, []);
@@ -56,11 +58,15 @@ test('S3 (REQ-472 c): a card whose saved value carries a review shows the review
   const saved = { version: 1, answers, yearly: fakeYearly({ plan, answers }, { calculated: true }) };
   const { ui, card, page } = await openCard(mountWizard({ saved }));
   try {
-    const line = card.locator('[data-value-review]');
+    // REQ-511: the review line lives in the reader (the full card), not the row.
+    const reader = await openReader(page, card);
+    const line = reader.locator('[data-value-review]');
     await line.waitFor({ timeout: 15000 });
     assert.equal(await flat(line), 'Reviewed by m1: fits the business size');
+    await closeReader(page);
     const list = page.getByRole('region', { name: 'Use case list' });
-    assert.equal(await list.locator('[data-use-case-row]').filter({ hasText: 'Score upsell' }).locator('[data-value-review]').count(), 0);
+    const other = await openReader(page, list.locator('[data-use-case-row]').filter({ hasText: 'Score upsell' }));
+    assert.equal(await other.locator('[data-value-review]').count(), 0);
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
 });

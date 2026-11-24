@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { closeBrowser, openUi } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
 import { HARNESS_USE_CASE } from './implementFixtures.js';
+import { openReader, closeReader } from './reviewRows.mjs';
 import { valueEstimateOf } from '../../src/lib/v130UseCase.js';
 
 test.after(closeBrowser);
@@ -35,9 +36,16 @@ test('the catalog list shows the value line on each card, bold when measured and
     const list = page.getByRole('region', { name: 'Use case list' });
     await list.locator('[data-use-case-row]').first().waitFor();
     const card = (name) => list.locator('[data-use-case-row]').filter({ hasText: name });
-    assert.equal((await card('Predict churn').locator('[data-value-estimate="measured"]').innerText()).trim(), MEASURED);
-    assert.equal((await card('Score upsell').locator('[data-value-estimate="not-measured"]').innerText()).trim(), NOT_MEASURED);
-    assert.equal(await card('Forecast stock').locator('[data-value-estimate]').count(), 0, 'no value line without an estimate');
+    // REQ-511: the value line lives in the reader (the full card), not the row.
+    const lineIn = async (name, sel) => {
+      const reader = await openReader(page, card(name));
+      const out = { count: await reader.locator(sel).count(), text: await reader.locator(sel).first().innerText().catch(() => '') };
+      await closeReader(page);
+      return out;
+    };
+    assert.equal((await lineIn('Predict churn', '[data-value-estimate="measured"]')).text.trim(), MEASURED);
+    assert.equal((await lineIn('Score upsell', '[data-value-estimate="not-measured"]')).text.trim(), NOT_MEASURED);
+    assert.equal((await lineIn('Forecast stock', '[data-value-estimate]')).count, 0, 'no value line without an estimate');
     assert.doesNotMatch(await list.innerText(), /a target the sponsor sets/);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
