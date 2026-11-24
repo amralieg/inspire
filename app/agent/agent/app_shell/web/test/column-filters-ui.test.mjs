@@ -130,7 +130,6 @@ test('a link and a saved view carry the column filters, and opening them narrows
   await page.waitForFunction(() => /^10 records/.test(document.querySelector('section.card--table .card-h p')?.textContent || ''));
   assert.deepEqual([...new Set(await shownTiers(page))], ['Review']);
   assert.equal(await page.locator('.toast').count(), 0);
-  await inSection(page, 'settings');
   await page.getByRole('button', { name: 'Views', exact: true }).click();
   await page.getByRole('dialog', { name: 'Saved views' }).getByRole('button', { name: 'Save this view' }).click();
   const dialog = page.getByRole('dialog', { name: 'Save this view' });
