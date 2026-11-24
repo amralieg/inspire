@@ -91,7 +91,7 @@ test('3: badges, chips, domain line, Build MVP and Generate docs are inside the 
     const r = row('N01-U01');
     const rb = await r.boundingBox();
     for (const [label, loc] of [['Best of Best badge', r.getByText(/Best of Best/)], ['chips', r.locator('[data-kind-chip]')], ['quality bar', r.locator('[data-testid="quality-bar-chip"]')],
-      ['domain line', r.locator('[data-row-domain]')], ['Build MVP', r.getByRole('button', { name: /MVP$/ })], ['Generate docs', r.getByRole('button', { name: /^Generate docs$/ })]]) {
+      ['domain line', r.locator('[data-row-domain]')], ['Build MVP', r.getByRole('button', { name: /MVP$/ })], ['row More menu (Generate docs and the asset links, REQ-510 L5)', r.getByRole('button', { name: /^More$/ })]]) {
       const b = await loc.first().boundingBox();
       assert.ok(b, `${label} is visible`);
       assert.ok(b.x >= rb.x && b.x + b.width <= rb.x + rb.width + 1 && b.y >= rb.y && b.y + b.height <= rb.y + rb.height + 1, `${label} is inside the row`);
