@@ -114,7 +114,8 @@ test('CREATE TABLE on a schema and MODIFY on a table each map to their own GRANT
   const create = permissionFor("[INSUFFICIENT_PERMISSIONS] User does not have CREATE TABLE on Schema 'main.inspire'.", WHO);
   assert.deepEqual(create.statements, [`GRANT CREATE TABLE ON SCHEMA \`main\`.\`inspire\` TO \`${WHO}\``]);
   const modify = permissionFor("[INSUFFICIENT_PERMISSIONS] User does not have MODIFY on Table 'main.inspire.churn_out'.", WHO);
-  assert.deepEqual(modify.statements, [`GRANT MODIFY ON TABLE \`main\`.\`inspire\`.\`churn_out\` TO \`${WHO}\``]);
+  assert.deepEqual(modify.statements, [], 'SEC-01: a MODIFY denial never offers GRANT MODIFY');
+  assert.match(modify.instructions[0], /writes only to its own schema.*main\.inspire\.churn_out/);
 });
 
 test('a warehouse Can Use refusal carries steps to copy, names the warehouse, and writes no GRANT (REQ-313)', () => {

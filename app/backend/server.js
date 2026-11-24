@@ -2531,22 +2531,11 @@ async function discoverAppAccess(req, scope) {
   try {
     const { tables, more } = await scopeTables(dbFetch, req.dbHost, token, entries);
     if (!tables.length) return none;
-    let found = await discoverAccess.sourceAccess(req, DEFAULT_WAREHOUSE_ID, tables, 'discover', { wholeCatalogs: catalogs });
+    const found = await discoverAccess.sourceAccess(req, DEFAULT_WAREHOUSE_ID, tables, 'discover', { wholeCatalogs: catalogs });
     const warnings = [];
     const permissions = [];
-    // The App's principal needs the grant, and an owner runs it. A person who can run it with their own sign-in does so here; otherwise the
-    // grant is named once as a Permission Required for the App's service principal, and nothing is asked of the person.
-    const person = personTokenOf(req);
-    if (found.app_unreadable && found.app_unreadable.can_grant && person) {
-      const offer = found.app_unreadable;
-      const { ran, failed } = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, offer.grants);
-      if (ran.length) console.log(`Discover: granted the App read access to ${plural(offer.tables.length, 'table')} with the sign-in: ${ran.join('; ')}`);
-      if (failed.length) {
-        const refused = permissionRequired({ statements: offer.grants, principal: offer.app.id || SP_CLIENT_ID, wholeCatalogs: catalogs, why: 'Discover reads these tables as the App, and the grant could not run with your sign-in. Ask your workspace admin to run it.' });
-        if (refused) permissions.push(refused);
-      }
-      found = await discoverAccess.sourceAccess(req, DEFAULT_WAREHOUSE_ID, tables, 'discover', { wholeCatalogs: catalogs });
-    }
+    // SEC-01 (W1): the App's principal needs the grant, and its owner runs it. Discover never runs a grant with the launcher's sign-in: the
+    // grant is named once as a Permission Required for the App's service principal.
     const read = appReadPermissions(found, SP_CLIENT_ID, { wholeCatalogs: catalogs });
     warnings.push(...read.warnings);
     permissions.push(...read.permissions);

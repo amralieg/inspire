@@ -92,11 +92,11 @@ test('the create-schema builder grant is shown with USE CATALOG first, so the sc
   assert.equal(p.principal, 'builder-sp');
 });
 
-test('the publish check names the MANAGE grant for each gap as statements, with the principal', () => {
+test('the publish check names the read grant for each gap as statements, with the principal', () => {
   const I = require('../lib/inspireImplement');
-  const gaps = [{ level: 'table', object: '`main`.`s`.`orders`' }, { level: 'schema', object: '`main`.`s`' }];
+  const gaps = [{ level: 'table', privilege: 'SELECT', object: '`main`.`s`.`orders`' }, { level: 'schema', privilege: 'USE SCHEMA', object: '`main`.`s`' }];
   const p = I.appAccessPermission(gaps, 'inspire-sp');
-  assert.deepEqual(p.statements, ['GRANT MANAGE ON TABLE `main`.`s`.`orders` TO `inspire-sp`', 'GRANT MANAGE ON SCHEMA `main`.`s` TO `inspire-sp`']);
+  assert.deepEqual(p.statements, ['GRANT SELECT ON TABLE `main`.`s`.`orders` TO `inspire-sp`', 'GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `inspire-sp`']);
   assert.equal(p.principal, 'inspire-sp');
 });
 
