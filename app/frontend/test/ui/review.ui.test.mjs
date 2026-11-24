@@ -240,7 +240,9 @@ test('Start lists the runs with Latest Run only on the newest run of a business 
   }
   const launch = await openUi('launch', REVIEW_STATE);
   try {
-    await launch.page.getByRole('button', { name: /Discovery Overview/ }).click();
+    // REQ-510 L3: the run overview opens, expanded, from More > Recent runs.
+    await launch.page.getByRole('button', { name: 'More', exact: true }).click();
+    await launch.page.getByRole('menuitem', { name: 'Recent runs' }).click();
     const overview = launch.page.getByRole('region', { name: 'Discovery Overview' });
     await overview.locator('[data-run="61"]').waitFor();
     assert.deepEqual(await read(launch.page, overview), want);

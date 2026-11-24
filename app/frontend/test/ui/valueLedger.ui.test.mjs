@@ -113,6 +113,9 @@ test('Start shows one value panel across runs, each run card carries its run val
     valueHits.length = 0;
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
     await page.locator('[data-run="42"]').waitFor({ timeout: 20000 });
+    // REQ-510 L2: the all-runs value panel opens from the Start More menu.
+    await page.getByRole('button', { name: 'More', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Value across all runs' }).click();
     const banner = page.locator('[data-value-overall]');
     await banner.waitFor({ timeout: 15000 });
     assert.equal(await banner.count(), 1, 'one value panel');
@@ -120,7 +123,11 @@ test('Start shows one value panel across runs, each run card carries its run val
     const runValue = page.locator('[data-run="42"] [data-run-value] [data-run-value-total]');
     await runValue.waitFor({ timeout: 15000 });
     assert.equal((await runValue.innerText()).trim(), 'AED 12K');
-    assert.equal(await page.locator('[data-run="42"] [data-run-go-build]').count(), 1, 'a run with MVPs and none building shows Go to Build');
+    // REQ-510 L1: Go to Build is an item of the run's More menu; enabled when the run has MVPs and none building.
+    await page.locator('[data-run="42"]').getByRole('button', { name: /^More for/ }).click();
+    const goBuild = page.getByRole('menuitem', { name: 'Go to Build' });
+    assert.equal(await goBuild.count(), 1, 'a run with MVPs and none building shows Go to Build');
+    assert.notEqual(await goBuild.getAttribute('aria-disabled'), 'true', 'Go to Build is enabled');
     const totalsCalls = valueHits.filter((u) => u.startsWith('/api/inspire/value/totals'));
     assert.ok(totalsCalls.length >= 1 && new Set(totalsCalls).size === 1, `one totals read for every run on Start: ${totalsCalls.length}`);
     assert.equal(valueHits.filter((u) => /^\/api\/inspire\/value(\?|\/runs|\/overall|\/estimates)/.test(u)).length, 0, 'no per-run or second value read on Start');
