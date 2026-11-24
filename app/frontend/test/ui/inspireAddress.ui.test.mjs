@@ -40,8 +40,9 @@ test('the wizard sends the Inspire address for every App placement, so each App 
   }
 });
 
-test('the wizard sends the Inspire address for a dashboard with no App, and none when there is neither a dashboard nor an App', async () => {
-  for (const [tick, expected] of [[[/^Dashboard/], [false, true, 'https://inspire.example.com']], [[], [false, false, '']]]) {
+// REQ-514: the App with Genie is always built (no App checkbox), so the address goes with every build, with or without the Dashboard.
+test('the wizard sends the Inspire address with the always-built App, whether or not the Dashboard is ticked', async () => {
+  for (const [tick, expected] of [[[/^Dashboard/], [true, true, 'https://inspire.example.com']], [[], [true, false, 'https://inspire.example.com']]]) {
     const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } }, '', {
       init: (page) => page.setExtraHTTPHeaders({ 'x-forwarded-host': 'inspire.example.com' }),
     });
@@ -49,8 +50,7 @@ test('the wizard sends the Inspire address for a dashboard with no App, and none
     const what = tick.map(String).join(' ') || 'nothing';
     try {
       await goToStep(page, 'What to build');
-      await page.getByRole('checkbox', { name: /^Agentic App A Databricks/ }).uncheck();
-      for (const name of tick) await page.getByRole('checkbox', { name }).check();
+      await page.getByRole('checkbox', { name: /^Dashboard/ }).setChecked(tick.length > 0);
       await startMvp(page);
       await until(() => made.jobs.length === 1, `the build with the App off and ${what} ticked`, 20000);
       const [sent] = made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'))

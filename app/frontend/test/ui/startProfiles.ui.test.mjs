@@ -23,7 +23,8 @@ test('a run started with a profile shows the profile name on Start, and a run wi
     await page.locator('[data-run="42"]').first().waitFor({ timeout: 20000 });
     assert.equal(await page.locator('[data-run="42"] [data-run-profile]').innerText(), 'Profile: Acme retail');
     assert.equal(await page.locator('[data-run="43"] [data-run-profile]').count(), 0);
-    assert.equal(await page.locator('[data-run="43"] [data-run-profile-download]').count(), 0, 'no download for a run with no profile');
+    await page.locator('[data-run="43"]').getByRole('button', { name: /^More for / }).click();
+    assert.equal(await page.getByRole('menuitem', { name: 'Download profile' }).getAttribute('aria-disabled'), 'true', 'no download for a run with no profile');
   } finally {
     await ui.close();
   }
@@ -34,9 +35,10 @@ test('Download profile saves the profile as inspire_profile_<name>.json with its
   const { page } = ui;
   try {
     await page.locator('[data-run="42"]').first().waitFor({ timeout: 20000 });
+    await page.locator('[data-run="42"]').getByRole('button', { name: /^More for / }).click();
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.locator('[data-run="42"] [data-run-profile-download]').click(),
+      page.getByRole('menuitem', { name: 'Download profile' }).click(),
     ]);
     assert.equal(download.suggestedFilename(), 'inspire_profile_Acme_retail.json');
     const text = await (await import('node:fs')).promises.readFile(await download.path(), 'utf8');
@@ -53,7 +55,8 @@ test('a Download that the App refuses says so on that run, and downloads nothing
   const { page } = ui;
   try {
     await page.locator('[data-run="42"]').first().waitFor({ timeout: 20000 });
-    await page.locator('[data-run="42"] [data-run-profile-download]').click();
+    await page.locator('[data-run="42"]').getByRole('button', { name: /^More for / }).click();
+    await page.getByRole('menuitem', { name: 'Download profile' }).click();
     await until(async () => (await page.locator('[data-run-profile-error]').count()) === 1, 'the refusal is shown on the run');
     assert.match(await page.locator('[data-run-profile-error]').innerText(), /business profile was not found/);
   } finally {
@@ -73,7 +76,8 @@ test('a Download the workspace refuses opens Permission Required and shows no se
   const { page } = ui;
   try {
     await page.locator('[data-run="42"]').first().waitFor({ timeout: 20000 });
-    await page.locator('[data-run="42"] [data-run-profile-download]').click();
+    await page.locator('[data-run="42"]').getByRole('button', { name: /^More for / }).click();
+    await page.getByRole('menuitem', { name: 'Download profile' }).click();
     await page.locator('[data-permission-dialog=""]').waitFor({ timeout: 15000 });
     assert.equal(await page.locator('[data-run-profile-error]').count(), 0, 'the dialog carries the reason, so no second message shows on the run');
   } finally {

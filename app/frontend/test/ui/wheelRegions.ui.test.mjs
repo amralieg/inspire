@@ -93,9 +93,13 @@ test('the Monitor stages, steps and discovered use cases of a long run take the 
   const ui = await openUi('monitor', {}, '&run=none', { mount });
   const { page } = ui;
   try {
-    await page.getByRole('heading', { name: 'Detailed Steps' }).click({ timeout: 15000 });
+    await page.getByRole('button', { name: /Every step/ }).click({ timeout: 15000 });
     await page.getByText('Stage 15', { exact: true }).first().waitFor({ timeout: 15000 });
-    const names = await wheelEveryRegion(page, body(page), 'Monitor', { min: 2, copies: 0 });
+    // REQ-511: the steps live in the Every step dialog, which covers the page; wheel its regions, close it, then wheel the page's.
+    const inDialog = await wheelEveryRegion(page, page.getByRole('dialog', { name: /Every step/ }), 'Monitor Every step', { min: 1, copies: 0 });
+    await page.keyboard.press('Escape');
+    await page.getByRole('dialog', { name: /Every step/ }).waitFor({ state: 'detached', timeout: 15000 });
+    const names = [...inDialog, ...await wheelEveryRegion(page, body(page), 'Monitor', { min: 1, copies: 0 })];
     assert.ok(wheeled(names).length >= 2, JSON.stringify(names));
     assert.deepEqual(ui.pageErrors, []);
   } finally {
