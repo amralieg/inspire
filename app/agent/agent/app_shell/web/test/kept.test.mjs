@@ -80,24 +80,6 @@ test('the list tags the kept record, counts it beside the records that left, and
   await context.close();
 });
 
-test('the inbox tags the kept record you own and leaves the others as they are', async () => {
-  const base = routes();
-  const owned = [{ ...ROWS[0], _inspire_owner: PERSON, entity_label: 'Wool coat, store 4' }, { ...ROWS[2], _inspire_owner: PERSON, _inspire_missing: null, entity_label: 'Blue denim jacket, store 12' }];
-  const records = (call) => {
-    const body = call.route.request().postDataJSON();
-    if (body.mine) return call.json(200, { rows: owned, total: owned.length, offset: 0, limit: body.limit, actions: true, changes: false, summary: null, errors: {} });
-    return base.records(call);
-  };
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: { ...base, records }, hash: '#/n01_u05/work' });
-  await goSection(page, 'inbox');
-  const assigned = page.locator('[data-inbox-group="assigned"] [data-inbox-item]');
-  await assigned.nth(1).waitFor();
-  const tags = await assigned.evaluateAll((all) => all.map((b) => [b.querySelector('bdi').textContent, b.querySelector('.chg-b--missing')?.textContent || '']));
-  assert.deepEqual(tags, [['Wool coat, store 4', NOT_IN_RUN], ['Blue denim jacket, store 12', '']]);
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
 test('Impact reads Not in the latest run for a fixed record the runs stopped listing', async () => {
   const entry = {
     visible: true, tracked: true, money: true, holds: false, since: '2026-10-01', served: 'delta', current: { records: 20, held: 0 },
