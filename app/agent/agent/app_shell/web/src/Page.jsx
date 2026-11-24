@@ -258,6 +258,8 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const kpiTargetSetting = settings?.settings?.find((s) => s.name === KPI_TARGET);
   const kpiTarget = kpiTargetSetting?.value ?? '';
   const kpiGapLine = kpiRun?.kpi_name ? `${kpiRun.kpi_name}: ${kpiGapText(kpiGap({ latest: kpiRun.kpi_latest, target: kpiTarget, direction: kpiRun.kpi_direction }), kpiRun.kpi_unit)}` : '';
+  const cameFrom = useRef('');
+  if (shown !== 'settings') cameFrom.current = feedbackSectionOf(shown);
   const report = { section: feedbackSectionOf(shown), filters: describeFilters(state, meta?.filters, meta?.columns), recordKey: opened };
   const style = styleOfPage(page);
   const headKpi = page.kpis[0]
@@ -352,7 +354,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
         <SettingsPanel pageId={page.id} data={settings} error={settingsError} onData={setSettings} onChanged={() => setNonce((n) => n + 1)} onRun={freshness.ask} running={freshness.busy}
           footer={app.screens?.feedback !== false ? (
             <Suspense fallback={<Skeleton height={120} />}>
-              <FeedbackSettings pageId={page.id} context={{ ...report, section: 'settings' }} sections={sections} reports={page.reports} owner={page.is_owner === true} />
+              <FeedbackSettings pageId={page.id} context={{ ...report, section: cameFrom.current || 'settings' }} sections={sections} reports={page.reports} owner={page.is_owner === true} />
             </Suspense>
           ) : null}>
           <SettingGroup id="look" title="Look" why="Only you see these, in this browser.">
