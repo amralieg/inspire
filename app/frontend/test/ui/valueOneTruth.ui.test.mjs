@@ -44,6 +44,9 @@ test('2a: the Start bars, the Start panel, the run card, the Review header and t
     const { page } = start;
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    // REQ-510 L2: the all-runs value panel opens from the Start More menu.
+    await page.getByRole('button', { name: 'More', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Value across all runs' }).click();
     const panelTotal = page.locator('[data-value-all-panel] [data-total-amount]').first();
     await panelTotal.waitFor({ timeout: 20000 });
     assert.equal(await page.locator('[data-value-all-panel] [data-all-runs-row]').count(), 0, 'no per-run table in the all-runs panel');

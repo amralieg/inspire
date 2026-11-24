@@ -37,6 +37,9 @@ test('Start: the banner and the run card show the total, saved, the hours chip a
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
     const card = page.locator('[data-run="42"] [data-run-value]');
     await card.locator('[data-run-value-total]').waitFor({ timeout: 20000 });
+    // REQ-510 L2: the all-runs value panel opens from the Start More menu.
+    await page.getByRole('button', { name: 'More', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Value across all runs' }).click();
     const banner = page.locator('[data-value-overall]');
     await banner.waitFor({ timeout: 15000 });
     assert.equal((await banner.locator('[data-total-amount]').first().innerText()).trim(), 'AED 12K');
