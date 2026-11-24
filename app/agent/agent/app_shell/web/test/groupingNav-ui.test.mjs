@@ -23,7 +23,15 @@ const GROUP_FILTERS = [
   { column: 'return_reason', type: 'multi_select', label: 'Return reason', options: ['Damaged', 'Late'], grouping: true },
 ];
 const meta = (grouping, list = GROUP_FILTERS) => ({ filters: TOP, columns: { list, tables: {} }, grouping });
-const rail = (page) => page.locator('[data-rail]').evaluateAll((items) => items.map((i) => i.dataset.rail));
+// REQ-506: the avatar menu lists the places that used to be rail items (Impact, Runs, ...), by lower-case name.
+const rail = async (page) => {
+  await page.locator('[data-avatar-menu] button').first().click();
+  const menu = page.getByRole('menu');
+  await menu.waitFor({ state: 'visible' });
+  const items = (await menu.getByRole('menuitem').allInnerTexts()).map((t) => t.trim().toLowerCase());
+  await page.keyboard.press('Escape');
+  return items;
+};
 const topLabels = (page) => page.locator('.fbar .fld > span').allTextContents();
 
 test('a page built with a grouping shows the grouping chip and its columns as top filters with the Work list labels', async () => {
@@ -52,16 +60,16 @@ test('an owner sees Impact in the nav, and Feedback and Reported issues in Setti
   const reported = { items: [{ feedback_id: 'f1', text: 'Totals look wrong', section: 'work', reported_by: 'sam.roe', reported_at: '2026-11-10', status: 'new' }],
     everyone: true, missing: false, limit: 2000 };
   const { page, context } = await openApp(browser, served.base, info, { routes: { feedback: ({ json }) => json(200, reported) } });
-  await page.locator('[data-rail]').first().waitFor();
+  await page.locator('.top [data-avatar-menu]').waitFor();
   const items = await rail(page);
-  assert.ok(items.includes('impact') && !items.includes('feedback') && !items.includes('reports'), `rail is ${items.join(', ')}; Feedback and Reported issues sit in Settings (REQ-110)`);
+  assert.ok(items.includes('impact') && !items.includes('feedback') && !items.includes('reported issues'), `rail is ${items.join(', ')}; Feedback and Reported issues sit in Settings (REQ-110)`);
   await goRail(page, 'settings');
   await page.locator('[data-group="feedback"]').getByRole('button', { name: 'Report an issue', exact: true }).click();
   await page.locator('.pop [data-feedback-note]').waitFor();
   await page.keyboard.press('Escape');
   await page.locator('[data-group="reports"] [data-feedback-item="f1"]').waitFor();
   await goRail(page, 'impact');
-  await page.locator('[data-section-title]', { hasText: 'Impact' }).waitFor();
+  await page.locator('[data-promised-delivered]').waitFor();
   await context.close();
 });
 
@@ -69,9 +77,9 @@ test('a person who is not an owner sees Feedback in Settings but not Reported is
   const info = appInfo({}, 1, {});
   info.pages[0].is_owner = false;
   const { page, context } = await openApp(browser, served.base, info);
-  await page.locator('[data-rail]').first().waitFor();
+  await page.locator('.top [data-avatar-menu]').waitFor();
   const items = await rail(page);
-  assert.ok(!items.includes('feedback') && !items.includes('reports'), `rail is ${items.join(', ')}; Feedback sits in Settings`);
+  assert.ok(!items.includes('feedback') && !items.includes('reported issues'), `rail is ${items.join(', ')}; Feedback sits in Settings`);
   assert.ok(!items.includes('impact'), 'no results table and no promised impact, no Impact entry');
   await goRail(page, 'settings');
   await page.locator('[data-group="feedback"]').waitFor();
@@ -82,11 +90,12 @@ test('a person who is not an owner sees Feedback in Settings but not Reported is
 test('Impact shows whenever the page has impact data, even with no promised text', async () => {
   const info = appInfo({}, 1, {});
   info.pages[0].history = true;
+  info.pages[0].is_owner = true; // REQ-506: Impact is listed in the avatar menu for owners
   const { page, context } = await openApp(browser, served.base, info);
-  await page.locator('[data-rail]').first().waitFor();
+  await page.locator('.top [data-avatar-menu]').waitFor();
   assert.ok((await rail(page)).includes('impact'), 'a page that keeps results has impact data');
   await goRail(page, 'impact');
-  await page.locator('[data-section-title]', { hasText: 'Impact' }).waitFor();
+  await page.locator('[data-promised-delivered]').waitFor();
   await context.close();
 });
 
@@ -97,7 +106,7 @@ test('Report an issue opens on every page type; a page with no results table and
   await page.locator('[data-feedback-note]').waitFor();
   await page.keyboard.press('Escape');
   await goRail(page, 'impact');
-  await page.locator('[data-section-title]', { hasText: 'Impact' }).waitFor();
+  await page.locator('[data-promised-delivered]').waitFor();
   await reportIssue(page);
   await page.locator('[data-feedback-note]').first().waitFor();
   await context.close();
