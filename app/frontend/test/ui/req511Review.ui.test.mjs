@@ -72,13 +72,13 @@ test('1: every use case is one row with its number and id, the name is at least 
     }
     const font = await rows.first().locator('[data-row-name]').evaluate((e) => parseFloat(getComputedStyle(e).fontSize));
     assert.ok(font >= 17, `name font ${font}px >= 17px`);
-    assert.equal(await list.locator('[aria-expanded]').count(), 0, 'no collapsed cards in the list');
+    assert.equal(await list.locator('[aria-expanded]:not([aria-haspopup="menu"])').count(), 0, 'no collapsed cards in the list');
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
 });
 
 test('2: A6 column order: name, Build MVP, Generate docs, score box, value box on one line; no Domain or MVP status column', async () => {
-  const { ui, row, list } = await openReview();
+  const { ui, page, row, list } = await openReview();
   try {
     const r = row('N01-U02');
     const name = await box(r.locator('[data-row-name]'));
@@ -96,8 +96,13 @@ test('2: A6 column order: name, Build MVP, Generate docs, score box, value box o
       assert.ok(Math.abs(mid(b) - mid(score)) <= score.height / 2, `${label} sits on the same line as the score box`);
     }
     assert.ok(build.y >= name.y - 40 && build.y < name.y + name.height + 40, 'Build MVP is in its own column, not stacked under the name');
-    const heads = (await list.locator('button[aria-sort]').allInnerTexts()).map((t) => t.replace(/[▲▼]/g, '').trim());
-    for (const h of ['#', 'Use case', 'MVP', 'Docs', 'Score', 'Value']) assert.ok(heads.some((t) => t.toLowerCase().startsWith(h.toLowerCase())), `sortable header ${h} in ${JSON.stringify(heads)}`);
+    // REQ-510 L5 (24 controls cap): the six headers are labels; their sorts are options of the one Sort control.
+    const heads = (await list.locator('[data-sort-head]').allInnerTexts()).map((t) => t.replace(/[▲▼]/g, '').trim());
+    const sortOptions = await page.getByRole('combobox', { name: 'Sort', exact: true }).locator('option').allInnerTexts();
+    for (const h of ['#', 'Use case', 'MVP', 'Docs', 'Score', 'Value']) {
+      assert.ok(heads.some((t) => t.toLowerCase().startsWith(h.toLowerCase())), `header ${h} in ${JSON.stringify(heads)}`);
+      assert.ok(sortOptions.some((t) => t.startsWith(`Sort: ${h} (`)), `Sort offers ${h}: ${JSON.stringify(sortOptions)}`);
+    }
     assert.ok(!heads.some((t) => /^domain/i.test(t)), 'no Domain column');
   } finally { await ui.close(); }
 });
@@ -148,25 +153,21 @@ test('5: a use case with no value shows the dashed Calculate value box, and it o
 });
 
 test('6: Score and Value headers sort the rows both ways and say so in aria-sort', async () => {
-  const { ui, list } = await openReview();
+  const { ui, page, list } = await openReview();
   try {
+    // REQ-510 L5: the Score and Value sorts are options of the one Sort control; the header shows the direction (▲ low → high, ▼ high → low).
+    const sort = page.getByRole('combobox', { name: 'Sort', exact: true });
     const byScore = (nos) => nos.map((n) => Number(SCORES[n]));
-    const head = list.locator('button[aria-sort]').filter({ hasText: /^Score/ });
-    await head.click();
-    const first = await order(list);
-    const dir = await head.getAttribute('aria-sort');
-    assert.ok(['ascending', 'descending'].includes(dir), `aria-sort ${dir}`);
-    const s1 = byScore(first);
-    const sorted = [...s1].sort((a, b) => (dir === 'ascending' ? a - b : b - a));
-    assert.deepEqual(s1, sorted, `rows follow ${dir} score`);
-    await head.click();
-    assert.deepEqual(byScore(await order(list)), [...sorted].reverse(), 'a second click reverses');
-    const valueHead = list.locator('button[aria-sort]').filter({ hasText: /^Value/ });
-    await valueHead.click();
+    await sort.selectOption('score:asc');
+    const s1 = byScore(await order(list));
+    assert.deepEqual(s1, [...s1].sort((a, b) => a - b), 'rows follow ascending score');
+    assert.match(await list.locator('[data-sort-head="score"]').innerText(), /▲/, 'the Score header shows the direction');
+    await sort.selectOption('score:desc');
+    assert.deepEqual(byScore(await order(list)), [...s1].reverse(), 'the other direction reverses');
+    await sort.selectOption('value:desc');
     const amount = (n) => TOTALS.use_cases[n].amount || 0;
     const v = (await order(list)).map(amount);
-    const vdir = await valueHead.getAttribute('aria-sort');
-    assert.deepEqual(v, [...v].sort((a, b) => (vdir === 'ascending' ? a - b : b - a)), `rows follow ${vdir} value`);
+    assert.deepEqual(v, [...v].sort((a, b) => b - a), 'rows follow descending value');
   } finally { await ui.close(); }
 });
 
@@ -252,17 +253,18 @@ test('11: a row click opens the reader with the whole use case; Close puts the l
 });
 
 test('12: the Docs column marks the use cases with generated docs and sorts by it both ways', async () => {
-  const { ui, list, row } = await openReview();
+  const { ui, page, list, row } = await openReview();
   try {
     await row(DOCS_MADE).locator('[data-docs-made]').waitFor({ timeout: 10000 });
     assert.equal(await list.locator('[data-docs-made]').count(), 1, 'only the use case with docs is marked');
-    const head = list.locator('button[aria-sort]').filter({ hasText: /^Docs/ });
-    await head.click();
+    // REQ-510 L5: the Docs sort is two options of the one Sort control.
+    const sort = page.getByRole('combobox', { name: 'Sort', exact: true });
+    await sort.selectOption('docs:desc');
     const a = await order(list);
     assert.ok(a[0] === DOCS_MADE || a.at(-1) === DOCS_MADE, `docs first or last: ${a}`);
-    await head.click();
+    await sort.selectOption('docs:asc');
     const b = await order(list);
-    assert.ok(b[0] === DOCS_MADE ? a.at(-1) === DOCS_MADE : a[0] === DOCS_MADE, `a second click flips: ${a} then ${b}`);
-    assert.notEqual(await head.getAttribute('aria-sort'), 'none');
+    assert.ok(b[0] === DOCS_MADE ? a.at(-1) === DOCS_MADE : a[0] === DOCS_MADE, `the other direction flips: ${a} then ${b}`);
+    assert.match(await list.locator('[data-sort-head="docs"]').innerText(), /[▲▼]/, 'the Docs header shows the direction');
   } finally { await ui.close(); }
 });

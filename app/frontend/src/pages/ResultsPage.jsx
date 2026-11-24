@@ -259,8 +259,6 @@ export default function ResultsPage({
   const [previewData, setPreviewData] = useState(null); // { type: 'pdf'|'csv', url?, rows?, headers? }
   const [previewLoading, setPreviewLoading] = useState(false);
   const [fileProblem, setFileProblem] = useState('');
-  // Subdomain expansion state
-  const [expandedDomains, setExpandedDomains] = useState({});
   // REQ-444: the Domains tree is open by default, on a narrow screen too (there it is a fold above the list).
   const [domainPanelOpen, setDomainPanelOpen] = useState(true);
   // The view (Use cases, Business, Assets) lives in the URL query, so Back, a reload and a shared link land on the same view.
@@ -771,7 +769,8 @@ export default function ResultsPage({
     score: (a, b) => cmp(inspireScoreFromUc(a) ?? -Infinity, inspireScoreFromUc(b) ?? -Infinity),
     value: (a, b) => cmp(valueAmountOf(a), valueAmountOf(b)),
   };
-  const toggleColSort = (key) => setColSort((cur) => (cur?.key === key ? { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: ['score', 'value', 'docs'].includes(key) ? 'desc' : 'asc' }));
+  // The six column headers are labels now; their sorts live in the one Sort control (REQ-510 L5, 24 controls cap): "<key>:<dir>" options.
+  const COLUMN_SORT_LABELS = [['no', '#'], ['name', 'Use case'], ['mvp', 'MVP'], ['docs', 'Docs'], ['score', 'Score'], ['value', 'Value']];
   if (colSort) {
     const sign = colSort.dir === 'asc' ? 1 : -1;
     filteredUseCases = [...filteredUseCases].sort((a, b) => sign * COLUMN_COMPARE[colSort.key](a, b));
@@ -1621,21 +1620,10 @@ export default function ResultsPage({
                     ).length;
                     const subs = subdomainsByDomain[d] || {};
                     const hasSubs = Object.keys(subs).length > 0;
-                    const isExpanded = !!expandedDomains[d];
 
                     return (
                       <div key={d}>
                         <div className="flex items-center">
-                          {hasSubs && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setExpandedDomains(prev => ({ ...prev, [d]: !prev[d] })); }}
-                              aria-label={`Subdomains of ${d}`}
-                              aria-expanded={!!isExpanded}
-                              className="p-0.5 me-0.5 rounded hover:bg-bg-subtle transition-smooth"
-                            >
-                              <ChevronRight size={14} className={`text-text-tertiary transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
-                            </button>
-                          )}
                           <button
                             onClick={() => { setFilterDomain(active ? 'all' : d); setFilterSubdomain('all'); }}
                             className={`flex-1 flex items-start gap-2 px-2 py-2 rounded-lg text-start transition-smooth ${
@@ -1664,8 +1652,8 @@ export default function ResultsPage({
                             </div>
                           </button>
                         </div>
-                        {/* Subdomain list */}
-                        {isExpanded && hasSubs && (
+                        {/* Subdomain list: opens under the chosen domain (no separate toggle; REQ-510 L5 24 controls cap) */}
+                        {active && hasSubs && (
                           <div className="ms-7 mt-0.5 space-y-0.5">
                             {Object.entries(subs).map(([sd, sdCount]) => {
                               const sdActive = filterSubdomain === sd && filterDomain === d;
@@ -2002,14 +1990,22 @@ export default function ResultsPage({
                   {/* Sort */}
                   <select
                     aria-label="Sort"
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
+                    value={colSort ? `${colSort.key}:${colSort.dir}` : sortBy}
+                    onChange={(e) => {
+                      const [key, dir] = e.target.value.split(':');
+                      if (dir) setColSort({ key, dir });
+                      else { setColSort(null); setSortBy(key); }
+                    }}
                     className="px-2 py-1.5 text-caption border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
                   >
                     <option value="inspire">Sort: Inspire score (high → low)</option>
                     <option value="priority">Sort: Priority tier</option>
                     <option value="domain">Sort: Domain</option>
                     <option value="name">Sort: Name</option>
+                    {COLUMN_SORT_LABELS.flatMap(([key, label]) => [
+                      <option key={`${key}:asc`} value={`${key}:asc`}>{`Sort: ${label} (low → high)`}</option>,
+                      <option key={`${key}:desc`} value={`${key}:desc`}>{`Sort: ${label} (high → low)`}</option>,
+                    ])}
                   </select>
 
                   {hasActiveFilters && (
@@ -2152,18 +2148,14 @@ export default function ResultsPage({
                             {[['mvp', 'MVP'], ['docs', 'Docs']].map(([k, l], n) => (
                               <Fragment key={k}>
                                 {n > 0 && <span aria-hidden="true">/</span>}
-                                <button type="button" onClick={() => toggleColSort(k)} aria-sort={colSort?.key === k ? (colSort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                                  className={`uppercase tracking-[0.06em] hover:text-text-primary ${colSort?.key === k ? 'text-text-primary' : ''}`}>
-                                  {l}{colSort?.key === k ? (colSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
-                                </button>
+                                <span data-sort-head={k} className={colSort?.key === k ? 'text-text-primary' : ''}>{l}{colSort?.key === k ? (colSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</span>
                               </Fragment>
                             ))}
                           </div>
                         ) : key ? (
-                          <button key={key} type="button" onClick={() => toggleColSort(key)} aria-sort={colSort?.key === key ? (colSort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                            className={`${cls} ${key === 'no' ? 'text-start' : ''} uppercase tracking-[0.06em] hover:text-text-primary ${colSort?.key === key ? 'text-text-primary' : ''}`}>
+                          <span key={key} data-sort-head={key} className={`${cls} ${colSort?.key === key ? 'text-text-primary' : ''}`}>
                             {label}{colSort?.key === key ? (colSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
-                          </button>
+                          </span>
                         ) : <div key={`gap${i}`} />
                       ))}
                     </div>

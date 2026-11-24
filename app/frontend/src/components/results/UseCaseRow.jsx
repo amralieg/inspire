@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Archive, ArchiveRestore, FileText, Heart, Sparkles, Star, ArrowRight, Loader2, Check } from 'lucide-react';
+import MoreMenu from '../ui/MoreMenu';
 import InspireScoreBadge from '../InspireScoreBadge';
 import ValueBox from '../ValueBox';
 import QualityBarChip from '../QualityBarChip';
@@ -32,7 +33,7 @@ export function buildCell(status, { onImplement, onOpenMvp }) {
 
 export default function UseCaseRow({
   uc, index, selection = null, isFavorite = false, onToggleFavorite, onRename, implementStatus = null, onImplement, onOpenMvp,
-  onGenerateDocs, docsMade = false, yearly = null, valueSummary = null, canCalculate = false, onCalculate, onEdit, onUndoRefine, onOpen, open = false, rowAttrs = {}, isArchived = false, onToggleArchive,
+  onGenerateDocs, docsMade = false, assetLinks = [], yearly = null, valueSummary = null, canCalculate = false, onCalculate, onEdit, onUndoRefine, onOpen, open = false, rowAttrs = {}, isArchived = false, onToggleArchive,
 }) {
   const { title: titleProp, subtitle } = cardTitlesOfUseCase(uc, index);
   // The saved name shows at once; a refreshed use case takes over when its own name changes.
@@ -111,9 +112,19 @@ export default function UseCaseRow({
           <BuildIcon size={14} className={build.busy ? 'animate-spin' : ''} aria-hidden />{build.label}
         </button>
         <div className="flex w-full max-w-[148px] flex-col items-stretch gap-1 max-md:max-w-none max-md:flex-1">
-          <button type="button" disabled={!onGenerateDocs} onClick={(e) => { e.stopPropagation(); onGenerateDocs?.(); }} className={BTN_OUTLINE}>
-            <FileText size={14} aria-hidden />Generate docs
-          </button>
+          {assetLinks.length > 0 ? (
+            // REQ-516 / REQ-510 L5: a built row keeps 7 controls, so Generate docs and the asset links share one More menu.
+            <div data-row-more="" className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+              <MoreMenu label="More" items={[
+                { label: 'Generate docs', onSelect: onGenerateDocs, disabled: !onGenerateDocs },
+                ...assetLinks.map((link) => ({ label: link.label, onSelect: () => window.open(link.url, '_blank', 'noopener,noreferrer') })),
+              ]} />
+            </div>
+          ) : (
+            <button type="button" disabled={!onGenerateDocs} onClick={(e) => { e.stopPropagation(); onGenerateDocs?.(); }} className={BTN_OUTLINE}>
+              <FileText size={14} aria-hidden />Generate docs
+            </button>
+          )}
           {docsMade && <span data-docs-made="" className="inline-flex items-center justify-center gap-1 text-caption font-medium text-success-fg"><Check size={14} aria-hidden />Docs made</span>}
         </div>
       </div>

@@ -53,7 +53,7 @@ test('the Results page is the pre-grid list: sidebar filters, a filter bar and s
   assert.match(results, /<SidebarFilterPanel/);
   assert.match(results, /aria-label="Use case list"/);
   assert.match(results, /filteredUseCases\.map\(/);
-  assert.match(results, /<UseCaseCard\b/);
+  assert.match(results, /<UseCaseRow\b/);
   assert.match(results, /title="Strategy"[\s\S]*?onChange=\{setFilterStrategy\}/);
   assert.match(results, /label: STRATEGY_NOT_TIED/);
   assert.doesNotMatch(results, /onSelectNotAligned|onSelectPath/);
@@ -62,6 +62,6 @@ test('the Results page is the pre-grid list: sidebar filters, a filter bar and s
   }
   const pkg = JSON.parse(fs.readFileSync(path.resolve(SRC, '..', 'package.json'), 'utf8'));
   assert.equal(pkg.dependencies['@tanstack/react-table'], undefined);
-  assert.match(fs.readFileSync(path.join(SRC, 'lib', 'layout.js'), 'utf8'), /RESULTS_FRAME = 'max-w-6xl mx-auto /);
+  assert.match(fs.readFileSync(path.join(SRC, 'lib', 'layout.js'), 'utf8'), /RESULTS_FRAME = 'w-full px-6 /);
   assert.match(fs.readFileSync(path.join(SRC, 'App.jsx'), 'utf8'), /<div className=\{RESULTS_FRAME\}>\s*<ResultsPage/);
 });

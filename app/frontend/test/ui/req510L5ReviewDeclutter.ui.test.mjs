@@ -21,13 +21,21 @@ async function openReview(view) {
   return ui;
 }
 
-test('Review Use cases: at most one primary on the screen and at most 24 controls above the fold', async () => {
+test('Review Use cases: at most one primary, at most 24 controls above the fold outside the rows, and at most 7 inside each row', async () => {
   const ui = await openReview();
   const { page } = ui;
   try {
     const f = await screenFacts(page);
     assert.ok(f.primaries.length <= 1, `at most one primary on Review (${describe(f)})`);
-    assert.ok(f.controls.length <= 24, `Review controls above the fold ${f.controls.length} > 24 (${describe(f)})`);
+    // REQ-516 (Amr, 19:10Z, "Cap 24 outside rows"): each row carries up to 7 controls by design, so the cap counts the page chrome and each row on its own.
+    const inRows = await page.locator('[data-use-case-row]').evaluateAll((rows) => rows.map((row) => row.querySelectorAll('button, a[href], input:not([type="hidden"]), select, textarea, [role="button"]').length));
+    assert.ok(inRows.length > 0, 'the rows are on screen');
+    for (const n of inRows) assert.ok(n <= 7, `a row has ${n} controls > 7 (${inRows})`);
+    const outside = f.controls.length - await page.locator('[data-use-case-row]').evaluateAll((rows) => rows.reduce((sum, row) => {
+      const r = row.getBoundingClientRect();
+      return r.top < window.innerHeight && r.bottom > 0 ? sum + row.querySelectorAll('button, a[href], input:not([type="hidden"]), select, textarea, [role="button"]').length : sum;
+    }, 0));
+    assert.ok(outside <= 24, `Review controls above the fold outside rows ${outside} > 24 (${describe(f)})`);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -59,6 +67,17 @@ test('Review rows (REQ-516): the name carries a rename pencil, Open MVP stays on
     assert.equal(await shownOutsideMenus(card.getByRole('button', { name: 'Move this row to Archived' })), 1, 'one archive icon at the far right of the row (REQ-516)');
     assert.equal(await shownOutsideMenus(card.getByRole('button', { name: 'Open MVP' })), 1, 'Open MVP stays on the built row');
     assert.equal(await shownOutsideMenus(card.locator('[data-card-asset]')), 0, 'asset links are not inline');
+    // REQ-516: the built row keeps its assets one click away, in the row More menu, and each item opens its asset.
+    assert.deepEqual(await itemsOf(page, card), ['Generate docs', 'Open App', 'Open Dashboard', 'Open Genie Agent', 'Open alert'], 'the built row More menu');
+    const URLS = { 'Open App': 'churn-desk-1.aws.databricksapps.com', 'Open Dashboard': '/dashboardsv3/d1', 'Open Genie Agent': '/genie/rooms/g1', 'Open alert': '/sql/alerts-v2/a1' };
+    for (const [label, part] of Object.entries(URLS)) {
+      await page.evaluate(() => { window.__opened = []; window.open = (url) => { window.__opened.push(String(url)); return null; }; });
+      await card.getByRole('button', { name: /^More$/ }).click();
+      await page.getByRole('menuitem', { name: label }).click();
+      const opened = await page.evaluate(() => window.__opened);
+      assert.equal(opened.length, 1, `${label} opens one window`);
+      assert.ok(opened[0].includes(part), `${label} opens its asset: ${opened[0]}`);
+    }
   } finally {
     await ui.close();
   }
