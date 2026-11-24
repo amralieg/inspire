@@ -7,7 +7,7 @@
 .fresh-dot.is-busy{background:var(--blue-line,#3b7de0);animation:fresh-pulse 1.2s ease-in-out infinite}
 .fresh-dot{position:relative}
 .fresh-dot:disabled{cursor:default}
-@media (max-width:700px){.fresh-dot::before{content:"";position:absolute;top:50%;left:50%;width:40px;height:40px;transform:translate(-50%,-50%)}.ov-t{min-height:40px}}
+@media (max-width:700px){.fresh-dot{width:40px;height:40px;background:radial-gradient(circle,var(--fd,var(--green-line,#2e9e5b)) 0 6px,transparent 6.5px)}.fresh-dot.is-late{--fd:var(--amber-line,#d9962b);background:radial-gradient(circle,var(--fd) 0 6px,transparent 6.5px)}.fresh-dot.is-busy{--fd:var(--blue-line,#3b7de0);background:radial-gradient(circle,var(--fd) 0 6px,transparent 6.5px)}.av-b{min-width:40px;min-height:40px;justify-content:center}.ov-t{min-height:40px}}
 @keyframes fresh-pulse{50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){.fresh-dot.is-busy{animation:none}}
 .ov{margin:0 0 12px}
