@@ -229,7 +229,9 @@ test('Start lists the runs with Latest Run only on the newest run of a business 
     assert.equal(await opened(), '42', 'a click anywhere on the row opens the run, its chevron edge too');
     await choose.page.locator('[data-run="51"]').getByRole('button', { name: /^More for / }).click();
     await choose.page.getByRole('menuitem', { name: 'Quick view' }).click();
-    await choose.page.locator('[data-run="51"]').getByRole('button', { name: 'Hide' }).waitFor();
+    await choose.page.locator('[data-run="51"]').getByRole('button', { name: /^More for / }).click();
+    await choose.page.getByRole('menuitem', { name: 'Hide quick view' }).waitFor();
+    await choose.page.keyboard.press('Escape');
     assert.equal(await opened(), '42', 'Quick View opens its panel and not the run');
     await choose.page.locator('[data-run="42"]').getByRole('button', { name: /Acme/ }).first().waitFor();
     assert.deepEqual(choose.pageErrors, []);
