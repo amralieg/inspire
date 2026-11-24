@@ -26,20 +26,20 @@ for (const [width, height] of [[1440, 900], [1280, 800]]) {
     try {
       await page.setViewportSize({ width, height });
       const dialog = await openWizard(page, card);
-      await goTo(dialog, 'save');
+      await goTo(dialog, 'story:approve');
       await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
       const fit = await page.evaluate(() => {
         const dlg = document.querySelector('[role=dialog]');
         const body = dlg.querySelector('[data-wizard-body]');
         const inView = (el) => { const r = el?.getBoundingClientRect(); return Boolean(r && r.top >= 0 && r.bottom <= window.innerHeight); };
         const tick = [...dlg.querySelectorAll('input[type=checkbox]')].find((c) => /accept these terms/.test(c.closest('label')?.textContent || ''));
-        const save = [...dlg.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Close');
+        const save = [...dlg.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Approve story and save');
         return { scroll: body.scrollHeight, client: body.clientHeight, tick: inView(tick), save: inView(save) };
       });
       console.log(`save-step body ${width}x${height}: scrollHeight ${fit.scroll} clientHeight ${fit.client}`);
       assert.ok(fit.scroll <= fit.client + 1, `body scrolls: ${fit.scroll} > ${fit.client}`);
       assert.equal(fit.tick, true, 'tick in view');
-      assert.equal(fit.save, true, 'Close in view');
+      assert.equal(fit.save, true, 'Approve story and save in view');
     } finally { await ui.close(); }
   });
 }
