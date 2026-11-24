@@ -199,7 +199,7 @@ export default function MvpProgress({
       </section>
       {view.open && (
         <DrawerShell side dock={dock} label={title} onClose={view.close} focusOnOpen={!view.fromBuild} id={panelId} data-mvp-progress="" data-progress-panel=""
-          bodyRef={logRef} bodyProps={{ 'data-build-log': '', className: 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-4' }}
+          bodyRef={logRef} bodyProps={{ 'data-build-log': '', className: 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-3 space-y-3' }}
           title={<Heading title={title} active={summary.active} tone={chip?.tone} line={`${headline}${summary.span ? ` · ${summary.span}` : ''}`} lineClass={lineClass} />}
           actions={stop}
           below={(
