@@ -77,7 +77,6 @@ REVIEWED = {
         ('_with_metadata_retries', 'attempts'),
         ('assert_no_blocking', 'len(blocking)'),
         ('build', 'len(rows)'),
-        ('execute_with_timeout', 'timeout_seconds'),
         ('parse_strategic_context', 'depth'),
         ('parse_strategic_context', 'json_error.colno'),
         ('parse_strategic_context', 'json_error.lineno'),
@@ -309,7 +308,6 @@ REVIEWED = {
         # REQ-237: the chart's person name (its title, its position among shared titles, or 'one chart'), built from the App's own spec.
         ('deploy', "inspire_shell_facts.chart_names(page)[str(chart['id'])]"),
         ('deploy', 'name'),
-        ('execute_with_timeout', 'context'),
         ('finalize_pipeline', 'self.session_id'),
         ('finalize_pipeline', 'self.session_table'),
         ('initialize_session', 'self.session_id'),

@@ -110,7 +110,7 @@ def test_the_notebook_page_check_passes_the_stored_choices_to_the_validator():
     text = "".join(nb["cells"][1]["source"])
     assert "shell_sql.spec_problems(page, stored)" in text
     assert "stored = self._implement_stored_choices(context[\"result_table\"], shell_sql, real)" in text
-    assert "many=many, real=real, stored=stored, drivers_optional=name == \"app\")" in text
+    assert "many=many, real=real, stored=stored, drivers_optional=name == \"app\", written_only=True)" in text
     assert "+ implement_choices_rule(shell_sql)" in text
 
 

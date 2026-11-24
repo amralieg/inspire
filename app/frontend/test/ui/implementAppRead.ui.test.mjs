@@ -74,7 +74,7 @@ test('Let Inspire read these tables runs the exact grants with the person sign-i
     const reasonLine = panel.locator('p').filter({ hasText: /^the build cannot read a source table/ }).first();
     await reasonLine.waitFor({ timeout: 15000 });
     const reason = await reasonLine.textContent();
-    assert.match(reason, /^the build cannot read a source table: builds run as the App service principal inspire-manual \(application id app-sp-id\)/);
+    assert.match(reason, /^the build cannot read a source table: builds run as the App inspire-manual, and the App cannot read this table/);
     assert.doesNotMatch(reason.split('Ask your data owner')[0], /main\.s\.orders/, 'the sentence names no id; the statements sit in Permission Required');
     assert.doesNotMatch(reason, /swap/i);
     await until(async () => (await grantsNeeded(panel)).length === 3, 'the three statements reach the Permission Required channel (REQ-131)');
@@ -85,7 +85,7 @@ test('Let Inspire read these tables runs the exact grants with the person sign-i
     assert.equal(await panel.getByRole('status', { name: 'Grant result' }).getByText('Granted 3, failed 0.', { exact: true }).count(), 1, 'the counts replace the Ran lines (REQ-260)');
     assert.deepEqual(live.grants, [[SCHEMA_GRANT, PERSON], [TABLE_GRANT, PERSON], [METADATA_GRANT, PERSON]], 'only the person token grants');
     await until(async () => await panel.getByRole('button', { name: APP_READ_ACTION }).count() === 0, 'the action goes once the App can read');
-    assert.equal(await panel.getByText('the exact commands are in Permission Required', { exact: false }).count(), 0, 'the context probe no longer names the table');
+    assert.equal(await panel.getByText('the details for your admin are in Permission Required', { exact: false }).count(), 0, 'the context probe no longer names the table');
     assert.ok(ui.made.sqlCalls.filter((c) => c.sql === 'SELECT * FROM `main`.`s`.`orders` LIMIT 0' && c.token === APP_TOKEN).length >= 3,
       'the context is probed again after the grants');
     assert.deepEqual(ui.pageErrors, []);
@@ -102,7 +102,7 @@ test('a person who cannot grant sees the named reason and the statements with no
   try {
     const panel = panelOf(page);
     await panel.waitFor({ timeout: 15000 });
-    const reasonLine = panel.locator('p').filter({ hasText: /the exact commands are in Permission Required$/ }).first();
+    const reasonLine = panel.locator('p').filter({ hasText: /the details for your admin are in Permission Required$/ }).first();
     await reasonLine.waitFor({ timeout: 15000 });
     const reason = await reasonLine.textContent();
     assert.doesNotMatch(reason, /GRANT /, 'the sentence names no grant; the grants are in Permission Required (REQ-260)');
@@ -123,8 +123,8 @@ test('a person who cannot grant sees the named reason and the statements with no
     later.rows = READS;
     await dismissDialog(ui2.page); await action.click();
     const result = panel.getByRole('status', { name: 'Grant result' });
-    await result.getByText(/^Your grant was refused: the build cannot read a source table: builds run as the App service principal inspire-manual/).waitFor({ timeout: 15000 });
-    assert.match(await result.locator('p').first().textContent(), /the exact commands are in Permission Required$/);
+    await result.getByText(/^Your grant was refused: the build cannot read a source table: builds run as the App inspire-manual, and the App cannot read this table/).waitFor({ timeout: 15000 });
+    assert.match(await result.locator('p').first().textContent(), /the details for your admin are in Permission Required$/);
     assert.doesNotMatch(await result.textContent(), /GRANT /, 'the refusal prose names no GRANT (REQ-260)');
     await until(async () => (await grantsNeeded(panel)).length === 3, 'the three statements reach the Permission Required channel (REQ-131)');
     assert.deepEqual(await grantsNeeded(panel), [SCHEMA_GRANT, SELECT_SCHEMA_GRANT, METADATA_SCHEMA_GRANT]);

@@ -178,23 +178,6 @@ def test_A8_nested_executor_inherits_parent_cancellation(agent_ns):
     assert inner_saw_cancel.wait(5), "inner thread did not inherit the outer task's cancellation"
 
 
-def test_A8_timeout_handler_cancels_function(agent_ns):
-    TH = agent_ns["TimeoutHandler"]
-    is_cancelled = agent_ns["_is_thread_cancelled"]
-    saw = threading.Event()
-
-    def func():
-        start = time.time()
-        while time.time() - start < 10:
-            if is_cancelled():
-                saw.set()
-                return None
-            time.sleep(0.02)
-
-    assert TH.execute_with_timeout(func, timeout_seconds=0.3, fallback="fb") == "fb"
-    assert saw.wait(3), "function kept running after TimeoutHandler gave up"
-
-
 def test_A1_cancellable_sleep(agent_ns):
     sleep_fn = agent_ns["_cancellable_sleep"]
     register = agent_ns["_register_thread_cancel"]

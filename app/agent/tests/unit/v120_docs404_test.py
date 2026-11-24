@@ -201,8 +201,7 @@ def test_every_docs_writer_routes_through_the_parent_ensuring_helper(agent_ns):
         return any(isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == name
                    for n in ast.walk(node))
 
-    for method in ("generate_catalog_pdf", "generate_presentation_pptx", "_save_excel",
-                   "_generate_markdown_catalog", "_generate_csv_catalog",
+    for method in ("_generate_markdown_catalog", "_generate_csv_catalog",
                    "_import_catalog_json", "_upload_log_file", "_write_genie_agents_file"):
         assert not direct_imports(method), method
         assert calls(method, "_import_workspace_file"), method
@@ -239,7 +238,7 @@ class _FakeAtomicWriter:
 def test_failed_docs_surface_loudly_in_outcome_and_finalize(docs_ns):
     obj = make_inspire(docs_ns)
     obj._metadata_unavailable_report = lambda: {"tables": []}
-    obj._record_failed_step("PDF Catalog", "English", RuntimeError("parent folder docs does not exist"))
+    obj._record_failed_step("Markdown Catalog", "English", RuntimeError("parent folder docs does not exist"))
     warnings = obj._run_outcome_warnings()
     assert any("1 artifact step failed" in w for w in warnings)
     assert obj._report_run_completion("ok", "COMPLETED WITH WARNINGS") is False

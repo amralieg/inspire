@@ -4,6 +4,7 @@ const S = require('./support/serverApp');
 
 test.after(() => S.stopServer());
 
+const { ROUTE_POLICY } = require('../lib/routePolicy');
 const { SAMPLES, WH, ME, BOSS, qs, UC, someoneElsesBuild } = require('./support/routeSamples');
 
 const refusedByPolicy = (got) => got.status === 403 && Boolean(got.data && got.data.policy);
@@ -118,3 +119,12 @@ test('email case does not matter for owners, launchers and managers', async () =
   assert.equal(refusedByPolicy(await S.request('POST', '/api/run/77/cancel', { person: ME, body: {} })), false);
 });
 
+
+test('FX-116: POST /api/documents is not a route any more: no policy row, no sample, and the server answers 404 (REQ-503)', async () => {
+  assert.equal(Object.hasOwn(ROUTE_POLICY, 'POST /api/documents'), false, 'the removed route has no policy row');
+  assert.equal(SAMPLES.some((s) => s.path === '/api/documents'), false, 'no route sample targets it');
+  S.reset({ managers: [BOSS] });
+  const got = await S.request('POST', '/api/documents', { person: BOSS, body: { kind: 'use-case-catalog', session_id: '1001' } });
+  assert.equal(got.status, 404, got.text.slice(0, 200));
+  assert.deepEqual(nonPolicyCalls(), [], 'the request reaches no Databricks action');
+});

@@ -11,9 +11,6 @@ OBSERVED_NOISE = (
     ("urllib3.connectionpool", logging.DEBUG, '"POST /api/2.0/workspace/import HTTP/1.1" 200 None'),
     ("databricks.sdk", logging.DEBUG, "POST /api/2.0/workspace/import"),
     ("databricks.sdk.retries", logging.DEBUG, "Retry attempt 1 of the import"),
-    ("fontTools.subset", logging.INFO, "Glyph names: [space, a, b]"),
-    ("fontTools.ttLib.ttFont", logging.DEBUG, "Reading 'maxp' table from disk"),
-    ("weasyprint.progress", logging.INFO, "Step 2 - Fetching and parsing CSS - CSS string"),
     ("matplotlib.font_manager", logging.DEBUG, "findfont: Matching sans-serif"),
     ("PIL.PngImagePlugin", logging.DEBUG, "STREAM b'IHDR' 16 13"),
     ("mlflow.tracking", logging.INFO, "mlflow tracking store ready"),
@@ -32,7 +29,7 @@ def run_log(ns, tmp_path):
     saved_handlers, saved_level = list(root.handlers), root.level
     saved_levels = {name: logging.getLogger(name).level for name, _, _ in OBSERVED_NOISE}
     saved_levels.update({name: logging.getLogger(name).level for name in
-                         ("urllib3", "databricks.sdk", "fontTools", "weasyprint", "matplotlib", "PIL", "mlflow", "py4j")})
+                         ("urllib3", "databricks.sdk", "matplotlib", "PIL", "mlflow", "py4j")})
 
     def read():
         for handler in logging.getLogger().handlers:
@@ -64,7 +61,11 @@ def test_the_agent_keeps_its_debug_lines_and_library_warnings_still_show(run_log
     logging.getLogger("DatabricksInspire").debug("agent debug line kept")
     logging.getLogger("AtomicWriterBootstrap").info("writer info line kept")
     logging.getLogger("urllib3.connectionpool").warning("Connection pool is full, discarding connection")
-    logging.getLogger("weasyprint").error("Failed to load stylesheet")
+    logging.getLogger("mlflow").error("Failed to load the tracking store")
     text = run_log()
-    for kept in ("agent debug line kept", "writer info line kept", "Connection pool is full", "Failed to load stylesheet"):
+    for kept in ("agent debug line kept", "writer info line kept", "Connection pool is full", "Failed to load the tracking store"):
         assert kept in text, kept
+
+
+def test_the_document_libraries_are_no_longer_in_the_silenced_namespaces(ns):
+    assert not {"weasyprint", "fontTools"} & set(ns["LIBRARY_LOG_NAMESPACES"])

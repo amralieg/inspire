@@ -5,12 +5,8 @@ Before: a value was marked dir="ltr" as a whole when about 60% of its strong let
 and its brackets flipped, and below that share nothing was isolated at all.
 """
 import re
-import sys
-import types
 
 import pytest
-
-from v120_artifacts_support import make_inspire, make_uc
 
 LRI, PDI = "\u2066", "\u2069"
 
@@ -56,45 +52,3 @@ def test_text_without_right_to_left_letters_is_left_alone(cls):
     for text in ("Forecast demand (units_sold)", "main.s.sales, main.s.stores", "12.5%", ""):
         assert cls._doc_isolate_ltr(text) == text
 
-
-def test_mixed_text_is_never_marked_left_to_right_as_a_whole(cls):
-    assert cls._doc_is_ltr_text("Forecast units_sold by store (المبيعات)") is False
-    assert cls._doc_is_ltr_text("main.s.sales, main.s.stores") is True
-    assert cls._doc_is_ltr_text("main.s.sales، main.s.stores") is False
-
-
-@pytest.fixture
-def captured(agent_ns, monkeypatch):
-    monkeypatch.setattr(agent_ns["workspace"], "ImportFormat", types.SimpleNamespace(AUTO="AUTO"), raising=False)
-    pages = []
-
-    class HTML:
-        def __init__(self, string=None, **kwargs):
-            pages.append(string)
-
-        def write_pdf(self, path, font_config=None):
-            with open(path, "wb") as fh:
-                fh.write(b"%PDF-1.4 fake")
-    monkeypatch.setitem(sys.modules, "weasyprint", types.SimpleNamespace(HTML=HTML))
-    return pages
-
-
-def test_arabic_pdf_isolates_table_names_numbers_and_ids(agent_ns, captured):
-    ts = agent_ns["TranslationService"]
-    t = dict(ts.ENGLISH_TRANSLATIONS)
-    t.update(ts.TRANSLATION_FALLBACKS["Arabic"])
-    uc = make_uc("N01-U01", "المبيعات", Name="توقع الطلب (units_sold) يوميا", usecase="توقع الطلب (units_sold) يوميا",
-                 Statement="يتنبأ النموذج بالطلب من الجدول main.s.sales (عمود units_sold) بنسبة 12.5% كل يوم")
-    obj = make_inspire(agent_ns, output_languages=["English", "Arabic"])
-    obj.generate_catalog_pdf("Arabic", "ar", t, {"Executive": "<p>ملخص يذكر الجدول main.s.sales</p>"}, {"المبيعات": [uc]}, "Acme")
-    page = captured[-1]
-    card = page[page.index('id="uc-N01-U01"'):]
-    card = card[:card.index("</article>")]
-    assert "الجدول " + LRI + "main.s.sales" + PDI + " (عمود " + LRI + "units_sold" + PDI + ")" in card
-    assert LRI + "12.5%" + PDI in card
-    assert "توقع الطلب (" + LRI + "units_sold" + PDI + ") يوميا" in card, "the title is the Arabic Name, its table token isolated"
-    sub = re.search(r'<div class="sub"[^>]*>(.*?)</div>', card).group(1)
-    assert "الجدول " + LRI + "main.s.sales" + PDI + " (عمود " + LRI + "units_sold" + PDI + ")" in sub, "the subtitle outcome keeps its tokens isolated"
-    assert sub.endswith("تقنية التحليل: التنبؤ.") and "باستخدام" not in sub, "REQ-175: the technique is a subtitle clause, never joined to the name"
-    assert "ملخص يذكر الجدول " + LRI + "main.s.sales" + PDI in page
-    assert all(balanced(run) for run in isolates(page))
