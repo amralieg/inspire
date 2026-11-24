@@ -1302,8 +1302,8 @@ export default function ResultsPage({
         </div>
       )}
       {!embedded && results && (
-        <section aria-label="This run" data-run-box="" data-run-heading="" className="mb-3 mt-4 flex flex-wrap items-center gap-x-7 gap-y-3 rounded-2xl border border-db-red/20 bg-gradient-to-r from-db-red-50 to-surface px-5 py-3.5">
-          <div className="min-w-0">
+        <section aria-label="This run" data-run-box="" className="mb-3 mt-4 flex flex-wrap items-center gap-x-7 gap-y-3 rounded-2xl border border-db-red/20 bg-gradient-to-r from-db-red-50 to-surface px-5 py-3.5">
+          <div data-run-heading="" className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-secondary">This run</p>
             <h2 className="text-xl font-bold tracking-tight text-text-primary sm:text-2xl" title={resultsPageTitle || undefined}>
               <button type="button" aria-label={`Change run: ${resultsPageTitle}`} title="Switch to another run" onClick={changeRun}
@@ -2172,18 +2172,18 @@ export default function ResultsPage({
                       const cardProps = cardPropsFor(uc, idx);
                       const key = cardKeys.get(uc);
                       return (
-                      <div key={key} data-use-case-no={uc.No != null ? String(uc.No) : undefined} data-use-case-id={tid || undefined} className="scroll-mt-10">
                       <UseCaseRow
+                        key={key}
+                        rowAttrs={{ 'data-use-case-no': uc.No != null ? String(uc.No) : undefined, 'data-use-case-id': tid || undefined }}
                         uc={uc}
                         index={idx}
                         open={expandedUseCase === key}
                         onOpen={() => setExpandedUseCase(expandedUseCase === key ? null : key)}
                         selection={bulkOn && tid ? { checked: bulkPicked.has(tid), onChange: (on) => setBulkPick(tid, on) } : null}
-                        onGenerateDocs={bulkOn && tid ? () => setDocsUcs([uc]) : undefined}
+                        onGenerateDocs={tid ? () => setDocsUcs([uc]) : undefined}
                         docsMade={Boolean(uc.docs_generated_at)}
                         {...cardProps}
                       />
-                      </div>
                       );
                     })}
                     </div>
@@ -2304,15 +2304,25 @@ export default function ResultsPage({
             sessionId={selectedSessionId} saved={calculated.byId[trackingIdOf(calcFor)]?.answers || null} version={calculated.byId[trackingIdOf(calcFor)]?.version || null}
             values={valuesForDialog} onClose={closeCalc} />
         )}
-      {docsOpen && bulkIds.length > 0 && (
+      {docsUcs?.length > 0 && (
         <GenerateDocsDialog
-          useCases={filteredUseCases.filter((uc) => bulkIds.includes(trackingIdOf(uc)))}
+          useCases={docsUcs}
           values={docValuesOf({ byId: calculated.byId, totals: valueTotals })}
           businessName={runBusiness(selectedSession)} language={docLanguageOf(selectedSession)} folder={generationPath}
           apiPostJson={apiPostJson} inspireDatabase={inspireDb} warehouseId={warehouseId} sessionId={selectedSessionId}
           onSaved={() => loadArtifacts(generationPath)}
-          onGoToAssets={() => { setDocsOpen(false); showView('assets'); }}
-          onClose={() => setDocsOpen(false)} />
+          onGoToAssets={() => { setDocsUcs(null); showView('assets'); }}
+          onClose={() => setDocsUcs(null)} />
+      )}
+      {implementUc && buildQueue.total > 1 && (
+        <p data-build-queue="" role="status" className="fixed bottom-4 start-4 z-[60] rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-text-primary shadow-elevated">
+          Building MVP {buildQueue.total - buildQueue.left.length} of {buildQueue.total}
+        </p>
+      )}
+      {readerIndex >= 0 && (
+        <ReviewReader onClose={() => setExpandedUseCase(null)}>
+          <UseCaseCard {...cardPropsFor(filteredUseCases[readerIndex], readerIndex)} expanded onToggle={() => setExpandedUseCase(null)} />
+        </ReviewReader>
       )}
       {bulkHere?.open && <ValueBulkPanel onEdit={(id) => { const uc = builtUseCases.find((u) => trackingIdOf(u) === id); if (uc) openCalc(uc); }} />}
       {implementUc && selectedSessionId && inspireDb && warehouseId && (
@@ -2324,11 +2334,12 @@ export default function ResultsPage({
           apiFetch={apiFetch}
           apiPostJson={apiPostJson}
           focus={implementFocus}
-          onClose={() => { setImplementUc(null); setImplementFocus(null); }}
+          onClose={() => { setImplementUc(null); setImplementFocus(null); setBuildQueue({ left: [], total: 0 }); }}
           onImplemented={(data) => {
             setImplementUc(null);
             setImplementFocus(null);
             setImplementRefresh((n) => n + 1);
+            if (stepBuildQueue()) return;
             onOpenImplement?.(String(selectedSessionId), data.use_case_id);
           }}
           onOpenBuild={onOpenImplement ? (useCaseId) => {

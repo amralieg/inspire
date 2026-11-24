@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { FileText, Heart, Sparkles, Star, ArrowRight, Loader2, Check } from 'lucide-react';
 import InspireScoreBadge from '../InspireScoreBadge';
 import ValueBox from '../ValueBox';
@@ -28,10 +29,14 @@ export function buildCell(status, { onImplement, onOpenMvp }) {
 
 export default function UseCaseRow({
   uc, index, selection = null, isFavorite = false, onToggleFavorite, onRename, implementStatus = null, onImplement, onOpenMvp,
-  onGenerateDocs, docsMade = false, yearly = null, valueSummary = null, canCalculate = false, onCalculate, onEdit, onOpen, open = false,
+  onGenerateDocs, docsMade = false, yearly = null, valueSummary = null, canCalculate = false, onCalculate, onEdit, onOpen, open = false, rowAttrs = {},
 }) {
-  const { title, subtitle } = cardTitlesOfUseCase(uc, index);
-  const rename = useUseCaseRename(title, onRename);
+  const { title: titleProp, subtitle } = cardTitlesOfUseCase(uc, index);
+  // The saved name shows at once; a refreshed use case takes over when its own name changes.
+  const [saved, setSaved] = useState(null);
+  useEffect(() => { setSaved(null); }, [titleProp]);
+  const title = saved ?? titleProp;
+  const rename = useUseCaseRename(title, onRename ? async (name) => { await onRename(name); setSaved(name); } : undefined);
   const v130 = uc._v130 || null;
   const kind = v130?.kind || null;
   const build = buildCell(implementStatus, { onImplement, onOpenMvp });
@@ -43,10 +48,10 @@ export default function UseCaseRow({
 
   return (
     <div
-      data-use-case-row="" data-open={open ? '' : undefined} tabIndex={0}
+      data-use-case-row="" {...rowAttrs} data-open={open ? '' : undefined} tabIndex={0}
       onClick={openRow}
       onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onOpen?.(); } }}
-      className={`${ROW_GRID} cursor-pointer rounded-xl border bg-surface px-2.5 py-2.5 shadow-sm transition-smooth hover:border-db-red/30 hover:shadow-md focus-visible:outline-2 focus-visible:outline-db-red-solid ${open ? 'border-db-red/60 bg-db-red-50' : 'border-border/70'}`}
+      className={`${ROW_GRID} cursor-pointer rounded-xl border bg-surface px-2.5 py-2.5 shadow-sm transition-smooth hover:border-db-red/30 hover:shadow-md focus-visible:outline-2 focus-visible:outline-db-red-solid scroll-mt-10 ${open ? 'border-db-red/60 bg-db-red-50' : 'border-border/70'}`}
     >
       <div>
         {selection && (

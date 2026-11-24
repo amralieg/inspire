@@ -115,7 +115,7 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
       <span data-value-period="" className="text-[10px] text-text-secondary">Per year</span>
       {!readOnly && onEdit && m.state !== 'measured' && (
         <button type="button" data-value-edit="" aria-label="Edit value" title="Edit value" onClick={(e) => { e.stopPropagation(); onEdit(); }}
-          className={`absolute ${inset ? 'end-1 top-1 h-[22px] w-[22px]' : '-end-2.5 -top-2.5 h-[26px] w-[26px]'} flex items-center justify-center rounded-full border border-border bg-surface text-text-secondary shadow hover:border-db-red-solid hover:text-db-red-fg`}>
+          className={`absolute ${inset ? 'end-0.5 bottom-1 h-[20px] w-[20px]' : '-end-2.5 -top-2.5 h-[26px] w-[26px]'} flex items-center justify-center rounded-full border border-border bg-surface text-text-secondary shadow hover:border-db-red-solid hover:text-db-red-fg`}>
           <Pencil size={13} />
         </button>
       )}
