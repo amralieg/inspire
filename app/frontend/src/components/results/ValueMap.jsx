@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { inspireScoreFromUc, nameOfUseCase, scoreOf, trackingIdOf } from '../../lib/useCaseFields';
 
-// No chart palette in index.css, so the domains take a fixed ordered list of the existing semantic tokens (both themes).
-const COLORS = ['primary', 'info', 'success', 'warning', 'neutral', 'info-fg', 'success-fg', 'warning-fg'].map((t) => `var(--color-${t})`);
+// No chart palette in index.css, so the domains take a fixed ordered list of semantic tokens, each at least 3:1 on the surface in both themes.
+const COLORS = ['primary', 'info-fg', 'success-fg', 'warning-fg', 'neutral', 'info'].map((t) => `var(--color-${t})`);
 const AXIS = 'var(--color-text-secondary)';
 const W = 900, H = 380, L = 64, R = 24, T = 24, B = 56, FLOOR = 24;
 const PLOT_W = W - L - R, PLOT_H = H - T - B;
