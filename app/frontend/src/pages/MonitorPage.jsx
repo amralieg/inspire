@@ -410,7 +410,7 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
         </ul>
       )}
 
-      {!noRunOpen && <RunStepper steps={steps} ended={runEnded(runInfo) || isComplete || isFailed} />}
+      {!noRunOpen && <RunStepper steps={steps} ended={runEnded(runInfo) || isComplete || isFailed} failed={isFailed} />}
 
       {/* ═══ Status Card ═══ */}
       <div data-testid="monitor-status" data-status={isWarning ? 'warning' : isCleanComplete ? 'success' : isFailed ? 'failed' : 'active'} className={`border rounded-xl p-5 mb-6 shadow-sm ${
@@ -514,7 +514,8 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
         {!showcase && runId && runInfo && (isPending || isRunning) && (
           <StopRunControl runId={runId} business={session?.business_name} apiFetch={apiFetch} open={stopOpen} onClose={() => setStopOpen(false)} onVerdict={setStopAllowed} />
         )}
-        {!showcase && <RunLogPanel inspireDatabase={inspireDatabase} warehouseId={warehouseId} sessionId={session?.session_id || sessionId} apiFetch={apiFetch} open={logOpen} onOpenChange={setLogOpen} />}
+        {!showcase && <RunLogPanel inspireDatabase={inspireDatabase} warehouseId={warehouseId} sessionId={session?.session_id || sessionId} apiFetch={apiFetch} open={logOpen} onOpenChange={setLogOpen}
+          fallbackText={(steps || []).map((r) => [r.last_updated, r.stage_name, r.message].filter(Boolean).join('  ')).join('\n')} />}
 
         {/* Latest activity line */}
         {latestStep && isRunning && (

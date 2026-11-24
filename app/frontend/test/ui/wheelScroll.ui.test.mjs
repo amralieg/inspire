@@ -101,7 +101,8 @@ test('the mouse wheel scrolls the Monitor run log to its last line at 1280x800 a
   const ui = await openUi('monitor', {}, '', { mount });
   const { page } = ui;
   try {
-    await page.getByRole('button', { name: 'Show the run log' }).click();
+    await page.getByRole('button', { name: /^More$/ }).click();
+    await page.getByRole('menuitem', { name: 'Run log' }).click();
     const pre = page.getByLabel('Run log');
     await pre.waitFor({ timeout: 10000 });
     await wheelScrolls(page, pre, () => pre.getByText('the run log ends here'), { name: 'Monitor run log' });

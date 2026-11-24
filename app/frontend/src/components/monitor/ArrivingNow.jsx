@@ -24,7 +24,7 @@ export default function ArrivingNow({ useCases, live, empty }) {
       <div className="mb-3 flex items-center gap-2">
         <h2 className="text-base font-semibold text-text-primary">Arriving now</h2>
         <span className="ms-auto text-xs text-text-secondary tabular-nums">
-          <span data-testid="live-use-case-count">{liveCountText(useCases.length)}</span>
+          {useCases.length > 0 && <span data-testid="live-use-case-count">{liveCountText(useCases.length)}</span>}
           {live && <span className="ms-1.5 inline-block h-1.5 w-1.5 rounded-full bg-db-red animate-pulse align-middle" aria-hidden="true" />}
         </span>
       </div>

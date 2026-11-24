@@ -297,7 +297,7 @@ export default function EveryStepDialog({
             <div ref={follow.ref} data-steps-end="" />
             {follow.unseen && (
               <div className="fixed bottom-6 start-1/2 -translate-x-1/2 z-40 pointer-events-none">
-                <button type="button" onClick={follow.jump} className="pointer-events-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-semibold text-white bg-db-red-solid shadow-lg">
+                <button type="button" onClick={follow.jump} className="pointer-events-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-semibold text-primary-fg bg-primary shadow-lg">
                   <ArrowDown size={12} /> New steps
                 </button>
               </div>

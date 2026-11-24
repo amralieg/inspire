@@ -7,7 +7,7 @@ export function runLogQuery({ inspireDatabase, warehouseId, sessionId }) {
 }
 
 // REQ-511: with `open` set, the page's More menu owns the Run log entry and this renders only the log, its Refresh and a way to hide it.
-export default function RunLogPanel({ inspireDatabase, warehouseId, sessionId, apiFetch, open: openProp, onOpenChange }) {
+export default function RunLogPanel({ inspireDatabase, warehouseId, sessionId, apiFetch, open: openProp, onOpenChange, fallbackText = '' }) {
   const controlled = openProp !== undefined;
   const [openOwn, setOpenOwn] = useState(false);
   const open = controlled ? openProp : openOwn;
@@ -22,7 +22,9 @@ export default function RunLogPanel({ inspireDatabase, warehouseId, sessionId, a
     try {
       setLog(await apiFetch(runLogQuery({ inspireDatabase, warehouseId, sessionId })));
     } catch (err) {
-      setError(err.message || 'Inspire could not read the run log.');
+      // REQ-511: a server without the log route (404) shows the step messages this page already holds; a refusal still shows only the refusal.
+      if (err.status === 404 && fallbackText) setLog({ found: true, truncated: false, text: fallbackText });
+      else setError(err.message || 'Inspire could not read the run log.');
     }
     setLoading(false);
   };

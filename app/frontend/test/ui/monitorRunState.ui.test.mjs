@@ -35,7 +35,7 @@ function runBackend({ run, session = {}, steps = STEPS }) {
 }
 
 const card = (page) => page.locator('[data-testid="monitor-status"]');
-const steps = (page) => page.getByRole('heading', { name: 'Detailed Steps' });
+const steps = (page) => page.getByRole('button', { name: /Every step/ });
 
 for (const [label, run, title] of [
   ['failed', { life_cycle_state: 'TERMINATED', result_state: 'FAILED', state_message: PLATFORM, start_time: Date.now() - HOUR, end_time: Date.now() - 40 * MINUTE,
@@ -50,7 +50,7 @@ for (const [label, run, title] of [
     try {
       await card(page).getByText(title, { exact: true }).waitFor({ timeout: 15000 });
       await steps(page).waitFor({ timeout: 15000 });
-      assert.match(await steps(page).locator('xpath=following-sibling::p').innerText(), /2 stages · 2 steps/);
+      assert.match(await steps(page).innerText(), /2 stages · 2 steps/);
       assert.match(await card(page).innerText(), /Acme Retail, started /, 'the ended run is named by its business');
       const read = backend.reads.session;
       assert.ok(read >= 1);

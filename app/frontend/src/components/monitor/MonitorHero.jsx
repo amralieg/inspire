@@ -1,6 +1,7 @@
 import { Activity, Loader2 } from 'lucide-react';
 import PageHeader from '../ui/PageHeader';
 import MoreMenu from '../ui/MoreMenu';
+import Button from '../ui/Button';
 
 // REQ-511 Monitor C: the hero holds the page header, the run stepper and the status card (children), the screen's one More menu, and at most one primary.
 // state is running | done | failed | offline; primary is { label, onClick, busy } or null.
@@ -12,11 +13,10 @@ export default function MonitorHero({ state, subtitle, primary, menuItems, child
         <PageHeader title="Monitor" icon={Activity} subtitle={subtitle} className="min-w-0 flex-1" />
         <div className="flex shrink-0 items-center gap-2">
           {primary && (
-            <button type="button" data-variant="primary" onClick={primary.onClick} disabled={primary.busy}
-              className="inline-flex items-center gap-2 rounded-md bg-db-red-solid px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60">
+            <Button data-variant="primary" onClick={primary.onClick} disabled={primary.busy} className="px-4">
               {primary.busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
               {primary.label}
-            </button>
+            </Button>
           )}
           {menuItems.length > 0 && <MoreMenu items={menuItems} />}
         </div>

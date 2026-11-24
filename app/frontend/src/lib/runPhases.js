@@ -55,7 +55,7 @@ const rowState = (status) => ROW_STATE[String(status || '')] || 'active';
 const RANK = { error: 4, active: 3, warning: 2, done: 1 };
 
 /** The eight phases with a state each: todo, active, done, warning, error or skipped. Skipped is never shown as done. */
-export function runPhasesOf(steps, { ended = false } = {}) {
+export function runPhasesOf(steps, { ended = false, failed: runFailed = false } = {}) {
   const found = {};
   for (const row of mergeSteps([], Array.isArray(steps) ? steps : [])) {
     const key = phaseOfStage(row?.stage_name);
@@ -63,6 +63,8 @@ export function runPhasesOf(steps, { ended = false } = {}) {
     const state = rowState(row.status);
     if (!found[key] || RANK[state] > RANK[found[key]]) found[key] = state;
   }
+  // A run that failed marks the phase it was in (still active) as error.
+  if (runFailed) for (const key of Object.keys(found)) if (found[key] === 'active') found[key] = 'error';
   const failed = Object.values(found).includes('error');
   return RUN_PHASES.map((phase) => {
     if (found[phase.key]) return { ...phase, state: found[phase.key] };
