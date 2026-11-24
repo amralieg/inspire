@@ -12,8 +12,7 @@ test.after(closeBrowser);
 const OWNER = ['owner', 'example.com'].join('@');
 const DATED = [{ column_name: 'order_id', data_type: 'STRING', ordinal_position: 1 }, { column_name: 'order_date', data_type: 'DATE', ordinal_position: 2 }];
 const VIEWPORTS = [{ width: 1440, height: 900 }, { width: 1280, height: 800 }];
-const APP_DESCRIPTION = 'A Databricks App with the decision list';
-const GENIE_LINE = 'Ask answers questions on your data through a Genie Agent, built with it.';
+const DASHBOARD_DESCRIPTION = 'Decision list, trend and run health.';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function toDelivery(page) {
@@ -29,15 +28,12 @@ test('the Agentic App and its Genie Agent start ticked, the App card says what t
   const { page } = ui;
   try {
     await toDelivery(page);
-    assert.deepEqual(
-      [await tick(page, 'app').isChecked(), await tick(page, 'genie_space').isChecked(), await tick(page, 'dashboard').isChecked()],
-      [true, true, false],
-      'the Agentic App and the Genie Agent are ticked by default, the dashboard is not',
-    );
-    await card(page, 'app').getByText(GENIE_LINE).waitFor();
-    await card(page, 'genie_space').getByRole('checkbox').first().uncheck();
-    assert.equal(await tick(page, 'genie_space').isChecked(), false, 'the person can untick the Genie Agent');
-    assert.equal(await tick(page, 'app').isChecked(), true, 'the Agentic App stays ticked');
+    // REQ-514: the App with Genie is one fixed card, always built, with no tick and no separate Genie Agent card.
+    assert.equal(await card(page, 'app').getByRole('checkbox').count(), 0, 'the App with Genie card has no tick: it is always built');
+    assert.equal(await card(page, 'genie_space').count(), 0, 'the Genie Agent is part of the App card, not its own card');
+    assert.equal(await tick(page, 'dashboard').isChecked(), false, 'the dashboard is not ticked by default');
+    await card(page, 'app').getByText(/the Genie Agent that answers Ask/).waitFor();
+    await card(page, 'app').getByText(/Always built/).waitFor();
   } finally {
     await ui.close();
   }
@@ -83,21 +79,21 @@ for (const viewport of VIEWPORTS) {
     try {
       await page.setViewportSize(viewport);
       await toDelivery(page);
-      // The Agentic App is ticked by default, so each click below must untick it, then tick it again.
-      const span = card(page, 'app').getByText(APP_DESCRIPTION);
+      // REQ-514: the App is a fixed card with no tick, so the optional Dashboard card (unticked by default) carries these clicks.
+      const span = card(page, 'dashboard').getByText(DASHBOARD_DESCRIPTION);
       const spanBox = await span.boundingBox();
       await page.mouse.click(spanBox.x + spanBox.width / 2, spanBox.y + spanBox.height / 2);
-      assert.equal(await tick(page, 'app').isChecked(), false, 'a real click on the description text span unticks the Agentic App');
+      assert.equal(await tick(page, 'dashboard').isChecked(), true, 'a real click on the description text span ticks the dashboard');
       const spanAgain = await span.boundingBox();
       await page.mouse.click(spanAgain.x + spanAgain.width / 2, spanAgain.y + spanAgain.height / 2);
-      assert.equal(await tick(page, 'app').isChecked(), true, 'a second real click on the description text span ticks it again');
-      const after = await card(page, 'app').boundingBox();
+      assert.equal(await tick(page, 'dashboard').isChecked(), false, 'a second real click on the description text span unticks it again');
+      const after = await card(page, 'dashboard').boundingBox();
       await page.mouse.click(after.x + after.width / 2, after.y + after.height / 2);
-      assert.equal(await tick(page, 'app').isChecked(), false, 'a real click on the centre of the card unticks it');
-      const corner = await card(page, 'app').boundingBox();
+      assert.equal(await tick(page, 'dashboard').isChecked(), true, 'a real click on the centre of the card ticks it');
+      const corner = await card(page, 'dashboard').boundingBox();
       await page.mouse.click(corner.x + corner.width - 8, corner.y + 8);
-      assert.equal(await tick(page, 'app').isChecked(), true, 'a real click on the card corner ticks it again');
-      for (const id of ['dashboard', 'genie_space', 'alert']) {
+      assert.equal(await tick(page, 'dashboard').isChecked(), false, 'a real click on the card corner unticks it again');
+      for (const id of ['dashboard', 'alert']) {
         const before = await tick(page, id).isChecked();
         const cardBox = await card(page, id).boundingBox();
         await page.mouse.click(cardBox.x + cardBox.width / 2, cardBox.y + cardBox.height / 2);
