@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { closeBrowser, openUi, totalsQueryMissing } from './uiSupport.mjs';
 import { DEFAULTS, PLAN } from './valueWizardSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
+import { openReader } from './reviewRows.mjs';
 import { valueEstimateOf } from '../../src/lib/v130UseCase.js';
 
 test.after(closeBrowser);
@@ -75,15 +76,17 @@ test('2e: Build next and the card show the same value for one use case', async (
   const ui = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS, useCases: BUILD_USE_CASES }, '', { mount: mountWith({ totals: BUILD_TOTALS }) });
   try {
     const { page } = ui;
-    const row = page.locator('[data-build-next-row]').first();
+    // REQ-511: Build next left Review (D3); the same one value now shows on the row's value box and on the reader card.
+    const row = page.locator('[data-use-case-row]').first();
     await row.waitFor({ timeout: 20000 });
-    const id = await row.getAttribute('data-build-next-row');
-    const line = row.locator('[data-value-line-amount]');
+    const id = await row.getAttribute('data-use-case-no');
+    const line = row.locator('[data-value-box] [data-value-amount]');
     await line.waitFor({ timeout: 15000 });
-    const card = page.locator(`[data-use-case-no="${id}"] [data-value-amount]`);
+    const reader = await openReader(page, row);
+    const card = reader.locator('[data-value-amount]').first();
     await card.waitFor({ timeout: 15000 });
-    await poll(async () => (await text(card)) === (await text(line)), `card and Build next agree for ${id}`);
-    assert.match(await text(line), /^\$[\d.]+[KM]$/, 'Build next shows the amount the totals give');
+    await poll(async () => (await text(card)) === (await text(line)), `card and row agree for ${id}`);
+    assert.match(await text(line), /^\$[\d.]+[KM]$/, 'the row shows the amount the totals give');
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
 });
