@@ -11,7 +11,7 @@ export default function ImplementStatusBadge({ state, className = '' }) {
   const badge = (
     <span
       data-implement-status={state.group || ''}
-      className={`inline-flex items-center text-[10px] font-semibold uppercase tracking-[0.14em] px-2 py-1 rounded-md border leading-none ${TONE[state.tone] || TONE.idle} ${className}`}
+      className={`inline-flex items-center text-caption font-semibold uppercase tracking-[0.14em] px-2 py-1 rounded-md border leading-none ${TONE[state.tone] || TONE.idle} ${className}`}
     >
       {state.tone === 'busy' && <span className="me-1.5 w-1.5 h-1.5 rounded-full bg-db-red-fg motion-safe:animate-pulse" aria-hidden />}
       {state.queued ? 'MVP queued' : state.label}
@@ -21,7 +21,7 @@ export default function ImplementStatusBadge({ state, className = '' }) {
   return (
     <span className="inline-flex flex-col items-start gap-0.5">
       {badge}
-      <span data-implement-note="" className="text-[11px] leading-tight text-warning-fg">{state.note}</span>
+      <span data-implement-note="" className="text-caption leading-tight text-warning-fg">{state.note}</span>
     </span>
   );
 }

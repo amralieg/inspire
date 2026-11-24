@@ -52,7 +52,7 @@ export default function RunScope({ page, settings }) {
     return got;
   }, [apiPostJson, query]);
   if (error) return <PlainMessage text={`Inspire could not read the Data groups and ${FIRST_RUN_LABEL} of this use case: ${error}`} role="alert" className="text-[12px] text-error-fg" />;
-  if (!view || !runs) return <p className={NOTE}><Loader2 size={12} className="inline me-1 animate-spin" aria-hidden /> Reading the Data groups and {FIRST_RUN_LABEL}</p>;
+  if (!view || !runs) return <p className={NOTE}><Loader2 size={14} className="inline me-1 animate-spin" aria-hidden /> Reading the Data groups and {FIRST_RUN_LABEL}</p>;
   if (!scopeList.length) return null;
   const facts = runScopeFacts(runs.runs);
   const scope = String(scopeList.find((s) => s.name === RUN_SCOPE)?.value ?? '') || GROUP_ALL;
@@ -82,7 +82,7 @@ export default function RunScope({ page, settings }) {
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" disabled={busy || !canRun} onClick={runEverything}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-primary-solid disabled:opacity-50">
-            {busy ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />} {RUN_EVERYTHING_LABEL}
+            {busy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} {RUN_EVERYTHING_LABEL}
           </button>
           {facts?.everything && <span data-run-everything-estimate="" className={NOTE}>{facts.everything}</span>}
         </div>

@@ -5,7 +5,7 @@ export default function DiscoveryPromise({ className = '' }) {
   return (
     <div role="note" aria-label={DISCOVERY_PROMISE.title} data-discovery-promise="" className={className}>
       <p className="flex items-center gap-1.5 text-sm font-bold text-success-fg">
-        <ShieldCheck size={15} className="shrink-0" />
+        <ShieldCheck size={16} className="shrink-0" />
         {DISCOVERY_PROMISE.title}
       </p>
       {DISCOVERY_PROMISE.lines.map((line) => (

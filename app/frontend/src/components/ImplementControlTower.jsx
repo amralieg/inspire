@@ -21,7 +21,7 @@ const ASSET_ICONS = { build: Hammer, job: Briefcase, dashboard: LayoutDashboard,
 const TONE_CHIP = { success: 'success', error: 'error', warning: 'warning', busy: 'red', idle: 'idle' };
 const BUTTON = 'inline-flex h-8 items-center justify-center gap-1 px-2.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-50';
 export const ACTION_ROW = 'grid w-full grid-cols-1 gap-1.5 sm:w-fit sm:max-w-full sm:grid-cols-none sm:grid-flow-col sm:auto-cols-fr';
-const FIT_BUTTON = 'flex w-full h-8 min-w-0 overflow-hidden items-center justify-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium leading-[13px] text-center disabled:opacity-50';
+const FIT_BUTTON = 'flex w-full h-8 min-w-0 overflow-hidden items-center justify-center gap-1 px-2 py-0.5 rounded-lg text-caption font-medium leading-[13px] text-center disabled:opacity-50';
 const fitted = (fit, text) => (fit ? <span className="min-w-0 break-words line-clamp-2">{text}</span> : text);
 
 export function ConfirmDialog({ title, confirmLabel, useCaseId, busy, onCancel, onConfirm, children }) {
@@ -36,7 +36,7 @@ export function ConfirmDialog({ title, confirmLabel, useCaseId, busy, onCancel, 
         onClick={onConfirm}
         className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-error-solid disabled:opacity-50"
       >
-        {busy ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} {confirmLabel}
+        {busy ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} {confirmLabel}
       </button>
     </>
   );
@@ -62,7 +62,7 @@ function RetryButton({ failed, disabled, lockedReason = '', onRetry, fit = false
   return (
     <button type="button" disabled={disabled} onClick={onRetry} title={lockedReason || failed.error || undefined} aria-label={`Retry the ${failed.label}`}
       className={`${fit ? FIT_BUTTON : BUTTON} border border-error/40 bg-surface text-error-fg`}>
-      <RotateCcw size={11} className="shrink-0" /> {fitted(fit, 'Retry')}
+      <RotateCcw size={14} className="shrink-0" /> {fitted(fit, 'Retry')}
     </button>
   );
 }
@@ -77,12 +77,12 @@ export function RowControls({ row, active, actionBusy, submitBusy, readOnly = fa
       {row.run && onOpenRun && (
         <button type="button" data-open-run={row.run.id} title={named(RUN_LINK_LABEL)} onClick={() => onOpenRun(row.run.id)}
           className={`${base} font-semibold text-white bg-primary-solid hover:opacity-90`}>
-          <PlayCircle size={11} className="shrink-0" /> {fitted(fit, RUN_LINK_LABEL)}
+          <PlayCircle size={14} className="shrink-0" /> {fitted(fit, RUN_LINK_LABEL)}
         </button>
       )}
       {row.url && (
         <a href={row.url} target="_blank" rel="noreferrer" className={`${BUTTON} font-semibold text-white bg-primary-solid hover:opacity-90`}>
-          Open <ExternalLink size={11} />
+          Open <ExternalLink size={14} />
         </a>
       )}
       {row.actions.map((a) => {
@@ -98,19 +98,19 @@ export function RowControls({ row, active, actionBusy, submitBusy, readOnly = fa
             onClick={() => onAction(a)}
             className={`${base} border bg-surface ${a.danger ? 'border-error/40 text-error-fg' : 'border-border text-text-primary'}`}
           >
-            {actionBusy === key ? <Loader2 size={11} className="shrink-0 animate-spin" /> : <Icon size={11} className="shrink-0" />} {fitted(fit, a.label)}
+            {actionBusy === key ? <Loader2 size={14} className="shrink-0 animate-spin" /> : <Icon size={14} className="shrink-0" />} {fitted(fit, a.label)}
           </button>
         );
       })}
       {row.schedule && (
         <button type="button" disabled={locked} title={lockedReason || named(row.schedule.label)} onClick={onToggleSchedule} className={`${base} border border-border bg-surface text-text-primary`}>
-          {row.schedule.on ? <Pause size={11} className="shrink-0" /> : <Play size={11} className="shrink-0" />} {fitted(fit, row.schedule.label)}
+          {row.schedule.on ? <Pause size={14} className="shrink-0" /> : <Play size={14} className="shrink-0" />} {fitted(fit, row.schedule.label)}
         </button>
       )}
       {failed && <RetryButton failed={failed} disabled={locked} lockedReason={lockedReason} onRetry={onRetry} fit={fit} />}
       {!failed && row.lakebaseSwitch && (
         <button type="button" disabled={locked} title={lockedReason || named('Switch to Lakebase')} onClick={onRetry} className={`${base} border border-border bg-surface text-text-primary`}>
-          <Zap size={11} className="shrink-0" /> {fitted(fit, 'Switch to Lakebase')}
+          <Zap size={14} className="shrink-0" /> {fitted(fit, 'Switch to Lakebase')}
         </button>
       )}
     </>
@@ -125,7 +125,7 @@ function StripRow({ row, controls }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold text-text-primary">{row.label}</span>
-            <span className="font-mono text-[11px] text-text-secondary truncate">{row.name}</span>
+            <span className="font-mono text-caption text-text-secondary truncate">{row.name}</span>
             <ImplementStatusBadge state={row.state} />
           </div>
           {row.detail && <PlainMessage text={row.detail} data-control-detail="" className={row.state.tone === 'error' ? 'text-error-fg' : 'text-text-secondary'} />}
@@ -225,13 +225,13 @@ export function AssetTile({
       <IconChip icon={Icon} tone={off ? 'idle' : TONE_CHIP[shown.tone] || 'idle'} size="sm" />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1 text-[13px] font-semibold text-text-primary">
-          {label}{link && <ExternalLink size={11} aria-hidden className="shrink-0 text-text-secondary" />}
+          {label}{link && <ExternalLink size={14} aria-hidden className="shrink-0 text-text-secondary" />}
         </span>
-        <span data-tile-state="" title={shown.label} className={`flex items-center gap-1 min-w-0 text-[11px] font-medium ${off ? 'text-text-secondary' : shown.tone === 'error' ? 'text-error-fg' : 'text-text-secondary'}`}>
-          {building && <Loader2 data-tile-spinner="" size={11} aria-hidden className="shrink-0 text-db-red-fg motion-safe:animate-spin" />}
+        <span data-tile-state="" title={shown.label} className={`flex items-center gap-1 min-w-0 text-caption font-medium ${off ? 'text-text-secondary' : shown.tone === 'error' ? 'text-error-fg' : 'text-text-secondary'}`}>
+          {building && <Loader2 data-tile-spinner="" size={14} aria-hidden className="shrink-0 text-db-red-fg motion-safe:animate-spin" />}
           <span className="min-w-0 break-words">{shown.label}</span>
         </span>
-        {off && tile?.note && <span data-asset-note="" className="mt-0.5 block line-clamp-3 text-[11px] text-text-secondary">{tile.note}</span>}
+        {off && tile?.note && <span data-asset-note="" className="mt-0.5 block line-clamp-3 text-caption text-text-secondary">{tile.note}</span>}
       </span>
     </>
   );
@@ -252,7 +252,7 @@ export function AssetTile({
       <div data-tile-actions="" className="mt-auto flex flex-col gap-1">
         {link && (
           <a data-tile-open-button="" href={link} target="_blank" rel="noreferrer" aria-label={`Open the ${label} in a new tab`} title="Open" className={`${TILE_BUTTON} hover:bg-bg-subtle`}>
-            <ExternalLink size={11} className="shrink-0" /> {fitted(true, 'Open')}
+            <ExternalLink size={14} className="shrink-0" /> {fitted(true, 'Open')}
           </a>
         )}
         {live && (
@@ -262,24 +262,24 @@ export function AssetTile({
         {!live && failed && <RetryButton failed={failed} disabled={locked} lockedReason={lockedReason} onRetry={() => onRetry(output.id)} fit />}
         {off && onAdd && (
           <button type="button" data-tile-add="" disabled={active} onClick={onAdd} aria-label={`Add the ${label}`} title="Add" className={TILE_BUTTON}>
-            <Plus size={11} className="shrink-0" /> {fitted(true, 'Add')}
+            <Plus size={14} className="shrink-0" /> {fitted(true, 'Add')}
           </button>
         )}
         {!off && onVersions && (
           <button type="button" data-tile-versions="" onClick={onVersions} aria-label={`Versions of the ${label}`} title="Versions" className={TILE_BUTTON}>
-            <History size={11} className="shrink-0" /> {fitted(true, 'Versions')}
+            <History size={14} className="shrink-0" /> {fitted(true, 'Versions')}
           </button>
         )}
         {controls.canRemove && (
           <button type="button" data-tile-uninstall="" disabled={locked || Boolean(uninstall.blocked)} title={uninstall.blocked || lockedReason || uninstall.label}
             onClick={controls.ask} aria-label={`${uninstall.label} the ${label}`} className={TILE_DANGER}>
-            <Trash2 size={11} className="shrink-0" /> {fitted(true, uninstall.label)}
+            <Trash2 size={14} className="shrink-0" /> {fitted(true, uninstall.label)}
           </button>
         )}
         {onUninstall && (
           <button type="button" data-tile-uninstall="" disabled={locked} title={lockedReason || removeLabel} onClick={onUninstall}
             aria-label={`${removeLabel} the ${label}`} className={TILE_DANGER}>
-            <Trash2 size={11} className="shrink-0" /> {fitted(true, removeLabel)}
+            <Trash2 size={14} className="shrink-0" /> {fitted(true, removeLabel)}
           </button>
         )}
       </div>
@@ -310,7 +310,7 @@ export function AssetPanel({
         {onAddOutput && (
           <div className={ACTION_ROW}>
             <button type="button" disabled={active} onClick={onAddOutput} className={`${BUTTON} border border-border bg-surface text-text-primary`}>
-              <Plus size={11} /> Add the {output.label}
+              <Plus size={14} /> Add the {output.label}
             </button>
           </div>
         )}
@@ -336,7 +336,7 @@ export function AssetPanel({
             <span className="text-[13px] font-semibold text-text-primary">{output.label}</span>
             {row && <ImplementStatusBadge state={row.state} />}
           </div>
-          {row && <p className="font-mono text-[11px] text-text-secondary truncate" title={row.name}>{row.name}</p>}
+          {row && <p className="font-mono text-caption text-text-secondary truncate" title={row.name}>{row.name}</p>}
           {note && <p data-shared-note="" className="mt-1 text-text-primary">{note}</p>}
           {row?.detail && <PlainMessage text={row.detail} data-control-detail="" className={`mt-1 ${row.state.tone === 'error' ? 'text-error-fg' : 'text-text-secondary'}`} />}
           {row?.backend && <p data-app-backend="" className="mt-1 text-text-secondary">{row.backend}</p>}
@@ -345,7 +345,7 @@ export function AssetPanel({
           {look && kind === 'failed' && <PlainMessage text={look.text} className="text-error-fg" />}
           {look && kind !== 'failed' && (
             <p className="text-text-secondary">
-              {(busy?.now || kind === 'checking' || kind === 'planning') && <Loader2 size={11} className="inline me-1 align-[-1px] motion-safe:animate-spin text-db-red-fg" aria-hidden />}
+              {(busy?.now || kind === 'checking' || kind === 'planning') && <Loader2 size={14} className="inline me-1 align-[-1px] motion-safe:animate-spin text-db-red-fg" aria-hidden />}
               {look.text}
             </p>
           )}
@@ -360,7 +360,7 @@ export function AssetPanel({
         <ul aria-label={`${row.label} warnings`} className="space-y-1 rounded-lg bg-warning-bg px-2.5 py-2 ring-1 ring-inset ring-warning/40">
           {row.warnings.map((warning) => (
             <li key={warning} className="flex items-start gap-1.5 text-warning-fg">
-              <AlertTriangle size={12} className="mt-[2px] shrink-0" aria-hidden />
+              <AlertTriangle size={14} className="mt-[2px] shrink-0" aria-hidden />
               <span>{warning}</span>
             </li>
           ))}
@@ -372,11 +372,11 @@ export function AssetPanel({
         {canRemove && (
           <button type="button" disabled={locked || Boolean(uninstall.blocked)} onClick={controls.ask}
             className={`${BUTTON} border border-error/40 bg-surface text-error-fg`}>
-            <Trash2 size={11} /> {uninstall.label}
+            <Trash2 size={14} /> {uninstall.label}
           </button>
         )}
       </div>
-      {canRemove && uninstall.blocked && <p data-uninstall-blocked="" className="text-[11px] text-text-secondary">{uninstall.blocked}</p>}
+      {canRemove && uninstall.blocked && <p data-uninstall-blocked="" className="text-caption text-text-secondary">{uninstall.blocked}</p>}
       {controls.dialogs}
     </section>
   );
@@ -387,7 +387,7 @@ export function NotebookFacts({ notebook }) {
     <>
       {notebook.state.reason && <p className={notebook.state.state === 'failed' ? 'text-error-fg' : 'text-text-secondary'}>{notebook.state.reason}</p>}
       {notebook.runError && <PlainMessage as="p" text={notebook.runError} className="text-error-fg" />}
-      {notebook.path && <p className="font-mono text-[11px] text-text-secondary break-all">{notebook.path}</p>}
+      {notebook.path && <p className="font-mono text-caption text-text-secondary break-all">{notebook.path}</p>}
     </>
   );
 }
@@ -397,12 +397,12 @@ export function NotebookLinks({ notebook }) {
     <>
       {notebook.href && (
         <a className={`${BUTTON} font-semibold text-white bg-primary-solid hover:opacity-90`} href={notebook.href} target="_blank" rel="noreferrer">
-          Open the notebook <ExternalLink size={11} />
+          Open the notebook <ExternalLink size={14} />
         </a>
       )}
       {notebook.runUrl && (
         <a className={`${BUTTON} border border-border bg-surface text-text-primary`} href={notebook.runUrl} target="_blank" rel="noreferrer">
-          Open the notebook run <ExternalLink size={11} />
+          Open the notebook run <ExternalLink size={14} />
         </a>
       )}
     </>
@@ -436,7 +436,7 @@ export function NotebookPanel({ notebook, kpi = null, children = null }) {
 function KeptVersions({ kept, locked, lockedReason = '', onRemove }) {
   return (
     <section aria-label="Kept live from earlier versions" className="px-4 pb-4">
-      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-secondary">Kept live from earlier versions</p>
+      <p className="text-caption font-bold uppercase tracking-[0.18em] text-text-secondary">Kept live from earlier versions</p>
       <ul className="mt-1.5 divide-y divide-border rounded-xl border border-border bg-surface text-[12px]">
         {kept.map((entry) => (
           <li key={entry.version} data-kept-version={entry.version} className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5">
@@ -446,13 +446,13 @@ function KeptVersions({ kept, locked, lockedReason = '', onRemove }) {
                 <span key={`${asset.output}:${asset.id}`} className="inline-flex items-center gap-1.5 text-text-secondary">
                   <IconChip icon={ASSET_ICONS[asset.output]} size="sm" />
                   {asset.url
-                    ? <a href={asset.url} target="_blank" rel="noreferrer" className="font-medium text-db-red-fg hover:underline">{asset.title || asset.label} <ExternalLink size={11} className="inline" /></a>
+                    ? <a href={asset.url} target="_blank" rel="noreferrer" className="font-medium text-db-red-fg hover:underline">{asset.title || asset.label} <ExternalLink size={14} className="inline" /></a>
                     : <span className="font-medium text-text-primary">{asset.title || asset.label}</span>}
                 </span>
               ))}
             </div>
             <button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => onRemove(entry)} className={`${BUTTON} border border-error/40 bg-surface text-error-fg`}>
-              <Trash2 size={11} /> Remove v{entry.version}
+              <Trash2 size={14} /> Remove v{entry.version}
             </button>
           </li>
         ))}
@@ -481,7 +481,7 @@ export function BuildControls({
         hint={live?.checked_at ? `Live status checked ${formatWhen(live.checked_at, live.checked_at)}` : (liveError ? 'Reading the live status of the build and the job' : <BusyNote inline text="Reading the live status of the build and the job" />)}
         right={(
           <button type="button" onClick={onRefresh} aria-label="Check the live status now" className="p-1.5 rounded-lg border border-border bg-surface text-text-secondary hover:text-text-primary">
-            <RefreshCw size={13} />
+            <RefreshCw size={14} />
           </button>
         )}
       />
@@ -500,8 +500,8 @@ export function BuildControls({
       {kept.length > 0 && <div className="pt-4"><KeptVersions kept={kept} locked={readOnly || active || submitBusy} lockedReason={readOnlyReason(readOnly)} onRemove={setRemovingKept} /></div>}
       {actions.length > 0 && (
         <div className="px-4 py-3 border-t border-border bg-bg-subtle/50">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Recent actions</p>
-          <ul aria-label="Recent control actions" className="mt-1 text-[11px] text-text-secondary space-y-0.5">
+          <p className="text-caption font-semibold uppercase tracking-[0.14em] text-text-secondary">Recent actions</p>
+          <ul aria-label="Recent control actions" className="mt-1 text-caption text-text-secondary space-y-0.5">
             {actions.map((entry, i) => (
               <li key={`${entry.acted_at}-${i}`} className={entry.result === 'done' ? '' : 'text-error-fg'}>{controlActionText(entry)}</li>
             ))}

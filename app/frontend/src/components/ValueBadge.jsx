@@ -24,20 +24,20 @@ export default function ValueBadge({ atStake, saved, measured = true, mvps = nul
     <div data-value-badge="" className={`rounded-xl border border-border bg-surface px-3.5 py-3 shadow-sm ${className}`}>
       <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
         <div data-value-side="at stake">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">At stake</p>
+          <p className="text-caption font-semibold uppercase tracking-[0.14em] text-text-secondary">At stake</p>
           <p data-value-headline="at stake" className={`mt-0.5 text-2xl font-bold tabular-nums leading-none ${headStake ? 'text-warning-fg' : 'text-text-secondary'}`}>
             {headStake ? headStake.text : 'none yet'}
           </p>
         </div>
         <div data-value-side="saved">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Saved</p>
+          <p className="text-caption font-semibold uppercase tracking-[0.14em] text-text-secondary">Saved</p>
           <p data-value-headline="saved" className={`mt-0.5 text-xl font-bold tabular-nums leading-none ${headSaved ? 'text-success-fg' : 'text-text-secondary'}`}>
             {headSaved ? headSaved.text : 'none saved yet'}
           </p>
         </div>
       </div>
       {secondary.length > 0 && (
-        <ul data-value-secondary="" aria-label="Other amounts" className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-text-secondary">
+        <ul data-value-secondary="" aria-label="Other amounts" className="mt-2 flex flex-wrap gap-1.5 text-caption text-text-secondary">
           {secondary.map((chip) => (
             <li key={`${chip.side}:${chip.kind}:${chip.unit}`} data-value-chip={chip.unit} data-value-kind={chip.kind} data-value-side={chip.side}
               className="rounded-md border border-border px-1.5 py-0.5 tabular-nums">
@@ -46,7 +46,7 @@ export default function ValueBadge({ atStake, saved, measured = true, mvps = nul
           ))}
         </ul>
       )}
-      {meta && <p data-value-mvps="" className="mt-2 text-[11px] text-text-secondary">{meta}</p>}
+      {meta && <p data-value-mvps="" className="mt-2 text-caption text-text-secondary">{meta}</p>}
       <ValueDisclaimer short={compact} className="mt-2 block" />
     </div>
   );

@@ -19,9 +19,9 @@ export function Controls({ ask, value, onChange, range, currency, row = false })
     <div className={row ? 'flex flex-wrap items-center justify-end gap-x-2 gap-y-1' : 'flex flex-col items-end gap-1'}>
       {/* REQ-450/451: the number follows the slider on every input, with its unit; the server amount follows after the debounce. */}
       <span data-live-value="" data-unit="" aria-live="off" className="text-sm font-semibold tabular-nums text-text-primary">{`${amountText(value)} ${unitOf(ask, currency)}`}</span>
-      {implausible && <span data-plausibility="" role="note" className="max-w-[14rem] text-end text-[11px] text-warning-fg">{`${amountText(value)}% is far above what is usual. Check it before you rely on it.`}</span>}
+      {implausible && <span data-plausibility="" role="note" className="max-w-[14rem] text-end text-caption text-warning-fg">{`${amountText(value)}% is far above what is usual. Check it before you rely on it.`}</span>}
       <input type="range" aria-label={`${ask.label} slider`} min={r.min} max={r.max} step={r.step} value={Number(value) || 0}
-        onChange={(e) => type(e.target.value)} className={`${WIDTH} m-0 accent-[var(--color-primary-solid,#c4161c)]`} />
+        onChange={(e) => type(e.target.value)} className={`${WIDTH} m-0 accent-primary-solid`} />
       <input type="number" aria-label={ask.label} min={0} step="any" value={draft} aria-invalid={bad} onChange={(e) => type(e.target.value)}
         className={`${WIDTH} rounded-md border px-2 py-1 text-end text-sm tabular-nums ${bad ? 'border-error bg-error-bg' : 'border-border'}`} />
     </div>

@@ -3,6 +3,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import ModalDialog from '../ModalDialog';
+import Button from '../ui/Button';
 import { PlainMessage } from '../TechnicalDetails';
 import { stepCategory } from '../../lib/monitorState';
 import { splitTechnical } from '../../lib/plainText';
@@ -40,12 +41,12 @@ export default function EveryStepDialog({
       <div className="w-56 shrink-0">
         <div className="bg-surface border border-border rounded-xl shadow-sm overflow-hidden sticky top-6">
           {/* Sidebar header */}
-          <div className="px-4 py-3 border-b border-border bg-gradient-to-b from-db-red-50 to-surface">
+          <div className="px-4 py-3 border-b border-border bg-linear-to-b from-db-red-50 to-surface">
             <div className="flex items-center gap-2">
               <Layers size={14} className="text-db-red-fg" />
               <span className="text-xs font-bold text-text-primary">Stages</span>
             </div>
-            <p className="text-[10px] text-text-tertiary mt-0.5">
+            <p className="text-caption text-text-tertiary mt-0.5">
               {stageNames.length} stage{stageNames.length !== 1 ? 's' : ''} &middot; {totalCount} steps
             </p>
           </div>
@@ -64,16 +65,16 @@ export default function EveryStepDialog({
               <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
                 stageFilter === 'all' ? 'bg-db-red/10' : 'bg-bg-subtle'
               }`}>
-                <Layers size={10} className={stageFilter === 'all' ? 'text-db-red-fg' : 'text-text-tertiary'} />
+                <Layers size={14} className={stageFilter === 'all' ? 'text-db-red-fg' : 'text-text-tertiary'} />
               </div>
               <div className="flex-1 min-w-0">
-                <span className={`text-[11px] font-semibold block ${
+                <span className={`text-caption font-semibold block ${
                   stageFilter === 'all' ? 'text-db-red-fg' : 'text-text-primary'
                 }`}>
                   All Stages
                 </span>
               </div>
-              <span className={`text-[10px] font-mono ${stageFilter === 'all' ? 'text-db-red-fg' : 'text-text-tertiary'}`}>
+              <span className={`text-caption font-mono ${stageFilter === 'all' ? 'text-db-red-fg' : 'text-text-tertiary'}`}>
                 {totalCount}
               </span>
             </button>
@@ -101,24 +102,24 @@ export default function EveryStepDialog({
                   {/* Status indicator */}
                   {errors > 0 ? (
                     <div className="w-5 h-5 rounded-full bg-error-bg flex items-center justify-center shrink-0 mt-0.5">
-                      <XCircle size={10} className="text-error-fg" />
+                      <XCircle size={14} className="text-error-fg" />
                     </div>
                   ) : running > 0 ? (
                     <div className="w-5 h-5 rounded-full bg-info-bg flex items-center justify-center shrink-0 mt-0.5">
-                      <Loader2 size={10} className="animate-spin text-info-fg" />
+                      <Loader2 size={14} className="animate-spin text-info-fg" />
                     </div>
                   ) : done === total && total > 0 ? (
                     <div className="w-5 h-5 rounded-full bg-success-bg flex items-center justify-center shrink-0 mt-0.5">
-                      <CheckCircle2 size={10} className="text-success-fg" />
+                      <CheckCircle2 size={14} className="text-success-fg" />
                     </div>
                   ) : (
                     <div className="w-5 h-5 rounded-full bg-bg-subtle flex items-center justify-center shrink-0 mt-0.5">
-                      <Clock size={10} className="text-text-tertiary" />
+                      <Clock size={14} className="text-text-tertiary" />
                     </div>
                   )}
 
                   <div className="flex-1 min-w-0">
-                    <span className={`text-[11px] font-semibold block truncate ${
+                    <span className={`text-caption font-semibold block truncate ${
                       active ? 'text-db-red-fg' : 'text-text-primary'
                     }`}>
                       {name}
@@ -126,16 +127,16 @@ export default function EveryStepDialog({
                     <div className="flex items-center gap-2 mt-1">
                       <div className="flex-1 h-1 bg-bg rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all duration-500 ${
+                          className={`h-full rounded-full transition-[width,background-color] duration-500 ${
                             errors > 0 ? 'bg-error' : done === total && total > 0 ? 'bg-success' : 'bg-db-red'
                           }`}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <span className="text-[10px] font-mono text-text-tertiary shrink-0">{done}/{total}</span>
+                      <span className="text-caption font-mono text-text-tertiary shrink-0">{done}/{total}</span>
                     </div>
                     {errors > 0 && (
-                      <span className="text-[10px] text-error-fg font-medium mt-0.5 block">
+                      <span className="text-caption text-error-fg font-medium mt-0.5 block">
                         {errors} error{errors > 1 ? 's' : ''}
                       </span>
                     )}
@@ -174,14 +175,14 @@ export default function EveryStepDialog({
                   <button
                     key={f.key} type="button" role="radio" aria-checked={active}
                     onClick={() => setStatusFilter(active ? 'all' : f.key)}
-                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-smooth border ${
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-caption font-medium transition-smooth border ${
                       active
                         ? 'border-db-red/30 bg-db-red-50 text-db-red-fg'
                         : 'border-transparent text-text-secondary hover:bg-bg-subtle'
                     }`}
                   >
                     {f.label}
-                    <span className={`text-[10px] font-mono ${active ? 'text-db-red-fg' : 'text-text-tertiary'}`}>{count}</span>
+                    <span className={`text-caption font-mono ${active ? 'text-db-red-fg' : 'text-text-tertiary'}`}>{count}</span>
                   </button>
                 );
               })}
@@ -201,7 +202,7 @@ export default function EveryStepDialog({
             {hasActiveFilters && (
               <button
                 onClick={() => { setSearchQuery(''); setStatusFilter('all'); setStageFilter('all'); }}
-                className="text-[11px] text-db-red-fg hover:underline font-medium shrink-0"
+                className="text-caption text-db-red-fg hover:underline font-medium shrink-0"
                 aria-label="Clear all filters"
               >
                 Clear
@@ -212,25 +213,25 @@ export default function EveryStepDialog({
           {/* Active filter chips */}
           {hasActiveFilters && (
             <div className="px-4 py-2 bg-db-red-50/50 border-t border-border flex items-center gap-2 flex-wrap">
-              <Filter size={12} className="text-db-red-fg shrink-0" />
-              <span className="text-[11px] text-text-secondary">
+              <Filter size={14} className="text-db-red-fg shrink-0" />
+              <span className="text-caption text-text-secondary">
                 <span className="font-semibold text-text-primary">{filteredCount}</span> of{' '}
                 <span className="font-semibold text-text-primary">{totalCount}</span> steps
               </span>
               {statusFilter !== 'all' && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
                   {STATUS_FILTERS.find((f) => f.key === statusFilter)?.label}
                   <button onClick={() => setStatusFilter('all')} aria-label="Remove status filter" className="hover:text-db-red-fg">&times;</button>
                 </span>
               )}
               {stageFilter !== 'all' && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
                   {stageFilter}
                   <button onClick={() => setStageFilter('all')} aria-label="Remove stage filter" className="hover:text-db-red-fg">&times;</button>
                 </span>
               )}
               {searchQuery && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
                   "{searchQuery}"
                   <button onClick={() => setSearchQuery('')} aria-label="Clear search" className="hover:text-db-red-fg">&times;</button>
                 </span>
@@ -258,25 +259,25 @@ export default function EveryStepDialog({
                       <ChevronDown size={14} className="text-text-tertiary" />
                     </div>
                     {errorCount > 0 ? (
-                      <div className="w-5 h-5 rounded-full bg-error-bg flex items-center justify-center"><XCircle size={11} className="text-error-fg" /></div>
+                      <div className="w-5 h-5 rounded-full bg-error-bg flex items-center justify-center"><XCircle size={14} className="text-error-fg" /></div>
                     ) : runningCount > 0 ? (
-                      <div className="w-5 h-5 rounded-full bg-info-bg flex items-center justify-center"><Loader2 size={11} className="animate-spin text-info-fg" /></div>
+                      <div className="w-5 h-5 rounded-full bg-info-bg flex items-center justify-center"><Loader2 size={14} className="animate-spin text-info-fg" /></div>
                     ) : doneCount === stageSteps.length ? (
-                      <div className="w-5 h-5 rounded-full bg-success-bg flex items-center justify-center"><CheckCircle2 size={11} className="text-success-fg" /></div>
+                      <div className="w-5 h-5 rounded-full bg-success-bg flex items-center justify-center"><CheckCircle2 size={14} className="text-success-fg" /></div>
                     ) : (
-                      <div className="w-5 h-5 rounded-full bg-bg-subtle flex items-center justify-center"><Clock size={11} className="text-text-tertiary" /></div>
+                      <div className="w-5 h-5 rounded-full bg-bg-subtle flex items-center justify-center"><Clock size={14} className="text-text-tertiary" /></div>
                     )}
                     <h3 className="text-xs font-bold text-text-primary flex-1">{stageName}</h3>
                     <div className="flex items-center gap-2">
                       {errorCount > 0 && (
-                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-error-bg text-error-fg">
+                        <span className="text-caption font-medium px-1.5 py-0.5 rounded bg-error-bg text-error-fg">
                           {errorCount} error{errorCount > 1 ? 's' : ''}
                         </span>
                       )}
-                      <span className="text-[11px] text-text-tertiary font-mono">{doneCount}/{stageSteps.length}</span>
+                      <span className="text-caption text-text-tertiary font-mono">{doneCount}/{stageSteps.length}</span>
                       <div className="w-16 h-1.5 bg-bg rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all duration-500 ${
+                          className={`h-full rounded-full transition-[width,background-color] duration-500 ${
                             errorCount > 0 ? 'bg-error' : doneCount === stageSteps.length ? 'bg-success' : 'bg-db-red'
                           }`}
                           style={{ width: `${stageSteps.length > 0 ? (doneCount / stageSteps.length) * 100 : 0}%` }}
@@ -297,9 +298,9 @@ export default function EveryStepDialog({
             <div ref={follow.ref} data-steps-end="" />
             {follow.unseen && (
               <div className="fixed bottom-6 start-1/2 -translate-x-1/2 z-40 pointer-events-none">
-                <button type="button" onClick={follow.jump} className="pointer-events-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-semibold text-primary-fg bg-primary shadow-lg">
-                  <ArrowDown size={12} /> New steps
-                </button>
+                <Button size="sm" onClick={follow.jump} className="pointer-events-auto gap-1 rounded-full shadow-lg">
+                  <ArrowDown size={14} /> New steps
+                </Button>
               </div>
             )}
           </div>
@@ -372,17 +373,17 @@ function StepRow({ step, live, searchQuery }) {
             {highlightMatch(step.step_name || step.sub_step_name || 'Step', searchQuery)}
           </div>
           {step.message && !expanded && (
-            <p className="text-[11px] text-text-tertiary mt-0.5 truncate">
+            <p className="text-caption text-text-tertiary mt-0.5 truncate">
               {highlightMatch(said.plain, searchQuery)}
             </p>
           )}
         </div>
         <div className="flex items-center gap-2.5 shrink-0">
-          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${style.badge}`}>
+          <span className={`text-caption font-medium px-2 py-0.5 rounded-full ${style.badge}`}>
             {style.label}
           </span>
           {hasDetails && (
-            <ChevronDown size={12} className={`text-text-tertiary transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+            <ChevronDown size={14} className={`text-text-tertiary transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
           )}
         </div>
       </div>
@@ -425,19 +426,19 @@ function ResultJsonDisplay({ resultJson }) {
     return (
       <div className="text-xs space-y-1.5">
         <div className="flex items-center gap-2">
-          <span className="px-1.5 py-0.5 rounded bg-success-bg text-success-fg font-semibold text-[10px]">
+          <span className="px-1.5 py-0.5 rounded bg-success-bg text-success-fg font-semibold text-caption">
             {rj.use_cases_count || rj.use_cases.length} use cases
           </span>
-          {rj.is_truncated && <span className="px-1.5 py-0.5 rounded bg-warning-bg text-warning-fg text-[10px]">truncated</span>}
+          {rj.is_truncated && <span className="px-1.5 py-0.5 rounded bg-warning-bg text-warning-fg text-caption">truncated</span>}
         </div>
         <div className="flex flex-wrap gap-1">
           {rj.use_cases.slice(0, 10).map((uc, i) => (
-            <span key={i} className="px-2 py-0.5 rounded-full bg-bg-subtle text-text-secondary text-[10px] border border-border">
+            <span key={i} className="px-2 py-0.5 rounded-full bg-bg-subtle text-text-secondary text-caption border border-border">
               {nameOfUseCase(uc) || `#${uc.id}`}
             </span>
           ))}
           {rj.use_cases.length > 10 && (
-            <span className="px-2 py-0.5 rounded-full bg-bg-subtle text-text-tertiary text-[10px]">
+            <span className="px-2 py-0.5 rounded-full bg-bg-subtle text-text-tertiary text-caption">
               +{rj.use_cases.length - 10} more
             </span>
           )}
@@ -450,12 +451,12 @@ function ResultJsonDisplay({ resultJson }) {
   if (prompt === 'COMBINED_VALUE_QUALITY_SCORE_PROMPT' && Array.isArray(rj.scored_use_cases)) {
     return (
       <div className="text-xs space-y-1.5">
-        <span className="px-1.5 py-0.5 rounded bg-info-bg text-info-fg font-semibold text-[10px]">
+        <span className="px-1.5 py-0.5 rounded bg-info-bg text-info-fg font-semibold text-caption">
           {rj.scored_count || rj.scored_use_cases.length} scored
         </span>
         <div className="grid grid-cols-1 gap-0.5 max-h-28 overflow-y-auto">
           {rj.scored_use_cases.slice(0, 8).map((sc, i) => (
-            <div key={i} className="flex items-center gap-2 text-[10px] py-0.5">
+            <div key={i} className="flex items-center gap-2 text-caption py-0.5">
               <span className="text-text-primary font-medium truncate flex-1">{nameOfUseCase(sc) || `#${sc.id}`}</span>
               <span className={`px-1.5 py-0.5 rounded font-semibold ${
                 ['Ultra High', 'Very High', 'High'].includes(sc.priority) ? 'bg-db-red-50 text-db-red-fg' : 'bg-bg-subtle text-text-secondary'
@@ -472,12 +473,12 @@ function ResultJsonDisplay({ resultJson }) {
   if (prompt === 'DOMAIN_FINDER_PROMPT' && Array.isArray(rj.domains)) {
     return (
       <div className="text-xs space-y-1.5">
-        <span className="px-1.5 py-0.5 rounded bg-info-bg text-info-fg font-semibold text-[10px]">
+        <span className="px-1.5 py-0.5 rounded bg-info-bg text-info-fg font-semibold text-caption">
           {rj.domains_count || rj.domains.length} domains
         </span>
         <div className="flex flex-wrap gap-1">
           {rj.domains.map((d, i) => (
-            <span key={i} className="px-2 py-0.5 rounded-full bg-bg-subtle text-text-secondary text-[10px] border border-border">
+            <span key={i} className="px-2 py-0.5 rounded-full bg-bg-subtle text-text-secondary text-caption border border-border">
               {d.domain_name} ({(d.use_case_ids || []).length})
             </span>
           ))}
@@ -490,8 +491,8 @@ function ResultJsonDisplay({ resultJson }) {
   if (prompt === 'USE_CASE_SQL_GEN_PROMPT' && rj.sql_preview) {
     return (
       <div className="text-xs space-y-1">
-        <span className="px-1.5 py-0.5 rounded bg-info-bg text-info-fg font-semibold text-[10px]">SQL Generated</span>
-        <pre className="text-[10px] text-text-secondary bg-bg-subtle rounded p-2 font-mono max-h-20 overflow-hidden">
+        <span className="px-1.5 py-0.5 rounded bg-info-bg text-info-fg font-semibold text-caption">SQL Generated</span>
+        <pre className="text-caption text-text-secondary bg-bg-subtle rounded p-2 font-mono max-h-20 overflow-hidden">
           {rj.sql_preview.slice(0, 200)}{rj.sql_preview.length > 200 ? '...' : ''}
         </pre>
       </div>
@@ -502,8 +503,8 @@ function ResultJsonDisplay({ resultJson }) {
   if (prompt === 'SUMMARY_GEN_PROMPT') {
     return (
       <div className="flex items-center gap-2 text-xs">
-        <span className="px-1.5 py-0.5 rounded bg-success-bg text-success-fg font-semibold text-[10px]">Summary generated</span>
-        {rj.response_chars && <span className="text-text-tertiary text-[10px]">{rj.response_chars.toLocaleString()} chars</span>}
+        <span className="px-1.5 py-0.5 rounded bg-success-bg text-success-fg font-semibold text-caption">Summary generated</span>
+        {rj.response_chars && <span className="text-text-tertiary text-caption">{rj.response_chars.toLocaleString()} chars</span>}
       </div>
     );
   }
@@ -514,12 +515,12 @@ function ResultJsonDisplay({ resultJson }) {
     return (
       <div className="text-xs space-y-1">
         {ctx.business_context && (
-          <p className="text-text-secondary text-[10px] line-clamp-2">{ctx.business_context.slice(0, 200)}</p>
+          <p className="text-text-secondary text-caption line-clamp-2">{ctx.business_context.slice(0, 200)}</p>
         )}
         {Array.isArray(ctx.strategic_goals) && ctx.strategic_goals.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {ctx.strategic_goals.map((g, i) => (
-              <span key={i} className="px-1.5 py-0.5 rounded bg-bg-subtle text-text-secondary text-[10px]">{g}</span>
+              <span key={i} className="px-1.5 py-0.5 rounded bg-bg-subtle text-text-secondary text-caption">{g}</span>
             ))}
           </div>
         )}
@@ -534,7 +535,7 @@ function ResultJsonDisplay({ resultJson }) {
     return (
       <div className="flex flex-wrap gap-1.5">
         {badges.map((b) => (
-          <span key={b.key} className="px-1.5 py-0.5 rounded bg-bg-subtle text-text-tertiary text-[10px] font-mono">
+          <span key={b.key} className="px-1.5 py-0.5 rounded bg-bg-subtle text-text-tertiary text-caption font-mono">
             {b.key.replace(/_/g, ' ')}: {typeof b.val === 'number' ? b.val.toLocaleString() : b.val}
           </span>
         ))}

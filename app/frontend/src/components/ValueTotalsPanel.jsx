@@ -9,9 +9,9 @@ import { STATUS_LABELS, statusCounts, statusLabelOf } from '../lib/valueLabels';
 
 // REQ-439: a total box, a calculated vs estimated bar, a second bar, and a table. Used for one run and for all runs.
 // Amounts are per currency; two currencies show two totals, never one converted number.
-const GREEN = '#15803d';
-const AMBER = '#f59e0b';
-const PALETTE = ['#c4161c', '#2563eb', '#7c3aed', '#0d9488', '#b45309'];
+const GREEN = 'color-mix(in srgb, var(--color-success) 70%, black)';
+const AMBER = 'var(--color-warning)';
+const PALETTE = ['var(--color-error-solid)', 'color-mix(in srgb, var(--color-info) 80%, black)', 'color-mix(in srgb, color-mix(in srgb, var(--color-info) 50%, var(--color-error-solid)) 80%, black)', 'color-mix(in srgb, color-mix(in srgb, var(--color-info) 50%, var(--color-success)) 75%, black)', 'color-mix(in srgb, var(--color-warning) 60%, black)'];
 
 // FX-34 (W16 D1/D8): a segment label that does not fit its segment is hidden; the tooltip and the legend under the bar carry it.
 // The first render guesses from the text length (the bar is at most 576px wide); after layout the real widths decide.
@@ -38,19 +38,19 @@ export function Bar({ parts, label }) {
   }, [parts, total]);
   return (
     <div className="mt-2">
-      <p className="text-[11px] text-text-secondary">{label}</p>
+      <p className="text-caption text-text-secondary">{label}</p>
       <div ref={ref} role="img" aria-label={`${label}: ${parts.map((p) => `${p.name} ${p.text}`).join(', ')}`} className="mt-0.5 flex h-6 w-full max-w-xl overflow-hidden rounded-md bg-bg-subtle">
         {total > 0 && parts.filter((p) => p.value > 0).map((p) => {
           const hidden = guessHidden(p, total) || Boolean(tooWide[p.name]);
           return (
             <div key={p.name} data-bar-segment={p.name} data-label-hidden={hidden ? 'true' : 'false'} title={`${p.name} ${p.text}`}
-              style={{ width: `${(100 * p.value) / total}%`, background: p.color }} className="flex min-w-0 items-center justify-center overflow-hidden px-1 text-[10px] text-white">
+              style={{ width: `${(100 * p.value) / total}%`, background: p.color }} className="flex min-w-0 items-center justify-center overflow-hidden px-1 text-caption text-white">
               <span data-bar-label="" className="whitespace-nowrap" style={hidden ? { visibility: 'hidden' } : undefined}>{p.name} {p.text}</span>
             </div>
           );
         })}
       </div>
-      <p data-bar-legend={label} className="mt-0.5 flex flex-wrap gap-x-3 text-[10px] text-text-secondary">
+      <p data-bar-legend={label} className="mt-0.5 flex flex-wrap gap-x-3 text-caption text-text-secondary">
         {parts.map((p) => (
           <span key={p.name} className="inline-flex items-center gap-1"><span aria-hidden="true" className="inline-block h-2 w-2 rounded-sm" style={{ background: p.color }} />{`${p.name} ${p.text}`}</span>
         ))}
@@ -62,16 +62,16 @@ export function Bar({ parts, label }) {
 export function TotalBox({ label, totals, sub }) {
   return (
     <div data-value-total="" className="flex min-w-[9rem] flex-col items-center justify-center rounded-xl border-2 border-primary-solid bg-surface px-4 py-3 text-center">
-      <span className="text-[11px] tracking-wide text-text-primary">{label}</span>
+      <span className="text-caption tracking-wide text-text-primary">{label}</span>
       {totals.length ? totals.map((t) => <span key={t.currency} data-total-amount="" className="text-[22px] font-extrabold tabular-nums text-db-red-fg">{moneyText(t.currency, t.amount)}</span>)
         : <span data-total-amount="" className="text-[22px] font-extrabold text-text-tertiary">None yet</span>}
-      <span className="text-[10px] text-text-secondary">{sub}</span>
-      <span className="text-[10px] text-text-secondary">Per year</span>
+      <span className="text-caption text-text-secondary">{sub}</span>
+      <span className="text-caption text-text-secondary">Per year</span>
     </div>
   );
 }
 
-const TEAL = '#0d9488';
+const TEAL = 'color-mix(in srgb, color-mix(in srgb, var(--color-info) 50%, var(--color-success)) 75%, black)';
 // FX-34 (W16 D8): the bar shows every share of the total: calculated, estimated and, when there is one, measured.
 const split = (totals) => totals.flatMap((t) => {
   const tag = totals.length > 1 ? ` ${t.currency}` : '';
@@ -90,7 +90,7 @@ function CountNotes({ run }) {
   const shared = Number(run.n_shared) || 0;
   if (!out && !shared) return null;
   return (
-    <div data-value-count-notes="" className="mt-2 text-[11px] text-text-secondary">
+    <div data-value-count-notes="" className="mt-2 text-caption text-text-secondary">
       {out > 0 && <p>{`${out} ${plural(out, 'estimate', 'estimates')} outside $100K to $100M not counted: check the numbers`}</p>}
       {shared > 0 && <p>{`${shared} shared ${plural(shared, 'value', 'values')} counted once`}</p>}
     </div>
@@ -112,7 +112,7 @@ export function RunValuePanel({ run, useCases, nameOf, onRow }) {
           <Bar parts={split(run.totals || [])} label={`${STATUS_LABELS.calculated}s vs ${STATUS_LABELS.estimated.toLowerCase()}s`} />
           <Bar parts={byVerb} label="By kind of value" />
           <CountNotes run={run} />
-          <p className="mt-2 text-[11px] text-text-secondary">{`${run.n} use cases · ${statusCounts(run.n_calculated, run.n_estimated)} · ${run.n_none} not worked out yet`}</p>
+          <p className="mt-2 text-caption text-text-secondary">{`${run.n} use cases · ${statusCounts(run.n_calculated, run.n_estimated)} · ${run.n_none} not worked out yet`}</p>
         </div>
       </div>
       <table className="mt-3 w-full text-[12px]">
@@ -121,14 +121,14 @@ export function RunValuePanel({ run, useCases, nameOf, onRow }) {
           {rows.map(([id, u]) => (
             <tr key={id} data-value-row={id} onClick={() => onRow?.(id)} className="cursor-pointer border-t border-border/60 hover:bg-bg-subtle">
               <td className="py-1">{nameOf?.(id) || id}
-                {u.overlap && u.overlap.counted === false && <span data-value-shared="" className="block text-[10px] text-text-secondary">{`Shared with ${nameOf?.(u.overlap.with) || u.overlap.with}, counted once`}</span>}
-                {u.overlap && u.overlap.counted === true && <span data-value-shared="" className="block text-[10px] text-text-secondary">{`Also counted for ${u.overlap.shared_with.length} other ${plural(u.overlap.shared_with.length, 'use case', 'use cases')}`}</span>}
+                {u.overlap && u.overlap.counted === false && <span data-value-shared="" className="block text-caption text-text-secondary">{`Shared with ${nameOf?.(u.overlap.with) || u.overlap.with}, counted once`}</span>}
+                {u.overlap && u.overlap.counted === true && <span data-value-shared="" className="block text-caption text-text-secondary">{`Also counted for ${u.overlap.shared_with.length} other ${plural(u.overlap.shared_with.length, 'use case', 'use cases')}`}</span>}
               </td>
               <td className="text-text-secondary">{u.verb || ''}</td>
-              <td><span title={u.reason || undefined} className={`rounded-full px-2 py-px text-[10px] ${PILL[u.status] || 'bg-bg-subtle text-text-secondary'}`}>{STATUS[u.status] || 'not yet'}</span></td>
+              <td><span title={u.reason || undefined} className={`rounded-full px-2 py-px text-caption ${PILL[u.status] || 'bg-bg-subtle text-text-secondary'}`}>{STATUS[u.status] || 'not yet'}</span></td>
               <td className="text-end tabular-nums">{u.amount != null ? moneyText(u.currency, u.amount) : 'Not calculated'}
                 {u.check && <span className="block"><ValueCheckNote check={u.check} notCounted={u.counted === false} /></span>}
-                {u.reason && <span data-value-reason="" className="block text-[10px] text-text-secondary">{u.reason}</span>}
+                {u.reason && <span data-value-reason="" className="block text-caption text-text-secondary">{u.reason}</span>}
               </td>
               <td className="text-end tabular-nums">{u.amount != null && Number.isFinite(Number(u.counted_amount))
                 ? <span data-value-counted="">{moneyText(u.currency, u.counted_amount)}</span> : ''}</td>
@@ -136,7 +136,7 @@ export function RunValuePanel({ run, useCases, nameOf, onRow }) {
           ))}
           <tr data-value-run-total="" className="border-t-2 border-border font-bold"><td className="py-1">Run total</td><td /><td /><td />
             <td className="text-end tabular-nums"><RunValueTotal value={run} />
-              {run.review?.reason && <span data-run-review-reason="" className="block text-[10px] font-normal text-text-secondary">{run.review.reason}</span>}</td></tr>
+              {run.review?.reason && <span data-run-review-reason="" className="block text-caption font-normal text-text-secondary">{run.review.reason}</span>}</td></tr>
         </tbody>
       </table>
       <ValueDisclaimer className="mt-2" />
@@ -188,7 +188,7 @@ export function RunValueTotal({ value, red = false }) {
   return (
     <span data-run-value-total="" data-run-value-state={calculated ? 'calculated' : 'estimated'} className={red ? 'text-white' : calculated ? 'text-success-fg' : 'text-warning-fg'}>
       {totals.map((t) => moneyText(t.currency, t.amount)).join(' + ')}
-      {value?.review && value.review.ai_checked === false && <span data-run-not-ai-checked="" className="ms-1 text-[10px] font-normal text-text-secondary">Not checked by AI</span>}
+      {value?.review && value.review.ai_checked === false && <span data-run-not-ai-checked="" className="ms-1 text-caption font-normal text-text-secondary">Not checked by AI</span>}
     </span>
   );
 }
@@ -199,12 +199,12 @@ export function RunValueLine({ value, label = 'Business value at stake', classNa
   const calculated = Number(value?.n_calculated) > 0 && !(Number(value?.n_estimated) > 0);
   const n = value ? statusCounts(value.n_calculated ?? 0, value.n_estimated ?? 0) : '';
   return (
-    <div data-run-value="" className={`text-[11px] text-text-secondary ${className}`}>
+    <div data-run-value="" className={`text-caption text-text-secondary ${className}`}>
       {totals.length > 0 ? (
         <div data-run-value-box="" className="inline-flex min-w-[8rem] flex-col rounded-lg border-2 border-primary-solid bg-primary-solid px-3 py-1.5 text-white">
           <span className="font-semibold uppercase tracking-wide text-white">{label}</span>
           <span className="text-[18px] font-extrabold tabular-nums"><RunValueTotal value={value} red /></span>
-          <span className="inline-flex items-center gap-1 text-[10px] text-white">
+          <span className="inline-flex items-center gap-1 text-caption text-white">
             <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full ring-2 ring-white" style={{ background: calculated ? GREEN : AMBER }} />{statusLabelOf(calculated ? 'calculated' : 'estimated').toLowerCase()}
             <span>{`(${n})`}</span>
           </span>

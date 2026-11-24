@@ -26,7 +26,7 @@ export default function ActivityFeed({ steps, live }) {
         <h2 className="text-base font-semibold text-text-primary">What Inspire is doing</h2>
         {live && (
           <button type="button" onClick={jump} className="ms-auto inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-text-secondary hover:bg-bg-subtle">
-            <ArrowDown size={12} aria-hidden="true" /> Jump to latest
+            <ArrowDown size={14} aria-hidden="true" /> Jump to latest
           </button>
         )}
       </div>

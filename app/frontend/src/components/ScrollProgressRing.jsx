@@ -27,14 +27,14 @@ export default function ScrollProgressRing() {
         <circle
           cx="20" cy="20" r={r}
           fill="none"
-          stroke="#FF3621"
+          stroke="var(--color-primary-solid)"
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
         />
       </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-db-red-fg">
+      <span className="absolute inset-0 flex items-center justify-center text-caption font-bold text-db-red-fg">
         {Math.round(progress * 100)}
       </span>
     </div>

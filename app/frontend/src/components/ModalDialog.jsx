@@ -3,9 +3,9 @@ import { X } from 'lucide-react';
 import BodyPortal from './BodyPortal';
 import { useModal } from './useModal';
 
-// The scrim colour as a plain rgb value: Tailwind's bg-black/40 compiles to color-mix, which the browser reports as oklab, so the
-// class names the intent and this keeps the computed colour a stable rgba(0, 0, 0, 0.4).
-export const SCRIM_STYLE = { backgroundColor: 'rgb(0 0 0 / 0.4)' };
+// The scrim colour as black at 40% in hwb(): Tailwind's bg-black/40 compiles to color-mix, which the browser reports as oklab, so the
+// class names the intent and this keeps the computed colour a stable black at 40% alpha.
+export const SCRIM_STYLE = { backgroundColor: 'hwb(0 0% 100% / 0.4)' };
 
 // The one centered modal dialog, on the one overlay layer (z-overlay over a black/40 scrim). Escape closes it, the header with its
 // Close button stays in view while the body scrolls, and the behaviour comes from useModal.

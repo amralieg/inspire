@@ -8,7 +8,7 @@ import {
 
 const MOVE_KEYS = { ArrowLeft: -1, ArrowRight: 1 };
 const PANEL_WIDTH = 264;
-const LINK = 'text-[11px] font-medium text-info-fg hover:underline';
+const LINK = 'text-caption font-medium text-info-fg hover:underline';
 const FIELD = 'w-full rounded-md border border-border bg-bg px-2 py-1 text-[12px] text-text-primary';
 
 function useColumnOrder(columns, grid) {
@@ -46,7 +46,7 @@ function FilterPanel({ column, kind, choices, picked, onChange, onClose, at }) {
       {kind === 'text' ? (
         <>
           <input dir="auto" type="search" autoFocus value={query} onChange={(e) => setQuery(e.target.value)} aria-label={`Search the ${name} choices`} placeholder="Type to search" className={FIELD} />
-          {hint && <p data-grid-hint="" className="text-[11px] text-text-secondary">{hint}</p>}
+          {hint && <p data-grid-hint="" className="text-caption text-text-secondary">{hint}</p>}
           <ul className="max-h-56 space-y-0.5 overflow-y-auto">
             {shown.map((choice) => (
               <li key={choice}>
@@ -57,13 +57,13 @@ function FilterPanel({ column, kind, choices, picked, onChange, onClose, at }) {
               </li>
             ))}
           </ul>
-          {!count && <p className="text-[11px] text-text-secondary">No choice matches.</p>}
+          {!count && <p className="text-caption text-text-secondary">No choice matches.</p>}
         </>
       ) : (
         <div className="grid grid-cols-2 gap-2">
           {[[lo, 'From'], [hi, 'To']].map(([side, word]) => (
             <label key={side} className="space-y-0.5">
-              <span className="block text-[11px] text-text-secondary">{word}</span>
+              <span className="block text-caption text-text-secondary">{word}</span>
               <input dir="auto" type={kind === 'number' ? 'number' : 'date'} value={picked?.[side] ?? ''} onChange={edge(side)} aria-label={`${name} ${word.toLowerCase()}`} className={FIELD} />
             </label>
           ))}
@@ -97,7 +97,7 @@ function FilterButton({ column, kind, choices, picked, onChange }) {
       <button ref={button} type="button" data-grid-filter={column.key} aria-label={`Filter ${name}${on ? ', on' : ''}`} title={`Filter ${name}`}
         aria-haspopup="dialog" aria-expanded={Boolean(at)} onClick={toggle}
         className={`inline-flex shrink-0 items-center rounded p-0.5 hover:bg-bg-subtle ${on ? 'text-db-red-fg' : 'text-text-tertiary hover:text-text-primary'}`}>
-        <Funnel size={10} aria-hidden fill={on ? 'currentColor' : 'none'} />
+        <Funnel size={14} aria-hidden fill={on ? 'currentColor' : 'none'} />
       </button>
       {at && (
         <BodyPortal>
@@ -202,7 +202,7 @@ export default function DataGrid({
   return (
     <div data-grid={grid || ''}>
       {(on > 0 || moved) && (
-        <div data-grid-tools="" className="mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-secondary">
+        <div data-grid-tools="" className="mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-text-secondary">
           {on > 0 && <span data-grid-filters="">{on === 1 ? '1 column filter on' : `${on} column filters on`}: {texts.join('; ')}</span>}
           {on > 0 && <button type="button" className={LINK} onClick={clearFilters}>Clear column filters</button>}
           {moved && <button type="button" className={LINK} onClick={reset} data-grid-reset="">Reset column order</button>}
@@ -226,15 +226,15 @@ export default function DataGrid({
                         <button type="button" data-grid-move="" aria-label={`Move the ${name} column`} title="Drag to move this column, or use the left and right arrow keys"
                           onKeyDown={pressed(c.key)} onClick={(e) => e.stopPropagation()} {...grab(c.key)}
                           className="inline-flex shrink-0 cursor-grab touch-none items-center rounded p-0.5 text-text-tertiary hover:bg-bg-subtle hover:text-text-primary active:cursor-grabbing">
-                          <GripVertical size={10} aria-hidden />
+                          <GripVertical size={14} aria-hidden />
                         </button>
                       )}
                       {sortable ? (
                         <button type="button" data-grid-sort="" className="inline-flex items-center gap-0.5 text-start hover:text-text-primary"
                           onClick={() => { setSort((s) => nextSort(s, c.key, kinds[c.key])); setPage(0); }}>
                           {c.label}
-                          {dir > 0 && <ArrowUp size={10} aria-hidden />}
-                          {dir < 0 && <ArrowDown size={10} aria-hidden />}
+                          {dir > 0 && <ArrowUp size={14} aria-hidden />}
+                          {dir < 0 && <ArrowDown size={14} aria-hidden />}
                         </button>
                       ) : <span className={c.hideLabel ? 'sr-only' : ''}>{c.label}</span>}
                       {canFilter && <FilterButton column={c} kind={kinds[c.key]} choices={choices[c.key] || []} picked={filters[c.key]} onChange={(v) => setFilter(c.key, v)} />}
@@ -264,14 +264,14 @@ export default function DataGrid({
           </tbody>
         </table>
       </div>
-      {!rows.length && empty && <p className="py-2 text-[11px] text-text-secondary">{empty}</p>}
+      {!rows.length && empty && <p className="py-2 text-caption text-text-secondary">{empty}</p>}
       {rows.length > 0 && !kept.length && (
-        <p data-grid-none="" className="py-2 text-[11px] text-text-secondary">
+        <p data-grid-none="" className="py-2 text-caption text-text-secondary">
           No row matches these column filters. <button type="button" className={LINK} onClick={clearFilters}>Clear column filters</button>
         </p>
       )}
       {pageSize > 0 && sorted.length > pageSize && (
-        <div data-grid-pager="" className="flex items-center justify-end gap-2 py-1.5 text-[11px] text-text-secondary">
+        <div data-grid-pager="" className="flex items-center justify-end gap-2 py-1.5 text-caption text-text-secondary">
           <span>Rows {(from + 1).toLocaleString('en-US')}-{Math.min(from + step, sorted.length).toLocaleString('en-US')} of {sorted.length.toLocaleString('en-US')}</span>
           <button type="button" className={LINK} onClick={() => setPage(from / step - 1)} disabled={from === 0}>Previous</button>
           <button type="button" className={LINK} onClick={() => setPage(from / step + 1)} disabled={from + step >= sorted.length}>Next</button>

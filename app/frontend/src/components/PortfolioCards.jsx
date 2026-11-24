@@ -25,7 +25,7 @@ export function usePortfolio(apiFetch, inspireDatabase, warehouseId, tick = 0) {
 function CardFigure({ card, totals }) {
   return (
     <>
-      <span data-card-label="" className="block w-full truncate text-[11px] text-text-secondary">{card.label}</span>
+      <span data-card-label="" className="block w-full truncate text-caption text-text-secondary">{card.label}</span>
       <span data-card-value="" className="block text-xl font-bold tabular-nums tracking-tight text-text-primary">
         {totals ? (Number(totals[card.key]) || 0).toLocaleString('en-US') : <span aria-label="Loading" className="skeleton inline-block h-5 w-10 align-middle" />}
       </span>
@@ -50,22 +50,22 @@ export default function PortfolioCards({ portfolio, error, sessions, active = ''
   return (
     <section aria-label="Across all runs" data-portfolio="" className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
       <div className={`flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-2.5 ${open ? 'border-b border-border' : ''}`}>
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-secondary">
+        <h2 className="text-caption font-semibold uppercase tracking-[0.18em] text-text-secondary">
           <button type="button" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen((v) => !v)}
             className="inline-flex items-center gap-1.5 rounded-md uppercase tracking-[0.18em] hover:text-text-primary">
-            <ChevronDown size={12} aria-hidden className={`transition-transform motion-reduce:transition-none ${open ? '' : '-rotate-90'}`} />
+            <ChevronDown size={14} aria-hidden className={`transition-transform motion-reduce:transition-none ${open ? '' : '-rotate-90'}`} />
             Totals in this Inspire Database
           </button>
         </h2>
         {error && <PlainMessage text={`Inspire could not count across the runs: ${error}`} role="alert" className="text-[12px] text-error-fg" />}
-        {portfolio?.truncated && <p className="text-[11px] text-text-secondary">The run list holds 1,000 runs; the totals count every run.</p>}
+        {portfolio?.truncated && <p className="text-caption text-text-secondary">The run list holds 1,000 runs; the totals count every run.</p>}
       </div>
       <div id={bodyId} hidden={!open}>
       {!error && (
         <div className="divide-y divide-border">
           {PORTFOLIO_GROUPS.map((group) => (
             <div key={group.id} role="group" aria-label={group.label} className="px-4 py-3">
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-secondary">{group.label}</p>
+              <p className="mb-2 text-caption font-semibold uppercase tracking-[0.18em] text-text-secondary">{group.label}</p>
               <ul className={`grid grid-cols-2 gap-2 ${GROUP_COLUMNS[group.cards.length]}`}>
                 {group.cards.map((card) => {
                   const action = portfolioCardAction(card.key, portfolio, sessions);

@@ -13,7 +13,7 @@ export default function CatalogPicker({ id, value, onChange, catalogs, truncated
         {options.map((name) => <option key={name} value={name}>{name}</option>)}
         {loading && <option disabled value="__loading__">Loading catalogs…</option>}
       </select>
-      {loading && <Loader2 size={12} className="ms-1.5 inline motion-safe:animate-spin" aria-hidden />}
+      {loading && <Loader2 size={14} className="ms-1.5 inline motion-safe:animate-spin" aria-hidden />}
       </>
     );
   }
@@ -33,7 +33,7 @@ export default function CatalogPicker({ id, value, onChange, catalogs, truncated
       <datalist id={listId}>
         {names.map((name) => <option key={name} value={name} />)}
       </datalist>
-      {note && <span data-catalog-note="" className="block mt-1 text-[11px] text-text-tertiary">{note}</span>}
+      {note && <span data-catalog-note="" className="block mt-1 text-caption text-text-tertiary">{note}</span>}
     </>
   );
 }

@@ -24,11 +24,11 @@ export default function ValueHow({ yearly, onOpen }) {
     : "Inspire's first estimate; nobody has checked the numbers yet";
   return (
     <div className="mt-1.5" onClick={stop} onKeyDown={stop}>
-      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="text-[11px] font-semibold text-db-red-fg hover:underline underline-offset-2">
+      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="text-caption font-semibold text-db-red-fg hover:underline underline-offset-2">
         {`ⓘ How we got this number ${open ? '▴' : '▾'}`}
       </button>
       {open && (
-        <div data-value-how="" className="mt-1.5 space-y-1.5 rounded-lg border border-border bg-bg-subtle px-3 py-2 text-[11px] text-text-secondary">
+        <div data-value-how="" className="mt-1.5 space-y-1.5 rounded-lg border border-border bg-bg-subtle px-3 py-2 text-caption text-text-secondary">
           {yearly.parts.map((p) => (
             <div key={p.id} data-how-part={p.id} className="flex flex-wrap items-center gap-1">
               <span className="font-semibold text-text-primary">{p.label}:</span>

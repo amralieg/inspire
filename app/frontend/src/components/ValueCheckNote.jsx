@@ -2,7 +2,7 @@
 export function ValueCheckNote({ check, notCounted = false }) {
   if (!check || !check.outside) return null;
   return (
-    <span data-value-check="" title={check.reason} className="inline-block max-w-full rounded-lg bg-warning-bg px-2 py-0.5 text-center text-[10px] leading-snug text-warning-fg">
+    <span data-value-check="" title={check.reason} className="inline-block max-w-full rounded-lg bg-warning-bg px-2 py-0.5 text-center text-caption leading-snug text-warning-fg">
       Check the numbers{notCounted ? ' · not counted' : ''}
     </span>
   );

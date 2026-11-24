@@ -21,7 +21,7 @@ const STAGE_LOOK = {
 };
 
 const BAR_TONE = {
-  busy: 'bg-gradient-to-r from-primary-solid to-db-red',
+  busy: 'bg-linear-to-r from-primary-solid to-db-red',
   success: 'bg-success',
   warning: 'bg-warning',
   error: 'bg-error',
@@ -72,7 +72,7 @@ export function ProgressLine({ chip, summary, typical = '' }) {
         >
           {summary.active && (
             <span
-              className="absolute inset-y-0 start-0 w-1/3 bg-gradient-to-r from-transparent via-white/45 to-transparent motion-safe:animate-[shimmer_1.8s_ease-in-out_infinite]"
+              className="absolute inset-y-0 start-0 w-1/3 bg-linear-to-r from-transparent via-white/45 to-transparent motion-safe:animate-[shimmer_1.8s_ease-in-out_infinite]"
               aria-hidden
             />
           )}
@@ -101,7 +101,7 @@ function StageArrows({ stages }) {
             )}
             <span title={step.title} className={`relative inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold ${look.chip}`}>
               {look.live && <span className="absolute inset-0 rounded-full ring-4 ring-db-red/30 motion-safe:animate-pulse" aria-hidden />}
-              <Icon size={13} aria-hidden className={look.live ? 'motion-safe:animate-spin' : ''} />
+              <Icon size={14} aria-hidden className={look.live ? 'motion-safe:animate-spin' : ''} />
               {step.label}
               {step.elapsed && <span className="font-normal tabular-nums">{step.elapsed}</span>}
             </span>
@@ -186,7 +186,7 @@ export default function MvpProgress({
             {!view.open && stop}
             <button type="button" data-progress-show="" aria-expanded={view.open} aria-controls={view.open ? panelId : undefined}
               onClick={view.open ? view.close : view.show} className={SHOW_CLASS}>
-              <PanelRightOpen size={13} aria-hidden /> {view.open ? 'Hide progress' : 'Show progress'}
+              <PanelRightOpen size={14} aria-hidden /> {view.open ? 'Hide progress' : 'Show progress'}
             </button>
             {diagnostics?.actions}
           </div>

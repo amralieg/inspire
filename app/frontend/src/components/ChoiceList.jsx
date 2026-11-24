@@ -11,10 +11,10 @@ export default function ChoiceList({ heading = null, choices, mark = 'data-choic
         {choices.map((choice) => (
           <li key={choice.id} {...{ [mark]: choice.id }} className="rounded-lg border border-border bg-bg-subtle px-2.5 py-2 space-y-1">
             {choice.url ? (
-              <a className={CHOICE_BUTTON} href={choice.url} target="_blank" rel="noreferrer">{choice.label} <ExternalLink size={12} /></a>
+              <a className={CHOICE_BUTTON} href={choice.url} target="_blank" rel="noreferrer">{choice.label} <ExternalLink size={14} /></a>
             ) : (
               <button type="button" disabled={disabled} title={title || undefined} onClick={() => onPick(choice)} className={CHOICE_BUTTON}>
-                {busy === choice.id ? <Loader2 size={12} className="animate-spin" /> : null} {choice.label}
+                {busy === choice.id ? <Loader2 size={14} className="animate-spin" /> : null} {choice.label}
               </button>
             )}
             {choice.detail && <p className="text-text-secondary">{choice.detail}</p>}

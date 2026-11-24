@@ -32,9 +32,9 @@ function FindTable({ original, locked, onSearch, onPick }) {
           onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') use(); }}
           className="min-w-0 flex-1 h-8 rounded-md border border-border bg-surface px-2 font-mono text-[12px] text-text-primary" />
         <button data-draft-change="" type="button" disabled={locked || busy || !name.trim()} onClick={use}
-          className="text-[11px] text-db-red-fg shrink-0 disabled:opacity-50">Use this table</button>
+          className="text-caption text-db-red-fg shrink-0 disabled:opacity-50">Use this table</button>
       </div>
-      {note && <PlainMessage as="p" text={note} data-find-note="" className="text-[11px] text-text-secondary" />}
+      {note && <PlainMessage as="p" text={note} data-find-note="" className="text-caption text-text-secondary" />}
     </div>
   );
 }
@@ -58,16 +58,16 @@ export default function SourceTables({
           <div data-table-name="" className={`flex items-center gap-2 min-w-0 ${removed ? 'opacity-60' : ''}`}>
             {!removed && <Check size={14} className="shrink-0 text-success-fg" aria-hidden="true" />}
             <span className={`font-mono text-[12px] text-text-primary truncate ${removed ? 'line-through' : ''}`}>{chosen}</span>
-            {isPrimary && <span className="text-[9px] uppercase tracking-[0.18em] text-text-tertiary">Primary</span>}
-            {chosen !== original && !removed && <span className="text-[10px] text-text-tertiary">instead of {original}</span>}
-            {lost && <span className="text-[9px] uppercase tracking-[0.18em] text-error-fg">{lost}</span>}
+            {isPrimary && <span className="text-caption uppercase tracking-[0.18em] text-text-tertiary">Primary</span>}
+            {chosen !== original && !removed && <span className="text-caption text-text-tertiary">instead of {original}</span>}
+            {lost && <span className="text-caption uppercase tracking-[0.18em] text-error-fg">{lost}</span>}
           </div>
           {readOnly ? null : removed ? (
-            <button data-draft-change="" type="button" disabled={locked} className="text-[11px] text-db-red-fg shrink-0 disabled:opacity-50" onClick={() => onRestore(original)}>
+            <button data-draft-change="" type="button" disabled={locked} className="text-caption text-db-red-fg shrink-0 disabled:opacity-50" onClick={() => onRestore(original)}>
               Use it again
             </button>
           ) : (
-            <button type="button" disabled={locked} className="text-[11px] text-db-red-fg shrink-0 disabled:opacity-50" onClick={() => onToggle(original)}>
+            <button type="button" disabled={locked} className="text-caption text-db-red-fg shrink-0 disabled:opacity-50" onClick={() => onToggle(original)}>
               Change
             </button>
           )}
@@ -86,9 +86,9 @@ export default function SourceTables({
               ))}
               <option value={REMOVE_TABLE} disabled={Boolean(blocker)}>{blocker ? `Don't use this table (${blocker})` : "Don't use this table"}</option>
             </select>
-            {options === undefined && <Loader2 size={12} className="ms-1.5 inline motion-safe:animate-spin" aria-hidden />}
+            {options === undefined && <Loader2 size={14} className="ms-1.5 inline motion-safe:animate-spin" aria-hidden />}
             {onSearch && <FindTable original={original} locked={locked} onSearch={onSearch} onPick={onPick} />}
-            {why && <PlainMessage as="p" text={why} data-swaps-why="" className="text-[11px] text-text-secondary" />}
+            {why && <PlainMessage as="p" text={why} data-swaps-why="" className="text-caption text-text-secondary" />}
           </>
         )}
       </div>

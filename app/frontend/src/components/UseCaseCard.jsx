@@ -123,10 +123,10 @@ function UseCaseCardBody({
                   <UseCaseNameTitle text={titlePlain} rename={rename} />
                   {v130?.bestOfBest && (
                     <span
-                      className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.14em] px-2 py-0.5 rounded-md border shrink-0 leading-none text-warning-fg border-warning/35 bg-warning-bg"
+                      className="inline-flex items-center gap-1 text-caption sm:text-caption font-semibold uppercase tracking-[0.14em] px-2 py-0.5 rounded-md border shrink-0 leading-none text-warning-fg border-warning/35 bg-warning-bg"
                       title={bestOfBestLabel(v130.bestOfBest)}
                     >
-                      <Star size={11} className="fill-current text-warning-fg" />
+                      <Star size={14} className="fill-current text-warning-fg" />
                       Best of Best{v130.bestOfBest.rank ? ` #${v130.bestOfBest.rank}` : ''}
                     </span>
                   )}
@@ -156,7 +156,7 @@ function UseCaseCardBody({
                 <span
                   data-kind-chip={kind.id}
                   data-kind-family={kind.family}
-                  className="text-[10px] px-2 py-0.5 rounded-full border font-semibold leading-none text-text-primary border-border"
+                  className="text-caption px-2 py-0.5 rounded-full border font-semibold leading-none text-text-primary border-border"
                   style={kindChipStyle(kind.color)}
                   title={`${kind.familyLabel}: ${kind.question}`}
                 >
@@ -166,7 +166,7 @@ function UseCaseCardBody({
               {kind?.informational && (
                 <span
                   data-kind-informational=""
-                  className="text-[10px] px-2 py-0.5 rounded-full border leading-none text-text-secondary border-border bg-bg-subtle"
+                  className="text-caption px-2 py-0.5 rounded-full border leading-none text-text-secondary border-border bg-bg-subtle"
                   title={KIND_INFORMATIONAL_TITLE}
                 >
                   {KIND_INFORMATIONAL_LABEL}
@@ -176,7 +176,7 @@ function UseCaseCardBody({
                 <span
                   data-technique-chip={technique}
                   dir="auto"
-                  className="text-[10px] px-2 py-0.5 rounded-full border leading-none text-text-secondary border-border"
+                  className="text-caption px-2 py-0.5 rounded-full border leading-none text-text-secondary border-border"
                   style={kindChipStyle(kind.color)}
                 >
                   {technique}
@@ -185,12 +185,12 @@ function UseCaseCardBody({
               <StrategyChip info={v130} strategy={detailProps.strategy} />
               <FeedbackChip status={feedbackCurrent?.status || v130?.feedbackStatus} />
               {showPriorityPill && (
-                <span dir="auto" className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${priorityPillClass(priority)}`}>
+                <span dir="auto" className={`text-caption px-2 py-0.5 rounded-full border font-semibold ${priorityPillClass(priority)}`}>
                   {priority}
                 </span>
               )}
             </div>
-            <div data-use-case-meta="" className="text-[10px] text-text-tertiary mt-1.5 leading-snug break-words">
+            <div data-use-case-meta="" className="text-caption text-text-tertiary mt-1.5 leading-snug break-words">
               {[domain || 'Unknown', subdomain, (kind ? '' : technique) || ucType].filter(Boolean).map((part, i) => (
                 <span key={i}>{i > 0 && ' · '}<bdi>{part}</bdi></span>
               ))}

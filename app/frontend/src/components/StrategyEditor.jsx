@@ -20,7 +20,7 @@ import { parseStrategyPaste } from '../lib/strategyPaste';
 const inputClass =
   'w-full px-2.5 py-1.5 text-xs border border-border rounded-md bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth';
 const smallButton =
-  'inline-flex shrink-0 items-center gap-1 whitespace-nowrap px-2 py-1 rounded-md text-[11px] font-medium border border-border text-text-secondary hover:border-border-strong transition-smooth';
+  'inline-flex shrink-0 items-center gap-1 whitespace-nowrap px-2 py-1 rounded-md text-caption font-medium border border-border text-text-secondary hover:border-border-strong transition-smooth';
 
 export const STRATEGY_PASTE_EXAMPLE = [
   'Customer',
@@ -74,8 +74,8 @@ function Column({ title, hint, footer, children }) {
   return (
     <div className="min-w-0">
       <div className="flex items-center gap-1.5 mb-2 min-w-0">
-        <span className="text-[11px] font-semibold text-text-secondary shrink-0">{title}</span>
-        {hint && <span className="text-[10px] text-text-tertiary truncate" title={hint}>{hint}</span>}
+        <span className="text-caption font-semibold text-text-secondary shrink-0">{title}</span>
+        {hint && <span className="text-caption text-text-tertiary truncate" title={hint}>{hint}</span>}
       </div>
       <div className="rounded-lg border border-border bg-bg overflow-hidden flex flex-col">
         <div className="max-h-[min(24rem,60vh)] min-h-[9rem] overflow-y-auto p-1.5 space-y-1.5">{children}</div>
@@ -86,7 +86,7 @@ function Column({ title, hint, footer, children }) {
 }
 
 function Placeholder({ children }) {
-  return <p className="text-[10px] text-text-tertiary p-2 text-center">{children}</p>;
+  return <p className="text-caption text-text-tertiary p-2 text-center">{children}</p>;
 }
 
 function LevelEditor({ model, setModel }) {
@@ -105,15 +105,15 @@ function LevelEditor({ model, setModel }) {
   return (
     <div className="rounded-lg border border-border bg-bg p-2.5 space-y-2" data-testid="strategy-levels">
       <div className="flex flex-wrap items-baseline gap-x-2">
-        <span className="text-[11px] font-semibold text-text-secondary">Your levels</span>
-        <span className="text-[10px] text-text-tertiary">
+        <span className="text-caption font-semibold text-text-secondary">Your levels</span>
+        <span className="text-caption text-text-tertiary">
           Top to bottom, in your own words. Every use case names the entry it serves at each level.
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         {levels.map((level, index) => (
           <div key={`level-${index}`} className="flex items-center gap-1">
-            {index > 0 && <span className="text-[11px] text-text-tertiary">›</span>}
+            {index > 0 && <span className="text-caption text-text-tertiary">›</span>}
             <input dir="auto"
               value={level}
               onChange={(e) => rename(index, e.target.value)}
@@ -129,18 +129,18 @@ function LevelEditor({ model, setModel }) {
                 title={index < depth ? 'Entries use this level; remove them first' : `Remove the level ${level}`}
                 aria-label={`Remove level ${index + 1}`}
               >
-                <Trash2 size={11} />
+                <Trash2 size={14} />
               </button>
             )}
           </div>
         ))}
         {levels.length < STRATEGY_MAX_DEPTH && (
           <button type="button" onClick={() => setLevels([...levels, ''])} className={smallButton}>
-            <Plus size={11} /> Level
+            <Plus size={14} /> Level
           </button>
         )}
       </div>
-      <label className="flex flex-wrap items-center gap-2 text-[11px] text-text-secondary">
+      <label className="flex flex-wrap items-center gap-2 text-caption text-text-secondary">
         Priority level
         <select
           value={levels.some((l) => l.trim().toLowerCase() === String(model.priorityLevel || '').trim().toLowerCase()) ? model.priorityLevel : ''}
@@ -153,7 +153,7 @@ function LevelEditor({ model, setModel }) {
             <option key={level} value={level}>{level}</option>
           ))}
         </select>
-        <span className="text-[10px] text-text-tertiary">Its entries count as business priorities, next to the ones picked above.</span>
+        <span className="text-caption text-text-tertiary">Its entries count as business priorities, next to the ones picked above.</span>
       </label>
     </div>
   );
@@ -178,7 +178,7 @@ function PasteImport({ model, setModel, onDone }) {
   };
   return (
     <div className="rounded-lg border border-border bg-bg p-2.5 space-y-2" data-testid="strategy-paste">
-      <p className="text-[11px] text-text-secondary leading-relaxed">
+      <p className="text-caption text-text-secondary leading-relaxed">
         Paste an indented list (one entry per line, deeper lines indented) or a table copied from a spreadsheet with one
         column per level. Lines that start with KPI:, Key result: or Sponsor: attach to the entry above them; a line such as
         {' '}<span className="font-mono">{levels[0]}: Customer</span> sets the level by name.
@@ -193,22 +193,22 @@ function PasteImport({ model, setModel, onDone }) {
       />
       {rows.length > 0 && (
         <div className="rounded-md border border-border bg-surface p-2 space-y-1" data-testid="strategy-paste-preview">
-          <p className="text-[11px] font-semibold text-text-primary">
+          <p className="text-caption font-semibold text-text-primary">
             Preview: {preview.entries} entr{preview.entries === 1 ? 'y' : 'ies'}, {preview.kpis} KPI{preview.kpis === 1 ? '' : 's'},
             {' '}{preview.keyResults} key result{preview.keyResults === 1 ? '' : 's'}, {preview.sponsors.length} sponsor{preview.sponsors.length === 1 ? '' : 's'}
           </p>
           <div className="max-h-48 overflow-y-auto space-y-0.5">
             {rows.map(({ entry, path }) => (
-              <p key={path.join('.')} className="text-[11px] text-text-secondary" style={{ marginInlineStart: `${(path.length - 1) * 0.875}rem` }}>
-                <span className="text-[9px] uppercase tracking-wider text-text-tertiary me-1.5">{levelName(levels, path.length)}</span>
+              <p key={path.join('.')} className="text-caption text-text-secondary" style={{ marginInlineStart: `${(path.length - 1) * 0.875}rem` }}>
+                <span className="text-caption uppercase tracking-wider text-text-tertiary me-1.5">{levelName(levels, path.length)}</span>
                 {entry.name}
                 {entry.kpis.length > 0 && <span className="text-text-tertiary"> · KPI {entry.kpis.map((k) => k.name).join(', ')}</span>}
                 {entry.key_results.length > 0 && <span className="text-text-tertiary"> · {entry.key_results.length} key result{entry.key_results.length === 1 ? '' : 's'}</span>}
               </p>
             ))}
             {preview.sponsors.map((sponsor, index) => (
-              <p key={`sponsor-${index}`} className="text-[11px] text-text-secondary">
-                <span className="text-[9px] uppercase tracking-wider text-text-tertiary me-1.5">Sponsor</span>
+              <p key={`sponsor-${index}`} className="text-caption text-text-secondary">
+                <span className="text-caption uppercase tracking-wider text-text-tertiary me-1.5">Sponsor</span>
                 {sponsor.role}
                 {sponsor.reports_to && <span className="text-text-tertiary"> · reports to {sponsor.reports_to}</span>}
                 {sponsor.owns.length > 0 && <span className="text-text-tertiary"> · owns {sponsor.owns.join(', ')}</span>}
@@ -217,7 +217,7 @@ function PasteImport({ model, setModel, onDone }) {
           </div>
           {[...preview.notes, ...(preview.ignored.length ? [`Not used: ${preview.ignored.slice(0, 5).join(', ')}`] : []),
             ...(deepest > levels.length ? [`The list is ${deepest} levels deep; level names are added for the extra levels. Rename them above.`] : [])]
-            .map((note) => <p key={note} className="text-[10px] text-text-tertiary">{note}</p>)}
+            .map((note) => <p key={note} className="text-caption text-text-tertiary">{note}</p>)}
         </div>
       )}
       <div className="flex gap-1.5">
@@ -226,7 +226,7 @@ function PasteImport({ model, setModel, onDone }) {
         </button>
         <button type="button" onClick={onDone} className={smallButton}>Cancel</button>
         {rows.length > 0 && !isEmptyStrategy(model) && (
-          <span className="text-[10px] text-text-tertiary self-center">Replaces the entries{preview.sponsors.length ? ' and sponsors' : ''} below.</span>
+          <span className="text-caption text-text-tertiary self-center">Replaces the entries{preview.sponsors.length ? ' and sponsors' : ''} below.</span>
         )}
       </div>
     </div>
@@ -277,7 +277,7 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
 
   return (
     <div className="space-y-4">
-      <p className="text-[11px] text-text-secondary leading-relaxed">
+      <p className="text-caption text-text-secondary leading-relaxed">
         Applied after discovery: Inspire aligns each final use case to this strategy with evidence from its own data, adds
         KPIs, key results and benefits, and orders the results. The strategy is never used to find, keep or remove a use case.
       </p>
@@ -286,11 +286,11 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
         <PasteImport model={model} setModel={(change) => { setModel(change); setSelected(null); }} onDone={() => setPasting(false)} />
       ) : (
         <button type="button" onClick={() => setPasting(true)} className={smallButton}>
-          <ClipboardPaste size={12} /> Paste a list or table
+          <ClipboardPaste size={14} /> Paste a list or table
         </button>
       )}
       {initial.mode === 'path' && (
-        <p className="text-[11px] text-text-secondary leading-relaxed">
+        <p className="text-caption text-text-secondary leading-relaxed">
           This strategy comes from the file <span className="font-mono text-text-primary">{initial.path}</span>. Entries you add here replace it.
         </p>
       )}
@@ -301,7 +301,7 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
           hint={`${countEntries(model.strategy)} of ${STRATEGY_MAX_ENTRIES} · ${levels.map((l, i) => l.trim() || `Level ${i + 1}`).join(' › ')}`}
           footer={
             <button type="button" onClick={addTopLevel} className={smallButton}>
-              <Plus size={12} /> {layerName(1)}
+              <Plus size={14} /> {layerName(1)}
             </button>
           }
         >
@@ -321,7 +321,7 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
                   style={{ marginInlineStart: `${(depth - 1) * 0.875}rem` }}
                 >
                   <div className="flex items-center gap-1">
-                    <span className={`text-[9px] uppercase tracking-wider ${active ? 'text-db-red-fg' : 'text-text-tertiary'}`}>
+                    <span className={`text-caption uppercase tracking-wider ${active ? 'text-db-red-fg' : 'text-text-tertiary'}`}>
                       {layerName(depth)}
                     </span>
                     <span className="ms-auto flex items-center gap-1">
@@ -335,7 +335,7 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
                           className={smallButton}
                           title={`Add a ${layerName(depth + 1).toLowerCase()} under this ${layerName(depth).toLowerCase()}`}
                         >
-                          <Plus size={11} /> {layerName(depth + 1)}
+                          <Plus size={14} /> {layerName(depth + 1)}
                         </button>
                       )}
                       <button
@@ -347,7 +347,7 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
                         className={smallButton}
                         title="Remove this entry and everything under it"
                       >
-                        <Trash2 size={11} />
+                        <Trash2 size={14} />
                       </button>
                     </span>
                   </div>
@@ -374,7 +374,7 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
                 onClick={() => editCurrent({ kpis: [...current.kpis, { name: '', unit: '', direction: '', definition: '' }] })}
                 className={smallButton}
               >
-                <Plus size={12} /> KPI
+                <Plus size={14} /> KPI
               </button>
             )
           }
@@ -399,7 +399,7 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
                     className={smallButton}
                     title="Remove this KPI"
                   >
-                    <Trash2 size={11} />
+                    <Trash2 size={14} />
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -441,7 +441,7 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
                 onClick={() => editCurrent({ key_results: [...current.key_results, { statement: '', kpi: '' }] })}
                 className={smallButton}
               >
-                <Plus size={12} /> Key result
+                <Plus size={14} /> Key result
               </button>
             )
           }
@@ -468,7 +468,7 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
                     className={smallButton}
                     title="Remove this key result"
                   >
-                    <Trash2 size={11} />
+                    <Trash2 size={14} />
                   </button>
                 </div>
                 <select
@@ -489,7 +489,7 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
 
       <div>
         <p className="text-xs font-semibold text-text-primary mb-0.5">Sponsor roster</p>
-        <p className="text-[10px] text-text-tertiary mb-1.5">
+        <p className="text-caption text-text-tertiary mb-1.5">
           When you list roles here, every use case gets its sponsor from this list, never a role Inspire makes up. Reports to builds
           your leadership structure; owns ties a role to strategy entries or business domains.
         </p>
@@ -562,7 +562,7 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
                 className={`${smallButton} col-span-1 justify-center`}
                 title="Remove this sponsor"
               >
-                <Trash2 size={12} />
+                <Trash2 size={14} />
               </button>
             </div>
           ))}
@@ -571,7 +571,7 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
             onClick={() => setModel((m) => ({ ...m, sponsors: [...m.sponsors, { role: '', name: '', reports_to: '', owns: [] }] }))}
             className={smallButton}
           >
-            <Plus size={12} /> Sponsor
+            <Plus size={14} /> Sponsor
           </button>
         </div>
       </div>
@@ -586,15 +586,15 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
           }}
           className={smallButton}
         >
-          <Trash2 size={12} /> Clear strategy
+          <Trash2 size={14} /> Clear strategy
         </button>
       )}
 
       {(loadError || problems.length > 0) && (
         <div className="rounded-lg border border-db-red/30 bg-db-red-50 px-3 py-2 space-y-1">
           {[loadError, ...problems].filter(Boolean).slice(0, 8).map((problem) => (
-            <p key={problem} className="text-[11px] text-db-red-fg flex items-start gap-1.5">
-              <AlertCircle size={12} className="mt-0.5 shrink-0" />
+            <p key={problem} className="text-caption text-db-red-fg flex items-start gap-1.5">
+              <AlertCircle size={14} className="mt-0.5 shrink-0" />
               {problem}
             </p>
           ))}

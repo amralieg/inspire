@@ -1,6 +1,16 @@
 import { useState } from 'react';
 
-const DOMAIN_COLORS = ['#FF3621', '#3B82F6', '#22C55E', '#EAB308', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316'];
+// Series colours come from the theme tokens; the last four are token mixes because the theme has no purple, pink, teal or orange.
+export const DOMAIN_COLORS = [
+  'var(--color-primary-solid)',
+  'var(--color-info)',
+  'var(--color-success)',
+  'var(--color-warning)',
+  'color-mix(in srgb, var(--color-info) 50%, var(--color-primary-solid))',
+  'color-mix(in srgb, var(--color-danger) 60%, white)',
+  'color-mix(in srgb, var(--color-info) 50%, var(--color-success))',
+  'color-mix(in srgb, var(--color-warning) 50%, var(--color-danger))',
+];
 
 export default function DomainSunburst({ domains = [], businessName = '', size = 280 }) {
   const [hovered, setHovered] = useState(null);
@@ -82,8 +92,8 @@ export default function DomainSunburst({ domains = [], businessName = '', size =
       {/* Hover tooltip */}
       {hovered !== null && sectors[hovered] && (
         <div className="absolute top-1/2 start-1/2 -translate-x-1/2 translate-y-8 glass rounded-lg px-3 py-2 text-center z-10 whitespace-nowrap shadow-lg">
-          <p className="text-[11px] font-bold" style={{ color: sectors[hovered].color }}>{sectors[hovered].domain_name}</p>
-          <p className="text-[10px] text-text-secondary">{sectors[hovered].count} use cases</p>
+          <p className="text-caption font-bold" style={{ color: sectors[hovered].color }}>{sectors[hovered].domain_name}</p>
+          <p className="text-caption text-text-secondary">{sectors[hovered].count} use cases</p>
         </div>
       )}
     </div>

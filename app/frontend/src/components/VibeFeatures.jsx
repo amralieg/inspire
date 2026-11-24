@@ -11,7 +11,7 @@ import { PlainMessage } from './TechnicalDetails';
 
 const PRIMARY_BUTTON = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-primary-solid hover:bg-primary-solid-hover shadow-sm shadow-db-red/20';
 const GREYED = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-bg-subtle text-text-secondary border border-border cursor-not-allowed';
-const OUTLINE_BUTTON = 'inline-flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
+const OUTLINE_BUTTON = 'inline-flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-caption font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
 const ITEM = 'flex items-start justify-between gap-3 rounded-lg border border-border bg-bg-subtle/60 px-3 py-2 text-[12px]';
 
 const LIMIT_LEAD = { refused: 'Not built: ', vague: 'Too vague: ', conflict: 'Conflict: ' };
@@ -19,7 +19,7 @@ const LIMIT_LEAD = { refused: 'Not built: ', vague: 'Too vague: ', conflict: 'Co
 function LimitNote({ note }) {
   const tone = note.kind === 'refused' ? 'text-error-fg' : 'text-text-secondary';
   return (
-    <span data-vibe-limit={note.kind} role={note.kind === 'refused' ? 'alert' : undefined} className={`block text-[11px] ${tone}`}>
+    <span data-vibe-limit={note.kind} role={note.kind === 'refused' ? 'alert' : undefined} className={`block text-caption ${tone}`}>
       <span className="font-semibold">{LIMIT_LEAD[note.kind]}</span>{note.reason}.
     </span>
   );
@@ -41,7 +41,7 @@ function Waiting({ entries, onDrop }) {
               {mine.map((note) => <LimitNote key={`${note.kind}:${note.reason}`} note={note} />)}
             </span>
             <button type="button" onClick={() => onDrop(entry)} className={OUTLINE_BUTTON}>
-              {out ? <Undo2 size={12} /> : <Trash2 size={12} />} {out ? 'Keep it' : 'Take it out'}
+              {out ? <Undo2 size={14} /> : <Trash2 size={14} />} {out ? 'Keep it' : 'Take it out'}
             </button>
           </li>
         );
@@ -82,7 +82,7 @@ function BuiltWith({ assets, entries, onRemove, onKeep }) {
                 </span>
                 <button type="button" onClick={() => (removing ? onKeep(removing) : onRemove(asset, ask))} aria-label={`${removing ? 'Keep' : 'Remove'} “${ask}”`}
                   className={OUTLINE_BUTTON}>
-                  {removing ? <RotateCcw size={12} /> : <Trash2 size={12} />} {removing ? 'Keep it' : 'Remove'}
+                  {removing ? <RotateCcw size={14} /> : <Trash2 size={14} />} {removing ? 'Keep it' : 'Remove'}
                 </button>
               </li>
             );
@@ -118,13 +118,13 @@ export default function VibeFeatures({
     <>
       {onOpenSettings && (
         <button type="button" onClick={onOpenSettings} className={`me-auto ${OUTLINE_BUTTON}`}>
-          <Settings2 size={12} /> Need more than words? {OPEN_ALL_SETTINGS}
+          <Settings2 size={14} /> Need more than words? {OPEN_ALL_SETTINGS}
         </button>
       )}
       <button type="button" onClick={onClose} className={OUTLINE_BUTTON}>Close</button>
       <button type="button" data-rebuild="" disabled={stopped} aria-disabled={stopped} title={active ? REBUILD_WAITS : blocked || undefined} onClick={onRebuild}
         className={stopped ? GREYED : PRIMARY_BUTTON}>
-        {busy ? <Loader2 size={12} className="animate-spin" /> : <Hammer size={12} />} {rebuildLabel(entries)}
+        {busy ? <Loader2 size={14} className="animate-spin" /> : <Hammer size={14} />} {rebuildLabel(entries)}
       </button>
     </>
   );
@@ -139,14 +139,14 @@ export default function VibeFeatures({
       <div className="space-y-4">
         <div ref={boxRef} data-vibe-box="mvp" className="space-y-2">
           <VibesEditor id="mvp" label="MVP" value={text} onChange={setText} minPx={220} />
-          {total && <p role="alert" className="text-[11px] text-error-fg">{total}</p>}
+          {total && <p role="alert" className="text-caption text-error-fg">{total}</p>}
           {out > 0 && (
-            <p data-rephrasing="" className="text-[11px] font-medium text-text-primary">
+            <p data-rephrasing="" className="text-caption font-medium text-text-primary">
               Add vibe takes out the {out === 1 ? 'ask that was not met' : `${out} asks that were not met`} and keeps your new words instead.
             </p>
           )}
           <button type="button" disabled={!text.trim() || Boolean(own || total)} onClick={add} className={`${OUTLINE_BUTTON} disabled:cursor-not-allowed`}>
-            <Wand2 size={12} /> Add vibe
+            <Wand2 size={14} /> Add vibe
           </button>
         </div>
         <section aria-label="Changes waiting" className="space-y-2">

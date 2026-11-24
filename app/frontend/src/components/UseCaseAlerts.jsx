@@ -21,16 +21,16 @@ const PRIMARY = `${BUTTON} font-semibold text-white bg-primary-solid hover:opaci
 const OUTLINE = `${BUTTON} border border-border bg-surface text-text-primary`;
 const DANGER = `${BUTTON} border border-error/40 bg-surface text-error-fg`;
 const FIELD = 'mt-0.5 w-full px-2 py-1 border border-border rounded-lg bg-surface text-[12px] text-text-primary';
-const LABEL = 'block text-[11px] text-text-secondary';
+const LABEL = 'block text-caption text-text-secondary';
 const ERROR = 'text-[12px] text-error-fg bg-error-bg border border-error/20 rounded-lg px-3 py-2';
 const NOTE = 'text-[12px] text-info-fg bg-info-bg border border-info/20 rounded-lg px-3 py-2';
 
 function SegmentPicks({ filter, picked, onPick }) {
   return (
     <fieldset className="min-w-0">
-      <legend className="text-[11px] font-semibold text-text-primary">{filter.label}</legend>
-      {filter.error && <PlainMessage text={`Inspire could not read its values: ${filter.error}`} className="text-[11px] text-error-fg" />}
-      {!filter.error && !filter.options.length && <p className="text-[11px] text-text-secondary">No values to pick</p>}
+      <legend className="text-caption font-semibold text-text-primary">{filter.label}</legend>
+      {filter.error && <PlainMessage text={`Inspire could not read its values: ${filter.error}`} className="text-caption text-error-fg" />}
+      {!filter.error && !filter.options.length && <p className="text-caption text-text-secondary">No values to pick</p>}
       <div className="flex flex-wrap gap-x-3 gap-y-1">
         {filter.options.map((value) => (
           <label key={value} className="inline-flex items-center gap-1.5 text-[12px] text-text-primary">
@@ -92,8 +92,8 @@ function AlertForm({ listing, start, post, onDone, onCancel }) {
           <label className={`inline-flex items-center gap-1.5 text-[12px] ${measure?.baseline ? 'text-text-primary' : 'text-text-tertiary'}`}>
             <input type="radio" name="alert-basis" checked={form.basis === 'baseline'} disabled={!measure?.baseline} onChange={() => setBasis('baseline')} />Earlier runs
           </label>
-          {measure && !measure.baseline && measure.baseline_note && <span className="block text-[11px]">Earlier runs are not available: {measure.baseline_note}.</span>}
-          {form.basis === 'baseline' && <span className="block text-[11px]">{BASELINE_HINT}</span>}
+          {measure && !measure.baseline && measure.baseline_note && <span className="block text-caption">Earlier runs are not available: {measure.baseline_note}.</span>}
+          {form.basis === 'baseline' && <span className="block text-caption">{BASELINE_HINT}</span>}
         </fieldset>
         <label className={LABEL}>Send an email when it
           <select className={FIELD} value={form.operator} aria-label="Condition" onChange={(e) => set({ operator: e.target.value })}>
@@ -103,7 +103,7 @@ function AlertForm({ listing, start, post, onDone, onCancel }) {
         <label className={LABEL}>{form.basis === 'baseline' ? 'Number to use until 5 earlier runs exist' : 'Number'}
           <input className={FIELD} type="number" step={measure?.whole ? 1 : 'any'} min={measure?.min ?? undefined} value={form.threshold} aria-label="Number"
             onChange={(e) => set({ threshold: e.target.value })} />
-          {thresholdHint(measure) && <span className="block text-[11px]">{thresholdHint(measure)}</span>}
+          {thresholdHint(measure) && <span className="block text-caption">{thresholdHint(measure)}</span>}
         </label>
         <label className={LABEL}>Check it
           <select className={FIELD} value={form.schedule} aria-label="Check it" onChange={(e) => set({ schedule: e.target.value })}>
@@ -116,7 +116,7 @@ function AlertForm({ listing, start, post, onDone, onCancel }) {
         </label>
         <label className={`${LABEL} md:col-span-3`}>Email addresses, separated by commas
           <textarea dir="auto" className={FIELD} rows={2} value={form.emails} aria-label="Email addresses" onChange={(e) => set({ emails: e.target.value })} />
-          <span className="block text-[11px]">{EMAILS_HINT}</span>
+          <span className="block text-caption">{EMAILS_HINT}</span>
         </label>
         <label className={`${LABEL} md:col-span-3 flex items-start gap-2`}>
           <input type="checkbox" className="mt-0.5" checked={form.notify} aria-label={CLEARS_LABEL} onChange={(e) => set({ notify: e.target.checked })} />
@@ -128,7 +128,7 @@ function AlertForm({ listing, start, post, onDone, onCancel }) {
       </div>
       {segments.length > 0 && (
         <div className="space-y-2">
-          <p className="text-[11px] text-text-secondary">Only count these segments (leave empty for all)</p>
+          <p className="text-caption text-text-secondary">Only count these segments (leave empty for all)</p>
           <div className="grid gap-3 md:grid-cols-2">
             {segments.map((f) => (
               <SegmentPicks key={f.id} filter={f} picked={form.filters[f.id] || []} onPick={(values) => set({ filters: { ...form.filters, [f.id]: values } })} />
@@ -140,12 +140,12 @@ function AlertForm({ listing, start, post, onDone, onCancel }) {
       {failure && <p role="alert" className={ERROR}>{failure}</p>}
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className={OUTLINE} onClick={check} disabled={Boolean(busy) || !measure}>
-          {busy === 'check' ? <Loader2 size={11} className="animate-spin" /> : <Search size={11} />} {busy === 'check' ? 'Checking' : 'Check the value now'}
+          {busy === 'check' ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />} {busy === 'check' ? 'Checking' : 'Check the value now'}
         </button>
         <span className="flex-1" />
         <button type="button" className={OUTLINE} onClick={onCancel} disabled={busy === 'save'}>Cancel</button>
         <SaveButton type="submit" className={PRIMARY} busy={busy === 'save'} disabled={Boolean(busy) || !measure}>
-          <Check size={11} /> {form.id ? 'Save the alert' : 'Set up the alert'}
+          <Check size={14} /> {form.id ? 'Save the alert' : 'Set up the alert'}
         </SaveButton>
       </div>
     </form>
@@ -158,8 +158,8 @@ function BuiltRow({ alert }) {
       <div className="min-w-0 space-y-0.5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-semibold text-text-primary">{alert.name}</span>
-          <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-db-red-fg">
-            <Sparkles size={11} aria-hidden />{BUILT_BY_GENIE}
+          <span className="inline-flex items-center gap-1 text-caption font-semibold uppercase tracking-[0.14em] text-db-red-fg">
+            <Sparkles size={14} aria-hidden />{BUILT_BY_GENIE}
           </span>
           <ImplementStatusBadge state={alertState(alert.state)} />
         </div>
@@ -169,7 +169,7 @@ function BuiltRow({ alert }) {
         {alert.error && <PlainMessage text={`Inspire cannot read it: ${alert.error}`} className="text-error-fg" />}
       </div>
       {alert.url && (
-        <a href={alert.url} target="_blank" rel="noreferrer" className={OUTLINE}>Open in Databricks <ExternalLink size={11} /></a>
+        <a href={alert.url} target="_blank" rel="noreferrer" className={OUTLINE}>Open in Databricks <ExternalLink size={14} /></a>
       )}
     </li>
   );
@@ -214,18 +214,18 @@ function AlertRow({ alert, listing, post, readOnly, onEdit, onChanged }) {
           <p className="text-text-secondary">{alert.kind === 'watch' ? `Set up by ${alert.by}` : `Set up when ${alert.owner} was given records`}</p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          {alert.url && <a href={alert.url} target="_blank" rel="noreferrer" className={OUTLINE}>Open <ExternalLink size={11} /></a>}
+          {alert.url && <a href={alert.url} target="_blank" rel="noreferrer" className={OUTLINE}>Open <ExternalLink size={14} /></a>}
           {alert.can_change && alert.kind === 'watch' && (
-            <button type="button" className={OUTLINE} disabled={locked} title={why} onClick={() => onEdit(alert)}><Pencil size={11} /> Edit</button>
+            <button type="button" className={OUTLINE} disabled={locked} title={why} onClick={() => onEdit(alert)}><Pencil size={14} /> Edit</button>
           )}
           {alert.can_change && (
             <button type="button" className={OUTLINE} disabled={locked} title={why}
               onClick={() => act('pause', 'pause', { id: alert.id, paused: !paused }, paused ? 'Alert resumed.' : 'Alert paused. It sends nothing until you resume it.')}>
-              {busy === 'pause' ? <Loader2 size={11} className="animate-spin" /> : paused ? <Play size={11} /> : <Pause size={11} />} {paused ? 'Resume' : 'Pause'}
+              {busy === 'pause' ? <Loader2 size={14} className="animate-spin" /> : paused ? <Play size={14} /> : <Pause size={14} />} {paused ? 'Resume' : 'Pause'}
             </button>
           )}
           {alert.can_change && !confirming && (
-            <button type="button" className={DANGER} disabled={locked} title={why} onClick={() => setConfirming(true)}><Trash2 size={11} /> Delete</button>
+            <button type="button" className={DANGER} disabled={locked} title={why} onClick={() => setConfirming(true)}><Trash2 size={14} /> Delete</button>
           )}
         </div>
       </div>
@@ -233,7 +233,7 @@ function AlertRow({ alert, listing, post, readOnly, onEdit, onChanged }) {
         <div role="group" aria-label={`Delete ${alert.name}`} className="flex flex-wrap items-center gap-2 rounded-lg bg-error-bg px-3 py-2">
           <span className="text-error-fg">Delete this alert? It stops sending emails.</span>
           <button type="button" className={DANGER} disabled={Boolean(busy)} onClick={() => act('delete', 'delete', { id: alert.id }, 'Alert deleted.')}>
-            {busy === 'delete' ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />} Delete the alert
+            {busy === 'delete' ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete the alert
           </button>
           <button type="button" className={OUTLINE} disabled={Boolean(busy)} onClick={() => setConfirming(false)}>Keep it</button>
         </div>
@@ -268,7 +268,7 @@ export default function UseCaseAlerts({ apiFetch, apiPostJson, qBase, useCaseId,
   const addButton = listing && canAdd && !form && (
     <button type="button" className={PRIMARY} disabled={full || readOnly} title={readOnlyReason(readOnly) || (full ? capText(listing.caps) : undefined)}
       onClick={() => { setNotice(''); setForm(blankAlertForm(listing)); }}>
-      <Plus size={11} /> Add alert
+      <Plus size={14} /> Add alert
     </button>
   );
   return (
@@ -296,7 +296,7 @@ export default function UseCaseAlerts({ apiFetch, apiPostJson, qBase, useCaseId,
             </ul>
           ) : !form && <p className="px-4 py-3 text-[12px] text-text-secondary">{ALERTS_EMPTY}</p>}
           {listing.unread > 0 && <p className="px-4 pb-2 text-[12px] text-warning-fg">{plural(listing.unread, 'alert')} could not be read just now.</p>}
-          <div className="px-4 py-2 border-t border-border bg-bg-subtle/50 text-[11px] text-text-secondary flex flex-wrap items-center gap-x-3 gap-y-1">
+          <div className="px-4 py-2 border-t border-border bg-bg-subtle/50 text-caption text-text-secondary flex flex-wrap items-center gap-x-3 gap-y-1">
             <span>{capText(listing.caps)}</span>
             {!listing.built_alert && onEditMvp && (
               <span>{ALERTS_GENIE_NOTE} <button type="button" className="font-semibold text-db-red-fg underline" onClick={onEditMvp}>{OPEN_ALL_SETTINGS}</button></span>

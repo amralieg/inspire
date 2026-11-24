@@ -275,7 +275,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
     <ModalDialog titleId="calculate-value-title" title={dialogTitleFor(nameOfUseCase(uc))} onClose={onClose} widthClass="max-w-4xl"
       footer={(
         <>
-          <span data-preview-state={preview.status} className="me-auto min-h-[34px] truncate text-[12px] leading-[34px] text-text-secondary">{footerNote === 'Calculating...' ? <BusyNote inline text={footerNote} size={12} /> : footerNote}</span>
+          <span data-preview-state={preview.status} className="me-auto min-h-[34px] truncate text-[12px] leading-[34px] text-text-secondary">{footerNote === 'Calculating...' ? <BusyNote inline text={footerNote} size={14} /> : footerNote}</span>
           {trail.length > 0 && !(last && busy) && <button type="button" className={btn} onClick={back}>Back</button>}
           {last ? (
             <button type="button" onClick={onClose} className={primary}>Close</button>
@@ -291,7 +291,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
       <ol aria-label="Steps" className="flex gap-1 text-[12px]">
         {STEPS.map((name, k) => (
           <li key={name} aria-current={k === step ? 'step' : undefined} className={`flex flex-1 items-center gap-1.5 ${k === step ? 'font-semibold text-text-primary' : 'text-text-secondary'}`}>
-            <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] ${k === step ? 'border-primary-solid bg-primary-solid text-white' : k < step ? 'border-ok text-ok' : 'border-border'}`}>{k < step ? '✓' : k + 1}</span>{name}
+            <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-caption ${k === step ? 'border-primary-solid bg-primary-solid text-white' : k < step ? 'border-ok text-ok' : 'border-border'}`}>{k < step ? '✓' : k + 1}</span>{name}
           </li>
         ))}
       </ol>

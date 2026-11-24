@@ -1,4 +1,6 @@
-const DOMAIN_COLORS = ['#FF3621', '#3B82F6', '#22C55E', '#EAB308', '#8B5CF6', '#EC4899'];
+import { DOMAIN_COLORS as SUNBURST_COLORS } from './DomainSunburst';
+
+const DOMAIN_COLORS = SUNBURST_COLORS.slice(0, 6);
 
 export default function SessionSparkline({ session, width = 80, height = 28 }) {
   const rj = session?.results_json;

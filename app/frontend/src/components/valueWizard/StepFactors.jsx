@@ -45,8 +45,8 @@ export default function StepFactors({ plan, answers, yearly, onFactor, status, e
               </label>
               {f.why && <p className="text-[12px] text-text-secondary">{f.why}</p>}
               <input type="range" aria-label={`${f.label} slider`} min={Number(f.min_pct)} max={Number(f.max_pct)} step={1} value={pct}
-                onChange={(e) => onFactor(f.id, { pct: Number(e.target.value) })} className="m-0 w-full accent-[var(--color-primary-solid,#c4161c)]" />
-              <div className="flex justify-between text-[10px] text-text-secondary"><span>{signed(Number(f.min_pct))}</span><span>{signed(Number(f.max_pct))}</span></div>
+                onChange={(e) => onFactor(f.id, { pct: Number(e.target.value) })} className="m-0 w-full accent-primary-solid" />
+              <div className="flex justify-between text-caption text-text-secondary"><span>{signed(Number(f.min_pct))}</span><span>{signed(Number(f.max_pct))}</span></div>
               <EffectBar pct={pct} f={f} on={Boolean(mine.on)} />
               <p data-factor-amount="" className="text-[12px] tabular-nums text-text-secondary">
                 {mine.on ? (effects[k] ? `${effects[k].amount >= 0 ? '+' : ''}${moneyText(unit, effects[k].amount)} per year` : stale ? 'Not set' : '...') : 'Not included'}

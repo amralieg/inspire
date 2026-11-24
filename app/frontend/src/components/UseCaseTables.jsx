@@ -64,7 +64,7 @@ export default function UseCaseTables({ uc, latest, view, readOnly = false, lock
   };
   return (
     <div data-settings-tables="" className="space-y-2 border-t border-border pt-3">
-      <h4 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Tables</h4>
+      <h4 className="text-caption font-semibold uppercase tracking-[0.14em] text-text-secondary">Tables</h4>
       {readOnly && <DemoNote />}
       {!readOnly && !editable && view?.why && <PlainMessage text={view.why} data-tables-why="" className="text-text-secondary" />}
       {notice && <p className="text-text-secondary">{notice}</p>}

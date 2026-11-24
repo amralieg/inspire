@@ -17,7 +17,7 @@ function Step({ phase, column }) {
       <span className={`text-xs ${phase.state === 'todo' || phase.state === 'skipped' ? 'text-text-tertiary' : 'text-text-primary font-medium'}`}>
         {phase.label}
       </span>
-      {phase.state === 'skipped' && <span className="text-[10px] text-text-tertiary">(skipped)</span>}
+      {phase.state === 'skipped' && <span className="text-caption text-text-tertiary">(skipped)</span>}
     </li>
   );
 }

@@ -16,7 +16,7 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
   return (
     <div data-wizard-page="save" className="space-y-1">
       <div data-save-total="" className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-bg-subtle px-4 py-1">
-        <div><p className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary">{yearly?.verb || 'Value'}</p>
+        <div><p className="text-caption font-semibold uppercase tracking-wide text-text-secondary">{yearly?.verb || 'Value'}</p>
           <p className="text-2xl font-extrabold tabular-nums text-text-primary">{totalText(yearly) || '...'}</p></div>
         <p className="text-[12px] text-text-secondary">Per year<br /><span className={`text-[12px] font-semibold ${calculated ? 'text-ok-fg' : 'text-warning-fg'}`}>{statusLabel(calculated)}</span></p>
         <div className="ms-auto flex items-center gap-3">
@@ -35,7 +35,7 @@ export default function StepSave({ plan, answers, yearly, calculated, onToggleDr
                 <span aria-hidden="true">{DRIVER_ICONS[d.id] || ''}</span>
                 <span className="min-w-0 flex-1 text-[12px] font-semibold leading-[1.15]">{d.label}</span>
               </div>
-              <p className="mt-auto text-base font-extrabold tabular-nums">{on ? (part ? <>{moneyText(unit, part.amount)}<span className="text-[10px] font-normal text-text-secondary"> a year</span></> : '...') : 'off'}</p>
+              <p className="mt-auto text-base font-extrabold tabular-nums">{on ? (part ? <>{moneyText(unit, part.amount)}<span className="text-caption font-normal text-text-secondary"> a year</span></> : '...') : 'off'}</p>
               <button type="button" disabled={!on} onClick={() => setOpen(open === d.id ? null : d.id)} aria-expanded={open === d.id}
                 className="text-start text-[12px] font-semibold leading-tight text-primary disabled:opacity-40">Edit numbers</button>
             </div>

@@ -15,7 +15,7 @@ function ParamRow({ p, currency, onValue, onOwner }) {
         {p.label}{p.note && <span className="font-normal text-text-secondary">{`: ${p.note}`}</span>}
       </p>
       <div className="flex items-center gap-1">
-        <span data-source-tag="" className="shrink-0 rounded-md bg-bg-subtle px-1.5 py-0.5 text-[11px] font-bold text-text-secondary">{SOURCE_TAGS[p.source]}</span>
+        <span data-source-tag="" className="shrink-0 rounded-md bg-bg-subtle px-1.5 py-0.5 text-caption font-bold text-text-secondary">{SOURCE_TAGS[p.source]}</span>
         {many ? (
           <span className="flex gap-1">{p.value.map((v, i) => (
             <input key={i} type="number" aria-label={`${p.label}, year ${i + 1}`} value={v} className="w-14 rounded-md border border-border px-1 py-0.5 text-end text-[13px] tabular-nums"
