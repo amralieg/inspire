@@ -175,6 +175,7 @@ test('an automated browser opens the App without a tour, and a first visit asked
 test('the tour walks every step it can show, skips a missing anchor, fills live facts and goes back where it started', async () => {
   const info = appInfo({}, 1, written());
   const { page, context, seen } = await openApp(browser, base, info, { watch: STILL, hash: '?tour=1' });
+  const startedAt = await page.evaluate(() => location.hash);
   const steps = await walk(page);
   assert.deepEqual(steps.map((s) => s.anchor), ['decision', 'todo', 'kpis', 'records', 'top_record', 'genie'], 'alerts is off in this App, so the tour writes no alerts step and the template fills the place with the first unused stop, What to do now');
   assert.equal(steps[0].text, 'This desk ranks discounts by the margin they lose.', 'the open count had not loaded on the dashboard, so its sentence is dropped');
@@ -184,7 +185,7 @@ test('the tour walks every step it can show, skips a missing anchor, fills live 
   assert.equal(steps[4].text, `Start with ${ROWS[0].entity_label}, it loses the most margin.`);
   assert.match(steps[3].hash, /work/, 'the list lives on the work section of a queue page');
   assert.deepEqual(steps.map((s) => s.count), ['1 / 6', '2 / 6', '3 / 6', '4 / 6', '5 / 6', '6 / 6']);
-  await page.waitForFunction(() => !/work/.test(location.hash));
+  await page.waitForFunction((h) => location.hash === h, startedAt);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
