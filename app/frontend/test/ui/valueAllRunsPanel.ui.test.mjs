@@ -56,5 +56,5 @@ test('the all-runs panel has no per-run table; each run total lives in its run-v
   assert.match(calc, /data-run-value-state="calculated"/);
   assert.match(est, /data-run-value-state="estimated"/);
   assert.match(none, /data-run-value-state="not-calculated"/);
-  assert.match(none, /text-text-tertiary[^>]*>Not calculated</);
+  assert.match(none, /data-run-value-state="not-calculated"[^>]*text-neutral-fg[^>]*>Not calculated</);
 });
