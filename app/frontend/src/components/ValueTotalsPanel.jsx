@@ -210,7 +210,7 @@ export function RunValueLine({ value, label = 'Business value at stake', classNa
           </span>
         </div>
       ) : (
-        <div className="inline-flex flex-col gap-1">
+        <div data-run-value-box="" className="inline-flex min-w-[8rem] flex-col gap-1 rounded-lg border-2 border-dashed border-primary-solid bg-surface px-3 py-1.5">
           <span className="font-semibold uppercase tracking-wide text-text-primary">{label}</span>
           <RunValueTotal value={value} />
         </div>
