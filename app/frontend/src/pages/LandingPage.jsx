@@ -584,7 +584,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
 
       {/* ═══ Nav — always visible ═══ */}
       <nav className="fixed top-0 start-0 end-0 z-50 backdrop-blur-2xl" style={{ borderBottom: `1px solid ${C.navBorder}`, backgroundColor: C.navBg }}>
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="w-full px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <DatabricksLogo className="w-8 h-8" />
             <span className="font-bold text-xl tracking-[-0.03em]" style={{ color: C.text }}>Inspire AI</span>
@@ -636,7 +636,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
           <div className="absolute top-[-20%] start-[-10%] w-[60%] h-[60%] rounded-full bg-db-red/[0.05] blur-[150px] animate-ambient-float" aria-hidden="true" />
           <div className="absolute bottom-[-10%] end-[10%] w-[40%] h-[40%] rounded-full bg-db-red/[0.03] blur-[120px] animate-ambient-float-delayed" aria-hidden="true" />
 
-          <div className="relative z-10 max-w-7xl mx-auto px-6 w-full pt-20">
+          <div className="relative z-10 w-full px-6 pt-20">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
               {/* Left: Text */}
               <div>
@@ -717,7 +717,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
           <FloatingSchemas opacity={0.02} />
           <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, ${C.pageBg}, ${C.pageBg})` }} />
 
-          <div className="relative z-10 max-w-6xl mx-auto px-6 w-full">
+          <div className="relative z-10 w-full px-6">
             <div className="text-center mb-8">
               <span className="text-xs font-medium text-db-red-fg uppercase tracking-[0.15em] block mb-3">How Inspire Thinks</span>
               <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-[-0.03em] transition-[opacity,transform] duration-1000 ${section >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
@@ -754,7 +754,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
           <div className="absolute inset-0" style={{ background: C.pageBg }} />
           <div className="absolute top-[30%] end-[-5%] w-[30%] h-[30%] rounded-full bg-db-red/[0.03] blur-[100px]" aria-hidden="true" />
 
-          <div className="relative z-10 max-w-6xl mx-auto px-6 w-full">
+          <div className="relative z-10 w-full px-6">
             <div className="text-center mb-12">
               <span className="text-xs font-medium text-db-red-fg uppercase tracking-[0.15em] block mb-3">How it works</span>
               <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-[-0.03em] transition-[opacity,transform] duration-1000 ${section >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
@@ -799,7 +799,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
           <div className="absolute top-[20%] start-[30%] w-[40%] h-[50%] rounded-full bg-info/[0.06] blur-[120px]" aria-hidden="true" />
           <div className="absolute bottom-[10%] end-[20%] w-[25%] h-[30%] rounded-full bg-db-red/[0.04] blur-[100px]" aria-hidden="true" />
 
-          <div className="relative z-10 max-w-7xl mx-auto px-6 w-full">
+          <div className="relative z-10 w-full px-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
               {/* Left: Agent image */}
               <div className={`relative transition-[opacity,transform] duration-1000 ${section >= 3 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12'}`}>

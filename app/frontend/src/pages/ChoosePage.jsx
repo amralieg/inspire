@@ -319,7 +319,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
       <div className="min-h-[calc(100vh-64px)] flex items-start justify-center pt-12 pb-16 px-6">
         <div className="max-w-[var(--w-page)] w-full space-y-6">
           <PageHeader icon={Rocket} title="Get started with Inspire AI" subtitle="No runs yet. Start your first run to see your use cases here." />
-          <div className="max-w-3xl space-y-6">
+          <div className="mx-auto w-full max-w-3xl space-y-6">
             <p className="text-sm text-text-secondary">
               Start from your own Unity Catalog data, or let Inspire make sample data for you.
             </p>
@@ -358,7 +358,9 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
           </div>}
         </div>
 
-        <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
+        <div className="mx-auto w-full max-w-3xl">
+          <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
+        </div>
 
         {allTotals?.all && <AllRunsValuePanel reply={allTotals} />}
         {inspireDatabase && warehouseId && (
