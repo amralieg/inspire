@@ -63,12 +63,13 @@ export default function ResultsBusiness({
 }) {
   return (
     <>
+        {/* REQ-510 L5: the chart comes first, so the page opens on one picture and the value breakdown follows below the fold. */}
+        {allUseCases.length > 0 && <ValueMap useCases={allUseCases} valueTotals={valueTotals} openUseCase={openUseCase} onRunValueRow={onRunValueRow} />}
+
         {showRunValue && results && valueTotals?.run && (
           <RunValuePanel run={valueTotals.run} useCases={valueTotals.use_cases}
             nameOf={(id) => { const u = allUseCases.find((x) => trackingIdOf(x) === id); return u ? nameOfUseCase(u) : id; }} onRow={onRunValueRow} />
         )}
-
-        {allUseCases.length > 0 && <ValueMap useCases={allUseCases} valueTotals={valueTotals} openUseCase={openUseCase} onRunValueRow={onRunValueRow} />}
 
             {(summaryParagraphs.length > 0 || domainsSummary) && (
             <div

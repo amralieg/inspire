@@ -50,34 +50,27 @@ test('Review: the six advanced filters sit behind one "More filters" button and 
   }
 });
 
-test('Review cards: Rename and Archive move into the card More menu; the built card keeps Open MVP and moves its asset links there', async () => {
+test('Review rows (REQ-516): the name carries a rename pencil, Open MVP stays on the built row, and no asset links sit inline', async () => {
   const ui = await openReview();
   const { page } = ui;
   try {
     const card = page.locator('[data-use-case-no="N01-U01"]');
-    assert.equal(await shownOutsideMenus(card.getByRole('button', { name: /^Rename / })), 0, 'no inline Rename button');
-    assert.equal(await shownOutsideMenus(card.getByRole('button', { name: 'Archive use case' })), 0, 'no inline Archive button');
-    assert.equal(await shownOutsideMenus(card.getByRole('button', { name: 'Open MVP' })), 1, 'Open MVP stays on the built card');
-    const items = await itemsOf(page, card, /^More for /);
-    assert.ok(items, 'the card has a "More for <name>" menu');
-    for (const want of ['Rename', 'Archive use case', 'Open App', 'Open Dashboard', 'Open Genie Agent', 'Open alert']) {
-      assert.ok(items.includes(want), `card More holds "${want}" (got ${JSON.stringify(items)})`);
-    }
+    assert.equal(await shownOutsideMenus(card.getByRole('button', { name: /^Rename / })), 1, 'one rename pencil beside the big title (REQ-516)');
+    assert.equal(await shownOutsideMenus(card.getByRole('button', { name: 'Move this row to Archived' })), 1, 'one archive icon at the far right of the row (REQ-516)');
+    assert.equal(await shownOutsideMenus(card.getByRole('button', { name: 'Open MVP' })), 1, 'Open MVP stays on the built row');
     assert.equal(await shownOutsideMenus(card.locator('[data-card-asset]')), 0, 'asset links are not inline');
   } finally {
     await ui.close();
   }
 });
 
-test('Review Build next: one Start button shows; the other suggestions sit in the panel More menu', async () => {
+test('Review has one main action: the Build next panel is gone (REQ-511 D3) and only the built row carries the primary-filled button', async () => {
   const ui = await openReview();
   const { page } = ui;
   try {
-    const panel = page.getByRole('region', { name: 'Build next' }).first();
-    await panel.waitFor({ timeout: 15000 });
-    assert.equal(await shownOutsideMenus(panel.getByRole('button', { name: /^Start use case MVP/i })), 1, 'one visible Start in Build next');
-    const items = await itemsOf(page, panel, /^More$/);
-    assert.ok(items && items.length >= 2, `Build next More holds the other suggestions (got ${JSON.stringify(items)})`);
+    assert.equal(await page.locator('[data-build-next]').count(), 0, 'no Build next panel on Review');
+    const primary = page.locator('button.bg-primary-solid');
+    assert.deepEqual(await primary.allInnerTexts(), ['Open MVP'], 'exactly one primary-filled button: Open MVP');
   } finally {
     await ui.close();
   }

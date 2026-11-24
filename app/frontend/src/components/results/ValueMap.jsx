@@ -54,7 +54,7 @@ export default function ValueMap({ useCases, valueTotals, openUseCase, onRunValu
           ))}
         </div>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', maxHeight: 420 }} role="group" aria-label="Inspire score against yearly value">
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', maxHeight: 520 }} role="group" aria-label="Inspire score against yearly value">
         <rect x={x(7)} y={T} width={x(10) - x(7)} height={y(maxValue * 0.5) - T} fill="var(--color-success)" fillOpacity="0.08" stroke="var(--color-success)" strokeDasharray="4 4" />
         <text x={x(7) + 8} y={T + 16} fontSize="12" fill="var(--color-success-fg)">Build first</text>
         <line x1={L} x2={W - R} y1={floorY + 10} y2={floorY + 10} stroke="var(--color-border-strong)" strokeDasharray="3 3" />

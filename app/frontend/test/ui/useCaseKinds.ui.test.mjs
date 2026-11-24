@@ -72,6 +72,7 @@ test('the kind filter narrows the cards to a family or a kind, its chip clears i
   try {
     await ready(page);
     const total = await cards(page).count();
+    await page.getByRole('button', { name: /^More filters/ }).click(); // REQ-510 L5: the advanced filters sit behind More filters
     const select = page.getByRole('combobox', { name: 'Kind' });
     const options = await select.locator('option').evaluateAll((els) => els.map((el) => el.value));
     assert.equal(options[0], 'all');
