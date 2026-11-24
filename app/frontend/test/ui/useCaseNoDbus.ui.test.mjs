@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, openUi } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
+import { openReader } from './reviewRows.mjs';
 
 test.after(closeBrowser);
 
@@ -25,7 +26,9 @@ test('a use case card shows its asset flags and no DBU text, and the page makes 
   try {
     const list = page.getByRole('region', { name: 'Use case list' });
     await list.locator('[data-use-case-row]').first().waitFor();
-    const assets = list.locator('[data-use-case-assets]').first();
+    // REQ-511: the asset flags are in the reader (the full card), not in the row.
+    const reader = await openReader(page, list.locator('[data-use-case-row]').first());
+    const assets = reader.locator('[data-use-case-assets]').first();
     await assets.waitFor({ timeout: 15000 });
     assert.match((await assets.innerText()).replace(/\s+/g, ' '), /Agentic App: Yes.*Dashboard: No.*Lakebase: Yes.*Genie Agent: No/);
     assert.equal(await page.locator('[data-asset="dbus"]').count(), 0);
