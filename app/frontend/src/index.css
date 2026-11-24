@@ -636,9 +636,10 @@ textarea::placeholder {
   from { transform: translateX(24px); }
   to { transform: translateX(0); }
 }
+/* Slide only, like drawerEnter: a fade leaves the panel's text below 4.5:1 while it opens. */
 @keyframes tabPanelEnter {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { transform: translateY(4px); }
+  to { transform: translateY(0); }
 }
 @keyframes fadeShort {
   from { opacity: 0; }
