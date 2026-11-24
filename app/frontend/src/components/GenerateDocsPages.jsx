@@ -104,7 +104,7 @@ export function StylePage({ options, set, svg }) {
             </button>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Colour palette">
+        <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Color palette">
           {DOC_PALETTES.map((p) => (
             <button key={p.id} type="button" role="radio" aria-checked={options.palette === p.id} data-doc-palette={p.id} onClick={() => set({ palette: p.id })} className={`${card(options.palette === p.id)} flex items-center gap-2 px-2 py-1.5`}>
               <span className="flex" aria-hidden>{p.colors.map((c, i) => <span key={i} className="-me-1 h-4 w-4 rounded-full border border-surface" style={{ background: c }} />)}</span>
@@ -113,9 +113,9 @@ export function StylePage({ options, set, svg }) {
           ))}
         </div>
         <label className="flex items-center gap-2 text-sm text-text-primary">
-          <span className="font-semibold">Brand colour</span>
-          <input type="text" dir="ltr" aria-label="Brand colour" placeholder="#RRGGBB" value={options.customColor} onChange={(e) => set({ customColor: e.target.value })} className="w-28 rounded-md border border-border bg-surface px-2 py-1 text-sm" />
-          <input type="color" aria-label="Pick a brand colour" value={/^#[0-9a-f]{6}$/i.test(options.customColor) ? options.customColor : theme.accents[0]} onChange={(e) => set({ customColor: e.target.value })} className="h-7 w-9 cursor-pointer rounded border border-border bg-surface" />
+          <span className="font-semibold">Brand color</span>
+          <input type="text" dir="ltr" aria-label="Brand color" placeholder="#RRGGBB" value={options.customColor} onChange={(e) => set({ customColor: e.target.value })} className="w-28 rounded-md border border-border bg-surface px-2 py-1 text-sm" />
+          <input type="color" aria-label="Pick a brand color" value={/^#[0-9a-f]{6}$/i.test(options.customColor) ? options.customColor : theme.accents[0]} onChange={(e) => set({ customColor: e.target.value })} className="h-7 w-9 cursor-pointer rounded border border-border bg-surface" />
         </label>
       </div>
       <div data-docs-preview="" aria-label="Preview" className="max-h-[48vh] min-w-0 overflow-hidden rounded-xl border border-border bg-bg-subtle p-2 shadow-inner [&>svg]:h-auto [&>svg]:max-h-[44vh] [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: svg }} />

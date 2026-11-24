@@ -129,7 +129,12 @@ function isoName(code) {
   }
 }
 
+// The jsPDF library inside the dist pdfDoc bundle ships its language table ("ar-QA": "Arabic (<country>)"); a country there is the ISO region name, never a company.
+const LOCALE_LIST = /^app\/frontend\/dist\/assets\/pdfDoc-[\w-]+\.js$/;
+const LOCALE_ENTRY = /"[a-z]{2,3}-([A-Z]{2})":"([^"(]*) \(([^)"]*)\)"/g;
+
 function withoutCountryNames(label, text) {
+  if (LOCALE_LIST.test(label)) return text.replace(LOCALE_ENTRY, (whole, code, language, region) => (region === isoName(code) ? `"locale":"${language}"` : whole));
   if (!WORLD_MAPS.has(label)) return text;
   return text.replace(COUNTRY, (whole, name, code) => (name === isoName(code) ? `"name":"","a2":"${code}"` : whole));
 }
@@ -230,6 +235,16 @@ test('a country name passes only as the ISO name of its own code inside the bund
     'the same country record outside the world map is flagged');
   assert.ok(hitsIn(`${SHELL_PAYLOAD}!static/assets/echartsGeo.js`, `JSON.parse('${record(iso, 'QA')}')`, PLANTED_NAMES).length === 0,
     'the ISO name passes inside the shell map chunk too');
+});
+
+test('the jsPDF language table passes only with the ISO name of its own code, and a planted name there or elsewhere still fails', () => {
+  const bundle = 'app/frontend/dist/assets/pdfDoc-AbC123.js';
+  const iso = isoName('QA');
+  const entry = (region, code) => `{"ar-${code}":"Arabic (${region})"}`;
+  assert.deepEqual(hitsIn(bundle, entry(iso, 'QA'), PLANTED_NAMES), [], 'the ISO name of its own code passes');
+  assert.ok(hitsIn(bundle, entry(iso, 'AE'), PLANTED_NAMES).length > 0, 'the ISO name under another code is flagged');
+  assert.ok(hitsIn(bundle, entry(PLANTED, 'QA'), PLANTED_NAMES).length > 0, 'a planted name in the table is flagged');
+  assert.ok(hitsIn('app/frontend/dist/assets/index-AbC123.js', entry(iso, 'QA'), PLANTED_NAMES).length > 0, 'the same entry in another file is flagged');
 });
 
 test('the scan reads every file inside the compressed App shell payload', () => {
