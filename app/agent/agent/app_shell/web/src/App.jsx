@@ -1,10 +1,10 @@
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { WAITING_FOR_ACCESS_CODE, filtersFailure, getApp, getDefaults, getFilters, getOverview, getSummary } from './api.js';
+import { WAITING_FOR_ACCESS_CODE, filtersFailure, getApp, getDefaults, getFilters, getOverview, getPage, getSummary } from './api.js';
 import { applyTheme, hueVars, rememberPalette, storedPalette } from './theme.js';
-import { apiValues, initialFilterState } from './filters.js';
+import { apiTables, apiValues, initialFilterState } from './filters.js';
 import { AGENT_OPEN, EMPTY_LOOK, applyActions, changesView, visibleOf, topFact } from './agentView.js';
 import { Icon } from './icons.jsx';
-import { NoAccessScope, PlainNote, RetryProvider, ToastProvider, useToast } from './ui.jsx';
+import { ACCESS_CHECKED, NoAccessScope, PlainNote, RetryProvider, ToastProvider, useToast } from './ui.jsx';
 import Page from './Page.jsx';
 import WaitingForAccess from './WaitingForAccess.jsx';
 import { isQueue, pageSections } from './Layouts.jsx';
@@ -200,6 +200,18 @@ function Shell({ app, onRefreshSiblings }) {
   }, []);
   const retryMeta = useCallback((id) => { requested.current.delete(id); loadMeta(id); }, [loadMeta]);
   useEffect(() => { if (page && !aside) loadMeta(page.id); }, [page, aside, loadMeta]);
+  // REQ-506: on the full-height Genie screen no Page is mounted to re-read, so after a grant or a check the shell re-reads the page's meta and data itself.
+  const rereadId = !admin && page && !aside && section === 'genie' ? page.id : '';
+  useEffect(() => {
+    if (!rereadId) return undefined;
+    const again = () => {
+      retryMeta(rereadId);
+      const st = viewNow.current.states[rereadId];
+      getPage(rereadId, apiValues(st), apiTables(st)).catch(() => {});
+    };
+    window.addEventListener(ACCESS_CHECKED, again);
+    return () => window.removeEventListener(ACCESS_CHECKED, again);
+  }, [rereadId, retryMeta]);
 
   const leave = () => { document.querySelector('.main')?.focus(); };
   const go = (id) => { window.location.hash = `#/${encodeURIComponent(id)}`; leave(); };
