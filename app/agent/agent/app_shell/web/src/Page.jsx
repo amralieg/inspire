@@ -10,13 +10,13 @@ import { DEFAULT_TAB, buildHash, describeFilters, fixThis, parseHash, sectionHas
 import { Block } from './Blocks.jsx';
 import { blockPlan, gridSpans, slotsOf, withBlocks } from './blocks.js';
 import { Icon } from './icons.jsx';
-import Kpis, { kpiValue } from './Kpis.jsx';
+import Kpis, { Story, kpiValue } from './Kpis.jsx';
 import ChartCard from './ChartCard.jsx';
 import { ReviewLink, hubExplain, reviewItem } from './Home.jsx';
 import { genieOn } from './genieAsk.js';
 import PageLink, { usePageAddress } from './PageLink.jsx';
 import { FreshDetail, runCounts, useFreshness, useRuns, useTrends } from './Freshness.jsx';
-import { bannerText, lastRunText, latestRunText, stampText } from './freshness.js';
+import { backendText, bannerText, dataThroughText, lastRunText, latestRunText, stampText } from './freshness.js';
 import SettingsPanel, { SettingGroup, useSettings } from './Settings.jsx';
 import { paletteItems } from './Palette.jsx';
 import { FoldScope, useMyView } from './MyView.jsx';
@@ -265,6 +265,18 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       </div>
       <p className="ph-q">{page.question}</p>
       {headKpi && <p className="ph-kpi" data-head-kpi=""><span>{headKpi.label}</span> <b>{headKpi.value}</b></p>}
+      {shown === 'dashboard' && !hubPage && data && <Story page={page} data={data.kpis} />}
+      {shown === 'dashboard' && (
+        <div className="ph-meta">
+          <Icon name="calendar" size={13} />
+          <span>
+            {[runDate?.high ? dataThroughText(runDate.high, new Date().toISOString().slice(0, 10)) : meta ? '' : 'Reading the data range',
+              page.sponsor ? `sponsor ${page.sponsor}` : '', app.built_at ? `built ${dayLabel(app.built_at.slice(0, 10))}` : '',
+              backendText(app.backend)]
+              .filter(Boolean).join(' · ')}
+          </span>
+        </div>
+      )}
       {(freshness.fresh?.active || freshness.reason) && <FreshDetail freshness={freshness} />}
       <p className="print-only print-filters">Filters: {describeFilters(state, meta?.filters, meta?.columns)}</p>
     </header>
