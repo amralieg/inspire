@@ -338,12 +338,22 @@ async function walkStart(page, settle) {
   const rows = page.locator('main [data-run]');
   await rows.first().waitFor({ timeout: 120000 });
   await settle();
-  const quick = page.locator('main button[title="Quick view use cases"]');
-  const q = await quick.count();
-  for (let i = 0; i < q; i += 1) {
-    await quick.nth(i).click();
+  const rowCount = await rows.count();
+  let q = 0;
+  for (let i = 0; i < rowCount; i += 1) {
+    const row = rows.nth(i);
+    const more = row.getByRole('button', { name: /^More for / });
+    await more.click();
+    const open = row.getByRole('menuitem', { name: 'Quick view', exact: true });
+    if (!(await open.count()) || (await open.getAttribute('aria-disabled')) === 'true') {
+      await page.keyboard.press('Escape');
+      continue;
+    }
+    q += 1;
+    await open.click();
     await settle();
-    await quick.nth(i).click();
+    await more.click();
+    await row.getByRole('menuitem', { name: 'Hide quick view', exact: true }).click();
     await settle();
   }
   const loading = page.locator('main [data-portfolio] [data-card-value] [aria-label="Loading"]');
