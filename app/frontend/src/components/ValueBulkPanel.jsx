@@ -18,7 +18,7 @@ export function ValueBulkBar({ shown, selected, onSelectAll, onClear, onCalculat
   const ghost = 'rounded-md px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10 hover:text-white';
   const action = 'rounded-md border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20';
   return (
-    <div role="toolbar" aria-label="Actions for the selected use cases" data-value-bulk-bar="" className="sticky top-0 z-[3] mb-2 flex flex-wrap items-center gap-2 rounded-xl bg-[#1A1A1F] py-2 pe-2 ps-4 text-xs text-white shadow-lg">
+    <div role="toolbar" aria-label="Actions for the selected use cases" data-value-bulk-bar="" className="sticky top-0 z-[3] mb-2 flex flex-wrap items-center gap-2 rounded-xl bg-black py-2 pe-2 ps-4 text-xs text-white shadow-lg">
       <span className="me-2 font-semibold tabular-nums">{selected} selected</span>
       {onBuild && <button type="button" onClick={onBuild} className={action}>Build MVP for {selected}</button>}
       {onGenerate && <button type="button" onClick={onGenerate} className={action}>Generate docs for {selected}</button>}
@@ -74,7 +74,7 @@ export default function ValueBulkPanel({ onEdit }) {
                 </span>
               )}
               {r.state === 'skipped' && <span>Skipped: {r.reason}</span>}
-              {r.state === 'working' && <Loader2 size={12} className="me-1 inline motion-safe:animate-spin" aria-hidden />}
+              {r.state === 'working' && <Loader2 size={14} className="me-1 inline motion-safe:animate-spin" aria-hidden />}
               {LABELS[r.state] || ''}
             </span>
             {r.state === 'done' && reviewLineOf(r.review) && <span dir="auto" data-value-review="" className="basis-full text-[12px] text-text-secondary">{reviewLineOf(r.review)}</span>}
@@ -92,7 +92,7 @@ export function ValueBulkProgress() {
   const { done, total } = bulkCounts(run);
   return (
     <div data-bulk-bg="" className="mb-2 flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-secondary">
-      <span data-bulk-bg-text="" aria-live="polite" className="font-semibold text-text-primary">{run.running && <Loader2 size={12} className="me-1.5 inline motion-safe:animate-spin" aria-hidden />}{run.running ? 'Calculating value' : 'Value calculated'}: {bulkSummary(run.rows, run.items)}</span>
+      <span data-bulk-bg-text="" aria-live="polite" className="font-semibold text-text-primary">{run.running && <Loader2 size={14} className="me-1.5 inline motion-safe:animate-spin" aria-hidden />}{run.running ? 'Calculating value' : 'Value calculated'}: {bulkSummary(run.rows, run.items)}</span>
       <div role="progressbar" aria-label="Value calculation progress" aria-valuemin={0} aria-valuenow={done} aria-valuemax={total}
         className="h-2 min-w-24 flex-1 overflow-hidden rounded-full bg-bg-subtle">
         <div className="h-full bg-primary-solid text-white" style={{ width: `${total ? Math.round((done / total) * 100) : 0}%` }} />
