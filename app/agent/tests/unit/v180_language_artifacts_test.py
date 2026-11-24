@@ -1,8 +1,8 @@
-"""Excel, CSV and Markdown are written for every language in output_languages, from the same translated
-use cases the PDF uses, and a requested artifact that is not produced is recorded where the user sees it.
+"""Markdown, CSV and JSON are written for every language in output_languages, from the same translated
+use cases, and a requested artifact that is not produced is recorded where the user sees it.
 
-Before: the three writers returned early for every language but English, the only notice was a log warning
-that also named a Presentation nobody asked for, and the post-write check covered English only.
+Before: the writers returned early for every language but English, the only notice was a log warning,
+and the post-write check covered English only.
 """
 import ast
 import csv
@@ -46,29 +46,6 @@ def written(obj, suffix):
 
 def bilingual(ns, **attrs):
     return make_inspire(ns, output_languages=["English", "Arabic"], **attrs)
-
-
-def test_arabic_excel_is_written_right_to_left_with_arabic_headers_and_values(ns):
-    import openpyxl
-    obj = bilingual(ns)
-    obj._generate_use_case_excel("Arabic", "ar", arabic_portfolio(), translations=arabic_labels(ns))
-    path, data = written(obj, ".xlsx")
-    assert path.endswith("Acme-dbx_inspire_ar.xlsx")
-    sheet = openpyxl.load_workbook(io.BytesIO(data))[arabic_labels(ns)["doc_use_cases"]]
-    assert sheet.sheet_view.rightToLeft is True
-    header = [c.value for c in sheet[1]]
-    row = dict(zip(header, [c.value for c in sheet[2]]))
-    labels = arabic_labels(ns)
-    for key in ("sum_id", "domain", "subdomain", "usecase", "doc_subtitle_header", "primary_table", "quality"):
-        assert labels[key] in header, key
-    assert "Business Domain" not in header and "Use Case" not in header
-    assert row[labels["usecase"]] == ARABIC_NAME, "REQ-175: the title is the translated simple name, not the headline"
-    subtitle = obj._inspire_subtitle(arabic_portfolio()["المبيعات"][0], labels, "Arabic")
-    assert row[labels["doc_subtitle_header"]] == subtitle and subtitle.endswith("تقنية التحليل: التنبؤ.")
-    assert row[labels["domain"]] == "المبيعات"
-    assert row[labels["quality_score_header"]] == labels["doc_not_scored"] != "Not scored"
-    assert row[labels["quality"]] == labels["value_priority_high"] != "High"
-    assert sheet.cell(row=2, column=header.index(labels["usecase"]) + 1).alignment.horizontal == "right"
 
 
 def test_arabic_csv_has_a_byte_order_mark_and_arabic_headers(ns):
@@ -122,24 +99,20 @@ def run_documents(ns, obj, pack=None):
     english_grouped = {"Sales": [make_uc("N01-U01")]}
     statuses = []
     obj._emit_pipeline_status = lambda **kw: statuses.append(kw) or len(statuses)
-    obj._python_package_status = {"weasyprint": (True, ""), "xlsxwriter": (True, ""), "pptx": (True, "")}
     obj.translation_service = types.SimpleNamespace(get_translations=lambda lang: dict(ns["TranslationService"].ENGLISH_TRANSLATIONS))
-    obj.generate_catalog_pdf = lambda *a, **k: None
-    obj.generate_presentation_pptx = lambda *a, **k: None
     obj._normalize_usecase = lambda usecase, name: usecase
     obj._translate_and_prepare_language_pack = pack or (lambda lang, flat, grouped, name, batch_parallelism=1: (
         lang, "ar", arabic_labels(ns), arabic_portfolio(), {"Executive": "<p>ملخص</p>"}, name))
-    obj._generate_documents_for_all_languages([make_uc("N01-U01")], english_grouped_data=english_grouped,
-                                              summary_dict={"Executive": "x"}, languages=["English", "Arabic"],
-                                              skip_excel_langs=["English"])
+    obj._generate_language_catalogs([make_uc("N01-U01")], english_grouped_data=english_grouped,
+                                              summary_dict={"Executive": "x"}, languages=["English", "Arabic"])
     return statuses
 
 
-def test_every_requested_language_gets_markdown_csv_and_excel(ns):
-    obj = bilingual(ns, generate_choices=["Excel"])
+def test_every_requested_language_gets_markdown_and_csv(ns):
+    obj = bilingual(ns)
     run_documents(ns, obj)
     names = sorted(path.rsplit("/", 1)[-1] for path in obj.w_client.workspace.files)
-    assert names == ["Acme-dbx_inspire_ar.csv", "Acme-dbx_inspire_ar.json", "Acme-dbx_inspire_ar.xlsx", "Acme-dbx_inspire_en.csv",
+    assert names == ["Acme-dbx_inspire_ar.csv", "Acme-dbx_inspire_ar.json", "Acme-dbx_inspire_en.csv",
                      "readme_ar.md", "readme_en.md"]
     assert not obj.logger.matching("english-only-artifacts") and not obj.logger.matching("English only")
     assert obj.logger.matching("[VIBE-LANG all-artifacts-produced] language=Arabic", level="INFO")
@@ -148,26 +121,22 @@ def test_every_requested_language_gets_markdown_csv_and_excel(ns):
 
 
 def test_a_language_that_cannot_be_produced_is_recorded_in_steps_session_and_exit_value(ns):
-    obj = bilingual(ns, generate_choices=["PDF Catalog", "Excel"])
+    obj = bilingual(ns)
     statuses = run_documents(ns, obj, pack=lambda lang, *a, **k: (lang, "ar", None, None, None, None))
     gap_rows = [s for s in statuses if s.get("sub_step_name") == "Arabic" and s["status"] == "ended_error"]
-    assert sorted(s["step_name"] for s in gap_rows) == ["CSV Catalog", "JSON Catalog", "Markdown Catalog", "PDF Catalog", "Use Case Excel"]
-    assert all("Presentation" not in s["message"] for s in statuses)
+    assert sorted(s["step_name"] for s in gap_rows) == ["CSV Catalog", "JSON Catalog", "Markdown Catalog"]
     failed = {(f["step"], f["language"]) for f in obj.final_inspire_results_json["failed_steps"]}
-    assert {("Markdown Catalog", "Arabic"), ("CSV Catalog", "Arabic"), ("Use Case Excel", "Arabic"), ("PDF Catalog", "Arabic"),
-            ("JSON Catalog", "Arabic"), ("Language Pack", "Arabic")} <= failed
+    assert {("Markdown Catalog", "Arabic"), ("CSV Catalog", "Arabic"), ("JSON Catalog", "Arabic"), ("Language Pack", "Arabic")} <= failed
     assert not any(language == "English" for _step, language in failed)
     exit_value = obj.run_exit_value()
     assert exit_value.startswith("Completed with warnings: ")
-    for label in ("Markdown Catalog (Arabic)", "CSV Catalog (Arabic)", "Use Case Excel (Arabic)", "PDF Catalog (Arabic)",
-                  "JSON Catalog (Arabic)"):
+    for label in ("Markdown Catalog (Arabic)", "CSV Catalog (Arabic)", "JSON Catalog (Arabic)"):
         assert label in exit_value, label
-    assert "Presentation" not in exit_value
     assert obj.logger.matching("[VIBE-LANG missing-artifacts] language=Arabic", level="WARNING")
 
 
 def test_a_failed_arabic_writer_is_a_recorded_gap_and_the_others_still_land(ns):
-    obj = bilingual(ns, generate_choices=[])
+    obj = bilingual(ns)
     real_csv = obj._generate_csv_catalog
 
     def csv_writer(language, abbr, grouped, translations=None):
@@ -183,27 +152,24 @@ def test_a_failed_arabic_writer_is_a_recorded_gap_and_the_others_still_land(ns):
 
 
 def test_a_language_pack_without_use_cases_is_a_recorded_gap_never_a_silent_skip(ns):
-    obj = bilingual(ns, generate_choices=["Excel"])
+    obj = bilingual(ns)
     run_documents(ns, obj, pack=lambda lang, flat, grouped, name, batch_parallelism=1: (
         lang, "ar", arabic_labels(ns), {"المبيعات": []}, {"Executive": "<p>ملخص</p>"}, name))
     names = sorted(path.rsplit("/", 1)[-1] for path in obj.w_client.workspace.files)
     assert names == ["Acme-dbx_inspire_en.csv", "readme_en.md"]
     failed = {(f["step"], f["language"]) for f in obj.failed_steps}
-    assert failed == {("Markdown Catalog", "Arabic"), ("CSV Catalog", "Arabic"), ("Use Case Excel", "Arabic"), ("JSON Catalog", "Arabic")}
+    assert failed == {("Markdown Catalog", "Arabic"), ("CSV Catalog", "Arabic"), ("JSON Catalog", "Arabic")}
     assert not obj.logger.matching("[VIBE-LANG all-artifacts-produced] language=Arabic")
     assert obj.logger.matching("[VIBE-LANG missing-artifacts] language=Arabic", level="WARNING")
     assert obj.logger.matching("[ARTIFACT STEP FAILED] step=CSV Catalog language=Arabic", level="WARNING")
     exit_value = obj.run_exit_value()
-    for label in ("Markdown Catalog (Arabic)", "CSV Catalog (Arabic)", "Use Case Excel (Arabic)", "JSON Catalog (Arabic)"):
+    for label in ("Markdown Catalog (Arabic)", "CSV Catalog (Arabic)", "JSON Catalog (Arabic)"):
         assert label in exit_value, label
     assert "has no use cases to write" in str(obj.failed_steps)
     assert obj.logger.matching("[VIBE-LANG all-artifacts-produced] language=English", level="INFO")
 
 
 @pytest.mark.parametrize("step,write", [
-    ("PDF Catalog", lambda obj, labels: obj.generate_catalog_pdf("Arabic", "ar", labels, {}, {"المبيعات": []}, "Acme")),
-    ("Presentation", lambda obj, labels: obj.generate_presentation_pptx("Arabic", "ar", labels, {}, {}, "Acme")),
-    ("Use Case Excel", lambda obj, labels: obj._generate_use_case_excel("Arabic", "ar", {}, translations=labels)),
     ("CSV Catalog", lambda obj, labels: obj._generate_csv_catalog("Arabic", "ar", {"المبيعات": []}, translations=labels)),
     ("Markdown Catalog", lambda obj, labels: obj._generate_markdown_catalog("Arabic", "ar", {}, {}, "Acme", translations=labels)),
     ("JSON Catalog", lambda obj, labels: obj._generate_json_catalog("Arabic", "ar", {}, {}, "Acme", translations=labels)),
@@ -223,28 +189,21 @@ def test_no_artifact_writer_skips_silently_on_empty_input():
     assert not re.search(r"(No use cases provided to|No data to write to)[^\n]*Skipping", agent_source())
 
 
-def test_requested_artifacts_name_only_what_the_user_asked_for(ns):
-    obj = make_inspire(ns, generate_choices=[])
-    assert [step for _s, step in obj._requested_language_artifacts("Arabic", ["English"])] == [
+def test_requested_artifacts_name_only_what_is_written(ns):
+    obj = make_inspire(ns)
+    assert [step for _s, step in obj._requested_language_artifacts("Arabic")] == [
         "Markdown Catalog", "CSV Catalog", "JSON Catalog"]
-    obj.generate_choices = ["Excel", "PDF Catalog"]
-    assert [step for _s, step in obj._requested_language_artifacts("Arabic", ["English"])] == [
-        "Markdown Catalog", "CSV Catalog", "Use Case Excel", "PDF Catalog", "JSON Catalog"]
-    assert [step for _s, step in obj._requested_language_artifacts("English", ["English"])] == [
-        "Markdown Catalog", "CSV Catalog", "PDF Catalog"]
-    obj.generate_choices = ["PDF Catalog", "Presentation"]
-    assert [step for _s, step in obj._requested_language_artifacts("Arabic", [])] == [
-        "Markdown Catalog", "CSV Catalog", "PDF Catalog", "Presentation", "JSON Catalog"]
+    assert [step for _s, step in obj._requested_language_artifacts("English")] == ["Markdown Catalog", "CSV Catalog"]
 
 
-def test_document_generation_is_gated_by_the_languages_only_never_by_pdf_or_slides_choices():
+def test_document_generation_is_gated_by_the_languages_only():
     from _agentload import agent_ast
     gates = []
     for node in ast.walk(agent_ast()):
         if not isinstance(node, ast.If):
             continue
         refs = [n for stmt in node.body for n in ast.walk(stmt)
-                if isinstance(n, ast.Attribute) and n.attr == "_generate_documents_for_all_languages"]
+                if isinstance(n, ast.Attribute) and n.attr == "_generate_language_catalogs"]
         if refs:
             gates.append(ast.unparse(node.test))
     assert len(gates) >= 3, gates
