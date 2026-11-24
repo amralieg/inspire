@@ -143,7 +143,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
             required
           />
           <p className="text-xs text-text-tertiary mt-1.5">
-            Inspire makes {plural(DEMO_GENERATED_TABLES, 'table')} from your description and adds {plural(DEMO_KIND_SIGNAL_TABLES, 'table')} that every kind of use case needs.
+            {plural(DEMO_GENERATED_TABLES, 'table')} from your description, plus {DEMO_KIND_SIGNAL_TABLES} for every use-case kind.
           </p>
           <TechnicalDetails className="mt-1" items={[
             `Tables: ${inspireDatabase?.split('.')[0] || 'catalog'}.${demoSchema.trim() || 'inspire_demo_*'}`,
@@ -165,7 +165,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
             className="w-full px-4 py-2.5 text-sm font-mono border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth"
           />
           <p className={`text-xs mt-1.5 ${demoSchemaError(demoSchema) ? 'text-error-fg' : 'text-text-tertiary'}`}>
-            {demoSchemaError(demoSchema) || 'Leave it empty and Inspire names a new schema after the business and the run.'}
+            {demoSchemaError(demoSchema) || 'Blank: Inspire picks a name.'}
           </p>
         </div>
 
@@ -221,7 +221,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
           </div>
         )}
 
-        <Button type="submit" disabled={submitting || !canCallApi} className="w-full py-3">
+        <Button type="submit" data-variant="primary" disabled={submitting || !canCallApi} className="w-full py-3">
           {submitting ? (
             <>
               <Loader2 size={16} className="animate-spin" />

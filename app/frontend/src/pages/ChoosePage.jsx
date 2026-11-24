@@ -1,6 +1,7 @@
 import { Fragment, useState, useEffect, useCallback, useMemo, useId } from 'react';
-import { Rocket, BarChart3, Loader2, AlertCircle, Clock, CheckCircle2, ArrowRight, ChevronRight, ChevronDown, ChevronUp, Trash2, Eye, EyeOff, Target, FileText, Sparkles, X, Download } from 'lucide-react';
+import { Rocket, BarChart3, Loader2, AlertCircle, Clock, CheckCircle2, ArrowRight, ChevronRight, ChevronDown, ChevronUp, Eye, Target, FileText, Sparkles, X } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
+import MoreMenu from '../components/ui/MoreMenu';
 import Button from '../components/ui/Button';
 import SessionSparkline from '../components/SessionSparkline';
 import MagneticButton from '../components/MagneticButton';
@@ -85,7 +86,7 @@ const CHOICE = 'group flex w-full items-start gap-4 rounded-2xl border px-5 py-4
 function StartChoice({ choice, icon: Icon, title, text, onClick, strong = false }) {
   const textId = useId();
   return (
-    <button type="button" data-start-choice={choice} onClick={onClick} aria-label={title} aria-describedby={textId}
+    <button type="button" data-start-choice={choice} data-variant={strong ? 'primary' : undefined} onClick={onClick} aria-label={title} aria-describedby={textId}
       className={`${CHOICE} ${strong ? 'border-db-red/30 bg-linear-to-r from-db-red/[0.06] to-transparent hover:from-db-red/[0.12]' : 'border-border bg-surface hover:border-border-strong'}`}>
       <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${strong ? 'bg-db-red/10' : 'bg-bg-subtle'}`}>
         <Icon size={20} aria-hidden className="text-db-red-fg" />
@@ -187,6 +188,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   const [error, setError] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [runFilter, setRunFilter] = useState('');
+  const [showValue, setShowValue] = useState(false);
   const apiFetch = useMemo(() => makeApiFetch({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
   const { portfolio, error: portfolioError } = usePortfolio(apiFetch, inspireDatabase, warehouseId);
   const valueReady = Boolean(inspireDatabase && warehouseId && !showcase);
@@ -293,6 +295,18 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
     })();
   }, [token, databricksHost, warehouseId, inspireDatabase, showcase]);
 
+  const toggleQuickView = (session, isQuickOpen, legacySummary, listOverview, sidStr) => {
+    if (isQuickOpen) {
+      setExpandedQuickView(null);
+      return;
+    }
+    setExpandedQuickView(session.session_id);
+    if (!legacySummary && listOverview?.total > 0) {
+      const has = (quickViewUcsBySession[sidStr] || []).length > 0;
+      if (!has) fetchUcsForQuickView(session.session_id);
+    }
+  };
+
   const filtered = runFilter ? runsOfCard(runFilter, sessions, portfolio) : sessions;
   const listed = runFilter || showAll ? filtered : filtered.slice(0, 5);
 
@@ -349,7 +363,12 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
 
         {/* ── Header ── */}
         <div className="space-y-3">
-          <PageHeader icon={Rocket} title="Welcome back" subtitle="Pick up where you left off or start a new run." />
+          <PageHeader icon={Rocket} title="Welcome back" subtitle="Pick up where you left off or start a new run."
+            actions={<MoreMenu items={[
+              { label: 'View all runs', onSelect: () => onViewResults(null) },
+              ...(allTotals?.all ? [{ label: 'Value across all runs', onSelect: () => setShowValue(true) }] : []),
+              ...(onDemo ? [{ label: 'Open the demo', onSelect: onDemo }] : []),
+            ]} />} />
           {!error && <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-bg-subtle border border-border rounded-full">
             <BarChart3 size={14} className="text-db-red-fg" />
             <span className="text-xs font-medium text-text-secondary">
@@ -360,7 +379,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
 
         <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
 
-        {allTotals?.all && <AllRunsValuePanel reply={allTotals} />}
+        {allTotals?.all && showValue && <AllRunsValuePanel reply={allTotals} />}
         {inspireDatabase && warehouseId && (
           <PortfolioCards portfolio={portfolio} error={portfolioError} sessions={sessions} active={runFilter} onCard={openCard} />
         )}
@@ -369,12 +388,6 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
         <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-xs font-semibold text-text-secondary uppercase tracking-[0.1em]">Previous runs</h2>
-            <button
-              onClick={() => onViewResults(null)}
-              className="text-xs text-text-tertiary hover:text-db-red-fg transition-colors flex items-center gap-1"
-            >
-              View all <ChevronRight size={14} />
-            </button>
           </div>
 
           {runFilter && (
@@ -533,16 +546,14 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                   </button>
 
                     <div className="flex-shrink-0 flex items-center gap-2">
-                      {session.profile_id && (
-                        <button
-                          type="button"
-                          data-run-profile-download=""
-                          onClick={(e) => { e.stopPropagation(); downloadProfile(session.profile_id, sidStr); }}
-                          className="relative z-10 inline-flex items-center gap-1 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-semibold text-text-primary hover:bg-bg-subtle"
-                        >
-                          <Download size={14} aria-hidden /> Download profile
-                        </button>
-                      )}
+                      <div className="relative z-10">
+                        <MoreMenu label={`More for ${name}`} items={[
+                          { label: 'Download profile', disabled: !session.profile_id, onSelect: () => downloadProfile(session.profile_id, sidStr) },
+                          { label: 'Go to Build', disabled: !buildFilter, onSelect: () => onOpenBuild?.(buildFilter) },
+                          ...(canQuickView ? [{ label: isQuickOpen ? 'Hide quick view' : 'Quick view', onSelect: () => toggleQuickView(session, isQuickOpen, legacySummary, listOverview, sidStr) }] : []),
+                          ...(showcase ? [] : [{ label: 'Delete run', danger: true, onSelect: () => setConfirmDelete(session.session_id) }]),
+                        ]} />
+                      </div>
                       {Number(portfolio?.sessions?.[sidStr]?.mvps_live) > 0 && (
                         <span data-run-live="" className="rounded-lg border border-success/35 bg-success-bg px-2.5 py-1.5 text-xs font-semibold tabular-nums text-success-fg">
                           {portfolio.sessions[sidStr].mvps_live.toLocaleString('en-US')} live
@@ -561,16 +572,6 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                           </button>
                         </div>
                       )}
-                      {buildFilter && !buildingCount && (
-                        <button
-                          type="button"
-                          data-run-go-build=""
-                          onClick={(e) => { e.stopPropagation(); onOpenBuild?.(buildFilter); }}
-                          className="relative z-10 inline-flex items-center gap-1 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-semibold text-text-primary hover:bg-bg-subtle"
-                        >
-                          Go to Build <ArrowRight size={14} aria-hidden />
-                        </button>
-                      )}
                       {status === 'running' && (
                         <div className="w-16 h-1.5 rounded-full bg-bg-subtle overflow-hidden">
                           <div
@@ -578,37 +579,6 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                             style={{ width: `${session.completed_percent || 0}%` }}
                           />
                         </div>
-                      )}
-
-                      {/* Quick View toggle */}
-                      {canQuickView && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (isQuickOpen) {
-                              setExpandedQuickView(null);
-                              return;
-                            }
-                            setExpandedQuickView(session.session_id);
-                            if (!legacySummary && listOverview?.total > 0) {
-                              const has = (quickViewUcsBySession[sidStr] || []).length > 0;
-                              if (!has) fetchUcsForQuickView(session.session_id);
-                            }
-                          }}
-                          className="relative z-10 px-2.5 py-1.5 text-xs font-medium rounded-lg flex items-center gap-1 transition-colors border border-border hover:border-db-red/30 hover:bg-db-red-50 text-text-tertiary hover:text-db-red-fg"
-                          title="Quick view use cases"
-                        >
-                          {isQuickOpen ? (
-                            <>
-                              <EyeOff size={14} /> Hide
-                            </>
-                          ) : (
-                            <>
-                              <Eye size={14} /> Quick View
-                            </>
-                          )}
-                        </button>
                       )}
 
                       {deleteError && deleteError.sessionId === session.session_id && (
@@ -632,15 +602,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                             Cancel
                           </button>
                         </div>
-                      ) : (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setConfirmDelete(session.session_id); }}
-                          className="relative z-10 p-1.5 rounded-lg text-text-tertiary opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-error-fg hover:bg-error-bg transition-colors"
-                          title="Delete run"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+                      ) : null}
 
                       {!isQuickOpen && <SessionSparkline session={session} />}
                       <ChevronRight size={16} aria-hidden="true" className={`text-text-tertiary transition-transform ${isQuickOpen ? 'rotate-90' : 'group-hover:text-text-secondary'}`} />

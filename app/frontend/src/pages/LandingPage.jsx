@@ -664,7 +664,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
                 </h1>
 
                 <p className="text-base sm:text-lg mb-8 max-w-lg leading-relaxed" style={{ color: C.textMuted }}>
-                  Inspire reads your Unity Catalog metadata, counts your data to check that each use case can be built, and writes use cases ranked for your business and your goals. Genie then builds an MVP for each one you pick.
+                  Inspire reads your Unity Catalog metadata and writes ranked use cases. Genie then builds an MVP for each one you pick.
                 </p>
 
                 <LandingActions onStart={onStart} />
@@ -673,7 +673,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
                   <aside className="mt-5 max-w-lg" aria-label="Workspace setup">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" style={{ color: C.textFaint }}>
                       <Globe2 size={14} className="shrink-0" />
-                      <span>Change the workspace, warehouse or Inspire database this App uses in</span>
+                      <span>Change the workspace, warehouse or database in</span>
                       <button
                         type="button"
                         onClick={onOpenSetup}

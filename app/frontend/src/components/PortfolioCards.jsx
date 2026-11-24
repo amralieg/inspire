@@ -85,9 +85,9 @@ export default function PortfolioCards({ portfolio, error, sessions, active = ''
                           <CardFigure card={card} totals={totals} />
                         </button>
                       ) : (
-                        <div data-portfolio-card={card.key} data-card-off="" className={`${CARD} border-border bg-bg`}>
+                        <div data-portfolio-card={card.key} data-card-off="" title={action.why || undefined} className={`${CARD} border-border bg-bg`}>
                           <CardFigure card={card} totals={totals} />
-                          {action.why && <PlainMessage as="span" text={action.why} data-card-why="" className="mt-0.5 block text-[10px] leading-snug text-text-secondary" />}
+                          {action.why && <PlainMessage as="span" text={action.why} data-card-why="" className="sr-only" />}
                         </div>
                       )}
                     </li>
