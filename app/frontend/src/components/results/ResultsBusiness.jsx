@@ -30,8 +30,8 @@ function MvpTiles({ counts, active, onPick }) {
             active === id ? 'border-db-red/40 bg-db-red-50' : 'border-border bg-surface hover:border-db-red/25'
           }`}
         >
-          <span className="flex items-center gap-2 mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
-            <Icon size={11} className="text-db-red-fg" />
+          <span className="flex items-center gap-2 mb-1 text-caption font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+            <Icon size={14} className="text-db-red-fg" />
             {label}
           </span>
           <span className="block text-2xl font-bold text-text-primary tabular-nums tracking-tight">{counts[id]}</span>
@@ -46,9 +46,9 @@ function StatCard({ label, value, icon: Icon, renderValue }) {
     <GlassCard tilt className="p-4" data-stat={label}>
       <div className="flex items-center gap-2 mb-1.5">
         <div className="flex h-5 w-5 items-center justify-center rounded-md bg-db-red/10 ring-1 ring-inset ring-db-red/15">
-          <Icon size={11} className="text-db-red-fg" />
+          <Icon size={14} className="text-db-red-fg" />
         </div>
-        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">{label}</span>
+        <span className="text-caption font-semibold uppercase tracking-[0.18em] text-text-tertiary">{label}</span>
       </div>
       <div data-stat-value="" className="text-2xl font-bold text-text-primary tabular-nums tracking-tight">
         {renderValue != null ? renderValue : Number(value) || 0}
@@ -76,11 +76,11 @@ export default function ResultsBusiness({
               data-executive-summary=""
               className="bg-surface border border-border/70 rounded-xl overflow-hidden mb-4 shadow-elevated scroll-mt-20"
             >
-              <div className="flex items-center gap-2 border-b border-border bg-gradient-to-r from-db-red-50/90 to-surface px-4 py-3 sm:px-6">
+              <div className="flex items-center gap-2 border-b border-border bg-linear-to-r from-db-red-50/90 to-surface px-4 py-3 sm:px-6">
                 <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-db-red/10 ring-1 ring-inset ring-db-red/20">
-                  <FileText size={12} className="text-db-red-fg" strokeWidth={2} />
+                  <FileText size={14} className="text-db-red-fg" strokeWidth={2} />
                 </div>
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-db-red-fg">
+                <h2 className="text-caption font-semibold uppercase tracking-[0.18em] text-db-red-fg">
                   Executive summary
                 </h2>
               </div>
@@ -93,7 +93,7 @@ export default function ResultsBusiness({
                   if (!domRaw) return null;
                   return (
                     <details className="mt-3 border-t border-border pt-3 group">
-                      <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary transition-colors hover:text-db-red-fg [&::-webkit-details-marker]:hidden flex items-center gap-1.5">
+                      <summary className="cursor-pointer list-none text-caption font-semibold uppercase tracking-[0.18em] text-text-tertiary transition-colors hover:text-db-red-fg [&::-webkit-details-marker]:hidden flex items-center gap-1.5">
                         <ChevronRight
                           size={14}
                           className="shrink-0 text-text-tertiary transition-transform duration-200 group-open:rotate-90"
