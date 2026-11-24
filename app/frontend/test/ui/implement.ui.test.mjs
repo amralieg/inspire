@@ -1235,8 +1235,8 @@ test('Try again on a failed build sends the version that failed again as the nex
     const banner = page.getByRole('region', { name: 'Build failed' });
     await banner.getByText(buildAgainHint({ spec_version: 2 }), { exact: true }).waitFor();
     const again = banner.getByRole('button', { name: 'Try again' });
-    assert.match(await again.evaluate((el) => el.className), /bg-db-red-solid/, 'Try again is the main way forward');
-    assert.doesNotMatch(await banner.getByRole('button', { name: 'Open all settings' }).evaluate((el) => el.className), /bg-db-red-solid/);
+    assert.match(await again.evaluate((el) => el.className), /bg-primary-solid/, 'Try again is the main way forward');
+    assert.doesNotMatch(await banner.getByRole('button', { name: 'Open all settings' }).evaluate((el) => el.className), /bg-primary-solid/);
     for (const dark of [false, true]) {
       await setDark(page, dark);
       const seen = await lowContrast(page, ['section[aria-label="Build failed"]']);
@@ -1262,7 +1262,7 @@ test('Try again on a failed build sends the version that failed again as the nex
     const banner = edited.page.getByRole('region', { name: 'Build failed' });
     await banner.getByRole('button', { name: 'Open all settings' }).waitFor();
     assert.equal(await banner.getByRole('button', { name: 'Try again' }).count(), 0, 'a hand-edited notebook keeps its own rebuild');
-    assert.match(await banner.getByRole('button', { name: 'Open all settings' }).evaluate((el) => el.className), /bg-db-red-solid/);
+    assert.match(await banner.getByRole('button', { name: 'Open all settings' }).evaluate((el) => el.className), /bg-primary-solid/);
     assert.deepEqual(edited.pageErrors, []);
   } finally {
     await edited.close();

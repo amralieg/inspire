@@ -2178,9 +2178,9 @@ export function appAccessRefusalOf(outputCheck, preflight = null) {
   return [outputCheck?.app, preflight?.checks?.app_access, preflight?.new_app].find((c) => c?.ok === false) || null;
 }
 
-// The App inputs a refusal belongs to. A refusal seen for them is kept until they change (REQ-514: the no-App re-run must not clear it).
-export function appInputsKey(spec) {
-  return `${spec?.outputs?.app_name || ''}|${spec?.outputs?.merge?.app || ''}`;
+// The App inputs (and grant round) a refusal belongs to. A refusal seen for them is kept until they change or a grant lands (REQ-514: the no-App re-run must not clear it, a grant must).
+export function appInputsKey(spec, grantRound = 0) {
+  return `${spec?.outputs?.app_name || ''}|${spec?.outputs?.merge?.app || ''}|${grantRound}`;
 }
 
 export function outputBlocks(features, outputCheck, assets = {}, preflight = null, remembered = null) {

@@ -894,9 +894,10 @@ export default function ImplementWizard({
   const placeSettled = !spec.outputs.app || insideInspire(spec) || (targets !== null && (placeSet === 'default' || placeSet === 'person'));
   const features = preflight?.features || context?.features || ALL_FEATURES;
   const [seenAppRefusal, setSeenAppRefusal] = useState(null);
-  const appKey = appInputsKey(spec);
+  const appKey = appInputsKey(spec, grantRound);
   const liveAppRefusal = appAccessRefusalOf(outputCheck, preflight);
-  useEffect(() => { if (liveAppRefusal) setSeenAppRefusal({ key: appKey, refusal: liveAppRefusal }); }, [liveAppRefusal, appKey]);
+  const appAccessOk = [outputCheck?.app, preflight?.checks?.app_access, preflight?.new_app].some((c) => c?.ok === true);
+  useEffect(() => { if (liveAppRefusal) setSeenAppRefusal({ key: appKey, refusal: liveAppRefusal }); else if (appAccessOk) setSeenAppRefusal(null); }, [liveAppRefusal, appAccessOk, appKey]);
   const keptAppRefusal = seenAppRefusal?.key === appKey ? seenAppRefusal.refusal : null;
   const blocks = useMemo(() => outputBlocks(features, outputCheck, context?.assets, preflight, keptAppRefusal), [features, outputCheck, context?.assets, preflight, keptAppRefusal]);
   // The verdict is dropped while a check runs (no stale reason shows), but an output it blocked stays locked until the new verdict lands.

@@ -828,8 +828,7 @@ test('the App is picked on Deliver under the App tile: it lists the Apps Inspire
     await dash.getByRole('button', { name: 'Create new' }).waitFor();
     assert.equal(await dash.getByRole('button', { name: 'Create new' }).getAttribute('aria-pressed'), 'true', 'Create new is the default');
     assert.equal(await page.locator('[data-merge="app"]').count(), 0, 'What to deliver no longer picks the App');
-    const genie = page.locator('[data-merge="genie_space"]');
-    await genie.getByText('Inspire has built none yet').waitFor();
+    assert.equal(await page.locator('[data-merge="genie_space"]').count(), 0, 'REQ-514: the Genie Agent is fixed with the App, so Deliver has no Genie row to join');
     await goToStep(page, 'Where it lives');
     await openFolded(page, 'Where it lives');
     // REQ-001/REQ-265 (D-WHERE): the Apps list is the detail of the join card; it shows once that card is picked.
