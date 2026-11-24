@@ -701,6 +701,7 @@ def test_a_build_that_moves_the_result_table_copies_it_before_the_preview(agent_
     inst._implement_keep_edits_setting = lambda uc, table, spec, warnings, exists=None: events.append(("edit choice", table))
     inst._implement_fill_and_preview = lambda *a: events.append(("preview",)) or ({"status": "written", "rows_written": 12}, 77, {})
     inst._implement_result_history = lambda uc, table, spec, warnings: events.append(("history", table))
+    inst._implement_access_rows = lambda *a, **k: None
     inst._implement_dashboard = lambda c, r: {"dashboard_id": "d1", "dashboard_url": "https://h/d"}
     inst._implement_genie_space = lambda c, r: {"genie_space_id": "g1", "genie_space_url": "https://h/genie/rooms/g1"}
     inst._implement_app = lambda c, r: {"app_name": "churn-desk", "app_url": "https://churn-desk.example", "app_health": "running"}

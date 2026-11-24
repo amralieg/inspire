@@ -127,12 +127,11 @@ def build_ultra(ns, tmp_path, judge, user_domains=None):
     return obj
 
 
-def test_the_offline_harness_generates_the_product_default_outputs(agent_ns, tmp_path):
-    """The harness must generate the product default outputs. A PDF-only harness sent the Ultra High run down a path
-    the stubs do not answer (the elite smoke red at c450272af), so the harness and the product default stay in step."""
+def test_the_offline_harness_has_no_document_generation_options(agent_ns, tmp_path):
+    """FX-116: the agent writes no PDF, Excel or deck, so the harness carries no generation choices and the product
+    has no default for them."""
     obj = _build(agent_ns, tmp_path, "Ultra High", {"High", "Very High", "Ultra High"}, combined_scorer)
-    product = [opt.strip() for opt in agent_ns["DEFAULT_GENERATION_OPTIONS"].split(",")]
-    assert obj.generate_choices == product == ["PDF Catalog", "Excel"], (obj.generate_choices, product)
+    assert obj.generate_choices == [] and "DEFAULT_GENERATION_OPTIONS" not in agent_ns
 
 
 def stages(obj):
@@ -180,7 +179,7 @@ def test_ultra_high_run_end_to_end(agent_ns, tmp_path, quiet_root_logger):
         assert uc["elite_status"] == "ELITE" and uc["quality_mode"] == "Ultra High"
         assert uc["elite_assessment"]["verification"]["passed"] is True
         assert uc["Primary Table"] == uc["Tables Involved"]
-    assert rec["csv"] and rec["docs"] and rec["excel"] and rec["notebooks"]
+    assert rec["csv"] and rec["docs"] and rec["notebooks"]
     prompts = obj.ai_agent.prompts()
     assert prompts.count(COMBINED) >= 1 and prompts.count(BOB) == 1 and prompts.count(JUDGE) == 1
     outcome = obj.final_inspire_results_json["elite_outcome"]
@@ -199,7 +198,7 @@ def test_ultra_high_zero_elite_all_fatal_ships_high_tier_fallback(agent_ns, tmp_
     assert final, "every candidate is a fatal-flaw reject, so there is no near miss; the High-tier candidates ship"
     assert all(u["elite_status"] == "FALLBACK_BELOW_BAR" and u["fallback_kind"] == "tier"
                and u["fallback_bar"] == "Ultra High" for u in final)
-    assert rec["csv"] and rec["docs"] and rec["excel"] and rec["notebooks"]
+    assert rec["csv"] and rec["docs"] and rec["notebooks"]
     fb = [s for s in obj.atomic_writer.steps if (s.get("result_json") or {}).get("fallback")]
     assert fb and fb[-1]["result_json"]["fallback_kind"] == "high_tier"
     assert obj.final_inspire_results_json["selection_outcome"]["fallback"] is True

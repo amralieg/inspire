@@ -262,7 +262,7 @@ def make_inspire(ns, **attrs):
     obj.business_name = "Acme"
     obj.inspire_database = ""
     obj.output_languages = ["English"]
-    obj.generate_choices = ["PDF Catalog", "Presentation"]
+    obj.generate_choices = []
     obj.docs_output_dir = "/Workspace/out/docs"
     obj.notebook_output_dir = "/Workspace/out/notebooks"
     obj._implement_protections = unprotected_reads(ns)

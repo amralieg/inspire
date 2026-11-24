@@ -223,6 +223,7 @@ test('Start lists the runs with Latest Run only on the newest run of a business 
     assert.deepEqual(await read(choose.page, choose.page), want);
     assert.equal(await choose.page.locator('button button').count(), 0, 'and none after Show more either');
     const opened = () => choose.page.locator('output[aria-label="Opened runs"]').textContent();
+    await choose.page.locator('[data-run="42"]').scrollIntoViewIfNeeded();
     const box = await steadyBox(choose.page.locator('[data-run="42"]'));
     await choose.page.mouse.click(box.x + box.width - 10, box.y + box.height / 2);
     assert.equal(await opened(), '42', 'a click anywhere on the row opens the run, its chevron edge too');

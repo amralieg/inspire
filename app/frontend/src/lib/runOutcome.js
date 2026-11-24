@@ -45,9 +45,6 @@ const domainUseCases = (r) => (Array.isArray(r.domains)
 const DOCUMENT_WORDS = {
   'Markdown Catalog': 'Markdown readme',
   'CSV Catalog': 'CSV',
-  'Use Case Excel': 'Excel',
-  'PDF Catalog': 'PDF',
-  Presentation: 'slides',
   'JSON Catalog': 'JSON',
   'Language Pack': 'translation',
 };

@@ -2006,7 +2006,7 @@ def value_streak(weeks, today: datetime.date) -> int:
     starts = set()
     for item in given:
         try:
-            starts.add(week_start(datetime.date.fromisoformat(str(item).strip()[:10])))
+            starts.add(week_start(inspire_parse_time(str(item).strip()[:10]).date()))
         except ValueError:
             continue
     week = week_start(today)

@@ -2168,7 +2168,8 @@ export function blockOf(why, details = '') {
 
 function checkBlock(check) {
   if (!check || check.ok !== false) return null;
-  const grants = (check.offer?.grants || check.grants || []).map((g) => (typeof g === 'string' ? g : g?.sql || '')).filter(Boolean);
+  // the backend's permission object (statements) is the stable signal that access is missing, whatever the wording of detail
+  const grants = ([check.offer?.grants, check.grants, check.permission?.statements].find((list) => list?.length) || []).map((g) => (typeof g === 'string' ? g : g?.sql || '')).filter(Boolean);
   return blockOf(blockWhy(`${check.detail || ''} ${grants.join(' ')}`), [check.detail, ...grants].filter(Boolean).join('\n'));
 }
 
