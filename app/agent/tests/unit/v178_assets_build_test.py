@@ -29,17 +29,9 @@ def test_the_build_reads_every_pin_and_the_file_names_from_the_notebook(agent_ns
     for name in ("__AGENT_VERSION__", "INSPIRE_ASSETS_PYTHON", "INSPIRE_ASSET_WHEELS", "INSPIRE_ASSET_MODULES", "INSPIRE_APP_ASSET_WHEELS",
                  "INSPIRE_ASSET_CLIS", "GENIE_NOTEBOOK_ENV_VERSION"):
         assert pins[name] == agent_ns[name], name
-    for args in (("python", "lxml", "aarch64", "3.12"), ("python", "weasyprint"), ("cli", "genie-code-cli", "x86_64"), ("license", "Noto Sans JP")):
+    for args in (("python", "lxml", "aarch64", "3.12"), ("python", "sqlglot"), ("cli", "genie-code-cli", "x86_64"), ("license", "Noto Sans JP")):
         assert pins["inspire_asset_file"](*args) == agent_ns["inspire_asset_file"](*args), "the build and the loader name files alike"
     assert pins["inspire_asset_file"]("font", "Noto Sans Arabic", weight=700) == "fonts/noto-sans-arabic-700.ttf"
-
-
-def test_every_pdf_font_the_agent_uses_has_one_pinned_file_and_no_pin_is_left_over(agent_ns):
-    build = _build()
-    used = {(family, weight) for family, weights in agent_ns["DatabricksInspire"]._DOC_FONT_FAMILIES.values() for weight in weights}
-    assert used == set(build.FONT_FILES) == set(build.FONT_SHA256) and len(used) == 19
-    assert all(path.endswith(".ttf") and "/v" in path for path in build.FONT_FILES.values()), "each pin names a versioned file"
-    assert all(len(sha) == 64 for sha in build.FONT_SHA256.values()), "each font file is pinned by its sha256 too"
 
 
 def test_a_cli_sha256_comes_from_the_release_checksum_file_never_from_the_github_api(monkeypatch):
@@ -205,7 +197,6 @@ def test_the_build_ships_both_serverless_machines_unless_told_otherwise(tmp_path
     build = _build()
     seen = {"python": []}
     monkeypatch.setattr(build, "add_python", lambda bundle, pins, python, machines, names: seen["python"].append((python, list(machines))))
-    monkeypatch.setattr(build, "add_fonts", lambda bundle, pins: None)
     monkeypatch.setattr(build, "add_clis", lambda bundle, pins, machines: seen.__setitem__("cli", list(machines)))
     monkeypatch.setattr(build, "write", lambda *a, **k: {"path": "", "archive": 0, "sha256": "", "files": 0, "payload": 0})
     probe = tmp_path / "probe.json"

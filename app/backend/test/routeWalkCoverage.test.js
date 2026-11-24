@@ -57,8 +57,7 @@ const NOT_WALKED = {
   'GET /api/inspire/log': 'reads the run log only for its launcher or an App manager; no non-owner harness row walks it yet, and the route samples prove the launcher refusal',
   'POST /api/run/:runId/again': 'launches a run again only for its launcher or an App manager; no non-owner harness row walks it yet, and the route samples and runAgain tests prove the launcher refusal',
   'POST /api/inspire/docs/save': 'saves one document the Generate docs wizard made into the run\u2019s own Assets folder with the person\u2019s own sign-in; no non-owner harness row walks it yet, and fx115DocRoutes.test.js proves the folder, name, type and size refusals',
-  'POST /api/inspire/docs/translate': 'translates the selected use case texts for a document language through the App\u2019s model and changes nothing; no non-owner harness row walks it yet, and fx115DocRoutes.test.js proves the refusals',
-  'POST /api/documents': 'rebuilds a session\'s documents only for its launcher or an App manager; the documentJob and launcher-refusal tests prove it',
+  'POST /api/inspire/docs/translate': 'translates the selected use case texts (REQ-503) for a document language through the App\u2019s model and changes nothing; no non-owner harness row walks it yet, and fx115DocRoutes.test.js proves the refusals',
 };
 const LITERAL = /\bapp\.(get|post|put|patch|delete|all)\(\s*(['"`])(.*?)\2([^\n]*)/g;
 const ANY = /\bapp\.(get|post|put|patch|delete|all)\(/g;
