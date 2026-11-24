@@ -9,7 +9,6 @@ export const AGENT_ACTIONS = {
   override: 'Override with a reason', add_note: 'Add note', set_target: 'Set target', run_again: 'Run again',
 };
 export const AGENT_ACTION_IDS = Object.keys(AGENT_ACTIONS);
-export const APP_ACTION_IDS = ['set_target', 'run_again'];
 export const ACTION_FIELDS = {
   done: [], snooze: ['until'], assign: ['owner'], skip: [], not_an_issue: ['reason'], reopen: [],
   override: ['status', 'reason'], add_note: ['note'], set_target: ['value'], run_again: [],

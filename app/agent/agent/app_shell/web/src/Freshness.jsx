@@ -94,34 +94,6 @@ export function useFreshness({ page, onRefreshed, onRun, onSeeChanged, showThrou
   return { fresh, now, busy, ask, load, showThrough, builtAt, why: `fresh-why-${page.id}`, reason: !!fresh && !busy && !fresh.can_refresh && fresh.reason };
 }
 
-export function FreshBar({ freshness, children }) {
-  const { fresh, now, busy, ask, showThrough, builtAt, why, reason } = freshness;
-  const writing = useWrite().busy;
-  const text = bannerText(fresh, now, showThrough, builtAt);
-  if (!fresh || !text) return children;
-  const state = fresh.active ? activeState(fresh.active) : runState('queued');
-  return (
-    <>
-      <span className={`fresh${fresh.overdue ? ' fresh--late' : ''}`} data-source={fresh.source}>
-        {busy ? (
-          <span className="fresh-busy" role="status" id={why} data-run-state={state.key} data-tone={state.tone}
-            title={fresh.active?.by ? `Started by ${fresh.active.by}` : undefined}>
-            {isQuiet(fresh.active) ? <Icon name="info" size={14} /> : <span className="fresh-dots" aria-hidden="true"><i /><i /><i /></span>}<b>{state.heading}</b>
-            {fresh.active && <RunBar active={fresh.active} label="How far the refresh is" />}
-          </span>
-        ) : (
-          <span className="fresh-t" title={text}><Icon name="history" size={14} /><span className="fresh-tx">{text}</span>{fresh.overdue && <b className="fresh-flag">Overdue</b>}</span>
-        )}
-      </span>
-      {children}
-      <button className="btn fresh-btn top-ic2" onClick={() => ask()} disabled={busy || writing || !fresh.can_refresh} title="Run this use case again on all its data"
-        aria-label="Refresh now" aria-describedby={busy || reason ? why : undefined}>
-        <Icon name="undo" size={15} /><span>Refresh now</span>
-      </button>
-    </>
-  );
-}
-
 export function FreshDetail({ freshness }) {
   const { fresh, now, busy, load, why, reason, showThrough, builtAt } = freshness;
   if (!fresh) return null;
