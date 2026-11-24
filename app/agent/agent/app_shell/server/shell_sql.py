@@ -6411,7 +6411,7 @@ def value_basis_clean(raw) -> dict:
     currency, status, said = raw.get("currency"), raw.get("status"), raw.get("disclaimer")
     if amount is None or cases is None or amount <= 0 or cases <= 0 or status not in VALUE_STATUSES:
         return None
-    if not isinstance(currency, str) or not re.fullmatch(r"[A-Z]{3}", currency):
+    if not isinstance(currency, str) or not (len(currency) == 3 and currency.isascii() and currency.isalpha() and currency.isupper()):
         return None
     if not isinstance(said, dict) or not all(isinstance(said.get(k), str) and said[k].strip() for k in ("short", "full")):
         return None
