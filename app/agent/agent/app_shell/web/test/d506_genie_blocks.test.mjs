@@ -32,6 +32,7 @@ function genieRoutes(turn = TURN) {
     'agent/status': ({ json }) => json(200, { mode: 'agent', note: '', page: PAGE, genie: true, model: 'system.ai.claude-sonnet-4-6' }),
     'agent/ask': ({ route, json }) => { calls.asks.push(route.request().postDataJSON()); return json(200, { ...turn, state: 'running', blocks: [], answer: '' }); },
     'agent/turn': ({ json }) => json(200, turn),
+    'agent/briefing': ({ json }) => json(200, { tickets: [], actions: ['done', 'not-an-issue', 'could-not-fix'] }),
     'agent/prepare': ({ route, json }) => { calls.prepared.push(route.request().postDataJSON()); return json(200, PREPARED); },
     'records/act': ({ route, json }) => {
       const body = actBody(route);

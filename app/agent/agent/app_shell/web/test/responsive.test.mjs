@@ -110,7 +110,7 @@ test('on a phone the other screens sit behind the avatar menu and the switcher l
   assert.equal(await menuOpen(page), false);
   await page.locator('[data-avatar-menu] button').first().click();
   await page.locator('[data-avatar-menu] [role="menu"]').waitFor();
-  assert.deepEqual(await menuNames(page), ['Switch to dark theme', 'Take the tour', 'Settings', 'Runs', 'Performance', 'Admin']);
+  assert.deepEqual(await menuNames(page), ['Switch to dark theme', 'Take the tour', 'Dashboard', 'Settings', 'Runs', 'Performance', 'Admin']);
   await page.getByRole('menuitem', { name: 'Runs' }).click();
   await page.waitForFunction(() => window.location.hash === '#/n01_u05/runs');
   assert.equal(await menuOpen(page), false, 'picking a section closes the menu');

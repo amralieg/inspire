@@ -34,7 +34,7 @@ export default function AvatarMenu({ user, chrome, page, app, sections, onSectio
   }, [sections]);
   const owner = app?.is_owner === true || page?.is_owner === true;
   const pick = (run) => () => { setOpen(false); run(); };
-  const on = section === 'alerts' && sections.includes('runs') && !sections.includes('alerts') ? 'runs' : section;
+  const on = section === 'alerts' && sections.includes('runs') ? 'runs' : section;
   const place = (s) => (
     <button key={s} type="button" role="menuitem" className="av-i" data-tour={s === 'settings' ? undefined : s} aria-current={on === s ? 'page' : undefined} onClick={pick(() => onSection(s))}>
       <Icon name={ICONS[s]} size={15} />{sectionTitle(page, s)}{counts[s] != null && <small className="av-n2" data-count={counts[s]}>{integer(counts[s])}</small>}
