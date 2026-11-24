@@ -8,8 +8,6 @@ export const APP_TABS = [
   { id: 'run', label: 'Run', blurb: 'Open and use the MVPs, act on their lists and track the impact.' },
 ];
 
-// Kept because test/ui/navHistory.ui.test.mjs imports it; the header no longer numbers Home (REQ-508 F8). Drop with that test's approved edit.
-
 export const REMOVED_TAB_LABELS = ['Get Started', 'Results'];
 
 export const TAB_LOCKED_REASON = {
