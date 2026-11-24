@@ -88,7 +88,7 @@ test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step h
     assert.equal(await panel.getByRole('group', { name: /^What happens to v/ }).count(), 0, 'a first build has no version before to keep or remove');
     await wizardBox(page).fill('');
     assert.equal(await panel.locator('[data-vibes-skipped]').textContent(),
-      'Not picked in What to deliver, so not built: the Dashboard, the Agentic App and the Alert.'); // D-LABEL209
+      'Not picked in What to deliver, so not built: the Dashboard and the Alert.'); // D-LABEL209
     assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), ONE_BOX, 'the box has the focus');
     for (const dark of [false, true]) {
       await page.evaluate((on) => document.documentElement.classList.toggle('dark', on), dark);

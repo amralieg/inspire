@@ -47,12 +47,11 @@ test('the App starts on with its Genie Agent on and the alert off, a policied so
   const { page, made } = ui;
   try {
     await toDelivery(page);
-    const genie = page.getByRole('checkbox', { name: /^Genie Agent/ });
     const box = (name) => page.getByRole('checkbox', { name: new RegExp(`^${name}`) });
-    assert.deepEqual([await box('Dashboard').isChecked(), await genie.isChecked(), await box('Agentic App').isChecked(), await box('Alert').isChecked()],
-      [false, true, true, false], 'the Genie Agent and App start on, the dashboard and the alert off');
-    assert.equal(await genie.isDisabled(), false, 'the App does not lock the Genie Agent (REQ-152)');
-    await page.locator('[data-output="genie_space"]').getByText("The App's own agent answers Ask.").waitFor();
+    assert.deepEqual([await box('Dashboard').isChecked(), await box('Alert').isChecked()], [false, false], 'the dashboard and the alert start off');
+    assert.equal(await box('Genie Agent').count(), 0, 'REQ-514: the Genie Agent is not a choice');
+    assert.equal(await box('Agentic App').count(), 0, 'REQ-514: the App is not a choice');
+    assert.equal(await page.locator('[data-output="genie_space"]').count(), 0, 'REQ-514: no separate Genie Agent card');
     await toAppAccess(page);
     await openFolded(page, 'Who sees which rows');
     const access = page.getByRole('region', { name: 'App access' });
