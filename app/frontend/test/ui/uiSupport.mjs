@@ -697,9 +697,10 @@ export function watchAsks(page, pick = () => true) {
   return { sent, quiet };
 }
 
-export async function lowContrast(page, selectors = ['[data-use-case-pane]', '[data-mvp-panel]', '[role="dialog"]']) {
-  return page.evaluate((rootSelectors) => {
-    document.getAnimations().filter((a) => a instanceof CSSTransition).forEach((a) => a.finish());
+// `settle` jumps finite entrance animations (dialog-enter, drawer-enter fade in) to their end, so the resting colours are measured, not a half-faded frame.
+export async function lowContrast(page, selectors = ['[data-use-case-pane]', '[data-mvp-panel]', '[role="dialog"]'], { settle = true } = {}) {
+  return page.evaluate(([rootSelectors, settleEntrances]) => {
+    document.getAnimations().filter((a) => a instanceof CSSTransition || (settleEntrances && a.effect.getComputedTiming().iterations !== Infinity)).forEach((a) => a.finish());
     const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
     const parse = (c) => {
       const m = String(c).match(/^rgba?\(([^)]+)\)$/);
@@ -770,7 +771,7 @@ export async function lowContrast(page, selectors = ['[data-use-case-pane]', '[d
       }
     }
     return { checked, low };
-  }, selectors);
+  }, [selectors, settle]);
 }
 
 export async function lowContrastThroughAnimations(page, selectors, fractions = [0, 0.25, 0.5, 0.75]) {
@@ -787,7 +788,7 @@ export async function lowContrastThroughAnimations(page, selectors, fractions = 
       }
       return running.length;
     }, fraction);
-    const result = await lowContrast(page, selectors);
+    const result = await lowContrast(page, selectors, { settle: false });
     checked = Math.max(checked, result.checked);
     for (const line of result.low) low.add(line.replace(/: [\d.]+$/, ''));
   }

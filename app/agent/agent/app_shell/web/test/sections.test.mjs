@@ -499,9 +499,13 @@ for (const file of EXAMPLES) {
   test(`the ${file} example renders its dashboard, the Screen button and settings with no error`, async () => {
     const info = owned(appInfo(DECIDE, 1, {}, `examples/${file}`));
     const { page, seen, context } = await openApp(browser, served.base, info, { ready: '.ph h1', hash: DASH, watch: prefsFirst(MY_KEY, PERSON, {}),
-      routes: { 'scenario/evaluate': ({ route, json }) => json(200, evaluated(route.request().postDataJSON().values || {})) } });
+      routes: { 'scenario/evaluate': ({ route, json }) => json(200, evaluated(route.request().postDataJSON().values || {})),
+      'scenario/saved': ({ json }) => json(200, { scenarios: [], decisions: [], mine: 0, note: '' }) } });
     const rail = await menuIds(page);
-    assert.equal(rail[2], 'Settings', `${file}: Settings is the first screen item of the avatar menu`);
+    // REQ-506 gap2 put Dashboard (and Plan) entries ahead of Settings: after the theme and tour items only those two may come before Settings.
+    assert.deepEqual(rail.slice(0, 2), ['Switch to dark theme', 'Take the tour'], `${file}: the menu opens with the theme and tour items`);
+    const settingsAt = rail.indexOf('Settings');
+    assert.ok(settingsAt >= 2 && rail.slice(2, settingsAt).every((n) => ['Dashboard', 'Plan'].includes(n)), `${file}: Settings follows the Dashboard and Plan entries of the avatar menu, got ${JSON.stringify(rail)}`);
     const mode = pageMode(info.pages[0]);
     await page.locator('[data-mode="screen"]').click();
     const want = hasWork(info.pages[0]) ? 'work' : 'dashboard';
