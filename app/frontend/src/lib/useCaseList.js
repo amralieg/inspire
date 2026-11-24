@@ -109,6 +109,8 @@ export function buildUseCaseList(results, usecases) {
         for (const field of ['quality', 'quality_mode', 'elite_status', 'elite_score', 'elite_assessment', 'selection_flags', 'selection_drop_reason', 'meets_quality_bar', 'below_bar_reason']) {
           if (row[field] != null && row[field] !== '' && (uc[field] == null || uc[field] === '')) uc[field] = row[field];
         }
+        // REQ-511 (R3 field): when the use case's documents were last made, for the Docs column.
+        if (row.docs_generated_at) uc.docs_generated_at = row.docs_generated_at;
         copyV130TrackingFields(uc, row);
       }
       // When domain JSON `No`/`id` ≠ tracking table `id`, attach scores by Name + Business Domain.

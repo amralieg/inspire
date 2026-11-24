@@ -62,7 +62,8 @@ const TAGS = {
   stale: ['DATA CHANGED', 'border-warning/40 bg-warning-bg text-warning-fg'],
 };
 
-export default function ValueBox({ yearly = null, summary = null, status = '', canCalculate = false, onCalculate, onEdit, readOnly = false }) {
+// inset (REQ-511 A6 row): the edit pencil and the status pill sit inside the box, so nothing leaves it and the row keeps its height.
+export default function ValueBox({ yearly = null, summary = null, status = '', canCalculate = false, onCalculate, onEdit, readOnly = false, inset = false }) {
   const m = boxModel({ yearly, summary, status });
   const amount = useCountUp(m.amount ?? 0);
   const last = useRef(m.amount);
@@ -114,14 +115,14 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
       <span data-value-period="" className="text-[10px] text-text-secondary">Per year</span>
       {!readOnly && onEdit && m.state !== 'measured' && (
         <button type="button" data-value-edit="" aria-label="Edit value" title="Edit value" onClick={(e) => { e.stopPropagation(); onEdit(); }}
-          className="absolute -end-2.5 -top-2.5 flex h-[26px] w-[26px] items-center justify-center rounded-full border border-border bg-surface text-text-secondary shadow hover:border-db-red-solid hover:text-db-red-fg">
+          className={`absolute ${inset ? 'end-1 top-1 h-[22px] w-[22px]' : '-end-2.5 -top-2.5 h-[26px] w-[26px]'} flex items-center justify-center rounded-full border border-border bg-surface text-text-secondary shadow hover:border-db-red-solid hover:text-db-red-fg`}>
           <Pencil size={13} />
         </button>
       )}
-      <span data-value-tag="" className={`absolute -bottom-2.5 rounded-full border px-2 py-px text-[9px] font-bold tracking-wide ${tagCls}`}>{tag}</span>
+      <span data-value-tag="" className={`${inset ? 'mt-0.5' : 'absolute -bottom-2.5'} rounded-full border px-2 py-px text-[9px] font-bold tracking-wide ${tagCls}`}>{tag}</span>
     </div>
   );
   // FX-38b (W16 D25): the note sits under the box, past the pill that overhangs its bottom edge, so it never covers the pill or leaves the box.
-  if (!yearly?.check?.outside) return box;
+  if (inset || !yearly?.check?.outside) return box;
   return <div className="flex w-[8.5rem] shrink-0 flex-col items-center gap-3.5">{box}{note}</div>;
 }

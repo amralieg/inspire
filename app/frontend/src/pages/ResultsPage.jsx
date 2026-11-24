@@ -45,6 +45,8 @@ import { SkeletonCard, SkeletonStats } from '../components/SkeletonLoader';
 import { DataAccessBadge, InsightsGrid, SidebarFilterPanel } from '../components/ResultsInsights';
 import { usePortfolio } from '../components/PortfolioCards';
 import UseCaseCard from '../components/UseCaseCard';
+import UseCaseRow, { ROW_GRID } from '../components/results/UseCaseRow';
+import ReviewReader from '../components/results/ReviewReader';
 import { AllRunsValuePanel, RunValueLine, RunValuePanel } from '../components/ValueTotalsPanel';
 import { valueQuery } from '../lib/valueLedger';
 import { STATUS_LABELS } from '../lib/valueLabels';
@@ -102,6 +104,7 @@ import { generationFolder, workspaceNotebookUrl } from '../lib/workspaceLinks';
 import ImplementWizard from './ImplementWizard';
 import CalculateValueDialog from '../components/CalculateValueDialog';
 import { rememberCard, returnToCard } from '../lib/cardReturn';
+import { boxModel } from '../components/ValueBox';
 import ValueBulkPanel, { ValueBulkBar, ValueBulkProgress } from '../components/ValueBulkPanel';
 import { useValueBulkRun } from '../lib/valueBulkRun';
 import { SKIP_CALCULATED, SKIP_NO_TABLE, isCalculated, valueWorker } from '../lib/valueBulk';
@@ -140,7 +143,6 @@ function formatSessionDate(dateStr) {
 /* The Assets run bar's fixed stages; the run stepper above the section tabs carries each phase's real state. */
 const PIPELINE_STAGES = ['Setup', 'Business Understanding', 'Use Case Design', 'Domain Mapping', 'Prioritization', 'Implementation', 'Executive Readout'];
 
-import { BuildNextPanel } from '../components/BuildNext';
 import ValueDisclaimer from '../components/ValueDisclaimer';
 import { anyValued } from '../lib/valueFooter';
 
@@ -741,8 +743,6 @@ export default function ResultsPage({
   const isArchivedUc = (uc) => Boolean(archived[archiveKeyOf(selectedSessionId, uc)]);
   const archivedCount = allUseCases.filter(isArchivedUc).length;
   const archiveCounts = { active: allUseCases.length - archivedCount, archived: archivedCount };
-  // FX-63c: Build next counts and suggests from the use cases the Active list shows, never an archived one.
-  const shownForBuildNext = allUseCases.filter((uc) => !isArchivedUc(uc));
   filteredUseCases = filteredUseCases.filter((uc) => inArchiveView(archiveView, isArchivedUc(uc)));
 
   // Apply favorites filter
@@ -752,13 +752,50 @@ export default function ResultsPage({
       return k && favorites[k];
     });
   }
+  // REQ-512: every column header sorts the rows (a click flips the direction); the page's own order stays when none is chosen.
+  const [colSort, setColSort] = useState(null);
+  const MVP_RANK = { ready: 0, in_progress: 1, held: 2, unmet: 3, failed: 4, not_started: 5 };
+  const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  const valueAmountOf = (uc) => {
+    const id = trackingIdOf(uc);
+    return boxModel({ yearly: calculated.byId[id]?.yearly || measuredYearly?.use_cases?.[id] || null, summary: valueTotals?.use_cases?.[id] ?? null }).amount ?? 0;
+  };
+  const COLUMN_COMPARE = {
+    no: (a, b) => trackingIdOf(a).localeCompare(trackingIdOf(b), undefined, { numeric: true }),
+    name: (a, b) => nameOfUseCase(a).localeCompare(nameOfUseCase(b)),
+    mvp: (a, b) => cmp(MVP_RANK[mvpStateOf(a)?.group] ?? 5, MVP_RANK[mvpStateOf(b)?.group] ?? 5),
+    docs: (a, b) => cmp(String(a.docs_generated_at || ''), String(b.docs_generated_at || '')),
+    score: (a, b) => cmp(inspireScoreFromUc(a) ?? -Infinity, inspireScoreFromUc(b) ?? -Infinity),
+    value: (a, b) => cmp(valueAmountOf(a), valueAmountOf(b)),
+  };
+  const toggleColSort = (key) => setColSort((cur) => (cur?.key === key ? { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: ['score', 'value', 'docs'].includes(key) ? 'desc' : 'asc' }));
+  if (colSort) {
+    const sign = colSort.dir === 'asc' ? 1 : -1;
+    filteredUseCases = [...filteredUseCases].sort((a, b) => sign * COLUMN_COMPARE[colSort.key](a, b));
+  }
   // REQ-441: pick cards and calculate their value from the defaults. Not in the demo (no ledger) and not without a database and warehouse.
   const bulkOn = !showcase && Boolean(inspireDb && warehouseId && selectedSessionId);
   // REQ-444: a selection belongs to the run it was made in; changing the run clears it, so a bulk action never sends another run's ids.
   useEffect(() => { setBulkPicked(new Set()); }, [selectedSessionId]);
   const bulkIds = filteredUseCases.map((uc) => trackingIdOf(uc)).filter((id) => id && bulkPicked.has(id));
   const setBulkPick = (id, on) => setBulkPicked((prev) => { const next = new Set(prev); if (on) next.add(id); else next.delete(id); return next; });
-  const [docsOpen, setDocsOpen] = useState(false);
+  const [docsUcs, setDocsUcs] = useState(null); // the use cases the Generate docs wizard is open for (one row, or the ticked rows)
+  // REQ-512 D1: there is no bulk build API, so "Build MVP for N" opens the MVP wizard once per use case; buildQueue says where it is.
+  const [buildQueue, setBuildQueue] = useState({ left: [], total: 0 });
+  const startBuildQueue = (ucs) => {
+    const [first, ...rest] = ucs;
+    if (!first) return;
+    setBuildQueue({ left: rest, total: ucs.length });
+    startImplement(first);
+  };
+  const stepBuildQueue = () => {
+    const [next, ...rest] = buildQueue.left;
+    if (!next) { if (buildQueue.total) setBuildQueue({ left: [], total: 0 }); return false; }
+    setBuildQueue({ ...buildQueue, left: rest });
+    startImplement(next);
+    return true;
+  };
+  const pickedUseCases = () => filteredUseCases.filter((uc) => bulkIds.includes(trackingIdOf(uc)));
   const startBulk = () => {
     const picked = new Set(bulkIds);
     const items = filteredUseCases.filter((uc) => picked.has(trackingIdOf(uc))).map((uc) => {
@@ -1147,6 +1184,17 @@ export default function ResultsPage({
   const canImplement = !showcase && hasMvpData && !isProgressive;
   const selectedFigures = selectedSessionId ? portfolio?.sessions?.[String(selectedSessionId)] || null : null;
   const startImplement = (uc) => { setImplementFocus(null); setImplementUc(uc); };
+  const changeRun = () => {
+    setResults(null);
+    setUsecases(null);
+    setError('');
+    setExpandedUseCase(null);
+    setSelectedSessionId(null);
+    setSessionsLoaded(false);
+    setIsProgressive(false);
+  };
+  const runCalculated = valueTotals?.run?.n_calculated ?? allUseCases.filter((uc) => isCalculated(calculated.byId[trackingIdOf(uc)])).length;
+  const runMvpsLive = allUseCases.filter((uc) => mvpStateOf(uc)?.group === 'ready').length;
   const feedbackCurrentFor = (uc) => (uc?._v130?.useCaseKey ? feedbackLatest[uc._v130.useCaseKey] : undefined);
   const detailPropsFor = (uc) => {
     const key = uc?._v130?.useCaseKey;
@@ -1166,14 +1214,52 @@ export default function ResultsPage({
     };
   };
 
+  // The props the use case card takes; the reader shows the whole card, the rows take the parts they show.
+  const cardPropsFor = (uc, idx) => {
+    const favKey = favoriteKeyOf(uc);
+    const tid = trackingIdOf(uc);
+    return {
+      uc,
+      index: idx,
+      isFavorite: !!(favKey && favorites[favKey]),
+      onToggleFavorite: () => toggleFavorite(uc),
+      onRename: inspireDb && warehouseId && selectedSessionId ? (name) => renameUseCase(uc, name) : undefined,
+      liveAppStale: liveAppRenameStale(implementLatestById[tid], nameOfUseCase(uc)) && cardAssetLinks(implementLatestById[tid]).some((l) => l.id === 'app'),
+      onUpdateLiveApp: inspireDb && warehouseId && selectedSessionId ? () => updateLiveApp(uc) : undefined,
+      v130: uc._v130,
+      feedbackCurrent: feedbackCurrentFor(uc),
+      useCaseValue: runValue?.use_cases?.[tid] ?? null,
+      estimate: estimates?.use_cases?.[tid] ?? null,
+      yearly: calculated.byId[tid]?.yearly || measuredYearly?.use_cases?.[tid] || null,
+      valueSummary: valueTotals?.use_cases?.[tid] ?? null,
+      valueReview: calculated.byId[tid]?.answers?.plan?.review || null,
+      canCalculate: Boolean(runValueUrl && tid),
+      onCalculate: () => openCalc(uc),
+      onEdit: runValueUrl && tid ? () => openCalc(uc) : undefined,
+      onSetRule: canImplement ? () => startImplement(uc) : undefined,
+      onUndoRefine: tid ? () => undoRefinedCard(tid) : undefined,
+      implementStatus: tid ? implementState(implementLatestById[tid] || null, notebookStatus(uc, implementView.notebook_run)) : null,
+      onImplement: canImplement ? () => startImplement(uc) : undefined,
+      onOpenMvp: onOpenImplement && tid && selectedSessionId ? () => onOpenImplement(String(selectedSessionId), tid) : undefined,
+      notebookUrl: workspaceNotebookUrl(databricksHost, uc.notebook_path || ''),
+      assetLinks: tid ? cardAssetLinks(implementLatestById[tid] || null) : [],
+      assetUseCaseId: tid || '',
+      assetFlags: assetFlags && tid ? (assetFlags[tid] || {}) : null,
+      isArchived: isArchivedUc(uc),
+      onToggleArchive: selectedSessionId && archiveKeyOf(selectedSessionId, uc) ? () => toggleArchive(archiveKeyOf(selectedSessionId, uc)) : undefined,
+      ...detailPropsFor(uc),
+    };
+  };
+  const readerIndex = expandedUseCase ? filteredUseCases.findIndex((uc) => cardKeys.get(uc) === expandedUseCase) : -1;
+
   return (
     <div
       className={
         embedded
           ? 'px-4 py-4'
           : results
-            ? 'max-w-7xl mx-auto px-0 py-2 sm:py-3'
-            : 'max-w-7xl mx-auto px-6 py-8'
+            ? 'w-full px-0 py-2 sm:py-3'
+            : 'w-full px-6 py-8'
       }
     >
       {/* Page header — tighter when results are shown so executive summary stays above the fold */}
@@ -1216,44 +1302,33 @@ export default function ResultsPage({
         </div>
       )}
       {!embedded && results && (
-        <section aria-label="This run" data-run-heading="" className="mb-3 mt-6 flex flex-wrap items-end justify-between gap-3 border-b border-border pb-3">
+        <section aria-label="This run" data-run-box="" data-run-heading="" className="mb-3 mt-4 flex flex-wrap items-center gap-x-7 gap-y-3 rounded-2xl border border-db-red/20 bg-gradient-to-r from-db-red-50 to-surface px-5 py-3.5">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-secondary">This run</p>
-            <h2 className="mt-1 text-xl sm:text-2xl font-bold tracking-tight text-text-primary break-words" title={resultsPageTitle || undefined}>
-              {resultsPageTitle}
+            <h2 className="text-xl font-bold tracking-tight text-text-primary sm:text-2xl" title={resultsPageTitle || undefined}>
+              <button type="button" aria-label={`Change run: ${resultsPageTitle}`} title="Switch to another run" onClick={changeRun}
+                className="group inline-flex items-center gap-2 break-words rounded-md py-0.5 pe-1 text-start hover:text-db-red-fg">
+                {resultsPageTitle}
+                <RefreshCw size={13} className="shrink-0 text-text-tertiary group-hover:text-db-red-fg" aria-hidden />
+              </button>
             </h2>
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-text-secondary">
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-text-secondary">
               <span data-run-business="">{runBusiness(selectedSession) || displayCleanText(results.business_name) || 'No business name'}</span>
               {runDate(selectedSession) && <span>· Updated {formatSessionDate(runDate(selectedSession))}</span>}
               <LatestRunBadge session={selectedSession} latest={String(selectedSessionId) === latestId} />
             </p>
-            {/* FX-34 (REQ-448, W16 D9): the header says the run value the Business panel and the Start card say. */}
-            {valueTotals?.run && <div data-run-header-value="" className="mt-2"><RunValueLine value={valueTotals.run_value || valueTotals.run} /></div>}
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setResults(null);
-              setUsecases(null);
-              setError('');
-              setExpandedUseCase(null);
-              setSelectedSessionId(null);
-              setSessionsLoaded(false);
-              setIsProgressive(false);
-            }}
-            className="inline-flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-sm text-text-secondary border border-border rounded-lg hover:bg-bg-subtle transition-smooth"
-          >
-            <RefreshCw size={12} />
-            Change run
-          </button>
+          {/* FX-34 (REQ-448, W16 D9): the header says the run value the Business panel and the Start card say. */}
+          {valueTotals?.run && <div data-run-total-value="" data-run-header-value=""><RunValueLine value={valueTotals.run_value || valueTotals.run} /></div>}
+          <dl className="ms-auto flex gap-7">
+            {[['Use cases', allUseCases.length], ['Value calculated', `${runCalculated} of ${allUseCases.length}`], ['MVPs live', runMvpsLive]].map(([label, n]) => (
+              <div key={label}>
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary">{label}</dt>
+                <dd className="mt-0.5 text-[17px] font-bold tabular-nums text-text-primary">{n}</dd>
+              </div>
+            ))}
+          </dl>
         </section>
-      )}
-      {!embedded && results && selectedSessionId && inspireDb && warehouseId && (
-        <div className="mb-3">
-          <BuildNextPanel apiFetch={apiFetch} inspireDatabase={inspireDb} warehouseId={warehouseId} sessionId={selectedSessionId} showcase={Boolean(showcase)} useCases={shownForBuildNext} refreshKey={implementRefresh * 1000 + valueTick}
-            onStart={onOpenImplement ? (useCaseId) => onOpenImplement(String(selectedSessionId), useCaseId) : undefined}
-            onMeasure={onOpenImplement ? (useCaseId) => onOpenImplement(String(selectedSessionId), useCaseId, 'measure') : undefined} />
-        </div>
       )}
       {embedded && filteredUseCases.length > 0 && (
         <div className="flex items-center gap-2 mb-4">
@@ -2057,7 +2132,9 @@ export default function ResultsPage({
               <RefineBanner {...refineBanner} />
               {bulkOn && bulkHere && <ValueBulkProgress />}
               {bulkOn && filteredUseCases.length > 0 && (
-                <ValueBulkBar shown={filteredUseCases.filter((uc) => trackingIdOf(uc)).length} selected={bulkIds.length} onCalculate={startBulk} onGenerate={() => setDocsOpen(true)} busy={Boolean(bulkRun.run?.running)}
+                <ValueBulkBar shown={filteredUseCases.filter((uc) => trackingIdOf(uc)).length} selected={bulkIds.length} onCalculate={startBulk} busy={Boolean(bulkRun.run?.running)}
+                  onGenerate={() => setDocsUcs(pickedUseCases())} onBuild={canImplement ? () => startBuildQueue(pickedUseCases()) : null}
+                  onClear={() => setBulkPicked(new Set())}
                   onSelectAll={(on) => setBulkPicked(on ? new Set(filteredUseCases.map((uc) => trackingIdOf(uc)).filter(Boolean)) : new Set())} />
               )}
 
@@ -2072,49 +2149,44 @@ export default function ResultsPage({
                 aria-label="Use case list"
               >
                 {filteredUseCases.length > 0 ? (
-                  <div className="space-y-3 pb-2">
+                  <div className="pb-2">
+                    <div data-use-case-head="" className={`${ROW_GRID} sticky top-0 z-[2] bg-bg px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary`}>
+                      <div>
+                        {bulkOn && (
+                          <input type="checkbox" aria-label="Select all" checked={bulkIds.length > 0 && bulkIds.length === filteredUseCases.filter((uc) => trackingIdOf(uc)).length}
+                            onChange={(e) => setBulkPicked(e.target.checked ? new Set(filteredUseCases.map((uc) => trackingIdOf(uc)).filter(Boolean)) : new Set())} />
+                        )}
+                      </div>
+                      {[['no', '#', ''], ['', '', ''], ['name', 'Use case', ''], ['mvp', 'MVP', 'text-center'], ['docs', 'Docs', 'text-center'], ['score', 'Score', 'text-center'], ['value', 'Value', 'text-center']].map(([key, label, cls], i) => (
+                        key ? (
+                          <button key={key} type="button" onClick={() => toggleColSort(key)} aria-sort={colSort?.key === key ? (colSort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                            className={`${cls} ${key === 'no' ? 'text-start' : ''} uppercase tracking-[0.06em] hover:text-text-primary ${colSort?.key === key ? 'text-text-primary' : ''}`}>
+                            {label}{colSort?.key === key ? (colSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
+                          </button>
+                        ) : <div key={`gap${i}`} />
+                      ))}
+                    </div>
+                    <div className="space-y-1.5">
                     {filteredUseCases.map((uc, idx) => {
-                      const favKey = favoriteKeyOf(uc);
                       const tid = trackingIdOf(uc);
+                      const cardProps = cardPropsFor(uc, idx);
+                      const key = cardKeys.get(uc);
                       return (
-                      <div key={cardKeys.get(uc)} data-use-case-no={uc.No != null ? String(uc.No) : undefined} data-use-case-id={tid || undefined} className="scroll-mt-2">
-                      <UseCaseCard
+                      <div key={key} data-use-case-no={uc.No != null ? String(uc.No) : undefined} data-use-case-id={tid || undefined} className="scroll-mt-10">
+                      <UseCaseRow
                         uc={uc}
                         index={idx}
-                        expanded={expandedUseCase === cardKeys.get(uc)}
-                        onToggle={() => setExpandedUseCase(expandedUseCase === cardKeys.get(uc) ? null : cardKeys.get(uc))}
-                        isFavorite={!!(favKey && favorites[favKey])}
-                        onToggleFavorite={() => toggleFavorite(uc)}
-                        onRename={inspireDb && warehouseId && selectedSessionId ? (name) => renameUseCase(uc, name) : undefined}
-                        liveAppStale={liveAppRenameStale(implementLatestById[trackingIdOf(uc)], nameOfUseCase(uc)) && cardAssetLinks(implementLatestById[trackingIdOf(uc)]).some((l) => l.id === 'app')}
-                        onUpdateLiveApp={inspireDb && warehouseId && selectedSessionId ? () => updateLiveApp(uc) : undefined}
+                        open={expandedUseCase === key}
+                        onOpen={() => setExpandedUseCase(expandedUseCase === key ? null : key)}
                         selection={bulkOn && tid ? { checked: bulkPicked.has(tid), onChange: (on) => setBulkPick(tid, on) } : null}
-                        v130={uc._v130}
-                        feedbackCurrent={feedbackCurrentFor(uc)}
-                        useCaseValue={runValue?.use_cases?.[trackingIdOf(uc)] ?? null}
-                        estimate={estimates?.use_cases?.[trackingIdOf(uc)] ?? null}
-                        yearly={calculated.byId[tid]?.yearly || measuredYearly?.use_cases?.[tid] || null}
-                        valueSummary={valueTotals?.use_cases?.[tid] ?? null}
-                        valueReview={calculated.byId[tid]?.answers?.plan?.review || null}
-                        canCalculate={Boolean(runValueUrl && tid)}
-                        onCalculate={() => openCalc(uc)}
-                        onEdit={runValueUrl && tid ? () => openCalc(uc) : undefined}
-                        onSetRule={canImplement ? () => startImplement(uc) : undefined}
-                        onUndoRefine={tid ? () => undoRefinedCard(tid) : undefined}
-                        implementStatus={tid ? implementState(implementLatestById[tid] || null, notebookStatus(uc, implementView.notebook_run)) : null}
-                        onImplement={canImplement ? () => startImplement(uc) : undefined}
-                        onOpenMvp={onOpenImplement && tid && selectedSessionId ? () => onOpenImplement(String(selectedSessionId), tid) : undefined}
-                        notebookUrl={workspaceNotebookUrl(databricksHost, uc.notebook_path || '')}
-                        assetLinks={tid ? cardAssetLinks(implementLatestById[tid] || null) : []}
-                        assetUseCaseId={tid || ''}
-                        assetFlags={assetFlags && tid ? (assetFlags[tid] || {}) : null}
-                        isArchived={isArchivedUc(uc)}
-                        onToggleArchive={selectedSessionId && archiveKeyOf(selectedSessionId, uc) ? () => toggleArchive(archiveKeyOf(selectedSessionId, uc)) : undefined}
-                        {...detailPropsFor(uc)}
+                        onGenerateDocs={bulkOn && tid ? () => setDocsUcs([uc]) : undefined}
+                        docsMade={Boolean(uc.docs_generated_at)}
+                        {...cardProps}
                       />
                       </div>
                       );
                     })}
+                    </div>
                   </div>
                 ) : allUseCases.length > 0 && archiveCounts[archiveView] === 0 ? (
                   <div data-archive-empty={archiveView} className="bg-surface border border-border/70 rounded-xl p-10 text-center shadow-elevated">
