@@ -58,8 +58,8 @@ async function builds(classes) {
   return classes.filter((c) => !css.includes(`.${c.replace(/[^a-zA-Z0-9_-]/g, (ch) => `\\${ch}`)}`));
 }
 
-test('one primary red: --color-primary is #E8311B in light and #FF4A33 in dark, with hover, subtle and fg tokens', () => {
-  assert.equal(norm(resolve('--color-primary', 'light')), norm('#E8311B'));
+test('one primary red: --color-primary is #D42A15 in light and #FF4A33 in dark, with hover, subtle and fg tokens', () => {
+  assert.equal(norm(resolve('--color-primary', 'light')), norm('#D42A15'));
   assert.equal(norm(resolve('--color-primary', 'dark')), norm('#FF4A33'));
   assert.equal(norm(resolve('--color-primary-fg', 'light')), norm('#FFFFFF'));
   for (const t of ['--color-primary-hover', '--color-primary-subtle', '--color-primary-fg']) {
