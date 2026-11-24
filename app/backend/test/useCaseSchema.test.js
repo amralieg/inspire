@@ -148,7 +148,7 @@ test('the schema statement reads existence, the session tag, the person\'s catal
   assert.deepEqual(got.parameters.map((p) => [p.name, p.value]), [['c', 'main'], ['s0', '_inspire_a']]);
   assert.equal(I.useCaseSchemaTagsSql('main', 's', { inspire_session_id: '42', inspire_use_case_id: 'N01-U01', inspire_business: "Acme's" }),
     "ALTER SCHEMA `main`.`s` SET TAGS ('inspire_session_id' = '42', 'inspire_use_case_id' = 'N01-U01', 'inspire_business' = 'Acme\\'s')");
-  assert.equal(I.useCaseSchemaBuilderGrant('main', 's', 'app-sp'), 'GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`s` TO `app-sp`');
+  assert.equal(I.useCaseSchemaBuilderGrant('main', 's', 'app-sp'), 'GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT ON SCHEMA `main`.`s` TO `app-sp`');
   assert.equal(I.useCaseSchemaBuilderGrant('main', 's', 'x`y'), '');
 });
 
@@ -162,11 +162,11 @@ test('the grant on a use case schema Inspire creates covers every right the buil
   const granted = I.useCaseSchemaBuilderGrant('main', 's', 'app-sp').replace(/^GRANT (.*) ON SCHEMA .*$/, '$1').split(', ');
   assert.equal(I.outputAccess(rowsFrom(granted), 'main.s.n01_u01_results', { builder: true }).write.ok, true);
   assert.equal(I.modelAccess(rowsFrom(granted), 'main.s.n01_u01_results_model', { builder: true }).ok, true);
-  assert.equal(I.outputAccess(rowsFrom(granted), 'main.s.n01_u01_results', { builder: true }).app.ok, true, 'a new App can be given read access');
-  const noManage = I.outputAccess(rowsFrom(granted.filter((p) => p !== 'MANAGE')), 'main.s.n01_u01_results', { builder: true }).app;
+  assert.ok(!granted.includes('MANAGE') && !granted.includes('MODIFY'), 'SEC-01: the builder grant holds no MANAGE or MODIFY');
+  const noManage = I.outputAccess(rowsFrom(granted), 'main.s.n01_u01_results', { builder: true }).app;
   assert.match(noManage.detail, /needs this access.*Permission Required/);
   assert.doesNotMatch(noManage.detail, /GRANT/, 'the prose names no GRANT (REQ-260, must-exclude)');
-  assert.deepEqual(noManage.permission.statements, ['GRANT MANAGE ON SCHEMA `main`.`s` TO `app-sp`'], 'the dialog payload carries the exact statement (must-keep)');
+  assert.deepEqual(noManage.permission.statements, ['GRANT USE SCHEMA ON SCHEMA `main`.`s` TO the new App\'s service principal'], 'the dialog payload carries the read-only statement (must-keep)');
   const withoutModel = granted.filter((p) => p !== 'CREATE MODEL');
   assert.match(I.modelAccess(rowsFrom(withoutModel), 'main.s.n01_u01_results_model', { builder: true }).detail, /needs CREATE MODEL on main\.s/);
 });
@@ -233,7 +233,7 @@ test('create-schema tags the use case schema and lets the identity Inspire build
     assert.ok(logged, 'the create is written to the control log');
     assert.equal(logged.token, APP_TOKEN);
     assert.ok(logged.parameters.some((p) => p.value === 'amr@x'), `the signed-in person is the recorded requester: ${JSON.stringify(logged.parameters)}`);
-    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', APP_TOKEN]]);
+    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', APP_TOKEN]]);
   });
   // D-SL-10B: the App is always the build identity, so the person who asked is never the grantee (must-exclude).
   const named = [];
@@ -257,7 +257,7 @@ test('create-schema on the person route, where the request carries the person to
     const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.deepEqual(got.data.warnings, []);
-    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', "sp-tok"]]);
+    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', "sp-tok"]]);
   });
 });
 
@@ -289,7 +289,7 @@ test('create-schema on a schema that already exists grants the identity Inspire 
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(got.data.existed, true);
     assert.deepEqual(made.sqlCalls.filter((c) => /^(CREATE|ALTER) /.test(c.sql)), [], 'an existing, tagged schema is neither created nor tagged again');
-    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', APP_TOKEN]],
+    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', APP_TOKEN]],
       'the builder grant lands on an existing schema, the case that left the build identity without USE SCHEMA and CREATE TABLE');
   });
 });
@@ -347,7 +347,7 @@ test('an existing schema is never excused as one Inspire creates: a real access 
   assert.equal(got.app.ok, false);
   assert.match(got.app.detail, /needs this access.*Permission Required/);
   assert.doesNotMatch(got.app.detail, /GRANT/);
-  assert.ok(got.app.permission.statements.some((s) => s.startsWith('GRANT MANAGE ON SCHEMA')), 'the dialog payload carries the MANAGE statement (must-keep)');
+  assert.ok(got.app.permission.statements.length && got.app.permission.statements.every((s) => !/MANAGE|MODIFY/.test(s)), 'the dialog payload carries read-only statements (must-keep)');
   assert.match(w.blockWhy(got.app.detail), /^Needs access Inspire does not have on the schema/);
   assert.equal(I.schemaNotCreated(existing), false);
 });

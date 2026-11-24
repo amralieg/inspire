@@ -166,6 +166,8 @@ def waiting_for_access_body(error, owners=()) -> dict:
     return {"state": "waiting_for_access", "message": WAITING_FOR_ACCESS, "tables": tables, "owners": list(owners), "detail": str(error)}
 ACCESS_CARD_ROUTES = ("page", "defaults", "runs", "filters")
 ACCESS_STEPS = ("diagnose", "check", "copy", "grant")
+VIEWER_CHECK_EXEMPT = ("access", "access-request", "access-request/check")
+VIEWER_READ_TTL_S = 30
 ACCESS_READS = (("USE CATALOG", "CATALOG", 1), ("USE SCHEMA", "SCHEMA", 2), ("SELECT", "TABLE", 3))
 
 
@@ -791,6 +793,9 @@ def settings_problems(settings: dict, pages: list) -> list:
         problems += [f"the App settings name an alert for page {k}, which the App does not have" for k in alerts if k not in ids]
         problems += [f"the alert of page {k} must be an https link, not {v!r}" for k, v in alerts.items()
                      if not (isinstance(v, str) and v.startswith("https://") and len(v) <= 2000)]
+    sources = settings.get("sources")
+    if sources is not None and not (isinstance(sources, list) and all(isinstance(t, str) and t.strip() for t in sources)):
+        problems.append("the App sources must be the list of every table the App reads, as full catalog.schema.table names")
     unread = settings.get("unread")
     if unread is not None and not (isinstance(unread, dict) and all(
             isinstance(k, str) and isinstance(v, list) and v and all(isinstance(g, str) and g.startswith("GRANT ") for g in v)
@@ -2316,7 +2321,7 @@ class Shell:
         self.opening, self.opened = {}, threading.Condition()
         self.uncached = False
         self.enforced = self.backend.get("enforced") is True
-        self.viewers, self.viewers_lock = {}, threading.Lock()
+        self.viewers, self.viewers_lock, self.viewer_reads = {}, threading.Lock(), {}
         self.hub_pool = ThreadPoolExecutor(max_workers=HUB_WORKERS)
         self.warehouse = str(self.env.get("DATABRICKS_WAREHOUSE_ID") or "")
         self.job_locks, self.job_locks_guard = {}, threading.Lock()
@@ -2842,6 +2847,10 @@ class Shell:
             route = (method, path.strip("/"))
             if route == ("GET", "app"):
                 return 200, self.app_info(headers)
+            if route[1] not in VIEWER_CHECK_EXEMPT:
+                refused = self.viewer_gate(headers)
+                if refused is not None:
+                    return 403, refused
             notice = self.set_aside.get(str(query.get("page") or data.get("page") or ""))
             if notice is not None:
                 # A page set aside answers its notice on every route that names it. A read gets the notice as its answer; a write is
@@ -3126,6 +3135,45 @@ class Shell:
             raise HttpError(400, f"the access steps are {', '.join(ACCESS_STEPS)}")
         found = self.access_found(headers)
         return self.access_grant(headers, data, found) if step == "grant" else found
+
+    def viewer_gate(self, headers: dict):
+        # SEC-01 W6: before any data is served, the viewer's own token must read every table of the `sources` setting (LIMIT 0 probe, so
+        # the service principal runs nothing else first). A table the viewer cannot read is named in a table-level GRANT SELECT to the viewer.
+        sources = [str(t) for t in self.settings.get("sources") or [] if str(t).strip()]
+        if not sources or self.inside:
+            return None
+        token = headers.get("x-forwarded-access-token")
+        if not token:
+            raise HttpError(401, "sign in to the workspace to see this App; it shows data only to people who may read every table it uses")
+        ws = self.user_factory(self.env.get("DATABRICKS_HOST", ""), token)
+        digest = hashlib.sha256(str(token).encode("utf-8")).hexdigest()
+        unread = []
+        for table in sources:
+            with self.viewers_lock:
+                fresh = self.viewer_reads.get((digest, table), 0) > self.clock()
+            if fresh:
+                continue
+            try:
+                self.execute(ws, f"SELECT 1 FROM {shell_sql.table_name(table)} LIMIT 0", [], 1, delta=True)
+            except (QueryError, HttpError, ValueError) as error:
+                if not NO_ACCESS.search(str(getattr(error, "message", None) or error)):
+                    raise
+                unread.append(table)
+                continue
+            with self.viewers_lock:
+                self.viewer_reads[(digest, table)] = self.clock() + VIEWER_READ_TTL_S
+        if not unread:
+            return None
+        person = str(headers.get("x-forwarded-email") or "").strip() or self.viewer_name(ws)
+        grants = [access_grants(table, person)[-1] for table in unread if access_grants(table, person)]
+        body = waiting_for_access_body(f"PERMISSION_DENIED: you cannot read {', '.join(unread)}", self.access_owners(unread))
+        body["tables"] = unread
+        body["request"] = "person"
+        body["error"] = "You cannot read every table this App uses, so it shows no data until you can."
+        if grants:
+            body["permissions"] = [{"statements": grants, "instructions": [], "steps": [], "principal": person,
+                                    "why": "This App shows data only to people who can read every table it uses. Ask your data owner to run these commands."}]
+        return body
 
     def viewer_name(self, ws) -> str:
         # A user-authorization App reads as the person who opens it, so the grant it shows names that person.

@@ -133,8 +133,8 @@ test('a fully refused grant keeps every table listed with its exact grants and t
     assert.deepEqual(got.data.ran, []);
     assert.equal(got.data.failed.length, 4);
     assert.equal(got.data.state, 'unreadable');
-    // REQ-408: the copy the response carries is schema level; Grant keeps the exact per-table statements.
-    assert.deepEqual(got.data.tables[0].grants, PLAN_S);
+    // SEC-01 (W3): the copy the response carries is table level, the same as Grant runs.
+    assert.deepEqual(got.data.tables[0].grants, PLAN);
     assert.equal(updates(made).length, 1, 'the owners read now replace the ones the build saw');
   });
 });
@@ -289,7 +289,7 @@ test('a person who cannot grant leaves the build needs-access: the App is kept, 
     assert.equal(got.data.refused, true);
     assert.equal(got.data.state, 'unreadable');
     assert.equal(got.data.app, SP);
-    assert.deepEqual(got.data.tables[0].grants, PLAN_S, 'the GRANTs stay listed, so the build view can copy them under Details (schema level)');
+    assert.deepEqual(got.data.tables[0].grants, PLAN, 'the GRANTs stay listed, so the build view can copy them under Details (table level)');
     assert.equal(got.data.tables[0].owner, 'admins and data-eng', 'the owners are named');
     assert.doesNotMatch(JSON.stringify(got.data), /amr@x|[\w.+-]+@(?!example\.)[\w-]+\.[a-z]{2,}/i, 'no email but an example address in the answer');
   });
@@ -309,12 +309,11 @@ test('the on-load card, Check again and Grant name the same statements, READ MET
     const context = await fetch(`${url}/api/inspire/implement/context?${Q}`).then((r) => r.json());
     const onLoad = context.app_unreadable.grants;
     const check = await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'check' });
-    // REQ-408: the dialog shows the card's grants at schema level; the card itself and Grant stay per table (least privilege).
-    assert.deepEqual([...check.data.permissions[0].statements].sort(), [...coarseGrants(onLoad)].sort(), 'the card and Check again show the same statements');
-    assert.ok(onLoad.includes(METADATA_S), 'READ METADATA is in the card (schema level), so it is in the dialog and the Grant');
+    // SEC-01 (W3): the card, the dialog and Grant are all table level and identical.
+    assert.deepEqual([...check.data.permissions[0].statements].sort(), [...onLoad].sort(), 'the card and Check again show the same statements');
+    assert.ok(onLoad.includes(METADATA), 'READ METADATA is in the card (table level), so it is in the dialog and the Grant');
     await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'grant' });
-    // Grant runs the exact per-table statements; the card and dialog show them coarsened, so the coarse form of the run must match the card.
-    assert.deepEqual(coarseGrants(w.grants.map(([sql]) => sql)).sort(), [...onLoad].sort(), 'Grant runs every statement the dialog shows (coarse form)');
+    assert.deepEqual(w.grants.map(([sql]) => sql).sort(), [...onLoad].sort(), 'Grant runs every statement the dialog shows');
   });
 });
 

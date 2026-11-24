@@ -36,10 +36,11 @@ function fakeCall(answers) {
 
 test('the requestable grants are read per grantee and securable, privileges once each, and other securable types are left out', () => {
   const got = AR.requestsOf([...GRANTS, `GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders\` TO \`${WHO}\``, `GRANT CAN_USE ON WAREHOUSE \`w\` TO \`${WHO}\``]);
-  // REQ-408: the table SELECT asks for the schema, so the request names one schema securable with its privileges.
+  // SEC-01 W3: the table SELECT asks for the table itself; it is never widened to the schema.
   assert.deepEqual(got, [
     { grantee: WHO, securable: { type: 'CATALOG', full_name: 'main' }, permissions: ['USE_CATALOG'] },
-    { grantee: WHO, securable: { type: 'SCHEMA', full_name: 'main.s' }, permissions: ['USE_SCHEMA', 'SELECT'] },
+    { grantee: WHO, securable: { type: 'SCHEMA', full_name: 'main.s' }, permissions: ['USE_SCHEMA'] },
+    { grantee: WHO, securable: { type: 'TABLE', full_name: 'main.s.orders' }, permissions: ['SELECT'] },
   ]);
   assert.deepEqual(AR.requestsOf([]), []);
 });
@@ -54,7 +55,7 @@ test('success: destinations are read, then one request goes out as the person wi
   assert.equal(Object.hasOwn(post.body.requests[0], 'behalf_of'), false, 'no behalf_of: the requester is the signed-in person');
   assert.equal(post.body.requests[0].comment, AR.COMMENT);
   assert.ok(AR.COMMENT.length <= 200 && /^[A-Za-z0-9 .,'!?-]+$/.test(AR.COMMENT), 'the comment fits the API rule');
-  assert.deepEqual(post.body.requests[0].securable_permissions.map((p) => p.securable.full_name), ['main', 'main.s']);
+  assert.deepEqual(post.body.requests[0].securable_permissions.map((p) => p.securable.full_name), ['main', 'main.s', 'main.s.orders']);
 });
 
 test('no destination set: the check says not offered with a plain reason, and no request is sent', async () => {
@@ -107,7 +108,7 @@ test('an App grant is resolved to its service principal and sent as its own requ
   assert.equal(post.body.requests.length, 2, 'the person and the App are two principals, so two request objects');
   const forApp = post.body.requests.find((r) => r.behalf_of);
   assert.deepEqual(forApp.behalf_of, { id: APP_SCIM, principal_type: 'SERVICE_PRINCIPAL' });
-  assert.deepEqual(forApp.securable_permissions.map((p) => p.securable.full_name), ['main.s']);
+  assert.deepEqual(forApp.securable_permissions.map((p) => p.securable.full_name), ['main.s.orders']);
   assert.equal(post.body.requests.find((r) => !r.behalf_of).securable_permissions[0].securable.full_name, 'main');
 });
 
@@ -161,9 +162,9 @@ test('REQ-315: a table with no destination of its own falls back to its schema, 
   });
   const got = await AR.sendAccessRequest({ call, who: WHO, statements: [GRANTS[2]] });
   assert.deepEqual(strip(got), { sent: true, destinations: ['owner@example.com'], reason: '' });
-  // REQ-408: the table read asks for its schema, so the chain starts at the schema, then the catalog.
+  // SEC-01 W3: the table read asks for the table, so the chain starts at the table, then the schema, then the catalog.
   assert.deepEqual(calls.filter((c) => c.method === 'GET').map((c) => c.path), [
-    '/api/3.0/rfa/destinations/schema/main.s', '/api/3.0/rfa/destinations/catalog/main',
+    '/api/3.0/rfa/destinations/table/main.s.orders', '/api/3.0/rfa/destinations/schema/main.s', '/api/3.0/rfa/destinations/catalog/main',
   ]);
 });
 
@@ -180,6 +181,7 @@ test('REQ-406: a check that is not offered still returns the Catalog Explorer pa
   assert.deepEqual(got.links, [
     { type: 'CATALOG', full_name: 'main', url: 'https://workspace.example.com/explore/data/main' },
     { type: 'SCHEMA', full_name: 'main.s', url: 'https://workspace.example.com/explore/data/main/s' },
+    { type: 'TABLE', full_name: 'main.s.orders', url: 'https://workspace.example.com/explore/data/main/s/orders' },
   ]);
 });
 

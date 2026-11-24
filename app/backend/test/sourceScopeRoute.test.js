@@ -32,19 +32,19 @@ async function contextOf(tables) {
   }
 }
 
-test('REQ-408 route: a build whose run picked the whole catalog asks the App read at catalog level', async () => {
+test('SEC-01 (W3) route: a build whose run picked the whole catalog still asks the App read at table level', async () => {
   const got = await contextOf('main');
   assert.equal(got.status, 200, JSON.stringify(got.data));
   const statements = got.data.app_unreadable.permissions[0].statements;
-  assert.ok(statements.includes(`GRANT SELECT ON CATALOG \`main\` TO \`${APP}\``), JSON.stringify(statements));
-  assert.equal(statements.filter((sql) => /ON (SCHEMA|TABLE) /.test(sql)).length, 0, JSON.stringify(statements));
+  assert.ok(statements.includes(`GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders\` TO \`${APP}\``), JSON.stringify(statements));
+  assert.equal(statements.filter((sql) => /^GRANT (SELECT|READ METADATA) ON (CATALOG|SCHEMA) /.test(sql)).length, 0, JSON.stringify(statements));
 });
 
-test('REQ-408 route: a build without a whole-catalog pick asks at schema level', async () => {
+test('SEC-01 (W3) route: a build without a whole-catalog pick asks at table level', async () => {
   const got = await contextOf('main.s.orders');
   assert.equal(got.status, 200, JSON.stringify(got.data));
   const statements = got.data.app_unreadable.permissions[0].statements;
-  assert.ok(statements.includes(`GRANT SELECT ON SCHEMA \`main\`.\`s\` TO \`${APP}\``), JSON.stringify(statements));
+  assert.ok(statements.includes(`GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders\` TO \`${APP}\``), JSON.stringify(statements));
 });
 
 // REQ-408 at the preflight route (sourceCheckOf behind the submit's pre-check): the App read offer names the catalog for a whole-catalog pick.
@@ -64,17 +64,17 @@ async function preflightOf(ucMetadata) {
   }
 }
 
-test('REQ-408 preflight (submit path): a whole-catalog pick asks the App read at catalog level', async () => {
+test('SEC-01 (W3) preflight (submit path): a whole-catalog pick still asks the App read at table level', async () => {
   const got = await preflightOf('main');
   assert.equal(got.status, 200, JSON.stringify(got.data));
   const statements = got.data.checks.sources.permission.statements;
-  assert.ok(statements.includes(`GRANT SELECT ON CATALOG \`main\` TO \`${APP}\``), JSON.stringify(statements));
-  assert.equal(statements.filter((sql) => /ON (SCHEMA|TABLE) /.test(sql)).length, 0, JSON.stringify(statements));
+  assert.ok(statements.includes(`GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders\` TO \`${APP}\``), JSON.stringify(statements));
+  assert.equal(statements.filter((sql) => /^GRANT (SELECT|READ METADATA) ON (CATALOG|SCHEMA) /.test(sql)).length, 0, JSON.stringify(statements));
 });
 
-test('REQ-408 preflight (submit path): without a whole-catalog pick the App read asks at schema level', async () => {
+test('SEC-01 (W3) preflight (submit path): without a whole-catalog pick the App read asks at table level', async () => {
   const got = await preflightOf('main.s.orders');
   assert.equal(got.status, 200, JSON.stringify(got.data));
   const statements = got.data.checks.sources.permission.statements;
-  assert.ok(statements.includes(`GRANT SELECT ON SCHEMA \`main\`.\`s\` TO \`${APP}\``), JSON.stringify(statements));
+  assert.ok(statements.includes(`GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders\` TO \`${APP}\``), JSON.stringify(statements));
 });

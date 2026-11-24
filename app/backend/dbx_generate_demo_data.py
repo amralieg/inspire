@@ -81,7 +81,8 @@ def _grant_schema_access(catalog, schema, principal):
         (f"GRANT USE SCHEMA ON SCHEMA {fq_schema} TO `{principal}`", "USE SCHEMA"),
         (f"GRANT CREATE TABLE ON SCHEMA {fq_schema} TO `{principal}`", "CREATE TABLE"),
         (f"GRANT SELECT ON SCHEMA {fq_schema} TO `{principal}`", "SELECT"),
-        (f"GRANT MODIFY ON SCHEMA {fq_schema} TO `{principal}`", "MODIFY"),
+        # No MODIFY grant (SEC-01): the principal that writes creates the schema (CREATE SCHEMA IF NOT EXISTS above),
+        # so it owns Inspire's own schema and tables and needs none.
     ]
     for sql, label in statements:
         _run_grant_sql(sql, label)
@@ -163,11 +164,10 @@ def _grant_inspire_app_service_principal(sp_app_id, catalog, track_schema, demo_
         (f"GRANT USE SCHEMA ON SCHEMA {fq_track} TO `{sp_app_id}`", "SP USE _inspire schema"),
         (f"GRANT CREATE TABLE ON SCHEMA {fq_track} TO `{sp_app_id}`", "SP CREATE in _inspire"),
         (f"GRANT SELECT ON SCHEMA {fq_track} TO `{sp_app_id}`", "SP SELECT _inspire"),
-        (f"GRANT MODIFY ON SCHEMA {fq_track} TO `{sp_app_id}`", "SP MODIFY _inspire"),
         (f"GRANT USE SCHEMA ON SCHEMA {fq_demo} TO `{sp_app_id}`", "SP USE demo schema"),
         (f"GRANT CREATE TABLE ON SCHEMA {fq_demo} TO `{sp_app_id}`", "SP CREATE demo schema"),
         (f"GRANT SELECT ON SCHEMA {fq_demo} TO `{sp_app_id}`", "SP SELECT demo schema"),
-        (f"GRANT MODIFY ON SCHEMA {fq_demo} TO `{sp_app_id}`", "SP MODIFY demo schema"),
+        # No MODIFY on either schema (SEC-01): the SP creates its own tables with CREATE TABLE, so it owns and writes them.
     ]
     for sql, label in core_grants:
         _run_grant_sql(sql, label)

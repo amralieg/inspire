@@ -1531,13 +1531,8 @@ export default function ImplementWizard({
   // FX-52 + REQ-483: a source owned by someone else keeps Build off until Check again finds the access; tables the person covers never do.
   const appReadsOthers = Boolean(lastStep && plan?.summary?.app_reads?.blocking);
   const appReadsOwners = [...new Set([...(plan?.summary?.app_reads?.owners || []), ...(plan?.summary?.app_reads?.tables || []).map((t) => t.owner)].filter(Boolean))];
-  const appReadsYouCover = (() => {
-    const mine = new Set(plan?.summary?.app_reads_by_you?.tables || []);
-    const listed = (plan?.summary?.app_reads?.tables || []).map((t) => t.table);
-    return mine.size > 0 && listed.every((t) => mine.has(t));
-  })();
-  const appReadsBlocked = appReadsOthers && !appReadsYouCover;
-  const appReadsByYouText = plan?.summary?.app_reads_by_you?.text || '';
+  // SEC-01 W1: Inspire never grants on the person's behalf, so a source the new App cannot read always shows the table-level request.
+  const appReadsBlocked = appReadsOthers;
   const sourceRefused = accessVerdict === 'refused';
   const sourceAccessRefused = sourceRefused && !preflight?.checks?.sources?.missing;
   const refusedFooterText = appUnreadable?.builtin?.length ? SOURCE_BUILT_IN_REFUSED_REASON : SOURCE_REFUSED_REASON;
@@ -2347,11 +2342,7 @@ export default function ImplementWizard({
             )}
 
             {folderWarning && <p role="note" aria-label="Where Inspire saves the MVP" className="text-xs text-warning-fg">{folderWarning}</p>}
-            {plan?.summary?.app_reads?.text && !appReadsYouCover && <p role="note" aria-label="Data the new App cannot read" data-app-reads-warning="" className="text-xs text-warning-fg">{plan.summary.app_reads.text}</p>}
-
-            {appReadsByYouText && (appReadsYouCover || !appReadsOthers) && (
-              <p role="note" aria-label="Data the App is given with your permissions" data-app-reads-by-you="" className="text-xs text-success-fg">{appReadsByYouText}</p>
-            )}
+            {plan?.summary?.app_reads?.text && <p role="note" aria-label="Data the new App cannot read" data-app-reads-warning="" className="text-xs text-warning-fg">{plan.summary.app_reads.text}</p>}
             {appReadsBlocked && (
               <section role="alert" aria-label="Data Inspire cannot share" data-app-reads-blocking="" className="space-y-2 rounded-lg border border-warning/40 bg-warning-bg p-3 text-[12px]">
                 <p className="font-semibold text-text-primary">Build waits until the App can read this data. Send this to {appReadsOwners.join(', ') || 'your data owner'}:</p>

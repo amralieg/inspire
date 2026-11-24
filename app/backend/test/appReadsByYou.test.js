@@ -31,7 +31,8 @@ const INSPIRE_SCHEMA = [
 ];
 const schemaOf = (params) => ((params || []).find((p) => p.name === 's') || {}).value;
 const TABLES = ['main.s.orders', 'main.s.lines'];
-const GRANTS = TABLES.map((t) => `GRANT MANAGE ON TABLE ${t.split('.').map((p) => `\`${p}\``).join('.')} TO \`inspire-sp\``);
+// SEC-01 (W1): no MANAGE and no silent person grant; the owner is asked for a table-level SELECT for the new App.
+const GRANTS = TABLES.map((t) => `GRANT SELECT ON TABLE ${t.split('.').map((p) => `\`${p}\``).join('.')} TO the new App's service principal`);
 const SPEC = {
   use_case_id: 'N01-U01', use_case_name: 'Assess assets',
   config: { warehouse_id: 'wh1', result_table: 'main.inspire.churn_out' },
@@ -64,27 +65,24 @@ const post = async (base, route) => {
 };
 const grantsRun = (made) => made.sqlCalls.filter((c) => /^GRANT MANAGE /.test(String(c.sql)));
 
-test('the plan for sources the signed-in person owns does not block, names them in one info line, and grants nothing yet', async () => {
+test('SEC-01 (W1): the plan for sources the signed-in person owns still blocks, names the SELECT, and grants nothing', async () => {
   await withRows({ owner: 'pat', owns: true }, async (url, made) => {
     const got = await post(url, '/api/inspire/implement/plan');
     assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.equal(got.data.summary.app_reads, undefined, JSON.stringify(got.data.summary.app_reads));
-    const byYou = got.data.summary.app_reads_by_you;
-    assert.deepEqual(byYou.tables, TABLES);
-    assert.deepEqual(byYou.grant, GRANTS);
-    assert.match(byYou.text, /^When the build starts, Inspire uses your permissions to let the App it makes read main\.s\.orders and main\.s\.lines$/);
-    assert.ok(!got.data.warnings.some((w) => /Inspire cannot share/.test(w)), JSON.stringify(got.data.warnings));
+    assert.equal(got.data.summary.app_reads_by_you, undefined, 'no silent person grant is planned');
+    assert.equal(got.data.summary.app_reads.blocking, true);
+    assert.deepEqual(got.data.summary.app_reads.grant, GRANTS);
     assert.deepEqual(grantsRun(made), []);
   });
 });
 
-test('submit grants Inspire MANAGE on those sources with the person\'s token, then builds with one info line', async () => {
+test('SEC-01 (W1): submit never grants for the person; it refuses with the table-level SELECT and starts no job', async () => {
   await withRows({ owner: 'pat', owns: true }, async (url, made) => {
     const got = await post(url, '/api/inspire/implement/submit');
-    assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.equal(made.jobs.length, 1);
-    assert.deepEqual(grantsRun(made).map((c) => [c.sql, c.token]), GRANTS.map((s) => [s, PERSON]));
-    assert.match(got.data.summary.app_reads_by_you.text, /^Inspire used your permissions to let the App it makes read main\.s\.orders and main\.s\.lines$/);
+    assert.equal(got.status, 403, JSON.stringify(got.data));
+    assert.equal(made.jobs.length, 0);
+    assert.deepEqual(made.sqlCalls.filter((c) => /^GRANT /.test(String(c.sql))), [], 'no GRANT of any kind is executed');
+    assert.equal(got.data.request, 'person');
   });
 });
 
@@ -95,6 +93,7 @@ test('a source neither Inspire nor the person can grant still blocks, and names 
     assert.deepEqual(plan.data.summary.app_reads.owners, ['data-eng']);
     assert.deepEqual(plan.data.summary.app_reads.grant, GRANTS);
     assert.equal(plan.data.summary.app_reads_by_you, undefined);
+    assert.ok(plan.data.summary.app_reads.grant.every((s) => !/MANAGE/.test(s)));
     const got = await post(url, '/api/inspire/implement/submit');
     assert.equal(got.status, 403, JSON.stringify(got.data));
     assert.equal(made.jobs.length, 0);
@@ -102,11 +101,12 @@ test('a source neither Inspire nor the person can grant still blocks, and names 
   });
 });
 
-test('a person grant the warehouse refuses leaves the build blocked with the same GRANTs for the owner', async () => {
+test('SEC-01 (W1): a build blocked on a source names the same GRANTs for the owner, and attempts none', async () => {
   await withRows({ owner: 'pat', owns: true, denied: true }, async (url, made) => {
     const got = await post(url, '/api/inspire/implement/submit');
     assert.equal(got.status, 403, JSON.stringify(got.data));
     for (const s of GRANTS) assert.ok(got.data.error.includes(s), `${s} in ${got.data.error}`);
+    assert.deepEqual(made.sqlCalls.filter((c) => /^GRANT /.test(String(c.sql))), []);
     assert.equal(made.jobs.length, 0);
   });
 });

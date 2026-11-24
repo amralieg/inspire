@@ -158,7 +158,7 @@ def test_the_notebook_shell_and_web_name_the_same_looks_options_and_per_user_lim
 
 def test_scopes_are_read_only_sql_and_genie_and_full_sql_only_when_people_edit_data(agent_ns):
     scopes = agent_ns["implement_app_user_scopes"]
-    assert scopes({"app_access": "sp", "app_options": {"modify": True}}) == []
+    assert scopes({"app_access": "sp", "app_options": {"modify": True}}) == ["sql:restricted-query"]
     assert scopes({"app_access": "user", "app_options": {"modify": False}}) == ["sql:restricted-query", "genie"]
     assert scopes({"app_access": "user", "app_options": {"modify": True}}) == ["sql", "genie"]
     assert scopes({}) == [] and scopes(None) == []
@@ -202,9 +202,10 @@ def test_a_per_user_app_where_people_edit_data_asks_for_full_sql(agent_ns, sdk_s
 
 def test_a_shared_view_app_asks_for_no_user_scopes(agent_ns, sdk_stub):
     created = {"compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-1"}
-    inst, context, calls, _imported = _deploy_inspire(agent_ns, NEW_APP + [created] + DEPLOYED)
+    read = dict(created, user_api_scopes=["sql:restricted-query"])
+    inst, context, calls, _imported = _deploy_inspire(agent_ns, NEW_APP + [created, read] + DEPLOYED)
     inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, "g1", poll_s=0)
-    assert "user_api_scopes" not in calls[1][2] and [c[0] for c in calls].count("PATCH") == 0
+    assert calls[1][2]["user_api_scopes"] == ["sql:restricted-query"] and [c[0] for c in calls].count("PATCH") == 0
     assert GRANT_SELECT.format("sp-1") in _not_access_reads(inst.spark.statements)
     assert inst.genie_grants == [("genie", "g1", [{"type": "service_principal", "name": "sp-1"}], "CAN_RUN")]
 
@@ -225,15 +226,14 @@ def test_an_existing_app_switched_to_per_user_gets_its_scopes_before_it_deploys(
 def test_an_existing_app_switched_back_to_a_shared_view_drops_its_scopes(agent_ns, sdk_stub):
     existing = {"description": OURS_APP, "compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-2",
                 "user_api_scopes": ["sql:restricted-query", "genie"]}
-    cleared = {k: v for k, v in existing.items() if k != "user_api_scopes"}
+    cleared = dict(existing, user_api_scopes=["sql:restricted-query"])
     inst, context, calls, _imported = _deploy_inspire(agent_ns, [existing, cleared] + DEPLOYED)
     fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
-    assert "_warnings" not in fields and calls[1][:2] == ("PATCH", "/api/2.0/apps/churn-desk") and calls[1][2]["user_api_scopes"] == []
+    assert "_warnings" not in fields and calls[1][:2] == ("PATCH", "/api/2.0/apps/churn-desk") and calls[1][2]["user_api_scopes"] == ["sql:restricted-query"]
     left = dict(existing)
     inst, context, calls, _imported = _deploy_inspire(agent_ns, [existing, left] + DEPLOYED)
-    fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
-    assert fields["_warnings"][0].startswith("Agentic App: churn-desk reads data as its service principal now, but Inspire could not remove the "
-                                             "user authorization scopes genie, sql:restricted-query it held before")
+    with pytest.raises(agent_ns["ImplementBlocked"], match=re.escape("could not give it the user authorization scopes sql:restricted-query (it holds genie, sql:restricted-query)")):
+        inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
 
 
 @pytest.mark.parametrize("patch_answer,needle,undo", [
@@ -427,7 +427,7 @@ def test_a_per_user_build_grants_the_value_ledger_to_no_service_principal_and_a_
     assert [s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("GRANT")] == [], (
         "a per-user App works as the signed-in person, so the build grants the value ledger to no service principal")
 
-    inst, context, _calls, _imported = _deploy_inspire(agent_ns, NEW_APP + [created] + DEPLOYED)
+    inst, context, _calls, _imported = _deploy_inspire(agent_ns, NEW_APP + [created, dict(created, user_api_scopes=["sql:restricted-query"])] + DEPLOYED)
     context["spec"]["outputs"]["app_options"]["decisions"] = False
     inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
     assert [s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("CREATE TABLE")], "the shared build creates the ledger too"

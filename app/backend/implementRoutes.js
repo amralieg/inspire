@@ -45,7 +45,6 @@ const { parseExactJson } = require('./lib/exactJson');
 const { grantJobViewer, rememberViewer } = require('./lib/jobViewer');
 const PM = require('./lib/permissions');
 const UA = require('./lib/useCaseAssets');
-const { coarseGrants } = require('./lib/grantScope');
 const L = require('./lib/launchLedger');
 const PM_ERROR = require('./lib/permissionError');
 const GC = require('./lib/genieCodeCheck');
@@ -1371,7 +1370,7 @@ function registerImplementRoutes(app, deps) {
   // REQ-408: a copyable grant list is shaped for display at schema level (catalog level for a whole-catalog pick). Grant still runs the exact
   // statements the route derived; this only changes the copy text the response carries.
   function displayOffer(offer, wholeCatalogs = []) {
-    return offer && Array.isArray(offer.grants) ? { ...offer, grants: coarseGrants(offer.grants, { wholeCatalogs }) } : offer;
+    return offer && Array.isArray(offer.grants) ? { ...offer, grants: offer.grants } : offer;
   }
 
   // REQ-408: the catalogs the run picked whole (its saved launch scope). Empty when the run has no readable scope, so the dialog asks per schema.
@@ -1431,7 +1430,7 @@ function registerImplementRoutes(app, deps) {
       // to the owner (REQ-042). Only a Grant changes access, and the route policy owns that rule.
       const wholeCatalogs = await wholeCatalogsOf(req, warehouseId, catalog, schema, sid);
       res.json({ state: left.length ? 'unreadable' : 'readable', app: liveApp.id, app_name: liveApp.name, mode: record.mode || '', objects: !!record.objects, principals,
-        tables: left.map((t) => ({ ...t, grants: coarseGrants(t.grants, { wholeCatalogs }) })), ran, failed, refused: action === 'grant' && failed.length > 0, text: I.appReadsText(left, liveApp.name, failed),
+        tables: left.map((t) => ({ ...t, grants: t.grants })), ran, failed, refused: action === 'grant' && failed.length > 0, text: I.appReadsText(left, liveApp.name, failed),
         permissions: appReadsPermissions(left, record, principals, liveApp, wholeCatalogs) });
     } catch (err) {
       sendError(res, err);
@@ -1610,7 +1609,7 @@ function registerImplementRoutes(app, deps) {
     }
   }
 
-  async function prepareSubmission(req, { grant = false } = {}) {
+  async function prepareSubmission(req) {
     const { sid, warehouseId, inspire_database, catalog, schema, raw, history, legacyAccess, asked } = await askedSpec(req);
     const scopeIssues = I.firstRunScopeIssues(history, asked);
     if (scopeIssues.refused.length) throw I.badRequest(scopeIssues.refused.join('; '));
@@ -1630,6 +1629,8 @@ function registerImplementRoutes(app, deps) {
     const verdict = await sourceCheckOf(req, warehouseId, useCase, chosen, history);
     if (verdict.refusal) throw verdict.refusal;
     const { spec, warnings: readWarnings, details: readDetails } = await dropUnreadableSources(req, chosen, useCase, verdict.reads);
+    const policyIssues = await policiedScopeIssues(req, spec, useCase, session);
+    if (policyIssues.length) throw I.badRequest(policyIssues.join(' '));
     const kpiIssues = I.implementKpiTargetProblems(raw, I.implementKpiOptions(useCase, history), history);
     if (kpiIssues.length) throw I.badRequest(kpiIssues.join('; '));
     const keyRef = I.resultKeyRef(spec, useCase);
@@ -1650,9 +1651,8 @@ function registerImplementRoutes(app, deps) {
       if (mergeIssues.length) throw I.badRequest(mergeIssues.join('; '));
     }
     if (spec?.money?.rate_table) await refuseTableTypes(req, warehouseId, [spec.money.rate_table.table], { unknownType: true });
-    const [stalled, tables, empty, unsharedBefore] = await Promise.all([stalledOf(req, history[0]), ownerTableChange(req, warehouseId, history, spec, useCase, person),
+    const [stalled, tables, empty, unshared] = await Promise.all([stalledOf(req, history[0]), ownerTableChange(req, warehouseId, history, spec, useCase, person),
       emptyDataWarning(req, warehouseId, spec, useCase, chosenTableScopes(spec.data, parseTableScopeText(session.table_scope).scopes)), newAppReads(req, warehouseId, spec, useCase)]);
-    const { unshared, byYou, commit: grantByPerson } = await appReadsByPerson(req, warehouseId, unsharedBefore, grant);
     const plan = I.planSubmission(history, spec, stalled, { requester: person.username, tableChange: tables.change });
     if (moved) plan.summary.result_table_moved = moved;
     if (tables.change) plan.summary.table_change = tables.change;
@@ -1660,11 +1660,10 @@ function registerImplementRoutes(app, deps) {
     const appReadsWarning = I.newAppReadsWarning(unshared);
     const warnings = [asksWarning, ...readWarnings, empty, appReadsWarning, ...scopeIssues.carried.map((p) => `${I.FIRST_RUN_CARRIED}${p}.`)].filter(Boolean);
     const warningDetails = readDetails || [];
-    if (byYou) plan.summary.app_reads_by_you = byYou;
     if (unshared.length) {
       plan.summary.app_reads = { tables: unshared.map(({ table, owner }) => ({ table, owner })), owners: I.appReadsOwners(unshared), text: appReadsWarning, ...I.appReadsBlock(unshared) };
     }
-    return { sid, warehouseId, inspire_database, catalog, schema, spec: plan.spec, useCaseId, useCase, session, history, plan, person, warnings, warningDetails, grantByPerson };
+    return { sid, warehouseId, inspire_database, catalog, schema, spec: plan.spec, useCaseId, useCase, session, history, plan, person, warnings, warningDetails };
   }
 
   function withoutSkippedVibes(spec) {
@@ -1678,6 +1677,19 @@ function registerImplementRoutes(app, deps) {
     const err = I.badRequest(message, status);
     err.details = { unreadable };
     return err;
+  }
+
+  // SEC-01 W8: a source with a row filter or column mask must keep the columns that policy reads, or the result cannot carry it.
+  async function policiedScopeIssues(req, spec, useCase, session) {
+    if (!req.dbToken) return [];
+    const scopes = chosenTableScopes(spec.data, parseTableScopeText(session.table_scope).scopes);
+    const tables = I.sourceTables(spec, I.useCaseTables(useCase)).filter((t) => !I.resultTableNameError(t, 'tables'));
+    const out = [];
+    for (const table of tables) {
+      const got = await fetchJsonFor(req)(`/api/2.1/unity-catalog/tables/${encodeURIComponent(table)}`).catch(() => null);
+      if (got && got.ok) out.push(...I.policiedScopeProblems(table, got.data, scopes));
+    }
+    return out;
   }
 
   async function refuseUnreadableSources(req, spec, useCase) {
@@ -1711,31 +1723,6 @@ function registerImplementRoutes(app, deps) {
     const token = await appTokenOf(req);
     const rows = await Promise.all(tables.map((t) => accessRowsOf(req, token, warehouseId, t)));
     return I.newAppReadsGaps(tables, tables.map((t, i) => (rows[i].length && !I.schemaNotCreated(rows[i]) ? I.accessPlan(t, rows[i]) : { gaps: [] })));
-  }
-
-  // REQ-478, REQ-469: sources the signed-in person owns or manages are shared with the new App with the person's own permissions:
-  // the plan names them in one info line, and the submit grants Inspire MANAGE on them before the build starts, with no click.
-  // Only a source neither Inspire nor the person can grant stays in the list that blocks the build.
-  async function appReadsByPerson(req, warehouseId, unshared, grant) {
-    const token = P.forwardedTokenOf(req);
-    if (!unshared.length || !token) return { unshared, byYou: null };
-    const rows = await Promise.all(unshared.map((t) => accessRowsOf(req, token, warehouseId, t.table).catch(() => [])));
-    // FX-69c: a grant targets `me`, the identity Inspire runs as; when it is unknown the person cannot be counted on to cover the table.
-    let mine = unshared.filter((t, i) => t.me && I.personCanGrant(t.gaps, rows[i]));
-    const left = unshared.filter((t) => !mine.includes(t));
-    // FX-69c: with grant on, the GRANT is not run here; `commit` runs it once every other check that can reject the submit has passed.
-    const commit = grant ? async (plan) => {
-      const { failed } = await runPersonGrants(req, token, warehouseId, I.appReadsByYou(mine).grant);
-      const refused = mine.filter((t) => I.appReadsBlock([t]).grant.some((sql) => failed.some((f) => f.startsWith(`${sql}:`))));
-      const done = mine.filter((t) => !refused.includes(t));
-      const blocked = [...left, ...refused];
-      if (done.length) plan.summary.app_reads_by_you = I.appReadsByYou(done, true);
-      else delete plan.summary.app_reads_by_you;
-      if (blocked.length) {
-        plan.summary.app_reads = { tables: blocked.map(({ table, owner }) => ({ table, owner })), owners: I.appReadsOwners(blocked), text: I.newAppReadsWarning(blocked), ...I.appReadsBlock(blocked) };
-      }
-    } : null;
-    return { unshared: left, byYou: mine.length ? I.appReadsByYou(mine, false) : null, commit: mine.length ? commit : null };
   }
 
   async function emptyDataWarning(req, warehouseId, spec, useCase, launchScopes = {}) {
@@ -1794,7 +1781,7 @@ function registerImplementRoutes(app, deps) {
     };
   }
 
-  async function startVersion(req, { sid, warehouseId, inspire_database, catalog, schema, spec: planned, useCaseId, session, plan, person, warnings: noted = [], warningDetails = [], rebuildAsIs = false, grantByPerson = null }) {
+  async function startVersion(req, { sid, warehouseId, inspire_database, catalog, schema, spec: planned, useCaseId, session, plan, person, warnings: noted = [], warningDetails = [], rebuildAsIs = false }) {
     I.refuseAppReadsBlocked(plan); // FX-52: never starts a build the App cannot read, Rebuild as is included
     if (!rebuildAsIs) I.refuseUnchanged(plan);
     const { spec, warnings: outputWarnings, moved } = await outputBeforeBuild(req, warehouseId, planned, useCaseId);
@@ -1817,11 +1804,6 @@ function registerImplementRoutes(app, deps) {
       const err = new Error('This run has no saved data sources, so Inspire cannot rebuild it. Start a new run from Start to get them.');
       err.statusCode = 400;
       throw err;
-    }
-    // FX-69c: the person's grants run only now, after every check that can reject the submit, right before the build is queued.
-    if (grantByPerson) {
-      await grantByPerson(plan);
-      I.refuseAppReadsBlocked(plan);
     }
     const createdBy = person.username;
     const table = I.implementTableName(catalog, schema);
@@ -1898,7 +1880,7 @@ function registerImplementRoutes(app, deps) {
   app.post('/api/inspire/implement/submit', requireToken, async (req, res) => {
     try {
       res.json(await oneBuildAtATime(req, async () => {
-        const prepared = await prepareSubmission(req, { grant: true });
+        const prepared = await prepareSubmission(req);
         if (GC.needsGenieCode(prepared.spec)) await requireGenieCode(req);
         const started = await startVersion(req, { ...prepared, rebuildAsIs: req.body?.rebuild_as_is === true });
         if (prepared.spec.uninstall && req.body?.uninstall_shared === true) started.shared_uninstalls = await uninstallSharingUseCases(req, prepared);
@@ -1930,7 +1912,7 @@ function registerImplementRoutes(app, deps) {
           body: { value: { inspire_database: q(req, 'inspire_database'), warehouse_id: warehouseId,
             spec: { ...built.spec_json, uninstall: true, based_on_version: built.spec_version } } },
         });
-        const got = await oneBuildAtATime(sub, async () => startVersion(sub, await prepareSubmission(sub, { grant: true })));
+        const got = await oneBuildAtATime(sub, async () => startVersion(sub, await prepareSubmission(sub)));
         results.push({ session_id: h.session_id, use_case_id: h.use_case_id, spec_version: got.spec_version });
       } catch (err) {
         results.push({ session_id: h.session_id, use_case_id: h.use_case_id, error: err.message });
