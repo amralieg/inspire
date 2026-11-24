@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, openUi, toView, totalsQueryMissing } from './uiSupport.mjs';
 import { goTo } from './valueWizardSupport.mjs';
+import { openReader } from './reviewRows.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
 
 test.after(closeBrowser);
@@ -141,8 +142,9 @@ test('3: How we got this number lists each part with data and estimate chips and
   const { ui, card, page } = await openCard({ answers: { 'N01-U01': answerEntry(yearlyOf()) }, totals: withTotals('N01-U01', useCaseEntry('calculated', 'REDUCE COST', 2390000)) });
   try {
     await card.locator('[data-value-box]').waitFor({ timeout: 15000 });
-    await card.getByRole('button', { name: /How we got this number/ }).click();
-    const how = card.locator('[data-value-how]');
+    const reader = await openReader(page, card);
+    await reader.getByRole('button', { name: /How we got this number/ }).click();
+    const how = reader.locator('[data-value-how]');
     await how.waitFor();
     assert.equal(await how.locator('[data-how-part]').count(), 2);
     assert.equal(await how.locator('[data-chip="data"]').count(), 2);
@@ -242,7 +244,8 @@ test('6: after a PUT answers succeeds, the card amount and the run total change 
     // v8 wizard: walk to the Save step, then Save (the old dialog's single Calculate button is gone).
     await goTo(dialog, 'save');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await dialog.getByLabel('I have read and accept these terms').check();
+    await dialog.getByRole('button', { name: 'Accept and save', exact: true }).click();
     await page.waitForFunction(() => document.querySelector('[data-use-case-no="N01-U01"] [data-value-amount]')?.textContent.trim() === '$3M', null, { timeout: 15000 });
     assert.equal(state.puts.length, 1);
     await page.keyboard.press('Escape');

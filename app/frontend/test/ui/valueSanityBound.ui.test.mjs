@@ -72,7 +72,8 @@ test('FX-51: a person Save of an out-of-range number is allowed and the dialog s
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     assert.equal(await dialog.locator('[data-value-range-note]').count(), 1);
     assert.match(await text(dialog.locator('[data-value-range-note]')), NOTE);
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await dialog.getByLabel('I have read and accept these terms').check();
+    await dialog.getByRole('button', { name: 'Accept and save', exact: true }).click();
     await dialog.waitFor({ state: 'hidden', timeout: 5000 });
     assert.equal(puts.length, 1);
     assert.equal(puts[0].answers.calculated, true, 'their own Save stays their choice');

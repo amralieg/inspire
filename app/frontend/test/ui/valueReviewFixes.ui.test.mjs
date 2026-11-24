@@ -32,7 +32,8 @@ const saveWith = async (review) => {
     const dialog = await openWizard(page, card);
     await goTo(dialog, 'save');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await dialog.getByLabel('I have read and accept these terms').check();
+    await dialog.getByRole('button', { name: 'Accept and save', exact: true }).click();
     for (let i = 0; i < 100 && !puts.length; i += 1) await page.waitForTimeout(100);
     assert.equal(puts.length, 1, 'one save');
     assert.deepEqual(ui.pageErrors, []);
