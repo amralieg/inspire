@@ -3570,6 +3570,10 @@ function registerImplementRoutes(app, deps) {
       const bytes = Buffer.from(encoded, 'base64');
       const folder = String(req.body?.folder || '');
       const name = String(req.body?.name || '');
+      // REQ-511: the use cases this file covers; a bad id is refused before the file is saved.
+      const rawIds = req.body?.use_case_ids;
+      if (rawIds != null && (!Array.isArray(rawIds) || rawIds.length > 200 || rawIds.some((x) => typeof x !== 'string' || !I.IMPLEMENT_USE_CASE_ID_RE.test(x)))) throw I.badRequest(USE_CASE_ID_SHAPE);
+      const useCaseIds = [...new Set(rawIds || [])];
       const session = await loadSession(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid);
       const refused = docFileProblem({ generationPath: session && session.generation_path, folder, name, bytes });
       if (refused) throw I.badRequest(refused.error, refused.status);
@@ -3584,7 +3588,13 @@ function registerImplementRoutes(app, deps) {
         if (PM_ERROR.accessDenied(why)) throw Object.assign(new Error('The App cannot write into this run’s Assets folder.'), { statusCode: 403 });
         throw I.badRequest(`The file could not be saved (HTTP ${saved.status}).`, 502);
       }
-      return res.json({ path: target, name, size: bytes.length });
+      if (useCaseIds.length) {
+        const table = `\`${catalog}\`.\`${schema}\`.\`__inspire_usecases\``;
+        const parameters = [{ name: 'sid', value: String(sid), type: 'STRING' }, ...useCaseIds.map((id, i) => ({ name: `id${i}`, value: id, type: 'STRING' }))];
+        await ensureTableColumns(req.dbHost, req.dbToken, warehouseId, table, [['docs_generated_at', 'TIMESTAMP']]);
+        await executeSql(req.dbHost, req.dbToken, warehouseId, `UPDATE ${table} SET docs_generated_at = current_timestamp() WHERE session_id = CAST(:sid AS BIGINT) AND id IN (${useCaseIds.map((_, i) => `:id${i}`).join(', ')})`, parameters);
+      }
+      return res.json({ path: target, name, size: bytes.length, ...(useCaseIds.length ? { use_case_ids: useCaseIds } : {}) });
     } catch (err) {
       return sendError(res, err);
     }

@@ -8,10 +8,10 @@ const TONE = {
 };
 const ICON = { todo: Circle, active: Loader2, done: Check, warning: AlertTriangle, error: X, skipped: Minus };
 
-function Step({ phase }) {
+function Step({ phase, column }) {
   const Icon = ICON[phase.state];
   return (
-    <li data-run-step={phase.key} data-state={phase.state} aria-label={`${phase.label}: ${WORDS[phase.state]}`}
+    <li data-run-step={phase.key} data-run-step-column={column} data-state={phase.state} aria-label={`${phase.label}: ${WORDS[phase.state]}`}
       className="flex items-center gap-2 min-w-0">
       <Icon size={14} aria-hidden="true" className={`shrink-0 ${TONE[phase.state]} ${phase.state === 'active' ? 'animate-spin' : ''}`} />
       <span className={`text-xs ${phase.state === 'todo' || phase.state === 'skipped' ? 'text-text-tertiary' : 'text-text-primary font-medium'}`}>
@@ -22,8 +22,8 @@ function Step({ phase }) {
   );
 }
 
-export default function RunStepper({ steps, ended = false }) {
-  const phases = runPhasesOf(steps, { ended });
+export default function RunStepper({ steps, ended = false, failed = false }) {
+  const phases = runPhasesOf(steps, { ended, failed });
   const columns = [...new Set(RUN_PHASES.map((p) => p.column))];
   return (
     <ol role="list" data-run-stepper="" aria-label="Run steps"
@@ -34,7 +34,7 @@ export default function RunStepper({ steps, ended = false }) {
           <li key={col} role="presentation" data-run-step-column={col} className="min-w-0">
             <ul role="list" className="space-y-2">{inCol.map((p) => <Step key={p.key} phase={p} />)}</ul>
           </li>
-        ) : <Step key={col} phase={inCol[0]} />;
+        ) : <Step key={col} phase={inCol[0]} column={col} />;
       })}
     </ol>
   );

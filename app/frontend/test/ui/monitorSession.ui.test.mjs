@@ -41,9 +41,9 @@ async function statusCard(page) {
 const badges = (page, text) => page.locator('span').filter({ hasText: new RegExp(`^${text}$`) }).count();
 
 async function detailLine(page) {
-  const heading = page.getByRole('heading', { name: 'Detailed Steps' });
-  await heading.waitFor({ timeout: 10000 });
-  return heading.locator('xpath=following-sibling::p').innerText();
+  const entry = page.getByRole('button', { name: /Every step/ });
+  await entry.waitFor({ timeout: 10000 });
+  return entry.innerText();
 }
 
 for (const [label, processing, percent] of [['after the App acknowledged it', 'done', 37], ['before the App acknowledged it', 'ready', 37], ['just after it started', 'done', 1]]) {
@@ -103,7 +103,7 @@ const OPEN_MARKERS = [
 ];
 
 async function openSteps(page) {
-  await page.getByRole('button', { name: /Detailed Steps/ }).click();
+  await page.getByRole('button', { name: /Every step/ }).click();
   for (const stage of ['Setup', 'Data Preparation', 'Final Gate']) {
     await page.getByRole('button', { name: new RegExp(`^${stage}`) }).filter({ has: page.locator('h3') }).click();
   }
@@ -182,7 +182,7 @@ for (const [motion, behavior] of [['reduce', 'auto'], ['no-preference', 'smooth'
     });
     try {
       await detailLine(ui.page);
-      await ui.page.getByRole('button', { name: /Detailed Steps/ }).click();
+      await ui.page.getByRole('button', { name: /Every step/ }).click();
       let seen = [];
       await until(async () => { seen = seen.concat(await scrolls()); return seen.length > 0; }, 'the steps list followed the new steps', 10000);
       assert.deepEqual([...new Set(seen)], [behavior]);
@@ -218,7 +218,7 @@ test('the steps list follows new steps only while the person is at its end; scro
   try {
     await page.setViewportSize({ width: 1280, height: 800 });
     await detailLine(page);
-    await page.getByRole('button', { name: /Detailed Steps/ }).click();
+    await page.getByRole('button', { name: /Every step/ }).click();
     await page.getByRole('button', { name: /Data Preparation/ }).last().click();
     await page.getByText('Inspire checked table 60').first().waitFor({ timeout: 10000 });
     await aimWheel(page, 640, 400);
@@ -389,8 +389,8 @@ test('a running Discovery fills its steps and the use cases each step found whil
     assert.match(await detailLine(page), /1 in progress/);
     assert.equal(await page.getByTestId('live-use-case-count').count(), 0, 'no use case is found yet');
     await card.getByText('45% complete', { exact: true }).waitFor({ timeout: 15000 });
-    await page.getByRole('heading', { name: 'Detailed Steps' }).locator('xpath=following-sibling::p').filter({ hasNotText: /in progress/ }).waitFor({ timeout: 15000 });
-    await page.getByRole('button', { name: /Detailed Steps/ }).click();
+    await page.getByRole('button', { name: /Every step/ }).filter({ hasNotText: /in progress/ }).waitFor({ timeout: 15000 });
+    await page.getByRole('button', { name: /Every step/ }).click();
     await page.getByRole('button', { name: /^Use Case Generation/ }).filter({ has: page.locator('h3') }).click();
     await page.getByText('Inspire is working on use case generation', { exact: true }).last().click();
     await page.getByText('3 use cases', { exact: true }).first().waitFor({ timeout: 10000 });

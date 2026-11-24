@@ -27,7 +27,8 @@ test('the person who launched a run opens its live log from the Monitor page, an
   const ui = await openUi('monitor', {}, '', { mount });
   try {
     assert.equal(calls.reads.length, 0, 'the log is read only when asked for');
-    await ui.page.getByRole('button', { name: 'Show the run log' }).click();
+    await ui.page.getByRole('button', { name: /^More$/ }).click();
+    await ui.page.getByRole('menuitem', { name: 'Run log' }).click();
     const pre = ui.page.getByLabel('Run log');
     await pre.waitFor({ timeout: 10000 });
     assert.equal((await pre.innerText()).trim(), 'step one');
@@ -46,7 +47,8 @@ test('someone the App refuses sees the refusal in plain words and no log text', 
   const { mount } = logBackend(() => [403, { error: refusal, policy: { rule: 'launcher' } }]);
   const ui = await openUi('monitor', {}, '', { mount });
   try {
-    await ui.page.getByRole('button', { name: 'Show the run log' }).click();
+    await ui.page.getByRole('button', { name: /^More$/ }).click();
+    await ui.page.getByRole('menuitem', { name: 'Run log' }).click();
     const alert = ui.page.getByRole('alert').filter({ hasText: 'Only the person who launched session 42' });
     await alert.waitFor({ timeout: 10000 });
     assert.equal(await ui.page.getByLabel('Run log').count(), 0);
@@ -59,7 +61,8 @@ test('a run that has not written its log yet says so', async () => {
   const { mount } = logBackend(() => [200, { found: false, text: '', truncated: false, size: 0 }]);
   const ui = await openUi('monitor', {}, '', { mount });
   try {
-    await ui.page.getByRole('button', { name: 'Show the run log' }).click();
+    await ui.page.getByRole('button', { name: /^More$/ }).click();
+    await ui.page.getByRole('menuitem', { name: 'Run log' }).click();
     await ui.page.getByText('The run has not written its log yet. Refresh in a minute.').waitFor({ timeout: 10000 });
   } finally {
     await ui.close();

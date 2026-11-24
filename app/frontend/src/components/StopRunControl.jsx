@@ -2,9 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Loader2, Square } from 'lucide-react';
 import { PlainMessage } from './TechnicalDetails';
 
-export default function StopRunControl({ runId, business, apiFetch }) {
+// REQ-511: with `open` set, the page's More menu owns the Stop entry and this renders only the confirm (and the refusal), reporting the verdict through onVerdict.
+export default function StopRunControl({ runId, business, apiFetch, open, onClose, onVerdict }) {
+  const controlled = open !== undefined;
   const [verdict, setVerdict] = useState(null);
-  const [confirming, setConfirming] = useState(false);
+  const [confirmingOwn, setConfirming] = useState(false);
+  const confirming = controlled ? open : confirmingOwn;
+  const closeConfirm = () => (controlled ? onClose?.() : setConfirming(false));
   const [stopping, setStopping] = useState(false);
   const [stopped, setStopped] = useState(false);
   const [error, setError] = useState('');
@@ -13,10 +17,10 @@ export default function StopRunControl({ runId, business, apiFetch }) {
   useEffect(() => {
     let live = true;
     apiFetch(`/api/run/${runId}/cancel`)
-      .then((got) => { if (live) setVerdict({ ...got, runId }); })
-      .catch((err) => { if (live) setVerdict({ allowed: false, error: err.message, runId }); });
+      .then((got) => { if (live) { setVerdict({ ...got, runId }); onVerdict?.(Boolean(got.allowed)); } })
+      .catch((err) => { if (live) { setVerdict({ allowed: false, error: err.message, runId }); onVerdict?.(false); } });
     return () => { live = false; };
-  }, [runId, apiFetch]);
+  }, [runId, apiFetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const stop = async () => {
     if (sent.current) return;
@@ -33,11 +37,13 @@ export default function StopRunControl({ runId, business, apiFetch }) {
     setStopping(false);
   };
 
-  if (!verdict || verdict.runId !== runId) return null;
-  if (!verdict.allowed) {
+  const ready = Boolean(verdict) && verdict.runId === runId;
+  if (!ready && !controlled) return null;
+  if (ready && !verdict.allowed) {
     return <PlainMessage as="p" text={verdict.error} role="status" className="mt-3 text-xs text-text-secondary" />;
   }
   if (stopped) return <p role="status" className="mt-3 text-xs text-text-secondary">Stopping the run. What it already wrote stays.</p>;
+  if (controlled && !open) return null;
   const name = business || 'this business';
   return (
     <div className="mt-3">
@@ -53,7 +59,7 @@ export default function StopRunControl({ runId, business, apiFetch }) {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 font-medium text-white bg-primary-solid rounded-lg disabled:opacity-60">
             {stopping && <Loader2 size={12} className="animate-spin" aria-hidden="true" />} Stop the run
           </button>
-          <button type="button" onClick={() => setConfirming(false)} disabled={stopping}
+          <button type="button" onClick={closeConfirm} disabled={stopping}
             className="px-3 py-1.5 text-text-secondary border border-border rounded-lg">Keep it running</button>
         </div>
       )}

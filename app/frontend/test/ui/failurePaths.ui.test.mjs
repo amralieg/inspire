@@ -173,13 +173,13 @@ for (const [stage, name, message, said, transient, raw] of STAGE_FAILURES) {
     };
     const ui = await openUi('monitor', {}, '', { mount });
     try {
-      await ui.page.getByRole('button', { name: /Detailed Steps/ }).click();
+      await ui.page.getByRole('button', { name: /Every step/ }).click();
       await ui.page.getByRole('button', { name: new RegExp(`^${stage}`) }).filter({ has: ui.page.locator('h3') }).click();
       await ui.page.getByText(said).first().waitFor({ timeout: 20000 });
       const shown = await visible(ui.page);
       assert.doesNotMatch(shown, RAW);
       if (!transient) assert.doesNotMatch(shown.match(new RegExp(`${said.source}[^\\n]*`, 'i'))[0], /try again/);
-      await ui.page.getByText(name, { exact: true }).click();
+      await ui.page.getByRole('dialog', { name: /Every step/ }).getByText(name, { exact: true }).click();
       const details = ui.page.locator('details[data-technical-details]').filter({ hasText: raw });
       assert.equal(await details.count(), 1, 'the raw error sits once under Details');
       assert.deepEqual(ui.pageErrors, []);

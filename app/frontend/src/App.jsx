@@ -611,7 +611,7 @@ export default function App() {
         )}
 
         {page === 'monitor' && (
-          <div className="max-w-7xl mx-auto px-6 py-8">
+          <div className="w-full px-6 py-8">
             <MonitorPage
               key={`${demoScope || 'workspace'}:${inDemo ? '' : runId ?? ''}`}
               settings={pageSettings}

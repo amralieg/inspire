@@ -35,7 +35,8 @@ test('the person who launched a running Discover run stops it after one confirm 
   const { calls, mount } = runBackend();
   const ui = await openUi('monitor', {}, '', { mount });
   try {
-    await ui.page.getByRole('button', { name: 'Stop this run' }).click();
+    await ui.page.getByRole('button', { name: /^More$/ }).click();
+    await ui.page.getByRole('menuitem', { name: 'Stop this run' }).click();
     const confirm = ui.page.getByRole('group', { name: 'Stop this run' });
     assert.match(await confirm.innerText(), /Stop the Discover run for Acme Retail\? What the run already wrote stays\./);
     assert.equal(calls.posts, 0, 'nothing is sent before the confirm');
@@ -55,7 +56,8 @@ test('a double click on Stop the run sends one request', async () => {
   const { calls, mount } = runBackend();
   const ui = await openUi('monitor', {}, '', { mount });
   try {
-    await ui.page.getByRole('button', { name: 'Stop this run' }).click();
+    await ui.page.getByRole('button', { name: /^More$/ }).click();
+    await ui.page.getByRole('menuitem', { name: 'Stop this run' }).click();
     await ui.page.getByRole('button', { name: 'Stop the run' }).dblclick();
     await ui.page.getByText('Stopped', { exact: true }).waitFor({ timeout: 10000 });
     await idle(ui.page);
@@ -96,5 +98,5 @@ test('the demo shows the recorded Monitor page but never offers Stop on it', () 
   assert.equal(staysInShowcase('monitor'), true, 'the demo walks through its recorded Monitor page');
   const src = (name) => fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'src', name), 'utf8');
   assert.match(src('App.jsx'), /runId=\{inDemo \? null : runId\}/, 'a demo hands Monitor no run to stop');
-  assert.match(src('pages/MonitorPage.jsx'), /\{!showcase && runId && runInfo && \(isPending \|\| isRunning\) && <StopRunControl /, 'Monitor offers Stop only outside a demo');
+  assert.match(src('pages/MonitorPage.jsx'), /if \(!showcase && runId && runInfo && \(isPending \|\| isRunning\) && stopAllowed\) menuItems\.push\(\{ label: 'Stop this run'/, 'Monitor offers Stop only outside a demo');
 });
