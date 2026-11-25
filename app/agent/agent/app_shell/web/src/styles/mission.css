@@ -26,3 +26,10 @@
 .genie-full{display:flex;flex-direction:column;min-height:calc(100vh - 120px);width:100%}
 .genie-full>.genie{width:100%;margin:0;position:static;height:calc(100vh - 120px);border:1px solid var(--line);border-radius:14px;box-shadow:none}
 .genie-full .g-resize,.genie-full .g-max{display:none}
+/* REQ-535: the Genie answer log, its suggestions and its input share one centre line, at most 780px wide. */
+.g-col{display:contents}
+[data-genie-full] .g-log{scrollbar-gutter:stable both-edges}
+[data-genie-full] .g-col{display:flex;flex-direction:column;gap:12px;box-sizing:border-box;width:100%;max-width:780px;margin-inline:auto;min-width:0}
+[data-genie-full] .g-sugg,[data-genie-full] .g-in{max-width:780px}
+.genie-full .g-info{margin-inline:auto;max-width:780px}
+.msg-t .tbl-wrap{overflow:visible}
