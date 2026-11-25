@@ -5,7 +5,7 @@ import { ColumnsPage, DocsHeader, DocumentsPage, IncludePage, LayoutPage, Review
 import { defaultDocOptions, planFiles } from '../lib/docgen/docOptions.js';
 import { buildDocModel } from '../lib/docgen/docModel.js';
 import { infographicSvg } from '../lib/docgen/docSvg.js';
-import { resolveTheme } from '../lib/docgen/docStyles.js';
+import { DOC_STYLES, resolveTheme } from '../lib/docgen/docStyles.js';
 import { useDocsRun } from '../lib/docsRun.jsx';
 import { trackingIdOf } from '../lib/useCaseFields.js';
 
@@ -31,6 +31,13 @@ export default function GenerateDocsDialog({ useCases, values, businessName, lan
     if (pageId !== 'style') return '';
     const m = buildDocModel({ businessName, useCases, values, options });
     return infographicSvg(m, resolveTheme(options.style, options.palette, options.customColor, options.theme));
+  }, [pageId, businessName, useCases, values, options]);
+
+  // REQ-526: one thumbnail per design, drawn from the same model, theme mode and colour as the preview.
+  const thumbs = useMemo(() => {
+    if (pageId !== 'style') return {};
+    const m = buildDocModel({ businessName, useCases, values, options });
+    return Object.fromEntries(DOC_STYLES.filter((s) => s.design).map((s) => [s.id, infographicSvg(m, resolveTheme(s.id, options.palette, options.customColor, options.theme))]));
   }, [pageId, businessName, useCases, values, options]);
 
   const names = useCases.map((uc) => String(uc.Name || uc.name || uc.use_case || trackingIdOf(uc)));
@@ -59,7 +66,7 @@ export default function GenerateDocsDialog({ useCases, values, businessName, lan
         {pageId === 'documents' && <DocumentsPage options={options} set={set} />}
         {pageId === 'layout' && <LayoutPage options={options} set={set} count={useCases.length} eachApplies={options.kinds.some((k) => k === 'pptx' || k === 'pdf')} />}
         {pageId === 'include' && <IncludePage options={options} set={set} />}
-        {pageId === 'style' && <StylePage options={options} set={set} svg={svg} />}
+        {pageId === 'style' && <StylePage options={options} set={set} svg={svg} thumbs={thumbs} />}
         {pageId === 'columns' && <ColumnsPage options={options} set={set} />}
         {pageId === 'review' && <ReviewPage plan={plan} count={useCases.length} options={options} />}
       </section>

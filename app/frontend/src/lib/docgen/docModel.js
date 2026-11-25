@@ -1,5 +1,5 @@
 // FX-113 (REQ-503): the one plain model every document (SVG, PowerPoint, Excel) is drawn from.
-import { fieldOf, inspireScoreFromUc, trackingIdOf } from '../useCaseFields.js';
+import { fieldOf, inspireScoreFromUc, trackingIdOf, scoreOf } from '../useCaseFields.js';
 import { moneyText } from '../valueWizard.js';
 
 export const RTL_LANGUAGES = ['Arabic', 'Hebrew', 'Persian', 'Farsi', 'Urdu'];
@@ -30,7 +30,7 @@ function valueOf(raw) {
   const amount = Number(raw.amount);
   const currency = raw.currency || 'USD';
   return {
-    amount, currency, status: raw.status || 'estimated', story: storyText(raw.story), text: moneyText(currency, amount),
+    amount, currency, status: raw.status || 'estimated', verb: clean(raw.verb), story: storyText(raw.story), text: moneyText(currency, amount),
     yearly: Array.isArray(raw.yearly) ? raw.yearly : [], factors: Array.isArray(raw.factors) ? raw.factors : [],
   };
 }
@@ -45,6 +45,10 @@ export function buildDocModel({ businessName, useCases, values, options }) {
       id, name: clean(fieldOf(uc, 'Name', 'name')), statement: clean(fieldOf(uc, 'Statement', 'statement')), solution: clean(fieldOf(uc, 'Solution', 'solution')),
       businessValue: clean(fieldOf(uc, 'Business Value', 'business_value')), domain: clean(fieldOf(uc, 'domain', 'Domain') || fieldOf(uc, 'Subdomain', 'subdomain')),
       score, tables: tablesOf(uc), value: valueOf(values?.[id]),
+      // REQ-526: the extra real fields the document designs show (blank or null when the use case has none).
+      short: clean(fieldOf(uc, 'usecase', 'short_name')), subdomain: clean(fieldOf(uc, 'Subdomain', 'subdomain')), sponsor: clean(fieldOf(uc, 'Sponsor', 'sponsor')),
+      beneficiary: clean(fieldOf(uc, 'Beneficiary', 'beneficiary')), technique: clean(fieldOf(uc, 'Analytics Technique', 'analytics_technique')), quality: clean(fieldOf(uc, 'Quality', 'quality')),
+      priorityScore: scoreOf(uc, 'priority_score', 'Priority Score', 'Priority'), feasibility: scoreOf(uc, 'feasibility', 'Feasibility'), valueScore: scoreOf(uc, 'value_score', 'Value'),
     };
   });
   const withValue = list.filter((u) => u.value);

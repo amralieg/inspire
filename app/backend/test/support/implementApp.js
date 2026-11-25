@@ -82,7 +82,7 @@ function makeApp(overrides = {}, { mount } = {}) {
     ...overrides,
   };
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' })); // REQ-526: as server.js; a designed A4 PDF is far above the 100 kB default
   app.use((req, _res, next) => {
     if (state.forwardedToken) req.headers['x-forwarded-access-token'] = state.forwardedToken;
     if (state.forwardedEmail) req.headers['x-forwarded-email'] = state.forwardedEmail;

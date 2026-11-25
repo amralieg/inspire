@@ -33,8 +33,8 @@ const model = (over = {}) => buildDocModel({ businessName: 'Acme Air', useCases:
 const theme = resolveTheme('midnight', 'databricks');
 
 test('styles: 8 named styles, at least 4 palettes, a custom brand colour leads the accents, a bad hex is ignored', () => {
-  assert.equal(DOC_STYLES.length, 8);
-  assert.equal(new Set(DOC_STYLES.map((s) => s.id)).size, 8);
+  assert.equal(DOC_STYLES.length, 12); // REQ-526: 4 designs were added in front of the 8 named styles
+  assert.equal(new Set(DOC_STYLES.map((s) => s.id)).size, 12);
   assert.ok(DOC_STYLES.every((s) => s.label && s.bg && s.ink));
   assert.ok(DOC_PALETTES.length >= 4);
   for (const s of DOC_STYLES) for (const p of DOC_PALETTES) {

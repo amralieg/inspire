@@ -1,5 +1,7 @@
 // FX-113 (REQ-503): the SVG infographic and brief pages. Every text is XML-escaped; every content block is wrapped in <g data-block="id">.
 import { moneyText } from '../valueWizard.js';
+import { designOf, toDesignModel } from './designs/model.js';
+import { resetLog } from './designs/core.js';
 
 const NS = 'xmlns="http://www.w3.org/2000/svg"';
 export const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -124,7 +126,19 @@ function card(m, theme, u, i, x, y, w) {
   return `${s}</g>`.replace('CARD_H', String(ty - y + 10)) + `<!--h:${ty - y + 10}-->`;
 }
 
+// REQ-526: a design theme draws through its design (A4 infographic, brief page 1). With no use case that has a value and a score there is
+// nothing for the charts, so the plain renderer below takes over. Old styles never come here.
+function designed(m, theme) {
+  const design = theme.design && theme.tokens ? designOf(theme.design) : null;
+  if (!design) return null;
+  const dm = toDesignModel(m);
+  return dm.useCases.length ? { design, dm } : null;
+}
+const rtlRoot = (m, svg) => (m.rtl ? svg.replace(/^<svg /, '<svg direction="rtl" ') : svg);
+
 export function infographicSvg(m, theme) {
+  const d = designed(m, theme);
+  if (d) { resetLog(); return rtlRoot(m, d.design.infographic(d.dm, theme.tokens, { W: 794, H: 1123 })); }
   const W = 1200; const gap = 24; const cw = (W - 96 - gap) / 2;
   let y = 120; let body = '';
   body += header(m, theme, W, 50, `${m.total.n} use cases | ${m.total.nWithValue} with a calculated value`);
@@ -148,6 +162,14 @@ export function infographicSvg(m, theme) {
 }
 
 export function briefPagesSvg(m, theme) {
+  const d = designed(m, theme);
+  if (d) {
+    resetLog();
+    // Page 1 is the design's own; the use case pages use the same colours and font through the plain card (blocks honoured there).
+    const plain = { ...theme, deco: 'none', shape: 'bar', font: theme.fonts.body };
+    const rest = briefUseCasePages(m, plain);
+    return [rtlRoot(m, d.design.briefPage1(d.dm, theme.tokens)), ...rest];
+  }
   const W = 794; const H = 1123;
   const wrapPage = (id, body) => `<svg ${NS} viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="${esc(theme.font)}"${m.rtl ? ' direction="rtl"' : ''}>${defs(theme, id)}${backdrop(theme, W, H, id)}${body}</svg>`;
   const cover = txt(m, m.businessName || 'Inspire', 60, 420, { size: 44, weight: 700, fill: theme.ink, w: W - 120, max: 24, lines: 3, lh: 54 })
@@ -155,6 +177,13 @@ export function briefPagesSvg(m, theme) {
     + txt(m, `${m.total.n} use cases | ${m.total.nWithValue ? m.total.text : NOT_YET}`, 60, 560, { size: 16, fill: theme.muted, w: W - 120 })
     + mark(theme, 60, 600, 260, 22, theme.accents[0], 0) + mark(theme, 60, 634, 180, 22, theme.accents[1], 1) + mark(theme, 60, 668, 110, 22, theme.accents[2], 2);
   const pages = [wrapPage('C', cover)];
+  pages.push(...briefUseCasePages(m, theme));
+  return pages;
+}
+
+function briefUseCasePages(m, theme) {
+  const W = 794; const H = 1123; const pages = [];
+  const wrapPage = (id, body) => `<svg ${NS} viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="${esc(theme.font)}"${m.rtl ? ' direction="rtl"' : ''}>${defs(theme, id)}${backdrop(theme, W, H, id)}${body}</svg>`;
   m.useCases.forEach((u, i) => {
     const sub = { ...m, useCases: [u], total: { ...m.total, n: 1 } };
     const c = card(sub, theme, u, i, 40, 90, W - 80).replace(/<!--h:\d+-->/, '');

@@ -53,15 +53,16 @@ function modelFor({ businessName, useCases, values, options, language, ids, tran
 }
 
 async function makeFile(file, m, theme, options) {
+  const scale = theme.design ? 2 : 1; // REQ-526: the A4 design pages (794x1123) are drawn at twice the size so the PDF text stays sharp
   if (file.kind === 'infographic') {
     const svg = infographicSvg(m, theme);
     // One PDF of all selected, the picture at full size.
-    const png = await svgToPng(svg);
+    const png = await svgToPng(svg, scale);
     const { pdfFromImages } = await import('./docgen/pdfDoc.js');
     return pdfFromImages([png]);
   }
   if (file.kind === 'pdf') {
-    const pages = await Promise.all(briefPagesSvg(m, theme).map((s) => svgToPng(s)));
+    const pages = await Promise.all(briefPagesSvg(m, theme).map((s) => svgToPng(s, scale)));
     const { pdfFromImages } = await import('./docgen/pdfDoc.js');
     return pdfFromImages(pages);
   }
