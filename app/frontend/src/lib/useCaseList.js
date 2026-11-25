@@ -30,6 +30,21 @@ function overlayUserName(uc, row) {
   uc.Name = row.Name;
 }
 
+// Overlay shared by the id-match and Name + Business Domain branches (RC3-02 / REQ-512f).
+function overlayRowFlags(uc, row) {
+  // REQ-433: a refined score stored on the row wins over the first score and remembers it.
+  if (row.refined_score != null && row.refined_score !== '' && Number.isFinite(Number(row.refined_score))) {
+    uc.inspire_score = Number(row.refined_score);
+    if (row.refined_from != null && row.refined_from !== '') uc.refined_from = Number(row.refined_from);
+  }
+  for (const field of ['quality', 'quality_mode', 'elite_status', 'elite_score', 'elite_assessment', 'selection_flags', 'selection_drop_reason', 'meets_quality_bar', 'below_bar_reason']) {
+    if (row[field] != null && row[field] !== '' && (uc[field] == null || uc[field] === '')) uc[field] = row[field];
+  }
+  // REQ-511 (R3 field): when the use case's documents were last made, for the Docs column.
+  if (row.docs_generated_at) uc.docs_generated_at = row.docs_generated_at;
+  copyV130TrackingFields(uc, row);
+}
+
 export function buildUseCaseList(results, usecases) {
   let allUseCases = [];
   try {
@@ -101,17 +116,7 @@ export function buildUseCaseList(results, usecases) {
         copyScore('feasibility_score');
         copyScore('quality_score');
         copyScore('inspire_score');
-        // REQ-433: a refined score stored on the row wins over the first score and remembers it.
-        if (row.refined_score != null && row.refined_score !== '' && Number.isFinite(Number(row.refined_score))) {
-          uc.inspire_score = Number(row.refined_score);
-          if (row.refined_from != null && row.refined_from !== '') uc.refined_from = Number(row.refined_from);
-        }
-        for (const field of ['quality', 'quality_mode', 'elite_status', 'elite_score', 'elite_assessment', 'selection_flags', 'selection_drop_reason', 'meets_quality_bar', 'below_bar_reason']) {
-          if (row[field] != null && row[field] !== '' && (uc[field] == null || uc[field] === '')) uc[field] = row[field];
-        }
-        // REQ-511 (R3 field): when the use case's documents were last made, for the Docs column.
-        if (row.docs_generated_at) uc.docs_generated_at = row.docs_generated_at;
-        copyV130TrackingFields(uc, row);
+        overlayRowFlags(uc, row);
       }
       // When domain JSON `No`/`id` ≠ tracking table `id`, attach scores by Name + Business Domain.
       const normKey = (name, domain) =>
@@ -130,6 +135,8 @@ export function buildUseCaseList(results, usecases) {
         if (!row) continue;
         overlayUserName(uc, row);
         overlayDataFilters(uc, row);
+        overlayRowFlags(uc, row);
+        applyInspireTrackingId(uc, row.id ?? row.No ?? row['No']);
         const hasScore =
           uc.priority_score != null && uc.priority_score !== '' && Number.isFinite(Number(uc.priority_score));
         if (hasScore) continue;
@@ -146,9 +153,6 @@ export function buildUseCaseList(results, usecases) {
         copyScore2('inspire_score');
         if (!uc.Priority && row.Priority) uc.Priority = row.Priority;
         if (!uc.Quality && row.Quality) uc.Quality = row.Quality;
-        copyV130TrackingFields(uc, row);
-        const trackId = row.id ?? row.No ?? row['No'];
-        applyInspireTrackingId(uc, trackId);
         const ggi2 = row.generate_genie_code_instruction;
         if (ggi2 != null && String(ggi2).trim() !== '') uc.generate_genie_code_instruction = String(ggi2).trim();
         const hgc2 = row.has_genie_code;
