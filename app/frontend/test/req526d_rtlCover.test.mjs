@@ -27,7 +27,9 @@ for (const id of IDS) for (const mode of MODES) {
       assert.match(svg, /^<svg [^>]*direction="rtl"/, 'direction rtl kept');
       const inner = svg.slice(at);
       const icons = [...inner.matchAll(/<g transform="translate\(([-\d.]+) ([-\d.]+)\) scale\(([-\d.]+)(?: ([-\d.]+))?\)" fill="none"/g)];
-      assert.ok(icons.length > 0, 'has icons');
+      // Coordinator fix: a page that draws no icons in LTR (consulting page 1) has none to flip; RTL must keep every LTR icon.
+      const L = render(id, mode, false); const ltr = name === 'infographic' ? L.info : L.p1;
+      assert.equal(icons.length, (ltr.match(/scale\([-\d.]+\)" fill="none"/g) || []).length, 'every LTR icon is kept');
       for (const i of icons) assert.ok(Number(i[3]) < 0 && Number(i[4]) > 0, `icon flipped back: ${i[0]}`);
       const texts = [...inner.matchAll(/<text ([^>]*)>/g)];
       assert.ok(texts.length > 0, 'has texts');
