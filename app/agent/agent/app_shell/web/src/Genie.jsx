@@ -442,7 +442,7 @@ export function Answer({ message, url, onTick, genie, page = null, rating = true
     <div className="msg-b">
       {!done && <AgentSteps steps={message.steps} />}
       {blocks.length > 0 ? <Blocks blocks={blocks} ctx={blocksCtx(genie, message, page, blockData)} /> : <Typing message={message} onTick={onTick} />}
-      {guide && <GuidedAnswer guide={guide} genie={genie} message={message} />}
+      {guide && <GuidedAnswer guide={guide} genie={genie} message={message} person={app?.user?.email || ''} />}
       {done && a.rows?.length > 0 && (
         <div className="msg-t">
           <DataTable label="Genie's answer" columns={table} rows={a.rows}

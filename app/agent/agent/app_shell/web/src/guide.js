@@ -40,7 +40,8 @@ export function guideOf(answer, page, { decisions = false } = {}) {
   const label = columns.find((c) => c.name !== measure.name && !numeric.includes(c) && !isKeyColumn(c.name, c.type)) || columns.find((c) => !numeric.includes(c));
   const labelName = label?.name;
   const nameOf = (r, i) => String(labelName ? r[labelName] ?? `Row ${i + 1}` : `Row ${i + 1}`);
-  const ranked = rows.map((r, i) => ({ r, label: nameOf(r, i), value: r[measure.name] })).filter((x) => isNum(x.value)).sort((a, b) => b.value - a.value);
+  // Genie's row order is the question's ORDER BY (lowest first, rank 1 first): keep it, never re-sort by the measure.
+  const ranked = rows.map((r, i) => ({ r, label: nameOf(r, i), value: r[measure.name] })).filter((x) => isNum(x.value));
   const top = ranked[0];
   const total = ranked.reduce((s, x) => s + Math.max(x.value, 0), 0);
   const zero = numeric.filter((c) => c.name !== measure.name && rows.every((r) => r[c.name] === 0)).map((c) => answerLabel(c.name));

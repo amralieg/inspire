@@ -3,15 +3,8 @@ import { useState } from 'react';
 import { cellText, answerLabel } from './format.js';
 import { ConfirmCard, confirmWrite } from './AgentParts.jsx';
 import { PlainNote } from './ui.jsx';
-
-// UX-C builds explainers.js in parallel; until it is merged the chip is simply absent.
-const MODULES = import.meta.glob('./explainers.js', { eager: true });
-const explainerFor = Object.values(MODULES)[0]?.explainerFor;
-const chipText = (kind) => {
-  const x = kind && typeof explainerFor === 'function' ? explainerFor(kind) : null;
-  const t = typeof x === 'string' ? x : x?.title ?? x?.label ?? x?.name;
-  return typeof t === 'string' ? t : '';
-};
+import { explainerFor } from './explainers.js';
+import TermChip from './TermChip.jsx';
 
 function Bars({ step, max }) {
   return (
@@ -23,11 +16,12 @@ function Bars({ step, max }) {
   );
 }
 
-function StepBody({ step, genie, message, onStart }) {
+function StepBody({ step, genie, onStart, context }) {
   if (step.id === 'look') return <Bars step={step} max={Math.max(...step.bars.map((b) => b.value), 0)} />;
   if (step.id === 'means') {
-    const chip = chipText(step.kind);
-    return chip ? <span className="gd-chip" data-explainer={step.kind}>{chip}</span> : <p className="gd-quiet">Read the ranking from the top: the first rows matter most.</p>;
+    const x = step.kind ? explainerFor(step.kind) : null;
+    if (!x) return <p className="gd-quiet">Read the ranking from the top: the first rows matter most.</p>;
+    return <div className="gd-means" data-guide-kind={step.kind}><p>{x.what}</p>{x.terms[0] && <TermChip term={x.terms[0].term} kind={step.kind} context={context} />}</div>;
   }
   if (step.id === 'do') {
     if (!step.top.key) return <p>{step.top.label} is first. This answer carries no record to open.</p>;
@@ -35,7 +29,7 @@ function StepBody({ step, genie, message, onStart }) {
       <div className="gd-do">
         <p>Begin with <b>{step.top.label}</b>.</p>
         <div className="gd-act">
-          {step.actions.includes('start') && <button type="button" className="btn btn--sm btn--pri" data-guide-start onClick={() => onStart(step.top.key)}>Start</button>}
+          {step.actions.includes('start') && onStart && <button type="button" className="btn btn--sm btn--pri" data-guide-start onClick={() => onStart(step.top.key)}>Start</button>}
           {step.actions.includes('open') && <button type="button" className="btn btn--sm" data-guide-open onClick={() => genie.openRecord(genie.key, step.top.key)}>Open</button>}
         </div>
       </div>
@@ -44,18 +38,20 @@ function StepBody({ step, genie, message, onStart }) {
   return <p>{step.text}</p>;
 }
 
-export default function GuidedAnswer({ guide, genie, message }) {
+// person is the signed-in user (app.user.email): Start assigns the top record to them, as Records' "Give to me" does.
+export default function GuidedAnswer({ guide, genie, message, person = '' }) {
   const [at, setAt] = useState(0);
   const [all, setAll] = useState(false);
   const steps = guide.steps;
   const shown = all ? steps : [steps[at]];
-  const onStart = (key) => genie.offer?.(message.k ?? genie.key, message.n, 'done', key, {});
+  const onStart = person ? (key) => genie.offer?.(message.k ?? genie.key, message.n, 'assign', key, { owner: person }) : null;
+  const context = steps.find((s) => s.id === 'do')?.top?.label || '';
   return (
     <section className="gd" aria-label="Guided answer" data-guided>
       {shown.map((step) => (
         <div key={step.id} className="gd-step" data-guide-step={step.id}>
           <h4><span>{steps.indexOf(step) + 1}</span>{step.title}</h4>
-          <StepBody step={step} genie={genie} message={message} onStart={onStart} />
+          <StepBody step={step} genie={genie} onStart={onStart} context={context} />
         </div>
       ))}
       <div className="gd-nav">
