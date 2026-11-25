@@ -145,6 +145,7 @@ function formatSessionDate(dateStr) {
 const PIPELINE_STAGES = ['Setup', 'Business Understanding', 'Use Case Design', 'Domain Mapping', 'Prioritization', 'Implementation', 'Executive Readout'];
 
 import ValueDisclaimer from '../components/ValueDisclaimer';
+import { FRAME } from '../lib/layout';
 import { anyValued } from '../lib/valueFooter';
 
 export default function ResultsPage({
@@ -1264,7 +1265,7 @@ export default function ResultsPage({
           ? 'px-4 py-4'
           : results
             ? 'w-full px-0 py-2 sm:py-3'
-            : 'w-full px-6 py-8'
+            : `${FRAME} py-8`
       }
     >
       {/* Page header — tighter when results are shown so executive summary stays above the fold */}

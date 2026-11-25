@@ -11,7 +11,7 @@ export default function ValueDisclaimer({ short = false, footer = false, classNa
     return (
       <div className={`mt-6 flex items-start gap-1 ${className}`}>
         <Warn />
-        <p data-value-footer="" role="note" className="text-caption leading-snug text-text-secondary">{VALUE_DISCLAIMER}</p>
+        <p data-value-footer="" role="note" className="max-w-[80ch] text-caption leading-snug text-text-secondary">{VALUE_DISCLAIMER}</p>
       </div>
     );
   }
@@ -26,7 +26,7 @@ export default function ValueDisclaimer({ short = false, footer = false, classNa
   return (
     <div className={`flex items-start gap-1 ${className}`}>
       <Warn />
-      <p data-value-disclaimer="" role="note" className="text-caption leading-snug text-text-secondary">{VALUE_DISCLAIMER}</p>
+      <p data-value-disclaimer="" role="note" className="max-w-[80ch] text-caption leading-snug text-text-secondary">{VALUE_DISCLAIMER}</p>
     </div>
   );
 }
