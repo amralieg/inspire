@@ -86,7 +86,7 @@ const demoWrite = (page, pathname) => page.evaluate(async ([to, header, id]) => 
   const r = await fetch(to, { method: 'POST', headers: { [header]: id, 'Content-Type': 'application/json' }, body: '{}' });
   return { status: r.status, error: (await r.json()).error };
 }, [pathname, SHOWCASE_HEADER, DEMO.id]);
-const READ_CONTROLS = ['Use case details', 'Check the live status now', 'Jump to latest', 'Search use cases', 'Close', 'Show progress', 'Hide progress'];
+const READ_CONTROLS = ['Use case details', 'More', 'Check the live status now', 'Jump to latest', 'Search use cases', 'Close', 'Show progress', 'Hide progress'];
 const READ_NAMES = [/^Versions of the /, /^Close the /, /\. Show (why|the build progress)$/];
 const READ_PLACES = ['tab', 'use case list', 'asset filter', 'History'];
 const readsOnly = (c) => READ_PLACES.includes(c.place) || READ_CONTROLS.includes(c.name) || READ_NAMES.some((name) => name.test(c.name));
@@ -573,8 +573,8 @@ test('the demo disables every control that writes in Build progress, on every ti
     await showView(page, 'notebook');
     assert.equal(await page.locator('[data-mvp-panel="notebook"]').getByRole('region', { name: 'Target KPI', exact: true }).locator('p').textContent(),
       'No target KPI yet: this version was built before Inspire tracked one. The next version Inspire builds picks one.', 'the demo never points at Vibe/Add/Remove Features, which it hides');
-    assert.deepEqual([...reads].sort(), ['Check the live status now', 'Close', 'Close the asset', 'Genie Agent: Failed. Show why', 'Hide progress', 'History',
-      'Search use cases', 'Show progress', 'Use case details', 'Versions of the asset', 'asset filter', 'use case list'], 'the controls left enabled are the ones that read');
+    assert.deepEqual([...reads].sort(), ['Check the live status now', 'Close', 'Close the asset', 'Genie Agent: Failed. Show why', 'Hide progress', 'History', 'More',
+      'Search use cases', 'Show progress', 'Versions of the asset', 'asset filter', 'use case list'], 'the controls left enabled are the ones that read');
     await showView(page, 'dashboard');
     const card = page.locator('[data-vibe-card="dashboard"]');
     assert.equal(await card.count(), 1, 'the dashboard card still shows what was asked and how it was checked');

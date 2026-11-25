@@ -79,7 +79,7 @@ function useHub(pages, asked) {
 const railOf = (app, page) => [...pageSections(app, page), ...(performanceOn(app) ? ['performance'] : []), 'genie'];
 // REQ-092: the App opens in Genie mode; a session with the closed flag (the test harness sets it) lands on Screen. Screen goes to the page's Work queue, or its dashboard when it has none.
 const genieClosed = () => { try { return window.sessionStorage.getItem('inspire-genie-closed') === '1'; } catch { return false; } };
-const screenSection = (app, page) => (pageMode(page).queue && railOf(app, page).includes('work') ? 'work' : 'dashboard');
+const screenSection = (app, page) => (railOf(app, page).includes('work') ? 'work' : 'dashboard');
 const HOME_ROUTES = ['', 'home', 'overview'];
 const OLD_SECTION = /^(#\/[^/?]+)\/(?:inbox|agent)(?=[?]|$)/;
 

@@ -230,7 +230,7 @@ test('the Runs button opens from the keyboard and hides the filters', async () =
   const { page, seen, context } = await open({ ...appInfo({}, 1, TABLE), is_owner: true }, routes);
   await page.locator('[data-avatar-menu] .av-b').focus();
   await page.keyboard.press('Enter');
-  await page.getByRole('menuitem', { name: 'Runs', exact: true }).focus();
+  await page.getByRole('menuitem', { name: /^Runs\s*4$/ }).focus(); // 8338018e8 (REQ-506): the Runs entry carries its count
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => location.hash.startsWith('#/n01_u05/runs'));
   await page.locator('.runs tbody tr').first().waitFor();

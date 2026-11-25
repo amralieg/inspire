@@ -65,7 +65,12 @@ test('REQ-505: each run with a value shows it in a solid red box with white text
     await none.waitFor({ timeout: 20000 });
     assert.equal((await none.innerText()).trim(), 'Not calculated');
     assert.ok((await none.getAttribute('class')).includes('bg-neutral-bg'), 'a run with no value is a neutral Badge');
-    assert.equal(await page.locator('[data-run="51"] [data-run-value-box]').count(), 0, 'a run with no value has no red value box (must-exclude)');
+    // e6f34abbe (REQ-510) restored the labelled box for a run with no total, dashed, so it is never a filled red box (REQ-505 title).
+    const noneBox = page.locator('[data-run="51"] [data-run-value-box]');
+    assert.equal(await noneBox.count(), 1);
+    assert.equal(await noneBox.evaluate((el) => getComputedStyle(el).borderTopStyle), 'dashed', 'a run with no value shows a dashed box');
+    const [nr, ng, nb] = rgb(await noneBox.evaluate((el) => getComputedStyle(el).backgroundColor));
+    assert.ok(!(nr >= 180 && ng <= 90 && nb <= 90), 'a run with no value has no filled red value box (must-exclude)');
     const [r, g, b] = rgb(await none.evaluate((el) => getComputedStyle(el).backgroundColor));
     assert.ok(!(r >= 180 && g <= 90 && b <= 90), 'a run with no value is not a filled red box');
     assert.deepEqual(ui.pageErrors, []);

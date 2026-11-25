@@ -13,7 +13,8 @@ async function detailsLine(useCase) {
   const ui = await openUi('implement', { useCase: { ...HARNESS_USE_CASE, ...useCase } });
   const { page } = ui;
   try {
-    await page.getByRole('button', { name: 'Use case details', exact: true }).click();
+    await page.locator('[aria-label="Use case"]').getByRole('button', { name: 'More', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Use case details' }).click();
     await page.getByRole('dialog', { name: /^Use case details: / }).waitFor();
     return {
       line: await page.locator('[data-data-filters]').count() ? (await page.locator('[data-data-filters]').first().innerText()).trim() : null,
@@ -43,7 +44,8 @@ test('a use case whose build record cannot be read keeps the Discover filters an
   const ui = await openUi('implement', { useCase: { ...HARNESS_USE_CASE, data_filters: FILTERED, build_scope_unread: true } });
   const { page } = ui;
   try {
-    await page.getByRole('button', { name: 'Use case details', exact: true }).click();
+    await page.locator('[aria-label="Use case"]').getByRole('button', { name: 'More', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Use case details' }).click();
     await page.getByRole('dialog', { name: /^Use case details: / }).waitFor();
     assert.equal((await page.locator('[data-data-filters]').first().innerText()).trim(), 'Data Filters: product: Tokyo Tidbits; region: north, south');
     assert.equal((await page.locator('[data-build-scope-unread]').innerText()).trim(), "The build's scope could not be read. The Data Filters above are the Discover run's.");

@@ -16,7 +16,7 @@ const SCHEMA = 'GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`';
 const SELECT = 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`';
 const METADATA = 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-id`';
 // REQ-408: the Details copy names the read at schema level.
-const METADATA_SCHEMA = 'GRANT READ METADATA ON SCHEMA `main`.`s` TO `app-sp-id`';
+const METADATA_SCHEMA = 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-id`';
 const row = (level, privilege, principal, mine) => ({ level, privilege, principal, mine: String(mine), me: OWNER });
 const OWNS = [row('catalog', 'OWNER', OWNER, true), row('schema', 'OWNER', 'data-eng', false), row('table', 'OWNER', 'data-eng', false)];
 
@@ -61,7 +61,7 @@ test('a build stopped by a denied policy read shows the reason, Details with the
     const details = banner.locator('[data-protection-details]');
     assert.equal(await details.count(), 1, 'the raw error sits under Details');
     assert.match(await details.locator('p').textContent(), new RegExp(RAW.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), 'the raw error is under Details');
-    assert.match(await details.locator('pre[data-protection-sql]').textContent(), new RegExp(METADATA_SCHEMA.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), 'the GRANT is a code block under Details, at schema level (REQ-408)');
+    assert.match(await details.locator('pre[data-protection-sql]').textContent(), new RegExp(METADATA_SCHEMA.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), 'the GRANT is a code block under Details, at table level (SEC-01 W3, 64d31b7a6)');
     assert.doesNotMatch(await banner.getByText(REASON, { exact: false }).first().innerText(), /`/, 'no backticks in the reason sentence');
     await banner.getByRole('button', { name: APP_READ_ACTION, exact: true }).click();
     await page.locator('[data-protection-copy]').getByText('Inspire granted 6 grants with your sign-in', { exact: false }).waitFor({ timeout: 15000 });

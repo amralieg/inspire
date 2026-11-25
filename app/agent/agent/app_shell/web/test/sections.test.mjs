@@ -280,7 +280,8 @@ test('the top bar holds the switcher, the Screen | Genie switch, the value chip 
   assert.equal(await hashOf(page), '#/n01_u05/work', 'a use case opens on its Work screen');
   assert.equal(await page.locator('.side, [data-rail]').count(), 0, 'there is no side rail');
   assert.deepEqual(await page.locator('header.top > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]).filter((c) => c !== 'avatar')),
-    ['switch', 'sp', 'mode-switch', 'top-value', 'av'], 'the top bar holds the use case switcher, the Screen | Genie switch, the value chip and the avatar menu');
+    // 8bbdefaff (REQ-506 item 14): the brand mark is a non-interactive element at the start of the bar; the four controls are the rest.
+    ['mark', 'switch', 'sp', 'mode-switch', 'top-value', 'av'], 'the top bar holds the brand mark, the use case switcher, the Screen | Genie switch, the value chip and the avatar menu');
   assert.deepEqual(await menuIds(page), ['Switch to dark theme', 'Take the tour', 'Dashboard', 'Settings', 'Runs', 'Performance', 'Admin'], 'Feedback sits in Settings, not in the menu (REQ-110); REQ-506 gap2 added the Dashboard entry before Settings');
   await pickMenu(page, 'Runs');
   await page.waitForFunction(() => window.location.hash === '#/n01_u05/runs');
@@ -499,7 +500,8 @@ for (const file of EXAMPLES) {
   test(`the ${file} example renders its dashboard, the Screen button and settings with no error`, async () => {
     const info = owned(appInfo(DECIDE, 1, {}, `examples/${file}`));
     const { page, seen, context } = await openApp(browser, served.base, info, { ready: '.ph h1', hash: DASH, watch: prefsFirst(MY_KEY, PERSON, {}),
-      routes: { 'scenario/evaluate': ({ route, json }) => json(200, evaluated(route.request().postDataJSON().values || {})),
+      routes: { ...versionRoutes('plan').routes, ...reviewRoutes(null, []), // REQ-506: Screen opens the Work section, whose plan versions and forecast review read their own routes
+        'scenario/evaluate': ({ route, json }) => json(200, evaluated(route.request().postDataJSON().values || {})),
       'scenario/saved': ({ json }) => json(200, { scenarios: [], decisions: [], mine: 0, note: '' }) } });
     const rail = await menuIds(page);
     // REQ-506 gap2 put Dashboard (and Plan) entries ahead of Settings: after the theme and tour items only those two may come before Settings.
