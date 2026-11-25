@@ -3,6 +3,7 @@ import Button from '../components/ui/Button';
 import UiPageHeader from '../components/ui/PageHeader';
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { newIssueUrl } from '../lib/issues';
+import { FRAME } from '../lib/layout';
 import {
   AlertTriangle, AppWindow, ArrowRight, BellRing, CheckCircle2, ChevronDown, CircleDashed, ExternalLink, Hammer, History, LayoutDashboard, Loader2,
   NotebookPen, Pencil, RefreshCw, Rocket, RotateCcw, Search, Settings2, Sparkles, Square, Trash2, XCircle,
@@ -93,7 +94,7 @@ const CHECKING = { label: 'Checking', tone: 'idle' };
 const ERROR_BOX = 'text-xs text-error-fg bg-error-bg border border-error/20 rounded-lg px-3 py-2';
 const NOTE_BOX = 'text-xs text-info-fg bg-info-bg border border-info/20 rounded-lg px-3 py-2';
 // Header actions: equal widths per row, and a row that does not fit wraps to a second row instead of overlapping.
-const HEADER_ACTIONS = 'grid w-full gap-1.5 grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))]';
+const HEADER_ACTIONS = 'grid w-full gap-1.5 grid-cols-[repeat(auto-fit,minmax(9.5rem,16rem))] justify-end';
 const OUTLINE_BUTTON = 'inline-flex h-8 items-center justify-center gap-1.5 px-3 rounded-lg whitespace-nowrap text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
 const LINK = 'text-sm font-semibold text-db-red-fg inline-flex items-center gap-1 hover:underline';
 const DANGER_BUTTON = `${OUTLINE_BUTTON} border-error/40 text-error-fg`;
@@ -566,7 +567,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
   const [progressDock, setProgressDock] = useState(null);
 
   return (
-    <div className="w-full px-6 py-6 space-y-4 md:flex md:flex-col md:[&>:not(:last-child)]:shrink-0 md:max-h-[calc(100dvh-3.5rem-1px)] md:has-[[data-progress-open=true]]:h-[calc(100dvh-3.5rem-1px)]" data-implement-page="">
+    <div className={`${FRAME} py-6 space-y-4 md:flex md:flex-col md:[&>:not(:last-child)]:shrink-0 md:max-h-[calc(100dvh-3.5rem-1px)] md:has-[[data-progress-open=true]]:h-[calc(100dvh-3.5rem-1px)] [&_[data-diagnostics-note]]:max-w-[75ch]`} data-implement-page="">
       <PageHeader summary={summary} loading={listLoading} query={query} onQuery={setQuery} />
       {!listLoading && !listError && <SummaryBanner summary={summary} />}
       {filter && <BuildFilterStrip filter={filter} sessionId={sessionId} onPickRun={onPickRun} onClear={clearFilter} />}

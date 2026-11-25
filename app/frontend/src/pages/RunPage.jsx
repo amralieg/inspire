@@ -14,6 +14,7 @@ import { runOutcome } from '../lib/moneyReview';
 import { PlainMessage } from '../components/TechnicalDetails';
 import Button from '../components/ui/Button';
 import UiPageHeader from '../components/ui/PageHeader';
+import { FRAME } from '../lib/layout';
 
 const STATE_TONE = { ready: 'text-success-fg', starting: 'text-text-secondary', stopped: 'text-text-secondary', failed: 'text-error-fg' };
 const LINK_CLASS = 'inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold';
@@ -308,7 +309,7 @@ export default function RunPage({ settings, focusId = null, onFocus = ignore, on
     );
   }
   return (
-    <div className="w-full px-6 py-8 space-y-4" data-run-page-root="">
+    <div className={`${FRAME} py-8 space-y-4`} data-run-page-root="">
       <UiPageHeader icon={PlayCircle} title="Run" subtitle="Every deployed use case of this Inspire database, by business domain."
         actions={!showcase && (
           <button type="button" onClick={load} aria-label="Read the deployed use cases again" className="p-1.5 rounded-lg border border-border bg-surface text-text-secondary hover:text-text-primary">
