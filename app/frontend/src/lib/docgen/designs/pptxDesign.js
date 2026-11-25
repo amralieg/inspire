@@ -29,7 +29,6 @@ export function buildDesignDeck(pptx, m, theme) {
   const dm = toDesignModel(m);
   const face = firstFont(theme.fonts?.display); const bodyFace = firstFont(theme.fonts?.body || theme.fonts?.display);
   const align = m.rtl ? 'right' : 'left';
-  const dark = th.mode === 'dark';
   const W = 13.33;
   const accent = hex(P.accent);
 
@@ -84,12 +83,12 @@ export function buildDesignDeck(pptx, m, theme) {
   const title = { original: 'Data and AI use cases, ranked by value', editorial_ink: 'Use case review', bold: 'Use case portfolio', consulting: 'Use case portfolio review' }[id];
   text(cover, title, { x: 0.8, y: 1.5, w: 9, h: 1.7, fontSize: id === 'bold' ? 54 : 44, bold: true, bg: P.coverBg, color: P.coverInk, font: face });
   text(cover, `Prepared for ${m.businessName || 'Inspire'}`, { x: 0.8, y: 3.3, w: 9, h: 0.6, fontSize: 24, bg: P.coverBg, color: P.coverMuted });
-  if (P.edge || P.masthead) box(cover, 0.8, 4.05, 1.4, 0.05, P.masthead ? P.accent : P.edge === undefined ? P.accent : P.accent);
+  if (P.edge || P.masthead) box(cover, 0.8, 4.05, 1.4, 0.05, P.accent);
   const nDom = domainsOf().length;
   [[m.total.nWithValue ? m.total.text : NOT_YET, 'estimated value a year'], [S(m.total.n), 'use cases'], [S(nDom), 'domains']].forEach(([v, l], i) => {
     const x = 0.8 + i * 3.4;
     if (P.masthead || P.edge) box(cover, x, 4.6, 2.9, 0.03, P.coverInk); else box(cover, x, 4.6, 3.1, 1.7, P.coverInk === '#FFFFFF' ? mixDark(P.coverBg) : P.card, { round: true });
-    text(cover, v, { x: x + 0.15, y: 4.8, w: 2.8, h: 0.8, fontSize: 32, bold: true, bg: (P.masthead || P.edge) ? P.coverBg : (P.coverInk === '#FFFFFF' ? mixDark(P.coverBg) : P.card), color: i ? (P.masthead || P.edge ? P.coverInk : P.coverInk) : P.coverAccent, font: face });
+    text(cover, v, { x: x + 0.15, y: 4.8, w: 2.8, h: 0.8, fontSize: 32, bold: true, bg: (P.masthead || P.edge) ? P.coverBg : (P.coverInk === '#FFFFFF' ? mixDark(P.coverBg) : P.card), color: i ? P.coverInk : P.coverAccent, font: face });
     text(cover, l, { x: x + 0.15, y: 5.65, w: 2.8, h: 0.4, fontSize: 14, bg: (P.masthead || P.edge) ? P.coverBg : (P.coverInk === '#FFFFFF' ? mixDark(P.coverBg) : P.card), color: P.coverMuted });
   });
 
@@ -130,7 +129,6 @@ export function buildDesignDeck(pptx, m, theme) {
   ucList.forEach((u, i) => {
     const s = newSlide(P.page);
     chrome(s, S(u.domain || 'Other'));
-    const dUc = designUc.get(u.id);
     box(s, 0.6, 0.8, 0.8, 0.8, P.warm, { round: true });
     text(s, S(i + 1), { x: 0.6, y: 0.95, w: 0.8, h: 0.5, fontSize: 22, bold: true, align: 'center', bg: P.warm, color: P.ink, font: face });
     text(s, [u.id, u.domain, u.subdomain].filter(Boolean).join('  |  '), { x: 1.6, y: 0.8, w: W - 2.2, h: 0.3, fontSize: 12, bold: true, charSpacing: 1, bg: P.page, color: P.kicker });
@@ -162,7 +160,6 @@ export function buildDesignDeck(pptx, m, theme) {
       s.addChart(pptx.charts.BAR, [{ name: 'Low', labels: lbl, values: y.map((r) => r.low) }, { name: 'Likely', labels: lbl, values: y.map((r) => r.likely) }, { name: 'High', labels: lbl, values: y.map((r) => r.high) }], { x: 8.4, y: side.length ? 5.45 : 3.5, w: 4.3, h: side.length ? 1.6 : 3.3, barDir: 'col', chartColors: [hex(P.rule), accent, hex(P.warm)], showLegend: true, legendPos: 'b', legendColor: tc(P.ink, P.page, 'legend'), legendFontSize: 12, ...chartBase(P.page) });
     }
     if (has(m, 'disclaimer')) text(s, 'Estimated value, not a promised value. Your business value team must validate it.', { x: 0.6, y: 6.95, w: 9, h: 0.3, fontSize: 12, italic: true, bg: P.page, color: P.muted });
-    void dUc;
   });
 
   // ---- portfolio ----
@@ -180,5 +177,4 @@ export function buildDesignDeck(pptx, m, theme) {
     p.addChart(pptx.charts.SCATTER, [{ name: 'Inspire score', values: dm.useCases.map((u) => u.score) }, { name: 'Yearly value', values: dm.useCases.map((u) => u.value.amount) }], { x: 6.9, y: 2.25, w: 5.8, h: 4.2, chartColors: [accent], lineSize: 0, lineDataSymbolSize: 9, showLegend: false, showCatAxisTitle: true, catAxisTitle: 'Inspire score', catAxisTitleColor: tc(P.ink, P.page, 'axis title'), catAxisTitleFontSize: 12, showValAxisTitle: true, valAxisTitle: 'Yearly value', valAxisTitleColor: tc(P.ink, P.page, 'axis title'), valAxisTitleFontSize: 12, valAxisLabelFormatCode: '#,##0', ...chartBase(P.page) });
   }
   if (has(m, 'disclaimer')) text(p, DISCLAIMER, { x: 0.6, y: 6.95, w: W - 1.2, h: 0.4, fontSize: 12, italic: true, bg: P.page, color: P.muted });
-  void dark;
 }
