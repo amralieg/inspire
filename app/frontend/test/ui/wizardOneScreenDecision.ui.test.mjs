@@ -14,11 +14,11 @@ const topDecisions = (page) => page.locator('[data-wizard-body] [data-choice]').
   .filter((e) => e.getClientRects().length > 0 && !e.parentElement.closest('[data-choice]'))
   .map((e) => e.getAttribute('data-choice')));
 
-// The notebook-only path: the context reports Genie Code off, so the wizard offers the notebook steps.
+// The notebook-only path: the context reports Databricks AI off, so the wizard offers the notebook steps.
 const notebookOnly = (page) => page.route('**/api/inspire/implement/context?*', async (route) => {
   const res = await route.fetch();
   const data = await res.json();
-  await route.fulfill({ response: res, json: { ...data, features: { ...(data.features || {}), genie_code: { available: false, reason: 'Genie Code is off', fix: '' } } } });
+  await route.fulfill({ response: res, json: { ...data, features: { ...(data.features || {}), genie_code: { available: false, reason: 'Databricks AI is off', fix: '' } } } });
 });
 
 // Walks every screen from the first step. At each screen at most one top-level decision is on screen. A Measure screen shows one

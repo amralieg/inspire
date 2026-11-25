@@ -7,8 +7,8 @@ import { RUN_STATE_UNKNOWN, runStateText } from './runState.js';
 
 export const MVP_BUILD_STAGES = [
   { id: 'Plan', label: 'Plan', working: 'Inspire is working out what this version rebuilds' },
-  { id: 'Instruction', label: 'Instruction', working: 'Inspire is writing the Genie Code instruction' },
-  { id: 'Genie Code', label: 'Start Genie Code', working: 'Inspire is starting Genie Code' },
+  { id: 'Instruction', label: 'Instruction', working: 'Inspire is writing the Databricks AI instruction' },
+  { id: 'Genie Code', label: 'Start Databricks AI', working: 'Inspire is starting Databricks AI' },
   { id: 'Genie build', label: 'Genie builds the notebook', working: 'Genie is building the notebook' },
   { id: 'Preview run', label: 'Preview run', working: 'Inspire is running the notebook on a preview' },
 ];

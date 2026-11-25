@@ -11,7 +11,7 @@ const refused = (got) => got.status === 403 && Boolean(got.data && got.data.poli
 const genie = (person, ids) => S.request('POST', '/api/inspire/generate-genie', { person, body: body(ids) });
 const built = (uc, by) => ({ session_id: '1001', use_case_id: uc, spec_version: 1, status: 'ready', created_by: by });
 
-test('the person who launched the session may add Genie code to a use case nobody has built', async () => {
+test('the person who launched the session may add Databricks AI to a use case nobody has built', async () => {
   S.reset({ managers: [BOSS], sessionLaunchers: { 1001: ME }, history: [] });
   const got = await genie(ME, ['N01-U01']);
   assert.equal(refused(got), false, got.text.slice(0, 300));

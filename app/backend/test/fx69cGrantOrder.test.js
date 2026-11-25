@@ -68,7 +68,7 @@ test('a submit refused as unchanged issues no GRANT MANAGE and starts no job', a
   });
 });
 
-test('a submit refused for a missing Genie Code issues no GRANT MANAGE', async () => {
+test('a submit refused for a missing Databricks AI issues no GRANT MANAGE', async () => {
   await withApp({ extra: NO_GENIE }, async (url, made) => {
     const got = await post(url, '/api/inspire/implement/submit');
     assert.equal(got.status, 409, JSON.stringify(got.data));

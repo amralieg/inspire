@@ -183,8 +183,8 @@ test('each feed item reads as a sentence, never as a log line', async () => {
   assert.equal(feedLine({ kind: 'turn_done' }).text, 'Genie finished its turn');
   const retry = 'Reconnecting... 6/10 (stream disconnected before completion: error sending request for url (http://10.1.2.3/ai-gateway/mlflow/v1/responses))';
   assert.deepEqual(feedLine({ kind: 'error', text: retry }), { who: 'genie', tone: 'warning', text: 'Genie lost its link to the AI model and is reconnecting, try 6 of 10', details: [retry] });
-  const ready = feedLine({ kind: 'note', text: 'Genie Code 0.2.1 is ready and uses the model m (installed at /home/<user>/.inspire_genie/bin/genie on the x86_64 CPU)' });
-  assert.deepEqual([ready.text, ready.details], ['Genie Code 0.2.1 is ready and uses the model m', ['installed at /home/<user>/.inspire_genie/bin/genie on the x86_64 CPU']]);
+  const ready = feedLine({ kind: 'note', text: 'Databricks AI 0.2.1 is ready and uses the model m (installed at /home/<user>/.inspire_genie/bin/genie on the x86_64 CPU)' });
+  assert.deepEqual([ready.text, ready.details], ['Databricks AI 0.2.1 is ready and uses the model m', ['installed at /home/<user>/.inspire_genie/bin/genie on the x86_64 CPU']]);
   assert.equal(feedLine({ kind: 'activity', commands: 3, failed: 1, files: ['implementation.py'] }).text, 'Ran 3 commands (1 failed) · edited implementation.py');
   assert.equal(feedLine({ kind: 'activity', commands: 1, failed: 0, files: [] }).text, 'Ran 1 command');
   assert.equal(feedLine({ kind: 'activity', commands: 0, failed: 0, files: ['a.py', 'b.py'] }).text, 'Edited a.py, b.py');
@@ -441,12 +441,12 @@ const APP_VIBE_STEPS = [
 const ids = (stages) => stages.map((s) => s.id);
 const labels = (stages) => stages.map((s) => s.label);
 
-test('an App-only vibe shows Vibe, Plan, Start Genie Code, the App rebuild and Done, and never the notebook stages or another output', async () => {
+test('an App-only vibe shows Vibe, Plan, Start Databricks AI, the App rebuild and Done, and never the notebook stages or another output', async () => {
   const { mvpStages, mvpProgressSummary, versionPlan } = await lib('mvpProgress.js');
   const latest = v2('building_outputs');
   const stages = mvpStages(APP_VIBE_STEPS, latest, { now: at('10:02:00') });
   assert.deepEqual(ids(stages), ['Vibe', 'Plan', 'Genie Code', 'App', 'Done']);
-  assert.deepEqual(labels(stages), ['Vibe', 'Plan', 'Start Genie Code', 'Rebuild the Agentic App', 'Done']);
+  assert.deepEqual(labels(stages), ['Vibe', 'Plan', 'Start Databricks AI', 'Rebuild the Agentic App', 'Done']);
   assert.deepEqual(states(stages), [['Vibe', 'done'], ['Plan', 'done'], ['Genie Code', 'done'], ['App', 'running'], ['Done', 'waiting']]);
   for (const absent of ['Dashboard', 'Genie Agent', 'Alert', 'Instruction', 'Genie build', 'Preview run']) assert.ok(!ids(stages).includes(absent), `${absent} must not show`);
   const summary = mvpProgressSummary(stages, latest, { now: at('10:02:00') });
@@ -492,21 +492,21 @@ test('a restyle, a roll back, a new build after a lost roll back, a removal and 
   const stagesOf = (p) => mvpStages([step('Plan', 'ended_success', '10:00:32', { plan: p })], latest, { now: at('10:01:00') });
   const restyle = stagesOf(plan({ classes: ['outputs'], refresh: ['app'], restyle: ['app'] }));
   assert.deepEqual(labels(restyle), ['Plan', 'Restyle the Agentic App', 'Done']);
-  assert.ok(!ids(restyle).includes('Genie Code'), 'a restyle never starts Genie Code');
+  assert.ok(!ids(restyle).includes('Genie Code'), 'a restyle never starts Databricks AI');
   const back = stagesOf(plan({ classes: ['outputs', 'rollback'], rollback: { dashboard: 2 } }));
   assert.deepEqual(labels(back), ['Plan', 'Roll the Dashboard back to v2', 'Done']);
   assert.ok(!ids(back).includes('Genie Code'), 'a roll back never calls Genie');
   assert.equal(back[1].working, 'Inspire is putting v2 of the Dashboard back');
   const lost = stagesOf(plan({ classes: ['outputs', 'rollback'], build: ['dashboard'], rollback_built: { dashboard: { version: 2, why: 'gone' } } }));
-  assert.deepEqual(labels(lost), ['Plan', 'Start Genie Code', 'Build a new Dashboard', 'Done']);
+  assert.deepEqual(labels(lost), ['Plan', 'Start Databricks AI', 'Build a new Dashboard', 'Done']);
   assert.equal(lost[2].working, 'Genie is building a new Dashboard, because v2 could not be put back');
   const removed = stagesOf(plan({ classes: ['deselect'], delete: ['alert'], sharing: false }));
   assert.deepEqual(labels(removed), ['Plan', 'Remove the Alert', 'Done']);
   assert.equal(removed.at(-1).working, 'Inspire is finishing this version');
   const pointed = stagesOf(plan({ classes: ['retry'], refresh: ['genie_space'], repoint: ['app'] }));
-  assert.deepEqual(labels(pointed), ['Plan', 'Start Genie Code', 'Rebuild the Genie Agent', 'Point the App at the Genie Agent', 'Done']);
+  assert.deepEqual(labels(pointed), ['Plan', 'Start Databricks AI', 'Rebuild the Genie Agent', 'Point the App at the Genie Agent', 'Done']);
   const alertOnly = stagesOf(plan({ classes: ['outputs'], refresh: ['alert'] }));
-  assert.deepEqual(labels(alertOnly), ['Plan', 'Rebuild the Alert', 'Done'], 'Inspire writes the alert without starting Genie Code');
+  assert.deepEqual(labels(alertOnly), ['Plan', 'Rebuild the Alert', 'Done'], 'Inspire writes the alert without starting Databricks AI');
 });
 
 test('an AI reasoning ask runs the notebook again on a preview and rebuilds no output', async () => {

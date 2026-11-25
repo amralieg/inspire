@@ -741,7 +741,7 @@ def genie_code_install_check(api, notebook_text, person):
     try:
         k = agent_constants(notebook_text, GENIE_CODE_CONSTANTS)
     except Exception as exc:
-        return f"⚠️ not checked: the bundled agent notebook does not say how Genie Code reaches a model ({_error_words(exc)})"
+        return f"⚠️ not checked: the bundled agent notebook does not say how Databricks AI reaches a model ({_error_words(exc)})"
     timeout = GENIE_CODE_CHECK_TIMEOUT_S
     try:
         first = k["GENIE_CODE_MODEL"]
@@ -755,13 +755,13 @@ def genie_code_install_check(api, notebook_text, person):
         for route, base, model in tried:
             resp = api("POST", f"{base}/responses", dict(k["GENIE_CODE_MODEL_CHECK"], model=model), timeout=timeout)
             if resp.status_code == 200:
-                return f"✅ Inspire can build MVPs: Genie Code reaches {model} through the {route} (checked as {person})"
+                return f"✅ Inspire can build MVPs: Databricks AI reaches {model} through the {route} (checked as {person})"
             if resp.status_code == 429 or resp.status_code >= 500:
                 return f"⚠️ not checked: Unity Gateway was busy ({resp.status_code}); the first MVP build checks again before Genie starts"
             refused.append(f"{model} through the {route}: {resp.status_code} {str(resp.text or '')[:120]}")
     except Exception as exc:
         return f"⚠️ not checked: Unity Gateway did not answer ({_error_words(exc)}); the first MVP build checks again before Genie starts"
-    return (f"⚠️ Genie Code reaches no model for {person} (tried {'; '.join(refused)}). I will build it myself still works: Inspire writes the "
+    return (f"⚠️ Databricks AI reaches no model for {person} (tried {'; '.join(refused)}). I will build it myself still works: Inspire writes the "
             f"notebook and you run it. To let Inspire build MVPs, {k['GENIE_CODE_ADMIN_FIX']}")
 
 
@@ -1139,7 +1139,7 @@ def step_schema_and_notebooks(ctx):
         print(f"  ⚠️ {ctx['USER_SCOPES_NOTE']}")
     ctx["AGENT_NOTEBOOK_TEXT"] = base64.b64decode(b64).decode("utf-8")
     ctx["GENIE_CODE_SUMMARY"] = genie_code_install_check(api, ctx["AGENT_NOTEBOOK_TEXT"], ctx.get("USER_EMAIL") or "you")
-    print(f"Genie Code: {ctx['GENIE_CODE_SUMMARY']}")
+    print(f"Databricks AI: {ctx['GENIE_CODE_SUMMARY']}")
     try:
         ctx["LAKEBASE"] = agent_lakebase(base64.b64decode(b64).decode("utf-8"))
     except Exception as exc:
@@ -2285,7 +2285,7 @@ def step_render_done(ctx):
     if ctx.get("LAKEBASE_SUMMARY"):
         print(f"  Lakebase:    {ctx['LAKEBASE_SUMMARY']}")
     if ctx.get("GENIE_CODE_SUMMARY"):
-        print(f"  Genie Code:  {ctx['GENIE_CODE_SUMMARY']}")
+        print(f"  Databricks AI:  {ctx['GENIE_CODE_SUMMARY']}")
     print("=" * 60)
 
     displayHTML(

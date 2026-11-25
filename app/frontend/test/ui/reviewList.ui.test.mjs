@@ -143,7 +143,7 @@ test('Review names every document a language did not get, counts High priority b
       { step: 'Use Case Excel', language: 'Arabic', error: 'the Use Case Excel for Arabic has no use cases to write' },
       { step: 'CSV Catalog', language: 'Arabic', error: 'again' },
     ],
-    translation_gaps: { Arabic: { artifacts_in_english: ['Genie Code notebooks'] } },
+    translation_gaps: { Arabic: { artifacts_in_english: ['Databricks AI notebooks'] } },
   };
   const warned = await openUi('results', { ...REVIEW_STATE, results: pills });
   try {
@@ -157,7 +157,7 @@ test('Review names every document a language did not get, counts High priority b
     const missing = page.getByRole('list', { name: 'Documents the run did not write' });
     assert.deepEqual((await missing.locator('li').allInnerTexts()).map((t) => t.trim()), [
       'Not written in Arabic: CSV.',
-      'Written in English only, not in Arabic: Genie Code notebooks.',
+      'Written in English only, not in Arabic: Databricks AI notebooks.',
       'Open the run log to see why.',
     ]);
     assert.equal(await page.getByText('Every step of the run finished.').count(), 0, 'a run that missed documents never says every step finished');

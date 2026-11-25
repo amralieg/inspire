@@ -5,9 +5,9 @@ const UNITY_GATEWAY_ANTHROPIC_PATH = '/ai-gateway/anthropic/v1';
 const UNITY_GATEWAY_MLFLOW_PATH = '/ai-gateway/mlflow/v1';
 const GENIE_CODE_MODEL = 'gpt-5.6-sol';
 const GENIE_CODE_MODEL_CHECK = { input: 'Reply with the single word OK.', max_output_tokens: 16, stream: false };
-const GENIE_CODE_NO_MODEL = 'Genie Code is not available in this workspace: Unity Gateway serves it no AI model this run can call, so the '
+const GENIE_CODE_NO_MODEL = 'Databricks AI is not available in this workspace: Unity Gateway serves it no AI model this run can call, so the '
   + 'build stopped before Genie started and did not retry. Tried {tried}. {choices}';
-const GENIE_CODE_ADMIN_FIX = 'ask a workspace admin to serve a model to Genie Code through Unity Gateway (a model on its Codex route, or a '
+const GENIE_CODE_ADMIN_FIX = 'ask a workspace admin to serve a model to Databricks AI through Unity Gateway (a model on its Codex route, or a '
   + "Claude model on its Anthropic route) and give this run's identity permission to query it";
 const GENIE_CODE_NO_MODEL_CHOICES = `To build now, choose I will build it myself and run the notebook yourself. To let Inspire build it, ${GENIE_CODE_ADMIN_FIX}, then Rebuild.`;
 const GENIE_CODE_MODEL_MISSING = 'Unity Gateway has no such model or endpoint here';
@@ -21,8 +21,8 @@ const GENIE_CODE_PROBES_PER_ROUTE = 3;
 const GENIE_CODE_CALL_TIMEOUT_MS = 10000;
 const GENIE_CODE_CHECK_DEADLINE_MS = 15000;
 const GENIE_CODE_CACHE_MS = 10 * 60 * 1000;
-const GENIE_CODE_UNCHECKED = 'Inspire could not finish its Genie Code check just now, so it does not block the build; '
-  + 'if Genie Code turns out to be unavailable, the build stops before Genie starts and says why';
+const GENIE_CODE_UNCHECKED = 'Inspire could not finish its Databricks AI check just now, so it does not block the build; '
+  + 'if Databricks AI turns out to be unavailable, the build stops before Genie starts and says why';
 
 function listedModels(data) {
   const rows = [...((data && data.models) || []), ...((data && data.data) || [])];
@@ -83,7 +83,7 @@ function needsGenieCode(spec) {
 
 function genieCodeLine(verdict) {
   const v = verdict || {};
-  if (v.available === true) return { ok: true, detail: `Genie Code builds with ${said(v.route, v.model)}` };
+  if (v.available === true) return { ok: true, detail: `Databricks AI builds with ${said(v.route, v.model)}` };
   if (v.available === false) return { ok: false, detail: v.reason, fix: v.fix };
   return { ok: true, detail: v.reason || GENIE_CODE_UNCHECKED, unchecked: true };
 }

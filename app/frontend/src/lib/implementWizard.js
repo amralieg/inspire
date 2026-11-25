@@ -1873,7 +1873,7 @@ export function genieCodeOff(features) {
 export const GENIE_CODE_OFF_TITLE = 'Inspire cannot build the MVP in this workspace yet';
 
 export const PREFLIGHT_LABELS = {
-  genie_code: 'Genie Code',
+  genie_code: 'Databricks AI',
   warehouse: 'SQL warehouse',
   output: 'Output table',
   model: 'Model registration',
@@ -2834,8 +2834,8 @@ export function failureChoices(latest, { technique = '', notebookUrl = '' } = {}
     detail: using ? `Ask Genie for a simpler method than ${using}.` : 'Ask Genie for a simpler analytical method.',
     seed: { text: `Use a simpler analytical technique than ${using || 'the current one'}, and keep the same result table and outputs.` } });
   choices.push({ id: 'notebook', label: 'Take the notebook and build it yourself',
-    detail: notebookUrl ? 'Open the Genie Code notebook Inspire wrote for this use case and run it yourself.'
-      : 'Inspire writes the Genie Code notebook for this use case, and you run it yourself.', url: notebookUrl });
+    detail: notebookUrl ? 'Open the Databricks AI notebook Inspire wrote for this use case and run it yourself.'
+      : 'Inspire writes the Databricks AI notebook for this use case, and you run it yourself.', url: notebookUrl });
   choices.push({ id: 'ask', label: 'Ask Genie to fix it my way', detail: 'Tell Genie in your own words what to change, then rebuild.', seed: { text: '' } });
   return choices;
 }
@@ -2855,8 +2855,8 @@ export function stoppedChoices(latest, { notebookUrl = '', issueUrl = null } = {
   return [
     { id: 'scope', label: 'Change the source or scope', detail: 'Change the tables, the columns or the first-run size in all settings, then build again.' },
     { id: 'notebook', label: 'Build it without the App', url: notebookUrl,
-      detail: notebookUrl ? 'Open the Genie Code notebook Inspire wrote for this use case and run it yourself.'
-        : 'Inspire writes the Genie Code notebook for this use case, and you run it yourself.' },
+      detail: notebookUrl ? 'Open the Databricks AI notebook Inspire wrote for this use case and run it yourself.'
+        : 'Inspire writes the Databricks AI notebook for this use case, and you run it yourself.' },
     { id: 'report', label: 'Report the issue', detail: 'Open a report with this version and the reason. It holds no workspace details.',
       url: issueUrl ? issueUrl({ title: `Build of ${useCase} v${version} stopped`, body: `Use case ${useCase}, version v${version}: the build stopped. Add what you tried.` }) : '' },
   ];

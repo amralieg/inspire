@@ -11,11 +11,11 @@ function normalizeUseCaseName(raw) {
   return { name };
 }
 
-// REQ-155. One UPDATE renames the use case and brings its Genie Code instruction in step with the shown name.
+// REQ-155. One UPDATE renames the use case and brings its Databricks AI instruction in step with the shown name.
 // OLD is the name the instruction was written from (the shown name before the rename, from the stored columns). NEW is the
 // shown name after it. Repairs first collapse the doubled forms the old joined-name bug wrote (OLD+OLD and NEW+OLD), then
 // every remaining OLD becomes NEW. The instruction is left alone when either name is empty. The regenerate flag is still set,
-// so a later Write Genie Code run rewrites the instruction from the stored name. User text is only ever bound as a parameter.
+// so a later Write Databricks AI run rewrites the instruction from the stored name. User text is only ever bound as a parameter.
 const OLD_NAME = "COALESCE(NULLIF(TRIM(user_use_case_name), ''), use_case)";
 
 function renameStatement(table, sessionId, useCaseId, name) {

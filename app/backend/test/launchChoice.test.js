@@ -41,12 +41,12 @@ test('an App manager may run another notebook and pick a cluster', async () => {
   assert.equal(task().existing_cluster_id, '0101-chosen');
 });
 
-test('Genie Code regeneration and a build use the same rule, so no route lets a person run a planted notebook as the App', () => {
+test('Databricks AI regeneration and a build use the same rule, so no route lets a person run a planted notebook as the App', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const sources = ['server.js', 'implementRoutes.js'].map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
   const calls = [...sources.matchAll(/await triggerInspireNotebookJob\([^)]*?\{([\s\S]*?)\}\);/g)].map((m) => m[1]);
-  assert.equal(calls.length, 3, 'discover, Genie Code and build launch notebook jobs (REQ-503 removed the document rebuild)');
+  assert.equal(calls.length, 3, 'discover, Databricks AI and build launch notebook jobs (REQ-503 removed the document rebuild)');
   for (const call of calls) assert.match(call, /asker: req/, call);
 });
 

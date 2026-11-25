@@ -49,7 +49,7 @@ export function isBest(best, id) {
 }
 
 export function bestMode({ genieOff = null } = {}) {
-  return genieOff ? pick('notebook', 'Genie Code is off in this workspace, so Inspire writes the notebook only.')
+  return genieOff ? pick('notebook', 'Databricks AI is off in this workspace, so Inspire writes the notebook only.')
     : pick('mvp', 'You see it run end to end.');
 }
 

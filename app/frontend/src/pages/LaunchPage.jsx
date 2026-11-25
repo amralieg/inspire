@@ -1941,7 +1941,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 />
               </Field>
 
-              <FieldSection label="Operation" hint="Discover finds use cases; Generate writes the Genie Code instructions again for flagged use cases only">
+              <FieldSection label="Operation" hint="Discover finds use cases; Generate writes the Databricks AI instructions again for flagged use cases only">
                 <GlowSelect
                   value={params['15_operation']}
                   onChange={(v) => updateParam('15_operation', v)}
@@ -2001,7 +2001,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 <Field
                   label="Auto-Genie scope"
                   icon={Bot}
-                  hint="In Discover, 0 (the default) writes outline notebooks only; all, or a number such as 5, also writes full Genie Code instructions for that many top use cases."
+                  hint="In Discover, 0 (the default) writes outline notebooks only; all, or a number such as 5, also writes full Databricks AI instructions for that many top use cases."
                 >
                   <input dir="auto"
                     type="text"

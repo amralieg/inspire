@@ -14,7 +14,7 @@ const sources = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e
   return /\.(jsx?|mjs)$/.test(entry.name) ? [full] : [];
 });
 
-test('every screen names the instruction Inspire writes the same way, a Genie Code instruction, never Genie code, Genie instruction or Has Genie', () => {
+test('every screen names the instruction Inspire writes the same way, a Databricks AI instruction, never Databricks AI, Genie instruction or Has Genie', () => {
   const hits = ROOTS.flatMap(sources).flatMap((file) => fs.readFileSync(file, 'utf8').split('\n')
     .map((line, index) => (OFF_NAMES.test(line) && !/^\s*(\*|\/\/|\/\*)/.test(line) ? `${path.relative(APP, file)}:${index + 1}: ${line.trim()}` : ''))
     .filter(Boolean));
@@ -23,10 +23,10 @@ test('every screen names the instruction Inspire writes the same way, a Genie Co
 
 test('the name check catches the old names (must-exclude)', () => {
   for (const old of ['Has Genie: Yes', 'Genie instruction: Any', 'Has Genie code', 'partial Genie text', 'Genie: {x}']) assert.match(old, OFF_NAMES, old);
-  for (const good of ['Genie Code instruction: Any', 'Draft Genie Code instruction', "uc['Has Genie Code']", 'has_genie_code']) assert.doesNotMatch(good, OFF_NAMES, good);
+  for (const good of ['Databricks AI instruction: Any', 'Draft Databricks AI instruction', "uc['Has Genie Code']", 'has_genie_code']) assert.doesNotMatch(good, OFF_NAMES, good);
 });
 
-test('the use case list labels say Genie Code instruction', async () => {
+test('the use case list labels say Databricks AI instruction', async () => {
   const { GENIE_LABELS } = await import(pathToFileURL(path.join(APP, 'frontend/src/lib/useCaseFacets.js')).href);
-  assert.deepEqual({ ...GENIE_LABELS }, { shipped: 'Genie Code instruction written', draft: 'Draft Genie Code instruction', none: 'No Genie Code instruction' });
+  assert.deepEqual({ ...GENIE_LABELS }, { shipped: 'Databricks AI instruction written', draft: 'Draft Databricks AI instruction', none: 'No Databricks AI instruction' });
 });

@@ -400,7 +400,7 @@ export default function ResultsAssets({
                   >
                     <h3 className="text-caption font-bold text-text-secondary uppercase tracking-[0.18em] flex items-center gap-2 min-w-0">
                       <Sparkles size={14} className="text-db-red-fg shrink-0" aria-hidden />
-                      <span className="truncate">Quick access: Genie Code instructions ready</span>
+                      <span className="truncate">Quick access: Databricks AI instructions ready</span>
                     </h3>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-caption font-mono font-semibold text-text-tertiary tabular-nums px-2 py-0.5 rounded-md bg-bg-subtle border border-border">

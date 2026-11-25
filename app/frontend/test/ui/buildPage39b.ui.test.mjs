@@ -59,7 +59,7 @@ test('D28/D39: the header notebook count equals the Notebook chip count', async 
     await chip.waitFor({ timeout: 20000 });
     const chipCount = Number((await chip.textContent()).match(/(\d+)\s*$/)[1]);
     const header = await page.locator('section[aria-label="Build summary"]').textContent();
-    const headerCount = Number(header.match(/(\d+)Genie Code notebooks?/)[1]);
+    const headerCount = Number(header.match(/(\d+)Databricks AI notebooks?/)[1]);
     assert.equal(chipCount, 1, 'the chip counts the delivered notebook');
     assert.equal(headerCount, chipCount, 'the header counts the same notebook (must-fail: 0 before the fix)');
     assert.equal((await page.locator('h1 + p').innerText()).trim(), 'Every use case of this session.', 'the page subtitle no longer carries counts (765baf780, REQ-510)');

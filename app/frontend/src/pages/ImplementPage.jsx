@@ -88,7 +88,7 @@ import BusyNote from '../components/BusyNote';
 const OUTPUT_ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: GenieLogo, app: AppWindow, alert: BellRing };
 const OUTPUT_NAMES = OUTPUT_LABELS;
 const NO_RAIL = { latest: [], notebook_run: null, notebook_run_error: '' };
-const NO_NOTEBOOK = { label: 'No Genie Code notebook', tone: 'idle' };
+const NO_NOTEBOOK = { label: 'No Databricks AI notebook', tone: 'idle' };
 const NO_JOB = { label: 'No job yet', tone: 'idle' };
 const CHECKING = { label: 'Checking', tone: 'idle' };
 const ERROR_BOX = 'text-xs text-error-fg bg-error-bg border border-error/20 rounded-lg px-3 py-2';
@@ -183,7 +183,7 @@ function SummaryBanner({ summary }) {
             </>
           )}
           <CounterDivider />
-          <Counter value={summary.notebooks} label="Genie Code notebooks" />
+          <Counter value={summary.notebooks} label="Databricks AI notebooks" />
           <CounterDivider />
           <Counter value={summary.notStarted} label="Not started" />
         </div>
@@ -1795,7 +1795,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
           )}
         </NotebookPanel>
       ) : (
-        <p className={`${PANEL_CLASS} p-4 text-[12px] text-text-secondary`}>This version has no Genie Code notebook.</p>
+        <p className={`${PANEL_CLASS} p-4 text-[12px] text-text-secondary`}>This version has no Databricks AI notebook.</p>
       )}
       {notebook && !readOnly && (
         <p className="text-xs text-text-secondary">Every output reads the notebook&apos;s result tables, so uninstalling the notebook uninstalls the whole MVP.</p>

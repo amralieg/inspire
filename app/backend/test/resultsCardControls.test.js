@@ -10,7 +10,7 @@ test('the Results page and its card keep none of the old Genie card controls and
   const files = ['pages/ResultsPage.jsx', 'components/UseCaseCard.jsx', 'components/UseCaseDetailBody.jsx', 'components/UseCaseDrawer.jsx'];
   for (const rel of files) {
     const src = read(rel);
-    for (const gone of ['Open Studio', 'Has Genie instruction', 'Genie (partial)', 'Mark Ready for Genie Code Generation', 'Mark to regenerate',
+    for (const gone of ['Open Studio', 'Has Genie instruction', 'Genie (partial)', 'Mark Ready for Databricks AI Generation', 'Mark to regenerate',
       'Open Notebook', 'Implement with Genie', 'UseCaseStudio', 'genieCardActions']) {
       assert.equal(src.includes(gone), false, `${rel}: ${gone}`);
     }

@@ -10,7 +10,7 @@ import { describe, itemsOf, screenFacts, shownOutsideMenus } from './req510Declu
 
 test.after(closeBrowser);
 
-const ADVANCED_FILTERS = ['Technique', 'Kind', 'Quality', 'Genie Code instruction', 'MVP', 'Value'];
+const ADVANCED_FILTERS = ['Technique', 'Kind', 'Quality', 'Databricks AI instruction', 'MVP', 'Value'];
 
 async function openReview(view) {
   const ui = await openUi('results', REVIEW_STATE);

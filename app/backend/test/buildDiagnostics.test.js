@@ -50,7 +50,7 @@ const STATE = {
   steps: [
     step('Plan', 'ended_success', '2026-11-08T10:01:00.000Z', `Read ${TABLE} as ${EMAIL}`),
     step('Instruction', 'ended_success', '2026-11-08T10:03:00.000Z', 'Wrote the instruction for churn_score by region_code'),
-    step('Genie Code', 'ended_success', '2026-11-08T10:04:00.000Z', 'started'),
+    step('Databricks AI', 'ended_success', '2026-11-08T10:04:00.000Z', 'started'),
     step('Genie build', 'ended_success', '2026-11-08T10:09:00.000Z', `token=${FAKE_PAT} cookie: fake-cookie-123`),
     step('Preview run', 'ended_error', '2026-11-08T10:12:00.000Z', ERROR, { error_code: 'UNRESOLVED_COLUMN', round: 2, rounds: 3, error: `values "Riyadh" and 4821.75 in ${OTHER_HOST}` }),
   ],
