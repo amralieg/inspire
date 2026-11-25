@@ -252,7 +252,7 @@ function SetupHarness({ blank }) {
     <ThemeProvider>
       <SetupWizard settings={settings} update={update} onComplete={() => setDone(true)} />
       <output aria-label="Setup settings" className="sr-only">{JSON.stringify(settings)}</output>
-      <output aria-label="Setup done">{done ? 'yes' : 'no'}</output>
+      <output aria-label="Setup done" className="sr-only">{done ? 'yes' : 'no'}</output>
     </ThemeProvider>
   );
 }
