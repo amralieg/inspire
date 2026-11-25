@@ -98,7 +98,7 @@ function infographic(m, th, { W, H }) {
   const h2 = small ? 166 : 186;
   s += rect(P, y, CW, h2, th.card, { rx: 14, stroke: th.line });
   s += eyebrow(P + 16, y + 22, 'Where to start', th, th.card) + head(P + 16, y + 42, 'Inspire score against yearly value', th, th.card, 16);
-  s += t(W - P - 16, y + 22, 'Dot colour = value verb', { size: 12, fill: th.muted, bg: th.card, anchor: 'end', font: BODY, ctx: 'quad key' });
+  s += t(W - P - 16, y + 22, 'Dot color = value verb', { size: 12, fill: th.muted, bg: th.card, anchor: 'end', font: BODY, ctx: 'quad key' });
   s += quadrant(m.useCases, { x: P + 16, y: y + 52, w: CW - 32, h: h2 - 70 }, { colorOf: (u) => vc[u.verb], axis: th.line, grid: th.muted, ink: th.ink, muted: th.muted, bg: th.card,
     quadFill: th.quadFill, quadBg: th.quadFill, quadInk: th.quadInk, mx: m.median.score, my: m.median.value, labelTop: 3, font: BODY, quadRx: 8, r: (u) => 4 + Math.sqrt(u.value.amount / 1e5) * 1.6 });
   y += h2 + 18;

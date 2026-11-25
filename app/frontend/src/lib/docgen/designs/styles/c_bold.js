@@ -95,7 +95,7 @@ function infographic(m, th, { W, H }) {
   });
   y += rows * (rowH + 10) + 2;
   s += t(P + 4, y + 14, 'How to read', { size: 12, weight: 800, fill: th.ink, bg: th.canvas, font: BODY, ctx: 'how' });
-  s += T(P + 88, y + 14, 'One colour per domain in every chart. Tile area and bubble size = yearly value. The shaded corner sits above the median score and value. Score is out of 10.', { size: 12, fill: th.ink, bg: th.canvas, maxW: CW - 92, lines: 2, lh: 15, font: BODY, ctx: 'how' }).svg;
+  s += T(P + 88, y + 14, 'One color per domain in every chart. Tile area and bubble size = yearly value. The shaded corner sits above the median score and value. Score is out of 10.', { size: 12, fill: th.ink, bg: th.canvas, maxW: CW - 92, lines: 2, lh: 15, font: BODY, ctx: 'how' }).svg;
   if (has(m, 'disclaimer')) s += T(P + 4, y + 50, DISCLAIMER, { size: 12, fill: th.muted, bg: th.canvas, maxW: CW - 8, lines: 3, lh: 15, font: BODY, ctx: 'disc' }).svg;
   return svgDoc(W, H, s, BODY, `<clipPath id="cHero"><rect x="0" y="0" width="${W}" height="${hh}"/></clipPath>`);
 }

@@ -40,10 +40,12 @@ test('the wizard names the build output table on every context call, so the cont
   assert.deepEqual(calls.filter((c) => !c.endsWith('contextQ}')), [], 'every context call carries the output table');
 });
 
-test('a saved source refusal plus a fresh ok preflight gives verdict ok, so Check again shows the current state (REQ-042, must fail before the fix)', () => {
+test('a saved source refusal holds over an ok preflight until the wizard clears it on a fresh preflight (REQ-042, MVP-ADP-08; Check again proven by req042CheckAgainClears.ui)', () => {
   const clear = { checks: { sources: { ok: true, detail: 'the App can read every source' } } };
   const saved = { detail: 'an old refusal' };
-  assert.equal(accessVerdictOf({ preflight: clear, unread: saved }), 'ok');
+  // 9f5e464f2: an App that cannot read a source stays refused even when the person's own sources check is ok; the wizard resets `unread` on every fresh preflight, so Check again shows the current state.
+  assert.equal(accessVerdictOf({ preflight: clear, unread: saved }), 'refused');
+  assert.equal(accessVerdictOf({ preflight: clear, unread: null }), 'ok', 'once the wizard clears the refusal, a clear preflight is ok');
   assert.equal(accessVerdictOf({ preflight: { checks: { sources: { ok: false } } }, unread: null }), 'refused');
   assert.equal(accessVerdictOf({ preflight: clear, busy: true, unread: saved }), 'refused', 'while the check runs, the saved refusal still holds');
   assert.equal(accessVerdictOf({ preflight: { checks: {} }, unread: null }), 'unknown', 'a preflight without a sources check is never ok (must-exclude)');
