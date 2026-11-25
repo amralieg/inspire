@@ -2082,8 +2082,8 @@ def row_shortfalls(page: dict, counts: dict, held=None) -> tuple:
             continue
         named = "the decision list" if source[0] == "records" else f"{source[0]} {source[1]}"
         if whole is not None and have >= whole:
-            notes.append(f"the {section} section of a {page_layout(page)} page is meant to show at least {shown_number(low)} rows, and "
-                         f"{named} shows {shown_number(have)}: every record the data holds, so the page shows them all")
+            notes.append(f"{section_words(section)} shows {shown_number(have)} rows: every record the data holds (the page is laid out for "
+                         f"{shown_number(low)} or more), so nothing is missing and there is nothing to fix")
             continue
         need = low if whole is None else min(low, whole)
         problems.append(f"the {section} section of a {page_layout(page)} page shows at least {shown_number(need)} rows; {named} returned "
