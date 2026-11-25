@@ -2156,7 +2156,7 @@ export default function ResultsPage({
                             ))}
                           </div>
                         ) : key ? (
-                          <button type="button" key={key} data-sort-head={key} aria-sort={ariaSortOf(key)} onClick={() => toggleColSort(key)} className={`${cls} uppercase font-semibold tracking-[0.06em] ${key === 'no' || key === 'name' ? 'text-left' : ''} ${colSort?.key === key ? 'text-text-primary' : ''}`}>
+                          <button type="button" key={key} data-sort-head={key} aria-sort={ariaSortOf(key)} onClick={() => toggleColSort(key)} className={`${cls} uppercase font-semibold tracking-[0.06em] ${key === 'no' || key === 'name' ? 'text-start' : ''} ${colSort?.key === key ? 'text-text-primary' : ''}`}>
                             {label}{colSort?.key === key ? (colSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
                           </button>
                         ) : <div key={`gap${i}`} />

@@ -93,6 +93,18 @@ async function openMvpFromBuild(page, settle, u, screen = true) {
   return frame;
 }
 
+// REQ-506 (78804977a): the Screen opens on Work (with a first-time welcome card); the kinds layout that holds the plan table is the Dashboard in the avatar menu.
+async function openPlan(frame, rows) {
+  const welcome = frame.locator('[data-welcome-choice="screen"]');
+  if (await welcome.count()) await welcome.click();
+  const here = await rows().first().waitFor({ timeout: 8000 }).then(() => true, () => false);
+  if (!here) {
+    await frame.locator('[data-avatar-menu] button').first().click();
+    await frame.getByRole('menuitem', { name: 'Dashboard', exact: true }).click();
+  }
+  await rows().first().waitFor({ timeout: 60000 });
+}
+
 const backToRun = async (page, settle) => {
   await page.locator('[data-run-control-toggle]').click();
   await page.getByRole('button', { name: RUN_BACK, exact: true }).click();
@@ -350,7 +362,7 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
     let frame = await openMvpFromBuild(page, apiWatch(page), u);
     const plan = () => frame.locator('section.plan');
     const rows = () => plan().locator('tbody tr[data-plan-row]');
-    await rows().first().waitFor({ timeout: 60000 });
+    await openPlan(frame, rows);
     const keys = await rows().evaluateAll((trs) => trs.map((tr) => tr.getAttribute('data-plan-row')));
     assert.ok(keys.length >= 3, 'the plan has lines to decide');
     const line = (key) => plan().locator(`tr[data-plan-row="${key}"]`);
@@ -394,7 +406,7 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
     await page.reload();
     await demoBar(page).getByText(SHOWCASE_NOTE).waitFor({ timeout: 60000 });
     frame = await openMvpFromBuild(page, apiWatch(page), u);
-    await rows().first().waitFor({ timeout: 60000 });
+    await openPlan(frame, rows);
     await until(async () => (await plan().locator('[data-decided]').count()) === keys.length, 'the decisions are still there after a refresh');
     assert.match((await line(keys[1]).locator('[data-decided]').innerText()).trim(), /^Override to 7 instead of .+: Store event this week$/);
     assert.match((await line(keys[0]).locator('[data-decided]').innerText()).trim(), /^Accepted the recommended /);

@@ -79,7 +79,9 @@ test('Start counts its totals from the raw run, use case and MVP rows through th
   const warehouse = rawWarehouse(RAW_PORTFOLIO_TABLES);
   const { portfolioRuns, portfolioUseCases, portfolioMvps, ...rest } = REVIEW_STATE;
   const raw = (sql, parameters) => warehouse.run(sql, parameters);
-  const ui = await openStart({ ...rest, statements: { 'AS businesses FROM': raw, 'GROUP BY ROLLUP': raw } });
+  // SEC-02 (d9d1cffaa, REQ-518): the portfolio first lists the sessions, then counts only the visible ones; the harness serves that list from the raw session rows.
+  const sessionList = () => ({ rows: RAW_PORTFOLIO_TABLES.__inspire_session.map(({ session_id, business_name }) => ({ session_id, business_name })) });
+  const ui = await openStart({ ...rest, statements: { 'AS bar_mode': sessionList, 'AS businesses FROM': raw, 'GROUP BY ROLLUP': raw } });
   try {
     const shown = {};
     for (const group of PORTFOLIO_GROUPS) {
