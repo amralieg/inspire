@@ -119,15 +119,12 @@ import {
   APP_ACCESS_CHOICES,
   APP_ACCESS_NOTE,
   APP_ACCESS_POLICY_WHY,
-  APP_BACKEND_CHOICES,
   LAKEBASE_CHECKING,
   appBackendOf,
-  appBackendBlocks,
-  LAKEBASE_UNCHECKED,
+  appStorageText,
   sentSpec,
   editedWidgets,
   withFirstRunSaved,
-  withAppBackend,
   appWarehouseLabel,
   appWarehouseOf,
   withAppWarehouse,
@@ -266,8 +263,6 @@ import {
   dataFilterProblems,
   REBUILD_AS_IS_NOTE,
   rebuildNeedsChoice,
-  APP_BACKEND_GUIDE,
-  PER_USER_GUIDE,
   withMoneyRule,
   BUILD_IT_LABEL,
   mergeSwaps,
@@ -279,7 +274,7 @@ import {
 } from '../lib/implementWizard';
 import { raisePermissions } from '../lib/permissionBus';
 import {
-  bestBuild, bestAppAccess, bestAppBackend, bestHeldApp, bestAppOption, bestAppPolicy, bestAppTarget, bestFreshness, bestHoldout, bestKpi, bestLook,
+  bestBuild, bestAppAccess, bestHeldApp, bestAppOption, bestAppPolicy, bestAppTarget, bestFreshness, bestHoldout, bestKpi, bestLook,
   bestOutput, bestReplaceEdits, isBest,
   bestResultPlace, oneBestPerStep, resultPlaceBlocks,
 } from '../lib/recommended';
@@ -1552,7 +1547,6 @@ export default function ImplementWizard({
     heldApp: bestHeldApp(held.app || ''),
     appPolicy: bestAppPolicy(spec, targets, placeScope),
     appAccess: bestAppAccess({ personal }),
-    appBackend: bestAppBackend(spec, lakebase),
     appOption: bestAppOption(),
     replaceEdits: bestReplaceEdits(),
     layout: bestLook('layout', spec),
@@ -1566,6 +1560,7 @@ export default function ImplementWizard({
     firstRun: firstRunLine,
     settings: settingsList.length ? counted(settingsList.length, 'setting') : '',
     dropped: dropped.filter((d) => !spec.outputs[d.id]),
+    storage: appStorageText(spec, lakebase),
   });
   const hiddenRow = (row) => !steps.some((x) => x.id === row.step);
   // A row of a step Standard does not show: its blocking errors, named on the row, from the same step in Advanced.
@@ -2230,9 +2225,7 @@ export default function ImplementWizard({
             warehouses={warehouses}
             warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry}
             warehouseCheck={preflight?.checks?.app_warehouse || null}
-            onBackend={(backend) => setSpec((prev) => withAppBackend(prev, backend))}
             onWarehouse={(id) => setSpec((prev) => withAppWarehouse(prev, id))}
-            best={{ backend: best.appBackend }}
           />
         )}
 
@@ -3116,54 +3109,6 @@ function HoldoutSetting({ spec, onEnabled, children = null, best = null }) {
   );
 }
 
-function AppBackendChoice({ spec, lakebase, onBackend, children = null, best = null }) {
-  const backend = appBackendOf(spec, lakebase);
-  const blocks = appBackendBlocks(spec, lakebase);
-  const absent = lakebase?.state === 'absent';
-  const loading = lakebase === null && !blocks.lakebase;
-  const chosen = loading ? null : APP_BACKEND_CHOICES.find((choice) => choice.id === backend);
-  return (
-    <fieldset data-app-speed="" className="space-y-1.5 ps-3 border-s-2 border-border">
-      <legend className="text-[12px] font-medium text-text-primary">How fast do the App's pages open?</legend>
-      {absent ? (
-        <BlockedReason block={blocks.lakebase} id="app-backend" />
-      ) : (
-        <>
-          <div data-choice="app-backend" className="flex flex-wrap gap-x-6 gap-y-1.5 pt-1">
-            {APP_BACKEND_CHOICES.map((choice) => {
-              const off = loading || Boolean(blocks[choice.id]);
-              const checked = !loading && backend === choice.id;
-              return (
-                <label
-                  key={choice.id}
-                  aria-disabled={off ? 'true' : undefined}
-                  className={`inline-flex items-center gap-2 text-sm glow-focus ${off ? 'cursor-not-allowed text-text-secondary' : 'cursor-pointer text-text-primary'}`}
-                >
-                  <input type="radio" name="app-backend" value={choice.id} checked={checked} disabled={off} onChange={() => onBackend(choice.id)} />
-                  <span className={checked ? 'font-semibold' : 'font-medium'}>{choice.label}</span>
-                  <Recommended best={best} id={choice.id} why={false} />
-                </label>
-              );
-            })}
-          </div>
-          {(spec.outputs.app_access === 'user' ? [PER_USER_GUIDE] : APP_BACKEND_GUIDE).map((line) => <p key={line} className="text-xs text-text-secondary">{line}</p>)}
-          {chosen?.blurb && <p className="text-[12px] text-text-secondary">{chosen.blurb}</p>}
-          {!loading && best?.reason && lakebase?.state !== 'unknown' && <p data-recommended-why="" className="text-xs text-text-secondary">{best.reason}</p>}
-          {loading && <p className="text-xs text-text-tertiary" role="status">{LAKEBASE_CHECKING}…</p>}
-          <BlockedReason block={blocks.lakebase} id="app-backend" />
-          {lakebase?.state === 'unknown' && !blocks.lakebase && (
-            <div role="note" aria-label="Fast pages not checked" className="text-xs text-text-secondary">
-              <p>{LAKEBASE_UNCHECKED}</p>
-              <TechnicalDetails items={lakebase.detail} />
-            </div>
-          )}
-        </>
-      )}
-      {children}
-    </fieldset>
-  );
-}
-
 function BuildWarehouseField({ value, warehouses, warehousesError, onWarehousesRetry, onChange }) {
   const id = String(value || '');
   const note = warehousesError ? '' : warehouseListNote(warehouses);
@@ -3249,11 +3194,14 @@ function AppAccessStep({ spec, policied = false, onAccess, best = {} }) {
   );
 }
 
-function AppStorageStep({ spec, lakebase, warehouses, warehousesError, onWarehousesRetry, warehouseCheck, onBackend, onWarehouse, best = {} }) {
+// REQ-528: the step holds only the SQL warehouse; Inspire decides Lakebase or Delta and Review & build says which and why.
+function AppStorageStep({ spec, lakebase, warehouses, warehousesError, onWarehousesRetry, warehouseCheck, onWarehouse }) {
   const inside = insideInspire(spec);
+  const checking = lakebase === null && !inside && !spec.outputs.merge?.app;
   return (
     <section className="space-y-4" aria-label={APP_STORAGE_LABEL}>
-      <AppBackendChoice spec={spec} lakebase={lakebase} onBackend={onBackend} best={best.backend}>
+      <div className="space-y-1.5 ps-3 border-s-2 border-border">
+        {checking && <p className="text-xs text-text-tertiary" role="status">{LAKEBASE_CHECKING}…</p>}
         {inside ? (
           <p data-inside-warehouse="" className="text-xs text-text-secondary">
             Each viewer reads with {warehouseText(warehouses, appWarehouseOf(spec))}, picked on Where it lives.
@@ -3264,7 +3212,7 @@ function AppStorageStep({ spec, lakebase, warehouses, warehousesError, onWarehou
               onWarehouse={onWarehouse} />
           </SettingRow>
         )}
-      </AppBackendChoice>
+      </div>
     </section>
   );
 }

@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PER_USER_GUIDE } from '../../src/lib/implementWizard.js';
 import { POLICIED_SOURCE, closeBrowser, goToStep, openFolded, openUi, shot } from './uiSupport.mjs';
 
 test.after(closeBrowser);
@@ -8,9 +7,9 @@ test.after(closeBrowser);
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
 const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\. /, '').trim());
-const storage = (page) => page.getByRole('group', { name: 'How fast do the App\'s pages open?' });
+const storage = (page) => page.getByRole('region', { name: 'Page storage' });
 
-test('What to deliver only picks what gets built, Where it lives places the App on its own step, and the storage choice explains itself', async () => {
+test('What to deliver only picks what gets built, Where it lives places the App on its own step, and the storage step offers no choice', async () => {
   const ui = await openUi('wizard', { ...ME, policies: POLICIED_SOURCE });
   const { page } = ui;
   try {
@@ -47,9 +46,7 @@ test('What to deliver only picks what gets built, Where it lives places the App 
     await openFolded(page, 'Page storage');
     const group = storage(page);
     await group.getByRole('status').waitFor({ state: 'detached' });
-    await group.getByText('Fast pages (Lakebase)', { exact: true }).waitFor();
-    await group.getByText('Delta', { exact: true }).waitFor();
-    await group.getByText(PER_USER_GUIDE, { exact: true }).waitFor();
+    assert.equal(await group.getByRole('radio').count(), 0, 'Inspire decides Lakebase or Delta; the step offers no choice (REQ-528)');
     await page.setViewportSize({ width: 1280, height: 800 });
     await shot(page, 'storage-choice-1280x800', false);
     assert.deepEqual(ui.pageErrors, []);

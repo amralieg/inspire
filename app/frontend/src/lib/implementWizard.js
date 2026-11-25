@@ -192,7 +192,7 @@ export function withHeldApp(spec, saved = {}) {
       app_name: String(saved.app_name || spec.outputs.app_name || ''),
       merge: { ...spec.outputs.merge, app: String(saved.merge?.app || '') },
       app_access: APP_ACCESS_CHOICES.some((c) => c.id === saved.app_access) ? saved.app_access : spec.outputs.app_access,
-      app_backend: APP_BACKENDS.includes(saved.app_backend) ? saved.app_backend : '',
+      app_backend: '', // REQ-528: a storage a person picked earlier is ignored; appStorageOf decides
       app_warehouse_id: String(saved.app_warehouse_id || ''),
     },
   };
@@ -218,19 +218,7 @@ export const REMOVED_OUTPUT_DEFAULT = 'keep';
 // column mask and the person chooses per-user (Advanced after the first version).
 export const APP_ACCESS_NOTE = 'The App reads with its own access, so everyone sees the same rows.';
 
-export const APP_BACKENDS = ['lakebase', 'delta'];
-export const APP_BACKEND_CHOICES = [
-  { id: 'lakebase', label: 'Fast pages (Lakebase)',
-    blurb: 'Inspire keeps a fast copy of the result after every run, so pages open at once. Edits still save to the result table.' },
-  { id: 'delta', label: 'Delta' },
-];
-export const APP_BACKEND_GUIDE = [
-  'Fast pages (Lakebase) is the default and the recommended choice for Apps: pages read a Postgres copy that is synced from your tables, so most pages open at once without waiting for a SQL warehouse. Pages are as fresh as the last sync.',
-  'Pick Delta when Lakebase is not available here, the tables are very large, or instant pages do not matter.',
-];
-export const LAKEBASE_PER_USER_REASON = 'Each person signs in as themselves. Inspire checks which tables Fast pages can keep to each person\'s rows, '
-  + 'and this App uses Standard pages until it has checked them.';
-export const PER_USER_GUIDE = 'Each person signs in as themselves, so pages read your tables directly. Pick Delta here.';
+// REQ-528: the person never picks the App's storage. Inspire uses Lakebase when the workspace has it and Inspire can use it, and Delta otherwise.
 export const LAKEBASE_CHECKING = 'Inspire is still checking whether fast pages are possible here';
 
 export function enforceOf(offer) {
@@ -243,41 +231,40 @@ export function perUserFastPages(offer) {
   return offer?.state === 'available' && tables.length > 0 && tables.every((t) => t.enforced);
 }
 
-export function perUserFallback(offer) {
-  const tables = Object.entries(enforceOf(offer));
-  if (!tables.length) return LAKEBASE_PER_USER_REASON;
-  const refused = tables.filter(([, t]) => !t.enforced).map(([name, t]) => `${name} uses Standard pages because ${t.reason}`);
-  if (refused.length) return `Fast pages cannot keep each person to their own rows here: ${refused.join('; ')}.`;
-  return LAKEBASE_PER_USER_REASON;
-}
+export const LAKEBASE_ABSENT = 'Lakebase is not available here';
+export const PER_USER_STORAGE_WHY = 'each person signs in as themselves, so pages read their tables directly';
+export const JOINED_STORAGE_WHY = 'the App it joins keeps its own storage';
 
-export function appBackendDefault(spec, offer) {
+// REQ-528: the one rule that decides the App's storage. Any app_backend a person saved or picked earlier is ignored (it was a choice they could make
+// before; it is not any more), so every spec, new or saved, gets the same answer: Lakebase when the check says it is available, Delta with the reason otherwise.
+// Per-user sign-in stays on Delta unless every filtered table keeps each person to their rows (REQ-518).
+export function appStorageOf(spec, offer) {
   const outputs = spec?.outputs || {};
-  if (!outputs.app) return '';
-  const ready = outputs.app_access === 'user' ? perUserFastPages(offer) : offer?.state === 'available';
-  return insideInspire(spec) || outputs.merge?.app || !ready ? 'delta' : 'lakebase';
+  if (!outputs.app) return { backend: '', why: '' };
+  const delta = (why, checking = false) => ({ backend: 'delta', why, checking });
+  if (insideInspire(spec)) return delta(INSIDE_BACKEND_REASON);
+  if (outputs.merge?.app) return delta(JOINED_STORAGE_WHY);
+  if (!offer) return delta('', true);
+  const detail = offer.detail ? `: ${offer.detail}` : '';
+  if (offer.state === 'absent') return delta(LAKEBASE_ABSENT + detail);
+  if (offer.state === 'denied') return delta(`Lakebase could not be created${detail || ': Inspire does not have access yet'}`);
+  if (offer.state !== 'available') return delta(`Inspire could not check Lakebase here${detail}`);
+  if (outputs.app_access === 'user' && !perUserFastPages(offer)) {
+    const refused = Object.entries(enforceOf(offer)).filter(([, t]) => !t.enforced).map(([name, t]) => `${name} uses Standard pages because ${t.reason}`);
+    return delta(refused.length ? `${PER_USER_STORAGE_WHY}; ${refused.join('; ')}` : PER_USER_STORAGE_WHY);
+  }
+  return { backend: 'lakebase', why: '', checking: false };
 }
 
 export function appBackendOf(spec, offer) {
-  const outputs = spec?.outputs || {};
-  if (!outputs.app) return '';
-  const picked = APP_BACKENDS.includes(outputs.app_backend) ? outputs.app_backend : '';
-  if (insideInspire(spec) || offer?.state === 'absent') return 'delta';
-  if (outputs.app_access === 'user' && picked === 'lakebase' && !perUserFastPages(offer)) return 'delta';
-  return picked || appBackendDefault(spec, offer);
+  return appStorageOf(spec, offer).backend;
 }
 
-export const LAKEBASE_ABSENT = 'Fast pages are not possible in this workspace, so the App\'s pages take a few seconds to open.';
-export const LAKEBASE_UNCHECKED = 'Inspire could not check whether fast pages are possible. If the build cannot use them, the App\'s pages take a few seconds and the build says why.';
-
-export function appBackendBlocks(spec, offer) {
-  if (insideInspire(spec)) return { lakebase: blockOf(INSIDE_BACKEND_REASON) };
-  if (spec?.outputs?.app_access === 'user' && !['denied', 'absent'].includes(offer?.state)) {
-    return perUserFastPages(offer) ? {} : { lakebase: blockOf(perUserFallback(offer)) };
-  }
-  if (offer?.state === 'denied') return { lakebase: blockOf(needsAccess(offer.detail), offer.detail) };
-  if (offer?.state === 'absent') return { lakebase: blockOf(LAKEBASE_ABSENT, offer.detail) };
-  return {};
+export function appStorageText(spec, offer) {
+  const { backend, why, checking } = appStorageOf(spec, offer);
+  if (!backend) return '';
+  if (checking) return 'Inspire is still checking whether Lakebase is available here';
+  return backend === 'lakebase' ? 'Fast pages (Lakebase)' : `Delta, because ${why}`;
 }
 
 export function specWithBackend(spec, offer) {
@@ -343,11 +330,6 @@ export function sentSpec(spec, offer, built = null, targets = null, scope = {}, 
   const target = mergeTargetOf(targets, 'app', outputs.merge.app);
   const placement = (target && appPlacementOf(target.id, scope, target)) || outputs.app_placement;
   return { ...joined, outputs: { ...outputs, app_owners: [], app_placement: placement } };
-}
-
-export function withAppBackend(spec, backend) {
-  if (insideInspire(spec) && backend !== 'delta') return spec;
-  return { ...spec, outputs: { ...spec.outputs, app_backend: backend } };
 }
 
 export const APP_OPTION_DEFAULTS = { modify: false, replace_edits: false, decisions: true, alerts: false };
@@ -1446,7 +1428,7 @@ export function specFromLatest(latest, fallback, assets = {}) {
   if (!Object.prototype.hasOwnProperty.call(savedOptions, 'experience')) outputs.app_options = { ...outputs.app_options, experience: 'ui' };
   if (!Array.isArray(outputs.app_owners)) outputs.app_owners = fallback.outputs.app_owners;
   if (!APP_ACCESS_CHOICES.some((c) => c.id === saved.app_access)) outputs.app_access = saved.app && assets?.app ? 'sp' : APP_ACCESS_DEFAULT;
-  if (saved.app && assets?.app && !Object.prototype.hasOwnProperty.call(saved, 'app_backend')) outputs.app_backend = 'delta';
+  outputs.app_backend = ''; // REQ-528: a saved app_backend (a person's old pick, or Delta for an App built before Lakebase) is ignored; appStorageOf decides
   const idDefault = !assets?.app && outputs.app_name === idAppNameOf(fallback.use_case_id);
   if ((!outputs.app || !outputs.app_name || idDefault) && !(outputs.app && outputs.app_placement === APP_INSIDE)) outputs.app_name = fallback.outputs.app_name;
   const edited = {
@@ -2759,6 +2741,7 @@ export function pickedSummary(spec, sourceTables = [], more = {}) {
       : [placement?.label, outputs.app_name].filter(Boolean).join(': ') || 'not placed yet')] : []),
     ...(app && !joined ? [
       row('app_access', 'where', 'App access', APP_ACCESS_CHOICES.find((c) => c.id === outputs.app_access)?.label || 'not picked yet'),
+      ...(more.storage ? [row('app_storage', SUMMARY_STEP.id, 'App storage', more.storage)] : []),
       row('app_features', 'where', 'App features', APP_OPTIONS.filter((o) => outputs.app_options?.[o.id] && appOptionShown(spec, o.id)).map((o) => o.label).join(', ') || 'none'),
       row('app_look', 'where', 'App look', lookText({ ...APP_LOOK_DEFAULT, ...(outputs.app_look || {}) })),
     ] : []),

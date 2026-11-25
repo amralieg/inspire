@@ -37,9 +37,9 @@ test('the wizard offers exactly the App choices the backend and the App shell ac
     'Internal data: everyone sees the same rows',
     'Sensitive data: each person signs in as themselves (per-user)',
   ]);
-  assert.deepEqual(w.APP_BACKEND_CHOICES.map((c) => c.label), ['Fast pages (Lakebase)', 'Delta'], 'the storage choice names both paths, as the user asked');
+  assert.equal(w.APP_BACKEND_CHOICES, undefined, 'REQ-528: the storage is not a choice any more');
   for (const text of [...w.APP_ACCESS_CHOICES.flatMap((c) => [c.label, c.blurb]), w.APP_ACCESS_NOTE,
-    ...w.APP_BACKEND_CHOICES.flatMap((c) => [c.blurb]).filter(Boolean), w.LAKEBASE_PER_USER_REASON, w.LAKEBASE_ABSENT, w.LAKEBASE_UNCHECKED]) {
+    w.PER_USER_STORAGE_WHY]) {
     assert.doesNotMatch(text, /service principal|lakebase|delta/i, `plain words: ${text}`);
   }
   assert.equal(w.LAKEVIEW_STYLE_NOTE, 'Only style A matches the Lakeview dashboard look.');
@@ -58,24 +58,18 @@ test('the wizard offers exactly the App choices the backend and the App shell ac
   assert.deepEqual(w.REPLACE_EDITS_CHOICES.map((c) => [c.id, c.label]), [[false, 'No'], [true, 'Yes']], 'No comes first, as the default');
 });
 
-test('the storage guide says why fast pages are recommended for Apps and when Delta fits, and the default follows who signs in', async () => {
+test('REQ-528: the storage is decided by Inspire: no guide or choice text is left, a shared App follows the check and a per-user App reads Delta', async () => {
   const w = await load();
-  assert.equal(w.APP_BACKEND_GUIDE.length, 2);
-  assert.equal(w.APP_BACKEND_GUIDE[0], 'Fast pages (Lakebase) is the default and the recommended choice for Apps: pages read a Postgres copy that is synced from your tables, so most pages open at once without waiting for a SQL warehouse. Pages are as fresh as the last sync.');
-  assert.equal(w.APP_BACKEND_GUIDE[1], 'Pick Delta when Lakebase is not available here, the tables are very large, or instant pages do not matter.');
+  for (const gone of ['APP_BACKEND_GUIDE', 'PER_USER_GUIDE', 'withAppBackend', 'appBackendBlocks', 'appBackendDefault', 'bestAppBackend']) assert.equal(w[gone], undefined, gone);
   const shared = { outputs: { app: true, app_access: 'sp' } };
-  assert.equal(w.appBackendDefault(shared, { state: 'available' }), 'lakebase', 'a shared App reads the fast copy by default');
-  assert.equal(w.appBackendDefault({ outputs: { app: true, app_access: 'user' } }, { state: 'available' }), 'delta', 'a per-user App reads Delta');
+  assert.equal(w.appBackendOf(shared, { state: 'available' }), 'lakebase', 'a shared App reads the fast copy when Lakebase is there');
+  assert.equal(w.appBackendOf({ outputs: { app: true, app_access: 'user' } }, { state: 'available' }), 'delta', 'a per-user App reads Delta');
   assert.equal(w.appBackendOf(shared, { state: 'absent' }), 'delta', 'no Lakebase here means Delta');
-});
-
-test('a per-user App never claims fast pages are recommended: it says why Lakebase is not possible and pre-selects Delta', async () => {
-  const w = await load();
-  assert.equal(w.LAKEBASE_PER_USER_REASON, "Each person signs in as themselves. Inspire checks which tables Fast pages can keep to each person's rows, and this App uses Standard pages until it has checked them."); // P c0c9a045 new contract
-  assert.equal(w.PER_USER_GUIDE, 'Each person signs in as themselves, so pages read your tables directly. Pick Delta here.');
-  const perUser = { outputs: { app: true, app_access: 'user' } };
-  assert.equal(w.appBackendOf(perUser, { state: 'available' }), 'delta', 'the pre-selected choice is Delta');
-  assert.equal(w.bestAppBackend ? w.bestAppBackend(perUser, { state: 'available' }) : null, null, 'no Recommended badge on a per-user App');
+  assert.equal(w.appStorageText(shared, { state: 'available' }), 'Fast pages (Lakebase)');
+  assert.equal(w.appStorageText(shared, { state: 'absent' }), 'Delta, because Lakebase is not available here');
+  assert.equal(w.appStorageText(shared, { state: 'denied', detail: 'PERMISSION_DENIED' }), 'Delta, because Lakebase could not be created: PERMISSION_DENIED');
+  assert.match(w.appStorageText({ outputs: { app: true, app_access: 'user' } }, { state: 'available' }), /^Delta, because each person signs in as themselves/);
+  assert.equal(w.appStorageText({ outputs: { app: false } }, { state: 'available' }), '');
 });
 
 test('a new spec has the Genie Agent and App on and the dashboard and alert off, reads as the App service principal, and validates as made', async () => {
@@ -89,8 +83,6 @@ test('a new spec has the Genie Agent and App on and the dashboard and alert off,
   const perUser = { ...fresh, outputs: { ...fresh.outputs, app_access: 'user' } };
   assert.equal(w.appBackendOf(perUser, { state: 'available' }), 'delta', 'a per-user App reads Delta tables even where Lakebase is offered');
   assert.equal(w.appBackendOf(fresh, { state: 'absent' }), 'delta');
-  assert.deepEqual(Object.keys(w.appBackendBlocks(perUser, { state: 'available' })), ['lakebase'], 'per-user keeps Lakebase off');
-  assert.deepEqual(w.appBackendBlocks(fresh, { state: 'available' }), {});
   assert.match(w.APP_ACCESS_NOTE, /^The App reads with its own access, so everyone sees the same rows\.$/);
   for (const note of [w.APP_ACCESS_NOTE, w.FRESH_HELP]) assert.ok(note.split(' ').length <= 15, `${note} is over 15 words (must-fail on the long copy)`);
   assert.match(w.APP_ACCESS_CHOICES.find((c) => c.id === 'sp').blurb, /^The App reads with its own access/);
@@ -197,33 +189,26 @@ test('a use case that joins an existing App skips App access and App look, shows
   assert.doesNotMatch(w.IMPLEMENT_OUTPUTS.find((o) => o.id === 'app').blurb, /next/, 'the App tile says what comes next only for a new App');
 });
 
-test('the App reads Lakebase by default when the workspace has it, Delta tables otherwise, and a per-user App always reads Delta tables', async () => {
+test('the App reads Lakebase when the workspace has it and Inspire can use it, Delta tables otherwise, and a per-user App always reads Delta tables (REQ-528: never a person pick)', async () => {
   const { w, spec } = await appSpec({ app_access: 'sp' });
   const offer = (state, detail = '') => ({ state, detail });
-  assert.deepEqual(w.APP_BACKEND_CHOICES.map((c) => [c.id, c.label]), [
-    ['lakebase', 'Fast pages (Lakebase)'], ['delta', 'Delta']]);
-  assert.deepEqual(w.APP_BACKENDS, SHELL.backends, 'the wizard offers the backends the App shell reads');
-  for (const text of [...w.APP_BACKEND_CHOICES.flatMap((c) => [c.label, c.blurb]).filter(Boolean), w.LAKEBASE_PER_USER_REASON, w.LAKEBASE_CHECKING]) {
-    assert.doesNotMatch(text, /\u2014|\u2013/, `no dashes: ${text}`);
-  }
-  assert.equal(spec.outputs.app_backend, '', 'a new spec leaves the backend to the default');
+  assert.equal(w.APP_BACKENDS, undefined);
+  for (const text of [w.LAKEBASE_CHECKING, w.LAKEBASE_ABSENT, w.PER_USER_STORAGE_WHY]) assert.doesNotMatch(text, /\u2014|\u2013/, `no dashes: ${text}`);
+  assert.equal(spec.outputs.app_backend, '', 'a new spec leaves the backend to the rule');
   assert.equal(w.appBackendOf(spec, offer('available')), 'lakebase');
   for (const state of ['absent', 'denied', 'unknown']) assert.equal(w.appBackendOf(spec, offer(state)), 'delta', state);
   assert.equal(w.appBackendOf(spec, null), 'delta', 'nothing is assumed before the check answers');
-  const picked = w.withAppBackend(spec, 'delta');
-  assert.equal(w.appBackendOf(picked, offer('available')), 'delta', 'a pick of Delta stays');
-  const kept = w.withAppBackend(spec, 'lakebase');
-  assert.equal(w.appBackendOf(kept, offer('denied', 'no access')), 'lakebase', 'an App already on Lakebase stays there when the editor cannot use it');
-  assert.equal(w.appBackendOf(kept, offer('absent')), 'delta', 'a workspace without Lakebase reads Delta tables');
-  const perUser = w.withAppAccess(kept, 'user');
+  // An app_backend a person saved or picked earlier is ignored: the rule decides.
+  const oldDelta = { ...spec, outputs: { ...spec.outputs, app_backend: 'delta' } };
+  assert.equal(w.appBackendOf(oldDelta, offer('available')), 'lakebase', 'an old person pick of Delta no longer holds');
+  const oldLakebase = { ...spec, outputs: { ...spec.outputs, app_backend: 'lakebase' } };
+  assert.equal(w.appBackendOf(oldLakebase, offer('denied', 'no access')), 'delta', 'a Lakebase Inspire cannot use is Delta whatever was saved');
+  assert.equal(w.appBackendOf(oldLakebase, offer('absent')), 'delta', 'a workspace without Lakebase reads Delta tables');
+  const perUser = w.withAppAccess(oldLakebase, 'user');
   assert.equal(w.appBackendOf(perUser, offer('available')), 'delta');
-  assert.deepEqual(w.appBackendBlocks(perUser, offer('available')), { lakebase: { why: w.LAKEBASE_PER_USER_REASON, details: '' } });
-  assert.deepEqual(w.appBackendBlocks(spec, offer('denied', 'PERMISSION_DENIED')), { lakebase: { why: w.needsAccess('PERMISSION_DENIED'), details: 'PERMISSION_DENIED' } },
-    'the raw refusal goes under Details, never in the reason');
-  assert.deepEqual(w.appBackendBlocks(spec, offer('absent', 'no projects')), { lakebase: { why: w.LAKEBASE_ABSENT, details: 'no projects' } });
-  assert.deepEqual(w.appBackendBlocks(spec, offer('unknown')), {}, 'an unchecked workspace blocks nothing');
-  assert.deepEqual(w.appBackendBlocks(spec, offer('available')), {});
-  assert.equal(w.appBackendOf(w.withAppAccess(perUser, 'sp'), offer('available')), 'lakebase', 'back to a shared App, the pick comes back');
+  assert.equal(w.appStorageText(spec, offer('unknown')), 'Delta, because Inspire could not check Lakebase here');
+  assert.equal(w.appStorageText(spec, null), 'Inspire is still checking whether Lakebase is available here');
+  assert.equal(w.appBackendOf(w.withAppAccess(perUser, 'sp'), offer('available')), 'lakebase', 'back to a shared App, Lakebase comes back');
   const joined = w.withMergeTarget(spec, 'app', { id: 'churn-desk', name: 'churn-desk', access: 'sp' });
   assert.equal(w.appBackendOf(joined, offer('available')), 'delta', 'a use case that joins an App sends no new backend of its own');
   assert.equal(w.appBackendOf({ ...spec, outputs: { ...spec.outputs, app: false } }, offer('available')), '');
@@ -234,6 +219,7 @@ test('the App reads Lakebase by default when the workspace has it, Delta tables 
   assert.deepEqual(served(sent).errors, []);
   assert.equal(served(sent).spec.outputs.app_backend, 'lakebase');
   assert.equal(served(w.specWithBackend(perUser, offer('available'))).spec.outputs.app_backend, 'delta');
+  assert.equal(w.specWithBackend(oldDelta, offer('available')).outputs.app_backend, 'lakebase', 'the sent spec carries the rule, not the old pick');
 
   assert.deepEqual(w.stepErrors('where', spec, { lakebase: null }), [w.LAKEBASE_CHECKING], 'Next waits for the Lakebase check');
   assert.deepEqual(w.stepErrors('where', spec, { lakebase: offer('absent') }), []);
@@ -241,16 +227,18 @@ test('the App reads Lakebase by default when the workspace has it, Delta tables 
   assert.deepEqual(w.stepErrors('where', spec, {}), [], 'a caller that does not check Lakebase is not blocked');
 });
 
-test('Edit of an App built before Lakebase keeps it on Delta tables, and one never built keeps the choice open', async () => {
+test('Edit ignores the storage a person saved or an App built before Lakebase carried: the rule decides again (REQ-528)', async () => {
   const w = await load();
   const fallback = w.defaultSpecFromUseCase(UC, { warehouseId: 'wh1', inspireDatabase: 'main.inspire' });
   const outputs = { ...fallback.outputs, app: true, app_access: 'sp' };
   delete outputs.app_backend;
   const latest = { spec_version: 3, spec_json: { ...fallback, outputs } };
-  assert.equal(w.specFromLatest(latest, fallback, { app: 'churn-desk' }).outputs.app_backend, 'delta');
+  assert.equal(w.specFromLatest(latest, fallback, { app: 'churn-desk' }).outputs.app_backend, '');
   assert.equal(w.specFromLatest(latest, fallback).outputs.app_backend, '');
-  const onLakebase = { spec_version: 4, spec_json: { ...fallback, outputs: { ...outputs, app_backend: 'lakebase' } } };
-  assert.equal(w.specFromLatest(onLakebase, fallback, { app: 'churn-desk' }).outputs.app_backend, 'lakebase');
+  for (const saved of ['lakebase', 'delta']) {
+    const old = { spec_version: 4, spec_json: { ...fallback, outputs: { ...outputs, app_backend: saved } } };
+    assert.equal(w.specFromLatest(old, fallback, { app: 'churn-desk' }).outputs.app_backend, '', `a saved ${saved} is not carried`);
+  }
 });
 
 test('an Edit of a version saved before result tables carried the session keeps the table it was built on', async () => {
@@ -386,21 +374,17 @@ test('the wizard\'s chart kinds, Inspire\'s pick and the pages it can turn off a
   }
 });
 
-test('a per-user App defaults to Fast pages only when the check says every table keeps each person to their rows, and names each table that reads Delta (must-exclude)', async () => {
+test('a per-user App reads Fast pages only when the check says every table keeps each person to their rows, and names each table that reads Delta (must-exclude)', async () => {
   const { w, spec } = await appSpec({ app_access: 'user' });
   const offer = (enforce, state = 'available') => ({ state, detail: '', enforce });
   const enforced = { mapping: { map: 'main.sec.map' }, column: 'region', enforced: true, filtered: true, reason: '' };
   const plain = { enforced: true, filtered: false, reason: '' };
   const refused = { enforced: false, filtered: true, reason: 'the row filter main.sec.fn is not a user-to-key mapping table' };
-  assert.equal(w.appBackendDefault(spec, offer({ 'main.s.orders': enforced, 'main.s.plain': plain })), 'lakebase');
   assert.equal(w.appBackendOf(spec, offer({ 'main.s.orders': enforced, 'main.s.plain': plain })), 'lakebase');
-  assert.deepEqual(w.appBackendBlocks(spec, offer({ 'main.s.orders': enforced, 'main.s.plain': plain })), {});
   assert.equal(w.appBackendOf(spec, offer({ 'main.s.orders': enforced, 'main.s.returns': refused })), 'delta', 'one refused table keeps the App on Standard pages');
-  assert.deepEqual(w.appBackendBlocks(spec, offer({ 'main.s.orders': enforced, 'main.s.returns': refused })),
-    { lakebase: { why: 'Fast pages cannot keep each person to their own rows here: main.s.returns uses Standard pages because the row filter main.sec.fn is not a user-to-key mapping table.', details: '' } });
+  assert.equal(w.appStorageText(spec, offer({ 'main.s.orders': enforced, 'main.s.returns': refused })),
+    `Delta, because ${w.PER_USER_STORAGE_WHY}; main.s.returns uses Standard pages because the row filter main.sec.fn is not a user-to-key mapping table`);
   assert.equal(w.appBackendOf(spec, offer({ 'main.s.a': enforced, 'main.s.b': enforced })), 'lakebase', 'two filtered tables that both map are each ANDed into the view');
-  assert.deepEqual(w.appBackendBlocks(spec, offer({ 'main.s.a': enforced, 'main.s.b': enforced })), {});
   assert.equal(w.appBackendOf(spec, offer({ 'main.s.orders': enforced }, 'absent')), 'delta');
-  const picked = w.withAppBackend(spec, 'lakebase');
-  assert.equal(w.appBackendOf(picked, offer({ 'main.s.orders': refused })), 'delta', 'a Fast pages pick the check refuses falls back to Delta');
+  assert.equal(w.appBackendOf({ ...spec, outputs: { ...spec.outputs, app_backend: 'lakebase' } }, offer({ 'main.s.orders': refused })), 'delta', 'a Lakebase the check refuses is Delta');
 });

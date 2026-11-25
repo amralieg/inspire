@@ -5,7 +5,6 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { openFolded, goToStorage, assertFitsScreen, assertOneBadgeOnDefault, choicesShown, closeBrowser, dataToResults, lowContrast, idle, onStep, openAdvanced, openRow, openUi, painted, setDark, settled, startMvp, toAppAccess, toSharedAccess, toSummary, toVibes, until, watchAsks, wizardFit, goToStep, goToMeasureImpact } from './uiSupport.mjs';
 import { POLICIED_SOURCE } from './uiSupport.mjs';
-import { LAKEBASE_ABSENT, LAKEBASE_PER_USER_REASON } from '../../src/lib/implementWizard.js';
 import { wheelScrolls } from './wheelScroll.mjs';
 
 const { appShellCatalog } = createRequire(import.meta.url)('../../../backend/lib/appShell.js');
@@ -463,7 +462,7 @@ for (const style of ['a', 'b', 'c']) {
   }
 }
 
-test('a shared App reads Lakebase by default; a per-user App keeps Fast pages when every filtered table enforces each person to their rows, and reads Delta with the reason when one does not; a 403 says why, and a 404 says why with no choice', async (t) => {
+test('REQ-528: Inspire picks the App storage: Lakebase for a shared App, a per-user App when every filtered table enforces each person to their rows, and Delta otherwise, with the reason on Review & build (never a choice)', async (t) => {
   const probe = (data, status) => ({ me: { userName: OWNER, displayName: 'Owner' }, responses: { 'GET /api/2.0/postgres/projects': [data, status] } });
   const toAccess = async (page) => {
     await toDelivery(page);
@@ -475,9 +474,14 @@ test('a shared App reads Lakebase by default; a per-user App keeps Fast pages wh
   const toStorageByDefault = async (page) => {
     await toDelivery(page);
     await toSharedAccess(page);
-    return goToStorage(page);
+    const step = await goToStorage(page);
+    await step.getByRole('status').waitFor({ state: 'detached' });
+    return step;
   };
-  const radios = async (group) => group.getByRole('radio').evaluateAll((els) => els.map((e) => [e.value, e.checked, e.disabled]));
+  const review = async (page) => {
+    await toSummary(page);
+    return (await page.locator('[data-picked-row="app_storage"] [data-picked-value]').innerText()).trim();
+  };
   const toStart = async (page) => {
     await goToStep(page, 'Where it lives');
     await openFolded(page, 'App look');
@@ -493,14 +497,12 @@ test('a shared App reads Lakebase by default; a per-user App keeps Fast pages wh
     responses: { ...probe({ projects: [] }, 200).responses, [`GET /api/2.1/unity-catalog/functions/${fn}`]: [{ routine_definition: body, input_params: { parameters: [{ name: 'region' }] } }, 200] },
   });
 
-  await t.test('no source has a row filter or column mask: the App reads as its service principal, the access choice is not shown, and Fast pages stay on (REQ-418)', async () => {
+  await t.test('no source has a row filter or column mask: the App reads as its service principal, the access choice is not shown, and Lakebase is used (REQ-418)', async () => {
     ui = await openUi('wizard', probe({ projects: [] }, 200));
     try {
-      const group = await toStorageByDefault(ui.page);
-      await group.getByRole('status').waitFor({ state: 'detached' });
-      await group.getByText('Fast pages (Lakebase)', { exact: true }).waitFor();
-      assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'the default App keeps Fast pages');
+      await toStorageByDefault(ui.page);
       assert.equal(await ui.page.getByRole('region', { name: 'App access' }).count(), 0, 'no per-user choice without a policied source (must-exclude)');
+      assert.equal(await review(ui.page), 'Fast pages (Lakebase)');
       await toStart(ui.page);
       assert.equal(submittedSpec(ui.made).outputs.app_backend, 'lakebase');
       assert.equal(submittedSpec(ui.made).outputs.app_access, 'sp');
@@ -510,53 +512,38 @@ test('a shared App reads Lakebase by default; a per-user App keeps Fast pages wh
     }
   });
 
-  await t.test('every filtered table enforces each person to their rows (a row filter that maps users to keys): a per-user App keeps Fast pages with no reason', async () => {
+  await t.test('every filtered table enforces each person to their rows (a row filter that maps users to keys): a per-user App keeps Lakebase', async () => {
     ui = await openUi('wizard', filtered('main.s.own_rows', 'RETURN exists(select 1 from main.s.region_access r where r.region = region and r.email = current_user())'));
     try {
       const access = await toAccess(ui.page);
       await access.getByRole('radio', { name: /^Sensitive data/ }).check();
-      const group = await goToStorage(ui.page);
-      await group.getByRole('status').waitFor({ state: 'detached' });
-      assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'a per-user App over a row filter that keeps each person to their rows keeps Fast pages');
-      assert.equal(await group.locator('[data-blocked-reason="app-backend"]').count(), 0, 'no reason is shown while Fast pages stay on');
+      const step = await goToStorage(ui.page);
+      await step.getByRole('status').waitFor({ state: 'detached' });
+      assert.equal(await review(ui.page), 'Fast pages (Lakebase)');
     } finally {
       await ui.close();
     }
   });
 
-  await t.test('one filtered table does not enforce each person to their rows: a per-user App reads Delta tables and the reason names the table and its row filter', async () => {
+  await t.test('one filtered table does not enforce each person to their rows: a per-user App reads Delta tables and Review names the table and its row filter', async () => {
     ui = await openUi('wizard', filtered('main.s.hide', 'SELECT true'));
     try {
       const access = await toAccess(ui.page);
       await access.getByRole('radio', { name: /^Sensitive data/ }).check();
-      const group = await goToStorage(ui.page);
-      await group.getByRole('status').waitFor({ state: 'detached' });
-      assert.deepEqual(await radios(group), [['lakebase', false, true], ['delta', true, false]], 'one filtered table that does not enforce each person to their rows reads Delta tables');
-      assert.equal(await group.locator('[data-blocked-reason="app-backend"] p').textContent(), 'Fast pages cannot keep each person to their own rows here: main.s.orders uses Standard pages because the row filter main.s.hide is not a user-to-key mapping table.', 'the reason names the table and its row filter');
+      const step = await goToStorage(ui.page);
+      await step.getByRole('status').waitFor({ state: 'detached' });
+      const line = await review(ui.page);
+      assert.match(line, /^Delta, because each person signs in as themselves/);
+      assert.match(line, /main\.s\.orders uses Standard pages because the row filter main\.s\.hide is not a user-to-key mapping/);
     } finally {
       await ui.close();
     }
   });
 
-  ui = await openUi('wizard', probe({ projects: [] }, 200));
-  try {
-    const group = await toStorageByDefault(ui.page);
-    await group.getByRole('status').waitFor({ state: 'detached' });
-    await group.getByText('Delta', { exact: true }).click();
-    await toStart(ui.page);
-    assert.equal(submittedSpec(ui.made).outputs.app_backend, 'delta', 'a pick of Delta is kept');
-  } finally {
-    await ui.close();
-  }
-
   ui = await openUi('wizard', probe({ message: 'PERMISSION_DENIED: Lakebase is not enabled for this user' }, 403));
   try {
-    const group = await toStorageByDefault(ui.page);
-    const why = group.locator('[data-blocked-reason="app-backend"]');
-    assert.equal(await why.locator('p').textContent(), 'Needs access Inspire does not have yet.');
-    assert.match(await why.locator('[data-technical-details] pre').textContent(), /PERMISSION_DENIED: Lakebase is not enabled for this user/, 'the raw refusal sits under Details');
-    assert.equal(await why.locator('[data-technical-details]').getAttribute('open'), null, 'Details start closed');
-    assert.deepEqual(await radios(group), [['lakebase', false, true], ['delta', true, false]]);
+    await toStorageByDefault(ui.page);
+    assert.match(await review(ui.page), /^Delta, because Lakebase could not be created: .*PERMISSION_DENIED: Lakebase is not enabled for this user/);
     await toStart(ui.page);
     assert.equal(submittedSpec(ui.made).outputs.app_backend, 'delta');
   } finally {
@@ -565,15 +552,16 @@ test('a shared App reads Lakebase by default; a per-user App keeps Fast pages wh
 
   ui = await openUi('wizard', probe({ error_code: 'ENDPOINT_NOT_FOUND' }, 404));
   try {
-    const group = await toStorageByDefault(ui.page);
-    assert.equal(await group.locator('[data-blocked-reason="app-backend"] p').textContent(), LAKEBASE_ABSENT);
-    assert.equal(await group.getByRole('radio').count(), 0, 'a workspace without Lakebase shows no choice, only the reason');
+    const step = await toStorageByDefault(ui.page);
+    assert.equal(await step.getByRole('radio').count(), 0, 'a workspace without Lakebase shows no choice');
+    assert.ok((await review(ui.page)).startsWith('Delta, because Lakebase is not available here'), 'Delta and why');
     await toStart(ui.page);
     assert.equal(submittedSpec(ui.made).outputs.app_backend, 'delta');
   } finally {
     await ui.close();
   }
 });
+
 
 test('Where results live offers its own schema, falls back to the Inspire database schema with the GRANT to ask for, picks a catalog and a schema, and Next checks the table live', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, catalogs: ['main', 'sales'], schemas: { main: ['inspire', 's'], sales: ['mvp', 'gold'] } });
@@ -1310,7 +1298,6 @@ const WAREHOUSES = { warehouses: [{ id: 'wh1', name: 'Shared SQL', state: 'RUNNI
   { id: 'wh3', name: 'Ops SQL', state: 'RUNNING' }] };
 // REQ-418: the App reads and saves with its warehouse as its service principal, so the principal that holds the permission is the App's.
 const MANAGES = (level) => [{ access_control_list: [{ service_principal_name: 'app-sp-id', all_permissions: [{ permission_level: level }] }] }, 200];
-const DELTA_LABEL = 'SQL warehouse the App reads and saves with';
 const LAKEBASE_LABEL = 'SQL warehouse the App saves, keeps history and runs alerts with (pages read the fast copy)';
 
 test('the App reads and saves with the SQL warehouse picked on App access, labeled for Lakebase or Delta, the build keeps its own, and a warehouse Inspire cannot manage is named with the permission it needs', async () => {
@@ -1341,8 +1328,6 @@ test('the App reads and saves with the SQL warehouse picked on App access, label
       ['Shared SQL (RUNNING) · used for the build', 'Finance SQL (STOPPED)', 'Ops SQL (RUNNING)']);
     const buildNote = field.getByText("Dashboards and alerts Inspire builds keep using the build's SQL warehouse, Shared SQL (RUNNING).", { exact: true });
     assert.equal(await buildNote.count(), 0, 'on the build warehouse the option itself says so');
-    await storage.getByText('Delta', { exact: true }).click();
-    assert.equal(await field.locator('label span').first().textContent(), DELTA_LABEL);
     await select.selectOption('wh2');
     await buildNote.waitFor();
     await field.locator('[data-app-warehouse-check]').getByText('Inspire cannot manage Finance SQL, so the App cannot read and save with it: '
@@ -1358,7 +1343,7 @@ test('the App reads and saves with the SQL warehouse picked on App access, label
     await openFolded(page, 'App look');
     await startWhenReady(page);
     const spec = submittedSpec(made);
-    assert.deepEqual([spec.outputs.app_warehouse_id, spec.config.warehouse_id, spec.outputs.app_backend], ['wh3', 'wh1', 'delta']);
+    assert.deepEqual([spec.outputs.app_warehouse_id, spec.config.warehouse_id, spec.outputs.app_backend], ['wh3', 'wh1', 'lakebase'], 'Inspire picks Lakebase itself (REQ-528)');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

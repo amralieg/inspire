@@ -97,7 +97,7 @@ test('Who uses the App opens who sees which rows, and what people can do in the 
     await page.getByRole('region', { name: 'App access' }).waitFor();
     await goToStep(page, 'Page storage');
     await openFolded(page, 'Page storage');
-    await page.getByRole('group', { name: 'How fast do the App\'s pages open?' }).waitFor();
+    assert.equal(await page.getByRole('radio', { name: /Lakebase|Delta/ }).count(), 0, 'REQ-528: no storage choice');
     await goToStep(page, 'Who uses the App');
     assert.equal(await page.locator('[data-choice="app-options"]').count(), 0, 'the App features are behind their Change row');
     assert.equal(await changeRow(page, 'What people can do').getAttribute('aria-expanded'), 'false', 'the App features row is closed');

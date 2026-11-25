@@ -35,14 +35,7 @@ test('each choice has exactly one Recommended option, with a reason, picked from
   assert.notEqual(H.bestAppAccess().id, 'user', 'a per-user App is never recommended without a personal column (must-exclude, D-SL-11)');
   assert.equal(H.bestAppAccess({ personal: 'owner_email' }).id, 'user');
   assert.equal(H.bestAppAccess({ inside: true }).id, 'sp', 'Inside Inspire reads as the App by default, the same rule as any App (D-SL-10B)');
-  const app = { outputs: { app: true, app_access: 'sp', merge: {} } };
-  assert.equal(H.bestAppBackend(app, { state: 'available' }).id, 'lakebase');
-  assert.equal(H.bestAppBackend(app, { state: 'absent' }), null, 'with no Lakebase the plain default needs no badge (must-exclude)');
-  for (const offer of [null, { state: 'unknown', detail: 'timeout' }, { state: 'denied', detail: 'no' }]) {
-    assert.equal(H.bestAppBackend(app, offer), null, `Lakebase Inspire could not check is never recommended (must-exclude) ${JSON.stringify(offer)}`);
-  }
-  assert.equal(H.bestAppBackend({ outputs: { ...app.outputs, app_access: 'user' } }, { state: 'available' }), null);
-  assert.equal(H.bestAppBackend({ outputs: { app: false } }, { state: 'available' }), null);
+  assert.equal(H.bestAppBackend, undefined, 'REQ-528: the App storage is not a choice, so nothing recommends one');
   assert.equal(H.bestRemoved, undefined, 'keeping a removed asset is the default, not a recommendation');
   one(H.bestVibePrevious(3), W.vibePreviousChoices(3, 4).map((c) => c.id));
   assert.equal(H.bestVibePrevious(3).id, W.VIBE_PREVIOUS_DEFAULT);
@@ -104,10 +97,6 @@ test('every Recommended pick is the option the wizard starts on', async () => {
   assert.equal(H.bestAppAccess().id, spec.outputs.app_access);
   assert.equal(H.bestMode().id, 'mvp');
   assert.ok(spec.outputs[H.bestOutput([]).id]);
-  for (const offer of [null, { state: 'available' }, { state: 'absent' }, { state: 'unknown' }, { state: 'denied', detail: 'x' }]) {
-    const best = H.bestAppBackend(spec, offer);
-    if (best) assert.equal(best.id, W.appBackendOf(spec, offer), JSON.stringify(offer));
-  }
   assert.equal(H.bestLook('layout', spec).id, spec.outputs.app_look.layout);
 });
 
