@@ -178,7 +178,7 @@ const ROUTE_POLICY = {
     'calls a chat model and saves the review as one row of the Calculate value answers'),
   'POST /api/inspire/value/preview': tracked('work out the value per year of a case plan and typed answers, with no data read',
     'reads nothing: pure arithmetic on the plan and answers it is sent'),
-  'GET /api/inspire/value/answers': tracked('read the saved Calculate value answers of a session'),
+  'GET /api/inspire/value/answers': personReads('read the saved Calculate value answers of a session, with the stale check over its source tables', ['sql'], { appDatabase: true }),
   'PUT /api/inspire/value/answers': personReads('save the Calculate value answers of one use case as a new version, with its estimate', ['sql'], { appDatabase: true }),
   'GET /api/inspire/value/answers/history': tracked('read the saved versions of the Calculate value answers of one use case'),
   'POST /api/inspire/value/answers/undo': tracked('go back to the previous version of the Calculate value answers of one use case',

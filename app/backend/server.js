@@ -113,6 +113,7 @@ const routePolicy = RP.createRoutePolicy({
 });
 const routePolicyRoutes = RP.enforceRoutePolicy(app, routePolicy);
 const hostedRun = createHostedRun({ files: workspaceFiles((...args) => dbFetch(...args)) });
+hostedRun.useSessionCheck((req, sessionId) => sessionHidden(req, sessionId));
 app.all('/run/:id/{*rest}', hostedRun.viewerGate, (req, res, next) => requireToken(req, res, next), hostedRun.proxy);
 app.get('/run/:id', hostedRun.redirect);
 app.use(showcaseWriteGuard);
