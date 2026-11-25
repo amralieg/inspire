@@ -26,7 +26,7 @@ SENTENCE = (
 
 def test_the_sentence_states_score_sigma_rank_q_value_and_the_run_reasons_from_the_read():
     out = shell_core.population_summary(4.79, STATS, label="Exception score", against=REASONS, quality="q value 0.004")
-    assert out == {"count": 212, "text": SENTENCE}
+    assert (out["count"], out["text"]) == (212, SENTENCE) and out["compared"]["rank"] == 1
 
 
 def test_a_record_below_the_average_reads_below_and_its_rank_counts_the_records_above_it():
@@ -86,7 +86,7 @@ def _shell(record):
 def test_population_of_ranks_by_the_page_ranking_column_with_its_reasons_and_q_value():
     s, fake = _shell(RECORD)
     out = shell_core.Shell.population_of(s, object(), PAGE_RANKED, "R1")
-    assert out == {"count": 212, "text": SENTENCE}
+    assert (out["count"], out["text"]) == (212, SENTENCE) and out["compared"]["rank"] == 1
     assert "record_key" in fake.calls[0] and "STDDEV_SAMP" in fake.calls[1]
 
 

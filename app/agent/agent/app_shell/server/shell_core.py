@@ -1331,29 +1331,57 @@ def reasons_text(value) -> list:
     return [explain_line(item) for item in items if str(item).strip()][:8]
 
 
-def population_summary(score, stats: dict, label: str = "ranking value", against=(), quality: str = "") -> dict:
-    """REQ-400: the deterministic 'Compared to the rest' sentence. Every number comes from the aggregate read or the run's own
-    columns, never from the model. Rank counts the records with a higher value, so rank 1 is the highest score."""
+RANK_FORMATS = ("integer", "rank", "ordinal")
+
+
+def rank_direction(records: dict, score: str) -> str:
+    """Which way is better on the column a list ranks by. The page says so (records.rank_direction); otherwise a column shown as a
+    whole-number rank (the rank role's own default format) counts from 1 = best, and any other number is a score where more is more."""
+    said = str(records.get("rank_direction") or "").strip().lower()
+    if said in ("lower", "higher"):
+        return said
+    listed = next((c for c in records.get("columns") or [] if isinstance(c, dict) and c.get("column") == score), {})
+    return "lower" if str(listed.get("format") or "integer") in RANK_FORMATS else "higher"
+
+
+def population_summary(score, stats: dict, label: str = "ranking value", against=(), quality: str = "", direction: str = "higher") -> dict:
+    """REQ-400, REQ-531: the deterministic 'Compared to the rest' sentence plus the same facts as a structured `compared`. Every number
+    comes from the aggregate read or the run's own columns, never from the model. direction says which way is better: on 'higher' rank 1
+    is the highest value and the spread is quoted in sigma; on 'lower' (a rank column, 1 = best) rank counts the records with a lower
+    value and no sigma is quoted, because a sigma of a rank means nothing."""
     n = int(float(stats.get("n") or 0))
     if not n:
         return {"count": 0, "text": ""}
     shown = shell_sql.shown_number
     if score is None:
         return {"count": n, "text": f"Compared to the rest: this record has no {label}, so it cannot be placed against the {shown(n)} records on this list."}
+    lower = direction == "lower"
     x, mean, sd = float(score), float(stats.get("mean") or 0), float(stats.get("sd") or 0)
     above, below, flagged = (int(float(stats.get(k) or 0)) for k in ("above", "below", "flagged"))
-    z = (x - mean) / sd if sd > 0 else None
-    spread = (f"{abs(z):.2f} sigma {'above' if x >= mean else 'below'} the average of {shown(mean)} "
-              f"(spread {shown(sd)}, z-score {z:+.2f})") if z is not None else "with no spread across the list, so no sigma is shown"
-    sentences = [f"Compared to the rest: its {label} is {shown(x)}, {spread}."]
-    rank = above + 1
-    sentences.append(f"It ranks {shown(rank)} of {shown(n)}, higher than {shown(round(100 * below / n, 1))}% of records." if n > 1 else "It is the only record on the list.")
+    rank = below + 1 if lower else above + 1
+    behind = above if lower else below
+    status = "normal" if x == mean else "above normal" if (x < mean) == lower else "below normal"
+    compared = {"x": x, "mean": mean, "sd": sd, "band": [mean - sd, mean + sd], "rank": rank, "n": n,
+                "direction": "lower" if lower else "higher", "flagged": flagged, "status": status,
+                "points": [{"name": "this record", "x": x, "rank": rank}, {"name": "average", "x": mean}]}
+    ahead = f"{shown(round(100 * behind / n, 1))}% of records"
+    if lower:
+        sentences = [f"Compared to the rest: its {label} is {shown(x)}, {status} (the average is {shown(mean)}, a normal band of "
+                     f"{shown(round(mean - sd, 2))} to {shown(round(mean + sd, 2))})."]
+        place = f"It ranks {shown(rank)} of {shown(n)}, ahead of {ahead}."
+    else:
+        z = (x - mean) / sd if sd > 0 else None
+        spread = (f"{abs(z):.2f} sigma {'above' if x >= mean else 'below'} the average of {shown(mean)} "
+                  f"(spread {shown(sd)}, z-score {z:+.2f})") if z is not None else "with no spread across the list, so no sigma is shown"
+        sentences = [f"Compared to the rest: its {label} is {shown(x)}, {spread}."]
+        place = f"It ranks {shown(rank)} of {shown(n)}, higher than {ahead}."
+    sentences.append(place if n > 1 else "It is the only record on the list.")
     if quality:
         sentences.append(f"It has {quality}.")
     if against:
         sentences.append("Against: " + "; ".join(against) + ".")
     sentences.append(f"{shown(flagged)} of {shown(n)} records are flagged.")
-    return {"count": n, "text": " ".join(sentences)}
+    return {"count": n, "text": " ".join(sentences), "compared": compared}
 
 
 def record_explain_parts(title: str, context: dict) -> tuple:
@@ -5128,7 +5156,7 @@ class Shell:
         stats = self.execute(ws, sql, params, 1, delta=False)["rows"][0]
         label = next((c.get("label") for c in records.get("columns") or [] if c.get("column") == score and c.get("label")), score)
         return population_summary(row.get(score), stats, label=str(label), against=reasons_text(row.get(records.get("reasons") or "")),
-                                  quality=q_value_text(row))
+                                  quality=q_value_text(row), direction=rank_direction(records, score))
 
     def record_fields(self, headers: dict, ident) -> dict:
         page = self.page(ident)
