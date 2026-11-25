@@ -10,11 +10,12 @@ import { assertHeader, headerFacts } from './req508Headers.mjs';
 
 test.after(closeBrowser);
 
+// REQ-520 (owner decision "Caps everywhere", approved test change 2026-11-25): each page's content column has the REQ-520 cap; Config keeps no cap.
 const PAGES = [
-  ['Choose', 'choose', { icon: true }],
-  ['Launch', 'launch', { icon: true }],
+  ['Choose', 'choose', { icon: true, width: '1440px' }],
+  ['Launch', 'launch', { icon: true, width: '1088px' }],
   ['Config', 'config', { icon: true }],
-  ['Generate data', 'generate', { icon: true }],
+  ['Generate data', 'generate', { icon: true, width: '1088px' }],
 ];
 
 for (const [name, open, opts] of PAGES) {
@@ -41,7 +42,7 @@ test('Setup: the header at full width (REQ-512), and inside a Databricks App the
   const { page } = ui;
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
-    assertHeader(assert, await headerFacts(page), { name: 'Setup', width: null, icon: false });
+    assertHeader(assert, await headerFacts(page), { name: 'Setup', width: '1040px', icon: false });
     await page.getByText(/^Step 1 of \d$/).waitFor({ timeout: 15000 });
     assert.equal(await page.getByText(/^Step 1 of \d$/).innerText(), 'Step 1 of 4', 'the token comes from the App, so Authenticate is not a step');
     assert.equal(await page.getByRole('button', { name: /Authenticate/ }).count(), 0, 'no Authenticate step in the indicator');

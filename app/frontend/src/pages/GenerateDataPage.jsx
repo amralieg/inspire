@@ -13,6 +13,7 @@ import { responseError } from '../lib/apiClient';
 import { plural } from '../lib/plural';
 import { DEMO_GENERATED_TABLES, DEMO_KIND_SIGNAL_TABLES, demoSchemaError, demoTablesTotal } from '../lib/demoData';
 import { DISCOVERY_BADGE, DISCOVERY_MODE_TEXT, DISCOVERY_RECOMMENDED, DISCOVERY_TYPE_VALID } from '../lib/discoveryType';
+import { WIZARD } from '../lib/layout';
 import TechnicalDetails from '../components/TechnicalDetails';
 import { PlainMessage } from '../components/TechnicalDetails';
 import PageHeader from '../components/ui/PageHeader';
@@ -85,7 +86,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
   };
 
   return (
-    <div className="w-full px-6 py-10">
+    <div className={`${WIZARD} py-10`}>
       <button
         type="button"
         onClick={onBack}
@@ -217,19 +218,21 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
           </div>
         )}
 
-        <Button type="submit" data-variant="primary" disabled={submitting || !canCallApi} className="w-full py-3">
-          {submitting ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              Starting the run…
-            </>
-          ) : (
-            <>
-              Generate data &amp; run Inspire
-              <ArrowRight size={16} />
-            </>
-          )}
-        </Button>
+        <div className="flex justify-end">
+          <Button type="submit" data-variant="primary" disabled={submitting || !canCallApi} className="w-full sm:w-auto sm:min-w-[16rem] py-3">
+            {submitting ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Starting the run…
+              </>
+            ) : (
+              <>
+                Generate data &amp; run Inspire
+                <ArrowRight size={16} />
+              </>
+            )}
+          </Button>
+        </div>
       </form>
     </div>
   );

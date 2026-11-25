@@ -5,6 +5,9 @@
 //   (b) no centred column caps the work: no element with a fixed max-width (px) below viewport - 64 that is at least 400 px wide and
 //       holds 2 or more visible controls. Text measures (a capped paragraph, no controls), dialogs, menus, the reader and fixed
 //       toasts are exempt, so a readable line length is still allowed.
+// REQ-520 (owner decision "Caps everywhere", 2026-11-25) supersedes the 1920 half of REQ-512 item 37: working pages cap at a 1440 px
+// FRAME, Home at 1280 px, and the Launch / Generate data / Setup forms at a 1040 px WIZARD column at every width, so this spec now runs
+// at 1280 only and exempts the three WIZARD pages (Launch, Generate data; Setup is not walked here). req520_wideLayout.ui.test.mjs owns 1920 and 2560.
 // Fail-pre (0289c7e85): GenerateDataPage.jsx:113 `max-w-2xl` caps the Generate data form at 672 px.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -42,8 +45,9 @@ const frameFacts = (page) => page.evaluate(() => {
   return { vw, widest: Math.round(widest), caps };
 });
 
-for (const width of [1280, 1920]) {
-  for (const [name, hash, tab] of PAGES) {
+const WIZARD_PAGES = new Set(['Launch', 'Generate data']);
+for (const width of [1280]) {
+  for (const [name, hash, tab] of PAGES.filter(([n]) => !WIZARD_PAGES.has(n))) {
     test(`W (${name} at ${width}px): the page spans the screen and no centred column caps its controls`, async () => {
       const ui = await openUi('app', KNOWN, hash, { mount: mountReview });
       const { page } = ui;
