@@ -31,6 +31,7 @@
 .tbl tr:hover .row-ask,.row-ask:focus-visible,.tbl tr:hover .ask-genie,.ask-genie:focus-visible,.ask-genie[aria-expanded="true"]{color:var(--brand-ink)}
 .row-ask:hover,.ask-genie:hover{background:var(--brand-wash);border-color:var(--brand-bd);color:var(--brand-ink)}
 .ask-genie{flex:none;line-height:1.2}
+.fbar>.help-q{align-self:flex-end;margin-top:0}
 .kpi>.ask-genie,.blk>.ask-genie{margin-top:8px}
 .story>.ask-genie,.sum .ask-genie{margin-inline-start:8px;vertical-align:middle}
 .ask-box{display:grid;gap:10px}
