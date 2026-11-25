@@ -91,6 +91,7 @@ export function ValueBulkProgress() {
   const { run, stop, show, dismiss } = useValueBulkRun();
   if (!run || run.open) return null;
   const { done, total } = bulkCounts(run);
+  // busy-ok: BackgroundRunBar spins a Loader2 beside this text while the run is running.
   return (
     <BackgroundRunBar barAttrs={{ 'data-bulk-bg': '' }} textAttrs={{ 'data-bulk-bg-text': '' }} running={run.running}
       text={`${run.running ? 'Calculating value' : 'Value calculated'}: ${bulkSummary(run.rows, run.items)}`} meterLabel="Value calculation progress"
