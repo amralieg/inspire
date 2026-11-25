@@ -205,7 +205,69 @@ async function sendAccessRequest({ call, who, statements, host }) {
   return { sent: true, destinations: check.destinations, reason: '', links: linksOf(statements, host) };
 }
 
+// REQ-521: Request Access for picked objects. Read access only; one GRANT per privilege so requestsOf merges them unchanged.
+const OBJECT_PARTS = { CATALOG: 1, SCHEMA: 2, TABLE: 3 };
+const OBJECT_PRIVILEGES = { CATALOG: ['USE CATALOG', 'USE SCHEMA', 'SELECT'], SCHEMA: ['USE SCHEMA', 'SELECT'], TABLE: ['SELECT'] };
+const MAX_OBJECTS = 50;
+const TOO_MANY = `Pick at most ${MAX_OBJECTS} objects per request.`;
+const BAD_OBJECT = 'Each object needs a type of CATALOG, SCHEMA or TABLE and its full name.';
+
+// Returns { error } for a refused body, else { objects: [{ type, full_name }] } with nothing else carried over from the body.
+function checkObjects(objects) {
+  if (!Array.isArray(objects) || !objects.length) return { error: BAD_OBJECT };
+  if (objects.length > MAX_OBJECTS) return { error: TOO_MANY };
+  const clean = [];
+  for (const o of objects) {
+    const type = String(o && o.type || '').toUpperCase();
+    const fullName = String(o && o.full_name || '').trim();
+    const parts = fullName.split('.');
+    if (!OBJECT_PARTS[type] || parts.length !== OBJECT_PARTS[type] || parts.some((p) => !p.trim())) return { error: BAD_OBJECT };
+    clean.push({ type, full_name: fullName });
+  }
+  return { objects: clean };
+}
+
+const quoteName = (name) => name.split('.').map((p) => `\`${p.replace(/`/g, '')}\``).join('.');
+
+function objectStatements(objects, who) {
+  const out = [];
+  for (const o of objects) {
+    for (const privilege of OBJECT_PRIVILEGES[o.type]) out.push(`GRANT ${privilege} ON ${o.type} ${quoteName(o.full_name)} TO \`${String(who).replace(/`/g, '')}\``);
+  }
+  return out;
+}
+
+// One batched request for the picked objects, always as the person. Answers per object; the existing RfA path does the work.
+async function sendObjectRequest({ call, who, objects }) {
+  const answer = (rows, sent, reason, destinations = []) => rows.map((o) => ({ type: o.type, full_name: o.full_name, sent, destinations, reason }));
+  if (!who) return { sent: false, destinations: [], reason: NO_PERSON, links: [], results: answer(objects, false, NO_PERSON) };
+  const pending = [];
+  const results = new Map();
+  for (const o of objects) {
+    const found = await destinationsOfChain(call, o);
+    if (found.labels.length) {
+      pending.push({ object: o, labels: found.labels });
+    } else {
+      results.set(o.full_name, { type: o.type, full_name: o.full_name, sent: false, destinations: [], reason: found.reason || NO_DESTINATION });
+    }
+  }
+  let reason = '';
+  if (pending.length) {
+    const check = await checkOffer({ call, who, statements: objectStatements(pending.map((p) => p.object), who) });
+    const got = await call('/api/3.0/rfa/requests', { method: 'POST', body: JSON.stringify(requestBodyOf(check.pending)) });
+    if (!got.ok) reason = failureText(got);
+    for (const p of pending) {
+      results.set(p.object.full_name, { type: p.object.type, full_name: p.object.full_name, sent: got.ok, destinations: got.ok ? p.labels : [], reason });
+    }
+  }
+  const ordered = objects.map((o) => results.get(o.full_name));
+  const sentRows = ordered.filter((r) => r.sent);
+  const failed = ordered.find((r) => !r.sent);
+  return { sent: sentRows.length > 0, destinations: [...new Set(sentRows.flatMap((r) => r.destinations))], reason: sentRows.length ? '' : (failed ? failed.reason : ''), links: [], results: ordered };
+}
+
 module.exports = {
+  MAX_OBJECTS, checkObjects, objectStatements, sendObjectRequest,
   RFA_SCOPE, COMMENT, NO_DESTINATION, NO_PRINCIPAL, requestsOf, parseGrant, destinationsPath, destinationLabel, requestBodyOf,
   checkAccessRequest, sendAccessRequest, explorerUrl, linksOf,
 };

@@ -160,8 +160,8 @@ def test_the_drop_keeps_every_part_an_ask_names(agent_ns):
 def test_the_record_minimum_follows_the_records_the_data_holds(capsys):
     page = _monitor()
     assert shell_sql.row_shortfalls(page, {RECORDS: 10}, {RECORDS: 10}) == ([], [
-        "the triage_queue section of a monitor_triage page is meant to show at least 20 rows, and the decision list shows 10: "
-        "every record the data holds, so the page shows them all"])
+        "the triage queue shows 10 rows: every record the data holds (the page is laid out for 20 or more), "
+        "so nothing is missing and there is nothing to fix"])
     assert "[LAYOUT-ROWS-HELD FIRED]" in capsys.readouterr().out
     short, held = shell_sql.row_shortfalls(page, {RECORDS: 10}, {RECORDS: 15})
     assert held == [] and short == ["the triage_queue section of a monitor_triage page shows at least 15 rows; the decision list "

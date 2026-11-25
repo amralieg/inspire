@@ -76,12 +76,13 @@ function whole(listed, what, noun) {
   throw Object.assign(new Error(cutText(what, listed.items.length, noun)), { status: 502, cut: true });
 }
 
-function listCatalogs(dbFetch, host, token) {
-  return pages(dbFetch, host, token, `${UC}/catalogs`, [['max_results', '1000']], 'catalogs', 40);
+// REQ-521: `browse` also returns the objects the caller holds only BROWSE on, each with browse_only: true.
+function listCatalogs(dbFetch, host, token, { browse = false } = {}) {
+  return pages(dbFetch, host, token, `${UC}/catalogs`, [['max_results', '1000'], ...(browse ? [['include_browse', 'true']] : [])], 'catalogs', 40);
 }
 
-function listSchemas(dbFetch, host, token, catalog) {
-  return pages(dbFetch, host, token, `${UC}/schemas`, [['catalog_name', catalog], ['max_results', '500']], 'schemas', 100);
+function listSchemas(dbFetch, host, token, catalog, { browse = false } = {}) {
+  return pages(dbFetch, host, token, `${UC}/schemas`, [['catalog_name', catalog], ['max_results', '500'], ...(browse ? [['include_browse', 'true']] : [])], 'schemas', 100);
 }
 
 // Metric views are left out of every table listing: the App's table picker, the tree counts and the schema reads.

@@ -175,7 +175,7 @@ assert not [s for s in executed if s.startswith("GRANT MANAGE ON CATALOG")], exe
 assert not [s for s in executed if "inspire_lakebase" in s], executed
 empty_sql, _, empty_said = run([], data=[])
 assert not [s for s in empty_sql if "\x60sales\x60" in s or "samples" in s], empty_sql
-assert "Inspire's App gets read access on no catalog besides \x60main\x60" in empty_said and "pick the catalogs in 02_data_catalogs_inspire_may_read" in empty_said, empty_said
+assert "Inspire's App gets read access on no catalog besides \x60main\x60" in empty_said and "pick the catalogs in 99_advanced_data_catalogs_inspire_may_read" in empty_said, empty_said
 # REQ-456/458: a refused catalog grant prints the exact GRANT, then stops the install before the deploy
 try:
     run([], grantable=())
