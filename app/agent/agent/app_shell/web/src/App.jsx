@@ -264,10 +264,10 @@ function Shell({ app, onRefreshSiblings }) {
     <div className="stage">
       <div className="app" data-ready="" data-layout={app.layout} data-density={prefs.density} data-app-style={styleOfPage(page)?.id}>
         <header className="top">
-          <button type="button" className="mark" onClick={() => go('')} aria-label={`${app.title}, home`} title={app.title}>
+          <div className="mark" title={app.title}>
             <span className="mark-tile logo"><img src={logo} alt="" width="22" height="22" /></span>
             <span className="mark-t"><b>{app.title}</b></span>
-          </button>
+          </div>
           <Switcher pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={() => { loadHub(); onRefreshSiblings?.(); }} siblings={app.siblings || []} />
           <span className="sp" />
           {page && !admin && (
