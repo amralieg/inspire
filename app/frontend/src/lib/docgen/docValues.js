@@ -17,13 +17,13 @@ function fromLedger(entry) {
   const story = top ? `${moneyText(currency, amount)} a year, mostly from ${top.name} (${Math.round(top.share * 100)}%).` : '';
   // REQ-507 L8: a saved story (approved or not; docModel shows only an approved one) and the saved projection win.
   const saved = valueFromSaved(entry);
-  return { amount, currency, status: y.calculated === true ? 'calculated' : 'estimated', story: entry.answers?.story || story, yearly: saved?.yearly || [], factors };
+  return { amount, currency, status: y.calculated === true ? 'calculated' : 'estimated', verb: y.verb || '', story: entry.answers?.story || story, yearly: saved?.yearly || [], factors };
 }
 
 function fromTotals(entry) {
   const amount = finite(entry?.amount);
   if (!entry || amount === null || entry.status === 'not_estimated' || entry.status === 'no_data') return null;
-  return { amount, currency: entry.currency || 'USD', status: 'estimated', story: '', yearly: [], factors: [] };
+  return { amount, currency: entry.currency || 'USD', status: 'estimated', verb: entry.verb || '', story: '', yearly: [], factors: [] };
 }
 
 // byId: calculated.byId (wins). totals: valueTotals, whose use_cases hold the run's estimates.
