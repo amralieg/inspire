@@ -191,14 +191,25 @@ function briefPage1(m, th) {
   s += t(P, 46, 'DATABRICKS INSPIRE AI · USE CASE BRIEF', { size: 12, weight: 800, fill: th.heroAccent, bg: th.hero, ls: 2, font: BODY, ctx: 'brand' });
   s += t(P, 98, m.businessName, { size: 36, weight: 800, fill: th.heroInk, bg: th.hero, font: BODY, ctx: 'title' });
   s += t(P, 132, `${m.total.yearText} estimated · ${m.total.n} use cases · ${m.total.nDomains} domains`, { size: 16, weight: 600, fill: th.heroMuted, bg: th.hero, font: BODY, ctx: 'sub' });
-  // The App has no executive summary field: with no text the card is left out and the rest moves up.
-  const sum = m.executiveSummary ? 0 : 266;
-  if (m.executiveSummary) {
-    s += card(P, 194, CW, 250, th);
+  // REQ-526 part E: the summary card; the room a short summary leaves (or all of it with no summary) goes to "Where to start" inside the card.
+  const text = m.summary.join(' ');
+  s += card(P, 194, CW, 250, th);
+  let ly = 226;
+  if (text) {
     s += H2(P + 20, 226, 'Summary', th, th.card, 18);
-    s += T(P + 20, 254, m.executiveSummary, { size: 13, fill: th.ink, bg: th.card, font: BODY, maxW: CW - 40, lines: 10, lh: 18.5, ctx: 'summary' }).svg;
+    const r = T(P + 20, 254, text, { size: 13, fill: th.ink, bg: th.card, font: BODY, maxW: CW - 40, lines: 10, lh: 18.5, ctx: 'summary' }); s += r.svg; ly = 254 + (r.lines - 1) * 18.5 + 30;
   }
-  s += `<g transform="translate(0 ${-sum})">`;
+  const rows = Math.min(7, m.ranked.length, Math.floor((444 - ly - 24) / 26));
+  if (rows >= 2) {
+    s += H2(P + 20, ly, 'Where to start', th, th.card, 18);
+    m.ranked.slice(0, rows).forEach((u, i) => {
+      const ry = ly + 24 + i * 26;
+      s += T(P + 20, ry, u.name, { size: 13, weight: 700, fill: th.ink, bg: th.card, font: BODY, maxW: 340, lines: 1, ctx: 'start name' }).svg;
+      s += t(P + 380, ry, u.domain, { size: 13, fill: th.muted, bg: th.card, font: BODY, maxW: 130, lines: 1, ctx: 'start domain' });
+      s += t(P + CW - 20 - (has(m, 'inspire_score') ? 44 : 0), ry, u.value.text, { size: 13, weight: 800, fill: th.ink, bg: th.card, anchor: 'end', font: BODY, ctx: 'start value' });
+      if (has(m, 'inspire_score')) s += t(P + CW - 20, ry, u.score.toFixed(1), { size: 13, weight: 800, fill: th.muted, bg: th.card, anchor: 'end', font: BODY, ctx: 'start score' });
+    });
+  }
   s += card(P, 460, CW, 300, th);
   s += H2(P + 20, 492, 'Value by domain', th, th.card, 18);
   const items = m.domains.map((d) => ({ name: d.name, value: d.value, text: d.text, icon: d.icon, color: cm[d.name] }));
@@ -212,7 +223,6 @@ function briefPage1(m, th) {
     if (has(m, 'inspire_score')) s += segMeter(x + 16, 938, u.score, 10, c, th.track);
     if (has(m, 'inspire_score')) s += t(x + w - 16, 946, u.score.toFixed(1), { size: 12, weight: 800, fill: th.muted, bg: th.card, anchor: 'end', font: BODY, ctx: 's' });
   });
-  s += '</g>';
   if (has(m, 'disclaimer')) s += T(P, 1010, DISCLAIMER, { size: 12, fill: th.muted, bg: th.canvas, font: BODY, maxW: CW, lines: 3, lh: 16, ctx: 'disc' }).svg;
   s += t(W - P, 1090, 'Page 1', { size: 12, fill: th.muted, bg: th.canvas, anchor: 'end', font: BODY, ctx: 'foot' });
   return svgDoc(W, H, s, BODY, '<clipPath id="cHero"><rect x="0" y="0" width="794" height="170"/></clipPath>');

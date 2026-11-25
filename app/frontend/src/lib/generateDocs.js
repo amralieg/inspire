@@ -4,6 +4,7 @@ import { buildDocModel } from './docgen/docModel.js';
 import { infographicSvg, briefPagesSvg } from './docgen/docSvg.js';
 import { resolveTheme } from './docgen/docStyles.js';
 import { trackingIdOf } from './useCaseFields.js';
+import { summaryOf } from './docgen/docModel.js';
 
 const toBytes = async (v) => (v instanceof Blob ? new Uint8Array(await v.arrayBuffer()) : v instanceof ArrayBuffer ? new Uint8Array(v) : v);
 
@@ -30,8 +31,9 @@ export async function svgToPng(svg, scale = 1) {
 }
 
 // The texts a second language needs: per use case, its name, statement, solution and value story.
-export const textsToTranslate = (useCases, values) => {
+export const textsToTranslate = (useCases, values, summary = []) => {
   const texts = {};
+  summaryOf(summary).forEach((p, i) => { texts[`summary|${i}`] = p; });
   for (const uc of useCases) {
     const id = trackingIdOf(uc);
     const m = buildDocModel({ useCases: [uc], values, options: {} }).useCases[0];
@@ -40,10 +42,12 @@ export const textsToTranslate = (useCases, values) => {
   return texts;
 };
 
-function modelFor({ businessName, useCases, values, options, language, ids, translated }) {
+export function modelFor({ businessName, useCases, values, options, language, ids, translated, summary }) {
   const picked = useCases.filter((uc) => ids.includes(trackingIdOf(uc)));
-  const m = buildDocModel({ businessName, useCases: picked, values, options: { ...options, languages: [language] } });
+  const m = buildDocModel({ businessName, useCases: picked, values, options: { ...options, languages: [language] }, summary });
   if (!translated) return m;
+  // REQ-526 part E: the executive summary is translated with the other texts, one entry per paragraph.
+  if (m.summary.length) m.summary = m.summary.map((p, i) => translated[`summary|${i}`] || p);
   m.useCases.forEach((u) => {
     const t = (k) => translated[`${u.id}|${k}`];
     u.name = t('name') || u.name; u.statement = t('statement') || u.statement; u.solution = t('solution') || u.solution;
@@ -73,7 +77,7 @@ async function makeFile(file, m, theme, options) {
 
 // onFile(name, state, message): state is working, done, failed or stopped. Returns the saved paths.
 // REQ-525: once `signal` is aborted no new file starts (the one being made finishes) and each file not started ends as stopped.
-export async function generateDocs({ plan, options, useCases, values, businessName, folder, post, inspireDatabase, warehouseId, sessionId, onFile, signal = null }) {
+export async function generateDocs({ plan, options, useCases, values, businessName, summary = [], folder, post, inspireDatabase, warehouseId, sessionId, onFile, signal = null }) {
   const theme = resolveTheme(options.style, options.palette, options.customColor, options.theme);
   const where = { inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId) };
   const saved = [];
@@ -84,7 +88,7 @@ export async function generateDocs({ plan, options, useCases, values, businessNa
     let translated = null;
     if (language !== 'English') {
       try {
-        const res = await post('/api/inspire/docs/translate', { ...where, language, texts: textsToTranslate(useCases, values) });
+        const res = await post('/api/inspire/docs/translate', { ...where, language, texts: textsToTranslate(useCases, values, summary) });
         translated = res?.texts || {};
       } catch (e) {
         files.forEach((f) => onFile(f.name, 'failed', e?.message || 'The translation failed.'));
@@ -95,7 +99,7 @@ export async function generateDocs({ plan, options, useCases, values, businessNa
       if (signal?.aborted) { onFile(file.name, 'stopped'); continue; }
       onFile(file.name, 'working');
       try {
-        const m = modelFor({ businessName, useCases, values, options, language, ids: file.useCaseIds, translated });
+        const m = modelFor({ businessName, useCases, values, options, language, ids: file.useCaseIds, translated, summary });
         const bytes = await toBytes(await makeFile(file, m, theme, options));
         await post('/api/inspire/docs/save', { ...where, folder, name: file.name, content_base64: toBase64(bytes), use_case_ids: file.useCaseIds });
         saved.push(`${folder}/${file.name}`);
