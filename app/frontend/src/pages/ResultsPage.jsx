@@ -769,7 +769,7 @@ export default function ResultsPage({
     score: (a, b) => cmp(inspireScoreFromUc(a) ?? -Infinity, inspireScoreFromUc(b) ?? -Infinity),
     value: (a, b) => cmp(valueAmountOf(a), valueAmountOf(b)),
   };
-  // The six column headers are labels now; their sorts live in the one Sort control (REQ-510 L5, 24 controls cap): "<key>:<dir>" options.
+  // The six column headers are sort buttons (REQ-512 item 35) and the one Sort control offers the same sorts (REQ-510 L5, 24 controls cap): "<key>:<dir>" options.
   const COLUMN_SORT_LABELS = [['no', '#'], ['name', 'Use case'], ['mvp', 'MVP'], ['docs', 'Docs'], ['score', 'Score'], ['value', 'Value']];
   // A header click sorts that column ascending, a second click flips it; the Sort select reads the same colSort state.
   const toggleColSort = (key) => setColSort((cur) => ({ key, dir: cur?.key === key && cur.dir === 'asc' ? 'desc' : 'asc' }));

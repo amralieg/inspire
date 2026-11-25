@@ -88,7 +88,7 @@ export default function StepStory({ page, story, polish, params, currency, terms
       <button type="button" disabled={!accepted} onClick={() => onApprove(storyAnswers({ text, params, include_in_docs: include }))}
         aria-describedby={accepted ? undefined : 'story-tick-hint'}
         className="rounded-lg bg-primary-solid px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-40">Approve story and save</button>
-      {!accepted && <p id="story-tick-hint" className="text-[12px] text-text-secondary">Tick accept to proceed</p>}
+      {!accepted && <p id="story-tick-hint" className="text-xs text-text-secondary">Tick accept to proceed</p>}
     </div>
   );
 }
