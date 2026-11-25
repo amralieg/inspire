@@ -170,6 +170,7 @@ function registerImplementRoutes(app, deps) {
     buildStamp = bundledBuildStamp,
     runDefaults = () => ({}),
     appToken = async () => '',
+    appId = '',
     genieCodeCheck = GC.createGenieCodeCheck(),
     appBaseUrl = (req) => I.inspireBaseUrl(process.env.DATABRICKS_APP_URL)
       || I.inspireBaseUrl(String(req.headers['x-forwarded-host'] || '').split(',')[0]),
@@ -2447,7 +2448,7 @@ function registerImplementRoutes(app, deps) {
       if (req.body && req.body.objects !== undefined) {
         const checked = AR.checkObjects(req.body.objects);
         if (checked.error) return res.status(400).json({ error: checked.error });
-        return res.json(await AR.sendObjectRequest({ call: accessRequestCall(req, token), who, objects: checked.objects }));
+        return res.json(await AR.sendObjectRequest({ call: accessRequestCall(req, token), who, objects: checked.objects, app: appId }));
       }
       return res.json(await AR.sendAccessRequest({ call: accessRequestCall(req, token), who, statements: req.body?.statements, host: req.dbHost }));
     } catch (err) {

@@ -66,7 +66,7 @@ const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../fronte
 const { isInspireOwnName, isInspireOwnSchema } = require('../frontend/src/lib/inspireOwnObjects.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
 const { appReadPermissions, sampleCopyPermission, permissionRequired, readStatementsFor } = require('./lib/permissions');
-const { spGrantedCatalogs, grantedCatalogList, partialPermission, droppedCatalogs, pickableRows, heldWrites } = require('./lib/spCatalogs');
+const { spGrantedCatalogs, grantedCatalogList, inspireStateOf, schemaInspireStates, PICKER_PROBE_CAP, partialPermission, droppedCatalogs, pickableRows, heldWrites } = require('./lib/spCatalogs');
 const { planModelAccess, selfCheckRecord, MODEL_CHECK_ROUTE } = require('./lib/modelAccess');
 const PM_ERROR = require('./lib/permissionError');
 const { apiRefusalText, logApiBody } = require('./lib/apiRefusal');
@@ -1849,15 +1849,17 @@ app.get('/api/catalogs', requireToken, async (req, res) => {
     else if (catalogs.length > 0) source = 'sql';
     console.log(`   📚 catalogs: REST=${raw.length} merged=${catalogs.length} warehouse=${warehouseId ? 'yes' : 'no'} (${source})`);
     // REQ-420: the App reads as its own service principal, so the list is the catalogs the person sees that the principal can read now.
-    const granted = await appCatalogGrants(req, { items: catalogs, truncated: restCut });
+    // REQ-522: the browse-only catalogs are checked too, for their App state only.
+    const granted = await appCatalogGrants(req, { items: allCatalogs, truncated: restCut });
     if (granted) {
       const offered = grantedCatalogList(catalogs, granted);
       const permission = partialPermission(offered, SP_CLIENT_ID);
-      return res.json({ catalogs: withUnreadable(offered), source, spGrants: true, truncated: truncatedByRest(restCut, byName, countAfterRest),
+      const browseOnly = unreadableCatalogs.map((c) => inspireStateOf(c, granted));
+      return res.json({ catalogs: [...offered, ...browseOnly].sort((a, b) => a.name.localeCompare(b.name)), source, spGrants: true, truncated: truncatedByRest(restCut, byName, countAfterRest),
         ...(permission ? { permissions: [permission] } : {}) });
     }
     res.json({
-      catalogs: withUnreadable(catalogs),
+      catalogs: withUnreadable(catalogs).map((c) => ({ ...c, inspire_readable: null })),
       source,
       truncated: restCut && byName.size === countAfterRest,
       restError: restErr && catalogs.length === 0 ? restErr : undefined,
@@ -1911,7 +1913,9 @@ app.get('/api/catalogs/:catalog/schemas', requireToken, async (req, res) => {
     if (raw.length === 0 && schemas.length === 0 && restErr) {
       return PM_ERROR.sendFailure(res, restStatus, restErr);
     }
-    res.json({ schemas, count: schemas.length, truncated: restCut && byKey.size === countAfterRest });
+    const states = await schemaInspireStates(dbFetch, req.dbHost, await appOwnToken().catch(() => ''), SP_CLIENT_ID, catalog, schemas, PICKER_PROBE_CAP);
+    const withState = schemas.map((s) => ({ ...s, inspire_readable: states.has(s.full_name) ? states.get(s.full_name) : null }));
+    res.json({ schemas: withState, count: withState.length, truncated: restCut && byKey.size === countAfterRest });
   } catch (err) {
     PM_ERROR.sendFailure(res, 500, err.message);
   }
@@ -1978,19 +1982,25 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
     const unreadableTables = allTables.filter((t) => t.readable === false);
     let tables = showUnreadable ? allTables.filter((t) => t.readable !== false) : allTables;
     const probeWarehouse = warehouseId || DEFAULT_WAREHOUSE_ID;
+    const spToken = await appOwnToken().catch(() => '');
+    const probeTable = async (tok, name) => {
+      try {
+        const probe = tableProbeStatement(name);
+        await executeSql(req.dbHost, tok, probeWarehouse, probe.sql, probe.parameters);
+        return true;
+      } catch (err) {
+        return tableAccessReason(name, err && err.message) !== 'no read access';
+      }
+    };
     if (personToken && probeWarehouse && tables.length) {
-      const spToken = await appOwnToken().catch(() => '');
-      tables = await pickableRows(tables, { personToken, spToken, readable: async (tok, name) => {
-        try {
-          const probe = tableProbeStatement(name);
-          await executeSql(req.dbHost, tok, probeWarehouse, probe.sql, probe.parameters);
-          return true;
-        } catch (err) {
-          return tableAccessReason(name, err && err.message) !== 'no read access';
-        }
-      } });
+      tables = await pickableRows(tables, { personToken, spToken, readable: probeTable });
     }
-    if (unreadableTables.length) tables = [...tables, ...unreadableTables].sort((a, b) => a.full_name.localeCompare(b.full_name));
+    // REQ-522: a browse-only table is probed with the App token only (never the person's), inside the same cap.
+    const spared = Math.max(0, PICKER_PROBE_CAP - tables.length);
+    const browseOnlyTables = await Promise.all(unreadableTables.map(async (t, i) => ({ ...t,
+      inspire_readable: spToken && probeWarehouse && i < spared ? await probeTable(spToken, t.full_name) : null })));
+    tables = tables.map((t) => ('inspire_readable' in t ? t : { ...t, inspire_readable: null }));
+    if (browseOnlyTables.length) tables = [...tables, ...browseOnlyTables].sort((a, b) => a.full_name.localeCompare(b.full_name));
     console.log(`   📋 tables ${catalog}.${schema}: REST=${raw.length} merged=${tables.length}`);
     if (raw.length === 0 && tables.length === 0 && restErr) {
       return PM_ERROR.sendFailure(res, restStatus, restErr);
@@ -3545,6 +3555,7 @@ const implementApi = registerImplementRoutes(app, {
   hostedRun,
   runDefaults: () => ({ inspireDatabase: DEFAULT_INSPIRE_DB, warehouseId: DEFAULT_WAREHOUSE_ID }),
   appToken: appOwnToken,
+  appId: SP_CLIENT_ID,
   sessionHidden,
   visibleSessions: visibleSessionsOf,
 });

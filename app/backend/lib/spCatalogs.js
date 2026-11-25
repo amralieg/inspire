@@ -29,6 +29,9 @@ async function heldOn(dbFetch, host, token, catalog, principal, type = 'catalog'
   }
 }
 
+// REQ-522: whether a principal that holds `held` can read (null when Unity Catalog would not say). ALL_PRIVILEGES covers every privilege.
+const readsEverything = (held, needed) => (held ? (held.has('ALL_PRIVILEGES') || needed.every((p) => held.has(p))) : null);
+
 // Returns { names: Map(lowercase -> { name, missing: [GRANT lines] }) } for every catalog the principal sees, or null when the principal's
 // catalogs cannot be listed (the caller then keeps the person's own list). `listed` is a listing the caller already read with this same
 // token ({ items, truncated }); it is used as is, so the catalogs are not listed twice.
@@ -47,7 +50,7 @@ async function spGrantedCatalogs(dbFetch, host, token, principal, listed = null)
     const lacking = held ? CATALOG_READ.filter(([privilege]) => !held.has('ALL_PRIVILEGES') || privilege === 'READ METADATA')
       .filter(([privilege]) => !held.has(privilege.replace(/ /g, '_'))) : [];
     const missing = readStatements(c.name, principal, lacking);
-    names.set(key(c.name), { name: c.name, missing });
+    names.set(key(c.name), { name: c.name, missing, inspireReadable: readsEverything(held, ['USE_CATALOG', 'USE_SCHEMA', 'SELECT']) });
   }));
   return { names, truncated: Boolean(listed.truncated) };
 }
@@ -58,12 +61,29 @@ function grantedCatalogList(personList, granted) {
   for (const c of personList) {
     const hit = granted.names.get(key(c.name));
     if (!hit) {
-      if (granted.truncated) catalogs.push(c); // a cut listing proves nothing about a catalog it does not name
+      if (granted.truncated) catalogs.push({ ...c, inspire_readable: null }); // a cut listing proves nothing about a catalog it does not name
       continue;
     }
-    catalogs.push(hit.missing.length ? { ...c, partial: { missing: hit.missing } } : c);
+    catalogs.push({ ...c, inspire_readable: hit.inspireReadable, ...(hit.missing.length ? { partial: { missing: hit.missing } } : {}) });
   }
   return catalogs;
+}
+
+// REQ-522: the App state of a catalog the person may only browse (no `partial`: the person must get access first).
+const inspireStateOf = (c, granted) => ({ ...c, inspire_readable: granted && granted.names.get(key(c.name)) ? granted.names.get(key(c.name)).inspireReadable : null });
+
+// REQ-522: for the schemas of one catalog, whether the principal can read each, from its effective permissions (one read of the catalog, one per
+// schema, the first `cap` schemas). Past the cap, or when Unity Catalog will not say, the state is null.
+async function schemaInspireStates(dbFetch, host, token, principal, catalog, schemas, cap = 100) {
+  const none = new Map();
+  if (!token || !principal || !schemas.length) return none;
+  const onCatalog = await heldOn(dbFetch, host, token, catalog, principal);
+  await Promise.all(schemas.slice(0, cap).map(async (s) => {
+    const held = onCatalog ? await heldOn(dbFetch, host, token, s.full_name, principal, 'schema') : null;
+    if (!held) return;
+    none.set(s.full_name, (onCatalog.has('ALL_PRIVILEGES') || onCatalog.has('USE_CATALOG')) && readsEverything(held, ['USE_SCHEMA', 'SELECT']));
+  }));
+  return none;
 }
 
 // SEC-01 (W2): Inspire's principal is read-only on customer data. Returns the write privileges it holds on the tables, their schemas and their
@@ -93,15 +113,16 @@ async function heldWrites(dbFetch, host, token, principal, tables, skip = () => 
 // 'person' (the person cannot read it) or 'inspire' (the principal cannot). Past `cap` tables the rows carry no verdict (nothing is hidden).
 const PICKER_PROBE_CAP = 100;
 async function pickableRows(rows, { readable, personToken, spToken, cap = PICKER_PROBE_CAP }) {
-  if (!personToken) return rows;
+  if (!personToken) return rows.map((row) => ({ ...row, inspire_readable: null }));
   const checked = rows.slice(0, cap);
   const byName = new Map();
   await Promise.all(checked.map(async (row) => {
     const person = await readable(personToken, row.full_name);
     const sp = person && spToken ? await readable(spToken, row.full_name) : person;
-    byName.set(row.full_name, person ? (sp ? { pickable: true } : { pickable: false, request: 'inspire' }) : { pickable: false, request: 'person' });
+    const inspire = person && spToken ? sp : null; // REQ-522: the App state is only known where the App was probed
+    byName.set(row.full_name, { ...(person ? (sp ? { pickable: true } : { pickable: false, request: 'inspire' }) : { pickable: false, request: 'person' }), inspire_readable: inspire });
   }));
-  return rows.map((row) => ({ ...row, ...(byName.get(row.full_name) || {}) }));
+  return rows.map((row) => ({ ...row, inspire_readable: null, ...(byName.get(row.full_name) || {}) }));
 }
 
 // The permission entry for the partial catalogs, one dialog payload.
@@ -118,4 +139,4 @@ function droppedCatalogs(scopeCatalogs, granted) {
   return [...new Set(scopeCatalogs.filter((name) => !granted.names.has(key(name))))];
 }
 
-module.exports = { spGrantedCatalogs, grantedCatalogList, partialPermission, droppedCatalogs, pickableRows, heldOn, heldWrites };
+module.exports = { spGrantedCatalogs, grantedCatalogList, inspireStateOf, schemaInspireStates, PICKER_PROBE_CAP, partialPermission, droppedCatalogs, pickableRows, heldOn, heldWrites };
