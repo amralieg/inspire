@@ -9,7 +9,7 @@ const LIVE_JOB_TAG_VALUE = /^[\d \w+\-=.:/@]*$/;
 
 test('a run for several use cases carries a use case id tag the Jobs API accepts, and the readers get every id back', () => {
   const ids = ['N10-U29', 'N12-U03', 'N13-U05'];
-  const tags = inspireJobTags({ runType: 'genie_code', params: { '14_session_id': '179542377102013352' }, useCaseIds: ids });
+  const tags = inspireJobTags({ runType: 'genie_code', params: { '14_session_id': '100000000000000042' }, useCaseIds: ids });
   for (const [key, value] of Object.entries(tags)) assert.match(String(value), LIVE_JOB_TAG_VALUE, `${key}=${value}`);
   assert.deepEqual(inspireTagListItems(tags.dbx_inspire_ai_usecase_id), ids);
   assert.deepEqual(inspireTagListItems(inspireTagList(ids)), ids);
