@@ -99,3 +99,13 @@ test('C6: must-keep, the old midnight style pages 2+ are byte-identical to the b
     assert.deepEqual(pages.slice(1).map((p) => crypto.createHash('sha256').update(p).digest('hex')), snap[`${mode}|${rtl ? 'rtl' : 'ltr'}`], `${mode} ${rtl}`);
   }
 });
+
+test('C6: RTL keeps icons unmirrored (a rising arrow must not read as falling)', () => {
+  for (const id of IDS) for (const mode of MODES) {
+    const p = page2(model({ language: 'Arabic' }), id, mode);
+    const icons = [...p.matchAll(/<g transform="translate\(([-\d.]+) ([-\d.]+)\) scale\(([-\d.]+)(?: ([-\d.]+))?\)" fill="none"/g)];
+    assert.ok(icons.length > 0, `${id} ${mode} has icons`);
+    // Inside the page-wide mirror, an icon reads correctly only when it is flipped back: negative x scale.
+    assert.ok(icons.every((g) => Number(g[3]) < 0), `${id} ${mode}: ${icons.filter((g) => Number(g[3]) > 0).length} icon(s) still mirrored`);
+  }
+});
