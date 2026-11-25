@@ -106,6 +106,8 @@ import CalculateValueDialog from '../components/CalculateValueDialog';
 import { rememberCard, returnToCard } from '../lib/cardReturn';
 import { boxModel } from '../components/ValueBox';
 import ValueBulkPanel, { ValueBulkBar, ValueBulkProgress } from '../components/ValueBulkPanel';
+import GenerateDocsPanel, { DocsRunProgress } from '../components/GenerateDocsPanel';
+import { useDocsRun } from '../lib/docsRun.jsx';
 import { useValueBulkRun } from '../lib/valueBulkRun';
 import { SKIP_CALCULATED, SKIP_NO_TABLE, isCalculated, valueWorker } from '../lib/valueBulk';
 import { saveAnswers, tableOfUseCase, useCalculatedValues } from '../lib/calculatedValue';
@@ -626,6 +628,7 @@ export default function ResultsPage({
   const closeCalc = () => { setCalcFor(null); returnToCard(calcBack.current); calcBack.current = null; };
   const [bulkPicked, setBulkPicked] = useState(() => new Set());
   const bulkRun = useValueBulkRun();
+  const docsRun = useDocsRun();
   const calculated = useCalculatedValues({ apiFetch: showcase ? null : apiFetch, apiPostJson, apiPutJson, inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId });
   const valuesForDialog = useMemo(() => ({
     ...calculated,
@@ -2120,6 +2123,7 @@ export default function ResultsPage({
 
               <RefineBanner {...refineBanner} />
               {bulkOn && bulkHere && <ValueBulkProgress />}
+              {docsRun.run?.sessionId === String(selectedSessionId ?? '') && <DocsRunProgress />}
               {bulkOn && filteredUseCases.length > 0 && (
                 <ValueBulkBar shown={filteredUseCases.filter((uc) => trackingIdOf(uc)).length} selected={bulkIds.length} onCalculate={startBulk} busy={Boolean(bulkRun.run?.running)}
                   onGenerate={() => setDocsUcs(pickedUseCases())} onBuild={canImplement ? () => startBuildQueue(pickedUseCases()) : null}
@@ -2308,7 +2312,6 @@ export default function ResultsPage({
           businessName={runBusiness(selectedSession)} language={docLanguageOf(selectedSession)} folder={generationPath}
           apiPostJson={apiPostJson} inspireDatabase={inspireDb} warehouseId={warehouseId} sessionId={selectedSessionId}
           onSaved={() => { loadArtifacts(generationPath); refreshUsecasesForSession(selectedSessionId); }}
-          onGoToAssets={() => { setDocsUcs(null); showView('assets'); }}
           onClose={() => setDocsUcs(null)} />
       )}
       {implementUc && buildQueue.total > 1 && (
@@ -2321,6 +2324,7 @@ export default function ResultsPage({
           <UseCaseCard {...cardPropsFor(filteredUseCases[readerIndex], readerIndex)} expanded onToggle={() => setExpandedUseCase(null)} />
         </ReviewReader>
       )}
+      {docsRun.run?.open && docsRun.run.sessionId === String(selectedSessionId ?? '') && <GenerateDocsPanel onGoToAssets={() => showView('assets')} />}
       {bulkHere?.open && <ValueBulkPanel onEdit={(id) => { const uc = builtUseCases.find((u) => trackingIdOf(u) === id); if (uc) openCalc(uc); }} />}
       {implementUc && selectedSessionId && inspireDb && warehouseId && (
         <ImplementWizard

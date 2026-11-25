@@ -41,6 +41,7 @@ export function defaultDocOptions(language = 'English') {
     style: 'midnight',
     palette: 'databricks',
     customColor: '',
+    theme: 'light', // REQ-525: 'light' or 'dark' (PDF and PowerPoint; Excel stays light)
   };
 }
 

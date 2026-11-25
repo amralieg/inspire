@@ -18,6 +18,7 @@ import DataGrid from '../../src/components/DataGrid';
 import { RESULTS_FRAME } from '../../src/lib/layout';
 import { ThemeProvider } from '../../src/ThemeContext';
 import { ValueBulkRunProvider } from '../../src/lib/valueBulkRun';
+import { DocsRunProvider } from '../../src/lib/docsRun.jsx';
 import { makeApiFetch, makeApiPostJson } from '../../src/lib/apiClient';
 import { caseIdOf, implementState, notebookStatus } from '../../src/lib/implementWizard';
 import MvpValuePanel from '../../src/components/MvpValuePanel';
@@ -261,6 +262,7 @@ function ResultsHarness() {
   const [opened, setOpened] = useState('');
   return (
     <ValueBulkRunProvider>
+      <DocsRunProvider>
       <div className={RESULTS_FRAME}>
         <ResultsPage
           settings={SETTINGS}
@@ -270,6 +272,7 @@ function ResultsHarness() {
         />
         <output aria-label="Opened in Implement">{opened}</output>
       </div>
+      </DocsRunProvider>
     </ValueBulkRunProvider>
   );
 }

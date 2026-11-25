@@ -1,6 +1,6 @@
-import { FileSpreadsheet, FileText, Globe, Image as ImageIcon, Plus, Presentation, X } from 'lucide-react';
+import { Check, FileSpreadsheet, FileText, Globe, Image as ImageIcon, Plus, Presentation, Sparkles, X } from 'lucide-react';
 import { CONTENT_BLOCKS, EXCEL_COLUMNS } from '../lib/docgen/docOptions.js';
-import { DOC_PALETTES, DOC_STYLES, resolveTheme } from '../lib/docgen/docStyles.js';
+import { DOC_PALETTES, DOC_STYLES, DOC_THEMES, resolveTheme } from '../lib/docgen/docStyles.js';
 import { DOCUMENT_LANGUAGE_CHOICES } from '../constants/documentLanguages.js';
 
 // REQ-503: the wizard's pages. Each is one short screen; the dialog shows one at a time.
@@ -14,6 +14,30 @@ const KIND_INFO = {
 const toggle = (list, id) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 const card = (on) => `rounded-xl border p-3 text-start transition-colors motion-safe:duration-150 ${on ? 'border-db-red bg-db-red-50 shadow-sm' : 'border-border bg-surface hover:bg-bg-subtle'}`;
 const tick = (on) => `mt-0.5 inline-block h-4 w-4 shrink-0 rounded border ${on ? 'border-primary-solid bg-primary-solid' : 'border-border-strong bg-surface'}`;
+
+export const TITLES = { documents: 'Documents', layout: 'Layout and language', include: 'What to include', style: 'Style and color', columns: 'Excel columns', review: 'Review' };
+
+// The strip above every page and above the progress: the use cases it is for and the steps. `made` ticks every step (the files are being made).
+export function DocsHeader({ names, pages, pageId, made = false }) {
+  const at = Math.max(0, pages.indexOf(pageId));
+  const shownNames = names.slice(0, 5);
+  return (
+    <div className="-mx-5 -mt-4 mb-1 bg-linear-to-r from-db-red-50 to-transparent px-5 py-3">
+      <p className="flex items-center gap-2 text-xs text-text-secondary">
+        <Sparkles size={14} className="shrink-0 text-db-red-fg" aria-hidden />
+        <span className="min-w-0 truncate" title={names.join(', ')}>{shownNames.join(', ')}{names.length > shownNames.length ? ` and ${names.length - shownNames.length} more` : ''}</span>
+      </p>
+      <ol className="mt-2 flex flex-wrap items-center gap-1.5" aria-label="Steps">
+        {pages.map((p, i) => (
+          <li key={p} data-docs-step={p} aria-current={p === pageId ? 'step' : undefined}
+            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${p === pageId ? 'bg-primary-solid text-white' : i < at || made ? 'bg-db-red-100 text-db-red-fg' : 'bg-bg-subtle text-text-secondary'}`}>
+            {(i < at || made) ? <Check size={14} aria-hidden /> : <span aria-hidden>{i + 1}</span>}{TITLES[p]}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
 
 export function DocumentsPage({ options, set }) {
   return (
@@ -92,10 +116,19 @@ export function IncludePage({ options, set }) {
 }
 
 export function StylePage({ options, set, svg }) {
-  const theme = resolveTheme(options.style, options.palette, options.customColor);
+  const theme = resolveTheme(options.style, options.palette, options.customColor, options.theme);
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div className="space-y-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Theme">
+            <span className="text-sm font-semibold text-text-primary" aria-hidden>Theme</span>
+            {DOC_THEMES.map((t) => (
+              <button key={t.id} type="button" role="radio" aria-checked={(options.theme || 'light') === t.id} data-doc-theme={t.id} onClick={() => set({ theme: t.id })} className={`${card((options.theme || 'light') === t.id)} px-4 py-1.5 text-sm font-semibold text-text-primary`}>{t.label}</button>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-text-secondary">Applies to PDF and PowerPoint files. Excel sheets stay light.</p>
+        </div>
         <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Style">
           {DOC_STYLES.map((s) => (
             <button key={s.id} type="button" role="radio" aria-checked={options.style === s.id} data-doc-style={s.id} onClick={() => set({ style: s.id })} className={`${card(options.style === s.id)} py-2`}>
@@ -138,10 +171,11 @@ export function ColumnsPage({ options, set }) {
   );
 }
 
-export function ReviewPage({ plan, count }) {
+export function ReviewPage({ plan, count, options }) {
   return (
     <div className="space-y-2">
       <p className="text-sm text-text-secondary">{plan.length} {plan.length === 1 ? 'file' : 'files'} from {count} use {count === 1 ? 'case' : 'cases'}, saved to this run's Assets.</p>
+      {options && <p data-doc-review-theme="" className="text-xs text-text-secondary">Theme: {(options.theme || 'light') === 'dark' ? 'Dark' : 'Light'}</p>}
       <ul className="max-h-[42vh] divide-y divide-border overflow-y-auto rounded-xl border border-border">
         {plan.map((f) => (
           <li key={f.name} data-doc-plan-file={f.name} className="flex items-center gap-2 px-3 py-2 text-sm">
