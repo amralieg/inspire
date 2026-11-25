@@ -1,10 +1,12 @@
 // REQ-526 (ported from the design study): shared helpers every style uses (escape, text with a contrast log, money format, icons, chart geometry).
 // Pure ES module, no dependency. Ports to app/frontend/src/lib/docgen/docSvg.js as is (icons come from lucide-react's __iconNode).
 import { ICONS } from './icons.js';
+import disclaimer from '../../../../../backend/lib/valueDisclaimer.json' with { type: 'json' };
 
 export { ICONS };
 
-export const DISCLAIMER = 'Estimated or calculated value, not a promised value. Databricks does not promise or guarantee this number. Specialist business value teams in your organization must validate every number before it is shared or used in a decision.';
+// REQ-434: the one value disclaimer text lives in backend/lib/valueDisclaimer.json; no copy here.
+export const DISCLAIMER = disclaimer.full;
 
 // REQ-526: a content block is shown unless the model lists blocks and this one is not ticked.
 export const has = (m, id) => !Array.isArray(m.blocks) || m.blocks.includes(id);
