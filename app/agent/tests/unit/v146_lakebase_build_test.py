@@ -201,7 +201,8 @@ def test_a_lakebase_app_is_created_with_its_database_grants_its_service_principa
     assert fields["_asset"] == {"backend": "lakebase", **SP_READS} and "_warnings" not in fields
     assert calls[1][2]["resources"] == [WAREHOUSE, agent_ns["implement_app_postgres_resource"]()]
     assert inst.lakebase_grants == ["sp-1"]
-    assert _uploaded(inst) == _as_uploaded(LAKEBASE_FILES)
+    # SEC-01 W6: the App's settings list the source tables its pages read directly.
+    assert _uploaded(inst) == dict(_as_uploaded(LAKEBASE_FILES), **{"inspire_app.json": json.dumps({"sources": ["main.s.orders"]}, indent=2)})
     assert not any(c[0] == "PATCH" for c in calls), "an App created with its database needs no second update"
 
 
@@ -238,7 +239,7 @@ def test_an_app_the_workspace_will_not_give_a_database_deploys_on_delta_and_says
     inst, context, calls, _imported = _lakebase_deploy(
         agent_ns, [NEW_APP, _created(agent_ns, postgres=False), RuntimeError("INVALID_PARAMETER_VALUE: postgres is not enabled")] + LIVE)
     fields = inst._implement_deploy_app(context, "churn-desk", LAKEBASE_FILES, READS, poll_s=0, lakebase=_lakebase())
-    assert [c[0] for c in calls].count("PATCH") == 1 and calls[2][2]["resources"][-1]["name"] == "postgres"
+    assert [c[0] for c in calls].count("PATCH") == 1 and calls[3][2]["resources"][-1]["name"] == "postgres"
     assert fields["_asset"] == {"backend": "delta", **SP_READS} and inst.lakebase_grants == []
     assert fields["_warnings"] == [FALLBACK.format("Inspire could not give the App its Lakebase database as a resource")]
     assert _uploaded(inst) == DELTA_FILES

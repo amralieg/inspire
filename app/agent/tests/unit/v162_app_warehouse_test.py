@@ -136,7 +136,7 @@ def test_an_app_joined_by_another_use_case_never_has_its_warehouse_swapped(agent
     inst, context, calls, _imported = _deploy_inspire(agent_ns, [host, {"deployment_id": "dep1", "status": {"state": "SUCCEEDED"}},
                                                                 {"url": "https://sales-desk.example/"}])
     context["spec"] = _spec(agent_ns, outputs=_outputs(merge={"app": "sales-desk"}))[0]
-    context["app_host"] = dict(agent_ns["implement_app_host"]("sales-desk"), merged=True, source=SOURCE, app=host)
+    context["app_host"] = dict(agent_ns["implement_app_host"]("sales-desk"), merged=True, settings={"auth": "sp", "options": {}}, source=SOURCE, app=host)
     assert inst._implement_app_warehouse(context) == "whA", "a joined page reads with the host's warehouse, not the build's wh1"
     inst._implement_deploy_app(context, "sales-desk", {"inspire_app.json": "{}\n"}, ["main.inspire.churn_out"], poll_s=0)
     assert not any(c[0] == "PATCH" for c in calls)
