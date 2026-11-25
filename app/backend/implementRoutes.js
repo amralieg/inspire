@@ -155,7 +155,7 @@ function registerImplementRoutes(app, deps) {
   // REQ-354 follow-up: one delete per Uninstall all run's own build job, per running App (see I.settleUninstallRunJob).
   const uninstallJobCache = new Map();
   const {
-    requireToken,
+    requireToken: requireIdentity,
     executeSql,
     sqlResultToObjects,
     dbFetch,
@@ -177,6 +177,38 @@ function registerImplementRoutes(app, deps) {
 
   const sqlRows = (host, token, warehouseId, statement) =>
     rowsOf(executeSql, sqlResultToObjects, host, token, warehouseId, statement);
+
+  // SEC-02 (F4, REQ-518): the one session check is deps.sessionHidden(req, sessionId): null when the person may see the session, else the refusal
+  // (request 'person'). A deps without it, or a check that throws, hides the session (fail closed). Every route that names a session passes it
+  // before it reads anything (requireToken below); cross-session lists keep only deps.visibleSessions.
+  const HIDDEN_SESSION = { status: 403, request: 'person', permissions: [], unreadable: [] };
+  async function sessionRefusal(req, sid) {
+    if (typeof deps.sessionHidden !== 'function') return HIDDEN_SESSION;
+    try {
+      return await deps.sessionHidden(req, sid);
+    } catch {
+      return HIDDEN_SESSION;
+    }
+  }
+  async function visibleOf(req, sessions) {
+    if (typeof deps.visibleSessions !== 'function') return [];
+    try {
+      return await deps.visibleSessions(req, sessions);
+    } catch {
+      return [];
+    }
+  }
+  const visibleIds = async (req, ids) => new Set((await visibleOf(req, [...new Set(ids.map(String))].filter(Boolean).map((id) => ({ session_id: id }))))
+    .map((s) => String(s.session_id)));
+  const sessionRefusedText = 'You cannot open this session: you did not launch it and you cannot read every table it covers. Ask for access to the tables below.';
+  const requireToken = (req, res, next) => requireIdentity(req, res, async (err) => {
+    if (err) return next(err);
+    const sid = int64Id(q(req, 'session_id'));
+    if (!sid) return next();
+    const hidden = await sessionRefusal(req, sid);
+    if (!hidden) return next();
+    return PM_ERROR.sendFailure(res, 403, sessionRefusedText, { request: 'person', permissions: hidden.permissions || [], unreadable: hidden.unreadable || [] });
+  });
   const liveCache = C.createLiveCache();
   const missingControlLogs = new Map();
   const fetchJsonFor = (req) => (path) => jsonOf(dbFetch, req.dbHost, req.dbToken, path);
@@ -191,7 +223,8 @@ function registerImplementRoutes(app, deps) {
 
   const personOf = (req) => P.requestPerson(req, readMeFor(req));
   const nextVersionOf = (history) => Math.max(0, ...history.map((r) => Number(r.spec_version) || 0)) + 1;
-  // REQ-418: the App's service principal token every read uses (requireToken sets it for every route that is not a person's own action).
+  // SEC-02: on a person route req.dbToken is the person's own token, so a SOURCE table read goes with it (appReadToken); a tracking read of an
+  // __inspire_* table, a model call or an App-owned object goes with appTokenOf(req) (Design item 2).
   function appReadToken(req) {
     const token = req.dbToken;
     if (token) return token;
@@ -312,8 +345,11 @@ function registerImplementRoutes(app, deps) {
       implementRows(req.dbHost, req.dbToken, warehouseId, table, (existing) => I.implementRegistryStatement(table, existing)),
       implementRows(req.dbHost, req.dbToken, warehouseId, table, (existing) => I.implementHubStatement(catalog, schema, sid, existing)),
     ]);
-    const registry = I.mergeRegistry(rows, { sessionId: sid, useCaseId, only });
-    registry.app = I.withHubEntries(registry.app, hubRows, { sessionId: sid, useCaseId, only });
+    // SEC-02 (F4): what a build can join lists the other sessions' use cases; only the sessions the person may see are offered.
+    const seen = await visibleIds(req, [...rows, ...hubRows].map((r) => int64Id(r.session_id)).filter((id) => id && String(id) !== String(sid)));
+    const mine = (r) => String(int64Id(r.session_id)) === String(sid) || seen.has(String(int64Id(r.session_id)));
+    const registry = I.mergeRegistry(rows.filter(mine), { sessionId: sid, useCaseId, only });
+    registry.app = I.withHubEntries(registry.app, hubRows.filter(mine), { sessionId: sid, useCaseId, only });
     const targets = {};
     await Promise.all(I.IMPLEMENT_MERGE_OUTPUTS.map(async (name) => {
       const got = await Promise.all(registry[name].map((entry) => jsonOf(dbFetch, req.dbHost, req.dbToken, I.mergeTargetPath(name, entry.id))));
@@ -790,10 +826,16 @@ function registerImplementRoutes(app, deps) {
       const at = (name) => `\`${parsed.catalog}\`.\`${parsed.schema}\`.\`${name}\``;
       const [session, useCases, implement] = R.PORTFOLIO_TABLES.map(at);
       const read = (table, statementFor) => describedRows(req.dbHost, req.dbToken, warehouseId, table, statementFor);
+      // SEC-02 (F4): every figure counts only the sessions the person may see. The sessions are listed first, then each statement reads
+      // its table through a filter on the visible session ids, so the totals and the per-run figures leave the hidden runs out.
+      const everyRun = await R.loadSessionList((statement) => sqlRows(req.dbHost, req.dbToken, warehouseId, statement), session, R.PORTFOLIO_RUN_CAP)
+        .catch((err) => { if (isMissingTableError(err)) return { sessions: [] }; throw err; });
+      const seen = await visibleIds(req, everyRun.sessions.map((r) => int64Id(r.session_id)).filter(Boolean));
+      const only = (table) => `(SELECT * FROM ${table} WHERE CAST(session_id AS STRING) IN (${[...seen].map((id) => `'${id}'`).join(', ') || "''"}))`;
       const [runs, useCaseRows, mvpRows] = await Promise.all([
-        read(session, () => R.portfolioSessionStatement(session)),
-        read(useCases, (existing) => R.portfolioUseCaseStatement(useCases, existing)),
-        read(implement, (existing) => R.portfolioImplementStatement(implement, existing)),
+        read(session, () => R.portfolioSessionStatement(only(session))),
+        read(useCases, (existing) => R.portfolioUseCaseStatement(only(useCases), existing)),
+        read(implement, (existing) => R.portfolioImplementStatement(only(implement), existing)),
       ]);
       const missing = R.PORTFOLIO_TABLES.filter((_, i) => [runs, useCaseRows, mvpRows][i] === null);
       res.set('Cache-Control', 'no-store').json(R.portfolioView({ runs: runs && runs[0], useCases: useCaseRows, mvps: mvpRows, missing }));
@@ -2052,7 +2094,10 @@ function registerImplementRoutes(app, deps) {
     try {
       const warehouseId = warehouseOf(req);
       const { catalog, schema } = dbOf(req, splitInspireDatabase);
-      const [pages, person] = await Promise.all([loadRunPages(req, warehouseId, catalog, schema), personOf(req)]);
+      const [listed, person] = await Promise.all([loadRunPages(req, warehouseId, catalog, schema), personOf(req)]);
+      // SEC-02 (F6b): only the pages of the sessions the person may see are listed or remembered as listed.
+      const seen = await visibleIds(req, listed.map((p) => int64Id(p.session_id)).filter(Boolean));
+      const pages = listed.filter((p) => seen.has(String(int64Id(p.session_id))));
       if (hostedRun) hostedRun.setListed(I.runPagesServed(pages), runContext(req, warehouseId, catalog, schema));
       const forwarded = Boolean(P.forwardedTokenOf(req));
       res.json({
@@ -2359,7 +2404,7 @@ function registerImplementRoutes(app, deps) {
   // REQ-389: the Table Scope a wizard preview reads through. The Data step names its choice (asked); with none, the Discover run's scope.
   async function launchScopesOf(req, warehouseId, asked, sid = sessionIdOf(req)) {
     const { catalog, schema } = dbOf(req, splitInspireDatabase);
-    const session = await fetchInspireSessionWidgetRow(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid);
+    const session = await fetchInspireSessionWidgetRow(req.dbHost, await appTokenOf(req), warehouseId, catalog, schema, sid);
     if (!session) throw I.badRequest(`No Inspire session ${sid} is in this Inspire database, so Inspire cannot read its Data Filters.`, 404);
     return previewScopesOf(asked, parseTableScopeText(session.table_scope).scopes);
   }
@@ -2571,13 +2616,14 @@ function registerImplementRoutes(app, deps) {
   // REQ-472: the one endpoint loop every value model call goes through (plan, anchor, review). { endpoint, got } or { reason }.
   async function askChatModel(req, messages, maxTokens) {
     try {
-      const { names, listed, reason } = await appChatModels(chatCall(req, req.dbToken), {});
+      const token = await appTokenOf(req);
+      const { names, listed, reason } = await appChatModels(chatCall(req, token), {});
       if (!names.length) return { reason: listed.ok ? reason : `The list of model endpoints answered HTTP ${listed.status || 'error'}.` };
       // FX-46 (D13/D20): the first listed model may be one the App cannot query or that rejects the call; the next ready ones are tried
       // (at most PLAN_MODEL_TRIES), and a refusal of every one reports the first, which names the grant.
       let firstFailure = '';
       for (const name of names.slice(0, PLAN_MODEL_TRIES)) {
-        const tried = await invokeChatModel(chatCall(req, req.dbToken), name, { messages, max_tokens: maxTokens });
+        const tried = await invokeChatModel(chatCall(req, token), name, { messages, max_tokens: maxTokens });
         if (tried.ok) return { endpoint: name, got: tried };
         firstFailure = firstFailure || modelRefusal(name, tried);
       }
@@ -2619,8 +2665,9 @@ function registerImplementRoutes(app, deps) {
   async function planUseCaseOf(req, warehouseId, useCaseId) {
     try {
       const { catalog, schema } = dbOf(req, splitInspireDatabase);
-      const row = await loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sessionIdOf(req), useCaseId);
-      const business_name = await loadSession(req.dbHost, req.dbToken, warehouseId, catalog, schema, sessionIdOf(req)).then((s) => String((s && s.business_name) || ''), () => '');
+      const track = await appTokenOf(req);
+      const row = await loadUseCase(req.dbHost, track, warehouseId, catalog, schema, sessionIdOf(req), useCaseId);
+      const business_name = await loadSession(req.dbHost, track, warehouseId, catalog, schema, sessionIdOf(req)).then((s) => String((s && s.business_name) || ''), () => '');
       return { id: useCaseId, use_case: (row && (row.user_use_case_name || row.use_case)) || useCaseId, statement: row && row.statement, business_value: row && row.business_value, business_name };
     } catch {
       return { id: useCaseId, use_case: useCaseId, business_name: '' };
@@ -2847,7 +2894,7 @@ function registerImplementRoutes(app, deps) {
   };
   const readAnswers = async (req, warehouseId, made) => {
     try {
-      return sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters));
+      return sqlResultToObjects(await executeSql(req.dbHost, await appTokenOf(req), warehouseId, made.sql, made.parameters));
     } catch (err) {
       if (isMissingTableError(err)) return [];
       throw err;
@@ -2855,7 +2902,7 @@ function registerImplementRoutes(app, deps) {
   };
   const appendAnswers = async (req, warehouseId, table, row) => {
     const made = VA.insertSql(table, row);
-    await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters);
+    await executeSql(req.dbHost, await appTokenOf(req), warehouseId, made.sql, made.parameters);
   };
   const nextVersion = async (req, warehouseId, table, sid, useCaseId) => {
     const made = VA.latestVersionSql(table, sid, useCaseId);
@@ -2916,7 +2963,7 @@ function registerImplementRoutes(app, deps) {
       const review = await VR.reviewRun({ businessName, revenue: anchor ? anchor.business_revenue_estimate : 0, useCases: cases,
         ask: async (messages) => { const asked = await askChatModel(req, messages, FB.JSON_ANSWER_MAX_TOKENS); return asked.got ? asked.got.data : null; } });
       const saved = { ai_checked: review.ai_checked, reason: review.reason, scales: review.scales };
-      await executeSql(req.dbHost, req.dbToken, warehouseId, VA.createSql(table));
+      await executeSql(req.dbHost, await appTokenOf(req), warehouseId, VA.createSql(table));
       const version = await nextVersion(req, warehouseId, table, sid, VR.RUN_REVIEW_ID);
       await appendAnswers(req, warehouseId, table, { sessionId: sid, useCaseId: VR.RUN_REVIEW_ID, version, answers: { review: saved }, yearly: {}, savedBy: savedBy(req), note: 'run review' });
       return res.json({ review: { ...saved, counted_total: review.counted_total, limit: review.limit }, version });
@@ -2949,7 +2996,7 @@ function registerImplementRoutes(app, deps) {
       const answers = storyStamped(req, answersOf(req));
       const yearly = answers.shape === 2 ? shape2Yearly(answers.plan, answers)
         : await estimateYearly(req, warehouseId, asked, answers).catch((err) => { throw estimateFailure(err, asked); });
-      await executeSql(req.dbHost, req.dbToken, warehouseId, VA.createSql(table));
+      await executeSql(req.dbHost, await appTokenOf(req), warehouseId, VA.createSql(table));
       const version = await nextVersion(req, warehouseId, table, sid, useCaseId);
       await appendAnswers(req, warehouseId, table, { sessionId: sid, useCaseId, version, answers, yearly, savedBy: savedBy(req), note: '' });
       return res.json({ version, yearly, disclaimer: VALUE_DISCLAIMER.full });
@@ -3130,9 +3177,10 @@ function registerImplementRoutes(app, deps) {
       const days = GP.scopeDaysOf(req.body?.scope_days ?? req.query.scope_days);
       if (days === null) throw I.badRequest(`scope_days must be a whole number of days from 1 to ${GP.PROFILE_DAYS_MAX}.`);
       const groupBy = GR.groupByColumns(req.body?.group_by ?? req.query.group_by);
-      const [useCase, history, session] = await Promise.all([loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId),
-        loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId),
-        fetchInspireSessionWidgetRow(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid)]);
+      const track = await appTokenOf(req);
+      const [useCase, history, session] = await Promise.all([loadUseCase(req.dbHost, track, warehouseId, catalog, schema, sid, useCaseId),
+        loadHistory(req.dbHost, track, warehouseId, catalog, schema, sid, useCaseId),
+        fetchInspireSessionWidgetRow(req.dbHost, track, warehouseId, catalog, schema, sid)]);
       if (!useCase) throw I.badRequest(`No use case ${useCaseId} in this session.`, 404);
       const data = builtData(history);
       table = profiledTable(useCase, data, req.body?.table ?? req.query.table);
