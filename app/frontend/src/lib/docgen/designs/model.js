@@ -59,7 +59,7 @@ export function toDesignModel(doc) {
   const quality = [...known, ...other].map((name) => ({ name, n: counts.get(name) }));
 
   return {
-    businessName: doc.businessName, language: doc.language, rtl: doc.rtl, blocks: [...doc.blocks], executiveSummary: '',
+    businessName: doc.businessName, language: doc.language, rtl: doc.rtl, blocks: [...doc.blocks], summary: doc.summary || [], executiveSummary: '',
     useCases, pageUseCases, ranked, domains, verbs, quality,
     total: { amount: doc.total.amount, currency: cur, text: doc.total.text, yearText: `${doc.total.text} a year`, n: doc.total.n, nWithValue: doc.total.nWithValue, nDomains: domains.length },
     median: useCases.length ? { score: median(useCases.map((u) => u.score)), value: median(useCases.map((u) => u.value.amount)) } : null,

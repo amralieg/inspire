@@ -1,6 +1,6 @@
 // Option B "Editorial": an executive magazine page. Paper, ink, one lava-red accent, hairline rules, a headline that states the number,
 // a tonal treemap where only the leading domain carries colour, a thin-ring donut, a hollow-dot quadrant, numbered list instead of boxes.
-import { wrap, t, T, rect, line, circle, icon, svgDoc, runW, money, VERB_ICON, DISCLAIMER, bestInk, contrast, has, verbColors, iconName } from '../core.js';
+import { wrap, textW, t, T, rect, line, circle, icon, svgDoc, runW, money, VERB_ICON, DISCLAIMER, bestInk, contrast, has, verbColors, iconName } from '../core.js';
 import { ucPage, factCols, NOT_YET } from '../ucPage.js';
 import { donut, quadrant, treemapChart, meter } from '../charts.js';
 
@@ -162,32 +162,51 @@ function briefPage1(m, th) {
   s += t(P, 186, `${m.total.yearText} in ${m.total.n} use cases`, { size: 34, weight: 700, fill: th.ink, bg: th.paper, font: DISPLAY, kind: 'serif', maxW: CW, lines: 1, ctx: 'head' });
   s += T(P, 218, `${m.domains[0].name} leads with ${m.domains[0].text}. ${m.useCases.filter((u) => u.score >= m.median.score && u.value.amount >= m.median.value).length} use cases sit above the median score and the median value; they are the place to start.`, { size: 16, italic: true, fill: th.body, bg: th.paper, font: SERIF, kind: 'serif', maxW: CW, lines: 2, lh: 21, ctx: 'stand' }).svg;
   s += rect(P, 254, CW, 1, th.hair);
-  // three text columns with a drop cap
-  const cw = (CW - 40) / 3; const text = m.executiveSummary;
-  const words = text.split(' ');
-  const per = Math.ceil(words.length / 3);
-  // The App has no executive summary field: with no text the columns are left out and the figure moves up.
-  for (let c = 0; text && c < 3; c += 1) {
-    const x = P + c * (cw + 20);
-    let chunk = words.slice(c * per, (c + 1) * per).join(' ');
-    let y0 = 282;
-    if (c === 0) {
-      s += t(x, 324, chunk[0], { size: 58, weight: 700, fill: th.accentText, bg: th.paper, font: DISPLAY, kind: 'serif', ctx: 'dropcap' });
-      const first = wrap(chunk.slice(1), cw - 46, 13, 'serif', 400).slice(0, 3); const used = first.join(' ').split(' ').length;
-      const rest = wrap(chunk.slice(1).split(' ').slice(used).join(' '), cw, 13, 'serif', 400, 14);
-      first.forEach((l, j) => { s += t(x + 46, y0 + j * 18, l, { size: 13, fill: th.body, bg: th.paper, font: SERIF, kind: 'serif', ctx: 'col' }); });
-      rest.forEach((l, j) => { s += t(x, y0 + (j + 3) * 18, l, { size: 13, fill: th.body, bg: th.paper, font: SERIF, kind: 'serif', ctx: 'col' }); });
-    } else s += t(x, y0, chunk, { size: 13, fill: th.body, bg: th.paper, font: SERIF, kind: 'serif', maxW: cw, lines: 17, lh: 18, ctx: 'col' });
-    if (c) s += line(x - 10, 270, x - 10, 590, th.hair, 1);
+  // REQ-526 part E: the executive summary in three newspaper columns with a drop cap; the room a short summary leaves (or all of it with no summary)
+  // goes to "Where to start", the top use cases by value.
+  const cw = (CW - 40) / 3; const TOP = 282; const BOTTOM = 590; const text = m.summary.join(' ');
+  let perCol = 0; let LH = 18; let FS = 13;
+  if (text) {
+    // The largest type (13 to 16) whose three columns fit the block, so a short summary reads big and a long one stays small.
+    const lay = (size) => {
+      const lh = Math.round(size * 1.38);
+      const first = wrap(text.slice(1), cw - 46, size, 'serif', 400).slice(0, 3); const used = first.join(' ').split(' ').length;
+      const all = [...first.map((l) => ({ l, x: 46 })), ...wrap(text.slice(1).split(' ').slice(used).join(' '), cw, size, 'serif', 400).map((l) => ({ l, x: 0 }))];
+      return { size, lh, all, per: Math.max(4, Math.ceil(all.length / 3)) };
+    };
+    const pick = [16, 15, 14, 13].map(lay).find((r) => r.per * r.lh <= 270) || lay(13);
+    const { all } = pick; FS = pick.size; LH = pick.lh;
+    const maxLines = 3 * Math.floor(284 / LH);
+    if (all.length > maxLines) {
+      all.length = maxLines; let last = all[maxLines - 1].l; while (last.length > 1 && textW(`${last}…`, FS, 'serif') > cw) last = last.slice(0, -1);
+      all[maxLines - 1] = { l: `${last.replace(/[\s,.;:]+$/, '')}…`, x: 0 };
+    }
+    perCol = Math.max(4, Math.ceil(all.length / 3));
+    for (let c = 0; c < 3; c += 1) {
+      const x = P + c * (cw + 20);
+      if (c === 0) s += t(x, TOP + 2 * LH + 6, text[0], { size: 58, weight: 700, fill: th.accentText, bg: th.paper, font: DISPLAY, kind: 'serif', ctx: 'dropcap' });
+      all.slice(c * perCol, (c + 1) * perCol).forEach((r, j) => { s += t(x + r.x, TOP + j * LH, r.l, { size: FS, fill: th.body, bg: th.paper, font: SERIF, kind: 'serif', ctx: 'col' }); });
+      if (c) s += line(x - 10, 270, x - 10, TOP + perCol * LH - 6, th.hair, 1);
+    }
+  }
+  const ly = text ? TOP + perCol * LH + 14 : 270; const rows = Math.min(9, m.ranked.length, Math.floor((BOTTOM - ly - 34) / 30));
+  if (rows >= 2) {
+    s += kicker(P, ly + 14, 'Where to start', th) + line(P, ly + 22, P + CW, ly + 22, th.rule, 1);
+    m.ranked.slice(0, rows).forEach((u, i) => {
+      const ry = ly + 34 + i * 30;
+      s += t(P, ry + 18, u.name, { size: 14, weight: 700, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', maxW: 400, lines: 1, ctx: 'start name' });
+      s += t(P + 420, ry + 18, u.domain, { size: 12, fill: th.grey, bg: th.paper, caps: true, ls: 1.2, font: BODY, maxW: 130, lines: 1, ctx: 'start domain' });
+      s += t(P + CW - (has(m, 'inspire_score') ? 50 : 0), ry + 18, u.value.text, { size: 14, weight: 700, fill: th.accentText, bg: th.paper, anchor: 'end', font: SERIF, kind: 'serif', ctx: 'start value' });
+      if (has(m, 'inspire_score')) s += t(P + CW, ry + 18, u.score.toFixed(1), { size: 14, fill: th.ink, bg: th.paper, anchor: 'end', font: SERIF, kind: 'serif', ctx: 'start score' });
+      s += line(P, ry + 26, P + CW, ry + 26, th.hair, 1);
+    });
   }
   // figure
-  s += `<g transform="translate(0 ${text ? 0 : -340})">`;
   s += rect(P, 612, CW, 3, th.rule);
   s += kicker(P, 640, 'Figure 1', th) + t(P + 74, 640, 'Yearly value by domain', { size: 15, weight: 700, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', ctx: 'fig' });
   const items = m.domains.map((d, i) => ({ name: d.name, value: d.value, text: d.text, icon: d.icon, color: th.tones[Math.min(i, th.tones.length - 1)] }));
   s += treemapChart(items, { x: P, y: 654, w: CW, h: 250 }, { gap: 3, inkOn: inkOn(th), font: BODY, displayFont: DISPLAY, icons: true }).svg;
   s += t(P, 926, 'Tile area = estimated yearly value. Red = the leading domain.', { size: 12, italic: true, fill: th.grey, bg: th.paper, font: SERIF, kind: 'serif', ctx: 'cap' });
-  s += '</g>';
   s += rect(P, 950, CW, 1, th.hair);
   if (has(m, 'disclaimer')) s += T(P, 976, DISCLAIMER, { size: 12, italic: true, fill: th.grey, bg: th.paper, font: SERIF, kind: 'serif', maxW: CW, lines: 3, lh: 16, ctx: 'disc' }).svg;
   s += rect(P, 1060, CW, 1, th.rule) + t(P, 1082, 'Page 1', { size: 12, fill: th.grey, bg: th.paper, font: BODY, ctx: 'foot' });

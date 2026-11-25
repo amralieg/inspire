@@ -184,7 +184,9 @@ function briefPage1(m, th) {
   const msgs = [`Value is concentrated: ${d3.map((d) => d.name).join(', ')} hold ${share}% of the ${m.total.text}.`,
     `${df.length} use cases sit above the median score (${m.median.score.toFixed(1)}) and the median value (${money(m.median.value)}); together they are worth ${money(dfv)} a year.`,
     `The largest single use case is ${m.ranked[0].short}, at ${m.ranked[0].value.yearText}.`];
+  // REQ-526 part E: the session's executive summary (up to three lines) leads the page; the key messages follow.
   let y = 172;
+  if (m.summary.length) { const r = T(P, 140, m.summary.join(' '), { size: 14, fill: th.ink, bg: th.page, font: BODY, maxW: CW, lines: 3, lh: 19, ctx: 'summary' }); s += r.svg; y = 140 + (r.lines - 1) * 19 + 34; }
   msgs.forEach((msg, i) => {
     s += rect(P, y - 16, 22, 22, th.blue) + t(P + 11, y, String(i + 1), { size: 13, weight: 700, fill: bestInk(th.blue, '#14212E', '#FFFFFF'), bg: th.blue, anchor: 'middle', font: BODY, ctx: 'n' });
     const r = T(P + 36, y, msg, { size: 14, fill: th.ink, bg: th.page, font: BODY, maxW: CW - 36, lines: 2, lh: 19, ctx: 'msg' }); s += r.svg; y += r.h + 16;
@@ -199,7 +201,7 @@ function briefPage1(m, th) {
   y += 24;
   m.ranked.slice(0, 7).forEach((u) => {
     const cy = y + 22;
-    s += T(P + 10, cy, u.short, { size: 13, fill: th.ink, bg: th.page, font: BODY, maxW: 400, lines: 1, ctx: 'td' }).svg;
+    s += T(P + 10, cy, u.name, { size: 13, fill: th.ink, bg: th.page, font: BODY, maxW: 400, lines: 1, ctx: 'td' }).svg;
     s += t(P + 420, cy, u.domain, { size: 13, fill: th.ink, bg: th.page, font: BODY, ctx: 'td' });
     s += t(P + 600, cy, u.value.text, { size: 13, weight: 700, fill: th.ink, bg: th.page, anchor: 'end', font: BODY, ctx: 'td' });
     if (has(m, 'inspire_score')) s += harvey(W - P - 50, cy - 4, 7, u.score, th.navy, th.page) + t(W - P - 10, cy, u.score.toFixed(1), { size: 13, fill: th.ink, bg: th.page, anchor: 'end', font: BODY, ctx: 'td' });

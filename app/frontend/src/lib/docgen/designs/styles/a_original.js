@@ -213,16 +213,31 @@ function briefPage1(m, th) {
     s += t(x + 14, 368, v, { size: 26, weight: 700, fill: i ? '#FFFFFF' : th.goldText, bg: '#0F5E5A', font: DISPLAY, kind: 'serif', ctx: 'kpi' });
     s += t(x + 14, 392, l, { size: 12, fill: th.heroMuted, bg: '#0F5E5A', font: BODY, ctx: 'kpi l' });
   });
-  // The App has no executive summary field: the part is left out when the text is empty, and the domain panel takes the width.
-  if (m.executiveSummary) {
+  // REQ-526 part E: the executive summary on the left; the room a short summary leaves (or all of it with no summary) goes to "Where to start".
+  const text = m.summary.join(' '); const LH = 19; const BOTTOM = 756;
+  let ly = 456;
+  if (text) {
     s += eyebrow(P, 470, 'Executive summary', th, th.page) + rect(P, 480, 54, 3, th.gold, { rx: 2 });
-    s += T(P, 506, m.executiveSummary, { size: 13, fill: th.body, bg: th.page, maxW: 420, lines: 16, lh: 19, font: BODY, ctx: 'exec' }).svg;
+    const r = T(P, 506, text, { size: 13, fill: th.body, bg: th.page, maxW: 420, lines: 13, lh: LH, font: BODY, ctx: 'exec' }); s += r.svg; ly = 506 + (r.lines - 1) * LH + 26;
   }
-  const rx = m.executiveSummary ? 500 : P; const rw = W - P - rx;
+  const rows = Math.min(8, m.ranked.length, Math.floor((BOTTOM - ly - 40) / 32));
+  if (rows >= 2) {
+    const y0 = text ? ly : 470;
+    s += eyebrow(P, y0 + (text ? 0 : 0), 'Where to start', th, th.page) + rect(P, y0 + 10, 54, 3, th.gold, { rx: 2 });
+    m.ranked.slice(0, rows).forEach((u, i) => {
+      const ry = y0 + 24 + i * 32;
+      s += T(P, ry + 16, u.name, { size: 13, weight: 700, fill: th.ink, bg: th.page, font: BODY, maxW: 250, lines: 1, ctx: 'start name' }).svg;
+      s += t(P + 262, ry + 16, u.domain, { size: 12, fill: th.muted, bg: th.page, font: BODY, maxW: 78, lines: 1, ctx: 'start domain' });
+      s += t(P + 420 - (has(m, 'inspire_score') ? 40 : 0), ry + 16, u.value.text, { size: 13, weight: 700, fill: th.teal, bg: th.page, anchor: 'end', font: BODY, ctx: 'start value' });
+      if (has(m, 'inspire_score')) s += t(P + 420, ry + 16, u.score.toFixed(1), { size: 13, fill: th.ink, bg: th.page, anchor: 'end', font: BODY, ctx: 'start score' });
+      s += line(P, ry + 24, P + 420, ry + 24, th.line);
+    });
+  }
+  const rx = 500; const rw = W - P - rx;
   s += rect(rx, 456, rw, 300, th.sand, { rx: 14 });
   s += head(rx + 14, 484, 'Value by domain', th, th.sand, 15);
   s += hbars(m.domains.slice(0, 9).map((d) => ({ label: d.name, value: d.value, text: d.text })), { x: rx + 14, y: 494, w: rw - 28 },
-    { rowH: 27, barH: 8, labelW: 84, valueW: 50, track: th.sand2, fill: () => 'url(#aBar)', ink: th.ink, bg: th.sand, font: BODY }).svg;
+    { rowH: Math.max(27, Math.min(52, Math.floor(240 / Math.max(1, Math.min(9, m.domains.length))))), barH: 8, labelW: 84, valueW: 50, track: th.sand2, fill: () => 'url(#aBar)', ink: th.ink, bg: th.sand, font: BODY }).svg;
   let y = 800;
   s += eyebrow(P, y, 'Start with these three', th, th.page) + rect(P, y + 10, 54, 3, th.gold, { rx: 2 });
   const cw = (W - 2 * P - 24) / 3;

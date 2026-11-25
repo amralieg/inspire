@@ -17,7 +17,7 @@ const btn = 'inline-flex items-center gap-1.5 rounded-md border border-border px
 const primary = 'inline-flex items-center gap-1.5 rounded-md bg-linear-to-r from-primary-solid to-primary-solid-hover px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-50';
 
 // REQ-503: the Generate docs wizard. Pages: documents, layout, include, style, columns (Excel only), review; then the files are made and saved.
-export default function GenerateDocsDialog({ useCases, values, businessName, language, folder, apiPostJson, inspireDatabase, warehouseId, sessionId, onSaved, onClose }) {
+export default function GenerateDocsDialog({ useCases, values, businessName, summary, language, folder, apiPostJson, inspireDatabase, warehouseId, sessionId, onSaved, onClose }) {
   const [options, setOptions] = useState(() => defaultDocOptions(language));
   const [pageId, setPageId] = useState('documents');
   const docsRun = useDocsRun();
@@ -44,7 +44,7 @@ export default function GenerateDocsDialog({ useCases, values, businessName, lan
 
   // REQ-525: the files are made by the app-level run (lib/docsRun), so they keep going when this dialog is hidden; its panel shows the progress.
   const generate = () => {
-    docsRun.start({ plan, options, useCases, values, businessName, folder, post: apiPostJson, inspireDatabase, warehouseId, sessionId, names, pages, onSaved });
+    docsRun.start({ plan, options, useCases, values, businessName, summary, folder, post: apiPostJson, inspireDatabase, warehouseId, sessionId, names, pages, onSaved });
     onClose();
   };
   const busy = Boolean(docsRun.run?.running);

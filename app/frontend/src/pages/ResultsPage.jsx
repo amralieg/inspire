@@ -2295,7 +2295,7 @@ export default function ResultsPage({
         <GenerateDocsDialog
           useCases={docsUcs}
           values={docValuesOf({ byId: calculated.byId, totals: valueTotals })}
-          businessName={runBusiness(selectedSession)} language={docLanguageOf(selectedSession)} folder={generationPath}
+          businessName={runBusiness(selectedSession)} language={docLanguageOf(selectedSession)} folder={generationPath} summary={summaryParagraphs}
           apiPostJson={apiPostJson} inspireDatabase={inspireDb} warehouseId={warehouseId} sessionId={selectedSessionId}
           onSaved={() => { loadArtifacts(generationPath); refreshUsecasesForSession(selectedSessionId); }}
           onClose={() => setDocsUcs(null)} />

@@ -35,7 +35,10 @@ function valueOf(raw) {
   };
 }
 
-export function buildDocModel({ businessName, useCases, values, options }) {
+// REQ-526 part E: the session's executive summary paragraphs (from reviewFigures.executiveSummaryOf), kept as clean non-empty strings.
+export const summaryOf = (summary) => (Array.isArray(summary) ? summary.map((p) => clean(p)).filter(Boolean) : []);
+
+export function buildDocModel({ businessName, useCases, values, options, summary }) {
   const opts = options || {};
   const language = (opts.languages && opts.languages[0]) || opts.language || 'English';
   const list = (useCases || []).map((uc) => {
@@ -56,7 +59,7 @@ export function buildDocModel({ businessName, useCases, values, options }) {
   const same = withValue.filter((u) => u.value.currency === currency);
   const amount = same.reduce((sum, u) => sum + u.value.amount, 0);
   return {
-    businessName: clean(businessName), language, rtl: isRtl(language), blocks: [...(opts.blocks || [])], useCases: list,
+    businessName: clean(businessName), language, rtl: isRtl(language), blocks: [...(opts.blocks || [])], summary: summaryOf(summary), useCases: list,
     total: { amount, currency, n: list.length, nWithValue: withValue.length, text: moneyText(currency, amount) },
   };
 }
