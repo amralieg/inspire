@@ -50,8 +50,9 @@ def test_the_requestable_grants_group_by_grantee_and_securable_and_leave_other_s
     got = shell_core.rfa_requests(GRANTS + [f"GRANT CAN_USE ON WAREHOUSE `w` TO `{WHO}`", f"GRANT SELECT ON TABLE `main`.`s`.`orders` TO `{WHO}`"])
     assert got == [
         {"grantee": WHO, "securable": {"type": "CATALOG", "full_name": "main"}, "permissions": ["USE_CATALOG"]},
-        # REQ-408: the table SELECT asks for the schema, so the schema entry carries both of its privileges.
-        {"grantee": WHO, "securable": {"type": "SCHEMA", "full_name": "main.s"}, "permissions": ["USE_SCHEMA", "SELECT"]},
+        # REQ-518: the table SELECT asks on the table, never on the schema.
+        {"grantee": WHO, "securable": {"type": "SCHEMA", "full_name": "main.s"}, "permissions": ["USE_SCHEMA"]},
+        {"grantee": WHO, "securable": {"type": "TABLE", "full_name": "main.s.orders"}, "permissions": ["SELECT"]},
     ]
 
 
@@ -71,7 +72,7 @@ def test_send_posts_one_request_for_the_person_with_no_behalf_of_and_a_comment_t
     request = post["body"]["requests"][0]
     assert "behalf_of" not in request
     assert request["comment"] == shell_core.RFA_COMMENT and len(request["comment"]) <= 200
-    assert [p["securable"]["full_name"] for p in request["securable_permissions"]] == ["main", "main.s"]
+    assert [p["securable"]["full_name"] for p in request["securable_permissions"]] == ["main", "main.s", "main.s.orders"]  # REQ-518: the table SELECT is on the table
 
 
 def test_an_App_grant_is_resolved_to_its_service_principal_and_sent_as_its_own_request():
@@ -136,10 +137,12 @@ def test_the_send_route_is_a_write_and_names_no_grant_from_the_client(tmp_path):
 
 def test_REQ315_a_table_with_no_destination_of_its_own_falls_back_to_its_schema_then_its_catalog():
     empty = {}
-    ws = FakeWs({("GET", f"/api/3.0/rfa/destinations/schema/{quote('main.s', safe='')}"): empty,
+    ws = FakeWs({("GET", f"/api/3.0/rfa/destinations/table/{quote('main.s.orders', safe='')}"): empty,
+                 ("GET", f"/api/3.0/rfa/destinations/schema/{quote('main.s', safe='')}"): empty,
                  ("GET", "/api/3.0/rfa/destinations/catalog/main"): OWNER})
     got = shell_core.rfa_check(ws, WHO, [GRANTS[2]])
     assert got["offered"] is True and got["destinations"] == ["owner@example.com"]
-    # REQ-408: the table read asks for its schema, so the chain starts at the schema, then the catalog.
-    assert [c["path"] for c in ws.calls] == [f"/api/3.0/rfa/destinations/schema/{quote('main.s', safe='')}",
+    # REQ-518: the table read asks on the table, so the chain starts at the table, then the schema, then the catalog.
+    assert [c["path"] for c in ws.calls] == [f"/api/3.0/rfa/destinations/table/{quote('main.s.orders', safe='')}",
+                                             f"/api/3.0/rfa/destinations/schema/{quote('main.s', safe='')}",
                                              "/api/3.0/rfa/destinations/catalog/main"]

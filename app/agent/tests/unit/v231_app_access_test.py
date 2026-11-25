@@ -19,8 +19,8 @@ TABLE = "main.pricing.items"
 CATALOG = "GRANT USE CATALOG ON CATALOG `main` TO `sp-1`"
 SCHEMA = "GRANT USE SCHEMA ON SCHEMA `main`.`pricing` TO `sp-1`"
 SELECT = "GRANT SELECT ON TABLE `main`.`pricing`.`items` TO `sp-1`"
-# REQ-408: the copy text names the schema; the tables keep the exact statement Grant runs.
-SELECT_SCHEMA = "GRANT SELECT ON SCHEMA `main`.`pricing` TO `sp-1`"
+# REQ-518: the copy text is table level, the same statement Grant runs.
+SELECT_SCHEMA = "GRANT SELECT ON TABLE `main`.`pricing`.`items` TO `sp-1`"
 EVIL = "GRANT ALL PRIVILEGES ON CATALOG `main` TO `attacker`"
 UNREAD = {TABLE: [SCHEMA, SELECT]}
 OWNERS = {TABLE: "data-eng"}

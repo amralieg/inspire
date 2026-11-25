@@ -124,6 +124,7 @@ page_label = shell_facts.page_label  # REQ-237: the App page as a person names i
 WAITING_FOR_ACCESS = "This App is waiting for access to its data. Your data owner needs to grant the App access; the exact grant is under Details."
 
 
+WAREHOUSE_REFUSAL = re.compile(r"warehouse|CAN[_ ]USE", re.I)
 NO_ACCESS_LIST = re.compile(r"No access to ([^;]+)")
 CARD_WAITING = "This App is waiting for access to this data. Ask {owner} to grant it."
 # The owner of an App-owned view is Inspire itself: its owner presses Check again after a rebuild, or Inspire grants it on the next build.
@@ -523,8 +524,8 @@ RFA_NO_GRANT = "none of these grants can be requested through Request for Access
 RFA_NO_PERSON = "Inspire cannot tell who is signed in, so it cannot send the request as you"
 
 
-# REQ-408: the Python mirror of backend/lib/grantScope.js (the one rule, the same fixture in both tests). Read grants on a table collapse to
-# the schema, USE CATALOG and USE SCHEMA are named once, a whole-catalog pick asks at catalog level. Write grants and non-UC steps stay exact.
+# REQ-518 (F9): read grants stay on the table (SELECT ON TABLE per table); REQ-408's collapse to the schema over-granted every other table.
+# USE CATALOG and USE SCHEMA are named once. Write grants, schema level reads and non-UC steps stay exact; only an explicit whole-catalog pick asks at catalog level.
 GRANT_LINE = re.compile(r"^GRANT\s+(.+?)\s+ON\s+(CATALOG|SCHEMA|TABLE)\s+(.+?)\s+TO\s+(.+?);?$", re.I)
 UC_NAME_PART = re.compile(r"^(?:`[^`.]+`|[A-Za-z0-9_-]+)$")
 UC_NAME_SHAPE = {"CATALOG": 1, "SCHEMA": 2, "TABLE": 3}
@@ -547,7 +548,8 @@ def coarse_grants(statements, whole_catalogs=()) -> list:
             if len(words) == UC_NAME_SHAPE[level] and all(UC_NAME_PART.match(w) for w in words):
                 parts = [w.replace("`", "") for w in words]
         is_read = ((privilege in READ_PRIVILEGES and level == "TABLE") or (privilege == "USE_SCHEMA" and level == "SCHEMA")
-                   or (privilege in READ_PRIVILEGES and level == "SCHEMA") or (privilege == "USE_CATALOG" and level == "CATALOG"))
+                   or (privilege in READ_PRIVILEGES and level == "SCHEMA" and parts is not None and parts[0].lower() in whole)
+                   or (privilege == "USE_CATALOG" and level == "CATALOG"))
         if not hit or not parts or not is_read:
             out.setdefault(f"raw|{statement}", statement)
             continue
@@ -560,6 +562,7 @@ def coarse_grants(statements, whole_catalogs=()) -> list:
             out.setdefault(use_catalog, grant_text("USE CATALOG", "CATALOG", f"`{catalog}`", principal))
             continue
         if catalog.lower() in whole:
+            # an explicit whole-catalog pick (no read refusal asks for it) is the one case that asks at catalog level
             out.setdefault(use_catalog, grant_text("USE CATALOG", "CATALOG", f"`{catalog}`", principal))
             if privilege in READ_PRIVILEGES:
                 out.setdefault(f"{who}|{privilege}|catalog|{catalog.lower()}", grant_text(label, "CATALOG", f"`{catalog}`", principal))
@@ -567,7 +570,7 @@ def coarse_grants(statements, whole_catalogs=()) -> list:
         if privilege == "USE_SCHEMA":
             out.setdefault(f"{who}|USE_SCHEMA|{catalog.lower()}.{schema.lower()}", grant_text("USE SCHEMA", "SCHEMA", f"`{catalog}`.`{schema}`", principal))
             continue
-        out.setdefault(f"{who}|{privilege}|schema|{catalog.lower()}.{schema.lower()}", grant_text(label, "SCHEMA", f"`{catalog}`.`{schema}`", principal))
+        out.setdefault(f"{who}|{privilege}|table|{'.'.join(p.lower() for p in parts)}", grant_text(label, "TABLE", f"`{'`.`'.join(parts)}`", principal))
     return list(out.values())
 
 
@@ -2802,7 +2805,7 @@ class Shell:
         body = waiting_for_access_body(text, self.access_owners([text]))
         body["error"] = shell_sql.error_text(text)
         person = str((headers or {}).get("x-forwarded-email") or "").strip()
-        # REQ-408: the dialog asks at schema level; Grant (access_grant) still runs the exact statements of access_found.
+        # REQ-518: the dialog asks SELECT on each table (with USE CATALOG and USE SCHEMA); Grant (access_grant) runs the exact statements of access_found.
         grants = coarse_grants([g for table in body["tables"] for g in access_grants(table, person)])
         if grants:
             body["permissions"] = [{"statements": grants, "instructions": [], "steps": [], "principal": person,
@@ -2845,12 +2848,12 @@ class Shell:
             if not isinstance(data, dict):
                 raise HttpError(400, "send a JSON object")
             route = (method, path.strip("/"))
-            if route == ("GET", "app"):
-                return 200, self.app_info(headers)
             if route[1] not in VIEWER_CHECK_EXEMPT:
                 refused = self.viewer_gate(headers)
                 if refused is not None:
                     return 403, refused
+            if route == ("GET", "app"):
+                return 200, self.app_info(headers)
             notice = self.set_aside.get(str(query.get("page") or data.get("page") or ""))
             if notice is not None:
                 # A page set aside answers its notice on every route that names it. A read gets the notice as its answer; a write is
@@ -3140,8 +3143,9 @@ class Shell:
         # SEC-01 W6: before any data is served, the viewer's own token must read every table of the `sources` setting (LIMIT 0 probe, so
         # the service principal runs nothing else first). A table the viewer cannot read is named in a table-level GRANT SELECT to the viewer.
         sources = [str(t) for t in self.settings.get("sources") or [] if str(t).strip()]
-        if not sources or self.inside:
-            return None
+        if not sources:
+            # SEC-02 F1: an App that names no source tables cannot be checked, so it serves no data (fail closed).
+            raise HttpError(403, "This App does not list the tables it reads, so it cannot check that you may see its data. Ask its owner to rebuild it.")
         token = headers.get("x-forwarded-access-token")
         if not token:
             raise HttpError(401, "sign in to the workspace to see this App; it shows data only to people who may read every table it uses")
@@ -3156,8 +3160,15 @@ class Shell:
             try:
                 self.execute(ws, f"SELECT 1 FROM {shell_sql.table_name(table)} LIMIT 0", [], 1, delta=True)
             except (QueryError, HttpError, ValueError) as error:
-                if not NO_ACCESS.search(str(getattr(error, "message", None) or error)):
+                text = str(getattr(error, "message", None) or error)
+                if not NO_ACCESS.search(text):
                     raise
+                if WAREHOUSE_REFUSAL.search(text) and not any(t.replace("`", "").lower() in text.replace("`", "").lower() for t in sources):
+                    # SEC-02: the warehouse refused the probe, not a table. Name the warehouse and ask for no GRANT.
+                    warehouse = str(self.env.get("DATABRICKS_WAREHOUSE_ID") or "")
+                    return {"request": "warehouse", "warehouse": warehouse, "tables": [],
+                            "error": f"You cannot use the SQL warehouse this App reads with ({warehouse}), so it shows no data until you can. "
+                                     "Ask your workspace admin for CAN USE on that warehouse, or to start it."}
                 unread.append(table)
                 continue
             with self.viewers_lock:
@@ -3165,7 +3176,7 @@ class Shell:
         if not unread:
             return None
         person = str(headers.get("x-forwarded-email") or "").strip() or self.viewer_name(ws)
-        grants = [access_grants(table, person)[-1] for table in unread if access_grants(table, person)]
+        grants = coarse_grants([g for table in unread for g in access_grants(table, person)])
         body = waiting_for_access_body(f"PERMISSION_DENIED: you cannot read {', '.join(unread)}", self.access_owners(unread))
         body["tables"] = unread
         body["request"] = "person"
@@ -3201,7 +3212,7 @@ class Shell:
                            "you_can_grant": ws is not None and self.person_can_grant(ws, table)})
         statements = [g for t in tables for g in t["grants"]]
         return {"tables": tables, "can_grant": bool(statements), "you_can_grant": bool(statements) and all(t["you_can_grant"] for t in tables),
-                # REQ-408: the copy text is schema level. Grant runs the exact per-table statements in `tables`, never this text.
+                # REQ-518: the copy text is table level. Grant runs the exact per-table statements in `tables`, never this text.
                 "sql": "\n".join(f"{g};" for g in coarse_grants(statements)),
                 "seen": hashlib.sha256("\n".join(statements).encode("utf-8")).hexdigest()}
 
