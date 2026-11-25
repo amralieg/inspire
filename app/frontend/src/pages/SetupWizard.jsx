@@ -280,7 +280,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
 
   return (
     <div className="min-h-screen bg-bg flex items-center justify-center px-6 py-12">
-      <div className="w-full">
+      <div className="w-full max-w-[1040px]">
         {readError.text && (
           <PlainMessage text={readError.text} role="alert" data-setup-error="" className="mb-4 px-4 py-3 rounded-xl border border-error/20 bg-error-bg text-xs text-error-fg"
             onRetry={() => { const { retry } = readError; setReadError({ text: '', retry: null }); retry(); }} />

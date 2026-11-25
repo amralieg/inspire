@@ -67,6 +67,7 @@ import { counted } from '../lib/plural';
 import { catalogListNote, droppedCatalogNames, pickedScope, scopeSummary, typedCatalog, wholeCatalogsWithoutPicks } from '../lib/catalogList';
 import { SAMPLE_CATALOG, applySampleCopies, isSampleEntry, samplesTarget, scopesAfterSampleCopies, validCopyTarget } from '../lib/samplesCopy';
 import { DISCOVERY_AI_ENHANCED, DISCOVERY_MODE_TEXT, DISCOVERY_BADGE, DISCOVERY_PRIVACY, DISCOVERY_RECOMMENDED, DISCOVERY_STANDARD, discoveryTypeOf } from '../lib/discoveryType';
+import { WIZARD } from '../lib/layout';
 import { raisePermissions } from '../lib/permissionBus';
 import { withStartDeadline } from '../lib/startDeadline';
 
@@ -1128,7 +1129,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
   return (
     <>
-    <div className="w-full px-6 py-8">
+    <div className={`${WIZARD} py-8`}>
       {/* Page Header */}
       <div className="mb-8">
         <PageHeader className="mb-2" icon={Rocket}
@@ -1667,7 +1668,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 })}
               </div>
               <div data-discovery-panel className="mt-2.5 rounded-xl border border-success/30 bg-success-bg p-3.5">
-                <DiscoveryPromise />
+                <DiscoveryPromise className="text-xs max-w-[75ch]" />
                 <details data-discovery-more="" open={showPrivacyNote} onToggle={(e) => setShowPrivacyNote(e.currentTarget.open)} className="mt-2">
                   <summary className="cursor-pointer text-xs font-semibold text-success-fg">Privacy details</summary>
                 <div className="mt-2 grid grid-cols-1 gap-2.5 md:grid-cols-3">
@@ -1708,7 +1709,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             </div>
             <div className="flex-1">
               <h2 className="text-sm font-bold text-text-primary">Advanced Settings</h2>
-              <p className="text-xs text-text-secondary">
+              <p className="max-w-[75ch] text-xs text-text-secondary">
                 Business priorities, domains and strategy, where Inspire keeps its tables and files, run mode, documents and quality
               </p>
               {!showAdvanced && advancedProblem && (
@@ -2058,23 +2059,25 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             <span className="min-w-0 break-words">{liveRunNote}</span>
           </p>
         )}
-        <Button size="md" className="w-full py-3.5 font-bold"
-          onClick={handleLaunch}
-          disabled={launching || !canLaunch || !outputCheck.ready}
-          aria-describedby={launchBlock ? 'launch-block' : outputCheck.ready ? undefined : 'output-folder-check-launch'}
-        >
-          {launching ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              Starting the run…
-            </>
-          ) : (
-            <>
-              <Play size={16} />
-              Get Started
-            </>
-          )}
-        </Button>
+        <div className="flex justify-end">
+          <Button size="md" className="w-full sm:w-auto sm:min-w-[16rem] py-3.5 font-bold"
+            onClick={handleLaunch}
+            disabled={launching || !canLaunch || !outputCheck.ready}
+            aria-describedby={launchBlock ? 'launch-block' : outputCheck.ready ? undefined : 'output-folder-check-launch'}
+          >
+            {launching ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Starting the run…
+              </>
+            ) : (
+              <>
+                <Play size={16} />
+                Get Started
+              </>
+            )}
+          </Button>
+        </div>
         {launchBlock && !launching && <p id="launch-block" data-launch-block="" role="status" className="text-xs text-text-secondary mt-2 text-center">{launchBlock}</p>}
         {saveAsk && (
           <ModalDialog titleId="launch-save-profile-title" title="Save these settings as a business profile?"

@@ -2,6 +2,7 @@ import { Sun, Moon } from 'lucide-react';
 import DatabricksLogo from './DatabricksLogo';
 import { useTheme } from '../ThemeContext';
 import { APP_TABS, tabTitle } from '../lib/tabs';
+import { FRAME } from '../lib/layout';
 
 const START_PAGES = ['launch', 'generate-data'];
 const NAV = APP_TABS.map((tab, i) => ({ ...tab, step: i + 1 }));
@@ -28,7 +29,7 @@ export default function Header({
 
   return (
     <header className="bg-surface/80 backdrop-blur-xl border-b border-border sticky top-0 z-40">
-      <div className="w-full px-6">
+      <div className={FRAME}>
         <div className="flex items-center justify-between gap-2 h-14">
           {/* Brand */}
           <button
