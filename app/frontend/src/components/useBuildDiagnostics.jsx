@@ -77,7 +77,7 @@ export default function useBuildDiagnostics({ apiFetch, query, refreshKey = '', 
     ),
     note: (
       <>
-        <p id={noteId} data-diagnostics-note="" className="basis-full text-caption text-text-secondary">
+        <p id={noteId} data-diagnostics-note="" className="basis-full max-w-[75ch] text-caption text-text-secondary">
           {DIAGNOSTICS_PRIVACY_NOTE} {REPORT_ISSUE_NOTE}
         </p>
         <p role="status" aria-live="polite" data-diagnostics-said="" className={error || copied ? 'basis-full text-caption' : 'sr-only'}>

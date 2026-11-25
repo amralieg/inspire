@@ -26,7 +26,7 @@ function CardFigure({ card, totals }) {
   return (
     <>
       <span data-card-label="" className="block w-full truncate text-caption text-text-secondary">{card.label}</span>
-      <span data-card-value="" className="block text-xl font-bold tabular-nums tracking-tight text-text-primary">
+      <span data-card-value="" className="block text-xl 2xl:text-2xl font-bold tabular-nums tracking-tight text-text-primary">
         {totals ? (Number(totals[card.key]) || 0).toLocaleString('en-US') : <span aria-label="Loading" className="skeleton inline-block h-5 w-10 align-middle" />}
       </span>
     </>
