@@ -278,7 +278,7 @@ def test_a_saved_instruction_against_the_rule_is_written_again_before_the_build(
     got = inst._implement_recover_instruction({"id": "N01-U01"}, "N01-U01", uc, warnings)
     assert got["genie_instruction"] == AGREEING and warnings == []
     assert len(calls) == 1 and calls[0][1] == "N01-U01"
-    assert calls[0][2].startswith("the saved Genie Code instruction words acceptance, a stop or Inspire's AI steps differently from "
+    assert calls[0][2].startswith("the saved Databricks AI instruction words acceptance, a stop or Inspire's AI steps differently from "
                                   "Inspire's Acceptance and Stop Rule and Platform Rules in 1 sentence, so Inspire writes it again: "
                                   "\"**Acceptance**: require top-k agreement")
 

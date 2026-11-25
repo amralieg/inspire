@@ -142,7 +142,7 @@ def test_a_saved_instruction_that_asks_for_an_ai_query_summary_is_written_again_
     warnings = []
     got = inst._implement_recover_instruction({"id": "N01-U01"}, "N01-U01", uc, warnings)
     assert got["genie_instruction"] == fresh and warnings == [] and len(calls) == 1
-    assert calls[0][2].startswith("the saved Genie Code instruction words acceptance, a stop or Inspire's AI steps differently from "
+    assert calls[0][2].startswith("the saved Databricks AI instruction words acceptance, a stop or Inspire's AI steps differently from "
                                   "Inspire's Acceptance and Stop Rule and Platform Rules in 2 sentences, so Inspire writes it again: ")
     assert "three-sentence `ai_query` summary" in calls[0][2] and "explanation_top_k" in calls[0][2]
 
@@ -168,7 +168,7 @@ def test_a_notebook_that_passes_its_summary_facts_to_inspire_write_summary_is_ne
 
 
 def test_the_cell_check_after_each_genie_round_reports_the_summary_step_that_skips_inspire_write_summary(agent_ns, sdk_stub):
-    notebook = {"cells": [_cell("Genie Code instruction", "# instruction"), _cell(None, "z = fmt_num(3)"), _cell(None, SUMMARY_CELL),
+    notebook = {"cells": [_cell("Databricks AI instruction", "# instruction"), _cell(None, "z = fmt_num(3)"), _cell(None, SUMMARY_CELL),
                           _cell(agent_ns["GENIE_NUMBER_HELPERS_TITLE"], agent_ns["GENIE_NUMBER_TEXT_SOURCE"]),
                           _cell("Run controls (Inspire, do not edit)", "def main():\n    inspire_write_summary('f', 't', 'r', 'd')\n")]}
     inst = _notebook_inspire(agent_ns, _NotebookWorkspace(notebook, modified_at=5))
@@ -420,7 +420,7 @@ def test_a_put_back_notebook_whose_run_fails_again_ends_the_build_with_the_last_
 
 
 def test_a_genie_turn_cut_off_by_the_time_limit_is_told_which_loop_runs_one_step_per_entity(agent_ns, sdk_stub):
-    notebook = {"cells": [_cell("Genie Code instruction", "# instruction"), _cell(None, GROUPBY_LOOP),
+    notebook = {"cells": [_cell("Databricks AI instruction", "# instruction"), _cell(None, GROUPBY_LOOP),
                           _cell(None, EVIDENCE_ENRICH_AND_VALIDATE)]}
     inst = _flow_inspire(agent_ns, [_preview("r-2")])
     inst.w_client = types.SimpleNamespace(workspace=_NotebookWorkspace(notebook, modified_at=5), config=types.SimpleNamespace(host=""))

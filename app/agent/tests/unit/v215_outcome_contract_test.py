@@ -75,7 +75,7 @@ def test_a_missing_run_use_case_is_named_only_once_the_run_proved_it_is_needed(a
 
 
 def test_the_cell_check_runs_the_contract_first_and_skips_inspire_own_cells(agent_ns, sdk_stub):
-    notebook = {"cells": [_cell("Genie Code instruction", "# instruction"),
+    notebook = {"cells": [_cell("Databricks AI instruction", "# instruction"),
                           _cell(None, GOOD.replace("    return outcome", "    return None")),
                           _cell("Run controls (Inspire, do not edit)", "dbutils.notebook.exit('x')\ninspire_main()")]}
     inst = _notebook_inspire(agent_ns, _NotebookWorkspace(notebook, modified_at=5))
@@ -94,10 +94,10 @@ def test_the_shape_genie_is_told_is_the_one_the_run_controls_check(agent_ns):
 def test_an_unread_outcome_tells_genie_what_the_notebook_does_wrong_and_how_the_run_ended(agent_ns, sdk_stub):
     notebook = {"cells": [_cell(None, "def run_use_case():\n    print('wrote')\n")]}
     inst = _notebook_inspire(agent_ns, _NotebookWorkspace(notebook, modified_at=5))
-    told = inst._implement_unread_feedback("/W/nb", {"status": "unknown", "text": "Genie Code has not built this notebook yet. Nothing ran."})
+    told = inst._implement_unread_feedback("/W/nb", {"status": "unknown", "text": "Databricks AI has not built this notebook yet. Nothing ran."})
     assert told.startswith(agent_ns["implement_unread_outcome"]({"status": "unknown", "text": "x"}))
     assert "Inspire read the notebook and found: run_use_case() in cell 1 can reach its end without a return" in told
-    assert told.endswith("the run ended with: Genie Code has not built this notebook yet. Nothing ran.")
+    assert told.endswith("the run ended with: Databricks AI has not built this notebook yet. Nothing ran.")
     empty = _notebook_inspire(agent_ns, _NotebookWorkspace({"cells": [_cell(None, "x = 1\n")]}, modified_at=5))
     assert "no cell defines run_use_case()" in empty._implement_unread_feedback("/W/nb", {"status": "unknown"})
 

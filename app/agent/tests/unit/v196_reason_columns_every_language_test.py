@@ -2,7 +2,7 @@
 
 Before: the Arabic CSV and Excel kept "Priority Reasons", "Quality Reasons" and "Best of Best Reason" in English
 on every row (the translator never received them, so the gap warning never counted them), four headers and the
-Genie Code and elite status values stayed English, the Excel sheet names and the foundations headers were English,
+Databricks AI and elite status values stayed English, the Excel sheet names and the foundations headers were English,
 and the JSON catalog was written in English only with no gap flag.
 """
 import csv
@@ -25,7 +25,7 @@ ARABIC_REASONS = {"Justification": "التوافق الاستراتيجي مرت
                   "best_of_best_reason": "اجتاز كل اختبارات النخبة وخارج أفضل خمس حالات"}
 ARABIC_TITLE = "توقع الطلب اليومي لتقليل نفاد المخزون"
 BUILT_IN_ENGLISH_HEADERS = ("ID", "Business Domain", "Subdomain", "Use Case", "Subtitle", "Primary Table",
-                            "Priority Reasons", "Quality Reasons", "Result Database", "Has Genie Code",
+                            "Priority Reasons", "Quality Reasons", "Result Database", "Has Databricks AI",
                             "Best of Best Reason", "Elite Status", "Coverage Pick Reason", "Below Bar Reason")
 
 
@@ -121,7 +121,7 @@ def test_english_csv_keeps_its_headers_and_status_codes(ns):
     for english in BUILT_IN_ENGLISH_HEADERS:
         assert english in header, english
     by_id = {row["ID"]: row for row in rows}
-    assert by_id["N01-U01"]["Has Genie Code"] == "Y" and by_id["N01-U02"]["Has Genie Code"] == "N"
+    assert by_id["N01-U01"]["Has Databricks AI"] == "Y" and by_id["N01-U02"]["Has Databricks AI"] == "N"
     assert by_id["N01-U01"]["Elite Status"] == "ELITE" and by_id["N01-U02"]["Elite Status"] == "DOMAIN_COVERAGE_PICK"
     assert by_id["N01-U01"]["Priority Reasons"] == ENGLISH_REASONS["Justification"]
 
@@ -321,11 +321,11 @@ def test_docs_only_mode_refuses_a_translated_json_and_restores_the_id_maps_from_
 def test_english_only_notebooks_are_flagged_for_every_other_requested_language(ns):
     obj = bilingual(ns)
     obj._flag_english_only_notebooks([make_uc("N01-U01", notebook_path="/Workspace/out/notebooks/n1"), make_uc("N01-U02")])
-    assert obj.translation_gaps == {"Arabic": {"artifacts_in_english": ["Genie Code notebooks"]}}
-    assert "translation gaps: Arabic (written in English only: Genie Code notebooks)" in obj.run_exit_value()
+    assert obj.translation_gaps == {"Arabic": {"artifacts_in_english": ["Databricks AI notebooks"]}}
+    assert "translation gaps: Arabic (written in English only: Databricks AI notebooks)" in obj.run_exit_value()
     obj._record_translation_gaps("Arabic", {"use_cases": 1, "untranslated_use_cases": 0, "fields": {"Priority Reasons": 1}})
-    assert obj.translation_gaps["Arabic"]["artifacts_in_english"] == ["Genie Code notebooks"]
-    assert "Arabic (1 use case with text shown in English; written in English only: Genie Code notebooks)" in obj.run_exit_value()
+    assert obj.translation_gaps["Arabic"]["artifacts_in_english"] == ["Databricks AI notebooks"]
+    assert "Arabic (1 use case with text shown in English; written in English only: Databricks AI notebooks)" in obj.run_exit_value()
     assert obj.logger.matching("[VIBE-LANG english-only-notebooks]", level="WARNING")
 
 

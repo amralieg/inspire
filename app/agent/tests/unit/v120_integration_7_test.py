@@ -108,7 +108,7 @@ def test_the_elite_text_columns_the_translation_tests_check_are_the_ones_the_tra
 
 def test_agents_md_points_genie_at_the_instruction_cell_and_protects_inspires_four_cells(agent_ns):
     template = agent_ns["GENIE_AGENTS_FILE_TEMPLATE"]
-    assert "one Genie Code instruction in its second cell" in template
+    assert "one Databricks AI instruction in its second cell" in template
     assert "then Inspire's Number helpers cell and the Run controls cell as its last two cells" in template
     assert "Never edit or delete Inspire's four cells" in template and "first three cells" not in template
     assert "never defining your own" in template

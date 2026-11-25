@@ -46,7 +46,7 @@ BASE_WIDGETS = {
     "06_business_domains": "",
     "07_business_priorities": "",
     "08_generation_instructions": "",
-    "09_generation_options": "PDF,XLSX,CSV,JSON,Markdown,Genie Code",
+    "09_generation_options": "PDF,XLSX,CSV,JSON,Markdown,Databricks AI",
     "12_documents_languages": "English",
     "13_generate_genie_code_for": "10",
     "15_operation": "Discover Use Cases",

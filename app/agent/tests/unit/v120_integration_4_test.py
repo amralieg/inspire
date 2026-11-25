@@ -9,7 +9,7 @@
    quoted string; the reference validator keeps stripping backticks and now reads identifiers that need quotes
    (a hyphenated catalog was cut to its last segment, so real tables were rejected and invented ones misnamed).
 2. Genie follow-ups: top-N follows the final rank; every Ultra High check goes through _is_ultra_high_mode and Ultra
-   High generates Genie Code only for ELITE use cases (Discover and the JSON Generate path, where a non-elite keeps an
+   High generates Databricks AI only for ELITE use cases (Discover and the JSON Generate path, where a non-elite keeps an
    instruction it already carries); _row_to_uc inverts _uc_to_row; Generate mode records a contended or
    unverifiable lock, ends with the shared completion banner and uploads the log; notebook URL lookups are cached;
    the Genie prompt carries ASSUMED_CONTEXT_RULE; the notebook's default AI endpoint skips unusable endpoints.
@@ -479,7 +479,7 @@ def _generate_run(ns, tmp_path, monkeypatch, failed=None):
 
 def test_generate_mode_ends_with_the_shared_completion_banner_and_uploads_the_log(fresh_ns, tmp_path, monkeypatch):
     _obj, printed, uploads = _generate_run(fresh_ns, tmp_path, monkeypatch)
-    banners = [m for level, m in printed if "Genie Code regeneration" in m]
+    banners = [m for level, m in printed if "Databricks AI regeneration" in m]
     assert banners and banners[-1].startswith("✅ SUCCESS") and uploads == [True]
 
 
@@ -707,7 +707,7 @@ def test_docs_describe_the_genie_notebook_job_and_selection(ns):
     from _agentload import notebook_cells
     cell0 = notebook_cells()[0][1]
     for name, text in (("integration", integration), ("design", design), ("readme", readme), ("cells[0]", cell0)):
-        for needle in ("Copy the cell below into Genie Code without the surrounding quotes", "AGENTS.md", "four cells",
+        for needle in ("Copy the cell below into Databricks AI without the surrounding quotes", "AGENTS.md", "four cells",
                        "Number helpers", "Run controls"):
             assert needle in text, (name, needle)
     for name, text in (("design", design), ("cells[0]", cell0)):
@@ -721,10 +721,10 @@ def test_docs_describe_the_genie_notebook_job_and_selection(ns):
     for row in ("| 1 | markdown |", "| 2 | code |", "| 3 | code |"):
         assert row in sections, row
     assert "| 12 |" not in sections and "| 3a |" not in sections
-    for stale in ("UC##_<Use_Case_Name>.py", "UC01_*.py", "N{XX}_{Domain_Name}.py", "**except** Genie Code Instruction generation"):
+    for stale in ("UC##_<Use_Case_Name>.py", "UC01_*.py", "N{XX}_{Domain_Name}.py", "**except** Databricks AI Instruction generation"):
         assert stale not in readme and stale not in design and stale not in cell0, stale
     assert "TECHNIQUE_EXECUTION_FAMILY" in design
-    assert "Generate Genie Code Instruction For" in cell0
+    assert "Generate Databricks AI Instruction For" in cell0
 
 
 def test_genie_ai_endpoint_default_skips_unusable_endpoints_in_every_tier(fresh_ns):

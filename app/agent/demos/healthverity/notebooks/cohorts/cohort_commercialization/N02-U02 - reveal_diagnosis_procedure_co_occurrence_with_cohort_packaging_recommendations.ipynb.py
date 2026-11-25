@@ -1,15 +1,15 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC > ## How to finish this notebook with Genie Code
+# MAGIC > ## How to finish this notebook with Databricks AI
 # MAGIC >
-# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Genie Code fills them from your data:
+# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Databricks AI fills them from your data:
 # MAGIC >
-# MAGIC > 1. Open the **Genie Code** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
+# MAGIC > 1. Open the **Databricks AI** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
 # MAGIC > 2. Set the widgets **Execution** to `Here` and **Smoke test** to `true`
-# MAGIC > 3. Ask Genie Code: *Fill every GENIE SLOT cell by following the Genie Code instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
+# MAGIC > 3. Ask Databricks AI: *Fill every GENIE SLOT cell by following the Databricks AI instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
 # MAGIC > 4. Set **Smoke test** to `false` and run it again, then set **Execution** to `As job` for the scheduled runs
 # MAGIC >
-# MAGIC > Genie Code not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
+# MAGIC > Databricks AI not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
 # MAGIC
 
 # COMMAND ----------
@@ -60,7 +60,7 @@
 # MAGIC | **Primary Table** | samples.healthverity.claims_sample_synthetic |
 # MAGIC | **Tables Involved** | samples.healthverity.claims_sample_synthetic |
 # MAGIC | **Statement** | The relationships between diagnoses and procedures captured in `diagnosis_code` and `procedure_code` across patient claims hold clinical-pathway value, but without mapping these co-occurrence networks the commercial team cannot design high-value condition-based cohort products. |
-# MAGIC | **Solution** | Databricks Genie Code builds a co-occurrence graph linking `diagnosis_code` and `procedure_code` across claims, applies community detection to surface clinical pathway clusters, and recommends condition-based cohort products. |
+# MAGIC | **Solution** | Databricks AI builds a co-occurrence graph linking `diagnosis_code` and `procedure_code` across claims, applies community detection to surface clinical pathway clusters, and recommends condition-based cohort products. |
 # MAGIC | **Business Value** | The Commercial Data Product Manager designs condition-based cohort offerings from detected pathway communities, increasing packageable cohort products measured by linked `diagnosis_code` and `procedure_code` pairs per community [ESTIMATE: depends on `diagnosis_code`]. |
 # MAGIC | **Quality** | High |
 # MAGIC | **Quality Reasons** | Signal from within-`hvid` co-occurrence of `diagnosis_code` and `procedure_code` ordered by `date_service`: build a weighted GraphFrames graph, run community detection and centrality to find dense clinical pathway clusters, producing a pathway_community membership and strength metric. ai_query interprets each community and recommends condition-based cohort packaging, delivering packageable products [ESTIMATE: depends on diagnosis_code]. |
@@ -70,11 +70,11 @@
 
 # COMMAND ----------
 
-# DBTITLE 0,Genie Code instruction
+# DBTITLE 0,Databricks AI instruction
 # MAGIC %md
-# MAGIC ## Genie Code instruction
+# MAGIC ## Databricks AI instruction
 # MAGIC
-# MAGIC > Genie Code: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
+# MAGIC > Databricks AI: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
 # MAGIC
 # MAGIC ## 1. Decision and Owner
 # MAGIC
@@ -107,7 +107,7 @@
 # MAGIC
 # MAGIC ## 6. Output Mapping
 # MAGIC
-# MAGIC Map `entity_label` to the community label (the clinical-pathway cluster, labeled by its representative diagnosis-procedure pair). `value` is the effect size of that community's co-occurrence structure against the prior-period or overall baseline, unit: a standardized effect size (dimensionless), and `VALUE_TYPE` stays `'effect size'`. `segment_or_item` holds the group or dimension, here the representative `diagnosis_code`-`procedure_code` pair (or small set of pairs) that defines the community. Each row's top reasons are rule-based and derived from the graph: the highest-weight diagnosis-procedure edges and the highest-PageRank nodes inside that community, with the degree-baseline comparison noting the lift beyond degree alone. Set `data_quality_flag` to something other than ok when a community rests on a pair near the `smallest_group_rows` floor, when its period coverage is thin, or when a large share of its underlying rows had codes that were dropped for being empty; otherwise ok. Priority tiers and recommended actions are assigned by Inspire's writer from the corrected significance and effect size; do not have Genie Code or an LLM assign them.
+# MAGIC Map `entity_label` to the community label (the clinical-pathway cluster, labeled by its representative diagnosis-procedure pair). `value` is the effect size of that community's co-occurrence structure against the prior-period or overall baseline, unit: a standardized effect size (dimensionless), and `VALUE_TYPE` stays `'effect size'`. `segment_or_item` holds the group or dimension, here the representative `diagnosis_code`-`procedure_code` pair (or small set of pairs) that defines the community. Each row's top reasons are rule-based and derived from the graph: the highest-weight diagnosis-procedure edges and the highest-PageRank nodes inside that community, with the degree-baseline comparison noting the lift beyond degree alone. Set `data_quality_flag` to something other than ok when a community rests on a pair near the `smallest_group_rows` floor, when its period coverage is thin, or when a large share of its underlying rows had codes that were dropped for being empty; otherwise ok. Priority tiers and recommended actions are assigned by Inspire's writer from the corrected significance and effect size; do not have Databricks AI or an LLM assign them.
 # MAGIC
 # MAGIC ## 7. Definition of Done
 # MAGIC
@@ -116,13 +116,13 @@
 # MAGIC - The contract-check cell (the last cell) printed PASSED.
 # MAGIC - No Inspire cell was edited, no thresholds were changed in code, the notebook was not renamed, and no job was created or deleted; the only allowed edit outside the slots is a pinned `%pip install name==version` line if a slot needs a package the base environment lacks.
 # MAGIC - Only `samples.healthverity.claims_sample_synthetic` and its real columns were cited, fully qualified, with no invented tables, columns, or numbers.
-# MAGIC - STOP RULE: if the readiness gate raises `InspireReadinessStop` (or `InspireNoChampion` or `InspireRejected`), Genie Code must stop, show the user the plain message the gate printed, and must not lower thresholds, fabricate data, drop a check, switch tables, or edit the gate to force a pass.
+# MAGIC - STOP RULE: if the readiness gate raises `InspireReadinessStop` (or `InspireNoChampion` or `InspireRejected`), Databricks AI must stop, show the user the plain message the gate printed, and must not lower thresholds, fabricate data, drop a check, switch tables, or edit the gate to force a pass.
 # MAGIC
 
 # COMMAND ----------
 
 # DBTITLE 0,Inspire harness (do not edit)
-# Inspire harness (do not edit): the tested functions every other cell uses. Genie Code fills only the cells marked GENIE SLOT.
+# Inspire harness (do not edit): the tested functions every other cell uses. Databricks AI fills only the cells marked GENIE SLOT.
 GENIE_READINESS_THRESHOLDS = {'F': {'min_rows': 1, 'min_join_coverage': 0.8, 'min_group_rows': 30, 'min_periods': 2, 'fdr_alpha': 0.05}}
 
 import re as _jl_re, os as _jl_os, hashlib as _jl_hashlib
@@ -506,7 +506,7 @@ INSPIRE_READINESS_RULES = {
 class InspireSlotNotFilled(Exception):
     def __init__(self, slot):
         self.slot = slot
-        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Genie Code to fill every cell marked GENIE SLOT, then run the notebook again.")
+        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Databricks AI to fill every cell marked GENIE SLOT, then run the notebook again.")
 
 
 class InspireReadinessStop(Exception):
@@ -2402,7 +2402,7 @@ NEXT_RUN = operationalize(CTX, CHAMPION, DRIFT_PSI, spark, SLOTS)
 # COMMAND ----------
 
 # DBTITLE 0,12. Contract check
-# 12. Contract check (Inspire, do not edit). Genie Code is done when this cell prints PASSED.
+# 12. Contract check (Inspire, do not edit). Databricks AI is done when this cell prints PASSED.
 import json
 CONTRACT = run_contract_check(spark, CTX, READINESS, allow_zero_rows=bool(EVALUATION.get("no_new_rows")))
 if CTX["is_child"]:

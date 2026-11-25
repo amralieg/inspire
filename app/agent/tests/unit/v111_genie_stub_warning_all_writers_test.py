@@ -1,4 +1,4 @@
-"""v1.1.2 P33 -- the customer-appropriate Genie Code how-to applies to the skeleton writer and the batch path.
+"""v1.1.2 P33 -- the customer-appropriate Databricks AI how-to applies to the skeleton writer and the batch path.
 
 v1.1.0 landed the "prominent blockquote" how-to in the Genie writer; v1.1.1 extended it to the other writers and v1.1.2
 stripped Databricks-internal jargon (``consumption dashboard``, ``billing attribution``, ``self-registers``) from all of
@@ -16,7 +16,7 @@ from _agentload import agent_source, load_agent_namespace
 
 
 POSITIVE_ANCHORS = (
-    "Genie Code",
+    "Databricks AI",
     "\u2318K",
     "Next step",
     "Operation = Generate Use Cases",
@@ -42,8 +42,8 @@ WRITER_FUNCTIONS = (
 )
 
 GENIE_NOTEBOOK_ANCHORS = (
-    "Genie Code",
-    "Copy the cell below into Genie Code without the surrounding quotes",
+    "Databricks AI",
+    "Copy the cell below into Databricks AI without the surrounding quotes",
     "Disclaimer",
 )
 
@@ -93,12 +93,12 @@ def test_B_all_three_writers_carry_positive_anchors():
         missing = [a for a in POSITIVE_ANCHORS if a not in htr]
         assert not missing, (
             f"v1.1.2 P33: in {fn_name}, how_to_run_source is missing positive anchors "
-            f"{missing!r}. The how-to MUST name the next step, Genie Code, ⌘K and the Generate operation."
+            f"{missing!r}. The how-to MUST name the next step, Databricks AI, ⌘K and the Generate operation."
         )
 
 
 def test_B2_a_healthy_skeleton_never_reads_as_a_failure():
-    released = "> ## \u26a0\ufe0f This notebook is a Genie Code stub, not a runnable pipeline\n"
+    released = "> ## \u26a0\ufe0f This notebook is a Databricks AI stub, not a runnable pipeline\n"
     assert {"\u26a0", "stub", "runnable"} <= {n for n in NEGATIVE_ANCHORS if n in released}
     for fn_name in WRITER_FUNCTIONS:
         htr = _how_to_run_slice(_fn_body(agent_source(), fn_name))

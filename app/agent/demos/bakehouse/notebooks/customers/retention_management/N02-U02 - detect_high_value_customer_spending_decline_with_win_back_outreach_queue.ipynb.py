@@ -1,15 +1,15 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC > ## How to finish this notebook with Genie Code
+# MAGIC > ## How to finish this notebook with Databricks AI
 # MAGIC >
-# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Genie Code fills them from your data:
+# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Databricks AI fills them from your data:
 # MAGIC >
-# MAGIC > 1. Open the **Genie Code** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
+# MAGIC > 1. Open the **Databricks AI** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
 # MAGIC > 2. Set the widgets **Execution** to `Here` and **Smoke test** to `true`
-# MAGIC > 3. Ask Genie Code: *Fill every GENIE SLOT cell by following the Genie Code instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
+# MAGIC > 3. Ask Databricks AI: *Fill every GENIE SLOT cell by following the Databricks AI instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
 # MAGIC > 4. Set **Smoke test** to `false` and run it again, then set **Execution** to `As job` for the scheduled runs
 # MAGIC >
-# MAGIC > Genie Code not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
+# MAGIC > Databricks AI not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
 # MAGIC
 
 # COMMAND ----------
@@ -61,7 +61,7 @@
 # MAGIC | **Primary Table** | samples.bakehouse.sales_transactions |
 # MAGIC | **Tables Involved** | samples.bakehouse.sales_transactions |
 # MAGIC | **Statement** | Top-spending customers who quietly reduce their purchase frequency or basket value represent concentrated revenue at risk, yet their decline is easy to miss amid overall transaction volume. |
-# MAGIC | **Solution** | Databricks Genie Code builds per-customer rolling spend and frequency time series from `customerID`, `totalPrice`, and `dateTime`, then applies an Isolation Forest on recent-versus-baseline behavioral features to flag high-value customers whose activity is anomalously declining. |
+# MAGIC | **Solution** | Databricks AI builds per-customer rolling spend and frequency time series from `customerID`, `totalPrice`, and `dateTime`, then applies an Isolation Forest on recent-versus-baseline behavioral features to flag high-value customers whose activity is anomalously declining. |
 # MAGIC | **Business Value** | The Customer Marketing Lead works a weekly win-back outreach queue ranked by at-risk spend, aiming to recover declining `totalPrice` from high-value `customerID` accounts and reduce silent revenue erosion [ESTIMATE: depends on `totalPrice`]. |
 # MAGIC | **Quality** | Very High |
 # MAGIC | **Quality Reasons** | Per-`customerID` features (recent spend vs trailing baseline, frequency decay, basket-size change from `totalPrice`, `quantity`, `dateTime`) feed an Isolation Forest flagging anomalous decline among top spenders. Ranking by at-risk value and ai_query explanations produce a win-back queue, recovering declining high-value `totalPrice` [ESTIMATE: depends on `totalPrice`]. |
@@ -71,11 +71,11 @@
 
 # COMMAND ----------
 
-# DBTITLE 0,Genie Code instruction
+# DBTITLE 0,Databricks AI instruction
 # MAGIC %md
-# MAGIC ## Genie Code instruction
+# MAGIC ## Databricks AI instruction
 # MAGIC
-# MAGIC > Genie Code: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
+# MAGIC > Databricks AI: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
 # MAGIC
 # MAGIC ## 1. Decision and Owner
 # MAGIC
@@ -106,7 +106,7 @@
 # MAGIC
 # MAGIC ## 6. Output Mapping
 # MAGIC
-# MAGIC Map `entity_label` to the readable customer identifier derived from `samples.bakehouse.sales_transactions.customerID` (or `customerID` itself when no label field is built). `value` is the anomaly score (VALUE_TYPE = 'anomaly score'), a unitless detector score where higher means more anomalous decline; the ranked at-risk-spend ordering is driven by this score combined with the customer's baseline `totalPrice` magnitude in Inspire's writer. `segment_or_item` holds the high-value customer segment context (for example the top-spend band the customer falls into). Each row's top reasons come from Inspire's rule-based reasons (the slot returns None), citing which signal moved most: recent-versus-baseline `totalPrice` drop, frequency decay, or basket-size (`quantity`) change. Set `data_quality_flag` to something other than ok when a scored customer has sparse or borderline reference activity, when any key signal (`totalPrice`, `quantity`, `dateTime`) was null or imputed-away for that customer, or when the current window has unusually thin coverage for that account. Priority tiers and recommended win-back actions are assigned by Inspire's rule-based writer, not by Genie Code or an LLM.
+# MAGIC Map `entity_label` to the readable customer identifier derived from `samples.bakehouse.sales_transactions.customerID` (or `customerID` itself when no label field is built). `value` is the anomaly score (VALUE_TYPE = 'anomaly score'), a unitless detector score where higher means more anomalous decline; the ranked at-risk-spend ordering is driven by this score combined with the customer's baseline `totalPrice` magnitude in Inspire's writer. `segment_or_item` holds the high-value customer segment context (for example the top-spend band the customer falls into). Each row's top reasons come from Inspire's rule-based reasons (the slot returns None), citing which signal moved most: recent-versus-baseline `totalPrice` drop, frequency decay, or basket-size (`quantity`) change. Set `data_quality_flag` to something other than ok when a scored customer has sparse or borderline reference activity, when any key signal (`totalPrice`, `quantity`, `dateTime`) was null or imputed-away for that customer, or when the current window has unusually thin coverage for that account. Priority tiers and recommended win-back actions are assigned by Inspire's rule-based writer, not by Databricks AI or an LLM.
 # MAGIC
 # MAGIC ## 7. Definition of Done
 # MAGIC
@@ -114,13 +114,13 @@
 # MAGIC - The notebook ran top to bottom in this session with run controls set to Here, and then ran as the tagged job.
 # MAGIC - The contract-check cell (last cell) printed PASSED.
 # MAGIC - No Inspire cell was edited, no thresholds were changed in code, the notebook was not renamed, and no job was created or deleted.
-# MAGIC - STOP RULE: if the readiness gate raises `InspireReadinessStop`, or `InspireNoChampion` ("No approved model yet") in Score mode, or `InspireRejected`, Genie Code must stop and show the user the plain message the gate printed, and must not lower thresholds, fabricate data, drop a check, switch tables, or edit the gate to force a pass.
+# MAGIC - STOP RULE: if the readiness gate raises `InspireReadinessStop`, or `InspireNoChampion` ("No approved model yet") in Score mode, or `InspireRejected`, Databricks AI must stop and show the user the plain message the gate printed, and must not lower thresholds, fabricate data, drop a check, switch tables, or edit the gate to force a pass.
 # MAGIC
 
 # COMMAND ----------
 
 # DBTITLE 0,Inspire harness (do not edit)
-# Inspire harness (do not edit): the tested functions every other cell uses. Genie Code fills only the cells marked GENIE SLOT.
+# Inspire harness (do not edit): the tested functions every other cell uses. Databricks AI fills only the cells marked GENIE SLOT.
 GENIE_READINESS_THRESHOLDS = {'B': {'min_rows': 1,
        'min_join_coverage': 0.8,
        'min_reference_rows': 1000,
@@ -492,7 +492,7 @@ INSPIRE_READINESS_RULES = {
 class InspireSlotNotFilled(Exception):
     def __init__(self, slot):
         self.slot = slot
-        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Genie Code to fill every cell marked GENIE SLOT, then run the notebook again.")
+        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Databricks AI to fill every cell marked GENIE SLOT, then run the notebook again.")
 
 
 class InspireReadinessStop(Exception):
@@ -2415,7 +2415,7 @@ NEXT_RUN = operationalize(CTX, CHAMPION, DRIFT_PSI, spark, SLOTS)
 # COMMAND ----------
 
 # DBTITLE 0,12. Contract check
-# 12. Contract check (Inspire, do not edit). Genie Code is done when this cell prints PASSED.
+# 12. Contract check (Inspire, do not edit). Databricks AI is done when this cell prints PASSED.
 import json
 CONTRACT = run_contract_check(spark, CTX, READINESS, allow_zero_rows=bool(EVALUATION.get("no_new_rows")))
 if CTX["is_child"]:

@@ -1013,7 +1013,7 @@ def _controls_case(agent_ns, cells=None, recorded_at=1000, modified_at=1000, **f
     inst.logger = CapturingLogger()
     uc = make_uc(genie_instruction="## Parameters\n| widget | type | default | allowed | label |\n| top_k | text | `25` |  | Top K |\n\nBuild it")
     spec_nb = inst._genie_notebook_spec(uc)
-    instruction = inst._genie_cell("code", inst._genie_instruction_cell_source(uc, uc["genie_instruction"]), "Genie Code instruction")
+    instruction = inst._genie_cell("code", inst._genie_instruction_cell_source(uc, uc["genie_instruction"]), "Databricks AI instruction")
     user = {"cell_type": "code", "metadata": {}, "source": ["def run_use_case():\n    return 'mine'\n"]}
     stale = {"cell_type": "code", "metadata": {"application/vnd.databricks.v1+cell": {"title": "Run controls (Inspire, do not edit)"}},
              "source": ["# Run controls built by an older Inspire\nmain()\n"]}
@@ -1089,10 +1089,10 @@ def test_a_notebook_the_user_edited_gets_new_run_controls_and_stays_marked_as_ed
 
 
 @pytest.mark.parametrize("cells,reason", [
-    (lambda h, i, u, s: [h, u, s], "it holds 0 'Genie Code instruction' cells, not one"),
-    (lambda h, i, u, s: [h, i, i, u, s], "it holds 2 'Genie Code instruction' cells, not one"),
+    (lambda h, i, u, s: [h, u, s], "it holds 0 'Databricks AI instruction' cells, not one"),
+    (lambda h, i, u, s: [h, i, i, u, s], "it holds 2 'Databricks AI instruction' cells, not one"),
     (lambda h, i, u, s: [h, dict(i, source=["r'''unclosed"]), u, s], "unterminated"),
-    (lambda h, i, u, s: [h, dict(i, source=["42"]), u, s], "its 'Genie Code instruction' cell is not the instruction text"),
+    (lambda h, i, u, s: [h, dict(i, source=["42"]), u, s], "its 'Databricks AI instruction' cell is not the instruction text"),
     (lambda h, i, u, s: [h, dict(i, source=["run_use_case()"]), u, s], "malformed node"),
     (lambda h, i, u, s: [h, dict(i, source=["(" * 400 + ")" * 400]), u, s], "because"),
 ], ids=["no_instruction", "two_instructions", "unparseable", "not_text", "code_not_text", "deeply_nested"])

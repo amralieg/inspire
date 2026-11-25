@@ -1,15 +1,15 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC > ## How to finish this notebook with Genie Code
+# MAGIC > ## How to finish this notebook with Databricks AI
 # MAGIC >
-# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Genie Code fills them from your data:
+# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Databricks AI fills them from your data:
 # MAGIC >
-# MAGIC > 1. Open the **Genie Code** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
+# MAGIC > 1. Open the **Databricks AI** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
 # MAGIC > 2. Set the widgets **Execution** to `Here` and **Smoke test** to `true`
-# MAGIC > 3. Ask Genie Code: *Fill every GENIE SLOT cell by following the Genie Code instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
+# MAGIC > 3. Ask Databricks AI: *Fill every GENIE SLOT cell by following the Databricks AI instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
 # MAGIC > 4. Set **Smoke test** to `false` and run it again, then set **Execution** to `As job` for the scheduled runs
 # MAGIC >
-# MAGIC > Genie Code not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
+# MAGIC > Databricks AI not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
 # MAGIC
 
 # COMMAND ----------
@@ -60,7 +60,7 @@
 # MAGIC | **Primary Table** | samples.tpcds_sf1.catalog_sales |
 # MAGIC | **Tables Involved** | samples.tpcds_sf1.catalog_sales,samples.tpcds_sf1.item |
 # MAGIC | **Statement** | Coupons and discounts are applied broadly, but their true incremental effect on item sales and profit is unclear, risking spend on promotions that cannibalize margin without lifting volume. |
-# MAGIC | **Solution** | Databricks Genie Code models the relationship between discount and coupon intensity and resulting sales quantity and profit to quantify promotion effectiveness per item category. |
+# MAGIC | **Solution** | Databricks AI models the relationship between discount and coupon intensity and resulting sales quantity and profit to quantify promotion effectiveness per item category. |
 # MAGIC | **Business Value** | The Trade Marketing Analyst reallocates promotion budget toward responsive categories, controlling discount spend in `cs_ext_discount_amt` and protecting profit in `cs_net_profit` [ESTIMATE: depends on cs_ext_discount_amt]. Profit per promotional dollar is the KPI with an increase direction. |
 # MAGIC | **Quality** | Very High |
 # MAGIC | **Quality Reasons** | Signal from `cs_ext_discount_amt`, `cs_coupon_amt`, `cs_quantity`, `cs_net_profit`, `cs_sales_price` joined to item `i_category`. Fitting Ridge regression of quantity/profit on discount and coupon intensity controlling for category/price yields elasticity coefficients, producing a profit-per-promo-dollar KPI that drives budget reallocation [ESTIMATE: depends on cs_ext_discount_amt]. |
@@ -70,11 +70,11 @@
 
 # COMMAND ----------
 
-# DBTITLE 0,Genie Code instruction
+# DBTITLE 0,Databricks AI instruction
 # MAGIC %md
-# MAGIC ## Genie Code instruction
+# MAGIC ## Databricks AI instruction
 # MAGIC
-# MAGIC > Genie Code: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
+# MAGIC > Databricks AI: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
 # MAGIC
 # MAGIC ## 1. Decision and Owner
 # MAGIC
@@ -105,7 +105,7 @@
 # MAGIC
 # MAGIC ## 6. Output Mapping
 # MAGIC
-# MAGIC Map `entity_label` to `item.i_category`. `value` is the driver effect size (the Ridge coefficient for discount or coupon intensity against the no-driver baseline), expressed as the change in profit per promotional dollar per unit of promotion intensity, VALUE_TYPE = 'effect size'. `segment_or_item` carries the `i_category` (with the driver name identifying which promotion lever). Each row's top reasons come from the model contributions: the signed coefficient, its confidence interval and corrected p-value, and the VIF flag. Set `data_quality_flag` to other than ok when a category-period group is near the 30-row minimum, when join coverage for that category is weak, or when VIF indicates unstable collinear coefficients. Priority tiers and recommended actions are assigned by Inspire's rule-based writer; do not ask Genie Code or an LLM to set them.
+# MAGIC Map `entity_label` to `item.i_category`. `value` is the driver effect size (the Ridge coefficient for discount or coupon intensity against the no-driver baseline), expressed as the change in profit per promotional dollar per unit of promotion intensity, VALUE_TYPE = 'effect size'. `segment_or_item` carries the `i_category` (with the driver name identifying which promotion lever). Each row's top reasons come from the model contributions: the signed coefficient, its confidence interval and corrected p-value, and the VIF flag. Set `data_quality_flag` to other than ok when a category-period group is near the 30-row minimum, when join coverage for that category is weak, or when VIF indicates unstable collinear coefficients. Priority tiers and recommended actions are assigned by Inspire's rule-based writer; do not ask Databricks AI or an LLM to set them.
 # MAGIC
 # MAGIC ## 7. Definition of Done
 # MAGIC
@@ -114,13 +114,13 @@
 # MAGIC - The contract-check cell (last cell) printed PASSED.
 # MAGIC - No Inspire cell was edited, no threshold was changed in code, the notebook was not renamed, and no job was created or deleted.
 # MAGIC - Only cited tables and columns from TABLES were used, with fully qualified names and no invented figures.
-# MAGIC - STOP RULE: if the readiness gate raises `InspireReadinessStop` (or `InspireNoChampion`/`InspireRejected`), Genie Code must stop, show the user the plain message the gate printed, and must not lower thresholds, fabricate data, drop a check, switch tables or edit the gate to force a pass.
+# MAGIC - STOP RULE: if the readiness gate raises `InspireReadinessStop` (or `InspireNoChampion`/`InspireRejected`), Databricks AI must stop, show the user the plain message the gate printed, and must not lower thresholds, fabricate data, drop a check, switch tables or edit the gate to force a pass.
 # MAGIC
 
 # COMMAND ----------
 
 # DBTITLE 0,Inspire harness (do not edit)
-# Inspire harness (do not edit): the tested functions every other cell uses. Genie Code fills only the cells marked GENIE SLOT.
+# Inspire harness (do not edit): the tested functions every other cell uses. Databricks AI fills only the cells marked GENIE SLOT.
 GENIE_READINESS_THRESHOLDS = {'F': {'min_rows': 1, 'min_join_coverage': 0.8, 'min_group_rows': 30, 'min_periods': 2, 'fdr_alpha': 0.05}}
 
 import re as _jl_re, os as _jl_os, hashlib as _jl_hashlib
@@ -504,7 +504,7 @@ INSPIRE_READINESS_RULES = {
 class InspireSlotNotFilled(Exception):
     def __init__(self, slot):
         self.slot = slot
-        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Genie Code to fill every cell marked GENIE SLOT, then run the notebook again.")
+        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Databricks AI to fill every cell marked GENIE SLOT, then run the notebook again.")
 
 
 class InspireReadinessStop(Exception):
@@ -2400,7 +2400,7 @@ NEXT_RUN = operationalize(CTX, CHAMPION, DRIFT_PSI, spark, SLOTS)
 # COMMAND ----------
 
 # DBTITLE 0,12. Contract check
-# 12. Contract check (Inspire, do not edit). Genie Code is done when this cell prints PASSED.
+# 12. Contract check (Inspire, do not edit). Databricks AI is done when this cell prints PASSED.
 import json
 CONTRACT = run_contract_check(spark, CTX, READINESS, allow_zero_rows=bool(EVALUATION.get("no_new_rows")))
 if CTX["is_child"]:

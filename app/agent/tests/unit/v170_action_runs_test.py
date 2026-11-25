@@ -12,7 +12,7 @@ from v170_action_cases import FIXTURE, action_once_cases, render
 from v170_action_once_test import ASKS, held_unchecked_run
 
 SERVER = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "agent", "app_shell", "server")
-SECOND_WORDING = re.compile(r"(?<!not )(?<!Genie )(?<!Genie Code )\b[Rr]ebuild (?:it|the App|the use case|the notebook|its money|those use cases|"
+SECOND_WORDING = re.compile(r"(?<!not )(?<!Genie )(?<!Databricks AI )\b[Rr]ebuild (?:it|the App|the use case|the notebook|its money|those use cases|"
                             r"that use case)\b(?! with them)(?!' if plan)|build (?:it|the notebook) again so |; try again\b|so Genie fixes it|"
                             r"retry the \{|\b[Bb]uild (?:use cases? \{[^}]*\}|this use case|that use case|those use cases|the App|the notebook|"
                             r"it) again\b(?! with Vibe/Add/Remove Features)")

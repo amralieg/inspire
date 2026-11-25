@@ -1,15 +1,15 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC > ## How to finish this notebook with Genie Code
+# MAGIC > ## How to finish this notebook with Databricks AI
 # MAGIC >
-# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Genie Code fills them from your data:
+# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Databricks AI fills them from your data:
 # MAGIC >
-# MAGIC > 1. Open the **Genie Code** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
+# MAGIC > 1. Open the **Databricks AI** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
 # MAGIC > 2. Set the widgets **Execution** to `Here` and **Smoke test** to `true`
-# MAGIC > 3. Ask Genie Code: *Fill every GENIE SLOT cell by following the Genie Code instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
+# MAGIC > 3. Ask Databricks AI: *Fill every GENIE SLOT cell by following the Databricks AI instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
 # MAGIC > 4. Set **Smoke test** to `false` and run it again, then set **Execution** to `As job` for the scheduled runs
 # MAGIC >
-# MAGIC > Genie Code not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
+# MAGIC > Databricks AI not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
 # MAGIC
 
 # COMMAND ----------
@@ -61,7 +61,7 @@
 # MAGIC | **Primary Table** | samples.tpcds_sf1.store_sales |
 # MAGIC | **Tables Involved** | samples.tpcds_sf1.store_sales,samples.tpcds_sf1.store,samples.tpcds_sf1.date_dim |
 # MAGIC | **Statement** | Store markets differ in revenue momentum and profit quality, but the retailer lacks a data-driven grouping of markets by their recent sales trajectory and profitability, making capital and promotion investment allocation ad hoc. This risks over-investing in stagnant markets and starving growing ones. |
-# MAGIC | **Solution** | Databricks Genie Code joins store_sales to store on `ss_store_sk` = `s_store_sk` and date_dim on `ss_sold_date_sk` = `d_date_sk`, engineers market-level momentum and margin features, clusters markets with K-Means, then uses ai_query to produce an investment prioritization plan. |
+# MAGIC | **Solution** | Databricks AI joins store_sales to store on `ss_store_sk` = `s_store_sk` and date_dim on `ss_sold_date_sk` = `d_date_sk`, engineers market-level momentum and margin features, clusters markets with K-Means, then uses ai_query to produce an investment prioritization plan. |
 # MAGIC | **Business Value** | The Regional Operations Director allocates investment toward high-momentum markets to grow `ss_net_paid` and improve `ss_net_profit` concentration [ESTIMATE: depends on `ss_net_paid`]. |
 # MAGIC | **Quality** | Very High |
 # MAGIC | **Quality Reasons** | Signal from `ss_net_paid`, `ss_net_profit`, `ss_quantity` joined to store (`s_market_id`, `s_state`) and date_dim (`d_year`, `d_quarter_seq`). Engineering per-market QoQ revenue growth, margin and quantity-trend features then K-Means clustering into momentum tiers produces a market-tier KPI that directly drives the investment prioritization plan [ESTIMATE: depends on `ss_net_paid`]. |
@@ -71,11 +71,11 @@
 
 # COMMAND ----------
 
-# DBTITLE 0,Genie Code instruction
+# DBTITLE 0,Databricks AI instruction
 # MAGIC %md
-# MAGIC ## Genie Code instruction
+# MAGIC ## Databricks AI instruction
 # MAGIC
-# MAGIC > Genie Code: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
+# MAGIC > Databricks AI: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
 # MAGIC
 # MAGIC ## 1. Decision and Owner
 # MAGIC
@@ -114,17 +114,17 @@
 # MAGIC
 # MAGIC ## 6. Output Mapping
 # MAGIC
-# MAGIC `entity_label` maps to the `entity_label` column (market description from `s_market_desc` with `s_state`). `value` is the profit margin measure (total `ss_net_profit` divided by total `ss_net_paid`, a unitless ratio) used to rank markets inside each segment; it is a segment measure, not a prediction. `segment_or_item` carries the model's segment number (the momentum tier assigned by the frozen champion). Each row's top reasons come from Inspire's rule-based reasons (the explanation slot returns `None`), derived from how the market's standardized features compare to its segment center. Set `data_quality_flag` to something other than ok when a market has fewer quarters than needed to compute the quarter-over-quarter growth or quantity trend, when `ss_net_paid` sums to zero (making margin undefined), or when any feature was imputed. Priority tiers and recommended actions are assigned by Inspire's rule-based writer; do not ask Genie Code or an LLM to assign them.
+# MAGIC `entity_label` maps to the `entity_label` column (market description from `s_market_desc` with `s_state`). `value` is the profit margin measure (total `ss_net_profit` divided by total `ss_net_paid`, a unitless ratio) used to rank markets inside each segment; it is a segment measure, not a prediction. `segment_or_item` carries the model's segment number (the momentum tier assigned by the frozen champion). Each row's top reasons come from Inspire's rule-based reasons (the explanation slot returns `None`), derived from how the market's standardized features compare to its segment center. Set `data_quality_flag` to something other than ok when a market has fewer quarters than needed to compute the quarter-over-quarter growth or quantity trend, when `ss_net_paid` sums to zero (making margin undefined), or when any feature was imputed. Priority tiers and recommended actions are assigned by Inspire's rule-based writer; do not ask Databricks AI or an LLM to assign them.
 # MAGIC
 # MAGIC ## 7. Definition of Done
 # MAGIC
-# MAGIC Before stopping, Genie Code verifies: every GENIE SLOT function (`measure_readiness`, `build_inputs`, `fit_candidates`, `predict`, `explanation_inputs`, and `OUTPUT_COLUMNS`/`VALUE_TYPE`) is filled with its exact names, arguments and return columns; the notebook ran top to bottom in this session with run controls set to Here and then as the tagged job; the final contract-check cell printed PASSED; no Inspire cell was edited, no threshold changed in code, and the notebook was not renamed. If the readiness gate raises `InspireReadinessStop`, `InspireNoChampion` or `InspireRejected`, Genie Code must STOP, show the user the plain message the gate printed, and must not lower thresholds, fabricate data, drop a check, switch tables or edit the gate to force a pass.
+# MAGIC Before stopping, Databricks AI verifies: every GENIE SLOT function (`measure_readiness`, `build_inputs`, `fit_candidates`, `predict`, `explanation_inputs`, and `OUTPUT_COLUMNS`/`VALUE_TYPE`) is filled with its exact names, arguments and return columns; the notebook ran top to bottom in this session with run controls set to Here and then as the tagged job; the final contract-check cell printed PASSED; no Inspire cell was edited, no threshold changed in code, and the notebook was not renamed. If the readiness gate raises `InspireReadinessStop`, `InspireNoChampion` or `InspireRejected`, Databricks AI must STOP, show the user the plain message the gate printed, and must not lower thresholds, fabricate data, drop a check, switch tables or edit the gate to force a pass.
 # MAGIC
 
 # COMMAND ----------
 
 # DBTITLE 0,Inspire harness (do not edit)
-# Inspire harness (do not edit): the tested functions every other cell uses. Genie Code fills only the cells marked GENIE SLOT.
+# Inspire harness (do not edit): the tested functions every other cell uses. Databricks AI fills only the cells marked GENIE SLOT.
 GENIE_READINESS_THRESHOLDS = {'C': {'min_rows': 1,
        'min_join_coverage': 0.8,
        'min_entities_per_k': 10,
@@ -516,7 +516,7 @@ INSPIRE_READINESS_RULES = {
 class InspireSlotNotFilled(Exception):
     def __init__(self, slot):
         self.slot = slot
-        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Genie Code to fill every cell marked GENIE SLOT, then run the notebook again.")
+        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Databricks AI to fill every cell marked GENIE SLOT, then run the notebook again.")
 
 
 class InspireReadinessStop(Exception):
@@ -2448,7 +2448,7 @@ NEXT_RUN = operationalize(CTX, CHAMPION, DRIFT_PSI, spark, SLOTS)
 # COMMAND ----------
 
 # DBTITLE 0,12. Contract check
-# 12. Contract check (Inspire, do not edit). Genie Code is done when this cell prints PASSED.
+# 12. Contract check (Inspire, do not edit). Databricks AI is done when this cell prints PASSED.
 import json
 CONTRACT = run_contract_check(spark, CTX, READINESS, allow_zero_rows=bool(EVALUATION.get("no_new_rows")))
 if CTX["is_child"]:

@@ -1,6 +1,6 @@
-"""v1.0.9 P30 Genie instruction crispness, re-based on the v1.3.0 self-contained Genie Code instruction.
+"""v1.0.9 P30 Genie instruction crispness, re-based on the v1.3.0 self-contained Databricks AI instruction.
 
-The user pastes the instruction into Genie Code and Genie Code builds and runs the whole notebook from it, so the prompt
+The user pastes the instruction into Databricks AI and Databricks AI builds and runs the whole notebook from it, so the prompt
 must ask for seven fixed sections, stay short, carry the stop rule and the definition of done, and never mention the
 retired notebook harness (GENIE SLOT cells, run controls, the contract check). The old v1.0.9 rules that caused invented
 numbers, deleted jobs and over-engineered notebooks stay banned.
@@ -98,12 +98,12 @@ def test_E_stop_rule_and_definition_of_done_are_explicit(ns):
     assert "**STOP RULE:**" in prompt and "writes nothing, and stops" in prompt and "{acceptance_stop_rule}" in prompt
     assert "No approved model yet" in ns["DatabricksInspire"]._GENIE_ACCEPTANCE_STOP["model"]
     assert "never lowers a threshold, fabricates data, drops a check or switches to other tables" in prompt
-    assert "Genie Code reads ONLY this instruction" in prompt and "the business output table has every column listed above" in prompt
+    assert "Databricks AI reads ONLY this instruction" in prompt and "the business output table has every column listed above" in prompt
     assert "Never fabricate unobserved inputs" in prompt and "Seeded sampling and seeded simulation are allowed" in prompt
 
 
 def test_F_deployed_notebook_carries_the_redesigned_prompt():
     # The prompt templates left the notebook for the pinned prompts asset (REQ-298), so the deployed text is the notebook plus its assets.
     src = "\n".join([agent_source(), *prompt_templates().values()])
-    assert "Genie Code reads ONLY this instruction" in src and "GENIE SLOT" not in src
+    assert "Databricks AI reads ONLY this instruction" in src and "GENIE SLOT" not in src
     assert "3 PARTS (A-C)" not in src

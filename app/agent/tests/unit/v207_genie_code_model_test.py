@@ -1,4 +1,4 @@
-"""Genie Code builds with the first model Unity Gateway serves to the run, checked up front, tells the user when that is not
+"""Databricks AI builds with the first model Unity Gateway serves to the run, checked up front, tells the user when that is not
 its first choice, and stops with a plain reason when no model answers; a run with no callable model stops right after the
 model check."""
 import ast
@@ -48,7 +48,7 @@ def _inspire(ns, gateway, monkeypatch):
 
 
 def _genie_steps(inst):
-    return [(e["status"], e["message"]) for e in inst.emitted if e["step_name"] == "Genie Code" and e["status"] != "started"]
+    return [(e["status"], e["message"]) for e in inst.emitted if e["step_name"] == "Databricks AI" and e["status"] != "started"]
 
 
 def test_a_gateway_without_the_first_model_builds_with_the_next_served_model_and_says_so(agent_ns, monkeypatch):
@@ -59,11 +59,11 @@ def test_a_gateway_without_the_first_model_builds_with_the_next_served_model_and
     first = agent_ns["GENIE_CODE_MODEL"]
     assert runner.model == "system.ai.glm-5-3" and gateway.checked() == [first, "system.ai.glm-5-3"]
     assert 'model = "system.ai.glm-5-3"' in runner.config_toml()
-    note = (f"Genie Code built this with system.ai.glm-5-3, because {first}, its first choice, is not served to this run through "
+    note = (f"Databricks AI built this with system.ai.glm-5-3, because {first}, its first choice, is not served to this run through "
             f"Unity Gateway (")
     assert runner.model_note.startswith(note)
     [(status, message)] = _genie_steps(inst)
-    ready = f"Genie Code {agent_ns['GENIE_CODE_CLI_VERSION']} is ready and uses the model system.ai.glm-5-3 (installed at "
+    ready = f"Databricks AI {agent_ns['GENIE_CODE_CLI_VERSION']} is ready and uses the model system.ai.glm-5-3 (installed at "
     assert status == "ended_warning" and message.startswith(ready) and f"CPU). {note}" in message
 
 
@@ -75,7 +75,7 @@ def test_the_first_model_is_kept_when_the_gateway_serves_it(agent_ns, monkeypatc
     assert runner.model == first and runner.model_note == "" and gateway.checked() == [first]
     [(status, message)] = _genie_steps(inst)
     assert status == "ended_success" and re.fullmatch(
-        rf"Genie Code {re.escape(agent_ns['GENIE_CODE_CLI_VERSION'])} is ready and uses the model {re.escape(first)} "
+        rf"Databricks AI {re.escape(agent_ns['GENIE_CODE_CLI_VERSION'])} is ready and uses the model {re.escape(first)} "
         r"\(installed at \S+ on the \w+ CPU\)", message), message
     inst._implement_runner("N01-U02")
     assert gateway.checked() == [first]
@@ -87,7 +87,7 @@ def test_no_served_model_is_a_plain_stop_that_names_every_model_tried(agent_ns, 
     with pytest.raises(agent_ns["ImplementStopped"]) as stop:
         inst._implement_runner("N01-U01")
     message = str(stop.value)
-    assert message.startswith("Genie Code is not available in this workspace: Unity Gateway serves it no AI model this run can call, "
+    assert message.startswith("Databricks AI is not available in this workspace: Unity Gateway serves it no AI model this run can call, "
                               "so the build stopped before Genie started and did not retry. Tried 2 models: ")
     assert agent_ns["GENIE_CODE_MODEL"] in message and "system.ai.glm-5-3" in message and message.endswith("then Rebuild.")
     assert "the Anthropic route lists no model" in message and "choose I will build it myself and run the notebook yourself" in message
@@ -112,15 +112,15 @@ def test_a_workspace_whose_genie_code_endpoint_answers_404_stops_before_genie_wi
     assert not agent_ns["implement_transient"](ENDPOINT_NOT_FOUND)
     gateway = Gateway([], {agent_ns["GENIE_CODE_MODEL"]: ENDPOINT_NOT_FOUND})
     inst = _inspire(agent_ns, gateway, monkeypatch)
-    monkeypatch.setattr(agent_ns["GenieCodeRunner"], "install", lambda self: pytest.fail("Genie Code never starts"))
+    monkeypatch.setattr(agent_ns["GenieCodeRunner"], "install", lambda self: pytest.fail("Databricks AI never starts"))
     with pytest.raises(agent_ns["ImplementStopped"]) as stop:
         inst._implement_runner("N02-U01")
     assert str(stop.value) == (
-        "Genie Code is not available in this workspace: Unity Gateway serves it no AI model this run can call, so the build "
+        "Databricks AI is not available in this workspace: Unity Gateway serves it no AI model this run can call, so the build "
         f"stopped before Genie started and did not retry. Tried 1 model: {agent_ns['GENIE_CODE_MODEL']} through the Codex route: "
         "Unity Gateway has no such model or endpoint here; the Codex route and the Anthropic route list no model. To build now, "
         "choose I will build it myself and run the notebook yourself. To let Inspire build it, ask a workspace admin to serve a model to "
-        "Genie Code through Unity Gateway (a model on its Codex route, or a Claude model on its Anthropic route) and give this "
+        "Databricks AI through Unity Gateway (a model on its Codex route, or a Claude model on its Anthropic route) and give this "
         "run's identity permission to query it, then Rebuild.")
     assert agent_ns["implement_known_repair"](stop.value, str(stop.value)) == {"kind": "stop", "why": ""}
     assert gateway.checked() == [agent_ns["GENIE_CODE_MODEL"]] and "please retry" not in str(stop.value)

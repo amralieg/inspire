@@ -19,7 +19,7 @@ COLUMNS = [{"column_name": "order_id", "data_type": "STRING"}, {"column_name": "
 CODE = f'orders = spark.sql("SELECT order_id, amount FROM {OLD} WHERE amount > 0")\n'
 MISSED = ("[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `amount` cannot be resolved. Did you "
           "mean one of the following? [`order_id`, `total`]")
-TITLES = ("Genie Code instruction", "Run controls (Inspire, do not edit)")
+TITLES = ("Databricks AI instruction", "Run controls (Inspire, do not edit)")
 
 
 def _cell(source, title=""):
@@ -444,7 +444,7 @@ def test_an_output_that_fails_its_checks_on_the_new_table_falls_back_to_a_genie_
     space = final["asset_status"]["genie_space"]
     assert (space["state"], space["spec_version"], space["warnings"]) == ("ready", 2, [missed.removeprefix("Genie Agent: ")])
     assert "vibes_checks" not in space, "a Genie Agent Genie rebuilt carries no checks from the one it replaced"
-    assert seen["genie"] == 1, "the Genie fallback and the App refresh share one Genie Code install"
+    assert seen["genie"] == 1, "the Genie fallback and the App refresh share one Databricks AI install"
 
 
 def test_a_data_swap_rebuilds_every_output_with_genie_and_no_output_may_read_the_replaced_table(agent_ns):

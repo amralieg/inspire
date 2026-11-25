@@ -14,13 +14,13 @@
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 ```
 
-Infuse your Data with Databricks Genie Code AI capabilities to deliver business value.
+Infuse your Data with Databricks AI capabilities to deliver business value.
 
 **Version:** v1.6.1 (Production Release)
 **Last Updated:** 2026-11-03
 
 Inspire AI reads your Unity Catalog metadata and uses a 7-phase multi-model AI agent pipeline to
-discover, score, and generate production-ready use cases: complete with Genie Code instruction
+discover, score, and generate production-ready use cases: complete with Databricks AI instruction
 notebooks, documents, and presentations.
 
 ---
@@ -38,11 +38,11 @@ check did not finish is kept but placed after the endpoints that passed it, logg
 `LLM_ENDPOINT_PROBE_ORDER FIRED`):
 
 - **Low temperature (0.0-0.2)** for precision-critical tasks like scoring, goal alignment filtering, and table classification
-- **Medium temperature (0.2-0.4)** for balanced tasks like use case generation, domain clustering, and Genie Code instructions
+- **Medium temperature (0.2-0.4)** for balanced tasks like use case generation, domain clustering, and Databricks AI instructions
 - **Higher temperature (0.4-0.5)** for creative tasks like summaries and domain discovery
 
 The agent decides which tables matter, what use cases to generate, how to score them, and produces
-goal-oriented Genie Code instructions: all without touching your actual data.
+goal-oriented Databricks AI instructions: all without touching your actual data.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -74,12 +74,12 @@ goal-oriented Genie Code instructions: all without touching your actual data.
 │   │   Context     Use Cases    Domains     & Goal Filter      │        │
 │   │                                                           │        │
 │   │   Phase 5 ──▶ Phase 6 ──▶ Phase 7                         │        │
-│   │   Genie Code  Artifacts    Translation                    │        │
+│   │   Databricks AI  Artifacts    Translation                    │        │
 │   │   Instructions                                            │        │
 │   └───────────────────────────────────────────────────────────┘        │
 │           │                                                            │
 │           ▼                                                            │
-│   Genie Code Notebooks, PDF Catalog, PPTX, Excel                      │
+│   Databricks AI Notebooks, PDF Catalog, PPTX, Excel                      │
 │                                                                        │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -821,7 +821,7 @@ selected mode.
    (`ultra_high_score_weights`; each score is the mean of both opinions when a near miss got a
    second opinion), with `bob_score` as the tie-break; domain coverage picks rank after every
    elite use case.
-9. **Genie Code for every elite use case and only for them** when widget `13_generate_genie_code_for` is not `0`, with strict table and column reference and numeric-claim validation and one uncached repair; domain coverage picks keep their skeleton notebook (Phase 5).
+9. **Databricks AI for every elite use case and only for them** when widget `13_generate_genie_code_for` is not `0`, with strict table and column reference and numeric-claim validation and one uncached repair; domain coverage picks keep their skeleton notebook (Phase 5).
 
 The bar is absolute: there is no quota, cap or padding when the bar is met. When zero use cases
 clear the bar the run does not ship empty: it returns the near misses rejected without a fatal flaw,
@@ -860,11 +860,11 @@ numbering and publishes `results_json.best_of_best` and the `Best of Best` step.
 `__inspire_usecases` gains `quality`, `quality_mode`, `elite_status`, `elite_score`,
 `elite_assessment` (JSON) and `selection_flags` (JSON).
 
-### Phase 5: Notebooks and Genie Code Instructions (v1.2.0)
+### Phase 5: Notebooks and Databricks AI Instructions (v1.2.0)
 
 Every use case gets a notebook. Discover writes a skeleton notebook for each one (the use-case
 details and a marker cell for regeneration) and captures its Genie prompt fields from live Unity
-Catalog metadata. It then generates Genie Code instructions for a selected set: the top-N by final
+Catalog metadata. It then generates Databricks AI instructions for a selected set: the top-N by final
 rank (widget `13_generate_genie_code_for`, default `0`, a number or `all`), or every elite use case in
 `Ultra High` (domain coverage picks keep their skeleton). With the default `0` no use case gets Genie
 Code in any mode, and every use case keeps its skeleton. Route 1 and Route 2 of Generate mode
@@ -872,7 +872,7 @@ regenerate exactly the use cases the user flagged.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│        PHASE 5: NOTEBOOKS AND GENIE CODE INSTRUCTIONS                  │
+│        PHASE 5: NOTEBOOKS AND DATABRICKS AI INSTRUCTIONS                  │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                        │
 │   Final ranked use cases + live Unity Catalog metadata                 │
@@ -892,7 +892,7 @@ regenerate exactly the use cases the user flagged.
 │                          ▼                                             │
 │   Genie notebook (replaces the skeleton only when an instruction is    │
 │   emitted): the use-case card with the copy line, the instruction and  │
-│   Run controls (tagged job); Genie Code builds the rest from it        │
+│   Run controls (tagged job); Databricks AI builds the rest from it        │
 │                                                                        │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -909,17 +909,17 @@ is not a registry technique fails at import.
 **Notebook cells.** Inspire writes four cells: a markdown cell with the title, a short use-case card (what it does,
 the decision and the KPI when the elite assessment found them, the tables read and the business output table, with the
 Best of Best star when the use case has one), a one-line disclaimer and
-"Copy the cell below into Genie Code without the surrounding quotes (the `r"""` and `"""` lines), and let Genie Code implement it.";
-the Genie Code instruction as a raw-string code cell (unverified names listed first,
-the KPIs, key results and KPI queries appended when the run defined them); Inspire's Number helpers, directly above Run controls: the tested `is_missing`, `fmt_num`, `fmt_count`, `fmt_rank` and `keep_reasons`, which Genie Code calls inside the steps `run_use_case()` runs and never defines itself, so every number
-is written by one tested copy; and Run controls, the last cell, which ends with `inspire_main()`. Genie Code builds every other
+"Copy the cell below into Databricks AI without the surrounding quotes (the `r"""` and `"""` lines), and let Databricks AI implement it.";
+the Databricks AI instruction as a raw-string code cell (unverified names listed first,
+the KPIs, key results and KPI queries appended when the run defined them); Inspire's Number helpers, directly above Run controls: the tested `is_missing`, `fmt_num`, `fmt_count`, `fmt_rank` and `keep_reasons`, which Databricks AI calls inside the steps `run_use_case()` runs and never defines itself, so every number
+is written by one tested copy; and Run controls, the last cell, which ends with `inspire_main()`. Databricks AI builds every other
 cell from the instruction, between the instruction and the Number helpers, below its `%pip` cell, which restarts Python:
 each build step is a function, and `run_use_case()` runs them in order. `inspire_main()` runs `run_use_case()` once, as the
 notebook's tagged Databricks job or in the session, so running the whole notebook never runs the work twice. The notebook writes only the business output table, named from the
 quoted three-level `result_table`, and, for families A-D, the model `<catalog>.<schema>.<table>_model` with the
 alias `champion`.
 
-`AGENTS.md` in the notebooks root tells Genie Code the rules for every notebook; an edited notebook
+`AGENTS.md` in the notebooks root tells Databricks AI the rules for every notebook; an edited notebook
 or `AGENTS.md` is never overwritten. With Execution = As job (the default), the Run controls
 create or update the notebook's persistent job (`dbx_inspire_ai_<slug>_<hash8>`, paused schedule at the decision cadence)
 with the `dbx_inspire_ai_*` tags and run the notebook as that job, so the Inspire dashboard registers the run.
@@ -934,7 +934,7 @@ job run; the launching run prints the outcome and exits with it, the results tab
 │             PHASE 6: SUMMARY & ARTIFACTS                               │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                        │
-│   All Scored Use Cases + Genie Code Instructions                       │
+│   All Scored Use Cases + Databricks AI Instructions                       │
 │           │                                                            │
 │           ├──────────┬──────────┬──────────┬──────────┐                │
 │           ▼          ▼          ▼          ▼          ▼                │
@@ -1027,9 +1027,9 @@ backward compatibility for all existing v0.7.2-era integrations that read a fixe
 │  └──────┬──────┘                                                       │
 │         │                                                              │
 │         ▼                                                              │
-│  ┌─────────────┐  Goal-oriented instructions for Genie Code            │
+│  ┌─────────────┐  Goal-oriented instructions for Databricks AI            │
 │  │  PHASE 5    │  Describes WHAT and WHY, Genie decides HOW            │
-│  │  Genie Code │  Includes table refs, analytical approach, rules      │
+│  │  Databricks AI │  Includes table refs, analytical approach, rules      │
 │  └──────┬──────┘                                                       │
 │         │                                                              │
 │         ▼                                                              │
@@ -1049,7 +1049,7 @@ backward compatibility for all existing v0.7.2-era integrations that read a fixe
 │  │                    OUTPUT                                    │       │
 │  │  <generation_path>/<BusinessName>/                            │       │
 │  │  ├── notebooks/                                              │       │
-│  │  │   ├── AGENTS.md                 (rules for Genie Code)    │       │
+│  │  │   ├── AGENTS.md                 (rules for Databricks AI)    │       │
 │  │  │   └── <Domain>/<Subdomain>/                               │       │
 │  │  │       ├── N01-U01 - <Name>.ipynb (Genie notebook)         │       │
 │  │  │       └── N01-U02 - <Name>.ipynb (skeleton notebook)      │       │
@@ -1092,12 +1092,12 @@ backward compatibility for all existing v0.7.2-era integrations that read a fixe
 │  07  │ Business Domains   │ no                    │ (auto-detected)      │
 │  08  │ Business Priorities│ no                    │ Increase Revenue     │
 │  09  │ Generation Instruct│ no                    │ (empty)              │
-│  10  │ Generation Options │ no                    │ Genie Code Instruct. │
+│  10  │ Generation Options │ no                    │ Databricks AI Instruct. │
 │  11  │ Strategic Context  │ no                    │ (empty)              │
 │  12  │ Generation Path    │ no                    │ ./../demos/inspire_gen/│
 │  13  │ Documents Langs    │ no                    │ English              │
 │  14  │ Inspire Session ID │ no                    │ (auto-generated)     │
-│  15  │ Genie Code For     │ no                    │ 5                    │
+│  15  │ Databricks AI For     │ no                    │ 5                    │
 │  16  │ Best of Best Count │ no                    │ (empty) = 20         │
 └──────┴────────────────────┴───────────────────────┴──────────────────────┘
 ```
@@ -1106,7 +1106,7 @@ backward compatibility for all existing v0.7.2-era integrations that read a fixe
 
 | Option                       | What It Does                                           |
 |:-----------------------------|:-------------------------------------------------------|
-| `Genie Code Instructions`   | Generate per-use-case Genie Code instruction notebooks  |
+| `Databricks AI Instructions`   | Generate per-use-case Databricks AI instruction notebooks  |
 | `PDF Catalog`                | Professional PDF documentation per language             |
 | `Presentation`               | Executive-ready PowerPoint slides per language          |
 
@@ -1251,7 +1251,7 @@ priorities, strategy entries, KPIs, key results or sponsors.
 | 8 | `DOMAIN_SPLITTER_PROMPT` | 0.3 | thinker | large | Business Domain Clustering | Split oversized mega-domains into smaller coherent groups |
 | 9 | `COMBINED_VALUE_QUALITY_SCORE_PROMPT` | 0.0 | worker | large | Use Cases Scoring | Combined single-pass scoring for both value and quality dimensions |
 | 10 | `REVIEW_USE_CASES_PROMPT` | 0.0 | worker | large | Review | 5-layer semantic deduplication. Conservative (true duplicates only, low temp) |
-| 11 | `USE_CASE_GENIE_CODE_INSTRUCTION_GEN_PROMPT` | 0.3 | worker | large | Genie Code Instructions | Write the self-contained 7-section Genie Code instruction that a user pastes into Genie Code, which builds and runs the whole notebook from it, for the Discover targets (top-N by final rank, every elite in `Ultra High`) and for flagged use cases in Generate mode; treats `[ASSUMPTION ...]` context as a hypothesis |
+| 11 | `USE_CASE_GENIE_CODE_INSTRUCTION_GEN_PROMPT` | 0.3 | worker | large | Databricks AI Instructions | Write the self-contained 7-section Databricks AI instruction that a user pastes into Databricks AI, which builds and runs the whole notebook from it, for the Discover targets (top-N by final rank, every elite in `Ultra High`) and for flagged use cases in Generate mode; treats `[ASSUMPTION ...]` context as a hypothesis |
 | 12 | `SUMMARY_GEN_PROMPT` | 0.5 | worker | large | Summary | Generate executive summary narrative |
 | 13 | `KEYWORDS_TRANSLATE_PROMPT` | 0.2 | worker | tiny | Translation | Translate UI keywords and business terminology (accuracy-first) |
 | 14 | `USE_CASE_TRANSLATE_PROMPT` | 0.3 | worker | tiny | Translation | Translate full use case content (names, statements, solutions, values) |
@@ -1559,7 +1559,7 @@ warnings simultaneously.
 
 | Artifact | Format | Location | Description |
 |:---------|:-------|:---------|:------------|
-| Use-case notebooks | `.ipynb` (Databricks notebook) | `{generation_path}/{business}/notebooks/{Domain}/{Subdomain}/{id} - {Use Case Name}.ipynb` | One notebook per use case: a skeleton (use-case details and a regeneration marker) or, when a Genie Code instruction was emitted, four cells: the title with a short use-case card and the copy line, the instruction for Genie Code (Phase 5), Inspire's Number helpers, which Genie Code calls and never defines, and Run controls, the last cell, whose `inspire_main()` runs the `run_use_case()` Genie Code builds as the notebook's tagged job; `AGENTS.md` in the notebooks root |
+| Use-case notebooks | `.ipynb` (Databricks notebook) | `{generation_path}/{business}/notebooks/{Domain}/{Subdomain}/{id} - {Use Case Name}.ipynb` | One notebook per use case: a skeleton (use-case details and a regeneration marker) or, when a Databricks AI instruction was emitted, four cells: the title with a short use-case card and the copy line, the instruction for Databricks AI (Phase 5), Inspire's Number helpers, which Databricks AI calls and never defines, and Run controls, the last cell, whose `inspire_main()` runs the `run_use_case()` Databricks AI builds as the notebook's tagged job; `AGENTS.md` in the notebooks root |
 | PDF Catalog | `.pdf` | `{generation_path}/inspire_catalog_{lang}.pdf` | Professional PDF cataloging all use cases with executive summary, domain grouping, scoring, and disclaimers. One per language. |
 | PowerPoint Presentation | `.pptx` | `{generation_path}/inspire_presentation_{lang}.pptx` | Executive-ready slides summarizing domains, priorities, and top use cases. One per language. |
 | Excel Catalog | `.xlsx` | `{generation_path}/inspire_usecases.xlsx` | Spreadsheet with all use cases, scores, metadata, tables involved, and prioritization |
@@ -1799,7 +1799,7 @@ only one representative and that representative was hard-vetoed, it is the only 
 that theme's slot. The "at least 1 per theme" rule overrides the hard-veto signal.
 
 **Impact.** Up to ~8 UCs per run (observed in tpcds_sf1) are kept despite being flagged unsafe.
-Downstream Genie Code generation still runs on these UCs, so they appear in the final PDF and
+Downstream Databricks AI generation still runs on these UCs, so they appear in the final PDF and
 Excel, indistinguishable at the catalog level from green-light UCs. The `bob_score` column in
 the tracking table does reveal them, but most users never look at raw BoB scores.
 
@@ -2084,7 +2084,7 @@ equivalent would have shipped given the same `target_max`.
 
 ### ADR-10: Parallel Route 1/2 Genie Regen Default `genie_regen_parallelism = 10` (v0.7.3)
 
-**Context.** Route 1/2 Genie regeneration re-runs Genie Code instructions for each UC after
+**Context.** Route 1/2 Genie regeneration re-runs Databricks AI instructions for each UC after
 BoB trimming. In v0.7.2 this was sequential: 100 UCs × ~3 minutes each ≈ 5 hours. For large
 catalogs with 100+ UCs the regen wall-clock dominated total pipeline runtime.
 
@@ -2175,7 +2175,7 @@ a log write never fails a call.
 ## The User Journey
 
 After Inspire finishes its 7-phase pipeline, you have a set of AI-generated use cases,
-each with Genie Code instructions, scoring, and domain classification. Here is the step-by-step
+each with Databricks AI instructions, scoring, and domain classification. Here is the step-by-step
 journey to turn these artifacts into actionable business value.
 
 ```
@@ -2240,27 +2240,27 @@ Open the generated notebooks and the Excel catalog. Each use case has:
 
 ---
 
-### Step 2: Review the Genie Code Instructions
+### Step 2: Review the Databricks AI Instructions
 
-Each Genie notebook carries a Genie Code instruction in 8 sections: goal, data, parameters (the widgets
+Each Genie notebook carries a Databricks AI instruction in 8 sections: goal, data, parameters (the widgets
 the notebook creates first, with their defaults), readiness check, build steps, method and acceptance,
 business output and definition of done, followed by Platform Rules that Inspire writes itself. Inspire has already
 checked every cited table and column against live Unity Catalog metadata, listed their joins (declared
 or inferred from column names, also when the instruction is regenerated) and added the date table of
 any table that holds its time only as a key; an instruction that kept
-unresolved references or unsupported figures lists them at its top and asks Genie Code to check them.
+unresolved references or unsupported figures lists them at its top and asks Databricks AI to check them.
 
 **What to verify:**
 - The decision, owner and cadence in the instruction's Goal section match how the business works
 - The join path, entity key, time column and outcome rule are the right ones
-- The readiness and acceptance thresholds suit the decision (to change one, tell Genie Code; it never
+- The readiness and acceptance thresholds suit the decision (to change one, tell Databricks AI; it never
   changes a threshold on its own)
 
 ---
 
-### Step 3: Finish the Notebook with Genie Code
+### Step 3: Finish the Notebook with Databricks AI
 
-Copy the instruction cell into Genie Code and let it run. Genie Code adds the cells below the
+Copy the instruction cell into Databricks AI and let it run. Databricks AI adds the cells below the
 instruction, runs the notebook on serverless compute and fixes its own code until the notebook runs
 from top to bottom; its last cell prints the readiness values, the metrics against the baseline, the
 rows written per priority tier, each step's elapsed seconds and a short summary for the decision
@@ -2269,14 +2269,14 @@ the data cannot support the use case today; it is a valid outcome and the notebo
 When no model beats its baseline ("No approved model yet"), the notebook registers no model and
 writes the baseline's rows, each with the baseline model's own score, and a forecast on stale data
 is written with every row flagged, so no
-row is 'Act now'. Without Genie Code an engineer can build the same notebook from the instruction
+row is 'Act now'. Without Databricks AI an engineer can build the same notebook from the instruction
 by hand.
 
 ---
 
 ### Step 4: Filter and Act on Results
 
-After Genie Code executes, your results will contain AI-generated columns. Use these to narrow
+After Databricks AI executes, your results will contain AI-generated columns. Use these to narrow
 down to the rows that matter most and take action.
 
 ---
@@ -2359,8 +2359,8 @@ performance and portfolio-shape tuning.
 │  1. Reads ONLY your metadata (never your data)                         │
 │  2. Uses multi-model AI cascade (6 models, automatic fallback)         │
 │  3. Runs a 7-phase pipeline: Init ▶ Generate ▶ Cluster ▶ Score ▶      │
-│     Genie Code ▶ Artifacts ▶ Translate                                 │
-│  4. Produces goal-oriented Genie Code instructions                     │
+│     Databricks AI ▶ Artifacts ▶ Translate                                 │
+│  4. Produces goal-oriented Databricks AI instructions                     │
 │  5. Delivers notebooks, PDFs, slides, and Excel                        │
 │                                                                        │
 │  Phase 4 (v0.7.2, v0.7.3 refinements, v1.2.0 modes) selects with:      │
@@ -2375,8 +2375,8 @@ performance and portfolio-shape tuning.
 │  Your job after Inspire runs:                                          │
 │                                                                        │
 │  1. Inspect  ──▶ find the use cases that matter to YOU                 │
-│  2. Review   ──▶ verify the Genie Code instructions are sound          │
-│  3. Execute  ──▶ run with Databricks Genie Code                        │
+│  2. Review   ──▶ verify the Databricks AI instructions are sound          │
+│  3. Execute  ──▶ run with Databricks AI                        │
 │  4. Act      ──▶ filter results and take action                        │
 │                                                                        │
 │  v0.7.3 highlights (additive over v0.7.2):                             │

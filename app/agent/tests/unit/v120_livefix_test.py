@@ -708,8 +708,8 @@ def test_execution_family_follows_the_build_path(agent_ns, technique, build, sig
 
 def test_a_non_elite_solution_naming_an_ai_function_runs_as_text(agent_ns):
     obj = ns_inspire(agent_ns)
-    assert obj._uc_execution_family(uc("Classification", "c.s.notes", Solution="Genie Code applies ai_classify to each note")) == "G"
-    assert obj._uc_execution_family(uc("Classification", "c.s.notes", Solution="Genie Code trains a classifier")) == "A"
+    assert obj._uc_execution_family(uc("Classification", "c.s.notes", Solution="Databricks AI applies ai_classify to each note")) == "G"
+    assert obj._uc_execution_family(uc("Classification", "c.s.notes", Solution="Databricks AI trains a classifier")) == "A"
 
 
 def test_the_genie_notebook_and_guidance_follow_the_ai_text_family(agent_ns):

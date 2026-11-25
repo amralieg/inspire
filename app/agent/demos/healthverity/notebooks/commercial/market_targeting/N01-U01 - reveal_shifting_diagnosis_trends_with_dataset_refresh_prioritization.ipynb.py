@@ -1,15 +1,15 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC > ## How to finish this notebook with Genie Code
+# MAGIC > ## How to finish this notebook with Databricks AI
 # MAGIC >
-# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Genie Code fills them from your data:
+# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Databricks AI fills them from your data:
 # MAGIC >
-# MAGIC > 1. Open the **Genie Code** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
+# MAGIC > 1. Open the **Databricks AI** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
 # MAGIC > 2. Set the widgets **Execution** to `Here` and **Smoke test** to `true`
-# MAGIC > 3. Ask Genie Code: *Fill every GENIE SLOT cell by following the Genie Code instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
+# MAGIC > 3. Ask Databricks AI: *Fill every GENIE SLOT cell by following the Databricks AI instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
 # MAGIC > 4. Set **Smoke test** to `false` and run it again, then set **Execution** to `As job` for the scheduled runs
 # MAGIC >
-# MAGIC > Genie Code not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
+# MAGIC > Databricks AI not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
 # MAGIC
 
 # COMMAND ----------
@@ -60,7 +60,7 @@
 # MAGIC | **Primary Table** | samples.healthverity.claims_sample_synthetic |
 # MAGIC | **Tables Involved** | samples.healthverity.claims_sample_synthetic |
 # MAGIC | **Statement** | The mix of conditions in the data captured by `diagnosis_code` over `date_service` shifts over time, and without tracking these trends the commercial team misses rising conditions that represent timely cohort-licensing opportunities for life-sciences clients. |
-# MAGIC | **Solution** | Databricks Genie Code tracks diagnosis-code frequency over time, decomposes trend from seasonality to surface rising and declining conditions, and prioritizes which condition datasets to refresh and promote. |
+# MAGIC | **Solution** | Databricks AI tracks diagnosis-code frequency over time, decomposes trend from seasonality to surface rising and declining conditions, and prioritizes which condition datasets to refresh and promote. |
 # MAGIC | **Business Value** | The Commercial Data Product Manager prioritizes refreshing and promoting rising-condition cohorts, increasing timely licensable offerings measured by growth in `diagnosis_code` frequency over `date_service` [ESTIMATE: depends on `diagnosis_code`]. |
 # MAGIC | **Quality** | High |
 # MAGIC | **Quality Reasons** | Signal from `diagnosis_code` frequency over `date_service` with distinct `hvid` and `claim_type` context: aggregate counts per diagnosis per month, apply STL decomposition and slope estimation to separate trend from seasonality, producing a condition_growth_slope KPI per diagnosis. ai_query interprets rising conditions and recommends refresh/promotion priorities, enabling timely licensable offerings [ESTIMATE: depends on diagnosis_code]. |
@@ -70,11 +70,11 @@
 
 # COMMAND ----------
 
-# DBTITLE 0,Genie Code instruction
+# DBTITLE 0,Databricks AI instruction
 # MAGIC %md
-# MAGIC ## Genie Code instruction
+# MAGIC ## Databricks AI instruction
 # MAGIC
-# MAGIC > Genie Code: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
+# MAGIC > Databricks AI: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
 # MAGIC
 # MAGIC ## 1. Decision and Owner
 # MAGIC This notebook changes which condition cohorts the commercial team prioritizes for dataset refresh and promotion, by surfacing which `samples.healthverity.claims_sample_synthetic.diagnosis_code` series are rising or declining over `samples.healthverity.claims_sample_synthetic.date_service`. The Commercial Data Product Manager owns this decision (sponsored by the Chief Commercial Officer); cadence is not assessed, so treat each run as a fresh single-run recompute. The KPI is growth in diagnosis-code frequency over time (direction: a rising trend with a positive, significant slope is better), measured as [ESTIMATE: depends on `samples.healthverity.claims_sample_synthetic.diagnosis_code`]. The Commercial Data Product Manager receives the ranked list of conditions with their effect sizes and corrected significance.
@@ -92,7 +92,7 @@
 # MAGIC Use statsmodels STL seasonal decomposition on each per-condition monthly series to separate trend from seasonality, then a slope-based trend test (for example Mann-Kendall or an OLS slope on the trend component) to produce a signed effect size and p-value per condition. The baseline Inspire compares against is the prior period's level for each series. Acceptance in plain words: every reported rising or declining condition must carry an effect size and must remain significant after Benjamini-Hochberg correction at fdr_alpha = 0.05; conditions that do not clear corrected significance are reported but flagged as not significant. Handle data risks as follows: missing or sparse months are the reason the readiness gate requires `periods` >= 2 and `smallest_group_rows` >= 30, so restrict STL to series meeting those minima; seasonality is removed by STL before the slope test so recurring monthly patterns are not read as trend; sparse conditions are excluded by the group-size readiness floor; `date_service` is STRING, so parse defensively and drop unparseable dates rather than guessing. No AI function call is added in these slots; Inspire's explanation and summary cells call `ai_query` on the top rows to interpret emerging conditions and suggest refresh and promotion priorities.
 # MAGIC
 # MAGIC ## 6. Output Mapping
-# MAGIC Map `entity_label` to the `diagnosis_code` (the condition identifier). `value` is the trend effect size (VALUE_TYPE = 'effect size'), expressed as the signed slope of the condition's frequency trend against the prior-period baseline; positive means rising, negative means declining. `segment_or_item` holds the series dimension, for example the diagnosis code with the metric it was measured on (distinct `hvid` per month or claim rows per month). Each row's top reasons are rule-based: the sign and magnitude of the STL trend slope, the corrected significance status, and the direction versus the prior period. Set `data_quality_flag` to something other than ok when a condition series has fewer than the readiness floor of rows, fewer than two periods of data, a high share of unparseable `date_service` values behind it, or a trend that is not significant after correction. Priority tiers and recommended refresh and promotion actions are assigned by Inspire's rule-based writer, not by Genie Code or an LLM.
+# MAGIC Map `entity_label` to the `diagnosis_code` (the condition identifier). `value` is the trend effect size (VALUE_TYPE = 'effect size'), expressed as the signed slope of the condition's frequency trend against the prior-period baseline; positive means rising, negative means declining. `segment_or_item` holds the series dimension, for example the diagnosis code with the metric it was measured on (distinct `hvid` per month or claim rows per month). Each row's top reasons are rule-based: the sign and magnitude of the STL trend slope, the corrected significance status, and the direction versus the prior period. Set `data_quality_flag` to something other than ok when a condition series has fewer than the readiness floor of rows, fewer than two periods of data, a high share of unparseable `date_service` values behind it, or a trend that is not significant after correction. Priority tiers and recommended refresh and promotion actions are assigned by Inspire's rule-based writer, not by Databricks AI or an LLM.
 # MAGIC
 # MAGIC ## 7. Definition of Done
 # MAGIC Verify that all four GENIE SLOT functions (`measure_readiness`, `build_inputs`, `analyze`, and the OUTPUT_COLUMNS or VALUE_TYPE mapping) are filled, cite only `samples.healthverity.claims_sample_synthetic` and its real columns, and return exactly the contracted keys and columns. Confirm the notebook ran top to bottom in this session with run controls set to Here and then as the tagged job, that the final contract-check cell printed PASSED, and that no Inspire cell was edited, no threshold changed in code, and no job created or deleted. If the readiness gate raises `InspireReadinessStop`, `InspireNoChampion`, or `InspireRejected`, STOP and show the user the plain message the gate printed, do not lower thresholds, fabricate data, drop a check, or switch tables to force a pass.
@@ -101,7 +101,7 @@
 # COMMAND ----------
 
 # DBTITLE 0,Inspire harness (do not edit)
-# Inspire harness (do not edit): the tested functions every other cell uses. Genie Code fills only the cells marked GENIE SLOT.
+# Inspire harness (do not edit): the tested functions every other cell uses. Databricks AI fills only the cells marked GENIE SLOT.
 GENIE_READINESS_THRESHOLDS = {'F': {'min_rows': 1, 'min_join_coverage': 0.8, 'min_group_rows': 30, 'min_periods': 2, 'fdr_alpha': 0.05}}
 
 import re as _jl_re, os as _jl_os, hashlib as _jl_hashlib
@@ -485,7 +485,7 @@ INSPIRE_READINESS_RULES = {
 class InspireSlotNotFilled(Exception):
     def __init__(self, slot):
         self.slot = slot
-        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Genie Code to fill every cell marked GENIE SLOT, then run the notebook again.")
+        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Databricks AI to fill every cell marked GENIE SLOT, then run the notebook again.")
 
 
 class InspireReadinessStop(Exception):
@@ -2381,7 +2381,7 @@ NEXT_RUN = operationalize(CTX, CHAMPION, DRIFT_PSI, spark, SLOTS)
 # COMMAND ----------
 
 # DBTITLE 0,12. Contract check
-# 12. Contract check (Inspire, do not edit). Genie Code is done when this cell prints PASSED.
+# 12. Contract check (Inspire, do not edit). Databricks AI is done when this cell prints PASSED.
 import json
 CONTRACT = run_contract_check(spark, CTX, READINESS, allow_zero_rows=bool(EVALUATION.get("no_new_rows")))
 if CTX["is_child"]:

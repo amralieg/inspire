@@ -130,7 +130,7 @@ def test_new_notebook_writes_no_genie_instruction_by_default(agent_ns, monkeypat
     widgets = FakeWidgets()
     run_cells(agent_ns, monkeypatch, widgets)
     assert widgets.get("13_generate_genie_code_for") == "0"
-    assert widgets.state["13_generate_genie_code_for"]["label"] == "15. Generate Genie Code Instruction For"
+    assert widgets.state["13_generate_genie_code_for"]["label"] == "15. Generate Databricks AI Instruction For"
 
 
 @pytest.mark.parametrize("legacy,mapped", sorted(LEGACY.items()))

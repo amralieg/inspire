@@ -1,4 +1,4 @@
-"""v1.3.0 value contract of Genie Code notebooks: an 'Act now' or 'Review' row names its own next step, tiers follow
+"""v1.3.0 value contract of Databricks AI notebooks: an 'Act now' or 'Review' row names its own next step, tiers follow
 each row's evidence, rank follows the stake, significance tests never run on a smoothed series, explanations word the
 facts the code computed, keys stay integers, a drifted output schema is repaired, the length target measures the
 text the model writes, a window over earlier or later dates is a range frame on the day number, a join leaves each
@@ -276,7 +276,7 @@ def test_the_number_rules_cases_reject_both_formatters_genie_code_wrote(agent_ns
         exec(source, ns)
         written = {value: ns["fmt_num"](value) for value in cases}
         assert {value: text for value, text in written.items() if text != cases[value]} == wrong, \
-            "all 40 Genie Code notebooks of rounds 20 to 27 wrote 110 as 11 or 999.6 as 1000"
+            "all 40 Databricks AI notebooks of rounds 20 to 27 wrote 110 as 11 or 999.6 as 1000"
 
 
 def test_a_statistical_result_is_never_written_as_a_data_quality_flag(agent_ns):
@@ -324,11 +324,11 @@ def test_a_weight_from_the_data_never_collapses_the_value_and_a_loss_never_passe
 def test_recommender_batches_are_dense_before_argpartition_and_extra_columns_are_dropped(agent_ns):
     recommender = agent_ns["TECHNIQUE_IMPLEMENTATION_GUIDANCE"]["Recommendation"]
     assert "converted to a dense array with .toarray() first, because np.argpartition does not take a sparse matrix" in recommender, \
-        "sparse cosine scores failed in np.argpartition and Genie Code had to repair the run"
+        "sparse cosine scores failed in np.argpartition and Databricks AI had to repair the run"
     inst = build_inspire(agent_ns)
     rules = inst._genie_platform_rules(inst._genie_notebook_spec(make_uc()))
     assert "keeps a column the contract does not list, NULL in the new rows, and prints which columns it changed" in rules, \
-        "a legacy extra column made Genie Code rewrite and rerun"
+        "a legacy extra column made Databricks AI rewrite and rerun"
     assert "drop a column" not in rules, "a column a user added to the output table is never deleted"
 
 
@@ -340,7 +340,7 @@ def test_a_degenerate_weight_never_filters_the_candidates_and_exit_values_are_na
     assert "every row Monitor when every row is a loss" in weight
     types = agent_ns["GENIE_DECIMAL_RULE"]
     assert "Convert numpy values to Python types with bool(), int() or float() before json.dumps or dbutils.notebook.exit" in types, \
-        "a numpy bool in the exit payload failed the last cell and Genie Code had to rerun"
+        "a numpy bool in the exit payload failed the last cell and Databricks AI had to rerun"
     assert "DATE values arrive as Python `datetime.date` objects, never Timestamps" in types, \
         "a date compared with a Timestamp failed a routing notebook's first run"
     assert "both in pandas columns and from `first()` or `collect()`" in types and "calling a Timestamp method such as `.date()`" in types, \
@@ -359,7 +359,7 @@ def test_run_id_is_one_uuid_per_notebook_run_and_never_the_mlflow_run_id(agent_n
         rules = inst._genie_platform_rules(inst._genie_notebook_spec(make_uc(**{"Analytics Technique": technique})))
         assert ("  - run_id STRING: one id per run of the use case: a uuid4 made once by the first step of `run_use_case()` and "
                 "written on every row, never the MLflow run id") in rules, \
-            "the instruction model shortened the column list to `run_id`, so only the verbatim Platform Rules reach Genie Code"
+            "the instruction model shortened the column list to `run_id`, so only the verbatim Platform Rules reach Databricks AI"
         assert "`run_id` is one uuid4" not in rules, "the column list in the Platform Rules is the one place run_id is defined"
 
 
@@ -367,7 +367,7 @@ def test_ai_query_takes_fail_on_error_as_a_named_argument_and_nan_becomes_null_o
     facts = agent_ns["GENIE_EXPLANATION_FACTS_RULE"]
     assert "When a step of the method itself calls ai_query, pass the named argument `failOnError => false`" in facts
     assert "never `named_struct('failOnError', false)`, which ai_query does not read as that option" in facts, \
-        "the struct form returned plain text instead of the result struct and Genie Code had to rewrite the extraction"
+        "the struct form returned plain text instead of the result struct and Databricks AI had to rewrite the extraction"
     inst = build_inspire(agent_ns)
     rules = inst._genie_platform_rules(inst._genie_notebook_spec(make_uc()))
     assert "replace pandas NaN with None in a copy made only for the write, so the frame the summary step uses keeps its columns and types" in rules, \
@@ -665,7 +665,7 @@ def test_round_22_per_unit_tests_take_their_minimum_from_the_test_and_never_stop
     assert "its per-unit minimum sample comes from the test, never a round number" in unit, \
         "a halo test set min_item_tickets to 30, no tail item reached it, and the run stopped with 53,999 Pareto items unwritten"
     assert ("and no readiness threshold, such as `min_group_rows` for the groups a comparison reports, sets that unit's "
-            "minimum") in unit, "Inspire's readiness thresholds stay fixed: the STOP RULE never lets Genie Code lower one"
+            "minimum") in unit, "Inspire's readiness thresholds stay fixed: the STOP RULE never lets Databricks AI lower one"
     group_rule = build_inspire(agent_ns)._genie_threshold_text(
         build_inspire(agent_ns)._genie_notebook_spec(make_uc(**{"Analytics Technique": "Pareto Analysis"})))
     assert "groups with fewer than 30 rows are left out of the group findings and counted in the summary" in group_rule, \
@@ -697,7 +697,7 @@ def test_round_22_per_unit_tests_take_their_minimum_from_the_test_and_never_stop
 def test_round_23_ratios_survive_zero_shares_keep_losing_groups_and_small_groups_never_stop_the_run(agent_ns):
     types = agent_ns["GENIE_DECIMAL_RULE"]
     assert "Serverless runs Spark SQL in ANSI mode" in types and "`F.try_divide(a, b)`" in types, \
-        "a shipping-cost ratio over a zero column raised DIVIDE_BY_ZERO and Genie Code had to rerun"
+        "a shipping-cost ratio over a zero column raised DIVIDE_BY_ZERO and Databricks AI had to rerun"
     assert "cast text with `try_cast`" in types and "replace inf with NaN" in types
     weight = agent_ns["GENIE_WEIGHT_CHECK_RULE"]
     assert ("A share, a cumulative share or a concentration (a Pareto curve, a Gini, a top-k share) needs values of one "
@@ -1811,7 +1811,7 @@ def test_round_34_the_holdout_and_the_scored_rows_are_never_checked_against_each
             "features may read the days of the holdout's outcome horizon, which are the present it is scored on, and the "
             "scoring population is never cut to pass a leakage check") in frame, \
         ("round 34: the coupon-uplift instruction checked the holdout's last date plus the horizon against the first scoring "
-         "date, the first run stopped on 'Leakage check failed: holdout horizon reaches scoring.', and Genie Code cut the "
+         "date, the first run stopped on 'Leakage check failed: holdout horizon reaches scoring.', and Databricks AI cut the "
          "scored customers from 12,608 to 721 to pass it")
     assert ("training or reference window whose last day, plus the outcome horizon when its rows carry an outcome, is not "
             "before the first day of the holdout or scored window") in frame
@@ -2294,7 +2294,7 @@ def test_round_36_a_sparse_matrix_is_scaled_by_a_diagonal_product_never_by_assig
             "rows, columns or elements, where a row assigned from a dense array stores each of its elements, zeros "
             "included") in sparse_rule, \
         ("round 36: the gift-sender notebook was killed out of memory (exit code 137) after 'Graph rows received: 72759', and "
-         "Genie Code replaced the sparse row assignment of its PageRank transition matrix with a diagonal product")
+         "Databricks AI replaced the sparse row assignment of its PageRank transition matrix with a diagonal product")
     guidance = agent_ns["TECHNIQUE_IMPLEMENTATION_GUIDANCE"]
     network = guidance["Network Analysis"]
     assert ("build the graph from the relationship columns as one scipy.sparse adjacency matrix, then compute degree, connected "
@@ -2598,7 +2598,7 @@ def test_round_38_the_column_meanings_reach_genie_code_verbatim_and_win_over_sec
         assert f"\n  - {actions}\n" in rules and f"\n{actions}" in mandate, technique
         assert "section 7 says how this use case fills each column, and where it says otherwise, these meanings win" in rules, \
             ("round 38: the writer gave a delisting notebook's value as 'effect size of the item's group concentration change', "
-             "and Genie Code, which read the column meanings only through that paraphrase, wrote 898 distinct values on "
+             "and Databricks AI, which read the column meanings only through that paraphrase, wrote 898 distinct values on "
              "107,681 item rows")
         top_reasons = next(line for line in lines if line.startswith("top_reasons "))
         assert "is given as its rank by that score alone among every row that has the score" in top_reasons, \
@@ -2630,7 +2630,7 @@ def test_round_38_a_repeated_key_keeps_every_row_and_a_baseline_that_misses_acce
         rules = inst._genie_platform_rules(spec)
         assert rules.count(baseline) == (1 if is_model else 0), technique
         assert rules.count(monitor) == (1 if is_model and predicted else 0), \
-            ("the Monitor rule for a baseline that misses acceptance reaches Genie Code for a prediction, and a measured "
+            ("the Monitor rule for a baseline that misses acceptance reaches Databricks AI for a prediction, and a measured "
              "amount keeps the tier its value_at_stake gives") + f": {technique}"
         stop = inst._genie_acceptance_stop_rule(spec)
         assert stop.count("misses the acceptance thresholds") == (1 if is_model and predicted else 0), technique
@@ -3387,13 +3387,13 @@ def test_round_43_every_step_is_written_in_full_and_a_failed_run_is_fixed_and_ru
     assert ("Write every step the instruction lists in full before the first run, the business output write and the summary "
             "step among them, also when the run will stop by the STOP RULE") in complete
     assert "never write a stub, a step whose body only raises, passes or returns a placeholder" in complete, \
-        ("round 43: the lapse notebook's first edit did not apply, Genie Code wrote fit_km, score, write_output and four more "
+        ("round 43: the lapse notebook's first edit did not apply, Databricks AI wrote fit_km, score, write_output and four more "
          "steps as functions that raise 'requires continuation', and its run failed after readiness")
     assert ("When an edit does not apply, read the notebook again and apply the same complete build, never a shorter one."
             in complete)
     assert ("A failed run is a defect to fix, never the result to report: fix the code and run again until a run returns its "
             "outcome, written or stopped by the STOP RULE.") in complete, \
-        "round 43: Genie Code reported the failed run as its result after 4.5 minutes, with no output row written"
+        "round 43: Databricks AI reported the failed run as its result after 4.5 minutes, with no output row written"
     assert complete in agent_ns["GENIE_RUN_CONTROLS_RULE"] and complete in agent_ns["GENIE_AGENTS_FILE_TEMPLATE"]
     assert ("- Run the notebook on serverless compute and fix your own code until it runs from top to bottom. " + complete + "\n"
             in agent_ns["GENIE_AGENTS_FILE_TEMPLATE"])
@@ -3522,7 +3522,7 @@ def test_round_44_a_window_labeled_by_its_first_day_is_tested_on_its_last_day(ag
             "pandas, never the label, which counts the window closed up to a month too early, so its outcomes reach into the "
             "holdout's days.") in closed, \
         ("round 44: the coupon notebook chose its training months by the month's first day plus the 90-day horizon, its leakage "
-         "check stopped the run, and Genie Code found that 'training eligibility used month-start instead of month-end'")
+         "check stopped the run, and Databricks AI found that 'training eligibility used month-start instead of month-end'")
     assert "is closed only when its last day plus that horizon is before as_of_date. A window labeled by its first day" in closed
     done = subprocess.run([sys.executable, "-c", ROUND_44_MONTH_LABEL_PROBE], capture_output=True, text=True, timeout=300)
     assert done.returncode == 0, done.stderr[-2000:]
@@ -3611,7 +3611,7 @@ def test_round_45_a_step_never_prints_its_work_as_done_in_place_of_doing_it(agen
             "did.") in complete, \
         ("round 45: the freight notebook's register step printed 'Candidate accepted; model registration is tracked in MLflow "
          "and alias champion is reserved for the approved version.' in 0.0 seconds, registered nothing and wrote 2,939 rows "
-         "with an empty model_version; Genie Code found it only by reading the log, and ran the notebook a second time")
+         "with an empty model_version; Databricks AI found it only by reading the log, and ran the notebook a second time")
     assert complete.index("prints only what it did.") < complete.index("When an edit does not apply")
     stub = {"print": lambda *a, **k: None}
     exec(ROUND_45_CLAIMED_REGISTER + ROUND_45_WRITE, stub)

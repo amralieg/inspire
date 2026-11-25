@@ -1,15 +1,15 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC > ## How to finish this notebook with Genie Code
+# MAGIC > ## How to finish this notebook with Databricks AI
 # MAGIC >
-# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Genie Code fills them from your data:
+# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Databricks AI fills them from your data:
 # MAGIC >
-# MAGIC > 1. Open the **Genie Code** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
+# MAGIC > 1. Open the **Databricks AI** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
 # MAGIC > 2. Set the widgets **Execution** to `Here` and **Smoke test** to `true`
-# MAGIC > 3. Ask Genie Code: *Fill every GENIE SLOT cell by following the Genie Code instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
+# MAGIC > 3. Ask Databricks AI: *Fill every GENIE SLOT cell by following the Databricks AI instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
 # MAGIC > 4. Set **Smoke test** to `false` and run it again, then set **Execution** to `As job` for the scheduled runs
 # MAGIC >
-# MAGIC > Genie Code not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
+# MAGIC > Databricks AI not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
 # MAGIC
 
 # COMMAND ----------
@@ -61,7 +61,7 @@
 # MAGIC | **Primary Table** | samples.nyctaxi.trips |
 # MAGIC | **Tables Involved** | samples.nyctaxi.trips |
 # MAGIC | **Statement** | Some long-distance trips return low `fare_amount` relative to `trip_distance` and elapsed duration, dragging down effective yield, but these low-yield trips are not separated from healthy ones in reporting. Uncorrected, they erode margin on every repeat. |
-# MAGIC | **Solution** | Databricks Genie Code derives fare-per-mile and fare-per-minute from `fare_amount`, `trip_distance`, `tpep_pickup_datetime` and `tpep_dropoff_datetime`, trains a Random Forest classifier to label trips as low-yield versus healthy using corridor features from `pickup_zip`/`dropoff_zip`, then uses ai_query to recommend route-level pricing corrections. |
+# MAGIC | **Solution** | Databricks AI derives fare-per-mile and fare-per-minute from `fare_amount`, `trip_distance`, `tpep_pickup_datetime` and `tpep_dropoff_datetime`, trains a Random Forest classifier to label trips as low-yield versus healthy using corridor features from `pickup_zip`/`dropoff_zip`, then uses ai_query to recommend route-level pricing corrections. |
 # MAGIC | **Business Value** | The Yield Management Analyst targets corridors generating recurring low-yield trips, aiming to raise effective fare-per-mile and reduce the share of trips classified as low-yield [ESTIMATE: depends on `fare_amount`]. |
 # MAGIC | **Quality** | Very High |
 # MAGIC | **Quality Reasons** | Yield signal from `fare_amount`, `trip_distance` and duration (`tpep_pickup_datetime`/`tpep_dropoff_datetime`) yields fare-per-mile and fare-per-minute; a Random Forest classifier using `pickup_zip`/`dropoff_zip` corridor features labels trips low-yield vs healthy, producing a low_yield_share KPI per corridor. ai_query recommends corridor pricing corrections, delivering the yield-improvement outcome [ESTIMATE: depends on fare_amount]. |
@@ -71,11 +71,11 @@
 
 # COMMAND ----------
 
-# DBTITLE 0,Genie Code instruction
+# DBTITLE 0,Databricks AI instruction
 # MAGIC %md
-# MAGIC ## Genie Code instruction
+# MAGIC ## Databricks AI instruction
 # MAGIC
-# MAGIC > Genie Code: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
+# MAGIC > Databricks AI: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
 # MAGIC
 # MAGIC ## 1. Decision and Owner
 # MAGIC
@@ -122,7 +122,7 @@
 # MAGIC
 # MAGIC ## 6. Output Mapping
 # MAGIC
-# MAGIC Map `entity_label` to the corridor string "pickup_zip->dropoff_zip" built in `build_inputs`. `VALUE_TYPE` is 'probability', so `value` is the predicted probability that the trip is low-yield (unitless, 0 to 1). `segment_or_item` carries the corridor identity (the `pickup_zip`/`dropoff_zip` pair) so the analyst can aggregate recurring low-yield corridors. Each row's top reasons come from Inspire's rule-based reasons (`explanation_inputs` returns None), surfacing the most unusual feature values such as long `trip_distance` with short duration or a low-yield corridor code. Set `data_quality_flag` to something other than ok when inputs needed for the label or features are missing or implausible: non-positive `trip_distance` or `fare_amount`, non-positive derived duration, or null `pickup_zip`/`dropoff_zip`. Priority tiers and recommended actions are assigned by Inspire's writer; do not ask Genie Code or an LLM to set them.
+# MAGIC Map `entity_label` to the corridor string "pickup_zip->dropoff_zip" built in `build_inputs`. `VALUE_TYPE` is 'probability', so `value` is the predicted probability that the trip is low-yield (unitless, 0 to 1). `segment_or_item` carries the corridor identity (the `pickup_zip`/`dropoff_zip` pair) so the analyst can aggregate recurring low-yield corridors. Each row's top reasons come from Inspire's rule-based reasons (`explanation_inputs` returns None), surfacing the most unusual feature values such as long `trip_distance` with short duration or a low-yield corridor code. Set `data_quality_flag` to something other than ok when inputs needed for the label or features are missing or implausible: non-positive `trip_distance` or `fare_amount`, non-positive derived duration, or null `pickup_zip`/`dropoff_zip`. Priority tiers and recommended actions are assigned by Inspire's writer; do not ask Databricks AI or an LLM to set them.
 # MAGIC
 # MAGIC ## 7. Definition of Done
 # MAGIC
@@ -136,7 +136,7 @@
 # COMMAND ----------
 
 # DBTITLE 0,Inspire harness (do not edit)
-# Inspire harness (do not edit): the tested functions every other cell uses. Genie Code fills only the cells marked GENIE SLOT.
+# Inspire harness (do not edit): the tested functions every other cell uses. Databricks AI fills only the cells marked GENIE SLOT.
 GENIE_READINESS_THRESHOLDS = {'A': {'min_rows': 1,
        'min_join_coverage': 0.8,
        'min_positives': 200,
@@ -511,7 +511,7 @@ INSPIRE_READINESS_RULES = {
 class InspireSlotNotFilled(Exception):
     def __init__(self, slot):
         self.slot = slot
-        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Genie Code to fill every cell marked GENIE SLOT, then run the notebook again.")
+        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Databricks AI to fill every cell marked GENIE SLOT, then run the notebook again.")
 
 
 class InspireReadinessStop(Exception):
@@ -2455,7 +2455,7 @@ NEXT_RUN = operationalize(CTX, CHAMPION, DRIFT_PSI, spark, SLOTS)
 # COMMAND ----------
 
 # DBTITLE 0,12. Contract check
-# 12. Contract check (Inspire, do not edit). Genie Code is done when this cell prints PASSED.
+# 12. Contract check (Inspire, do not edit). Databricks AI is done when this cell prints PASSED.
 import json
 CONTRACT = run_contract_check(spark, CTX, READINESS, allow_zero_rows=bool(EVALUATION.get("no_new_rows")))
 if CTX["is_child"]:

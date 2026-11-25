@@ -67,7 +67,7 @@ def _good(ns, machine="x86_64"):
 
 
 def _stop(ns, root, name, version, file, installed, why):
-    return (f"Genie Code needs {name} {version} built for the x86_64 CPU this run landed on. The installed copy {root}/{file} "
+    return (f"Databricks AI needs {name} {version} built for the x86_64 CPU this run landed on. The installed copy {root}/{file} "
             f"{installed}, and {why}. Run the Inspire installer again so it installs the Inspire {ns['__AGENT_VERSION__']} assets "
             f"into {root}, then run this again.")
 

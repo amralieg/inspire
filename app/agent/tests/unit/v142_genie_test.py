@@ -677,7 +677,7 @@ def test_a_genie_agent_of_a_use_case_that_holds_records_back_is_told_what_held_b
         [(body, _q)] = _calls_to(calls, "POST", "/api/2.0/genie/spaces")
         text = "".join(json.loads(body["serialized_space"])["instructions"]["text_instructions"][0]["content"])
         assert ("comparing the flagged records shown to people (held_back = FALSE) with the records held back (held_back = TRUE)" in text) is told
-        assert ("priority_tier 'Held back'" in runner.prompts[0]) is told, "the brief Genie Code writes from says it too"
+        assert ("priority_tier 'Held back'" in runner.prompts[0]) is told, "the brief Databricks AI writes from says it too"
         assert (SHELL_SQL.HELD_MEANING in text and SHELL_SQL.HELD_MEANING in runner.prompts[0]) is told, holdout
 
 

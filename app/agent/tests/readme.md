@@ -170,7 +170,7 @@ The agent emits step events sparsely during long LLM calls. A "frozen" step coun
 
 ### 3.3 Flag top UCs for Generate
 
-Once Discover completes and you want to generate Genie code for a subset:
+Once Discover completes and you want to generate Databricks AI for a subset:
 
 ```
 databricks api post /api/2.0/sql/statements --profile $PROFILE --json '{
@@ -1308,7 +1308,7 @@ WHERE session_id = <SESSION_ID>
 ORDER BY RAND(42)
 LIMIT 5;
 
--- Flag 3 UCs for Genie Code regeneration
+-- Flag 3 UCs for Databricks AI regeneration
 UPDATE <catalog>.<schema>.__inspire_usecases
 SET generate_genie_code_instruction = 'Yes'
 WHERE session_id = <SESSION_ID> AND id IN ('Nxx-Uyy', 'Nxx-Uyy', 'Nxx-Uyy');

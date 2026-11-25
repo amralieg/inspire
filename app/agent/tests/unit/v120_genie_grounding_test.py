@@ -1,4 +1,4 @@
-"""v1.2.0 GENIE lane: Genie Code grounding in live Unity Catalog metadata (G-02, G-04, G-13, G-17) and
+"""v1.2.0 GENIE lane: Databricks AI grounding in live Unity Catalog metadata (G-02, G-04, G-13, G-17) and
 registry-matched analytics techniques in the Genie region."""
 import os
 import sys
@@ -125,10 +125,10 @@ def test_validator_has_no_false_positives_on_the_shipped_demo_instructions(agent
         texts = []
         for path in sorted(glob.glob(os.path.join(demo, "notebooks", "**", "*.ipynb.py"), recursive=True)):
             source = open(path, encoding="utf-8", errors="ignore").read()
-            if "No Genie Code instruction has been generated" in source:
+            if "No Databricks AI instruction has been generated" in source:
                 continue
             for cell in source.split("# COMMAND ----------"):
-                if "## Genie Code instruction" in cell:
+                if "## Databricks AI instruction" in cell:
                     texts.append("\n".join(re.sub(r"^#\s*MAGIC ?", "", ln.lstrip())
                                            for ln in cell.splitlines() if ln.lstrip().startswith("# MAGIC")))
                     break

@@ -5,7 +5,7 @@ read or write its own tracking objects (session, step, lock, feedback, ailogs an
 the temp views it creates). Outside the DeepEvidence class it must never read row data from user
 tables. This test extracts every SQL statement the agent can execute through `spark.sql` /
 `_spark.sql` / `spark_session.sql` / `execute_sql` / `inspire_sql` and checks every FROM / JOIN /
-MERGE USING target and every write target. Prompt text (PROMPT_TEMPLATES, including the Genie Code
+MERGE USING target and every write target. Prompt text (PROMPT_TEMPLATES, including the Databricks AI
 SQL examples that Genie runs later in user notebooks) is not executed by the agent and is excluded.
 DeepEvidence is the only class allowed to read customer data (aggregates only, in both Discovery Types); its
 reads are collected separately and must stay inside that class. The Implement Use Cases operation
@@ -991,7 +991,7 @@ def test_guard_leaves_a_loop_over_an_unknown_sequence_unresolved():
 
 
 def test_guard_reads_copy_only_as_a_copy_into_statement():
-    prose = 'COPY_LINE = "Copy the cell below into Genie Code without the surrounding quotes, and let Genie Code implement it."\n'
+    prose = 'COPY_LINE = "Copy the cell below into Databricks AI without the surrounding quotes, and let Databricks AI implement it."\n'
     assert audit(prose)[2] == [], "a sentence that starts with Copy is not a COPY INTO statement"
     literal = "COPY_SQL = \"COPY INTO main.sales.orders FROM '/Volumes/main/raw/files' FILEFORMAT = CSV\"\n"
     assert {(kind, target) for _, kind, target, _ in audit(literal)[2]} == {("write", "main.sales.orders")}

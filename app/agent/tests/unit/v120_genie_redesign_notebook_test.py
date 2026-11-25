@@ -1,6 +1,6 @@
-"""Genie Code notebooks: Inspire writes four cells per use case (the title with the use-case card, the copy line and a
+"""Databricks AI notebooks: Inspire writes four cells per use case (the title with the use-case card, the copy line and a
 one-line disclaimer, then the self-contained instruction as a raw-string code cell, then the Number helpers, then the Run controls), the instruction carries the elite decision block, invented
-numbers go through the one repair pass, edited notebooks are never overwritten, and AGENTS.md carries the shared Genie Code
+numbers go through the one repair pass, edited notebooks are never overwritten, and AGENTS.md carries the shared Databricks AI
 rules."""
 import ast
 import json
@@ -64,7 +64,7 @@ def test_every_family_writes_the_card_the_instruction_and_the_run_controls(agent
     cls = agent_ns["DatabricksInspire"]
     assert head.startswith("# N01-U01: Use case N01-U01\n\n| | |\n|---|---|\n| **What it does** |")
     assert head.rstrip().endswith(cls._GENIE_NOTEBOOK_DISCLAIMER + "\n\n" + cls._GENIE_COPY_LINE)
-    assert nb["cells"][1]["metadata"]["application/vnd.databricks.v1+cell"]["title"] == "Genie Code instruction"
+    assert nb["cells"][1]["metadata"]["application/vnd.databricks.v1+cell"]["title"] == "Databricks AI instruction"
     tree = ast.parse(code)
     assert len(tree.body) == 1 and isinstance(tree.body[0], ast.Expr)
     assert ast.literal_eval(tree.body[0].value).strip() == instruction.strip()

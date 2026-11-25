@@ -1,4 +1,4 @@
-"""A working Genie Code relay and a working AI model call leave a line in the run's log: where the relay listens (or that Genie
+"""A working Databricks AI relay and a working AI model call leave a line in the run's log: where the relay listens (or that Genie
 Code calls Unity Gateway directly), one line per finished stream with its status, bytes and seconds, and one line per answered
 ai_query, none of them carrying the token, a URL query or the prompt."""
 import http.server
@@ -21,11 +21,11 @@ def _relay_lines(logger, level=None):
 
 
 def _started(logger):
-    return [line for line in _relay_lines(logger) if "Genie Code calls Unity Gateway" in line]
+    return [line for line in _relay_lines(logger) if "Databricks AI calls Unity Gateway" in line]
 
 
 def _finished(logger):
-    return [line for line in _relay_lines(logger) if "bytes from Genie Code and" in line]
+    return [line for line in _relay_lines(logger) if "bytes from Databricks AI and" in line]
 
 
 def _private(lines):
@@ -43,7 +43,7 @@ def test_a_relay_that_works_logs_once_where_it_listens_and_that_its_probe_stream
         assert f"through the relay on {runner.relay.base}, bound to ::1" in started[0] and runner.relay.base.startswith("http://[::1]:")
         finished = _finished(runner.logger)
         assert len(finished) == 1 and finished[0].startswith(f"[GENIE-RELAY] GET {agent_ns['UNITY_GATEWAY_MLFLOW_PATH']}/models: "
-                                                             "Unity Gateway status 200, 0 bytes from Genie Code and 12 bytes back in ")
+                                                             "Unity Gateway status 200, 0 bytes from Databricks AI and 12 bytes back in ")
         assert not _fired(runner.logger) and not _private(_relay_lines(runner.logger))
     finally:
         runner.relay.stop()
@@ -78,7 +78,7 @@ def test_genie_code_on_a_route_without_the_relay_logs_once_that_it_calls_unity_g
     runner.run("build it again", str(tmp_path / "w"))
     assert made == [] and runner.relay is None
     assert _relay_lines(runner.logger) == [
-        "[GENIE-RELAY] Genie Code calls Unity Gateway directly: databricks-gpt-5-5 through the Codex route needs no relay"]
+        "[GENIE-RELAY] Databricks AI calls Unity Gateway directly: databricks-gpt-5-5 through the Codex route needs no relay"]
 
 
 def test_switching_from_the_direct_route_to_the_relayed_route_logs_both_starts(agent_ns, tmp_path):
@@ -228,7 +228,7 @@ def test_a_gateway_that_refuses_logs_the_finished_stream_as_a_warning_with_its_s
         relay.stop()
         route.close()
     assert status == "", "a refusal other than 502 still means the relay answered"
-    finished = [(lvl, line) for lvl, line in logger.records if "bytes from Genie Code and" in line]
+    finished = [(lvl, line) for lvl, line in logger.records if "bytes from Databricks AI and" in line]
     assert len(finished) == 1 and finished[0][0] == "WARNING", logger.records
     assert finished[0][1].startswith("[GENIE-RELAY] GET /ai-gateway/mlflow/v1/models: Unity Gateway status 501, 0 bytes from")
     assert not _private([finished[0][1]])

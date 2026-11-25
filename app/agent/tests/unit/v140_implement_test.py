@@ -1,4 +1,4 @@
-"""Start Use Case MVP with Genie: the __inspire_implement spec contract, change classes, artifact checkers, the Genie Code runner
+"""Start Use Case MVP with Genie: the __inspire_implement spec contract, change classes, artifact checkers, the Databricks AI runner
 and the Implement Use Cases operation flow, offline."""
 import ast
 import base64
@@ -1191,7 +1191,7 @@ def test_a_cell_that_catches_a_permission_error_and_carries_on_is_flagged_and_on
 
 
 def test_the_cell_check_flags_a_permission_catch_only_in_genie_cells(agent_ns, sdk_stub):
-    notebook = {"cells": [_cell("Genie Code instruction", "# instruction"),
+    notebook = {"cells": [_cell("Databricks AI instruction", "# instruction"),
                           _cell(agent_ns["GENIE_NUMBER_HELPERS_TITLE"], agent_ns["GENIE_NUMBER_TEXT_SOURCE"]),
                           _cell(None, "z = fmt_num(3)\ninspire_write_summary(z, result_table, run_id, as_of_date)"),
                           _cell(None, _SWALLOW), _cell("Run controls (Inspire, do not edit)", _SWALLOW)]}
@@ -1563,7 +1563,7 @@ def _notebook_inspire(ns, workspace):
     inst = _inspire(ns, FakeSpark())
     inst.w_client = types.SimpleNamespace(workspace=workspace, config=types.SimpleNamespace(host="https://h"))
     inst._implement_notebook_paths = lambda uc, key: ("/W/acme_implemented/Sales", "/W/acme_implemented/Sales/N01-U01")
-    inst._genie_notebook_cells = lambda uc, instruction: ([_cell(None, "# header"), _cell("Genie Code instruction", instruction),
+    inst._genie_notebook_cells = lambda uc, instruction: ([_cell(None, "# header"), _cell("Databricks AI instruction", instruction),
                                                           _cell(ns["GENIE_NUMBER_HELPERS_TITLE"], "def fmt_num(x):\n    return str(x)\n"),
                                                           _cell("Run controls (Inspire, do not edit)", "main()")], {})
     inst._genie_notebook_object = lambda cells, name: {"cells": cells}
@@ -1608,7 +1608,7 @@ def test_a_notebook_counts_as_edited_only_when_inspire_cannot_have_made_the_chan
 
 
 def test_a_notebook_edited_since_inspire_built_it_is_not_overwritten_without_confirmation(agent_ns, sdk_stub, monkeypatch):
-    built = {"cells": [_cell(None, "# header"), _cell("Genie Code instruction", "old"), _cell(None, "genie step 1"),
+    built = {"cells": [_cell(None, "# header"), _cell("Databricks AI instruction", "old"), _cell(None, "genie step 1"),
                        _cell("Run controls (Inspire, do not edit)", "main()")]}
     inst, workspace, asked, spec, status = _claim(agent_ns, monkeypatch, 2000, {"modified_at": 1000, "spec_version": 3}, built=built)
     use_case = {"No": "N01-U01", "genie_instruction": "Build churn"}
@@ -1743,7 +1743,7 @@ def test_a_notebook_without_the_inspire_cells_is_rewritten_from_the_instruction(
     assert len(fresh.imported) == 1
 
 
-_INSTRUCTION, _CONTROLS = "Genie Code instruction", "Run controls (Inspire, do not edit)"
+_INSTRUCTION, _CONTROLS = "Databricks AI instruction", "Run controls (Inspire, do not edit)"
 
 
 def _owned_cells():
@@ -2404,7 +2404,7 @@ def test_number_problems_send_the_build_back_to_genie_before_any_preview(agent_n
 
 def test_the_number_check_reads_only_genie_cells_and_skips_a_notebook_it_cannot_read(agent_ns, sdk_stub):
     notebook = {"cells": [{"cell_type": "markdown", "source": ["x = str(v).rstrip('0')"]},
-                          _cell("Genie Code instruction", "y = f'{v:g}'"),
+                          _cell("Databricks AI instruction", "y = f'{v:g}'"),
                           _cell(agent_ns["GENIE_NUMBER_HELPERS_TITLE"], RULE_FORMATTERS),
                           _cell(None, "z = fmt_num(3)\ninspire_write_summary(z, result_table, run_id, as_of_date)"),
                           _cell("Run controls (Inspire, do not edit)", "w = str(v).rstrip('0')")]}
@@ -3722,7 +3722,7 @@ def test_a_genie_code_install_failure_fails_only_the_outputs_genie_builds(agent_
     inst._implement_runner = broken_runner
     inst._implement_fill_and_preview = lambda *a: pytest.fail("a retry of an output never re-runs the notebook")
     inst._implement_schedule = lambda *a: pytest.fail("a retry leaves the schedule alone")
-    inst._implement_dashboard = inst._implement_genie_space = lambda c, r: pytest.fail("nothing Genie builds runs without Genie Code")
+    inst._implement_dashboard = inst._implement_genie_space = lambda c, r: pytest.fail("nothing Genie builds runs without Databricks AI")
     inst._implement_app = lambda c, r: pytest.fail("the App is not part of this retry")
     inst._implement_alert = lambda context, runner: {"alert_id": "al-1", "alert_url": "https://h/sql/alerts-v2/al-1",
                                                      "_asset": {"check_state": "OK"}}
@@ -3732,9 +3732,9 @@ def test_a_genie_code_install_failure_fails_only_the_outputs_genie_builds(agent_
     status = inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3,
                                          "spec_json": dict(previous, retry_outputs=["dashboard", "genie_space", "alert"])},
                                         (5150, "N01-U01", 3))
-    reason = f"Genie Code could not be installed: {INSTALL_ERROR.format(version=agent_ns['__AGENT_VERSION__'])}"
+    reason = f"Databricks AI could not be installed: {INSTALL_ERROR.format(version=agent_ns['__AGENT_VERSION__'])}"
     notebook = _left_by(2)["notebook"]
-    assert status == "failed" and installs == ["N01-U01"], "Genie Code is tried once, and a dashboard that did not publish is failed, not ready"
+    assert status == "failed" and installs == ["N01-U01"], "Databricks AI is tried once, and a dashboard that did not publish is failed, not ready"
     assert inst.updates[0]["status"] == "filling" and inst.updates[0]["asset_status"] == dict(live, notebook=notebook), \
         "the version records the live outputs' state before it builds, so a failure part-way never hides them"
     final = inst.updates[-1]
@@ -3777,9 +3777,9 @@ def test_a_failed_genie_code_install_ends_its_step_with_the_reason(fresh_ns, tmp
     inst._implement_emit = lambda uc, step, message, status, *a, **k: emitted.append((step, message, status, k.get("step_id"))) or "s1"
     with pytest.raises(RuntimeError, match="manifest.json is missing"):
         inst._implement_runner("N01-U01")
-    assert emitted == [("Genie Code", "checking which AI model Genie Code can call and installing the Genie Code CLI and the "
+    assert emitted == [("Databricks AI", "checking which AI model Databricks AI can call and installing the Databricks AI CLI and the "
                                       "Databricks CLI", "started", None),
-                       ("Genie Code", f"Genie Code could not be installed: {INSTALL_ERROR.format(version=fresh_ns['__AGENT_VERSION__'])}",
+                       ("Databricks AI", f"Databricks AI could not be installed: {INSTALL_ERROR.format(version=fresh_ns['__AGENT_VERSION__'])}",
                         "ended_error", "s1")], \
         "a failed install ends its step, so the Build page never shows it still running"
 

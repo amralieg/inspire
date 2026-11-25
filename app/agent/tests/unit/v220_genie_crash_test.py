@@ -1,4 +1,4 @@
-"""Genie Code survives a dropped stream on the Anthropic route: the conversation it resends never ends in a thinking block or an
+"""Databricks AI survives a dropped stream on the Anthropic route: the conversation it resends never ends in a thinking block or an
 assistant prefill, a lost connection runs Genie again from what it wrote, and Inspire calls that a platform error it retries
 without using a repair round, never a person error."""
 import http.server
@@ -102,7 +102,7 @@ class _Proc:
 
 
 def _resuming_genie(resent):
-    """Genie Code after a dropped stream: it resends the conversation so far to the base_url its config.toml names."""
+    """Databricks AI after a dropped stream: it resends the conversation so far to the base_url its config.toml names."""
     def popen(command, env=None, **kw):
         config = tomllib.loads(open(os.path.join(env["GENIE_HOME"], "config.toml"), encoding="utf-8").read())
         base = config["model_providers"]["databricks"]["base_url"]
@@ -286,7 +286,7 @@ def test_a_relay_genie_code_cannot_get_an_answer_through_is_dropped_before_genie
         assert runner.run("build it", str(tmp_path / "w"))["exit"] == 0
         assert runner.relay is None and runner.relay_off
         base = tomllib.loads(runner.config_toml())["model_providers"]["databricks"]["base_url"]
-        assert base == "https://workspace.example.com" + agent_ns["UNITY_GATEWAY_MLFLOW_PATH"], "Genie Code calls the gateway directly"
+        assert base == "https://workspace.example.com" + agent_ns["UNITY_GATEWAY_MLFLOW_PATH"], "Databricks AI calls the gateway directly"
         fired = [line for _level, line in runner.logger.records if "[GENIE-RELAY FIRED]" in line]
         assert len(fired) == 1 and runner.relay_off in fired[0]
         runner.run("build it again", str(tmp_path / "w"))

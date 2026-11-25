@@ -199,7 +199,7 @@ def test_the_name_the_contract_tells_genie_inspire_calls_is_the_one_the_run_cont
 
 RUN_CONTROLS_DOCS = ("readme.md", os.path.join("docs", "integration-guide.md"), os.path.join("docs", "design-guide.md"),
                      os.path.join("rules", "inspire-ai-rules.csv"))
-RUN_CONTROLS_WORDS = re.compile(r"Run controls|run_use_case|Genie Code")
+RUN_CONTROLS_WORDS = re.compile(r"Run controls|run_use_case|Databricks AI")
 
 
 def _lines_naming_main(texts):

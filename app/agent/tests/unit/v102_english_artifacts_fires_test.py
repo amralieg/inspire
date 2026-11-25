@@ -13,7 +13,7 @@ long-form widget strings only:
   - agent/dbx_inspire_ai_agent.ipynb:19373 (post-notebook fallback)
 
 The v1.0.1 swarm launcher passed
-``09_generation_options=PDF,XLSX,CSV,JSON,Markdown,Genie Code`` — SHORT
+``09_generation_options=PDF,XLSX,CSV,JSON,Markdown,Databricks AI`` — SHORT
 form. None of ``PDF Catalog`` / ``Presentation`` / ``Use Cases Catalog
 PDF`` appear in that list, so the outer gates evaluated False, the doc
 function was never invoked, and Fix #4's entire inner surface was dead

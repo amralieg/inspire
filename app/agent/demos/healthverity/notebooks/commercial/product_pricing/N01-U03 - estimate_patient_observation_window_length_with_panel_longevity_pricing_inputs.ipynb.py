@@ -1,15 +1,15 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC > ## How to finish this notebook with Genie Code
+# MAGIC > ## How to finish this notebook with Databricks AI
 # MAGIC >
-# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Genie Code fills them from your data:
+# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Databricks AI fills them from your data:
 # MAGIC >
-# MAGIC > 1. Open the **Genie Code** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
+# MAGIC > 1. Open the **Databricks AI** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
 # MAGIC > 2. Set the widgets **Execution** to `Here` and **Smoke test** to `true`
-# MAGIC > 3. Ask Genie Code: *Fill every GENIE SLOT cell by following the Genie Code instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
+# MAGIC > 3. Ask Databricks AI: *Fill every GENIE SLOT cell by following the Databricks AI instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
 # MAGIC > 4. Set **Smoke test** to `false` and run it again, then set **Execution** to `As job` for the scheduled runs
 # MAGIC >
-# MAGIC > Genie Code not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
+# MAGIC > Databricks AI not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
 # MAGIC
 
 # COMMAND ----------
@@ -61,7 +61,7 @@
 # MAGIC | **Primary Table** | samples.healthverity.claims_sample_synthetic |
 # MAGIC | **Tables Involved** | samples.healthverity.claims_sample_synthetic |
 # MAGIC | **Statement** | The length of time each `hvid` remains observable in the claims stream between first and last `date_service` determines how long a patient can be followed, a key driver of the price of longitudinal cohorts. |
-# MAGIC | **Solution** | Databricks Genie Code derives per-patient first and last service dates, fits a Kaplan-Meier model treating last-observed as the event to estimate observation-window survival curves, then calls ai_query to explain retention segments and draft panel longevity pricing inputs. |
+# MAGIC | **Solution** | Databricks AI derives per-patient first and last service dates, fits a Kaplan-Meier model treating last-observed as the event to estimate observation-window survival curves, then calls ai_query to explain retention segments and draft panel longevity pricing inputs. |
 # MAGIC | **Business Value** | The Pricing Analyst uses observation-window survival estimates to set longitudinal cohort pricing tiers, increasing count of correctly-priced panels and reducing underpriced long-horizon cohorts [ESTIMATE: depends on date_service]. |
 # MAGIC | **Quality** | High |
 # MAGIC | **Quality Reasons** | Signal from per-`hvid` min/max `date_service` derives observation window; treating last-observed as the event, a Kaplan-Meier model segmented by `patient_state` and `diagnosis_code` group estimates observation_window_survival curves. ai_query explains retention segments and drafts panel longevity pricing inputs, enabling correct longitudinal cohort pricing tiers [ESTIMATE: depends on date_service]. |
@@ -71,11 +71,11 @@
 
 # COMMAND ----------
 
-# DBTITLE 0,Genie Code instruction
+# DBTITLE 0,Databricks AI instruction
 # MAGIC %md
-# MAGIC ## Genie Code instruction
+# MAGIC ## Databricks AI instruction
 # MAGIC
-# MAGIC > Genie Code: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
+# MAGIC > Databricks AI: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
 # MAGIC
 # MAGIC ## 1. Decision and Owner
 # MAGIC
@@ -131,13 +131,13 @@
 # MAGIC - The notebook ran top to bottom in this session with run controls set to Here, then ran as the tagged job.
 # MAGIC - The contract-check cell (the last cell) printed PASSED.
 # MAGIC - No Inspire cell was edited, no thresholds were changed in code, the notebook was not renamed, and no job was created or deleted; the only allowed outside edit is a pinned `%pip install` line if a Cox library is approved.
-# MAGIC - STOP RULE: if the readiness gate raises `InspireReadinessStop` (for example too few events or fewer than two closed windows), or `InspireNoChampion`, or `InspireRejected`, Genie Code must STOP and show the plain printed message, and must not lower thresholds, fabricate data, drop a check, switch tables or edit the gate.
+# MAGIC - STOP RULE: if the readiness gate raises `InspireReadinessStop` (for example too few events or fewer than two closed windows), or `InspireNoChampion`, or `InspireRejected`, Databricks AI must STOP and show the plain printed message, and must not lower thresholds, fabricate data, drop a check, switch tables or edit the gate.
 # MAGIC
 
 # COMMAND ----------
 
 # DBTITLE 0,Inspire harness (do not edit)
-# Inspire harness (do not edit): the tested functions every other cell uses. Genie Code fills only the cells marked GENIE SLOT.
+# Inspire harness (do not edit): the tested functions every other cell uses. Databricks AI fills only the cells marked GENIE SLOT.
 GENIE_READINESS_THRESHOLDS = {'A': {'min_rows': 1,
        'min_join_coverage': 0.8,
        'min_positives': 200,
@@ -532,7 +532,7 @@ INSPIRE_READINESS_RULES = {
 class InspireSlotNotFilled(Exception):
     def __init__(self, slot):
         self.slot = slot
-        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Genie Code to fill every cell marked GENIE SLOT, then run the notebook again.")
+        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Databricks AI to fill every cell marked GENIE SLOT, then run the notebook again.")
 
 
 class InspireReadinessStop(Exception):
@@ -2484,7 +2484,7 @@ NEXT_RUN = operationalize(CTX, CHAMPION, DRIFT_PSI, spark, SLOTS)
 # COMMAND ----------
 
 # DBTITLE 0,12. Contract check
-# 12. Contract check (Inspire, do not edit). Genie Code is done when this cell prints PASSED.
+# 12. Contract check (Inspire, do not edit). Databricks AI is done when this cell prints PASSED.
 import json
 CONTRACT = run_contract_check(spark, CTX, READINESS, allow_zero_rows=bool(EVALUATION.get("no_new_rows")))
 if CTX["is_child"]:
