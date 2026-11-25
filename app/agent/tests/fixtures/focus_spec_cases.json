@@ -1,0 +1,2374 @@
+{
+ "version": 1,
+ "cases": [
+  {
+   "name": "valid base",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "Start here to see the biggest gap."
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "compare",
+      "visual": {
+       "block": "trend_band",
+       "bind": {
+        "time": "when",
+        "value": "value"
+       },
+       "compare": "population"
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "done"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": []
+  },
+  {
+   "name": "valid history",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "Start here to see the biggest gap."
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "compare",
+      "visual": {
+       "block": "trend_band",
+       "bind": {
+        "time": "when",
+        "value": "value"
+       },
+       "compare": "history"
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "done"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": []
+  },
+  {
+   "name": "valid cohort",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "Start here to see the biggest gap."
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "compare",
+      "visual": {
+       "block": "trend_band",
+       "bind": {
+        "time": "when",
+        "value": "value"
+       },
+       "compare": "cohort"
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "done"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": []
+  },
+  {
+   "name": "one step",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "Start here to see the biggest gap."
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "done"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": [
+    "steps: count"
+   ]
+  },
+  {
+   "name": "six steps",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "Start here to see the biggest gap."
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s4",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s5",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s6",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "done"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": [
+    "steps: count"
+   ]
+  },
+  {
+   "name": "last step not decide",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "Start here to see the biggest gap."
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "compare",
+      "visual": {
+       "block": "trend_band",
+       "bind": {
+        "time": "when",
+        "value": "value"
+       },
+       "compare": "population"
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "done"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": [
+    "steps[2].kind: last_step_decide"
+   ]
+  },
+  {
+   "name": "unknown block",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "Start here to see the biggest gap."
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "pie",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "compare",
+      "visual": {
+       "block": "trend_band",
+       "bind": {
+        "time": "when",
+        "value": "value"
+       },
+       "compare": "population"
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "done"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": [
+    "steps[0].visual.block: unknown_block"
+   ]
+  },
+  {
+   "name": "bound column missing",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "Start here to see the biggest gap."
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "nope"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "compare",
+      "visual": {
+       "block": "trend_band",
+       "bind": {
+        "time": "when",
+        "value": "value"
+       },
+       "compare": "population"
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "done"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": [
+    "steps[0].visual.bind.value: unknown_column"
+   ]
+  },
+  {
+   "name": "number role on string column",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "Start here to see the biggest gap."
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "label"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "compare",
+      "visual": {
+       "block": "trend_band",
+       "bind": {
+        "time": "when",
+        "value": "value"
+       },
+       "compare": "population"
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "done"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": [
+    "steps[0].visual.bind.value: column_type"
+   ]
+  },
+  {
+   "name": "question over 12 words",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "Start here to see the biggest gap."
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w12",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "compare",
+      "visual": {
+       "block": "trend_band",
+       "bind": {
+        "time": "when",
+        "value": "value"
+       },
+       "compare": "population"
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "done"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": [
+    "steps[0].question: words_max"
+   ]
+  },
+  {
+   "name": "tour line over 14 words",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w12 w13 w14"
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "compare",
+      "visual": {
+       "block": "trend_band",
+       "bind": {
+        "time": "when",
+        "value": "value"
+       },
+       "compare": "population"
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "done"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": [
+    "tour[0].line: words_max"
+   ]
+  },
+  {
+   "name": "six tour stops",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w0",
+      "line": "Look here."
+     },
+     {
+      "target": "w1",
+      "line": "Look here."
+     },
+     {
+      "target": "w2",
+      "line": "Look here."
+     },
+     {
+      "target": "w3",
+      "line": "Look here."
+     },
+     {
+      "target": "w4",
+      "line": "Look here."
+     },
+     {
+      "target": "w5",
+      "line": "Look here."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "compare",
+      "visual": {
+       "block": "trend_band",
+       "bind": {
+        "time": "when",
+        "value": "value"
+       },
+       "compare": "population"
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "done"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": [
+    "tour: count"
+   ]
+  },
+  {
+   "name": "decide action not in set",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "Start here to see the biggest gap."
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "compare",
+      "visual": {
+       "block": "trend_band",
+       "bind": {
+        "time": "when",
+        "value": "value"
+       },
+       "compare": "population"
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "delete_all"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": [
+    "decide.choices[0].action: action_not_allowed"
+   ]
+  },
+  {
+   "name": "cohort without cohort_column",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "Start here to see the biggest gap."
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     }
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "compare",
+      "visual": {
+       "block": "trend_band",
+       "bind": {
+        "time": "when",
+        "value": "value"
+       },
+       "compare": "cohort"
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "done"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": [
+    "steps[1].visual.compare: cohort_column_required"
+   ]
+  },
+  {
+   "name": "history without date column",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "Start here to see the biggest gap."
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "compare",
+      "visual": {
+       "block": "trend_band",
+       "bind": {
+        "time": "label",
+        "value": "value"
+       },
+       "compare": "history"
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "done"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "before": "number",
+    "after": "number",
+    "when": "string"
+   },
+   "expect": [
+    "steps[1].visual.bind.time: column_type",
+    "steps[1].visual.compare: date_column_required"
+   ]
+  },
+  {
+   "name": "answer template over 20 words",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "Start here to see the biggest gap."
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w12 w13 w14 w15 w16 w17 w18 w19 w20",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "compare",
+      "visual": {
+       "block": "trend_band",
+       "bind": {
+        "time": "when",
+        "value": "value"
+       },
+       "compare": "population"
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "done"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": [
+    "steps[0].answer_template: words_max"
+   ]
+  },
+  {
+   "name": "unknown motion",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "Start here to see the biggest gap."
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "spin",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "compare",
+      "visual": {
+       "block": "trend_band",
+       "bind": {
+        "time": "when",
+        "value": "value"
+       },
+       "compare": "population"
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "done"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": [
+    "steps[0].motion: unknown_motion"
+   ]
+  },
+  {
+   "name": "one suggested question",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "Start here to see the biggest gap."
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "compare",
+      "visual": {
+       "block": "trend_band",
+       "bind": {
+        "time": "when",
+        "value": "value"
+       },
+       "compare": "population"
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "done"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": [
+    "steps[0].ask: count"
+   ]
+  },
+  {
+   "name": "custom action set accepts its action",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "Start here to see the biggest gap."
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "compare",
+      "visual": {
+       "block": "trend_band",
+       "bind": {
+        "time": "when",
+        "value": "value"
+       },
+       "compare": "population"
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "approve"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": [],
+   "actions": [
+    "approve",
+    "assign"
+   ]
+  },
+  {
+   "name": "missing role",
+   "spec": {
+    "version": 1,
+    "technique_kind": "anomaly",
+    "tour": [
+     {
+      "target": "w1",
+      "line": "Start here to see the biggest gap."
+     },
+     {
+      "target": "w2",
+      "line": "Then check the trend."
+     }
+    ],
+    "queue": {
+     "filter": "tier in (1,2)",
+     "order": {
+      "column": "value",
+      "direction": "desc"
+     },
+     "cohort_column": "group"
+    },
+    "steps": [
+     {
+      "id": "s1",
+      "question": "Where does this record stand now?",
+      "kind": "show",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s2",
+      "question": "Where does this record stand now?",
+      "kind": "compare",
+      "visual": {
+       "block": "trend_band",
+       "bind": {
+        "time": "when",
+        "value": "value"
+       },
+       "compare": "population"
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     },
+     {
+      "id": "s3",
+      "question": "Where does this record stand now?",
+      "kind": "decide",
+      "visual": {
+       "block": "ranked_bars",
+       "bind": {
+        "label": "label",
+        "value": "value"
+       }
+      },
+      "answer_template": "{what} is {value} against a normal of {normal}.",
+      "terms": [
+       "Score"
+      ],
+      "motion": "build",
+      "ask": [
+       "Why is this one high?",
+       "Who else looks like this?"
+      ]
+     }
+    ],
+    "decide": {
+     "choices": [
+      {
+       "label": "Mark done",
+       "detail": "Close it, the gap is explained.",
+       "action": "done"
+      },
+      {
+       "label": "Assign to owner",
+       "detail": "Someone else should look.",
+       "action": "assign",
+       "needs_note": true
+      }
+     ]
+    }
+   },
+   "columns": {
+    "label": "string",
+    "group": "string",
+    "value": "number",
+    "when": "date",
+    "before": "number",
+    "after": "number"
+   },
+   "expect": [
+    "steps[0].visual.bind.label: missing_role"
+   ]
+  }
+ ]
+}
