@@ -28,7 +28,7 @@ function launchWorkspaceAnswer({ insertFails = false, ledgerFails = false, cance
       const statement = statementOf(call);
       if (/__inspire_launch/.test(statement) && ledgerFails) return [500, { error_code: 'INTERNAL_ERROR', message: 'warehouse did not answer' }];
       if (/^INSERT INTO .*__inspire_launch/.test(statement) && insertFails) return [500, { error_code: 'INTERNAL_ERROR', message: 'ledger write refused' }];
-      if (/^SELECT launched_by FROM/.test(statement)) {
+      if (/^SELECT (?:run_id, session_id, )?launched_by FROM/.test(statement)) {
         if (call.token !== SP_TOKEN) return [401, { error_code: 'UNAUTHENTICATED', message: NO_CREDENTIAL }];
         return sqlOk(['launched_by'], [[PERSON]]);
       }

@@ -140,14 +140,15 @@ test('run status and output answer only for runs recorded in the App database; a
     assert.deepEqual(S.state.calls.filter((c) => c.path.startsWith('/api/2.1/jobs')), [], `${route} never asked the Jobs API`);
   }
   S.reset({ launchers: { 501: 'launcher@example.com' } });
-  const own = await S.request('GET', '/api/run/501', { person: NONOWNER });
+  // SEC-02 (5ff80186c): run status goes through the session check, so a person who did not launch the run no longer reads it; the launcher does.
+  const own = await S.request('GET', '/api/run/501', { person: 'launcher@example.com' });
   assert.equal(own.status, 200, own.text);
   assert.deepEqual(tokensTo('/api/2.1/jobs/runs/get'), [APP_TOKEN]);
 });
 
 test('a Databricks refusal on a run read answers in plain words and never sends the API body (REQ-184 sweep)', async () => {
   S.reset({ launchers: { 501: 'launcher@example.com' }, runStates: {} });
-  const got = await S.request('GET', '/api/run/501', { person: NONOWNER });
+  const got = await S.request('GET', '/api/run/501', { person: 'launcher@example.com' });
   assert.equal(got.status, 404, got.text);
   assert.equal(got.data.error, 'Inspire could not read run 501: Run 501 does not exist.');
   assert.doesNotMatch(got.text, /error_code|RESOURCE_DOES_NOT_EXIST|request_id/);

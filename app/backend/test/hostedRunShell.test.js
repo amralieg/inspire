@@ -112,8 +112,8 @@ test('a decision on a real page Inside Inspire reaches the page\'s own shell, wh
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hosted-decide-'));
   const warehouse = await fakeWarehouse();
   const table = 'main.pricing.loss_desk_out';
-  const built = shellFolder(ROOT, { settings: { host: 'inspire', options: { modify: false, replace_edits: false, decisions: true } }, page: { result_table: table } });
-  const old = shellFolder(OLD_ROOT, { settings: { host: 'inspire', options: { modify: false, replace_edits: false, decisions: true } }, page: { result_table: table } });
+  const built = shellFolder(ROOT, { settings: { host: 'inspire', sources: [table], options: { modify: false, replace_edits: false, decisions: true } }, page: { result_table: table } });
+  const old = shellFolder(OLD_ROOT, { settings: { host: 'inspire', sources: [table], options: { modify: false, replace_edits: false, decisions: true } }, page: { result_table: table } });
   old.files[`${OLD_ROOT}/shell_core.py`] = Buffer.from('BUILT_BEFORE = True\n');
   const hosted = H.createHostedRun({
     files: () => workspaceOf({ ...built.files, ...old.files }),
@@ -143,7 +143,10 @@ test('a decision on a real page Inside Inspire reaches the page\'s own shell, wh
     const unread = await act(record.id);
     assert.equal(unread.status, 403, unread.text);
     assert.match(JSON.parse(unread.text).error, /^Nothing was saved: you cannot read this record in Unity Catalog/);
-    const sql = warehouse.calls.filter((c) => c.url === '/api/2.0/sql/statements');
+    // SEC-02 (7800bf1a6): the viewer gate runs inside Inspire too, so the viewer's own token makes one LIMIT 0 probe per source table; every other read is the App's.
+    const probes = warehouse.calls.filter((c) => c.url === '/api/2.0/sql/statements' && /^SELECT 1 FROM .* LIMIT 0$/.test(JSON.parse(c.body).statement));
+    assert.ok(probes.length > 0 && probes.every((c) => c.authorization === 'Bearer fake-user-token'), 'the viewer gate probes the source tables with the viewer\'s own token');
+    const sql = warehouse.calls.filter((c) => c.url === '/api/2.0/sql/statements' && !probes.includes(c));
     assert.ok(sql.length > 0, 'the shell read the record before writing');
     assert.deepEqual([...new Set(sql.map((c) => c.authorization))], ['Bearer inspire-own-token'], 'only the App\'s token reads, never the viewer\'s');
     assert.deepEqual([...new Set(sql.map((c) => JSON.parse(c.body).warehouse_id))], ['wh2']);

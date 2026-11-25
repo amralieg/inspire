@@ -97,7 +97,7 @@ async function launch(grantAnswer, aclAnswer = [200, {}]) {
     if (url.pathname === '/api/2.1/jobs/create') return [200, { job_id: 1111111111111111 }];
     if (url.pathname === '/api/2.0/permissions/jobs/1111111111111111') return call.method === 'GET' ? aclAnswer : grantAnswer;
     if (url.pathname === '/api/2.0/sql/statements') {
-      const launcher = /^SELECT launched_by FROM/.test(String(call.body?.statement || ''));
+      const launcher = /^SELECT (?:run_id, session_id, )?launched_by FROM/.test(String(call.body?.statement || ''));
       return [200, { statement_id: 's1', status: { state: 'SUCCEEDED' }, manifest: { schema: { columns: [{ name: 'launched_by' }] } }, result: { data_array: launcher ? [[PERSON]] : [] } }];
     }
     if (url.pathname === '/api/2.1/jobs/runs/get') return [200, { run_id: 99, run_name: 'Inspire AI - Acme', state: { life_cycle_state: 'RUNNING' } }];
