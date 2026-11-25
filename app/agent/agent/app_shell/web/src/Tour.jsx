@@ -69,7 +69,7 @@ export default function Tour({ tour, help = null, facts, queue, section, onSecti
     if (!step) return undefined;
     window.dispatchEvent(new CustomEvent('inspire:tour-step', { detail: step.anchor }));
     const wanted = step.el ? null : tourSection(step.anchor, tour, queue);
-    if (wanted && wanted !== section) {
+    if (wanted && parseHash(window.location.hash).section !== wanted) {
       onSection(wanted);
       return undefined;
     }
