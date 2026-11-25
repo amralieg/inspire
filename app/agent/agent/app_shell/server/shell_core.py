@@ -3145,7 +3145,8 @@ class Shell:
         sources = [str(t) for t in self.settings.get("sources") or [] if str(t).strip()]
         if not sources:
             # SEC-02 F1: an App that names no source tables cannot be checked, so it serves no data (fail closed).
-            raise HttpError(403, "This App does not list the tables it reads, so it cannot check that you may see its data. Ask its owner to rebuild it.")
+            raise HttpError(403, "This App does not list the tables it reads, so it cannot check that you may see its data. "
+                            f"Ask its owner to {shell_sql.rebuild_action('the App')} so it lists them.")
         token = headers.get("x-forwarded-access-token")
         if not token:
             raise HttpError(401, "sign in to the workspace to see this App; it shows data only to people who may read every table it uses")
