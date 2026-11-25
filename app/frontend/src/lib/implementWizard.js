@@ -267,7 +267,15 @@ export function appStorageText(spec, offer) {
   return backend === 'lakebase' ? 'Fast pages (Lakebase)' : `Delta, because ${why}`;
 }
 
+// REQ-528b: true while the Lakebase check has not answered and the App could still use it. Build waits; no spec carries a backend decided by a pending check.
+export function storageChecking(spec, offer) {
+  return appStorageOf(spec, offer).checking === true;
+}
+
+export const LAKEBASE_BUILD_WAIT = 'Checking whether Lakebase is available';
+
 export function specWithBackend(spec, offer) {
+  if (storageChecking(spec, offer)) return !spec.outputs.app_backend ? spec : { ...spec, outputs: { ...spec.outputs, app_backend: '' } };
   const backend = appBackendOf(spec, offer);
   return !spec?.outputs?.app || backend === spec.outputs.app_backend ? spec : { ...spec, outputs: { ...spec.outputs, app_backend: backend } };
 }

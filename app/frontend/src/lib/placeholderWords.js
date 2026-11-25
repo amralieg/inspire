@@ -1,3 +1,5 @@
+import { aiWording } from './aiWording.js';
+
 export const PLACEHOLDER_WORDS = {
   placeholder_baseline: 'the current value',
   placeholder_baseline_note: 'the current value ({detail})',
@@ -14,7 +16,7 @@ const UNSET_TARGET = /\[\s*TARGET\s*\]/i;
 const KPI_REF = /^K\d+$/i;
 
 export function placeholderWords(text) {
-  return String(text ?? '').replace(TAG, (_all, rawTag, rawNote) => {
+  return aiWording(text).replace(TAG, (_all, rawTag, rawNote) => {
     const tag = rawTag.toUpperCase();
     const note = String(rawNote ?? '').split(/\s+/).filter(Boolean).join(' ');
     let key = `placeholder_${tag.toLowerCase()}`;

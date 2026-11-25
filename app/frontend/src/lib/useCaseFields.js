@@ -1,4 +1,8 @@
 import { normalizeDatabricksFsPath } from './workspaceLinks.js';
+import { aiWording } from './aiWording.js';
+import { placeholderWords } from './placeholderWords.js';
+
+export { aiWording };
 
 export const PRIORITY_ORDER = [
   'Ultra High',
@@ -79,7 +83,7 @@ export function hasShippedGenieCode(uc) {
   if (!uc || typeof uc !== 'object') return false;
   if (uc.has_genie_code_flag === true) return true;
   const h = String(uc.has_genie_code ?? uc['Has Genie Code'] ?? '').trim().toUpperCase();
-  if (h === 'Y' || h === 'YES') return true;
+  if (h === 'Y' || h === 'YES' || h === 'TRUE') return true;
   const gi = String(uc.genie_instruction ?? '').trim();
   return gi.length > 120;
 }
@@ -182,7 +186,7 @@ function columnCountsText(list) {
 }
 
 export function plainReason(text) {
-  return String(text ?? '').replace(COLUMN_COUNTS, (_m, list) => `(${columnCountsText(list)})`).replace(TRAILING_CHECK_NAME, '')
+  return aiWording(text).replace(COLUMN_COUNTS, (_m, list) => `(${columnCountsText(list)})`).replace(TRAILING_CHECK_NAME, '')
     .replace(CHECK_CODE_IN_PARENS, '').replace(RAW_CHECK_CODE, '')
     .replace(/\s{2,}/g, ' ').replace(/\s+([,;:])/g, '$1').replace(/(?:[,;:]\s*)+$/, '').replace(/\bby$/, 'by a quality check').trim();
 }
@@ -258,9 +262,20 @@ export function computeHighPriorityCount(list) {
   return list.filter(isHighPriority).length;
 }
 
+// The side panel's three prose fields, as shown.
+export function sidePanelTextOf(uc) {
+  const u = uc && typeof uc === 'object' ? uc : {};
+  const text = (v) => (v == null ? '' : placeholderWords(String(v).replace(/<[^>]*>/g, ' ')).replace(/\s{2,}/g, ' ').trim());
+  return {
+    statement: text(fieldOf(u, 'Statement', 'statement') || u.description || u.problem_statement),
+    solution: text(fieldOf(u, 'Solution', 'solution')),
+    businessValue: text(fieldOf(u, 'Business Value', 'business_value') || u.business_impact),
+  };
+}
+
 export function displayCleanText(s) {
   if (s == null) return '';
-  let t = String(s).replace(/<[^>]*>/g, ' ');
+  let t = aiWording(String(s)).replace(/<[^>]*>/g, ' ');
   try {
     t = t.replace(/\p{Extended_Pictographic}|\p{Emoji_Presentation}/gu, '');
   } catch {

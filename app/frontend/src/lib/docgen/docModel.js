@@ -1,11 +1,12 @@
 // FX-113 (REQ-503): the one plain model every document (SVG, PowerPoint, Excel) is drawn from.
-import { fieldOf, inspireScoreFromUc, trackingIdOf, scoreOf } from '../useCaseFields.js';
+import { aiWording, fieldOf, inspireScoreFromUc, trackingIdOf, scoreOf } from '../useCaseFields.js';
 import { moneyText } from '../valueWizard.js';
 
 export const RTL_LANGUAGES = ['Arabic', 'Hebrew', 'Persian', 'Farsi', 'Urdu'];
 export const isRtl = (language) => RTL_LANGUAGES.includes(language);
 
-const clean = (v) => String(v ?? '').trim();
+// REQ-529c: every text in a document (PDF, PowerPoint, Excel) goes through the wording rule, so older runs never print the retired product name.
+const clean = (v) => aiWording(v).trim();
 const tablesOf = (uc) => clean(fieldOf(uc, 'Tables Involved', 'tables_involved')).split(/[,;\n]+/).map((t) => t.trim()).filter(Boolean);
 
 export const STORY_NOT_APPROVED = 'Story not approved yet';

@@ -1,4 +1,4 @@
-import { fieldOf, isBlankField, plainReason } from './useCaseFields.js';
+import { aiWording, fieldOf, isBlankField, plainReason } from './useCaseFields.js';
 import { KPI_BASELINE_MISMATCH, KPI_FILTER_MISMATCH_TEXT, kpiFilterMismatch, kpiFilterShown } from './kpiFilter.js';
 import { placeholderWords } from './placeholderWords.js';
 import { useCaseKindView } from './useCaseKind.js';
@@ -108,7 +108,7 @@ function dataSignalOf(evidence) {
     check: String(signal.check ?? '').trim(),
     table: String(signal.table ?? '').trim(),
     columns: signal.columns && typeof signal.columns === 'object' && !Array.isArray(signal.columns) ? signal.columns : {},
-    reason: String(signal.reason ?? '').trim(),
+    reason: aiWording(signal.reason).trim(),
   };
 }
 
@@ -146,7 +146,7 @@ export function valueEstimateOf(uc) {
 export function v130View(uc) {
   const u = uc && typeof uc === 'object' ? uc : {};
   const alignments = objectList(fieldOf(u, 'Strategy Alignment', 'strategy_alignment'))
-    .map((a) => ({ id: String(a.id ?? '').trim(), path: String(a.path ?? '').trim(), evidence: String(a.evidence ?? '').trim() }))
+    .map((a) => ({ id: String(a.id ?? '').trim(), path: String(a.path ?? '').trim(), evidence: aiWording(a.evidence).trim() }))
     .filter((a) => a.path);
   const pathText = String(fieldOf(u, 'Strategy Path', 'strategy_path') ?? '').trim();
   let paths = alignments.map((a) => a.path);
@@ -176,7 +176,7 @@ export function v130View(uc) {
     paths,
     hasStrategyData,
     notAligned: hasStrategyData && paths.length === 0,
-    priorityText: String(u['Business Priority Alignment'] ?? '').trim(),
+    priorityText: aiWording(u['Business Priority Alignment']).trim(),
     valueEstimate,
     kpis,
     keyResults,
