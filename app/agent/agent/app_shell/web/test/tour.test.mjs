@@ -196,7 +196,8 @@ test('the tour walks every step it can show, skips a missing anchor, fills live 
 
 test('ending the tour puts the hash back even when a navigation is still waiting to reach the page state', async () => {
   const info = appInfo({}, 1, written());
-  const { page, context } = await openApp(browser, base, info, { watch: STILL });
+  // start on the section the tour's second step goes to (steps 1 and 2 both open dashboard), so the setup below holds
+  const { page, context } = await openApp(browser, base, info, { watch: STILL, hash: '#/n01_u05/dashboard' });
   const startedAt = await page.evaluate(() => location.hash);
   await takeTour(page);
   await stepNow(page);
