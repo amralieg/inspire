@@ -615,13 +615,15 @@ GENIE_CODE_CONSTANTS = ("UNITY_GATEWAY_CODEX_PATH", "UNITY_GATEWAY_ANTHROPIC_PAT
                         "GENIE_CODE_MODEL_CHECK", "GENIE_CODE_ADMIN_FIX", "GENIE_CODE_UNFIT_MODEL_PATTERN")
 GENIE_CODE_CHECK_TIMEOUT_S = 10
 GENIE_CODE_CODEX_PROBES = 3
-# REQ-518 (reverses REQ-418): data is read with the person's own token, so the App's user scopes also carry catalog.schemas:read, catalog.tables:read and files (all in v1.3.0), and iam.access-control:read for the people search (F10). REQ-418 note:
+# REQ-518 (reverses REQ-418): data is read with the person's own token, so the App's user scopes also carry catalog.schemas:read, catalog.tables:read and files (all in v1.3.0); the people search (F10) uses iam.access-control:read, a default scope every App has, so it is never asked for. REQ-418 note:
 # REQ-418: data is read and written as the App's service principal, so the App's user token only sends what a person does as themselves:
 # "apps" (who manages the App), "catalog.catalogs:read" and "sql" (a Request for Access, a schema a person creates, a grant they run) and
 # "workspace.workspace" (sharing the person's own output folder with the App). "unity-catalog" is not an App user scope: the workspace refuses it ("The specified scope unity-catalog ..."), which drops every
 # user scope and installs Inspire without user authorization. Request for Access runs with the scopes the App has and falls back to
 # the copyable SQL when the token cannot send the request (REQ-311/313).
-INSPIRE_APP_OWN_SCOPES = ("apps", "catalog.catalogs:read", "catalog.schemas:read", "catalog.tables:read", "files", "iam.access-control:read", "sql", "workspace.workspace")
+INSPIRE_APP_OWN_SCOPES = ("apps", "catalog.catalogs:read", "catalog.schemas:read", "catalog.tables:read", "files", "sql", "workspace.workspace")
+# RC3-01: iam.access-control:read and iam.current-user:read come with every App; asking for them makes the Apps API refuse the whole user_api_scopes update.
+DEFAULT_APP_SCOPES = ("iam.access-control:read", "iam.current-user:read")
 USER_SCOPES_REFUSED = ("Inspire was installed without user authorization, so it lists no catalogs, schemas or tables, starts no run "
                        "and the Run tab cannot show pages Inside Inspire, because it reads them only with each person's own sign-in: {why}. "
                        "A workspace admin allows the scopes {scopes} for Apps, then runs this installer again.")
@@ -752,7 +754,7 @@ def inspire_app_scopes(notebook_text):
 
 
 def _merged_scopes(existing, wanted):
-    return list(dict.fromkeys([*(existing or []), *(wanted or [])]))
+    return [s for s in dict.fromkeys([*(existing or []), *(wanted or [])]) if s not in DEFAULT_APP_SCOPES]
 
 
 def _scope_refused(status_code, text):
