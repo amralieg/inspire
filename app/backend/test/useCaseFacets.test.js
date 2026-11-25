@@ -62,6 +62,6 @@ test('the Results page is the pre-grid list: sidebar filters, a filter bar and s
   }
   const pkg = JSON.parse(fs.readFileSync(path.resolve(SRC, '..', 'package.json'), 'utf8'));
   assert.equal(pkg.dependencies['@tanstack/react-table'], undefined);
-  assert.match(fs.readFileSync(path.join(SRC, 'lib', 'layout.js'), 'utf8'), /RESULTS_FRAME = 'w-full px-6 /);
+  assert.match(fs.readFileSync(path.join(SRC, 'lib', 'layout.js'), 'utf8'), /RESULTS_FRAME = `\$\{FRAME\} py-4/); // REQ-520 "Caps everywhere": Results uses the 1440 px working-page frame
   assert.match(fs.readFileSync(path.join(SRC, 'App.jsx'), 'utf8'), /<div className=\{RESULTS_FRAME\}>\s*<ResultsPage/);
 });
