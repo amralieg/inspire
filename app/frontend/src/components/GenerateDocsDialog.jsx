@@ -89,7 +89,7 @@ export default function GenerateDocsDialog({ useCases, values, businessName, lan
         </ol>
       </div>
       {!files ? (
-        <section data-docs-page={pageId} aria-label={TITLES[pageId]} className="space-y-3">
+        <section key={pageId} data-docs-page={pageId} aria-label={TITLES[pageId]} className="tab-panel-enter space-y-3">
           <div><h3 className="text-sm font-bold text-text-primary">{TITLES[pageId]}</h3><p className="text-xs text-text-secondary">{SUBTITLES[pageId]}</p></div>
           {pageId === 'documents' && <DocumentsPage options={options} set={set} />}
           {pageId === 'layout' && <LayoutPage options={options} set={set} count={useCases.length} eachApplies={options.kinds.some((k) => k === 'pptx' || k === 'pdf')} />}

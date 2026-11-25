@@ -102,7 +102,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
         </>} />
 
       {!canCallApi && (
-        <div className="mb-6 max-w-2xl p-4 rounded-lg border border-warning/30 bg-warning-bg flex gap-3">
+        <div className="mb-6 p-4 rounded-lg border border-warning/30 bg-warning-bg flex gap-3">
           <AlertCircle size={16} className="text-warning-fg shrink-0 mt-0.5" />
           <p className="text-sm text-text-secondary">
             Connect your workspace first in Workspace setup.
@@ -110,7 +110,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="max-w-2xl space-y-6 bg-surface border border-border rounded-xl p-6 shadow-sm">
+      <form onSubmit={handleSubmit} className="space-y-6 bg-surface border border-border rounded-xl p-6 shadow-sm">
         <div>
           <label className="flex items-center gap-2 text-xs font-bold text-text-primary mb-2">
             <Building2 size={14} className="text-text-tertiary" />
