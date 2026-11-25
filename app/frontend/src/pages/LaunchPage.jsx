@@ -42,11 +42,12 @@ import { parseStrategicContext, splitPriorities, validateStrategicContextText, w
 import UcPermissionErrorHelp from '../components/UcPermissionErrorHelp';
 import DataManagement from '../components/DataManagement';
 import { groupLabelOf } from '../lib/implementWizard';
+import RequestAccessBar from '../components/RequestAccessBar';
 import { leftOutLine, typeCheckBusyOf, unusableReasonOf } from '../lib/tableUsability';
 import TypeCheckBusyTryAgain from '../components/TypeCheckBusyTryAgain';
 import ModalDialog from '../components/ModalDialog';
 import { sameSettings } from '../lib/businessProfiles';
-import { scopesFromObject, launchTableScopeText, filterValuesOf, labelAvailable, pickedTableNames, tableBrowseQuery, tableScopeOf, tableScopeSummary } from '../lib/tableScope';
+import { scopesFromObject, launchTableScopeText, filterValuesOf, labelAvailable, pickedTableNames, tableBrowseQuery, isUnreadable, MAX_ACCESS_OBJECTS, tableScopeOf, tableScopeSummary } from '../lib/tableScope';
 import { launchRelationshipsText, restoredRelationshipList } from '../lib/tableRelationships';
 import { PlainMessage } from '../components/TechnicalDetails';
 import LatestRunBadge from '../components/LatestRunBadge';
@@ -243,6 +244,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
   // ── Catalog/Schema pickers ──
   const [catalogs, setCatalogs] = useState([]);
+  // REQ-521: "Show everything" lists what the person cannot read too, each with a box to request access; requestPicks are those boxes.
+  const [showEverything, setShowEverything] = useState(false);
+  const [requestPicks, setRequestPicks] = useState([]);
   const [catalogsCut, setCatalogsCut] = useState(false);
   const [schemas, setSchemas] = useState([]);
   const [selectedCatalogs, setSelectedCatalogs] = useState(start.selectedCatalogs);
@@ -524,7 +528,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
       let lastError = '';
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
-          const data = await apiFetch(`/api/catalogs${tableBrowseQuery(warehouseId)}`);
+          const data = await apiFetch(`/api/catalogs${tableBrowseQuery(warehouseId, showEverything)}`);
           const cats = data.catalogs || [];
           console.log(`[catalogs] loaded ${cats.length}:`, cats.map(c => c.name));
           if (!cancelled) {
@@ -561,7 +565,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     };
     load();
     return () => { cancelled = true; };
-  }, [canUseUcApi, apiFetch, warehouseId]);
+  }, [canUseUcApi, apiFetch, warehouseId, showEverything]);
 
   // REQ-420: a saved draft or profile that holds a catalog the App can no longer read loses it, with one line saying so. Only a list read
   // from the App's own grants decides this; a failed or cut list never drops anything.
@@ -588,7 +592,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     const failed = [];
     Promise.all(
       selectedCatalogs.map((cat) =>
-        apiFetch(`/api/catalogs/${encodeURIComponent(cat)}/schemas${tableBrowseQuery(warehouseId)}`)
+        apiFetch(`/api/catalogs/${encodeURIComponent(cat)}/schemas${tableBrowseQuery(warehouseId, showEverything)}`)
           .then(d => d.schemas || [])
           .catch((err) => { failed.push(pickerReadFailure('schemas', cat, err)); return []; })
       )
@@ -601,7 +605,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
       }
     }).finally(() => { if (!cancelled) setLoadingSchemas(false); });
     return () => { cancelled = true; };
-  }, [selectedCatalogs, canUseUcApi, apiFetch, warehouseId]);
+  }, [selectedCatalogs, canUseUcApi, apiFetch, warehouseId, showEverything]);
 
   // Load tables when schemas selected
   useEffect(() => {
@@ -615,7 +619,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     const failed = [];
     const leftOutNotes = [];
     Promise.all(
-      selectedSchemas.map((schemaFullName) => listSchemaTables(schemaFullName, apiFetch, warehouseId)
+      selectedSchemas.map((schemaFullName) => listSchemaTables(schemaFullName, apiFetch, warehouseId, showEverything)
         .then(({ rows, leftOut }) => { if (leftOut) leftOutNotes.push(leftOut); return rows; })
         .catch((err) => { failed.push(pickerReadFailure('tables', schemaFullName, err)); return []; }))
     ).then((r) => {
@@ -628,7 +632,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
       }
     }).finally(() => { if (!load.cancelled) setLoadingTables(false); });
     return () => { load.cancelled = true; };
-  }, [selectedSchemas, canUseUcApi, apiFetch, warehouseId]);
+  }, [selectedSchemas, canUseUcApi, apiFetch, warehouseId, showEverything]);
 
   // Try again on a table whose type check was busy: list its schema again and replace that schema's rows.
   const tryAgainTables = (item) => {
@@ -636,7 +640,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     const load = tablesLoad.current;
     // A selection change after this click ends the load it belongs to, so its answer is dropped (the schemas are listed again).
     const live = () => Boolean(load) && !load.cancelled;
-    listSchemaTables(schemaFullName, apiFetch, warehouseId)
+    listSchemaTables(schemaFullName, apiFetch, warehouseId, showEverything)
       .then(({ rows }) => {
         if (!live()) return;
         const prefix = `${schemaFullName}.`;
@@ -993,15 +997,31 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   };
 
   // Table select all / deselect all
-  const allTablesSelected = filteredTables.length > 0 && filteredTables.every((t) => selectedTables.includes(t.full_name));
+  const pickableTables = filteredTables.filter((t) => !isUnreadable(t));
+  const allTablesSelected = pickableTables.length > 0 && pickableTables.every((t) => selectedTables.includes(t.full_name));
   const toggleAllTables = () => {
     if (allTablesSelected) {
       const filteredNames = new Set(filteredTables.map((t) => t.full_name));
       setPickedChildren(selectedSchemas, selectedTables.filter((t) => !filteredNames.has(t)));
     } else {
-      const newNames = filteredTables.map((t) => t.full_name);
+      const newNames = pickableTables.map((t) => t.full_name);
       setPickedChildren(selectedSchemas, [...new Set([...selectedTables, ...newNames])]);
     }
+  };
+
+  const togglePick = (type) => (item) => {
+    const full = type === 'CATALOG' ? item.name : item.full_name;
+    setRequestPicks((p) => (p.some((x) => x.full_name === full) ? p.filter((x) => x.full_name !== full) : [...p, { type, full_name: full }]));
+  };
+  const requestOf = (type) => ({
+    full: (item) => (type === 'CATALOG' ? item.name : item.full_name),
+    picked: requestPicks.map((x) => x.full_name),
+    onToggle: togglePick(type),
+    full_up: requestPicks.length >= MAX_ACCESS_OBJECTS,
+  });
+  const changeShowEverything = (on) => {
+    setShowEverything(on);
+    if (!on) setRequestPicks([]);
   };
 
   // Validation state
@@ -1475,6 +1495,19 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 </button>
 
                 {pickerExpanded && (
+                  <label className="flex items-center gap-2 mb-2 text-xs text-text-secondary">
+                    <input type="checkbox" checked={showEverything} onChange={(e) => changeShowEverything(e.target.checked)} />
+                    Show everything
+                  </label>
+                )}
+                {pickerExpanded && (
+                  <RequestAccessBar
+                    objects={requestPicks}
+                    onSent={(sent) => setRequestPicks((p) => p.filter((x) => !sent.includes(x.full_name)))}
+                  />
+                )}
+
+                {pickerExpanded && (
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     {/* Catalogs */}
                     <div>
@@ -1497,6 +1530,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                           }
                         }}
                         getKey={(c) => c.name}
+                        request={requestOf('CATALOG')}
                         getLabel={(c) => c.name}
                         extraOf={(c) => (c.partial ? (
                           <div data-catalog-partial={c.name} className="px-2.5 pb-1.5 text-xs text-warning-fg">
@@ -1517,6 +1551,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                                 ? 'Loading...'
                                 : catalogBrowseError || catalogsWhy
                                   ? 'Inspire could not list the catalogs. The message above says why.'
+                                  : !showEverything && catalogs.length === 0 && !grantsListed
+                                    ? 'You can read no catalog yet. Tick Show everything to ask for access.'
                                   : grantsListed && catalogs.length === 0
                                     ? 'Inspire can read no catalog yet. Ask whoever installed Inspire to run the installer again with the catalogs you need.'
                                     : 'No catalogs found'
@@ -1544,6 +1580,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                           }
                         }}
                         getKey={(s) => s.full_name}
+                        request={requestOf('SCHEMA')}
                         getLabel={(s) => selectedCatalogs.length > 1 ? s.full_name : s.name}
                         searchValue={schemaSearch}
                         onSearch={setSchemaSearch}
@@ -1560,7 +1597,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         <span className="text-xs text-text-tertiary">primary selection</span>
                         {loadingTables && <Loader2 size={14} className="animate-spin text-text-tertiary" />}
                       </div>
-                      {filteredTables.length > 0 && (
+                      {pickableTables.length > 0 && (
                         <button
                           type="button"
                           onClick={toggleAllTables}
@@ -1577,6 +1614,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                           else setPickedChildren(selectedSchemas, [...selectedTables, name]);
                         }}
                         getKey={(t) => t.full_name}
+                        request={requestOf('TABLE')}
                         disabledReasonOf={unusableReasonOf}
                         onTryAgain={tryAgainTables}
                         getLabel={(t) => selectedSchemas.length > 1 ? `${t.schema_name}.${t.name}` : t.name}
@@ -2178,16 +2216,16 @@ function GlowSelect({ value, onChange, options }) {
 
 // One schema's tables for the picker, named catalog.schema.table, with the note for any the listing left out. The effect and Try again
 // both list through this, so a schema is read the same way on the first load and on a retry.
-function listSchemaTables(schemaFullName, apiFetch, warehouseId) {
+function listSchemaTables(schemaFullName, apiFetch, warehouseId, showEverything = false) {
   const [catalog, schema] = schemaFullName.split('.');
-  return apiFetch(`/api/tables/${encodeURIComponent(catalog)}/${encodeURIComponent(schema)}${tableBrowseQuery(warehouseId)}`)
+  return apiFetch(`/api/tables/${encodeURIComponent(catalog)}/${encodeURIComponent(schema)}${tableBrowseQuery(warehouseId, showEverything)}`)
     .then((d) => ({
       rows: (d.tables || []).map((t) => ({ ...t, full_name: t.full_name || `${catalog}.${schema}.${t.name}` })),
       leftOut: d.left_out ? leftOutLine(d.left_out) : '',
     }));
 }
 
-function PickerList({ items, selected, onToggle, getKey, getLabel, extraOf = () => null, disabledReasonOf = () => '', onTryAgain, searchValue, onSearch, searchPlaceholder, emptyText }) {
+function PickerList({ items, selected, onToggle, getKey, getLabel, extraOf = () => null, disabledReasonOf = () => '', request = null, onTryAgain, searchValue, onSearch, searchPlaceholder, emptyText }) {
   return (
     <div className="rounded-lg border border-border bg-bg overflow-hidden flex flex-col min-h-0">
       {(items.length > 0 || searchValue) && (
@@ -2215,6 +2253,19 @@ function PickerList({ items, selected, onToggle, getKey, getLabel, extraOf = () 
             const key = getKey(item);
             const label = getLabel(item);
             const active = selected.includes(key);
+            // REQ-521: a row the person cannot read is never opened or picked as a source; it only carries a box to request access.
+            if (request && isUnreadable(item)) {
+              const full = request.full(item);
+              const on = request.picked.includes(full);
+              const capped = !on && request.full_up;
+              return (
+                <label key={key} title={capped ? 'At most 50 objects per request.' : undefined} className="w-full flex items-start gap-2 px-2.5 py-2 rounded-md text-xs text-text-secondary">
+                  <input type="checkbox" aria-label={`Request access to ${full}`} checked={on} disabled={capped} onChange={() => request.onToggle(item)} className="mt-0.5 shrink-0" />
+                  <span className="font-mono break-all leading-snug">{label}</span>
+                  <span className="text-xs text-text-tertiary leading-snug">No read access</span>
+                </label>
+              );
+            }
             // A busy type check is not a verdict on the item: it is listed with Try again, which checks it again.
             if (onTryAgain && typeCheckBusyOf(item)) {
               return (

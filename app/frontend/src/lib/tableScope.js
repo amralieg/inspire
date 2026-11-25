@@ -174,10 +174,17 @@ export function pickedTableNames(scopes, { catalogs = [], schemas = [], tables =
 }
 
 // The warehouse query every Unity Catalog browse call carries.
-export function tableBrowseQuery(warehouseId) {
-  if (!warehouseId) return '';
-  return `?warehouse_id=${encodeURIComponent(warehouseId)}`;
+// REQ-521: showEverything adds include_unreadable=1, which makes every row carry readable: true|false.
+export function tableBrowseQuery(warehouseId, showEverything = false) {
+  const parts = [];
+  if (warehouseId) parts.push(`warehouse_id=${encodeURIComponent(warehouseId)}`);
+  if (showEverything) parts.push('include_unreadable=1');
+  return parts.length ? `?${parts.join('&')}` : '';
 }
+
+// REQ-521: a row the person cannot read is listed only to request access to it; it is never a run source.
+export const isUnreadable = (row) => row?.readable === false;
+export const MAX_ACCESS_OBJECTS = 50;
 
 export function filteredTablesOf(scopes, pickedTables = []) {
   const picked = new Set(pickedTables.map(scopeKeyOf));
