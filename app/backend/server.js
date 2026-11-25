@@ -1792,11 +1792,12 @@ app.get('/api/me', requireToken, async (req, res) => {
 const truncatedByRest = (restCut, byName, countAfterRest) => restCut && byName.size === countAfterRest;
 
 // REQ-420: the catalogs the App's service principal can read right now, or null when it cannot be asked. `listing` is the catalog
-// list the caller read with `listedWith`; when that is the App's own token (REQ-418) it is the same list, so it is not read again.
-async function appCatalogGrants(req, listing = null, listedWith = '') {
+// list the person's own token read, the only list the App checks.
+async function appCatalogGrants(req, listing = null) {
   const token = await appOwnToken();
   if (!token) return null;
-  return spGrantedCatalogs(dbFetch, req.dbHost, token, SP_CLIENT_ID, listing && listedWith === token ? listing : null);
+  // SEC-02 (F5): the App never lists catalogs for a person's pick; a listing the person's own token produced is the one that is checked.
+  return spGrantedCatalogs(dbFetch, req.dbHost, token, SP_CLIENT_ID, listing);
 }
 
 app.get('/api/catalogs', requireToken, async (req, res) => {
@@ -1838,7 +1839,7 @@ app.get('/api/catalogs', requireToken, async (req, res) => {
     else if (catalogs.length > 0) source = 'sql';
     console.log(`   📚 catalogs: REST=${raw.length} merged=${catalogs.length} warehouse=${warehouseId ? 'yes' : 'no'} (${source})`);
     // REQ-420: the App reads as its own service principal, so the list is the catalogs the person sees that the principal can read now.
-    const granted = await appCatalogGrants(req, restErr ? null : { items: raw, truncated: restCut }, token);
+    const granted = await appCatalogGrants(req, { items: catalogs, truncated: restCut });
     if (granted) {
       const offered = grantedCatalogList(catalogs, granted);
       const permission = partialPermission(offered, SP_CLIENT_ID);
@@ -1908,8 +1909,9 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
   try {
     const { catalog, schema } = req.params;
     // SEC-01 (W4): the person's own sign-in lists the tables, so the person sees only what they can see.
-    const personToken = personTokenOf(req);
-    const token = personToken || req.dbToken;
+    // SEC-02 (F5): a person route, so req.dbToken is the person's token (401 without one); there is no fallback to the App's token.
+    const personToken = req.dbToken;
+    const token = personToken;
     const warehouseId = String(req.query.warehouse_id || '').trim();
     let raw = [];
     let restCut = false;
@@ -2448,27 +2450,45 @@ async function droppedCatalogRefusal(req, params) {
   unreadable: dropped };
 }
 
-// SEC-01 (W5): the launcher's own read is checked again right before a job starts, so a read revoked between the pick and the launch
-// stops the run. The probe is a LIMIT 0 read with the launcher's sign-in. Nothing is granted: the refusal names a table-level SELECT.
-const LAUNCHER_PROBE_LIMIT = 50;
-async function launcherReadRefusal(req, scope) {
+// SEC-01 (W5), SEC-02 (F7): the launcher's own read is checked again right before a job starts, and a session is opened by a colleague only
+// when the same check passes. The probe is a LIMIT 0 read with the person's sign-in, on every table of the scope. Nothing is granted: the
+// refusal names a table-level SELECT. The check fails closed: a scope that cannot be probed in full (no warehouse, no App token to list it,
+// more tables than SCOPE_PROBE_CEILING, a listing or a probe that fails for any reason) is a refusal, and only a successful probe counts as readable.
+const SCOPE_PROBE_CEILING = 500;
+const SCOPE_PROBE_BATCH = 8;
+const UNCHECKED_SCOPE = { status: 403, request: 'person', permissions: [], unreadable: [] };
+async function launcherReadRefusal(req, scope, { emptyScopeRefuses = false } = {}) {
   const person = forwardedTokenOf(req);
   const { catalogs, schemas, tables: picked } = ucMetadataParts(scope);
   const entries = [...picked, ...schemas, ...catalogs];
-  if (!person || !entries.length || !DEFAULT_WAREHOUSE_ID) return null;
-  const token = await appOwnToken();
-  if (!token) return null;
-  const { tables } = await scopeTables(dbFetch, req.dbHost, token, entries);
+  if (!person) return null;
+  if (!entries.length) return emptyScopeRefuses ? UNCHECKED_SCOPE : null;
+  const warehouseId = requestedInspireDb(req).warehouseId;
   const lost = [];
-  await Promise.all(tables.slice(0, LAUNCHER_PROBE_LIMIT).map(async (table) => {
+  let unchecked = !warehouseId;
+  if (!unchecked) {
     try {
-      const probe = tableProbeStatement(table);
-      await executeSql(req.dbHost, person, DEFAULT_WAREHOUSE_ID, probe.sql, probe.parameters);
-    } catch (err) {
-      if (tableAccessReason(table, err && err.message) === 'no read access') lost.push(table);
+      const token = await appOwnToken();
+      if (!token) throw new Error('no App token to list the scope');
+      const { tables, more } = await scopeTables(dbFetch, req.dbHost, token, entries, SCOPE_PROBE_CEILING);
+      if (more || !tables.length) unchecked = true;
+      for (let i = 0; i < tables.length; i += SCOPE_PROBE_BATCH) {
+        await Promise.all(tables.slice(i, i + SCOPE_PROBE_BATCH).map(async (table) => {
+          try {
+            const probe = tableProbeStatement(table);
+            await executeSql(req.dbHost, person, warehouseId, probe.sql, probe.parameters);
+          } catch (err) {
+            const why = tableAccessReason(table, err && err.message);
+            if (why === 'no read access' || why === 'not found') lost.push(table); else unchecked = true;
+          }
+        }));
+      }
+    } catch {
+      unchecked = true;
     }
-  }));
-  if (!lost.length) return null;
+  }
+  if (!lost.length && !unchecked) return null;
+  if (!lost.length) return { ...UNCHECKED_SCOPE, message: 'Inspire could not check that you can read every table of this scope, so it is not shown. Try again, or ask the person who launched it.' };
   const email = RP.forwardedPerson(req.headers);
   const names = lost.sort();
   const permission = permissionRequired({ statements: readStatementsFor(names, email || 'you'), principal: email || 'you',
@@ -2497,7 +2517,7 @@ async function sessionHiddenFrom(req, sessionId, scope) {
       why: 'You can open this session only when you can read the tables it covers.' }) : null;
     return { status: 403, request: 'person', permissions: permission ? [permission] : [], unreadable: names };
   }
-  return launcherReadRefusal(req, sessionScopeText(scope));
+  return launcherReadRefusal(req, sessionScopeText(scope), { emptyScopeRefuses: true });
 }
 
 async function visibleSessions(req, warehouseId, parsedDb, sessions) {
@@ -2598,7 +2618,7 @@ async function checkLaunchReads(req, params) {
     if (!reads.refusal) {
       const lost = await launcherReadRefusal(req, reads.scope || params['01_uc_metadata']).catch((err) => {
         console.warn(`launcher read check: ${err.message || err}`);
-        return null;
+        return UNCHECKED_SCOPE;
       });
       if (lost) return { reads: { ...reads, refusal: lost }, access: { permissions: [], warnings: [] }, model: [] };
     }
