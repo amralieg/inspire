@@ -10,4 +10,5 @@ export const checkAccessRequest = (statements) => post('/api/access-request/chec
 export const sendAccessRequest = (statements) => post('/api/access-request', { statements }, { raise: false });
 
 // REQ-521: one request for every picked object ({type: CATALOG|SCHEMA|TABLE, full_name}); the server knows who asks.
+// REQ-522: an object also carries need (['inspire'] or ['person', 'inspire']) when Inspire's own account must be given access too.
 export const requestAccessFor = (objects) => post('/api/access-request', { objects }, { raise: false });
