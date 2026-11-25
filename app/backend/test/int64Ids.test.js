@@ -209,8 +209,8 @@ test('Implement controls name 19-digit job and build ids exactly in their paths 
   assert.throws(() => C.ownerCheckPath('build', 'abc'), (e) => e.statusCode === 400);
 });
 
-test('the Genie Code notebook job and its runs are read by the exact session and job id', async () => {
-  assert.equal(genieNotebookJobName(MAX), `Inspire AI - Genie Code - ${MAX}`);
+test('the Databricks AI notebook job and its runs are read by the exact session and job id', async () => {
+  assert.equal(genieNotebookJobName(MAX), `Inspire AI - Databricks AI - ${MAX}`);
   assert.throws(() => genieNotebookJobName(OVER), /numeric Inspire session id/);
   const asked = [];
   const fetchJson = async (p) => {

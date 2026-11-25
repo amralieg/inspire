@@ -206,7 +206,7 @@ test('v1.3.0 use case fields are parsed and stay NULL-safe on older rows', () =>
   assert.equal(legacy.use_case, 'Old row');
 });
 
-test('a blank Genie Code count launches Discover with skeleton notebooks only, an explicit count is kept', () => {
+test('a blank Databricks AI count launches Discover with skeleton notebooks only, an explicit count is kept', () => {
   for (const value of [undefined, null, '']) {
     assert.equal(sanitizeInspireNotebookJobParams({ '00_business_name': 'Acme', '13_generate_genie_code_for': value })['13_generate_genie_code_for'], '0');
   }

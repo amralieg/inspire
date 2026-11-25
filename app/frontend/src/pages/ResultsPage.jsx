@@ -205,7 +205,7 @@ export default function ResultsPage({
   const [filterQuality, setFilterQuality] = useState('all');
   const [filterBeneficiary, setFilterBeneficiary] = useState('all');
   const [filterSponsor, setFilterSponsor] = useState('all');
-  /** `all` | `yes` | `no` — filter by presence of Genie Code instruction on the use case. */
+  /** `all` | `yes` | `no` — filter by presence of Databricks AI instruction on the use case. */
   const [filterHasGenie, setFilterHasGenie] = useState('all');
   const [filterQualityBar, setFilterQualityBar] = useState('all');
   const [filterMvp, setFilterMvp] = useState('all');
@@ -1926,17 +1926,17 @@ export default function ResultsPage({
                     </select>
                   )}
 
-                  {/* Genie Code instruction (has / no) */}
+                  {/* Databricks AI instruction (has / no) */}
                   <select
-                    aria-label="Genie Code instruction"
+                    aria-label="Databricks AI instruction"
                     value={filterHasGenie}
                     onChange={(e) => setFilterHasGenie(e.target.value)}
-                    title="Filter by whether the use case has a Genie Code instruction"
+                    title="Filter by whether the use case has a Databricks AI instruction"
                     className="px-2 py-1.5 text-caption border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth min-w-[10.5rem]"
                   >
-                    <option value="all">Genie Code instruction: Any</option>
-                    <option value="yes">Genie Code instruction: Yes</option>
-                    <option value="no">Genie Code instruction: No</option>
+                    <option value="all">Databricks AI instruction: Any</option>
+                    <option value="yes">Databricks AI instruction: Yes</option>
+                    <option value="no">Databricks AI instruction: No</option>
                   </select>
 
                   {qualityBarCounts.below > 0 && (
@@ -2070,7 +2070,7 @@ export default function ResultsPage({
                     )}
                     {filterHasGenie !== 'all' && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
-                        Genie Code instruction: {filterHasGenie === 'yes' ? 'Yes' : 'No'}
+                        Databricks AI instruction: {filterHasGenie === 'yes' ? 'Yes' : 'No'}
                         <button type="button" onClick={() => setFilterHasGenie('all')} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}

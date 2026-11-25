@@ -203,7 +203,7 @@ export default function UseCaseDetailBody({
         <div data-use-case-notebook="">
           <div className="flex items-center justify-between gap-2">
             <h4 className="min-w-0 text-caption font-bold text-db-red-fg uppercase tracking-[0.18em]">
-              {shippedGenie ? 'Genie Code Instruction' : 'Use case notebook'}
+              {shippedGenie ? 'Databricks AI Instruction' : 'Use case notebook'}
               <span className="text-text-tertiary font-normal normal-case ms-1 font-mono text-caption truncate max-w-[300px] inline-block align-bottom">
                 {notebookPath.split('/').pop()}
               </span>
@@ -220,7 +220,7 @@ export default function UseCaseDetailBody({
           </div>
           {!shippedGenie && (
             <p className="mt-2 text-caption text-text-tertiary leading-relaxed">
-              This notebook holds an outline or part of the instruction. To write the full Genie Code instruction, use <span className="font-semibold">{START_MVP_LABEL}</span> and tick only Notebook under Deliver.
+              This notebook holds an outline or part of the instruction. To write the full Databricks AI instruction, use <span className="font-semibold">{START_MVP_LABEL}</span> and tick only Notebook under Deliver.
             </p>
           )}
         </div>

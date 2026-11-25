@@ -9,7 +9,7 @@ export const RUN_PHASES = [
   { key: 'generation', label: 'Write use cases', column: 4 },
   { key: 'domains', label: 'Group into domains', column: 5 },
   { key: 'prioritization', label: 'Score and rank', column: 6 },
-  { key: 'implementation', label: 'Build Genie Code instructions', column: 7 },
+  { key: 'implementation', label: 'Build Databricks AI instructions', column: 7 },
   { key: 'readout', label: 'Write documents', column: 7 },
 ];
 

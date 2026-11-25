@@ -595,7 +595,7 @@ export function vibeWarnings(row, id) {
 
 const PART_STATES = [...BUILT_ASSET_STATES, 'failed'];
 const ASSET_WHAT = {
-  notebook: 'The Genie Code notebook that finds the rows to act on',
+  notebook: 'The Databricks AI notebook that finds the rows to act on',
   ai_reasoning: 'Why each row is flagged, what to do, and how sure',
   app_page: `A page of the ${OUTPUT_LABELS.app}`,
   dashboard_chart: 'A chart on the dashboard',
@@ -804,7 +804,7 @@ export function vibeCards(history, latest, stalled = null, notebookUrl = '', pla
   }).filter((c) => c.rebuild || c.versions.length)], planned);
 }
 
-const PICK_GROUPS = [['notebook', 'Genie Code notebook'], ['results', 'Results'], ['app', OUTPUT_LABELS.app], ['dashboard', 'Dashboard'], ['genie_space', 'Genie Agent'], ['alert', 'Alert']];
+const PICK_GROUPS = [['notebook', 'Databricks AI notebook'], ['results', 'Results'], ['app', OUTPUT_LABELS.app], ['dashboard', 'Dashboard'], ['genie_space', 'Genie Agent'], ['alert', 'Alert']];
 const pickGroup = (card) => (card.output === 'notebook' && card.id !== 'notebook' ? 'results' : card.output);
 
 function pickTitle(card, liveName) {

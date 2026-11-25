@@ -103,7 +103,7 @@ test('the Build pane names the next step without the left/right wording or the n
     await page.getByText(/^Not built yet\./).first().waitFor();
     const text = await shownText(page);
     assert.match(text, /Pick any use case in the list to start its MVP\./);
-    assert.doesNotMatch(text, /Pick a use case on the left|writes only the Genie Code notebook/);
+    assert.doesNotMatch(text, /Pick a use case on the left|writes only the Databricks AI notebook/);
   } finally {
     await ui.close();
   }

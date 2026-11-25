@@ -1095,7 +1095,7 @@ test('a rebuild that inherits a swap to a gone table goes back to the use case\'
   assert.equal(w.clearedText({ roles: [], filters: 0 }), '');
 });
 
-test('the widgets a Genie Code notebook keeps at their defaults are counted with words that agree with the count', async () => {
+test('the widgets a Databricks AI notebook keeps at their defaults are counted with words that agree with the count', async () => {
   const w = await load();
   assert.equal(w.keptDefaultsText(['retention_days']), '1 more widget keeps its default here: retention_days. To change a default, edit the notebook.');
   assert.equal(w.keptDefaultsText(['retention_days', 'region']),
@@ -1178,7 +1178,7 @@ test('Data groups are a step of their own after Data, First run follows them onl
   }
   assert.equal(w.WIZARD_STEPS_MAX, 10);
   assert.equal(w.wizardSteps('mvp', { outputs: { app: true } }, both).length, 7, 'every step at once is 7, under the cap');
-  assert.deepEqual(w.wizardSteps('notebook', null, both).map((s) => s.id), ['data', 'notebook'], 'with Genie Code off only the notebook is written');
+  assert.deepEqual(w.wizardSteps('notebook', null, both).map((s) => s.id), ['data', 'notebook'], 'with Databricks AI off only the notebook is written');
   const before = w.wizardSteps('mvp');
   const after = w.wizardSteps('mvp', null, both);
   assert.equal(w.stepIndexOf(before, 'results'), 2);
@@ -1203,7 +1203,7 @@ test('Data groups are a step of their own after Data, First run follows them onl
   assert.equal(w.wizardSteps('mvp', spec, { grouping: true, firstRun: false }).find((s) => s.id === 'first_run').panels.includes('first_run'), false, 'a rebuild keeps First run for its schedule only, with no run-scope questions');
 });
 
-test('the wizard opens on Data with no MVP or notebook choice, Notebook alone is a delivery, and with Genie Code off only the notebook is written', async () => {
+test('the wizard opens on Data with no MVP or notebook choice, Notebook alone is a delivery, and with Databricks AI off only the notebook is written', async () => {
   const w = await load();
   assert.equal(w.IMPLEMENT_MODES, undefined, 'there is no mode page (must-exclude)');
   assert.deepEqual([w.APP_CARD.id, w.APP_CARD.label], ['app', 'App with Genie']);

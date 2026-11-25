@@ -16,6 +16,7 @@ const KEEP = [
   ['frontend/src/lib/mvpProgress.js', "'Genie Code'"],
   ['frontend/src/lib/useCaseFields.js', "'Has Genie Code'"],
   ['backend/lib/genieNotebookJob.js', 'LEGACY_JOB_NAME'],
+  ['scripts/verify-app-ui.mjs', 'hasRetiredGenerationDefault'],
 ];
 
 function walk(p, out) {

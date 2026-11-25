@@ -2,7 +2,7 @@
 
 These instructions apply to every session in this repository. Follow them verbatim.
 
-The repo: a Databricks notebook agent (`agent/dbx_inspire_ai_agent.ipynb`) that reads Unity Catalog metadata and produces a use-case catalog (PDF / XLSX / CSV / JSON / Markdown / Genie Code notebooks) via a multi-phase LLM pipeline. Runs on Databricks Serverless. Tracks state in `<inspire_database>.__inspire_session` / `__inspire_step` / `__inspire_usecases`.
+The repo: a Databricks notebook agent (`agent/dbx_inspire_ai_agent.ipynb`) that reads Unity Catalog metadata and produces a use-case catalog (PDF / XLSX / CSV / JSON / Markdown / Databricks AI notebooks) via a multi-phase LLM pipeline. Runs on Databricks Serverless. Tracks state in `<inspire_database>.__inspire_session` / `__inspire_step` / `__inspire_usecases`.
 
 ---
 
@@ -688,7 +688,7 @@ UC: N01-U03 "Forecast Demand by Zone to Reduce Idle Time"
 
 If the composite < 6.5 for ANY UC in the sample, flag it as poor-quality and check if it's representative of the portfolio (re-sample 5 more UCs to confirm).
 
-#### 10.4.3 The Genie Code instruction check (for UCs with `has_genie_code = 'Y'`)
+#### 10.4.3 The Databricks AI instruction check (for UCs with `has_genie_code = 'Y'`)
 
 Read the full `genie_instruction` text. Verify:
 
@@ -697,9 +697,9 @@ Read the full `genie_instruction` text. Verify:
 3. **Output schema is specified** (what the query returns)
 4. **The analytical technique matches** `analytics_technique` field
 5. **`ai_query(...)`** is used for summarization if business_value requires natural-language output (not raw numeric)
-6. **The instruction is runnable as-is** — a Databricks engineer should be able to copy it into Genie Code and get a meaningful result
+6. **The instruction is runnable as-is** — a Databricks engineer should be able to copy it into Databricks AI and get a meaningful result
 
-If any of 1–6 fail, mark the UC as "Genie Code broken" and flag in the audit report.
+If any of 1–6 fail, mark the UC as "Databricks AI broken" and flag in the audit report.
 
 ### 10.5 Stage 4 — Cross-run regression check
 

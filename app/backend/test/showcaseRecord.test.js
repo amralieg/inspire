@@ -454,7 +454,7 @@ test('the recording keeps the use case fields a screen reads and leaves out the 
 test('the history answer of a demo carries no error about the access of whoever recorded it, and keeps the notebook run', () => {
   const rec = recorder();
   rec.addInspire({ method: 'GET', url: `/api/inspire/implement/history?session_id=${SID}`, status: 200,
-    body: { history: [], latest: [], notebook_run: { run_id: 7 }, notebook_run_error: 'Listing the Genie Code notebook jobs failed (403): no jobs scope' } });
+    body: { history: [], latest: [], notebook_run: { run_id: 7 }, notebook_run_error: 'Listing the Databricks AI notebook jobs failed (403): no jobs scope' } });
   rec.addInspire({ method: 'GET', url: `/api/inspire/implement/history?session_id=${SID}&use_case_id=N01-U01`, status: 200, body: { history: [] } });
   rec.addMvp('N01-U01', { method: 'GET', url: `${MVP_URL}/api/app`, status: 200, body: { title: 'Fare desk' } });
   const saved = rec.bundle().inspire;

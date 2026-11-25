@@ -427,7 +427,7 @@ function registerImplementRoutes(app, deps) {
     try {
       return await genieCodeCheck(req.dbHost, req.dbToken, (path, opts) => jsonOf(dbFetch, req.dbHost, req.dbToken, path, opts));
     } catch (err) {
-      console.warn(`implement: the Genie Code check did not finish, so it does not block the build: ${err.message}`);
+      console.warn(`implement: the Databricks AI check did not finish, so it does not block the build: ${err.message}`);
       return GC.verdictOf({ route: '', refused: [], waiting: [{ why: err.message }], listed: {} });
     }
   }
@@ -643,7 +643,7 @@ function registerImplementRoutes(app, deps) {
       const lastRun = await latestGenieRunOf(req, sidStr);
       if (lastRun?.state === 'running') {
         return res.status(409).json({
-          error: 'A Genie Code notebook for this session is already being written. Wait for that run to finish, then try again.',
+          error: 'A Databricks AI notebook for this session is already being written. Wait for that run to finish, then try again.',
           run_id: lastRun.run_id,
           job_run_url: lastRun.url || databricksJobRunUrl(req.dbHost, lastRun.job_id, lastRun.run_id),
         });

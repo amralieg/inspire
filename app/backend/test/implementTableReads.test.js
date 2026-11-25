@@ -162,7 +162,7 @@ test('a re-run and Publish anyway are refused the same way, before run-now or a 
 });
 
 // REQ-418 (D-SL-11): the App checks the chosen use cases' tables for the run, and a run starts with no person sign-in too.
-test('a Genie Code notebook run checks only the chosen use cases\u2019 tables, not the whole Discover scope, before any flag is written (must-exclude)', async () => {
+test('a Databricks AI notebook run checks only the chosen use cases\u2019 tables, not the whole Discover scope, before any flag is written (must-exclude)', async () => {
   const body = { ...DB, use_case_ids: ['N01-U01'], notebook_path: '/Shared/nb' };
   const generate = (url) => call(url, '/api/inspire/generate-genie', { method: 'POST', body });
   await withApp({ ucMetadata: 'main.s.orders,main.hr.salaries', readableTables: { [APP_TOKEN]: ['main.s.orders', 'main.s.returns'] } }, async (url, made) => {

@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { genieNotebookJobName, latestGenieNotebookRun, newestJobNamed, notebookRunOf } = require('../lib/genieNotebookJob');
 
-const NAME = 'Inspire AI - Genie Code - 42';
+const NAME = 'Inspire AI - Databricks AI - 42';
 
 function fakeJobs(pages, runsByJob = {}, failures = {}) {
   const calls = [];
@@ -34,14 +34,14 @@ test('the notebook job is named after the session and refuses a non-numeric sess
 
 test('the newest job with exactly the session name wins across pages, and look-alike names never match', async () => {
   const { fetchJson, calls } = fakeJobs({
-    0: { jobs: [job(1, NAME, 100), job(2, 'inspire ai - genie code - 42', 900), job(3, `${NAME}0`, 950)], next_page_token: '1' },
-    1: { jobs: [job(4, NAME, 300), job(5, 'Inspire AI - Genie Code - 420', 999)] },
+    0: { jobs: [job(1, NAME, 100), job(2, 'inspire ai - databricks ai - 42', 900), job(3, `${NAME}0`, 950)], next_page_token: '1' },
+    1: { jobs: [job(4, NAME, 300), job(5, 'Inspire AI - Databricks AI - 420', 999)] },
   });
   const found = await newestJobNamed(fetchJson, NAME);
   assert.equal(found.job_id, 4);
   assert.equal(calls.length, 2);
-  assert.match(calls[0], /name=Inspire%20AI%20-%20Genie%20Code%20-%2042/);
-  assert.equal(await newestJobNamed(fakeJobs({ 0: { jobs: [job(2, 'Inspire AI - Genie Code - 420', 1)] } }).fetchJson, NAME), null);
+  assert.match(calls[0], /name=Inspire%20AI%20-%20Databricks%20AI%20-%2042/);
+  assert.equal(await newestJobNamed(fakeJobs({ 0: { jobs: [job(2, 'Inspire AI - Databricks AI - 420', 1)] } }).fetchJson, NAME), null);
 });
 
 test('listing stops after five pages so a runaway page token cannot loop', async () => {
@@ -82,7 +82,7 @@ test('the latest run of the newest session job is returned, or null when there i
 
 test('a failed jobs call is an error that names the call, never an empty answer', async () => {
   await assert.rejects(latestGenieNotebookRun(fakeJobs({}, {}, { list: true }).fetchJson, '42'),
-    (err) => err.statusCode === 502 && /Listing the Genie Code notebook jobs failed \(403\): no access to jobs/.test(err.message));
+    (err) => err.statusCode === 502 && /Listing the Databricks AI notebook jobs failed \(403\): no access to jobs/.test(err.message));
   await assert.rejects(latestGenieNotebookRun(fakeJobs({ 0: { jobs: [job(4, NAME, 5)] } }, {}, { runs: true }).fetchJson, '42'),
-    /Reading the Genie Code notebook run failed \(500\): INTERNAL_ERROR/);
+    /Reading the Databricks AI notebook run failed \(500\): INTERNAL_ERROR/);
 });

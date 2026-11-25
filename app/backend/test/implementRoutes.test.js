@@ -1454,7 +1454,7 @@ test('the Implement page status returns the re-run widgets, the App\'s live stat
   });
 });
 
-const NOTEBOOK_JOB = 'Inspire AI - Genie Code - 42';
+const NOTEBOOK_JOB = 'Inspire AI - Databricks AI - 42';
 const GENERATE = { inspire_database: 'main.inspire', warehouse_id: 'wh1', session_id: '42', use_case_ids: ['N01-U01'], notebook_path: '/Shared/nb' };
 const notebookJobs = (life, result = '') => ({
   jobsList: { jobs: [{ job_id: 31, created_time: 5, settings: { name: NOTEBOOK_JOB } }] },
@@ -1516,7 +1516,7 @@ test('a notebook request is refused when the jobs list cannot be read, so a runn
   try {
     const got = await call(srv.url, '/api/inspire/generate-genie', { method: 'POST', body: GENERATE });
     assert.equal(got.status, 502);
-    assert.match(got.data.error, /Listing the Genie Code notebook jobs failed \(403\)/);
+    assert.match(got.data.error, /Listing the Databricks AI notebook jobs failed \(403\)/);
     assert.deepEqual(flagged, []);
     assert.equal(jobs.length, 0);
   } finally {
@@ -1620,19 +1620,19 @@ test('a Genie start runs as the App: its job is started with the App token and t
     const got = await call(url, '/api/inspire/generate-genie', { method: 'POST', body: { inspire_database: 'main.inspire', warehouse_id: 'wh1', session_id: '42', use_case_ids: ['N01-U01'] } });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(made.jobs.length, 1, 'the Genie job is started');
-    assert.equal(made.flagged.length, 1, 'the use case is flagged for Genie Code');
+    assert.equal(made.flagged.length, 1, 'the use case is flagged for Databricks AI');
     // The only person-token call is the identity read that records who asked (who-did-what); no job, table or SQL call uses it.
     assert.deepEqual(made.fetches.filter((f) => f.token === 'person-token').map((f) => f.path), ['/api/2.0/preview/scim/v2/Me']);
     assert.equal(made.sqlCalls.some((c) => c.token === 'person-token'), false, 'no SQL runs with the person token');
   });
 });
 
-// REQ-405 (REQ-418): a build that needs Genie Code is refused before its job exists when the App has no chat model it can query, and the
+// REQ-405 (REQ-418): a build that needs Databricks AI is refused before its job exists when the App has no chat model it can query, and the
 // context says so.
-test('a build that needs Genie Code is refused before any job exists when the App can query no chat model (REQ-405, REQ-418)', async () => {
+test('a build that needs Databricks AI is refused before any job exists when the App can query no chat model (REQ-405, REQ-418)', async () => {
   await withApp({ gateway: { codex: [], claude: [], answer: () => [{ error_code: 'RESOURCE_DOES_NOT_EXIST', message: 'no such model' }, 404] } }, async (url, made) => {
     const context = await call(url, `/api/inspire/implement/context?${Q}`);
-    assert.equal(context.data.features.genie_code.available, false, 'the context reports Genie Code unavailable');
+    assert.equal(context.data.features.genie_code.available, false, 'the context reports Databricks AI unavailable');
     const submit = await call(url, '/api/inspire/implement/submit', { method: 'POST',
       body: { inspire_database: 'main.inspire', warehouse_id: 'wh1', session_id: '42', spec: SPEC } });
     assert.equal(submit.status, 409, JSON.stringify(submit.data));

@@ -62,7 +62,7 @@ test('Monitor: a live run shows the 7-phase stepper above the status card, with 
     const list = stepper(page).first();
     assert.equal(await list.getAttribute('role'), 'list');
     assert.equal(await list.getAttribute('aria-label'), 'Run steps');
-    assert.equal(await list.locator('[data-run-step-column="7"] [data-run-step]').count(), 2, 'Build Genie Code instructions and Write documents share column 7');
+    assert.equal(await list.locator('[data-run-step-column="7"] [data-run-step]').count(), 2, 'Build Databricks AI instructions and Write documents share column 7');
     assert.match(String(await list.locator('[data-run-step="tables"]').getAttribute('aria-label')), /Read the data.*running/i);
     assert.match(String(await list.locator('[data-run-step="generation"]').getAttribute('aria-label')), /Write use cases.*not started/i);
     const above = await page.evaluate(() => {
@@ -77,7 +77,7 @@ test('Monitor: a live run shows the 7-phase stepper above the status card, with 
   }
 });
 
-test('Monitor: a from-json run marks phases 2-6 and Build Genie Code instructions skipped, labelled "skipped" and never green', async () => {
+test('Monitor: a from-json run marks phases 2-6 and Build Databricks AI instructions skipped, labelled "skipped" and never green', async () => {
   const ui = await openMonitor([step('Setup', 'ended_success'), step('Executive Readout', 'ended_success'), step('Localization', 'ended_success')], ENDED);
   const { page } = ui;
   try {

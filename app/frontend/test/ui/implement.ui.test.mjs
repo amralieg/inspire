@@ -688,7 +688,7 @@ test('the Build page shows its tiles in a fixed order, no label is clipped besid
 
     await openAsset(page, 'notebook');
     const notebookPanel = assetPanel(page, 'notebook');
-    await notebookPanel.getByText('Genie Code notebook', { exact: true }).waitFor();
+    await notebookPanel.getByText('Databricks AI notebook', { exact: true }).waitFor();
     await notebookPanel.getByText('Notebook ready', { exact: true }).waitFor();
     await notebookPanel.getByText(NOTEBOOK_PATH, { exact: true }).waitFor();
     assert.equal(await notebookPanel.getByRole('link', { name: 'Open the notebook', exact: true }).getAttribute('href'),
@@ -1994,7 +1994,7 @@ test('Edit after notebook edits asks on Summary whether to overwrite them, and o
   }
 });
 
-test('with no Genie Code route, the wizard offers only the notebook with the reason and the admin fix', async () => {
+test('with no Databricks AI route, the wizard offers only the notebook with the reason and the admin fix', async () => {
   const noRoute = { answer: () => [{ error_code: 'RESOURCE_DOES_NOT_EXIST', message: 'no such model' }, 404] };
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, gateway: noRoute });
   const { page, made } = ui;
@@ -2003,8 +2003,8 @@ test('with no Genie Code route, the wizard offers only the notebook with the rea
     await stepsAre(page, ['1. Data', '2. Notebook']);
     assert.equal(await page.locator('input[name="implement-mode"]').count(), 0, 'no MVP or notebook choice (must-exclude)');
     const note = page.getByRole('note', { name: GENIE_CODE_OFF_TITLE });
-    await note.getByText(/^Genie Code is not available in this workspace/).waitFor();
-    await note.getByText(/^Admin fix: Ask a workspace admin to serve a model to Genie Code/).waitFor();
+    await note.getByText(/^Databricks AI is not available in this workspace/).waitFor();
+    await note.getByText(/^Admin fix: Ask a workspace admin to serve a model to Databricks AI/).waitFor();
     assert.doesNotMatch(await note.textContent(), /contact|ticket|support/i);
     assert.equal(made.jobs.length, 0);
   } finally {
@@ -2012,7 +2012,7 @@ test('with no Genie Code route, the wizard offers only the notebook with the rea
   }
 });
 
-test('with a Genie Code route, the wizard walks the MVP steps and no note shows', async () => {
+test('with a Databricks AI route, the wizard walks the MVP steps and no note shows', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   try {
     await goToStep(ui.page, 'Data');
@@ -2023,7 +2023,7 @@ test('with a Genie Code route, the wizard walks the MVP steps and no note shows'
   }
 });
 
-test('with no Genie Code route, the notebook skips the MVP settings, flags only this use case, starts Generate Use Cases, and the Implement page follows the notebook run', async () => {
+test('with no Databricks AI route, the notebook skips the MVP settings, flags only this use case, starts Generate Use Cases, and the Implement page follows the notebook run', async () => {
   const notebookPath = '/Users/owner@example.com/inspire/Acme/N01-U01';
   const flaggedRow = { ...HARNESS_USE_CASE, generate_genie_code_instruction: 'Yes', has_genie_code: 'N' };
   const runUrl = 'https://workspace.example.com/#job/7/run/99';
@@ -2032,7 +2032,7 @@ test('with no Genie Code route, the notebook skips the MVP settings, flags only 
   const { page, made } = ui;
   made.state.afterTrigger = () => {
     made.state.useCase = flaggedRow;
-    made.state.jobsList = { jobs: [{ job_id: 7, created_time: 1, settings: { name: 'Inspire AI - Genie Code - 42' } }] };
+    made.state.jobsList = { jobs: [{ job_id: 7, created_time: 1, settings: { name: 'Inspire AI - Databricks AI - 42' } }] };
     made.state.runsByJob = { 7: { runs: [{ run_id: 99, state: { life_cycle_state: 'RUNNING' }, run_page_url: runUrl }] } };
   };
   try {
@@ -2045,7 +2045,7 @@ test('with no Genie Code route, the notebook skips the MVP settings, flags only 
     assert.equal(await page.getByRole('button', { name: 'Change' }).count(), 0, 'I will build it myself never swaps a table');
     await goToStep(page, 'Notebook');
     const step = page.getByRole('region', { name: 'Notebook' });
-    await step.getByRole('heading', { name: 'Write the Genie Code notebook' }).waitFor();
+    await step.getByRole('heading', { name: 'Write the Databricks AI notebook' }).waitFor();
     await step.getByText('under /tmp/out/acme.', { exact: false }).waitFor();
     assert.equal(made.jobs.length, 0);
     await page.getByRole('button', { name: 'Generate notebook' }).click();
@@ -2053,7 +2053,7 @@ test('with no Genie Code route, the notebook skips the MVP settings, flags only 
 
     assert.equal(made.jobs.length, 1);
     assert.equal(made.jobs[0].jobType, 'genie_regen');
-    assert.equal(made.jobs[0].jobName, 'Inspire AI - Genie Code - 42');
+    assert.equal(made.jobs[0].jobName, 'Inspire AI - Databricks AI - 42');
     assert.equal(made.jobs[0].params['15_operation'], 'Generate Use Cases');
     assert.deepEqual(made.flagged.map((f) => [f.sid, f.ids]), [['42', ['N01-U01']]]);
     assert.equal(made.sqlCalls.some((c) => String(c.sql).includes('INSERT INTO')), false, 'I will build it myself writes no MVP version');
@@ -2095,7 +2095,7 @@ test('with no Genie Code route, the notebook skips the MVP settings, flags only 
   }
 });
 
-test('with no Genie Code route, a notebook started from the Build page of a use case that has a notebook shows it running at once, not the old notebook as ready', async () => {
+test('with no Databricks AI route, a notebook started from the Build page of a use case that has a notebook shows it running at once, not the old notebook as ready', async () => {
   const notebookPath = '/Users/owner@example.com/inspire/Acme/N01-U01';
   const runUrl = 'https://workspace.example.com/#job/7/run/99';
   const noRoute = { answer: () => [{ error_code: 'RESOURCE_DOES_NOT_EXIST', message: 'no such model' }, 404] };
@@ -2103,7 +2103,7 @@ test('with no Genie Code route, a notebook started from the Build page of a use 
   const { page, made } = ui;
   made.state.afterTrigger = () => {
     made.state.useCase = { ...HARNESS_USE_CASE, has_genie_code: 'N', generate_genie_code_instruction: 'Yes', notebook_path: notebookPath };
-    made.state.jobsList = { jobs: [{ job_id: 7, created_time: 1, settings: { name: 'Inspire AI - Genie Code - 42' } }] };
+    made.state.jobsList = { jobs: [{ job_id: 7, created_time: 1, settings: { name: 'Inspire AI - Databricks AI - 42' } }] };
     made.state.runsByJob = { 7: { runs: [{ run_id: 99, state: { life_cycle_state: 'RUNNING' }, run_page_url: runUrl }] } };
   };
   try {

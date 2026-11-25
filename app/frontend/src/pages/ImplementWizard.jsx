@@ -1651,9 +1651,9 @@ export default function ImplementWizard({
 
         {stepId === 'notebook' && (
           <section className="space-y-3 text-[12px] text-text-secondary" aria-label="Notebook">
-            <h3 className="text-sm font-semibold text-text-primary">Write the Genie Code notebook</h3>
+            <h3 className="text-sm font-semibold text-text-primary">Write the Databricks AI notebook</h3>
             <p>
-              Inspire runs Generate Use Cases for this session with only {spec.use_case_id} selected. It writes the Genie Code instruction for this use case
+              Inspire runs Generate Use Cases for this session with only {spec.use_case_id} selected. It writes the Databricks AI instruction for this use case
               and saves it as the use case notebook{notebookFolder ? ` under ${notebookFolder}` : ''}. Nothing else is built, and no other use case changes.
             </p>
             {ucRow.notebook_path && (
@@ -1720,7 +1720,7 @@ export default function ImplementWizard({
               />
               <div className="flex items-start justify-between gap-3">
                 <p className="text-xs text-text-secondary">
-                  Column roles: Inspire&apos;s choice uses the columns the use case&apos;s Genie Code instruction names. Pick a column
+                  Column roles: Inspire&apos;s choice uses the columns the use case&apos;s Databricks AI instruction names. Pick a column
                   only to override it.
                 </p>
                 {Object.values(spec.data.column_roles).some(Boolean) && (
@@ -3655,7 +3655,7 @@ function SourceTableBlocks({ tables, spec, columnsByTable, values, setSpec, load
           <div key={table} data-source-table={table} className="border border-border rounded-lg p-3 space-y-3">
             <p className="text-[12px] font-semibold text-text-primary">{table}</p>
             <p data-table-columns="" className="text-xs text-text-secondary">
-              Columns Inspire reads: {reads.length ? reads.join(', ') : 'Inspire\'s choice, from the use case\'s Genie Code instruction'}
+              Columns Inspire reads: {reads.length ? reads.join(', ') : 'Inspire\'s choice, from the use case\'s Databricks AI instruction'}
             </p>
             <Field label="Filter rows by column">
               <select aria-label={`Filter rows of ${table} by column`} className={inputCls} value={column}

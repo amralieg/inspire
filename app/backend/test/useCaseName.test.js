@@ -88,7 +88,7 @@ test('an empty stored name or a NULL instruction is left alone by the rewrite (g
   assert.equal(markers(stmt).p0, 'B');
 });
 
-test('a rename still flags a Genie Code instruction for regeneration, so a later Write Genie Code run refreshes it (REQ-155)', () => {
+test('a rename still flags a Databricks AI instruction for regeneration, so a later Write Databricks AI run refreshes it (REQ-155)', () => {
   const stmt = renameStatement(TABLE, 4242, 'N01-U01', 'Churn early warning');
   assert.match(stmt.sql, /generate_genie_code_instruction = CASE WHEN COALESCE\(user_use_case_name, ''\) <> :p\d+ AND TRIM\(COALESCE\(genie_instruction, ''\)\) <> '' THEN 'Yes' ELSE generate_genie_code_instruction END/);
 });

@@ -50,7 +50,7 @@ const assumptionRow = (name, at) => ({
   unit: at % 3 === 2 ? '%' : 'USD', reason: 'the value the notebook defines', help: 'An assumption of the value at stake formula.', applies: 'app_and_run',
 });
 const widgetRow = (name, label, group, allowed, low, high, whole) => ({ name, label, group, kind: whole ? 'integer' : 'number', low, high, whole, allowed,
-  source: 'widget', default: String(low), unit: '', reason: 'Genie Code chose it when it built the notebook', help: `${label}.`, applies: 'run' });
+  source: 'widget', default: String(low), unit: '', reason: 'Databricks AI chose it when it built the notebook', help: `${label}.`, applies: 'run' });
 const fullModel = (assumptions) => [
   ...Array.from({ length: assumptions }, (_, at) => assumptionRow(at < CONSTANTS.length ? CONSTANTS[at] : `EXTRA_RATE_${at + 1}`, at)),
   MODEL[1], MODEL[2],

@@ -488,7 +488,7 @@ test('while a version builds, only the outputs its recorded plan touches show bu
   const v = await view();
   const p = await progress();
   const latest = { ...LATEST, spec_version: 3, status: 'building_outputs', spec_json: { ...LATEST.spec_json, vibes: 'a filter on every column' } };
-  const steps = [planStep(PLANNED({ refresh: ['app'] })), phaseStep('Genie Code', 'ended_success', '10:00:59'), phaseStep('App', 'started', '10:01:21')];
+  const steps = [planStep(PLANNED({ refresh: ['app'] })), phaseStep('Databricks AI', 'ended_success', '10:00:59'), phaseStep('App', 'started', '10:01:21')];
   const plan = p.versionPlan(steps, latest);
   const stages = p.mvpStages(steps, latest, { now: Date.parse('2026-01-02T10:02:00Z') });
   const tower = v.controlTiles(ALL_LIVE, latest, { active: true, building: p.buildingAssets(stages, true), plan, stages });
@@ -521,8 +521,8 @@ test('the tiles that say Genie is on them now are the asset cards the progress l
   const plan = p.versionPlan([planStep(PLANNED({ refresh: ['app', 'dashboard'] }))], latest);
   const at = (time) => ({ now: Date.parse(`2026-01-02T${time}Z`) });
   const runs = [
-    [[phaseStep('Genie Code', 'started', '10:00:40')], at('10:01:00')],
-    [[phaseStep('Genie Code', 'ended_success', '10:00:59'), phaseStep('Dashboard', 'started', '10:01:21')], at('10:02:00')],
+    [[phaseStep('Databricks AI', 'started', '10:00:40')], at('10:01:00')],
+    [[phaseStep('Databricks AI', 'ended_success', '10:00:59'), phaseStep('Dashboard', 'started', '10:01:21')], at('10:02:00')],
     [[phaseStep('Dashboard', 'started', '10:01:21'), phaseStep('Dashboard', 'ended_success', '10:03:00')], at('10:03:02')],
     [[phaseStep('Dashboard', 'started', '10:01:21'), phaseStep('Dashboard', 'ended_success', '10:03:00'), phaseStep('App', 'started', '10:03:05')], at('10:04:00')],
   ];

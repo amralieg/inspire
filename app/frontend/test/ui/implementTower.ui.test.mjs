@@ -927,7 +927,7 @@ test('a vibe Inspire sent to the App alone rebuilds only the App: the stepper, t
     const progress = page.locator('[data-mvp-progress]');
     await progress.locator('[data-stage="App"][data-stage-state="running"]').waitFor({ timeout: 15000 });
     assert.deepEqual(await stagesOf(page), [
-      ['Job', 'Vibe, Plan', 'done'], ['Notebook', 'Start Genie Code', 'done'], ['App', 'Rebuild the Agentic App', 'running'], ['Finish', 'Done', 'waiting'],
+      ['Job', 'Vibe, Plan', 'done'], ['Notebook', 'Start Databricks AI', 'done'], ['App', 'Rebuild the Agentic App', 'running'], ['Finish', 'Done', 'waiting'],
     ], 'only the planned stages, each a chip');
     assert.deepEqual(await arrowsOf(page), ['done', 'done', 'todo'], 'a dark arrow after each done stage, a grey one before what is still to come');
     for (const absent of ['Dashboard', 'Genie Agent', 'Alert', 'Plan', 'Vibe', 'Instruction', 'Genie build', 'Preview run']) {
@@ -1008,7 +1008,7 @@ test('when Inspire puts back what no ask targets, the stepper shows the Self-fix
     const progress = page.locator('[data-mvp-progress]');
     await progress.locator('[data-stage="App"][data-stage-state="done"]').waitFor({ timeout: 15000 });
     assert.deepEqual(await stagesOf(page), [
-      ['Job', 'Vibe, Plan', 'done'], ['Notebook', 'Start Genie Code', 'done'], ['App', 'Rebuild the Agentic App', 'done'], ['Finish', 'Self-fix, Done', 'next'],
+      ['Job', 'Vibe, Plan', 'done'], ['Notebook', 'Start Databricks AI', 'done'], ['App', 'Rebuild the Agentic App', 'done'], ['Finish', 'Self-fix, Done', 'next'],
     ], 'the Self-fix stage sits in Finish, before Done');
     const list = page.getByRole('region', { name: 'Vibe checklist of v4', exact: true });
     await list.waitFor({ timeout: 15000 });
@@ -1319,7 +1319,7 @@ test('while Genie rebuilds the App, the App card animates and the Job and Notebo
     const progress = page.locator('[data-mvp-progress]');
     await progress.locator('[data-stage="App"][data-stage-state="running"]').waitFor({ timeout: 15000 });
     assert.deepEqual(await stagesOf(page), [
-      ['Job', 'Vibe, Plan', 'done'], ['Notebook', 'Start Genie Code', 'done'], ['App', 'Rebuild the Agentic App', 'running'], ['Finish', 'Done', 'waiting'],
+      ['Job', 'Vibe, Plan', 'done'], ['Notebook', 'Start Databricks AI', 'done'], ['App', 'Rebuild the Agentic App', 'running'], ['Finish', 'Done', 'waiting'],
     ]);
     assert.match(await text(progress.locator('[data-stage="Job"]')), /^Job5s/, 'the Job chip carries the plan time');
     await page.waitForFunction(() => document.querySelector('[data-asset-tile="app"]')?.classList.contains('asset-building'), null, { timeout: 20000 });

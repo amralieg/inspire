@@ -416,7 +416,7 @@ export function NotebookPanel({ notebook, kpi = null, children = null }) {
         <IconChip icon={NotebookPen} tone={TONE_CHIP[notebook.state.tone] || 'idle'} size="md" />
         <div className="min-w-0 space-y-0.5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[13px] font-semibold text-text-primary">Genie Code notebook</span>
+            <span className="text-[13px] font-semibold text-text-primary">Databricks AI notebook</span>
             <ImplementStatusBadge state={notebook.state} />
           </div>
           <NotebookFacts notebook={notebook} />

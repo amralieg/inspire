@@ -70,7 +70,7 @@ test('with both routes empty or refusing, the check names every model tried and 
       + `system.ai.claude-opus-4-7 through the Anthropic route: ${GC.GENIE_CODE_MODEL_DENIED}; the Codex route lists no model`)
     .replace('{choices}', GC.GENIE_CODE_NO_MODEL_CHOICES));
   assert.match(verdict.reason, /choose I will build it myself and run the notebook yourself/);
-  assert.match(verdict.fix, /^Ask a workspace admin to serve a model to Genie Code through Unity Gateway/);
+  assert.match(verdict.fix, /^Ask a workspace admin to serve a model to Databricks AI through Unity Gateway/);
   assert.doesNotMatch(`${verdict.reason} ${verdict.fix}`, /contact|ticket|support/i);
   const none = await GC.createGenieCodeCheck()('https://h', 't', gateway({ listStatus: 404 }).fetchJson);
   assert.match(none.reason, /the Codex route and the Anthropic route list no model/);
@@ -120,7 +120,7 @@ test('the listing parser reads both the Codex slugs and the Anthropic ids', () =
   assert.deepEqual(GC.listedModels(null), []);
 });
 
-test('only a build that runs Genie needs Genie Code: an uninstall or a rollback does not', () => {
+test('only a build that runs Genie needs Databricks AI: an uninstall or a rollback does not', () => {
   assert.equal(GC.needsGenieCode({ outputs: { dashboard: true } }), true);
   assert.equal(GC.needsGenieCode({ uninstall: true }), false);
   assert.equal(GC.needsGenieCode({ rollback_outputs: { dashboard: 2 } }), false);
@@ -171,7 +171,7 @@ const Q = 'inspire_database=main.inspire&warehouse_id=wh1&session_id=42&use_case
 const NO_GENIE = { gateway: { answer: () => [{ error_code: 'RESOURCE_DOES_NOT_EXIST', message: 'no such model' }, 404] } };
 const SPEC = { use_case_id: 'N01-U01', use_case_name: 'Predict churn', config: { warehouse_id: 'wh1', result_table: 'main.inspire.churn_out' }, outputs: { dashboard: true } };
 
-test('the wizard context and the preflight carry the Genie Code verdict, and a missing route fails the preflight', async () => {
+test('the wizard context and the preflight carry the Databricks AI verdict, and a missing route fails the preflight', async () => {
   await withApp(NO_GENIE, async (url) => {
     const context = await call(url, `/api/inspire/implement/context?${Q}`);
     assert.equal(context.status, 200, JSON.stringify(context.data));
@@ -179,22 +179,22 @@ test('the wizard context and the preflight carry the Genie Code verdict, and a m
     const pre = await call(url, `/api/inspire/implement/preflight?${Q}&result_table=main.inspire.churn_out`);
     assert.equal(pre.status, 200, JSON.stringify(pre.data));
     assert.equal(pre.data.checks.genie_code.ok, false);
-    assert.match(pre.data.checks.genie_code.detail, /^Genie Code is not available in this workspace/);
+    assert.match(pre.data.checks.genie_code.detail, /^Databricks AI is not available in this workspace/);
     assert.equal(pre.data.ok, false);
   });
   await withApp({}, async (url) => {
     const pre = await call(url, `/api/inspire/implement/preflight?${Q}&result_table=main.inspire.churn_out`);
-    assert.deepEqual(pre.data.checks.genie_code, { ok: true, detail: 'Genie Code builds with gpt-5.6-sol through the Codex route' });
+    assert.deepEqual(pre.data.checks.genie_code, { ok: true, detail: 'Databricks AI builds with gpt-5.6-sol through the Codex route' });
   });
 });
 
-test('submit refuses a build Genie Code cannot run before it writes or launches anything, and lets it through once a route answers', async () => {
+test('submit refuses a build Databricks AI cannot run before it writes or launches anything, and lets it through once a route answers', async () => {
   await withApp(NO_GENIE, async (url, made) => {
     const got = await call(url, '/api/inspire/implement/submit', {
       method: 'POST', body: { inspire_database: 'main.inspire', warehouse_id: 'wh1', session_id: '42', spec: SPEC },
     });
     assert.equal(got.status, 409, JSON.stringify(got.data));
-    assert.match(got.data.error, /^Genie Code is not available in this workspace/);
+    assert.match(got.data.error, /^Databricks AI is not available in this workspace/);
     assert.equal(got.data.genie_code.available, false);
     assert.equal(made.jobs.length, 0);
     assert.ok(!made.sqlCalls.some((c) => String(c.sql).includes('INSERT INTO')));

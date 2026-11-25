@@ -285,7 +285,7 @@ test('the wizard shows only the business settings; the technical ones Genie decl
     { name: 'neighbors_per_item', allowed: 'whole number, at least 1', default: '50' }, { name: 'holdout_days', default: 'ceil(0.2 x days)' },
   ];
   const model = [...MODEL, { name: 'min_interactions', label: 'Minimum interactions', group: 'scope', kind: 'integer', low: 1, high: null, allowed: 'whole number, at least 1',
-    source: 'widget', default: '1000', reason: 'Genie Code chose it when it built the notebook', applies: 'run' }];
+    source: 'widget', default: '1000', reason: 'Databricks AI chose it when it built the notebook', applies: 'run' }];
   const fromWidgets = S.wizardSettings({ widgets, family: 'D' }).map((s) => s.name);
   assert.deepEqual(fromWidgets, ['min_score', 'items_per_entity', 'run_scope'], 'before the App exists, the Act now and Review cut-offs wait for its Settings (must-exclude)');
   assert.deepEqual(S.wizardSettings({ widgets, family: 'D', editing: true }).map((s) => s.name), ['act_now_share', 'review_share', 'min_score', 'items_per_entity', 'run_scope'],

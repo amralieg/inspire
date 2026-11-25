@@ -6,7 +6,15 @@ const LIST_PAGES = 5;
 function genieNotebookJobName(sessionId) {
   const sid = int64Id(sessionId);
   if (!sid) throw new Error('session_id must be a numeric Inspire session id.');
-  return `Inspire AI - Genie Code - ${sid}`;
+  return `Inspire AI - Databricks AI - ${sid}`;
+}
+
+// Installs made before REQ-529 named the session job with the old product wording; those jobs are still looked up.
+function legacyGenieNotebookJobName(sessionId) {
+  const sid = int64Id(sessionId);
+  if (!sid) throw new Error('session_id must be a numeric Inspire session id.');
+  const LEGACY_JOB_NAME = `Inspire AI - Genie Code - ${sid}`;
+  return LEGACY_JOB_NAME;
 }
 
 function apiError(what, got) {
@@ -20,7 +28,7 @@ async function newestJobNamed(fetchJson, name) {
   let pageToken = '';
   for (let page = 0; page < LIST_PAGES; page += 1) {
     const got = await fetchJson(`/api/2.1/jobs/list?name=${encodeURIComponent(name)}&limit=100${pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''}`);
-    if (!got.ok) throw apiError('Listing the Genie Code notebook jobs', got);
+    if (!got.ok) throw apiError('Listing the Databricks AI notebook jobs', got);
     for (const job of got.data.jobs || []) {
       if (job?.settings?.name !== name) continue;
       if (!newest || Number(job.created_time) > Number(newest.created_time)) newest = job;
@@ -63,7 +71,7 @@ async function installedActiveGenieRunOf(fetchJson, sessionId, installedJobId) {
   for (let page = 0; page < INSTALLED_MAX_PAGES; page += 1) {
     const got = await fetchJson(`/api/2.1/jobs/runs/list?job_id=${jobId}&active_only=true&limit=${INSTALLED_PAGE}`
       + (pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''));
-    if (!got.ok) throw apiError('Reading the Genie Code notebook runs', got);
+    if (!got.ok) throw apiError('Reading the Databricks AI notebook runs', got);
     const run = (got.data.runs || []).find((r) => sessionOfRun(r) === sid);
     if (run) return notebookRunOf({ job_id: jobId, ...run });
     pageToken = String(got.data.next_page_token || '');
@@ -75,19 +83,19 @@ async function installedActiveGenieRunOf(fetchJson, sessionId, installedJobId) {
 // One run of the Genie job, read by its id (the run Inspire recorded for the session).
 async function genieRunOf(fetchJson, runId) {
   const got = await fetchJson(`/api/2.1/jobs/runs/get?run_id=${requireInt64Id(runId, 'run_id')}`);
-  if (!got.ok) throw apiError('Reading the Genie Code notebook run', got);
+  if (!got.ok) throw apiError('Reading the Databricks AI notebook run', got);
   return notebookRunOf({ job_id: got.data.job_id, ...got.data });
 }
 
 // Outside run-as the session's job is found by its name (created for the session). In run-as mode the installed job is the one to read.
 async function latestGenieNotebookRun(fetchJson, sessionId, { installedJobId = '' } = {}) {
   if (installedJobId) return installedActiveGenieRunOf(fetchJson, sessionId, installedJobId);
-  const job = await newestJobNamed(fetchJson, genieNotebookJobName(sessionId));
+  const job = (await newestJobNamed(fetchJson, genieNotebookJobName(sessionId))) || (await newestJobNamed(fetchJson, legacyGenieNotebookJobName(sessionId)));
   if (!job) return null;
   const got = await fetchJson(`/api/2.1/jobs/runs/list?job_id=${requireInt64Id(job.job_id, 'job_id')}&limit=1`);
-  if (!got.ok) throw apiError('Reading the Genie Code notebook run', got);
+  if (!got.ok) throw apiError('Reading the Databricks AI notebook run', got);
   const run = (got.data.runs || [])[0];
   return run ? notebookRunOf({ job_id: job.job_id, ...run }) : null;
 }
 
-module.exports = { genieNotebookJobName, genieRunOf, latestGenieNotebookRun, newestJobNamed, notebookRunOf };
+module.exports = { genieNotebookJobName, legacyGenieNotebookJobName, genieRunOf, latestGenieNotebookRun, newestJobNamed, notebookRunOf };

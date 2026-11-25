@@ -348,7 +348,7 @@ test('a use case card offers only Open notebook for its notebook: no preview, no
   const instruction = `# Segment shoppers instruction\n${'Build the segments from the orders table. '.repeat(6)}`;
   const withNotebook = (extra) => ({ ...RESULTS, domains: RESULTS.domains.map((d) => ({ ...d,
     use_cases: d.use_cases.map((u) => (u.No === 'N01-U03' ? { ...u, notebook_path: notebook, ...extra } : u)) })) });
-  const kinds = [['outline notebook', {}, 'Use case notebook'], ['Genie Code notebook', { genie_instruction: instruction, has_genie_code: 'Y' }, 'Genie Code Instruction']];
+  const kinds = [['outline notebook', {}, 'Use case notebook'], ['Databricks AI notebook', { genie_instruction: instruction, has_genie_code: 'Y' }, 'Databricks AI Instruction']];
   for (const [label, extra, heading] of kinds) {
     const ui = await openUi('results', { ...STATE, results: withNotebook(extra) }, '', FAKE_CLOCK);
     const { page } = ui;

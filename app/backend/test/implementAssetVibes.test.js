@@ -288,7 +288,7 @@ test('the control tower lists every built asset grouped by output with its parts
   const live = [{ id: 'app', name: 'churn-desk' }, { id: 'dashboard', name: 'Churn dashboard' }, { id: 'alert', name: 'Churn over 25' }];
   const groups = c.assetGroups(cards, live);
   assert.deepEqual(groups.map((g) => [g.key, g.label, g.assets.map((a) => [a.title, a.group])]), [
-    ['notebook', 'Genie Code notebook', [['Notebook', 'Genie Code notebook']]],
+    ['notebook', 'Databricks AI notebook', [['Notebook', 'Databricks AI notebook']]],
     ['results', 'Results', [['AI reasoning', 'Results'], ['Value at stake', 'Results']]],
     ['app', 'Agentic App', [['The whole Agentic App', 'Agentic App'], ['Page: Decisions', 'Agentic App'], ['Page: Row detail page', 'Agentic App']]],
     ['dashboard', 'Dashboard', [['The whole dashboard', 'Dashboard'], ['Chart: Weekly trend', 'Dashboard']]],
