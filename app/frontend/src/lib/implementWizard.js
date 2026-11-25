@@ -3110,12 +3110,13 @@ export function buildNowDefaultsText(labels) {
 }
 
 export function accessVerdictOf({ preflight = null, error = '', busy = false, unread = null } = {}) {
+  // REQ-042: an App that cannot read a source is refused first; a preflight that checked only the person's read never overrides it.
+  if (unread) return 'refused';
   if (preflight && !busy) {
     const sources = preflight.checks?.sources;
     if (sources && typeof sources.ok === 'boolean') return sources.ok ? 'ok' : 'refused';
-    return unread ? 'refused' : 'unknown';
+    return 'unknown';
   }
-  if (unread) return 'refused';
   if (error) return 'error';
   return 'pending';
 }
