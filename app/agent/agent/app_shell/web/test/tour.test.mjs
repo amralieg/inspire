@@ -202,8 +202,9 @@ test('ending the tour puts the hash back even when a navigation is still waiting
   await stepNow(page);
   // the second step sits on the section the tour started from, so the page state and the start agree and only the hash can tell the tour has moved
   await page.locator('[data-tour-next]').dispatchEvent('click', null, { timeout: STEP_WAIT });
-  const second = await stepNow(page, 0);
-  assert.equal(second.hash, startedAt, 'this page shows its second step on the start section');
+  await stepNow(page, 0);
+  await page.waitForFunction((h) => location.hash === h, startedAt, { timeout: 10000 });
+  await page.waitForTimeout(300);
   // the hash changes and the click lands in the same task, before the page hears hashchange, as when a step's navigation is still in flight
   await page.evaluate((h) => {
     location.hash = `${h.replace(/\/[^/]*$/, '')}/${h.endsWith('/work') ? 'dashboard' : 'work'}`;

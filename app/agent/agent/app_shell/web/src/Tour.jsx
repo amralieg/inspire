@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom';
 import { reducedMotion } from './theme.js';
 import { TOUR_WAIT_MS, fillTourText, holeOf, pickTourLanguage, placeTour, tourSection } from './tour.js';
+import { parseHash } from './links.js';
 import './styles/tour.css';
 
 const FOCUSABLE = 'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
@@ -39,7 +40,8 @@ export default function Tour({ tour, help = null, facts, queue, section, onSecti
     ended.current = true;
     window.dispatchEvent(new CustomEvent('inspire:tour-step', { detail: '' }));
     const { section: from, focus } = started.current;
-    if (from && from !== section) onSection(from);
+    // `section` is the page state, which hears a step's navigation one hashchange later than the hash itself, so the hash is what says whether the tour moved the page
+    if (from && parseHash(window.location.hash).section !== from) onSection(from);
     onEnd();
     const mark = focus?.getAttributeNames?.().find((n) => n.startsWith('data-'));
     const back = (tries) => {
@@ -50,7 +52,7 @@ export default function Tour({ tour, help = null, facts, queue, section, onSecti
       else document.querySelector('.main')?.focus();
     };
     requestAnimationFrame(() => back(20));
-  }, [onEnd, onSection, section]);
+  }, [onEnd, onSection]);
 
   const move = useCallback((by) => {
     setWay(by);
