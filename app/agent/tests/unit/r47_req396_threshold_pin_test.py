@@ -158,7 +158,8 @@ def test_a_method_change_with_an_inspire_rule_cause_is_named_not_silent(agent_ns
     method = {"what": "the segmentation method", "why": "the grouping rule asks for it", "cause": "rule",
               "method_was": "KMeans segmentation", "method_now": "Rule-based spend-gap tiers", "setting": "", "value_was": "", "value_now": ""}
     assert agent_ns["implement_genie_change_notes"](fill(changes=[method]), None) == [
-        "Genie used Rule-based spend-gap tiers instead of KMeans segmentation: the grouping rule asks for it."]
+        "Genie used Rule-based spend-gap tiers instead of KMeans segmentation: the grouping rule asks for it. "
+        "This follows Inspire's rules, so there is nothing to fix."]  # RC3-03 (4f1ef7115) rule-cause suffix
 
 
 APPLIES = dict(GROUPING, applies=True)  # the guard reads only a use case whose Grouping applies
@@ -234,4 +235,5 @@ def test_a_rule_caused_technique_change_reaches_the_build_outcome_as_a_named_cha
     runner = _FakeRunner([{"exit": 0, "final": change}])
     outcome, _job, _fill_out = _run(agent_ns, inst, runner)
     assert outcome["status"] == "written"
-    assert outcome["genie_changes"] == ["Genie used Rule-based spend-gap tiers instead of KMeans segmentation: the grouping rule asks for it."]
+    assert outcome["genie_changes"] == ["Genie used Rule-based spend-gap tiers instead of KMeans segmentation: the grouping rule asks for it. "
+        "This follows Inspire's rules, so there is nothing to fix."]  # RC3-03 (4f1ef7115) rule-cause suffix
