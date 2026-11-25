@@ -115,7 +115,10 @@ export function IncludePage({ options, set }) {
   );
 }
 
-export function StylePage({ options, set, svg }) {
+// REQ-526: a small picture of each design's own infographic (an inline data image, no network).
+const thumbOf = (svg) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+
+export function StylePage({ options, set, svg, thumbs = {} }) {
   const theme = resolveTheme(options.style, options.palette, options.customColor, options.theme);
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -132,6 +135,7 @@ export function StylePage({ options, set, svg }) {
         <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Style">
           {DOC_STYLES.map((s) => (
             <button key={s.id} type="button" role="radio" aria-checked={options.style === s.id} data-doc-style={s.id} onClick={() => set({ style: s.id })} className={`${card(options.style === s.id)} py-2`}>
+              {thumbs[s.id] && <img data-doc-style-thumb="" src={thumbOf(thumbs[s.id])} alt="" className="mb-1 aspect-[794/1123] max-h-28 w-auto rounded border border-border" />}
               <span className="flex gap-1" aria-hidden>{s.accents.map((c, i) => <span key={i} className="h-2.5 w-5 rounded-full" style={{ background: c }} />)}</span>
               <span className="mt-1 block text-xs font-bold text-text-primary">{s.label}</span>
             </button>
@@ -175,6 +179,7 @@ export function ReviewPage({ plan, count, options }) {
   return (
     <div className="space-y-2">
       <p className="text-sm text-text-secondary">{plan.length} {plan.length === 1 ? 'file' : 'files'} from {count} use {count === 1 ? 'case' : 'cases'}, saved to this run's Assets.</p>
+      {options && <p data-doc-review-style="" className="text-xs text-text-secondary">Style: {(DOC_STYLES.find((s) => s.id === options.style) || DOC_STYLES[0]).label}</p>}
       {options && <p data-doc-review-theme="" className="text-xs text-text-secondary">Theme: {(options.theme || 'light') === 'dark' ? 'Dark' : 'Light'}</p>}
       <ul className="max-h-[42vh] divide-y divide-border overflow-y-auto rounded-xl border border-border">
         {plan.map((f) => (
