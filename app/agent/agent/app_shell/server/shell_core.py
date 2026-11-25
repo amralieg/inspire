@@ -1867,6 +1867,28 @@ RUN_ERRORS = shell_sql.RUN_ERRORS
 run_error_code = shell_sql.run_error_code
 
 
+MONEY_KIND_OF_RULE = {"losses": "saving", "gains": "gain", "net": "variance"}
+
+
+def money_kind_of(page: dict) -> str:
+    """REQ-532: what an amount on this page is. A page that counts losses counts what could be saved; gains count gains; net is a
+    variance whose sign says which way it went."""
+    money = page.get("money")
+    return MONEY_KIND_OF_RULE.get(money.get("rule", "losses") if isinstance(money, dict) else "losses", "saving")
+
+
+def money_words(amount, kind: str = "variance") -> dict:
+    """REQ-532: the label for an amount. A positive variance is a gain, a negative one a loss (at risk), and `could_save` holds the
+    amount only when the kind is a saving. kind: saving | gain | loss | variance."""
+    ok = isinstance(amount, (int, float)) and not isinstance(amount, bool) and math.isfinite(amount)
+    if not ok:
+        return {"kind": "", "label": "", "could_save": None}
+    if kind == "variance":
+        kind = "gain" if amount > 0 else "loss" if amount < 0 else ""
+    label = {"saving": "Could save", "gain": "Gain", "loss": "Loss (at risk)"}.get(kind, "")
+    return {"kind": kind, "label": label if amount or kind == "saving" else "", "could_save": amount if kind == "saving" else None}
+
+
 def run_view(entry: dict, summary, page: dict) -> dict:
     job, s = entry.get("job"), summary or {}
     j = job or {}
@@ -1888,7 +1910,7 @@ def run_view(entry: dict, summary, page: dict) -> dict:
             "stages": run_stage_times(s.get("run_stages")), "grouping": run_grouping(s.get("run_grouping")),
             "records": records if records is not None else entry.get("rows"),
             "to_fix": to_fix,
-            "could_save": stake if isinstance(stake, (int, float)) and not isinstance(stake, bool) and math.isfinite(stake) else None,
+            "could_save": money_words(stake, money_kind_of(page))["could_save"],
             "currency": str(s.get("currency") or ""), "unit": shell_sql.impact_unit(s), "impact_kind": shell_sql.impact_of(s)["kind"],
             "summary": str(s.get("summary") or ""),
             "nothing_to_act": str(s.get("nothing_to_act") or ""),
