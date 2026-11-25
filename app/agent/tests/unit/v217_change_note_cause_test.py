@@ -18,8 +18,8 @@ LIVE = [
 # REQ-396: a method change is named even when its cause is an Inspire rule (a warning, never silent), so the two rule changes are named.
 PLAIN = [
     "Genie set Minimum positive outcomes to 50, not 200: The readiness preview found 61 positives, so 200 would knowingly fail.",
-    "Genie used Numeric significant-figure rounding instead of Python g formatting: the number helpers cell asks for significant figures.",
-    "Genie used inspire_group_records before modeling instead of No grouping helper call: the grouping rule asks for the helper.",
+    "Genie used Numeric significant-figure rounding instead of Python g formatting: the number helpers cell asks for significant figures. This follows Inspire's rules, so there is nothing to fix.",
+    "Genie used inspire_group_records before modeling instead of No grouping helper call: the grouping rule asks for the helper. This follows Inspire's rules, so there is nothing to fix.",
     "Genie set Minimum positive outcomes to 0, not 50: The transparent rule requires no positive labels.",
 ]
 
@@ -71,7 +71,7 @@ def test_one_join_shortfall_reworded_by_genie_in_many_changes_gives_one_note_tha
                  [{"check": "join coverage", "measured": "0.000155"}])
     notes = agent_ns["implement_genie_change_notes"](fill, short)
     assert len(notes) == 2, "a method change Inspire's own rule asked for is named too, never silent (REQ-396)"
-    assert notes[1] == "Genie used Left join instead of Inner join: coverage counts all rows."
+    assert notes[1] == "Genie used Left join instead of Inner join: coverage counts all rows. This follows Inspire's rules, so there is nothing to fix."
     assert notes[0].startswith("Genie found 0.000155 join coverage, fewer than the ")
     assert notes[0].endswith("so it used T1-T5 and Benford T7; T6 unavailable instead. Results will be less precise; "
                              "Rebuild once the data meets that minimum to use T1-T6 and Benford T7.")
