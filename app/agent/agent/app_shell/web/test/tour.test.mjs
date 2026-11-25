@@ -174,9 +174,13 @@ test('an automated browser opens the App without a tour, and a first visit asked
 
 test('the tour walks every step it can show, skips a missing anchor, fills live facts and goes back where it started', async () => {
   const info = appInfo({}, 1, written());
-  const { page, context, seen } = await openApp(browser, base, info, { watch: STILL, hash: '?tour=1' });
-  const startedAt = await page.evaluate(() => location.hash);
+  // the tour moves the page itself on its first step, so where it started is the hash when it first announced a step, not whatever the hash is when the test gets to read it
+  const { page, context, seen } = await openApp(browser, base, info, { watch: async (p) => {
+    await STILL(p);
+    await p.addInitScript(() => window.addEventListener('inspire:tour-step', () => { window.__tourStart ??= location.hash; }, true));
+  }, hash: '?tour=1' });
   const steps = await walk(page);
+  const startedAt = await page.evaluate(() => window.__tourStart);
   assert.deepEqual(steps.map((s) => s.anchor), ['decision', 'todo', 'kpis', 'records', 'top_record', 'genie'], 'alerts is off in this App, so the tour writes no alerts step and the template fills the place with the first unused stop, What to do now');
   assert.equal(steps[0].text, 'This desk ranks discounts by the margin they lose.', 'the open count had not loaded on the dashboard, so its sentence is dropped');
   assert.match(steps[2].text, /^The first tile is the margin lost to discounts, \S+ in this window\.$/);
@@ -187,6 +191,27 @@ test('the tour walks every step it can show, skips a missing anchor, fills live 
   assert.deepEqual(steps.map((s) => s.count), ['1 / 6', '2 / 6', '3 / 6', '4 / 6', '5 / 6', '6 / 6']);
   await page.waitForFunction((h) => location.hash === h, startedAt);
   assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('ending the tour puts the hash back even when a navigation is still waiting to reach the page state', async () => {
+  const info = appInfo({}, 1, written());
+  const { page, context } = await openApp(browser, base, info, { watch: STILL });
+  const startedAt = await page.evaluate(() => location.hash);
+  await takeTour(page);
+  await stepNow(page);
+  // the second step sits on the section the tour started from, so the page state and the start agree and only the hash can tell the tour has moved
+  await page.locator('[data-tour-next]').dispatchEvent('click', null, { timeout: STEP_WAIT });
+  const second = await stepNow(page, 0);
+  assert.equal(second.hash, startedAt, 'this page shows its second step on the start section');
+  // the hash changes and the click lands in the same task, before the page hears hashchange, as when a step's navigation is still in flight
+  await page.evaluate((h) => {
+    location.hash = `${h.replace(/\/[^/]*$/, '')}/${h.endsWith('/work') ? 'dashboard' : 'work'}`;
+    document.querySelector('[data-tour-skip]').click();
+  }, startedAt);
+  await page.waitForSelector('.tour', { state: 'detached' });
+  await page.waitForTimeout(500);
+  assert.equal(await page.evaluate(() => location.hash), startedAt, 'the tour returns to where it started');
   await context.close();
 });
 
