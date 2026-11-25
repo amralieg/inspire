@@ -1,3 +1,4 @@
+import { moneyKindOf, moneyLabel } from './impact.js';
 import { useEffect, useRef, useState } from 'react';
 import { saveSetting } from './api.js';
 import WaitingForAccess from './WaitingForAccess.jsx';
@@ -70,7 +71,7 @@ function Details({ run, id }) {
 const detailsId = (run) => `run-d-${slug(runKey(run))}`;
 const whenText = (run) => (run.started ? stampText(run.started) : 'Not recorded');
 
-function runColumns(isOpen, toggle) {
+function runColumns(isOpen, toggle, saveLabel) {
   return [
     {
       key: '_open', label: 'Details', hideLabel: true, fixed: true, className: 'runs-x',
@@ -94,7 +95,7 @@ function runColumns(isOpen, toggle) {
     { key: 'records', label: 'Records', num: true, render: (run) => (run.records ? integer(run.records) : <None />) },
     { key: 'to_fix', label: 'To fix', num: true, render: (run) => count(run.to_fix) },
     {
-      key: 'could_save', label: 'Could save', num: true, className: 'could-save',
+      key: 'could_save', label: saveLabel, num: true, className: 'could-save',
       render: (run) => (run.could_save == null ? <None />
         : <Fx formula={couldSaveRunFormula(run)}>{formatValue(run.could_save, unitOf(run) ? 'currency' : 'number', unitOf(run), undefined, kindOf(run))}</Fx>),
     },
@@ -149,7 +150,7 @@ export default function Runs({ page, runs, offset, onOffset, onExplain, genieBus
     else next.add(runKey(run));
     return next;
   });
-  const columns = runColumns(isOpen, toggle);
+  const columns = runColumns(isOpen, toggle, moneyLabel(moneyKindOf(page), 1));
   const timeline = timelineChart(list, trends);
   return (
     <>

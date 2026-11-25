@@ -1,3 +1,4 @@
+import { pageMoneyLabel } from './impact.js';
 import WaitingForAccess from './WaitingForAccess.jsx';
 import { Suspense, lazy, useState } from 'react';
 import { ColumnFilterStatus, withColumnFilters } from './ColumnFilters.jsx';
@@ -60,7 +61,7 @@ function hubTiles(page, entry, summary, fix, user, stale, onFix) {
   const tiles = [
     { id: 'fix', label: 'To fix', value: integer(fix.length), sub: fix.length ? `${mine} of them ${mine === 1 ? 'is' : 'are'} yours` : 'Nothing to fix right now',
       action: fixing ? { label: 'Fix this', run: () => onFix({ tiers: FIX_TIERS }) } : null },
-    { id: 'save', label: 'Could save', value: entry?.money ? moneyText(totals(fix)) : NOT_MEASURED,
+    { id: 'save', label: pageMoneyLabel(page, fix), value: entry?.money ? moneyText(totals(fix)) : NOT_MEASURED,
       sub: entry?.money ? couldSaveText(fix) : 'This use case puts no amount at stake on its records yet', tone: entry?.money ? 'green' : '',
       formula: entry?.money ? couldSaveFormula(fix) : '', action: fixing && entry?.money ? { label: 'Fix this', run: () => onFix({ tiers: FIX_TIERS, money: true }) } : null },
     { id: 'fixed', label: 'Fixed so far', value: entry?.tracked ? integer(done.fixed) : NOT_MEASURED,
@@ -188,10 +189,10 @@ function HubBody({ app, page, entry, live, summary, state, onState, view, onView
         <Placed slots={topSlots}>
           <section className="charts">
             {charts(
-              <BarsCard id="by_reason" title="Could save, by reason" hint="The AI groups each item by reason." action="Click a bar to filter." loading={loading}
+              <BarsCard id="by_reason" title={`${pageMoneyLabel(page, rows)}, by reason`} hint="The AI groups each item by reason." action="Click a bar to filter." loading={loading}
                 bars={first && current?.money ? reasonBars(rows, page) : []} picked={first ? picked : undefined} onPick={first ? (value) => onState(pickReason(state, first.name, value)) : undefined}
                 empty={!first ? 'The AI gives no reasons for this use case yet.' : !current?.money ? NOT_MEASURED : 'Nothing to fix for these filters.'}
-                x={first?.label} measure="Could save" filters={viewWords(view, reasons, state)} onExplain={explain} genieBusy={genieBusy}
+                x={first?.label} measure={pageMoneyLabel(page, rows)} filters={viewWords(view, reasons, state)} onExplain={explain} genieBusy={genieBusy}
                 onFix={first && onFix ? (value) => onFix({ tiers: shownTiers(view.show), reason: { name: first.name, value }, money: true }) : undefined} />,
             )}
           </section>

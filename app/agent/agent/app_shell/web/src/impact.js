@@ -159,3 +159,17 @@ export function closedRows(entry, currency, kind = '', choices = DEFAULT_CHOICES
     amounts: { measured: r.measured ?? null, reported: r.reported ?? null, closed: r.closed ?? null },
   }));
 }
+
+// REQ-532: the word for an amount follows its kind and sign, mirroring the server's money_words. A gain is never "Could save".
+export const MONEY_WORDS = { saving: 'Could save', gain: 'Gain', loss: 'Loss (at risk)' };
+const MONEY_KIND_OF_RULE = { losses: 'saving', gains: 'gain', net: 'variance' };
+
+export const moneyKindOf = (page) => MONEY_KIND_OF_RULE[page?.money?.rule || 'losses'] || 'saving';
+
+export function moneyLabel(kind, amount) {
+  const sign = Number(amount);
+  const real = kind === 'variance' ? (sign > 0 ? 'gain' : sign < 0 ? 'loss' : '') : kind;
+  return MONEY_WORDS[real] || 'Change';
+}
+
+export const pageMoneyLabel = (page, rows = []) => moneyLabel(moneyKindOf(page), rows.reduce((a, r) => a + (Number.isFinite(Number(r?.money)) ? Number(r.money) : 0), 0));
