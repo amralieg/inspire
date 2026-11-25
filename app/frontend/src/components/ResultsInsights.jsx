@@ -289,7 +289,7 @@ export function FeedbackPanel({ results, feedback }) {
         <MessageSquareText size={14} className="mt-0.5 shrink-0 text-db-red-fg" aria-hidden="true" />
         <div className="min-w-0">
           <h3 className="text-xs font-bold text-text-primary">Feedback and value</h3>
-          <p data-feedback-note="" className="mt-0.5 text-caption text-text-secondary">{note}</p>
+          <p data-feedback-note="" className="mt-0.5 max-w-[75ch] text-caption text-text-secondary">{note}</p>
         </div>
       </section>
     );
@@ -300,7 +300,7 @@ export function FeedbackPanel({ results, feedback }) {
       title="Feedback and value"
       summary={`${excluded.length} hidden by feedback · ${plural(history.length, 'use case')} with feedback · ${plural(tracking.length, 'KPI')} tracked`}
     >
-      {note && <p data-feedback-note="" className="text-caption text-text-secondary">{note}</p>}
+      {note && <p data-feedback-note="" className="max-w-[75ch] text-caption text-text-secondary">{note}</p>}
       {excluded.length > 0 && (
         <div>
           <p className="text-caption font-bold uppercase tracking-[0.18em] text-text-tertiary mb-1">Hidden by feedback</p>

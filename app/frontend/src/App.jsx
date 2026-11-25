@@ -10,7 +10,7 @@ import {
 import ScrollProgressRing from './components/ScrollProgressRing';
 import ParticleField from './components/ParticleField';
 import ShowcaseBar from './components/ShowcaseBar';
-import { RESULTS_FRAME } from './lib/layout';
+import { FRAME, RESULTS_FRAME } from './lib/layout';
 import { BOOT_TIMEOUT_TEXT, bootRead, makeApiFetch } from './lib/apiClient';
 import { sessionSucceeded } from './lib/monitorState';
 import { PlainMessage } from './components/TechnicalDetails';
@@ -611,7 +611,7 @@ export default function App() {
         )}
 
         {page === 'monitor' && (
-          <div className="w-full px-6 py-8">
+          <div className={`${FRAME} py-8`}>
             <MonitorPage
               key={`${demoScope || 'workspace'}:${inDemo ? '' : runId ?? ''}`}
               settings={pageSettings}

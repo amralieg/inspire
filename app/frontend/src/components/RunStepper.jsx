@@ -33,7 +33,7 @@ export default function RunStepper({ steps, ended = false, failed = false }) {
         const inCol = phases.filter((p) => p.column === col);
         return inCol.length > 1 ? (
           <li key={col} role="presentation" data-run-step-column={col} className="min-w-0">
-            <ul role="list" className="space-y-2">{inCol.map((p) => <Step key={p.key} phase={p} />)}</ul>
+            <ul role="list" className="space-y-2 border-s-2 border-border ps-2">{inCol.map((p) => <Step key={p.key} phase={p} />)}</ul>
           </li>
         ) : <Step key={col} phase={inCol[0]} column={col} />;
       })}
