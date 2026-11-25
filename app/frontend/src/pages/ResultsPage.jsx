@@ -112,8 +112,6 @@ import { saveAnswers, tableOfUseCase, useCalculatedValues } from '../lib/calcula
 import { kindFilterLabel, kindFilterOptions, matchesKindFilter } from '../lib/useCaseKind';
 import { MVP_FILTERS, START_MVP_LABEL, implementState, mvpFilterMatches, notebookRunEnded, notebookStatus, versionActive } from '../lib/implementWizard';
 import { buildUseCaseList } from '../lib/useCaseList';
-import { useScoreRefine } from '../lib/useScoreRefine';
-import RefineBanner from '../components/RefineBanner';
 import { cardAssetLinks, liveAppRenameStale, renameRestyleSpec, trackBuildSubmit } from '../lib/implementControl';
 import UiPageHeader from '../components/ui/PageHeader';
 import { ARCHIVE_VIEWS, archiveKeyOf, inArchiveView, loadArchiveMap, toggledArchive } from '../lib/useCaseArchive';
@@ -659,17 +657,7 @@ export default function ResultsPage({
     showView('usecases');
     requestAnimationFrame(() => requestAnimationFrame(() => scrollToCard(id)));
   };
-  const yearlyOf = useCallback((id) => {
-    // FX-34 (W16 D6): the refine banner compares only a use case's own value: never one not estimated, without data, or a shared estimate.
-    const e = valueTotals?.use_cases?.[id];
-    if (e && (e.status === 'not_estimated' || e.status === 'no_data' || (e.status === 'estimated' && e.overlap))) return null;
-    const y = calculated.byId[id]?.yearly || measuredYearly?.use_cases?.[id] || null;
-    // A shape-2 value carries its total, not entries; the score refine reads entries.
-    return y && !y.entries && y.total ? { ...y, entries: [{ kind: 'money', unit: y.total.unit, amount: y.total.amount }] } : y;
-  }, [calculated.byId, measuredYearly, valueTotals]);
-  const { list: allUseCases, banner: refineBanner, undoCard: undoRefinedCard } = useScoreRefine({ useCases: builtUseCases, yearlyOf, apiPostJson, host: settings?.databricksHost,
-    inspireDatabase: inspireDb, warehouseId, sessionId: selectedSessionId });
-  const qualityBarCounts = useMemo(() => qualityBarCountsOf(allUseCases), [allUseCases]);
+  const qualityBarCounts = useMemo(() => qualityBarCountsOf(builtUseCases), [builtUseCases]);
   const runOutcome = runOutcomeOf(results, qualityBarCounts);
   const reviewBarStages = useMemo(() => stepBarStagesOf(PIPELINE_STAGES,
     runSteps.session === String(selectedSessionId ?? '') ? runSteps.steps : []), [runSteps, selectedSessionId]);
@@ -687,7 +675,7 @@ export default function ResultsPage({
   // ── Filter & sort ──
   let filteredUseCases = [];
   try {
-    filteredUseCases = allUseCases
+    filteredUseCases = builtUseCases
       .filter((uc) => {
         if (!uc || typeof uc !== 'object') return false;
         if (filterDomain !== 'all' && uc._domain !== filterDomain) return false;
@@ -734,17 +722,17 @@ export default function ResultsPage({
       });
   } catch (err) {
     console.error('Error filtering/sorting use cases:', err);
-    filteredUseCases = allUseCases;
+    filteredUseCases = builtUseCases;
   }
 
   if (showBestOfBestOnly) {
     filteredUseCases = filteredUseCases.filter((uc) => uc?._v130?.bestOfBest);
   }
-  const starredCount = allUseCases.filter((uc) => uc?._v130?.bestOfBest).length;
+  const starredCount = builtUseCases.filter((uc) => uc?._v130?.bestOfBest).length;
 
   const isArchivedUc = (uc) => Boolean(archived[archiveKeyOf(selectedSessionId, uc)]);
-  const archivedCount = allUseCases.filter(isArchivedUc).length;
-  const archiveCounts = { active: allUseCases.length - archivedCount, archived: archivedCount };
+  const archivedCount = builtUseCases.filter(isArchivedUc).length;
+  const archiveCounts = { active: builtUseCases.length - archivedCount, archived: archivedCount };
   filteredUseCases = filteredUseCases.filter((uc) => inArchiveView(archiveView, isArchivedUc(uc)));
 
   // Apply favorites filter
@@ -822,53 +810,53 @@ export default function ResultsPage({
   }
 
   const domains = [
-    ...new Set(allUseCases.map((uc) => uc?._domain).filter(Boolean)),
+    ...new Set(builtUseCases.map((uc) => uc?._domain).filter(Boolean)),
   ];
   const priorities = [
-    ...new Set(allUseCases.map(priorityTierOf).filter(Boolean)),
+    ...new Set(builtUseCases.map(priorityTierOf).filter(Boolean)),
   ];
   const types = [
-    ...new Set(allUseCases.map((uc) => uc?.type).filter(Boolean)),
+    ...new Set(builtUseCases.map((uc) => uc?.type).filter(Boolean)),
   ];
   const techniques = [
-    ...new Set(allUseCases.map((uc) => fieldOf(uc, 'Analytics Technique', 'analytics_technique')).filter(Boolean)),
+    ...new Set(builtUseCases.map((uc) => fieldOf(uc, 'Analytics Technique', 'analytics_technique')).filter(Boolean)),
   ];
-  const kindOptions = kindFilterOptions(allUseCases.map((uc) => uc?._v130?.kind));
+  const kindOptions = kindFilterOptions(builtUseCases.map((uc) => uc?._v130?.kind));
   const qualities = [
-    ...new Set(allUseCases.map((uc) => uc?.Quality).filter(Boolean)),
+    ...new Set(builtUseCases.map((uc) => uc?.Quality).filter(Boolean)),
   ];
 
   const beneficiaries = [
-    ...new Set(allUseCases.map(beneficiaryFromUc).filter(Boolean)),
+    ...new Set(builtUseCases.map(beneficiaryFromUc).filter(Boolean)),
   ].sort((a, b) => a.localeCompare(b));
   const sponsors = [
-    ...new Set(allUseCases.map(sponsorFromUc).filter(Boolean)),
+    ...new Set(builtUseCases.map(sponsorFromUc).filter(Boolean)),
   ].sort((a, b) => a.localeCompare(b));
 
   const beneficiaryCounts = {};
-  for (const uc of allUseCases) {
+  for (const uc of builtUseCases) {
     const b = beneficiaryFromUc(uc);
     if (b) beneficiaryCounts[b] = (beneficiaryCounts[b] || 0) + 1;
   }
   const sponsorCounts = {};
-  for (const uc of allUseCases) {
+  for (const uc of builtUseCases) {
     const s = sponsorFromUc(uc);
     if (s) sponsorCounts[s] = (sponsorCounts[s] || 0) + 1;
   }
 
   const v130Session = !!(results && (results.discovery_type || results.strategy_coverage));
-  const strategyFilter = strategyFilterOptions(allUseCases.map((uc) => uc?._v130), results?.strategy_coverage?.entries);
+  const strategyFilter = strategyFilterOptions(builtUseCases.map((uc) => uc?._v130), results?.strategy_coverage?.entries);
   const strategyOptions = strategyFilter.notAligned > 0 && strategy.hasEntries
     ? [...strategyFilter.options, { value: NOT_ALIGNED_FILTER, label: STRATEGY_NOT_TIED, count: strategyFilter.notAligned, depth: 0 }]
     : strategyFilter.options;
-  const levelFilters = strategyLevelFilters(allUseCases.map((uc) => uc?._v130), results?.strategy_coverage?.entries, strategy);
+  const levelFilters = strategyLevelFilters(builtUseCases.map((uc) => uc?._v130), results?.strategy_coverage?.entries, strategy);
   if (levelFilters.length && strategyFilter.notAligned > 0 && strategy.hasEntries) {
     levelFilters[0].options.push({ value: NOT_ALIGNED_FILTER, label: STRATEGY_NOT_TIED, count: strategyFilter.notAligned, depth: 0 });
   }
-  const kpiOptions = strategy.levelNames.length ? kpiFilterOptions(allUseCases.map((uc) => uc?._v130)) : [];
+  const kpiOptions = strategy.levelNames.length ? kpiFilterOptions(builtUseCases.map((uc) => uc?._v130)) : [];
   const bizPriorityCounts = {};
   let bizPriorityUseCases = 0;
-  for (const uc of allUseCases) {
+  for (const uc of builtUseCases) {
     const matched = priorityMatches(uc?._v130?.priorityText, bizPriorities);
     if (matched.length) bizPriorityUseCases += 1;
     for (const bp of matched) bizPriorityCounts[bp] = (bizPriorityCounts[bp] || 0) + 1;
@@ -882,7 +870,7 @@ export default function ResultsPage({
     [foundationsList],
   );
   const useCaseById = new Map();
-  for (const uc of allUseCases) {
+  for (const uc of builtUseCases) {
     for (const id of [uc?.catalog_no, uc?.No, uc?.id]) {
       if (id != null && String(id).trim() && !useCaseById.has(String(id).trim())) useCaseById.set(String(id).trim(), uc);
     }
@@ -897,7 +885,7 @@ export default function ResultsPage({
 
   // Compute subdomain counts by domain
   const subdomainsByDomain = {};
-  for (const uc of allUseCases) {
+  for (const uc of builtUseCases) {
     const d = uc?._domain || 'Unknown';
     const sd = String(uc?.Subdomain || '');
     if (!sd) continue;
@@ -906,11 +894,11 @@ export default function ResultsPage({
   }
 
   const techniqueCount = techniques.length;
-  const uniqueSubdomainCount = new Set(allUseCases.map((uc) => String(uc?.Subdomain || '').trim()).filter(Boolean)).size;
+  const uniqueSubdomainCount = new Set(builtUseCases.map((uc) => String(uc?.Subdomain || '').trim()).filter(Boolean)).size;
 
   let _scoreSum = 0;
   let _scoreN = 0;
-  for (const uc of allUseCases) {
+  for (const uc of builtUseCases) {
     const sc = inspireScoreFromUc(uc);
     if (sc != null && Number.isFinite(sc)) {
       _scoreSum += sc;
@@ -921,7 +909,7 @@ export default function ResultsPage({
 
   // Compute domain counts for sidebar
   const domainCounts = {};
-  for (const uc of allUseCases) {
+  for (const uc of builtUseCases) {
     const d = uc?._domain || 'Unknown';
     domainCounts[d] = (domainCounts[d] || 0) + 1;
   }
@@ -981,10 +969,10 @@ export default function ResultsPage({
     const want = pendingUseCase.current;
     if (!want || !results || loading) return;
     pendingUseCase.current = '';
-    const uc = allUseCases.find((u) => trackingIdOf(u) === want);
+    const uc = builtUseCases.find((u) => trackingIdOf(u) === want);
     if (uc) openUseCase(uc);
     else setLinkNote(reviewLinkText(linkRef.current, inspireDb, 'no_use_case'));
-  }, [results, loading, allUseCases]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [results, loading, builtUseCases]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load generation artifacts — tries multiple path variations
   const artifactHeaders = useCallback(() => requestHeaders(token, databricksHost, {}, showcase), [token, databricksHost, showcase]);
@@ -1185,7 +1173,7 @@ export default function ResultsPage({
     loadArtifacts(generationPath);
   }, [generationPath, selectedSessionId, token, serverEnvHasPat, loadArtifacts, showcase]);
 
-  const highPriorityCount = computeHighPriorityCount(allUseCases);
+  const highPriorityCount = computeHighPriorityCount(builtUseCases);
   const hasMvpData = !!(selectedSessionId && inspireDb && warehouseId);
   const canImplement = !showcase && hasMvpData && !isProgressive;
   const selectedFigures = selectedSessionId ? portfolio?.sessions?.[String(selectedSessionId)] || null : null;
@@ -1199,8 +1187,8 @@ export default function ResultsPage({
     setSessionsLoaded(false);
     setIsProgressive(false);
   };
-  const runCalculated = allUseCases.filter((uc) => !isArchivedUc(uc) && isCalculated(calculated.byId[trackingIdOf(uc)])).length;
-  const runMvpsLive = allUseCases.filter((uc) => mvpStateOf(uc)?.group === 'ready').length;
+  const runCalculated = builtUseCases.filter((uc) => !isArchivedUc(uc) && isCalculated(calculated.byId[trackingIdOf(uc)])).length;
+  const runMvpsLive = builtUseCases.filter((uc) => mvpStateOf(uc)?.group === 'ready').length;
   const feedbackCurrentFor = (uc) => (uc?._v130?.useCaseKey ? feedbackLatest[uc._v130.useCaseKey] : undefined);
   const detailPropsFor = (uc) => {
     const key = uc?._v130?.useCaseKey;
@@ -1243,7 +1231,6 @@ export default function ResultsPage({
       onCalculate: () => openCalc(uc),
       onEdit: runValueUrl && tid ? () => openCalc(uc) : undefined,
       onSetRule: canImplement ? () => startImplement(uc) : undefined,
-      onUndoRefine: tid ? () => undoRefinedCard(tid) : undefined,
       implementStatus: tid ? implementState(implementLatestById[tid] || null, notebookStatus(uc, implementView.notebook_run)) : null,
       onImplement: canImplement ? () => startImplement(uc) : undefined,
       onOpenMvp: onOpenImplement && tid && selectedSessionId ? () => onOpenImplement(String(selectedSessionId), tid) : undefined,
@@ -1316,7 +1303,7 @@ export default function ResultsPage({
         <div className="flex items-center gap-2 mb-4">
           <BarChart3 size={20} className="text-db-red-fg shrink-0" strokeWidth={1.75} aria-hidden />
           <span className="text-sm font-bold text-text-primary">
-            {allUseCases.length} Use Cases Generated
+            {builtUseCases.length} Use Cases Generated
           </span>
           <span className="text-xs text-text-tertiary">
             across {domains.length} domain{domains.length !== 1 ? 's' : ''}
@@ -1513,7 +1500,7 @@ export default function ResultsPage({
               <div className="flex-1">
                 <span className="text-sm font-semibold text-warning-fg">Live Preview</span>
                 <span className="text-xs text-text-secondary ms-2">
-                  <span data-testid="live-use-case-count">{liveCountText(allUseCases.length)}</span>, the same count as Monitor.
+                  <span data-testid="live-use-case-count">{liveCountText(builtUseCases.length)}</span>, the same count as Monitor.
                   The final catalog keeps the ones that pass every check. Results will be enriched as the pipeline progresses. {START_MVP_LABEL} opens on each use case once the run has saved it.
                 </span>
               </div>
@@ -1537,7 +1524,7 @@ export default function ResultsPage({
           {/* ═══ Two-Column: sticky sidebar rail; use-case list scrolls independently in the right column ═══ */}
           <div data-browse={view === 'usecases' ? '' : undefined} className={`grid grid-cols-1 gap-5 min-h-0 ${view === 'usecases' ? 'md:grid-cols-[14rem_minmax(0,1fr)]' : ''}`}>
             {/* ── Left Sidebar: stays fixed in viewport while the card list scrolls (sticky + max height) ── */}
-            <ResultsNav view={view} onView={showView} useCaseCount={allUseCases.length}
+            <ResultsNav view={view} onView={showView} useCaseCount={builtUseCases.length}
               stickyClass={embedded ? 'top-4 md:max-h-[min(32rem,72vh)]' : 'top-20 md:max-h-[calc(100dvh-5rem)]'}>
               <div role="group" aria-label="Show active or archived use cases" data-archive-views="" className="flex shrink-0 gap-1 rounded-xl border border-border bg-surface p-1 shadow-sm">
                 {ARCHIVE_VIEWS.map((view) => (
@@ -1573,7 +1560,7 @@ export default function ResultsPage({
                   <div className="min-w-0 flex-1">
                     <span className="text-xs font-bold text-text-primary">Domains</span>
                     <p className="text-caption text-text-tertiary mt-0.5">
-                      {domains.length} domain{domains.length !== 1 ? 's' : ''} &middot; {allUseCases.length} use cases
+                      {domains.length} domain{domains.length !== 1 ? 's' : ''} &middot; {builtUseCases.length} use cases
                     </p>
                     {!domainPanelOpen && (filterDomain !== 'all' || filterSubdomain !== 'all') && (
                       <p
@@ -1611,7 +1598,7 @@ export default function ResultsPage({
                       All Domains
                     </span>
                     <span className={`text-caption font-mono tabular-nums ${filterDomain === 'all' ? 'text-db-red-fg' : 'text-text-tertiary'}`}>
-                      {allUseCases.length}
+                      {builtUseCases.length}
                     </span>
                   </button>
 
@@ -1619,7 +1606,7 @@ export default function ResultsPage({
                   {domains.map((d) => {
                     const count = domainCounts[d] || 0;
                     const active = filterDomain === d;
-                    const highPriCount = allUseCases.filter(
+                    const highPriCount = builtUseCases.filter(
                       (uc) => uc._domain === d && isHighPriority(uc)
                     ).length;
                     const subs = subdomainsByDomain[d] || {};
@@ -1697,7 +1684,7 @@ export default function ResultsPage({
                   open={!!levelPanelOpen[level]}
                   onToggle={() => setLevelPanelOpen((o) => ({ ...o, [level]: !o[level] }))}
                   allLabel="All use cases"
-                  allCount={allUseCases.length}
+                  allCount={builtUseCases.length}
                   options={options}
                   value={filterLevels[level] || 'all'}
                   onChange={(value) => setFilterLevels((f) => {
@@ -1717,7 +1704,7 @@ export default function ResultsPage({
                   open={kpiPanelOpen}
                   onToggle={() => setKpiPanelOpen((o) => !o)}
                   allLabel="All KPIs"
-                  allCount={allUseCases.filter((uc) => uc?._v130?.kpis?.length).length}
+                  allCount={builtUseCases.filter((uc) => uc?._v130?.kpis?.length).length}
                   options={kpiOptions}
                   value={filterKpi}
                   onChange={setFilterKpi}
@@ -1732,7 +1719,7 @@ export default function ResultsPage({
                   open={strategyPanelOpen}
                   onToggle={() => setStrategyPanelOpen((o) => !o)}
                   allLabel="All use cases"
-                  allCount={allUseCases.length}
+                  allCount={builtUseCases.length}
                   options={strategyOptions}
                   value={filterStrategy}
                   onChange={setFilterStrategy}
@@ -1762,7 +1749,7 @@ export default function ResultsPage({
                   open={beneficiaryPanelOpen}
                   onToggle={() => setBeneficiaryPanelOpen((o) => !o)}
                   allLabel="All beneficiaries"
-                  allCount={allUseCases.filter((uc) => beneficiaryFromUc(uc)).length}
+                  allCount={builtUseCases.filter((uc) => beneficiaryFromUc(uc)).length}
                   options={beneficiaries.map((b) => ({ value: b, label: b, count: beneficiaryCounts[b] || 0 }))}
                   value={filterBeneficiary}
                   onChange={setFilterBeneficiary}
@@ -1777,7 +1764,7 @@ export default function ResultsPage({
                   open={sponsorPanelOpen}
                   onToggle={() => setSponsorPanelOpen((o) => !o)}
                   allLabel="All sponsors"
-                  allCount={allUseCases.filter((uc) => sponsorFromUc(uc)).length}
+                  allCount={builtUseCases.filter((uc) => sponsorFromUc(uc)).length}
                   options={sponsors.map((sp) => ({ value: sp, label: sp, count: sponsorCounts[sp] || 0 }))}
                   value={filterSponsor}
                   onChange={setFilterSponsor}
@@ -1846,7 +1833,7 @@ export default function ResultsPage({
                     <div className="flex items-center gap-1">
                       {PRIORITY_ORDER.filter((p) => priorities.includes(p)).map((p) => {
                         const active = filterPriority === p;
-                        const cnt = allUseCases.filter((uc) => priorityTierOf(uc) === p).length;
+                        const cnt = builtUseCases.filter((uc) => priorityTierOf(uc) === p).length;
                         return (
                           <button
                             key={p}
@@ -2028,7 +2015,7 @@ export default function ResultsPage({
                     <Filter size={14} className="text-db-red-fg shrink-0" />
                     <span className="text-caption text-text-secondary">
                       <span className="font-semibold text-text-primary tabular-nums">{filteredUseCases.length}</span> of{' '}
-                      <span className="font-semibold text-text-primary tabular-nums">{allUseCases.length}</span> use cases
+                      <span className="font-semibold text-text-primary tabular-nums">{builtUseCases.length}</span> use cases
                     </span>
                     {filterDomain !== 'all' && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
@@ -2118,7 +2105,6 @@ export default function ResultsPage({
                 )}
               </div>
 
-              <RefineBanner {...refineBanner} />
               {bulkOn && bulkHere && <ValueBulkProgress />}
               {bulkOn && filteredUseCases.length > 0 && (
                 <ValueBulkBar shown={filteredUseCases.filter((uc) => trackingIdOf(uc)).length} selected={bulkIds.length} onCalculate={startBulk} busy={Boolean(bulkRun.run?.running)}
@@ -2185,7 +2171,7 @@ export default function ResultsPage({
                     })}
                     </div>
                   </div>
-                ) : allUseCases.length > 0 && archiveCounts[archiveView] === 0 ? (
+                ) : builtUseCases.length > 0 && archiveCounts[archiveView] === 0 ? (
                   <div data-archive-empty={archiveView} className="bg-surface border border-border/70 rounded-xl p-10 text-center shadow-elevated">
                     <Archive size={20} className="text-text-tertiary mx-auto mb-3" />
                     <p className="text-sm text-text-secondary">
@@ -2195,7 +2181,7 @@ export default function ResultsPage({
                       {archiveView === 'archived' ? 'Show active use cases' : 'Show archived use cases'}
                     </button>
                   </div>
-                ) : allUseCases.length > 0 ? (
+                ) : builtUseCases.length > 0 ? (
                   <div className="bg-surface border border-border/70 rounded-xl p-10 text-center shadow-elevated">
                     <Search size={20} className="text-text-tertiary mx-auto mb-3" />
                     <p className="text-sm text-text-secondary">No use cases match your filters.</p>
@@ -2214,7 +2200,7 @@ export default function ResultsPage({
             {view === 'business' && (
               <div {...resultsPanel('business', view)} className="tab-panel-enter min-w-0 flex-1">
               <ResultsBusiness
-                allUseCases={allUseCases}
+                allUseCases={builtUseCases}
                 avgInspireScore={avgInspireScore}
                 describeUseCase={describeUseCase}
                 domains={domains}
@@ -2244,7 +2230,7 @@ export default function ResultsPage({
             {view === 'assets' && (
               <div {...resultsPanel('assets', view)} className="tab-panel-enter min-w-0 flex-1">
               <ResultsAssets
-                allUseCases={allUseCases}
+                allUseCases={builtUseCases}
                 apiFetch={apiFetch}
                 apiPostJson={apiPostJson}
                 artifactTree={artifactTree}

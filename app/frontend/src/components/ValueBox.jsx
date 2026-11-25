@@ -4,7 +4,7 @@ import { valueChips } from '../lib/valueLedger';
 import { VALUE_DISCLAIMER, statusLabel, threeDigits } from '../lib/valueLabels';
 import { ValueCheckNote } from './ValueCheckNote.jsx';
 
-// REQ-438: the value box beside the Inspire score box on a card. Same size as the score box. States: none, estimated, calculated,
+// REQ-438: the value box beside the Inspire score box on a card (REQ-524: the filled one; the score box is plain). Same size as the score box. States: none, estimated, calculated,
 // out of date (stale), no data. Pure display: the numbers come from the server (answers, totals), never from a formula here.
 const stop = (e) => e.stopPropagation();
 export const BOX = 'relative flex h-[6.25rem] w-[8.5rem] shrink-0 flex-col items-center justify-center rounded-xl border-2 text-center leading-tight';
@@ -65,7 +65,8 @@ const TAGS = {
   stale: ['DATA CHANGED', 'border-warning/40 bg-warning-bg text-warning-fg'],
 };
 
-// inset (REQ-511 A6 row): the edit pencil and the status pill sit inside the box, so nothing leaves it and the row keeps its height.
+// The status pill always sits inside the box (REQ-524): in the row (inset, REQ-511 A6) it is pinned at the bottom with the pencil inside; in the card box it
+// follows "Per year" in the flow, so it never rests on the border and overlaps no text.
 export default function ValueBox({ yearly = null, summary = null, status = '', canCalculate = false, onCalculate, onEdit, readOnly = false, inset = false }) {
   const m = boxModel({ yearly, summary, status });
   const SZ = inset ? ROW_BOX : BOX;
@@ -104,20 +105,20 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
       </button>
     );
   }
-  const grow = /GROW/i.test(m.verb || '');
-  // REQ-516: in the Review row the box is filled with the primary token and the figure is white (dark mode keeps the light red so white stays above 4.5:1).
-  const fill = inset ? 'border-primary-solid bg-primary-solid text-white' : `${grow ? 'border-success' : 'border-primary-solid'} bg-surface`;
-  const amt = inset ? 'text-white' : grow ? 'text-success-fg' : 'text-db-red-fg';
-  const sub = inset ? 'text-white' : 'text-text-secondary';
+  // REQ-516, REQ-524: the value box is filled with the primary token and the figure is white, in the Review row and in the side panel
+  // (dark mode keeps the light red so white stays above 4.5:1). Every verb, GROW included, takes the same fill.
+  const fill = 'border-primary-solid bg-primary-solid text-white';
+  const amt = 'text-white';
+  const sub = 'text-white';
   const [tag, tagCls] = TAGS[m.state];
   const text = moneyText(m.unit, amount);
   const note = <ValueCheckNote check={yearly?.check} notCounted={!m.calculated && m.state !== 'measured'} />;
   const box = (
     <div data-value-box="" data-value-box-state={m.state} data-value-yearly="" title={VALUE_DISCLAIMER} onClick={stop} onKeyDown={stop}
       className={`${SZ} ${fill} ${inset ? 'pt-4 pb-5' : ''} ${pulse ? 'animate-pulse' : ''}`}>
-      <span data-value-verb="" className={`${inset ? 'whitespace-nowrap text-caption font-semibold uppercase tracking-normal' : 'text-caption tracking-wide'} ${inset ? '' : 'text-text-primary'}`}>{m.verb}</span>
-      <span data-value-amount="" className={`${inset ? 'text-[20px] leading-6' : 'text-[22px]'} font-extrabold tabular-nums ${amt}`}>{text}</span>
-      <span data-value-qualifier="" className={inset ? 'sr-only' : 'text-caption text-text-secondary'}>{m.state === 'measured' ? '(measured)' : statusLabel(m.calculated)}</span>
+      <span data-value-verb="" className={inset ? 'whitespace-nowrap text-caption font-semibold uppercase tracking-normal' : 'text-caption tracking-wide'}>{m.verb}</span>
+      <span data-value-amount="" className={`${inset ? 'text-[20px]' : 'text-[22px]'} leading-6 font-extrabold tabular-nums ${amt}`}>{text}</span>
+      <span data-value-qualifier="" className="sr-only">{m.state === 'measured' ? '(measured)' : statusLabel(m.calculated)}</span>
       <span data-value-period="" className={`text-caption ${sub}`}>Per year</span>
       {!readOnly && onEdit && m.state !== 'measured' && (
         <button type="button" data-value-edit="" aria-label="Edit value" title="Edit value" onClick={(e) => { e.stopPropagation(); onEdit(); }}
@@ -125,12 +126,12 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
           <Pencil size={inset ? 9 : 13} />
         </button>
       )}
-      <span data-value-tag="" className={`absolute ${inset ? 'bottom-1' : '-bottom-2.5'} rounded-full border px-2 py-px text-caption font-bold tracking-wide ${tagCls}`}>{tag}</span>
+      <span data-value-tag="" className={`${inset ? 'absolute bottom-1' : 'mt-1'} rounded-full border px-2 py-px text-caption font-bold tracking-wide ${tagCls}`}>{tag}</span>
     </div>
   );
-  // FX-38b (W16 D25): the note sits under the box, past the pill that overhangs its bottom edge, so it never covers the pill or leaves the box.
+  // FX-38b (W16 D25), REQ-524: the pill is inside the box, so the note sits one gap under the box and never covers the pill or leaves the box.
   if (!yearly?.check?.outside) return box;
   // REQ-511: in the row the pill sits inside the box, so the note goes one small gap below it and the row keeps the warning.
   if (inset) return <div className="flex flex-col items-center gap-3">{box}{note}</div>;
-  return <div className="flex w-[8.5rem] shrink-0 flex-col items-center gap-3.5">{box}{note}</div>;
+  return <div className="flex w-[8.5rem] shrink-0 flex-col items-center gap-3">{box}{note}</div>;
 }

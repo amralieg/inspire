@@ -1,5 +1,5 @@
 // REQ-449 to REQ-453: the value dialog and value box UX. Save closes the dialog; the numbers move live with the slider; every number shows
-// its unit; the refine banner is a short summary; the card keeps the rename pencil next to the name and the value box clear of text.
+// its unit; (REQ-523: the refine banner U4 case went with the feature) the card keeps the rename pencil next to the name and the value box clear of text.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, idle, openUi } from './uiSupport.mjs';
@@ -103,34 +103,6 @@ test('U3 (REQ-451): every ask and the result lines show their unit', async () =>
 });
 
 const usd = (amount) => ({ verb: 'AVOID RISK', period: 'Per Year', estimated: true, entries: [{ kind: 'money', unit: 'USD', amount }] });
-const many = (n = 31) => {
-  const out = structuredClone(REVIEW_RESULTS);
-  const base = out.domains[0].use_cases[0];
-  out.domains = [{ ...out.domains[0], use_cases: Array.from({ length: n }, (_, i) => ({ ...base, No: `N09-U${String(i).padStart(2, '0')}`, Name: `Refine case ${i}`, use_case: `Refine case ${i}`,
-    user_use_case_name: `Refine case ${i}`, inspire_score: '8.39', best_of_best: 'N', meets_quality_bar: 'Y' })) }];
-  return out;
-};
-
-test('U4 (REQ-452): with 30 refine pairs the banner shows at most 3 lines and a more control, and no use case twice', async () => {
-  const results = many();
-  const yearly = Object.fromEntries(results.domains[0].use_cases.map((u, i) => [u.No, usd(i === 0 ? 25.61e6 : 638.96e6)]));
-  const mount = (app) => {
-    app.get('/api/inspire/value/yearly', (_req, res) => res.json({ use_cases: yearly }));
-    mountWizard()(app);
-  };
-  const ui = await openUi('results', { ...REVIEW_STATE, results }, '', { mount });
-  const { page } = ui;
-  try {
-    const banner = page.getByRole('region', { name: 'Score refinement' });
-    await banner.waitFor({ timeout: 20000 });
-    const lines = await banner.locator('li').count();
-    assert.ok(lines >= 1 && lines <= 3, `at most 3 lines, got ${lines}`);
-    assert.equal(await banner.getByRole('button', { name: /more/i }).count(), 1, 'one control shows the rest');
-    const names = (await text(banner)).match(/Refine case \d+\b/g) || [];
-    assert.equal(new Set(names).size, names.length, `no use case twice: ${names.join(', ')}`);
-  } finally { await ui.close(); }
-});
-
 const ARABIC = 'التنبؤ بانسحاب العملاء';
 const rect = (el) => { const r = el.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; };
 const hit = (a, b) => a.l < b.r - 0.5 && b.l < a.r - 0.5 && a.t < b.b - 0.5 && b.t < a.b - 0.5;

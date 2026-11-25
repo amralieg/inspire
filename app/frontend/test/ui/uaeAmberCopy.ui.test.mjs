@@ -1,10 +1,8 @@
 // REQ-305 (D-uae-03): the Data Management search summary counts the distinct picked tables that match.
-// REQ-444 (D-uae-04): the Review refine banner says each line in plain words with the real numbers and lists every line.
+// REQ-523: the REQ-444 refine-banner cases went with the score-refine feature.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, idle, openUi, until } from './uiSupport.mjs';
-import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
-import { summarizePairs } from '../../src/lib/scoreRefine.js';
 
 test.after(closeBrowser);
 
@@ -44,50 +42,4 @@ test('REQ-305: four matching columns in two of the three picked tables read "4 c
   } finally {
     await ui.close();
   }
-});
-
-const DEFAULTS = { envSkipsSetupWizard: true, isDatabricksApp: true, databricksHost: 'https://workspace.example.com', warehouseId: 'wh1',
-  inspireDatabase: 'main.inspire', notebookPath: '/Shared/inspire_ai' };
-const entry = (amount) => ({ verb: 'INCREASE REVENUE', period: 'Per Year', estimated: true, entries: [{ kind: 'money', unit: 'USD', amount }],
-  basis: { sampled_records: 1200, eligible_records: 48000, days: 90 } });
-const results = () => {
-  const out = structuredClone(REVIEW_RESULTS);
-  for (const domain of out.domains) {
-    for (const u of domain.use_cases) {
-      if (u.No === 'N01-U01' || u.No === 'N01-U02') { u.best_of_best = 'N'; delete u.best_of_best_rank; }
-      if (u.No === 'N01-U01') u.inspire_score = '9.0';
-      if (u.No === 'N01-U02') u.inspire_score = '8.5';
-    }
-  }
-  return out;
-};
-const mount = (app) => {
-  app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
-  app.get('/api/showcase', (_req, res) => res.json({}));
-  app.get('/api/inspire/value', (_req, res) => res.json({ use_cases: {}, run: { at_stake: [], saved: [], mvps_measured: 0 } }));
-  app.get('/api/inspire/value/yearly', (_req, res) => res.json({ use_cases: { 'N01-U01': entry(1e4), 'N01-U02': entry(1.2e6) } }));
-};
-
-test('REQ-444: the refine line says what the use case earns, how many times the other, and its scores, with no bare "120.3x"', async () => {
-  const ui = await openUi('results', { ...REVIEW_STATE, results: results() }, '', { mount });
-  const { page } = ui;
-  try {
-    const banner = page.getByRole('region', { name: 'Score refinement' });
-    await banner.waitFor({ timeout: 15000 });
-    const text = (await banner.innerText()).replace(/\s+/g, ' ');
-    assert.doesNotMatch(text, /is worth \d+(\.\d+)?x/, 'no bare ratio');
-    assert.match(text, /Score upsell is worth \$1\.2M a year, 120 times Predict churn \(\$10K a year\)/);
-    assert.match(text, /score of 8\.5 is below 9\.0/);
-    assert.match(text, /Refine its score to 9\.05/);
-  } finally {
-    await ui.close();
-  }
-});
-
-test('REQ-444: up to five lines all show, with no "and N more"', () => {
-  const mk = (i) => ({ lower: { id: `L${i}`, name: `L${i}`, start: 5 }, higher: { id: `H${i}`, name: `H${i}`, start: 6 }, ratio: 2 + i, kind: 'money', unit: 'USD', lowerAmount: 100 * (i + 1), higherAmount: 10 });
-  const same = [0, 1].map(mk).map((p) => ({ ...p, lowerAmount: 500 }));
-  assert.equal(summarizePairs([0, 1, 2, 3, 4].map(mk)).more.length, 0);
-  assert.equal(summarizePairs(same).more.length, 0, 'two lines with one amount still both show');
-  assert.equal(summarizePairs([0, 1, 2, 3, 4, 5, 6].map(mk)).shown.length, 5);
 });

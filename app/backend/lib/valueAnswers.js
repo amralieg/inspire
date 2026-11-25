@@ -1,6 +1,6 @@
 // REQ-435: the saved Calculate value answers. Append-only: every save and every undo is one new version row of one use case, and every
 // value is a bound parameter, never part of the SQL text.
-const { binder } = require('./scoreRefine');
+const { binder } = require('./sqlBinder');
 const VP = require('./valuePlausibility');
 
 const COLUMNS = 'session_id STRING, use_case_id STRING, version INT, answers STRING, yearly STRING, saved_at TIMESTAMP, saved_by STRING, note STRING';
