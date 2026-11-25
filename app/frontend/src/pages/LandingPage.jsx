@@ -14,6 +14,7 @@ import { useTheme } from '../ThemeContext';
 import { Sun, Moon } from 'lucide-react';
 import { APP_TABS } from '../lib/tabs';
 import { reducedMotion } from '../lib/motion';
+import { LANDING } from '../lib/layout';
 import { INSPIRE_ISSUES_URL } from '../lib/issues';
 
 /* ═══════════════════════════════════════════════════
@@ -584,7 +585,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
 
       {/* ═══ Nav — always visible ═══ */}
       <nav className="fixed top-0 start-0 end-0 z-50 backdrop-blur-2xl" style={{ borderBottom: `1px solid ${C.navBorder}`, backgroundColor: C.navBg }}>
-        <div className="w-full px-6 py-4 flex items-center justify-between">
+        <div className={`${LANDING} py-4 flex items-center justify-between`}>
           <div className="flex items-center gap-3">
             <DatabricksLogo className="w-8 h-8" />
             <span className="font-bold text-xl tracking-[-0.03em]" style={{ color: C.text }}>Inspire AI</span>
@@ -636,7 +637,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
           <div className="absolute top-[-20%] start-[-10%] w-[60%] h-[60%] rounded-full bg-db-red/[0.05] blur-[150px] animate-ambient-float" aria-hidden="true" />
           <div className="absolute bottom-[-10%] end-[10%] w-[40%] h-[40%] rounded-full bg-db-red/[0.03] blur-[120px] animate-ambient-float-delayed" aria-hidden="true" />
 
-          <div className="relative z-10 w-full px-6 pt-20">
+          <div className={`relative z-10 ${LANDING} pt-20`}>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
               {/* Left: Text */}
               <div>
@@ -648,7 +649,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
                   <span className="text-xs font-medium" style={{ color: C.textMuted }}>Powered by Databricks Foundation Models</span>
                 </div>
 
-                <h1 className="text-display font-semibold tracking-[-0.04em] mb-6">
+                <h1 className="text-display 2xl:text-7xl font-semibold tracking-[-0.04em] mb-6">
                   Discover{' '}
                   <span className="inline-grid">
                     {HERO_WORDS.map((word) => (
@@ -717,7 +718,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
           <FloatingSchemas opacity={0.02} />
           <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, ${C.pageBg}, ${C.pageBg})` }} />
 
-          <div className="relative z-10 w-full px-6">
+          <div className={`relative z-10 ${LANDING}`}>
             <div className="text-center mb-8">
               <span className="text-xs font-medium text-db-red-fg uppercase tracking-[0.15em] block mb-3">How Inspire Thinks</span>
               <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-[-0.03em] transition-[opacity,transform] duration-1000 ${section >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
@@ -752,9 +753,9 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
         {/* ═══ SECTION 3: How it works ═══ */}
         <section className="h-screen relative flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0" style={{ background: C.pageBg }} />
-          <div className="absolute top-[30%] end-[-5%] w-[30%] h-[30%] rounded-full bg-db-red/[0.03] blur-[100px]" aria-hidden="true" />
+          <div className="absolute top-[30%] end-[5%] w-[30%] h-[30%] rounded-full bg-db-red/[0.03] blur-[100px]" aria-hidden="true" />
 
-          <div className="relative z-10 w-full px-6">
+          <div className={`relative z-10 ${LANDING}`}>
             <div className="text-center mb-12">
               <span className="text-xs font-medium text-db-red-fg uppercase tracking-[0.15em] block mb-3">How it works</span>
               <h2 className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-[-0.03em] transition-[opacity,transform] duration-1000 ${section >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
@@ -799,7 +800,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
           <div className="absolute top-[20%] start-[30%] w-[40%] h-[50%] rounded-full bg-info/[0.06] blur-[120px]" aria-hidden="true" />
           <div className="absolute bottom-[10%] end-[20%] w-[25%] h-[30%] rounded-full bg-db-red/[0.04] blur-[100px]" aria-hidden="true" />
 
-          <div className="relative z-10 w-full px-6">
+          <div className={`relative z-10 ${LANDING}`}>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
               {/* Left: Agent image */}
               <div className={`relative transition-[opacity,transform] duration-1000 ${section >= 3 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12'}`}>
@@ -820,7 +821,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
                   Your AI-powered{' '}
                   <span className="bg-linear-to-r from-db-red-fg to-db-red bg-clip-text text-transparent">data strategist.</span>
                 </h2>
-                <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: C.textMuted }}>
+                <p className="text-base leading-relaxed mb-8 max-w-[75ch]" style={{ color: C.textMuted }}>
                   Inspire works like a senior data consultant. It reads the catalogs you pick, works out how the tables relate, and writes a ranked list of use cases for your business. Genie then builds the MVPs.
                 </p>
                 <div className="space-y-3">
@@ -856,7 +857,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
               ))}
             </div>
 
-            <p className={`text-center text-sm text-text-tertiary mt-8 transition-[opacity,transform] duration-700 delay-700 ${section >= 4 ? 'opacity-100' : 'opacity-0'}`}>
+            <p className={`text-center text-sm text-text-tertiary mt-8 max-w-[75ch] mx-auto transition-[opacity,transform] duration-700 delay-700 ${section >= 4 ? 'opacity-100' : 'opacity-0'}`}>
               Plus the domains, strategy coverage, Best of Best picks, a PDF catalog, and an MVP that Genie builds for each use case you pick.
             </p>
           </div>
@@ -893,7 +894,7 @@ export default function LandingPage({ onStart, onOpenSetup, releaseTag = '' }) {
           </div>
 
           <footer role="contentinfo" aria-label="About Inspire" data-landing-about=""
-            className="absolute bottom-0 inset-x-0 z-10 px-6 pb-5 text-center text-xs leading-relaxed" style={{ color: C.textFaint }}>
+            className="absolute bottom-0 inset-x-0 mx-auto max-w-[75ch] z-10 px-6 pb-5 text-center text-xs leading-relaxed" style={{ color: C.textFaint }}>
             Inspire is open source and provided as is. Databricks Support does not cover it: ask questions and request features on the{' '}
             <a href={INSPIRE_ISSUES_URL} target="_blank" rel="noreferrer" className="underline hover:text-db-red-fg">Inspire GitHub Issues page</a>.
             {releaseTag && <span data-release-tag="" className="block mt-1 font-mono">{releaseTag}</span>}
