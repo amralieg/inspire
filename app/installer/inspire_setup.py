@@ -48,8 +48,11 @@ W_CAT = "01_inspire_catalog"
 W_CAT_LABEL = "2) Unity Catalog for Inspire tracking tables (_inspire)"
 
 
-W_DATA = "02_data_catalogs_inspire_may_read"
-W_DATA_LABEL = "3) Data catalogs the Inspire App may read (USE CATALOG, USE SCHEMA, SELECT, BROWSE, READ METADATA)"
+W_DATA = "99_advanced_data_catalogs_inspire_may_read"
+W_DATA_LEGACY = "02_data_catalogs_inspire_may_read"
+W_DATA_LABEL = "Advanced (optional): Data catalogs the Inspire App may read (USE CATALOG, USE SCHEMA, SELECT, BROWSE, READ METADATA)"
+INSPIRE_CATALOG = "_inspire_ai"
+CREATE_CHOICE = f"Create new catalog {INSPIRE_CATALOG}"
 DATA_ALL = "All catalogs you can use (default)"
 
 
@@ -101,25 +104,28 @@ def resolve_catalog(value, catalogs):
     return None, f"No catalog you can use is named {text!r}.{hint} Pick one from the list in {W_CAT}, or type its exact name."
 
 
-def picker_choices(choices, picked=None, first=()):
+def picker_choices(choices, picked=None, first=(), reserve=0):
+    limit = WIDGET_CHOICE_LIMIT - reserve
     listed = list(dict.fromkeys(choices))
-    if len(listed) < WIDGET_CHOICE_LIMIT:
+    if len(listed) < limit:
         return [_WIDGET_PLACEHOLDER] + listed, 0
     known = set(listed)
     ordered = list(dict.fromkeys([c for c in [picked, *first] if c in known] + listed))
-    return [_WIDGET_PLACEHOLDER] + ordered[:WIDGET_CHOICE_LIMIT - 1], len(listed) - (WIDGET_CHOICE_LIMIT - 1)
+    return [_WIDGET_PLACEHOLDER] + ordered[:limit - 1], len(listed) - (limit - 1)
 
 
-def _place_picker(name, label, choices, value, picked, first=(), things="values"):
+def _place_picker(name, label, choices, value, picked, first=(), things="values", extra=()):
     if picked is None and (value == _LEGACY_PLACEHOLDER or _LEGACY_WAREHOUSE_CHOICE.fullmatch(value or "")):
         try:
             dbutils.widgets.remove(name)
             return False
         except Exception:
             pass
-    shown, hidden = picker_choices(choices, picked, first)
+    shown, hidden = picker_choices(choices, picked, first, reserve=len(extra))
+    shown = [shown[0], *extra, *shown[1:]]
     if hidden:
-        print(f"{name} lists {len(shown) - 1} of the {len(shown) - 1 + hidden} {things} you can use, the most likely first, "
+        listed = len(shown) - 1 - len(extra)
+        print(f"{name} lists {listed} of the {listed + hidden} {things} you can use, the most likely first, "
               f"because a notebook list holds at most {WIDGET_CHOICE_LIMIT} entries. Type the exact name of any other one.")
     dbutils.widgets.combobox(name, picked or _WIDGET_PLACEHOLDER, shown, label)
     return True
@@ -163,15 +169,23 @@ def data_catalog_choices(catalogs):
     """
     names = set()
     for name, kind in catalogs:
-        if name in SCAN_SKIPPED or name.startswith("__") or "," in name or "`" in name or "DELTASHARING" in str(kind or "").upper():
+        if name in SCAN_SKIPPED or name == INSPIRE_CATALOG or name.startswith("__") or "," in name or "`" in name or "DELTASHARING" in str(kind or "").upper():
             continue
         names.add(name)
     return sorted(names)
 
 
+def _data_widget():
+    """The data-catalog widget the notebook holds: the current one, or the legacy 02_ one an upgraded notebook still has (its pick wins). None when neither exists."""
+    for name in (W_DATA, W_DATA_LEGACY):
+        if _widget_text(name) is not None:
+            return name
+    return None
+
+
 def _place_data_picker(choices):
     """Creates the multi-select once. A later run keeps the widget as the user left it: re-creating it would reset the picks to ALL."""
-    if _widget_text(W_DATA) is not None:
+    if _data_widget() is not None:
         return False
     listed = [DATA_ALL] + choices[:WIDGET_CHOICE_LIMIT - 1]
     if len(choices) > WIDGET_CHOICE_LIMIT - 1:
@@ -206,14 +220,16 @@ def resolve_data_catalogs(value, choices):
 def ensure_parameter_widgets(warehouses, catalogs, own_catalogs, data_choices):
     values = {W_WH: _get_widget_value(W_WH), W_CAT: _get_widget_value(W_CAT)}
     warehouse, warehouse_problem = resolve_warehouse(values[W_WH], warehouses)
-    catalog, catalog_problem = resolve_catalog(values[W_CAT], catalogs)
+    creating = INSPIRE_CATALOG not in catalogs and values[W_CAT].strip() in (CREATE_CHOICE, INSPIRE_CATALOG)
+    catalog, catalog_problem = (INSPIRE_CATALOG, None) if creating else resolve_catalog(values[W_CAT], catalogs)
     placed = [
         _place_picker(W_WH, W_WH_LABEL, [_warehouse_choice(wh) for wh in warehouses], values[W_WH],
                       _warehouse_choice(warehouse) if warehouse else None, things="SQL warehouses"),
-        _place_picker(W_CAT, W_CAT_LABEL, catalogs, values[W_CAT], catalog, first=sorted(own_catalogs), things="catalogs"),
+        _place_picker(W_CAT, W_CAT_LABEL, catalogs, values[W_CAT], catalog, first=sorted(own_catalogs), things="catalogs",
+                      extra=() if INSPIRE_CATALOG in catalogs else (CREATE_CHOICE,)),
     ]
     created = _place_data_picker(data_choices)
-    picked = _widget_text(W_DATA)
+    picked = _widget_text(_data_widget() or W_DATA)
     data, data_problem = (None, f"Pick the catalogs the Inspire App may read in {W_DATA}.") if picked is None else resolve_data_catalogs(picked, data_choices)
     print("Notebook parameters are ready above: pick a value from each list or type it.")
     return {"warehouse": warehouse, "catalog": catalog, "warehouse_problem": warehouse_problem, "catalog_problem": catalog_problem,
@@ -1031,6 +1047,7 @@ def build_runtime_context(env):
         "ASSETS_TAR": assets_tar,
         "TEST_TAG": str(settings.get("test_tag") or "").strip(),
         "ASSETS_ROOT": f"{folders['ASSETS_PARENT']}/{release_version}",
+        "CREATE_CATALOG": not schema_pair and catalog == INSPIRE_CATALOG and INSPIRE_CATALOG not in available_catalogs,
         "available_catalogs": available_catalogs,
         "api": api,
         "api_get": api_get,
@@ -2490,6 +2507,48 @@ def _schema_mode_problems(ctx):
     return problems
 
 
+def _create_catalog_problems(ctx):
+    """REQ-521 A3, read only: `_inspire_ai` is free to create, and the person may create a catalog on the metastore."""
+    w, person = ctx["w"], ctx["USER_EMAIL"]
+    try:
+        w.catalogs.get(INSPIRE_CATALOG)
+        return [f"A catalog named `{INSPIRE_CATALOG}` already exists and you cannot use it. Ask its owner for USE CATALOG, or pick another catalog in {W_CAT}."]
+    except Exception as exc:
+        if not (type(exc).__name__ == "NotFound" or "NOT_FOUND" in str(exc) or "does not exist" in str(exc)):
+            return [f"A catalog named `{INSPIRE_CATALOG}` already exists and you cannot use it. Ask its owner for USE CATALOG, or pick another catalog in {W_CAT}."]
+    ask = (f"You cannot create catalog `{INSPIRE_CATALOG}`. A metastore admin runs: GRANT CREATE CATALOG ON METASTORE TO `{person}`; "
+           f"or pick an existing catalog in {W_CAT}.")
+    try:
+        summary = ctx["api_get"]("/api/2.1/unity-catalog/metastore_summary")
+        mine = {str(person).lower(), *[str(g).lower() for g in ctx.get("USER_GROUPS") or [] if g]}
+        if str(summary.get("owner") or "").lower() in mine:
+            return []
+        principal = urllib.parse.quote(person)
+        data = ctx["api_get"](f"/api/2.1/unity-catalog/effective-permissions/metastore/{urllib.parse.quote(str(summary.get('metastore_id') or ''))}?principal={principal}")
+    except Exception:
+        return [ask]
+    held = {str(p.get("privilege") or "").upper() for a in data.get("privilege_assignments") or [] for p in a.get("privileges") or []}
+    return [] if {"CREATE_CATALOG", "ALL_PRIVILEGES"} & held else [ask]
+
+
+def _create_catalog(ctx):
+    """Creates `_inspire_ai` in the metastore's default storage (no MANAGED LOCATION), after every other check has passed."""
+    w = ctx["w"]
+    fail = None
+    try:
+        stmt = _wait_statement(w, w.statement_execution.execute_statement(
+            warehouse_id=ctx["WAREHOUSE_ID"], statement=f"CREATE CATALOG IF NOT EXISTS `{INSPIRE_CATALOG}`", wait_timeout="30s"))
+        if not (stmt.status and stmt.status.state == StatementState.SUCCEEDED):
+            fail = str(stmt.status.error.message if stmt.status and stmt.status.error else stmt.status)
+    except Exception as exc:
+        fail = _error_words(exc)
+    if fail:
+        raise RuntimeError(f"Nothing was replaced: the installed Inspire App and its service principal are untouched. Catalog `{INSPIRE_CATALOG}` "
+                           f"could not be created. Databricks said: {fail[:300]}. Pick an existing catalog in {W_CAT}, "
+                           "or ask a metastore admin to set a default storage location.")
+    print(f"  Created catalog `{INSPIRE_CATALOG}`")
+
+
 def step_preflight(ctx):
     api, w = ctx["api"], ctx["w"]
     app_name, catalog, schema = ctx["APP_NAME"], ctx["CATALOG"], ctx["SCHEMA"]
@@ -2525,6 +2584,8 @@ def step_preflight(ctx):
     schema_mode = bool(ctx.get("SCHEMA_MODE"))
     if schema_mode:
         problems += _schema_mode_problems(ctx)
+    elif ctx.get("CREATE_CATALOG"):
+        problems += _create_catalog_problems(ctx)
     else:
         try:
             rights = _catalog_rights(ctx)
@@ -2545,6 +2606,8 @@ def step_preflight(ctx):
     if problems:
         raise RuntimeError("Nothing was replaced: the installed Inspire App and its service principal are untouched. "
                            "Fix these, then run this installer again:\n" + "\n".join(f"  • {p}" for p in problems))
+    if ctx.get("CREATE_CATALOG"):
+        _create_catalog(ctx)
     print(f"  Rights: ✅ App {app_name}, warehouse {ctx['WAREHOUSE_NAME']}, catalog `{catalog}` and the workspace folders")
     if ctx.get("SCHEMA_MODE"):
         print(f"  The App reads only `{catalog}`.`{schema}`; {SCHEMA_MODE_CATALOG_NOTE}")

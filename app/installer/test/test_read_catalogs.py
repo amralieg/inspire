@@ -17,7 +17,7 @@ import test_setup as ts
 
 setup = support.load_setup()
 READ = "GRANT USE CATALOG, USE SCHEMA, SELECT, BROWSE, READ METADATA ON CATALOG `{0}` TO `SP`"
-DATA_KEY = "02_data_catalogs_inspire_may_read"
+DATA_KEY = "99_advanced_data_catalogs_inspire_may_read"
 ALL = "All catalogs you can use (default)"
 CONSENT = "Inspire's App will get read access (USE CATALOG, USE SCHEMA, SELECT, BROWSE, READ METADATA) on: {0}\n"
 

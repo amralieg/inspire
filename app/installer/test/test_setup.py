@@ -1497,7 +1497,7 @@ class RuntimeContextTest(unittest.TestCase):
         self.assertEqual(widgets.state["00_sql_warehouse"]["kind"], "combobox")
         self.assertEqual(widgets.state["01_inspire_catalog"]["kind"], "combobox")
         self.assertEqual(widgets.state["00_sql_warehouse"]["choices"], ["Pick from the list or type", "Shared (wh1)", "Analytics (wh2)"])
-        self.assertEqual(widgets.state["01_inspire_catalog"]["choices"], ["Pick from the list or type", "main", "sales"])
+        self.assertEqual(widgets.state["01_inspire_catalog"]["choices"], ["Pick from the list or type", "Create new catalog _inspire_ai", "main", "sales"])
         self.assertIn("Choose notebook parameter values first", self.banner())
         self.assertIn("Pick or type a SQL warehouse in 00_sql_warehouse.", self.banner())
         self.assertIn("Pick or type a catalog in 01_inspire_catalog.", self.banner())
@@ -1556,9 +1556,9 @@ class RuntimeContextTest(unittest.TestCase):
         return tuple(f"cat_{index:04d}" for index in range(count))
 
     def test_a_catalog_list_never_holds_more_choices_than_a_notebook_widget_allows(self):
-        for count, shown, hidden_words in ((1, ["cat_0000"], False), (1022, list(self.many(1022)), False),
-                                           (1023, list(self.many(1022)), True), (1024, list(self.many(1022)), True),
-                                           (1025, list(self.many(1022)), True), (3588, list(self.many(1022)), True)):
+        for count, shown, hidden_words in ((1, ["cat_0000"], False), (1021, list(self.many(1021)), False),
+                                           (1022, list(self.many(1021)), True), (1023, list(self.many(1021)), True),
+                                           (1024, list(self.many(1021)), True), (3588, list(self.many(1021)), True)):
             widgets = support.FakeWidgets()
             printed = io.StringIO()
             with contextlib.redirect_stdout(printed):
@@ -1566,16 +1566,16 @@ class RuntimeContextTest(unittest.TestCase):
             self.assertEqual(ctx, {"ready": False}, count)
             choices = widgets.state["01_inspire_catalog"]["choices"]
             self.assertLessEqual(len(choices), 1023, count)
-            self.assertEqual(choices, ["Pick from the list or type"] + shown, count)
+            self.assertEqual(choices, ["Pick from the list or type", "Create new catalog _inspire_ai"] + shown, count)
         widgets = support.FakeWidgets()
         setup.dbutils = types.SimpleNamespace(widgets=widgets)
         with contextlib.redirect_stdout(printed := io.StringIO()):
             setup.ensure_parameter_widgets([self.warehouse()], list(self.many(3588)), (), [])
-        self.assertIn("01_inspire_catalog lists 1022 of the 3588 catalogs you can use, the most likely first, because a notebook list "
+        self.assertIn("01_inspire_catalog lists 1021 of the 3588 catalogs you can use, the most likely first, because a notebook list "
                       "holds at most 1023 entries. Type the exact name of any other one.", printed.getvalue())
         with contextlib.redirect_stdout(printed := io.StringIO()):
-            setup.ensure_parameter_widgets([self.warehouse()], list(self.many(1022)), (), [])
-        self.assertNotIn("lists 1022 of", printed.getvalue())
+            setup.ensure_parameter_widgets([self.warehouse()], list(self.many(1021)), (), [])
+        self.assertNotIn("lists 1021 of", printed.getvalue())
 
     def test_a_catalog_listing_that_fails_part_way_stops_with_its_reason_and_never_claims_the_typed_catalog_is_missing(self):
         def listing():
@@ -1626,7 +1626,7 @@ class RuntimeContextTest(unittest.TestCase):
         widgets = support.FakeWidgets()
         self.run_with(widgets, catalogs=names, owners=owners)
         choices = widgets.state["01_inspire_catalog"]["choices"]
-        self.assertEqual(choices[:4], ["Pick from the list or type", "cat_2000", "cat_3000", "cat_0000"])
+        self.assertEqual(choices[:5], ["Pick from the list or type", "Create new catalog _inspire_ai", "cat_2000", "cat_3000", "cat_0000"])
         self.assertEqual(len(choices), 1023)
         self.assertEqual(len(set(choices)), 1023)
         shown, hidden = setup.picker_choices(names, picked="cat_3587", first=["cat_2000"])
@@ -1689,7 +1689,7 @@ class RuntimeContextTest(unittest.TestCase):
                 self.calls.append(("remove", name))
                 raise ValueError("cannot remove")
         widgets = Stuck({"00_sql_warehouse": {"kind": "combobox", "value": "Gone [STOPPED] wh9", "choices": []},
-                         "02_data_catalogs_inspire_may_read": {"kind": "multiselect", "value": "All catalogs you can use (default)", "choices": []}})
+                         "99_advanced_data_catalogs_inspire_may_read": {"kind": "multiselect", "value": "All catalogs you can use (default)", "choices": []}})
         self.assertEqual(self.context(dict(self.ENV), widgets)[0], {"ready": False})
         self.assertEqual([c for c in widgets.calls if "00_sql_warehouse" in c],
                          [("remove", "00_sql_warehouse"), ("create", "combobox", "00_sql_warehouse", "Pick from the list or type")])
