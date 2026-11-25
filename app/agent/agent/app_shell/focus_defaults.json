@@ -1,0 +1,4428 @@
+{
+ "version": 1,
+ "note": "One default focus spec per technique kind. Column names are placeholders: bind them to real columns at use time; columns is the placeholder vocabulary these defaults validate against.",
+ "columns": {
+  "label": "string",
+  "group": "string",
+  "stage": "string",
+  "source": "string",
+  "target": "string",
+  "region": "string",
+  "value": "number",
+  "before": "number",
+  "after": "number",
+  "threshold": "number",
+  "when": "date"
+ },
+ "defaults": {
+  "allocation": {
+   "version": 1,
+   "technique_kind": "allocation",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "What changes with this choice for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "before_after",
+      "bind": {
+       "label": "label",
+       "before": "before",
+       "after": "after"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Constraint"
+     ],
+     "motion": "morph",
+     "ask": [
+      "Why is this one flagged for allocation?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "Is the result past the limit?",
+     "kind": "compare",
+     "visual": {
+      "block": "gauge",
+      "bind": {
+       "value": "value",
+       "threshold": "threshold"
+      },
+      "compare": "picked",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Trade-off"
+     ],
+     "motion": "count_up",
+     "ask": [
+      "Why is this one flagged for allocation?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for allocation?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "anomaly": {
+   "version": 1,
+   "technique_kind": "anomaly",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Is this value normal for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "strip",
+      "bind": {
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Normal range"
+     ],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for anomaly?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How has it moved lately?",
+     "kind": "compare",
+     "visual": {
+      "block": "trend_band",
+      "bind": {
+       "time": "when",
+       "value": "value"
+      },
+      "compare": "population",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Outlier"
+     ],
+     "motion": "slide",
+     "ask": [
+      "Why is this one flagged for anomaly?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for anomaly?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "controls_testing": {
+   "version": 1,
+   "technique_kind": "controls_testing",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Is this value normal for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "strip",
+      "bind": {
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Control"
+     ],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for controls tests?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How has it moved lately?",
+     "kind": "compare",
+     "visual": {
+      "block": "trend_band",
+      "bind": {
+       "time": "when",
+       "value": "value"
+      },
+      "compare": "population",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Exception"
+     ],
+     "motion": "slide",
+     "ask": [
+      "Why is this one flagged for controls tests?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for controls tests?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "cross_domain_assistant": {
+   "version": 1,
+   "technique_kind": "cross_domain_assistant",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "What is this connected to for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "network",
+      "bind": {
+       "source": "source",
+       "target": "target"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Domain"
+     ],
+     "motion": "zoom",
+     "ask": [
+      "Why is this one flagged for cross-domain assistant?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "Which link matters most?",
+     "kind": "explain",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Link"
+     ],
+     "motion": "pulse",
+     "ask": [
+      "Why is this one flagged for cross-domain assistant?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for cross-domain assistant?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "data_agent": {
+   "version": 1,
+   "technique_kind": "data_agent",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Which records come first for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Source rows"
+     ],
+     "motion": "build",
+     "ask": [
+      "Why is this one flagged for data agent?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How does it compare with similar ones?",
+     "kind": "compare",
+     "visual": {
+      "block": "small_multiples",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      },
+      "compare": "cohort",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Question"
+     ],
+     "motion": "morph",
+     "ask": [
+      "Why is this one flagged for data agent?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for data agent?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "data_agent_ai": {
+   "version": 1,
+   "technique_kind": "data_agent_ai",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Which records come first for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Query"
+     ],
+     "motion": "build",
+     "ask": [
+      "Why is this one flagged for ai data agent?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How does it compare with similar ones?",
+     "kind": "compare",
+     "visual": {
+      "block": "small_multiples",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      },
+      "compare": "cohort",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Source rows"
+     ],
+     "motion": "morph",
+     "ask": [
+      "Why is this one flagged for ai data agent?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for ai data agent?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "driver_breakdown": {
+   "version": 1,
+   "technique_kind": "driver_breakdown",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "What moved the total for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "bridge",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Price effect"
+     ],
+     "motion": "build",
+     "ask": [
+      "Why is this one flagged for driver breakdown?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "Which part matters most?",
+     "kind": "explain",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Volume effect"
+     ],
+     "motion": "pulse",
+     "ask": [
+      "Why is this one flagged for driver breakdown?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for driver breakdown?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "driver_scenarios": {
+   "version": 1,
+   "technique_kind": "driver_scenarios",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "What changes with this choice for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "before_after",
+      "bind": {
+       "label": "label",
+       "before": "before",
+       "after": "after"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Scenario"
+     ],
+     "motion": "morph",
+     "ask": [
+      "Why is this one flagged for driver-based scenarios?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "Is the result past the limit?",
+     "kind": "compare",
+     "visual": {
+      "block": "gauge",
+      "bind": {
+       "value": "value",
+       "threshold": "threshold"
+      },
+      "compare": "picked",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Sensitivity"
+     ],
+     "motion": "count_up",
+     "ask": [
+      "Why is this one flagged for driver-based scenarios?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for driver-based scenarios?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "entity_matching": {
+   "version": 1,
+   "technique_kind": "entity_matching",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "What is this connected to for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "network",
+      "bind": {
+       "source": "source",
+       "target": "target"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Match"
+     ],
+     "motion": "zoom",
+     "ask": [
+      "Why is this one flagged for entity matching?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "Which link matters most?",
+     "kind": "explain",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Match confidence"
+     ],
+     "motion": "pulse",
+     "ask": [
+      "Why is this one flagged for entity matching?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for entity matching?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "entity_matching_ai": {
+   "version": 1,
+   "technique_kind": "entity_matching_ai",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "What is this connected to for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "network",
+      "bind": {
+       "source": "source",
+       "target": "target"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Match"
+     ],
+     "motion": "zoom",
+     "ask": [
+      "Why is this one flagged for ai entity matching?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "Which link matters most?",
+     "kind": "explain",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Review queue"
+     ],
+     "motion": "pulse",
+     "ask": [
+      "Why is this one flagged for ai entity matching?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for ai entity matching?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "exception_workflow_agent": {
+   "version": 1,
+   "technique_kind": "exception_workflow_agent",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Where do records drop out for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "funnel",
+      "bind": {
+       "stage": "stage",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Exception"
+     ],
+     "motion": "trace",
+     "ask": [
+      "Why is this one flagged for exception workflow agent?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How long does each step take?",
+     "kind": "explain",
+     "visual": {
+      "block": "timeline",
+      "bind": {
+       "time": "when",
+       "label": "label"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Resolution"
+     ],
+     "motion": "pulse",
+     "ask": [
+      "Why is this one flagged for exception workflow agent?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for exception workflow agent?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "experiment_readout": {
+   "version": 1,
+   "technique_kind": "experiment_readout",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "What changes with this choice for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "before_after",
+      "bind": {
+       "label": "label",
+       "before": "before",
+       "after": "after"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Lift"
+     ],
+     "motion": "morph",
+     "ask": [
+      "Why is this one flagged for experiments and before/after?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "Is the result past the limit?",
+     "kind": "compare",
+     "visual": {
+      "block": "gauge",
+      "bind": {
+       "value": "value",
+       "threshold": "threshold"
+      },
+      "compare": "picked",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Control group"
+     ],
+     "motion": "count_up",
+     "ask": [
+      "Why is this one flagged for experiments and before/after?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for experiments and before/after?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "forecast": {
+   "version": 1,
+   "technique_kind": "forecast",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Where is it heading for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "trend_band",
+      "bind": {
+       "time": "when",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Forecast"
+     ],
+     "motion": "trace",
+     "ask": [
+      "Why is this one flagged for forecast?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "When does it change?",
+     "kind": "explain",
+     "visual": {
+      "block": "timeline",
+      "bind": {
+       "time": "when",
+       "label": "label"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Forecast range"
+     ],
+     "motion": "pulse",
+     "ask": [
+      "Why is this one flagged for forecast?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for forecast?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "journey_path": {
+   "version": 1,
+   "technique_kind": "journey_path",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Where do records drop out for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "funnel",
+      "bind": {
+       "stage": "stage",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Funnel"
+     ],
+     "motion": "trace",
+     "ask": [
+      "Why is this one flagged for journey and path?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How long does each step take?",
+     "kind": "explain",
+     "visual": {
+      "block": "timeline",
+      "bind": {
+       "time": "when",
+       "label": "label"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Drop-off"
+     ],
+     "motion": "pulse",
+     "ask": [
+      "Why is this one flagged for journey and path?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for journey and path?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "leading_indicators": {
+   "version": 1,
+   "technique_kind": "leading_indicators",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Where is it heading for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "trend_band",
+      "bind": {
+       "time": "when",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Leading indicator"
+     ],
+     "motion": "trace",
+     "ask": [
+      "Why is this one flagged for leading indicators?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "When does it change?",
+     "kind": "explain",
+     "visual": {
+      "block": "timeline",
+      "bind": {
+       "time": "when",
+       "label": "label"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Correlation"
+     ],
+     "motion": "pulse",
+     "ask": [
+      "Why is this one flagged for leading indicators?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for leading indicators?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "lifetime_value": {
+   "version": 1,
+   "technique_kind": "lifetime_value",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Where is it heading for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "trend_band",
+      "bind": {
+       "time": "when",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Lifetime value"
+     ],
+     "motion": "trace",
+     "ask": [
+      "Why is this one flagged for lifetime value?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "When does it change?",
+     "kind": "explain",
+     "visual": {
+      "block": "timeline",
+      "bind": {
+       "time": "when",
+       "label": "label"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Cohort"
+     ],
+     "motion": "pulse",
+     "ask": [
+      "Why is this one flagged for lifetime value?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for lifetime value?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "location_intelligence": {
+   "version": 1,
+   "technique_kind": "location_intelligence",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "How is the total split for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "share_shift",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Hot spot"
+     ],
+     "motion": "fill",
+     "ask": [
+      "Why is this one flagged for location intelligence?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How do the groups differ?",
+     "kind": "compare",
+     "visual": {
+      "block": "cohort_cards",
+      "bind": {
+       "group": "group",
+       "value": "value"
+      },
+      "compare": "cohort",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Share by place"
+     ],
+     "motion": "split_merge",
+     "ask": [
+      "Why is this one flagged for location intelligence?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for location intelligence?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "lookalikes": {
+   "version": 1,
+   "technique_kind": "lookalikes",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "What is this connected to for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "network",
+      "bind": {
+       "source": "source",
+       "target": "target"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Lookalike"
+     ],
+     "motion": "zoom",
+     "ask": [
+      "Why is this one flagged for lookalikes?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "Which link matters most?",
+     "kind": "explain",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Similarity"
+     ],
+     "motion": "pulse",
+     "ask": [
+      "Why is this one flagged for lookalikes?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for lookalikes?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "marketing_mix": {
+   "version": 1,
+   "technique_kind": "marketing_mix",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "How is the total split for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "share_shift",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Contribution"
+     ],
+     "motion": "fill",
+     "ask": [
+      "Why is this one flagged for marketing mix and attribution?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How do the groups differ?",
+     "kind": "compare",
+     "visual": {
+      "block": "cohort_cards",
+      "bind": {
+       "group": "group",
+       "value": "value"
+      },
+      "compare": "cohort",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Diminishing returns"
+     ],
+     "motion": "split_merge",
+     "ask": [
+      "Why is this one flagged for marketing mix and attribution?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for marketing mix and attribution?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "network_dependency": {
+   "version": 1,
+   "technique_kind": "network_dependency",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "What is this connected to for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "network",
+      "bind": {
+       "source": "source",
+       "target": "target"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Dependency"
+     ],
+     "motion": "zoom",
+     "ask": [
+      "Why is this one flagged for network dependency?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "Which link matters most?",
+     "kind": "explain",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Single point of failure"
+     ],
+     "motion": "pulse",
+     "ask": [
+      "Why is this one flagged for network dependency?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for network dependency?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "next_best_action": {
+   "version": 1,
+   "technique_kind": "next_best_action",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Which records come first for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Next best action"
+     ],
+     "motion": "build",
+     "ask": [
+      "Why is this one flagged for recommendation and next best action?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How does it compare with similar ones?",
+     "kind": "compare",
+     "visual": {
+      "block": "small_multiples",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      },
+      "compare": "cohort",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Expected gain"
+     ],
+     "motion": "morph",
+     "ask": [
+      "Why is this one flagged for recommendation and next best action?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for recommendation and next best action?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "next_best_action_ai": {
+   "version": 1,
+   "technique_kind": "next_best_action_ai",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Which records come first for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Next best action"
+     ],
+     "motion": "build",
+     "ask": [
+      "Why is this one flagged for ai next best action?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How does it compare with similar ones?",
+     "kind": "compare",
+     "visual": {
+      "block": "small_multiples",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      },
+      "compare": "cohort",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Rationale"
+     ],
+     "motion": "morph",
+     "ask": [
+      "Why is this one flagged for ai next best action?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for ai next best action?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "next_event": {
+   "version": 1,
+   "technique_kind": "next_event",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Where do records drop out for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "funnel",
+      "bind": {
+       "stage": "stage",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Sequence"
+     ],
+     "motion": "trace",
+     "ask": [
+      "Why is this one flagged for next event or sequence?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How long does each step take?",
+     "kind": "explain",
+     "visual": {
+      "block": "timeline",
+      "bind": {
+       "time": "when",
+       "label": "label"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Likelihood"
+     ],
+     "motion": "pulse",
+     "ask": [
+      "Why is this one flagged for next event or sequence?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for next event or sequence?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "outreach_agent": {
+   "version": 1,
+   "technique_kind": "outreach_agent",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Where do records drop out for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "funnel",
+      "bind": {
+       "stage": "stage",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Draft"
+     ],
+     "motion": "trace",
+     "ask": [
+      "Why is this one flagged for outreach agent?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How long does each step take?",
+     "kind": "explain",
+     "visual": {
+      "block": "timeline",
+      "bind": {
+       "time": "when",
+       "label": "label"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Response rate"
+     ],
+     "motion": "pulse",
+     "ask": [
+      "Why is this one flagged for outreach agent?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for outreach agent?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "peer_benchmarking": {
+   "version": 1,
+   "technique_kind": "peer_benchmarking",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Is this value normal for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "strip",
+      "bind": {
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Peer group"
+     ],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for peer benchmarking?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How has it moved lately?",
+     "kind": "compare",
+     "visual": {
+      "block": "trend_band",
+      "bind": {
+       "time": "when",
+       "value": "value"
+      },
+      "compare": "population",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Percentile"
+     ],
+     "motion": "slide",
+     "ask": [
+      "Why is this one flagged for peer benchmarking?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for peer benchmarking?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "process_control": {
+   "version": 1,
+   "technique_kind": "process_control",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Is this value normal for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "strip",
+      "bind": {
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Control limits"
+     ],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for statistical process control?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How has it moved lately?",
+     "kind": "compare",
+     "visual": {
+      "block": "trend_band",
+      "bind": {
+       "time": "when",
+       "value": "value"
+      },
+      "compare": "population",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Out of control"
+     ],
+     "motion": "slide",
+     "ask": [
+      "Why is this one flagged for statistical process control?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for statistical process control?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "process_mining": {
+   "version": 1,
+   "technique_kind": "process_mining",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Where do records drop out for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "funnel",
+      "bind": {
+       "stage": "stage",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Path"
+     ],
+     "motion": "trace",
+     "ask": [
+      "Why is this one flagged for process mining?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How long does each step take?",
+     "kind": "explain",
+     "visual": {
+      "block": "timeline",
+      "bind": {
+       "time": "when",
+       "label": "label"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Bottleneck"
+     ],
+     "motion": "pulse",
+     "ask": [
+      "Why is this one flagged for process mining?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for process mining?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "reason_codes": {
+   "version": 1,
+   "technique_kind": "reason_codes",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Which records come first for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Reason code"
+     ],
+     "motion": "build",
+     "ask": [
+      "Why is this one flagged for reason codes from comments?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How does it compare with similar ones?",
+     "kind": "compare",
+     "visual": {
+      "block": "small_multiples",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      },
+      "compare": "cohort",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Weight"
+     ],
+     "motion": "morph",
+     "ask": [
+      "Why is this one flagged for reason codes from comments?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for reason codes from comments?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "risk_propensity": {
+   "version": 1,
+   "technique_kind": "risk_propensity",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Which records come first for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Score"
+     ],
+     "motion": "build",
+     "ask": [
+      "Why is this one flagged for risk or propensity?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How does it compare with similar ones?",
+     "kind": "compare",
+     "visual": {
+      "block": "small_multiples",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      },
+      "compare": "cohort",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Propensity"
+     ],
+     "motion": "morph",
+     "ask": [
+      "Why is this one flagged for risk or propensity?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for risk or propensity?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "root_cause_agent": {
+   "version": 1,
+   "technique_kind": "root_cause_agent",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "What moved the total for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "bridge",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Root cause"
+     ],
+     "motion": "build",
+     "ask": [
+      "Why is this one flagged for root-cause agent?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "Which part matters most?",
+     "kind": "explain",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Contributing factor"
+     ],
+     "motion": "pulse",
+     "ask": [
+      "Why is this one flagged for root-cause agent?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for root-cause agent?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "segmentation": {
+   "version": 1,
+   "technique_kind": "segmentation",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "How is the total split for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "share_shift",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Segment"
+     ],
+     "motion": "fill",
+     "ask": [
+      "Why is this one flagged for segmentation?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How do the groups differ?",
+     "kind": "compare",
+     "visual": {
+      "block": "cohort_cards",
+      "bind": {
+       "group": "group",
+       "value": "value"
+      },
+      "compare": "cohort",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Share of total"
+     ],
+     "motion": "split_merge",
+     "ask": [
+      "Why is this one flagged for segmentation?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for segmentation?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "staffing_queueing": {
+   "version": 1,
+   "technique_kind": "staffing_queueing",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Where is it heading for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "trend_band",
+      "bind": {
+       "time": "when",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Queue"
+     ],
+     "motion": "trace",
+     "ask": [
+      "Why is this one flagged for staffing and queueing?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "When does it change?",
+     "kind": "explain",
+     "visual": {
+      "block": "timeline",
+      "bind": {
+       "time": "when",
+       "label": "label"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Wait time"
+     ],
+     "motion": "pulse",
+     "ask": [
+      "Why is this one flagged for staffing and queueing?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for staffing and queueing?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "taxonomy_mapping": {
+   "version": 1,
+   "technique_kind": "taxonomy_mapping",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "What is this connected to for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "network",
+      "bind": {
+       "source": "source",
+       "target": "target"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Taxonomy"
+     ],
+     "motion": "zoom",
+     "ask": [
+      "Why is this one flagged for taxonomy mapping?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "Which link matters most?",
+     "kind": "explain",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Mapping"
+     ],
+     "motion": "pulse",
+     "ask": [
+      "Why is this one flagged for taxonomy mapping?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for taxonomy mapping?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "threshold_tuning": {
+   "version": 1,
+   "technique_kind": "threshold_tuning",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "What changes with this choice for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "before_after",
+      "bind": {
+       "label": "label",
+       "before": "before",
+       "after": "after"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Threshold"
+     ],
+     "motion": "morph",
+     "ask": [
+      "Why is this one flagged for threshold and policy tuning?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "Is the result past the limit?",
+     "kind": "compare",
+     "visual": {
+      "block": "gauge",
+      "bind": {
+       "value": "value",
+       "threshold": "threshold"
+      },
+      "compare": "picked",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "False alarm"
+     ],
+     "motion": "count_up",
+     "ask": [
+      "Why is this one flagged for threshold and policy tuning?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for threshold and policy tuning?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "time_to_event": {
+   "version": 1,
+   "technique_kind": "time_to_event",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Where is it heading for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "trend_band",
+      "bind": {
+       "time": "when",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Time to event"
+     ],
+     "motion": "trace",
+     "ask": [
+      "Why is this one flagged for time to event?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "When does it change?",
+     "kind": "explain",
+     "visual": {
+      "block": "timeline",
+      "bind": {
+       "time": "when",
+       "label": "label"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Still at risk"
+     ],
+     "motion": "pulse",
+     "ask": [
+      "Why is this one flagged for time to event?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for time to event?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "uplift_targeting": {
+   "version": 1,
+   "technique_kind": "uplift_targeting",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Which records come first for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Uplift"
+     ],
+     "motion": "build",
+     "ask": [
+      "Why is this one flagged for uplift targeting?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How does it compare with similar ones?",
+     "kind": "compare",
+     "visual": {
+      "block": "small_multiples",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      },
+      "compare": "cohort",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Persuadable"
+     ],
+     "motion": "morph",
+     "ask": [
+      "Why is this one flagged for uplift targeting?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for uplift targeting?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "watch_act_agent": {
+   "version": 1,
+   "technique_kind": "watch_act_agent",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Is this value normal for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "strip",
+      "bind": {
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Watch rule"
+     ],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for watch and act agent?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How has it moved lately?",
+     "kind": "compare",
+     "visual": {
+      "block": "trend_band",
+      "bind": {
+       "time": "when",
+       "value": "value"
+      },
+      "compare": "population",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Alert"
+     ],
+     "motion": "slide",
+     "ask": [
+      "Why is this one flagged for watch and act agent?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for watch and act agent?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  },
+  "written_commentary": {
+   "version": 1,
+   "technique_kind": "written_commentary",
+   "tour": [
+    {
+     "target": "focus_queue",
+     "line": "Records are listed here, the most pressing first."
+    },
+    {
+     "target": "focus_step",
+     "line": "Each step answers one plain question about the record."
+    },
+    {
+     "target": "focus_decide",
+     "line": "The last step asks you to decide and saves it."
+    }
+   ],
+   "queue": {
+    "filter": "status = 'open'",
+    "order": {
+     "column": "value",
+     "direction": "desc"
+    },
+    "cohort_column": "group"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "question": "Which records come first for this record?",
+     "kind": "show",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Commentary"
+     ],
+     "motion": "build",
+     "ask": [
+      "Why is this one flagged for written commentary?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s2",
+     "question": "How does it compare with similar ones?",
+     "kind": "compare",
+     "visual": {
+      "block": "small_multiples",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      },
+      "compare": "cohort",
+      "default_compare": true
+     },
+     "answer_template": "{record} shows {value} compared with {reference}.",
+     "terms": [
+      "Key figure"
+     ],
+     "motion": "morph",
+     "ask": [
+      "Why is this one flagged for written commentary?",
+      "Which records look the same?"
+     ]
+    },
+    {
+     "id": "s3",
+     "question": "What will you do with this record?",
+     "kind": "decide",
+     "visual": {
+      "block": "ranked_bars",
+      "bind": {
+       "label": "label",
+       "value": "value"
+      }
+     },
+     "answer_template": "Pick one action for {record}, and add a note if it needs one.",
+     "terms": [],
+     "motion": "reveal",
+     "ask": [
+      "Why is this one flagged for written commentary?",
+      "Which records look the same?"
+     ]
+    }
+   ],
+   "decide": {
+    "choices": [
+     {
+      "label": "Mark done",
+      "detail": "The record is handled, close it.",
+      "action": "done"
+     },
+     {
+      "label": "Assign to someone",
+      "detail": "Someone else should take it.",
+      "action": "assign",
+      "needs_note": true
+     },
+     {
+      "label": "Snooze for later",
+      "detail": "Look again after the date you pick.",
+      "action": "snooze"
+     },
+     {
+      "label": "Not an issue",
+      "detail": "Nothing to act on, say why.",
+      "action": "not_an_issue",
+      "needs_note": true
+     }
+    ]
+   }
+  }
+ }
+}
