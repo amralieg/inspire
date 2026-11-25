@@ -284,6 +284,7 @@ function createHostedRun(options = {}) {
   let reader = null;
   let alerts = null;
   let decisions = null;
+  let sessionCheck = null;
   let python = null;
 
   const idDir = (id) => safeLocalPath(tmpRoot, id);
@@ -300,6 +301,11 @@ function createHostedRun(options = {}) {
 
   function useDecisions(fn) {
     decisions = fn;
+  }
+
+  // SEC-02 (F4/F6): a page belongs to the session that built it. fn(req, sessionId) answers the refusal when the person may not see it.
+  function useSessionCheck(fn) {
+    sessionCheck = fn;
   }
 
   function setListed(entries, ctx = {}) {
@@ -704,6 +710,11 @@ function createHostedRun(options = {}) {
     }
     if (!entry && before) return plain(res, 404, HOSTED_GONE);
     if (!entry) return plain(res, 404, `Inspire has no page ${id} Inside Inspire; open it from the Run tab`);
+    if (sessionCheck) {
+      let hidden;
+      try { hidden = entry.session_id ? await sessionCheck(req, entry.session_id) : { status: 403 }; } catch { hidden = { status: 403 }; }
+      if (hidden) return plain(res, 403, 'you cannot open this page: you did not launch its session and you cannot read every table it covers');
+    }
     const step = alerts ? HOSTED_ALERT_ROUTES[`${req.method} ${rest.split('?')[0]}`] : null;
     if (step) return answerAlerts(req, res, entry, step, rest);
     const decision = decisions ? HOSTED_DECISION_ROUTES[`${req.method} ${rest.split('?')[0]}`] : null;
@@ -747,7 +758,7 @@ function createHostedRun(options = {}) {
     return timer;
   }
 
-  return { listed, runs, useReader, useAlerts, useDecisions, setListed, forget, stop, stopAll, sweep, ensure, stateOf, refresh, viewerGate, proxy, redirect,
+  return { listed, runs, useReader, useAlerts, useDecisions, useSessionCheck, setListed, forget, stop, stopAll, sweep, ensure, stateOf, refresh, viewerGate, proxy, redirect,
     installLifecycle };
 }
 

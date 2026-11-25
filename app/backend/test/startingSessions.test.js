@@ -66,7 +66,8 @@ test('finished, unknown, regenerated, reopened, other-database and mismatched ru
   assert.equal(other.status, 200, other.text.slice(0, 300));
   // REQ-418: every database is read as the App, so the run that writes to other.inspire is starting there, and no read uses the person token.
   assert.deepEqual(other.data.sessions.map((s) => [s.session_id, s.run_id, s.starting]), [['7005', '705', true]], 'the run shows as starting in the database it writes to');
-  assert.deepEqual(S.state.calls.filter((c) => c.token === S.PERSON_TOKEN && !['auth', 'policy'].includes(c.category)).map((c) => c.path), []);
+  // SEC-02: the person's own LIMIT 0 probe of a session's tables (the session check) is the one read that carries the person token.
+  assert.deepEqual(S.state.calls.filter((c) => c.token === S.PERSON_TOKEN && !['auth', 'policy'].includes(c.category) && !/LIMIT 0\s*$/.test(c.statement || '')).map((c) => c.path), []);
   S.state.launches[0].inspire_database = S.APP_DB;
   S.state.launches[0].session_id = '7999';
   assert.deepEqual(await list(), [], 'the run carries another session id than the ledger');

@@ -49,17 +49,19 @@ function permissionFor(message, principal) {
   } else if (denied.kind === 'schema') {
     const [catalog, schema] = denied.name.split('.');
     // PERMISSION_DIALOG: these statements go to the Permission Required dialog, which copies them (REQ-131, REQ-260)
+    // SEC-02 (F9): a read is granted per table (SELECT ON TABLE), never on the whole schema; the refusal names no table, so only the USE grants are offered here.
     statements = [
       `GRANT USE CATALOG ON CATALOG \`${catalog}\` TO \`${who}\``, // PERMISSION_DIALOG
       `GRANT USE SCHEMA ON SCHEMA \`${catalog}\`.\`${schema}\` TO \`${who}\``, // PERMISSION_DIALOG
-      `GRANT SELECT ON SCHEMA \`${catalog}\`.\`${schema}\` TO \`${who}\``, // PERMISSION_DIALOG
     ];
   } else if (denied.kind === 'catalog') {
     statements = readStatements(denied.name, who);
   } else {
     statements = readStatementsFor([denied.name], who);
   }
+  const schemaRead = denied.kind === 'schema' && !named;
   return permissionRequired({ statements, principal: who,
+    ...(schemaRead ? { instructions: [`Ask for SELECT on each table you need in ${denied.name}; a read is granted per table.`] } : {}),
     why: 'Inspire reads this with your own access.' });
 }
 

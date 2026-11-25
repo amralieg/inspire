@@ -113,6 +113,7 @@ const routePolicy = RP.createRoutePolicy({
 });
 const routePolicyRoutes = RP.enforceRoutePolicy(app, routePolicy);
 const hostedRun = createHostedRun({ files: workspaceFiles((...args) => dbFetch(...args)) });
+hostedRun.useSessionCheck((req, sessionId) => sessionHidden(req, sessionId));
 app.all('/run/:id/{*rest}', hostedRun.viewerGate, (req, res, next) => requireToken(req, res, next), hostedRun.proxy);
 app.get('/run/:id', hostedRun.redirect);
 app.use(showcaseWriteGuard);
@@ -1792,11 +1793,12 @@ app.get('/api/me', requireToken, async (req, res) => {
 const truncatedByRest = (restCut, byName, countAfterRest) => restCut && byName.size === countAfterRest;
 
 // REQ-420: the catalogs the App's service principal can read right now, or null when it cannot be asked. `listing` is the catalog
-// list the caller read with `listedWith`; when that is the App's own token (REQ-418) it is the same list, so it is not read again.
-async function appCatalogGrants(req, listing = null, listedWith = '') {
+// list the person's own token read, the only list the App checks.
+async function appCatalogGrants(req, listing = null) {
   const token = await appOwnToken();
   if (!token) return null;
-  return spGrantedCatalogs(dbFetch, req.dbHost, token, SP_CLIENT_ID, listing && listedWith === token ? listing : null);
+  // SEC-02 (F5): the App never lists catalogs for a person's pick; a listing the person's own token produced is the one that is checked.
+  return spGrantedCatalogs(dbFetch, req.dbHost, token, SP_CLIENT_ID, listing);
 }
 
 app.get('/api/catalogs', requireToken, async (req, res) => {
@@ -1838,7 +1840,7 @@ app.get('/api/catalogs', requireToken, async (req, res) => {
     else if (catalogs.length > 0) source = 'sql';
     console.log(`   📚 catalogs: REST=${raw.length} merged=${catalogs.length} warehouse=${warehouseId ? 'yes' : 'no'} (${source})`);
     // REQ-420: the App reads as its own service principal, so the list is the catalogs the person sees that the principal can read now.
-    const granted = await appCatalogGrants(req, restErr ? null : { items: raw, truncated: restCut }, token);
+    const granted = await appCatalogGrants(req, { items: catalogs, truncated: restCut });
     if (granted) {
       const offered = grantedCatalogList(catalogs, granted);
       const permission = partialPermission(offered, SP_CLIENT_ID);
@@ -1908,8 +1910,9 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
   try {
     const { catalog, schema } = req.params;
     // SEC-01 (W4): the person's own sign-in lists the tables, so the person sees only what they can see.
-    const personToken = personTokenOf(req);
-    const token = personToken || req.dbToken;
+    // SEC-02 (F5): a person route, so req.dbToken is the person's token (401 without one); there is no fallback to the App's token.
+    const personToken = req.dbToken;
+    const token = personToken;
     const warehouseId = String(req.query.warehouse_id || '').trim();
     let raw = [];
     let restCut = false;
@@ -2448,27 +2451,48 @@ async function droppedCatalogRefusal(req, params) {
   unreadable: dropped };
 }
 
-// SEC-01 (W5): the launcher's own read is checked again right before a job starts, so a read revoked between the pick and the launch
-// stops the run. The probe is a LIMIT 0 read with the launcher's sign-in. Nothing is granted: the refusal names a table-level SELECT.
-const LAUNCHER_PROBE_LIMIT = 50;
-async function launcherReadRefusal(req, scope) {
+// SEC-01 (W5), SEC-02 (F7): the launcher's own read is checked again right before a job starts, and a session is opened by a colleague only
+// when the same check passes. The probe is a LIMIT 0 read with the person's sign-in, on every table of the scope. Nothing is granted: the
+// refusal names a table-level SELECT. The check fails closed: a scope that cannot be probed in full (no warehouse, no App token to list it,
+// more tables than SCOPE_PROBE_CEILING, a listing or a probe that fails for any reason) is a refusal, and only a successful probe counts as readable.
+const SCOPE_PROBE_CEILING = 500;
+const SCOPE_PROBE_BATCH = 8;
+const UNCHECKED_SCOPE = { status: 403, request: 'person', permissions: [], unreadable: [] };
+// A launch (failClosed false) only stops on a table the person is known to have lost: the launcher always sees their own session, so a check
+// that could not run does not stop the run (it hides the session from everyone else, sessionHiddenFrom).
+async function launcherReadRefusal(req, scope, { emptyScopeRefuses = false, failClosed = true } = {}) {
   const person = forwardedTokenOf(req);
   const { catalogs, schemas, tables: picked } = ucMetadataParts(scope);
   const entries = [...picked, ...schemas, ...catalogs];
-  if (!person || !entries.length || !DEFAULT_WAREHOUSE_ID) return null;
-  const token = await appOwnToken();
-  if (!token) return null;
-  const { tables } = await scopeTables(dbFetch, req.dbHost, token, entries);
+  if (!person) return null;
+  if (!entries.length) return emptyScopeRefuses ? UNCHECKED_SCOPE : null;
+  const warehouseId = requestedInspireDb(req).warehouseId;
   const lost = [];
-  await Promise.all(tables.slice(0, LAUNCHER_PROBE_LIMIT).map(async (table) => {
+  let unchecked = !warehouseId;
+  if (!unchecked) {
     try {
-      const probe = tableProbeStatement(table);
-      await executeSql(req.dbHost, person, DEFAULT_WAREHOUSE_ID, probe.sql, probe.parameters);
-    } catch (err) {
-      if (tableAccessReason(table, err && err.message) === 'no read access') lost.push(table);
+      const token = await appOwnToken();
+      if (!token) throw new Error('no App token to list the scope');
+      const { tables, more } = await scopeTables(dbFetch, req.dbHost, token, entries, SCOPE_PROBE_CEILING);
+      if (more || !tables.length) unchecked = true;
+      for (let i = 0; i < tables.length; i += SCOPE_PROBE_BATCH) {
+        await Promise.all(tables.slice(i, i + SCOPE_PROBE_BATCH).map(async (table) => {
+          try {
+            const probe = tableProbeStatement(table);
+            await executeSql(req.dbHost, person, warehouseId, probe.sql, probe.parameters);
+          } catch (err) {
+            const why = tableAccessReason(table, err && err.message);
+            if (why === 'no read access' || why === 'not found') lost.push(table); else unchecked = true;
+          }
+        }));
+      }
+    } catch {
+      unchecked = true;
     }
-  }));
-  if (!lost.length) return null;
+  }
+  if (!lost.length && !unchecked) return null;
+  if (!lost.length && !failClosed) return null;
+  if (!lost.length) return { ...UNCHECKED_SCOPE, message: 'Inspire could not check that you can read every table of this scope, so it is not shown. Try again, or ask the person who launched it.' };
   const email = RP.forwardedPerson(req.headers);
   const names = lost.sort();
   const permission = permissionRequired({ statements: readStatementsFor(names, email || 'you'), principal: email || 'you',
@@ -2489,7 +2513,7 @@ async function sessionHiddenFrom(req, sessionId, scope) {
   const person = RP.forwardedPerson(req.headers);
   // Fail closed: with no person nothing is shown; with no sign-in token only the person's own launches are (their reads cannot be probed).
   if (!person) return { status: 403, request: 'person', permissions: [], unreadable: [] };
-  const launcher = await readLaunchRecord(req, { kind: 'session', inspireDatabase: String(req.query.inspire_database || ''), sessionId: String(sessionId) }).catch(() => null);
+  const launcher = await readLaunchRecord(req, { kind: 'session', inspireDatabase: requestedInspireDb(req).inspireDatabase, sessionId: String(sessionId) }).catch(() => null);
   if (launcher && launcher === String(person).trim().toLowerCase()) return null;
   if (!forwardedTokenOf(req)) { // no sign-in token to probe reads with: only the launcher sees it
     const names = ucMetadataParts(sessionScopeText(scope)).tables.sort();
@@ -2497,7 +2521,7 @@ async function sessionHiddenFrom(req, sessionId, scope) {
       why: 'You can open this session only when you can read the tables it covers.' }) : null;
     return { status: 403, request: 'person', permissions: permission ? [permission] : [], unreadable: names };
   }
-  return launcherReadRefusal(req, sessionScopeText(scope));
+  return launcherReadRefusal(req, sessionScopeText(scope), { emptyScopeRefuses: true });
 }
 
 async function visibleSessions(req, warehouseId, parsedDb, sessions) {
@@ -2518,6 +2542,67 @@ async function visibleSessions(req, warehouseId, parsedDb, sessions) {
     }
   }));
   return sessions.filter((_s, i) => verdicts[i]);
+}
+
+// SEC-02 (F4, REQ-518): the one session check every route and every implement handler calls before it reads anything. The scope is read
+// with the App token (tracking table). Any failure to read it (no App token, no warehouse, bad id, read error) fails closed: the scope is
+// treated as empty, which hides the session from everyone except its launcher. Returns null (may see) or the refusal.
+function requestedInspireDb(req) {
+  const asked = String((req.query && req.query.inspire_database) || (req.body && req.body.inspire_database) || '').trim();
+  const warehouse = String((req.query && req.query.warehouse_id) || (req.body && req.body.warehouse_id) || DEFAULT_WAREHOUSE_ID || '').trim();
+  return { inspireDatabase: asked || DEFAULT_INSPIRE_DB, warehouseId: warehouse };
+}
+
+async function sessionHidden(req, sessionId) {
+  const sid = String(sessionId == null ? '' : sessionId).trim();
+  let scope = null;
+  try {
+    const { inspireDatabase, warehouseId } = requestedInspireDb(req);
+    const parsed = splitInspireDatabase(inspireDatabase);
+    const token = await appOwnToken();
+    if (isInt64Id(sid) && parsed && warehouseId && token) {
+      const rows = sqlResultToObjects(await executeSql(req.dbHost, token, warehouseId,
+        `SELECT session_id, catalogs, schemas_str, tables_str FROM \`${parsed.catalog}\`.\`${parsed.schema}\`.\`__inspire_session\` WHERE session_id = ${sid} LIMIT 1`));
+      scope = rows[0] || null;
+    }
+  } catch {
+    scope = null;
+  }
+  try {
+    return await sessionHiddenFrom(req, sid, scope || {});
+  } catch {
+    return { status: 403, request: 'person', permissions: [], unreadable: [] };
+  }
+}
+
+// Cross-session lists: keeps the sessions the person may see. Same inspire database and warehouse as the request.
+async function visibleSessionsOf(req, sessions) {
+  const { inspireDatabase, warehouseId } = requestedInspireDb(req);
+  const parsed = splitInspireDatabase(inspireDatabase);
+  if (!parsed || !warehouseId) return [];
+  try {
+    return await visibleSessions(req, warehouseId, parsed, sessions);
+  } catch {
+    return [];
+  }
+}
+
+// SEC-02 (F4): the newest sessions (the list the Start page shows) that this person may see. Cross-session reads start from this list.
+async function visibleSessionList(req, warehouse_id, parsedDb, cap = SESSION_LIST_CAP) {
+  const table = qualifiedInspireTable(parsedDb, '__inspire_session');
+  const { sessions, truncated } = await loadSessionList(
+    async (statement) => sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouse_id, statement.sql, statement.parameters)), table, cap);
+  return { rows: await visibleSessionsOf(req, sessions), truncated };
+}
+
+const SESSION_REFUSAL = 'You cannot open this session: you did not launch it and you cannot read every table it covers. Ask for access to the tables below.';
+// SEC-02 (F4): answers 403 {request:'person'} and returns true when the session is hidden from this person. Every route that names a session
+// calls it before it reads anything of that session.
+async function refuseHiddenSession(req, res, sessionId) {
+  const hidden = await sessionHidden(req, sessionId);
+  if (!hidden) return false;
+  PM_ERROR.sendFailure(res, 403, SESSION_REFUSAL, { request: 'person', permissions: hidden.permissions || [], unreadable: hidden.unreadable || [] });
+  return true;
 }
 
 // SEC-01 (W2): Inspire's principal must hold no write privilege on a source. Unity Catalog's effective permissions decide, so a grant made
@@ -2553,7 +2638,7 @@ async function checkLaunchReads(req, params) {
     if (dropped) return { reads: { refusal: dropped, skipped: [], warnings: [] }, access: { permissions: [], warnings: [] }, model: [] };
     const reads = await runReadPlan(dbFetch, req, discoverReads(params));
     if (!reads.refusal) {
-      const lost = await launcherReadRefusal(req, reads.scope || params['01_uc_metadata']).catch((err) => {
+      const lost = await launcherReadRefusal(req, reads.scope || params['01_uc_metadata'], { failClosed: false }).catch((err) => {
         console.warn(`launcher read check: ${err.message || err}`);
         return null;
       });
@@ -2761,8 +2846,31 @@ app.get('/api/run/:runId', requireToken, async (req, res) => {
   }
 });
 
+// SEC-02 (F6): the session a run made, from the launch ledger (the App's own tracking table). Null when the ledger has no row for the run.
+async function launchOfRun(req, runId) {
+  const table = L.launchTableName(DEFAULT_INSPIRE_DB);
+  if (!table || !DEFAULT_WAREHOUSE_ID || !isInt64Id(runId)) return null;
+  const rows = await launchSql(resolveHost(req), {
+    sql: `SELECT run_id, session_id, launched_by FROM ${table} WHERE run_id = :run_id LIMIT 1`,
+    parameters: [{ name: 'run_id', value: String(runId), type: 'BIGINT' }],
+  }, await policyReadToken(req));
+  return rows[0] || null;
+}
+
+// A run's output is the output of its session: the launcher, or a person who may see the session, reads it. A run the ledger cannot place is refused.
+async function refuseHiddenRun(req, res, runId) {
+  let launch = null;
+  try { launch = await launchOfRun(req, runId); } catch { launch = null; }
+  const person = String(RP.forwardedPerson(req.headers) || '').trim().toLowerCase();
+  if (launch && person && String(launch.launched_by || '').trim().toLowerCase() === person) return false;
+  if (launch && isInt64Id(String(launch.session_id || ''))) return refuseHiddenSession(req, res, launch.session_id);
+  PM_ERROR.sendFailure(res, 403, SESSION_REFUSAL, { request: 'person', permissions: [], unreadable: [] });
+  return true;
+}
+
 app.get('/api/run/:runId/output', requireToken, async (req, res) => {
   try {
+    if (await refuseHiddenRun(req, res, req.params.runId)) return;
     const response = await dbFetch(req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get-output?run_id=${req.params.runId}`);
     if (!response.ok) {
       const action = `read the output of run ${req.params.runId}`;
@@ -2957,8 +3065,7 @@ app.get('/api/inspire/value/estimates', requireToken, async (req, res) => {
     if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     if (session_id === undefined || session_id === '') {
       // The same runs the Start list shows: the latest SESSION_LIST_CAP, newest first.
-      const rows = await readValueRows(req, warehouse_id, VE.sessionsSql(qualifiedInspireTable(parsedDb, '__inspire_session'), SESSION_LIST_CAP));
-      const truncated = rows.length > SESSION_LIST_CAP;
+      const { rows, truncated } = await visibleSessionList(req, warehouse_id, parsedDb);
       const sids = rows.slice(0, SESSION_LIST_CAP).map((row) => String(row.session_id)).filter((sid) => !invalidSessionId(sid));
       const answers = await Promise.all(sids.map((sid) => estimatesOfSession(req, warehouse_id, parsedDb, sid)));
       const runs = Object.fromEntries(sids.map((sid, i) => [sid, answers[i]]));
@@ -2966,6 +3073,7 @@ app.get('/api/inspire/value/estimates', requireToken, async (req, res) => {
       return res.json({ runs, totals: VE.mergeTotals(answers.map((answer) => answer.totals)), run_value: all, run_values: byRun, truncated, cap: SESSION_LIST_CAP, disclaimer: VALUE_DISCLAIMER.full });
     }
     if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
+    if (await refuseHiddenSession(req, res, session_id)) return;
     const sid = String(session_id).trim();
     const read = await valueRowsOf(req, warehouse_id, parsedDb, sid);
     const one = await totalsOfSession(req, warehouse_id, parsedDb, sid, read);
@@ -2984,6 +3092,7 @@ app.get('/api/inspire/value', requireToken, async (req, res) => {
     const parsedDb = splitInspireDatabase(inspire_database);
     if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
+    if (await refuseHiddenSession(req, res, session_id)) return;
     res.json({ ...valueOfSession(await readValueRows(req, warehouse_id, valueSessionSql(valueLedgerTable(parsedDb), String(session_id).trim()))), disclaimer: VALUE_DISCLAIMER.full });
   } catch (err) {
     PM_ERROR.sendFailure(res, 500, err.message);
@@ -3021,8 +3130,7 @@ async function totalsOfSession(req, warehouse_id, parsedDb, sid, rows = null) {
 // FX-34 (W16 D2/D3/D9): the run value of every run the Start list shows and of all of them, computed once by valueTotals. /value/totals,
 // /value/estimates answers from here too, so the Start banner, bars and cards never disagree.
 async function runValuesOf(req, warehouse_id, parsedDb) {
-  const rows = await readValueRows(req, warehouse_id, VT.sessionsSql(qualifiedInspireTable(parsedDb, '__inspire_session'), SESSION_LIST_CAP));
-  const truncated = rows.length > SESSION_LIST_CAP;
+  const { rows, truncated } = await visibleSessionList(req, warehouse_id, parsedDb);
   const sessions = rows.slice(0, SESSION_LIST_CAP).filter((row) => !invalidSessionId(row.session_id));
   const sids = sessions.map((row) => String(row.session_id));
   const read = sids.length ? await valueRowsOf(req, warehouse_id, parsedDb, sids) : null;
@@ -3046,6 +3154,7 @@ app.get('/api/inspire/value/totals', requireToken, async (req, res) => {
       return res.json({ runs, all, truncated, cap: SESSION_LIST_CAP, disclaimer: VALUE_DISCLAIMER.full });
     }
     if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
+    if (await refuseHiddenSession(req, res, session_id)) return;
     const { estimates: _estimates, ...one } = await totalsOfSession(req, warehouse_id, parsedDb, String(session_id).trim());
     res.json({ ...one, run_value: VT.runValueOf(one.use_cases, one.review), disclaimer: VALUE_DISCLAIMER.full });
   } catch (err) {
@@ -3071,6 +3180,7 @@ app.get('/api/inspire/steps', requireToken, async (req, res) => {
     if (since && !isTimestampText(since)) {
       return res.status(400).json({ error: 'since must be a timestamp such as 2026-01-31T12:00:00.000Z.' });
     }
+    if (await refuseHiddenSession(req, res, session_id)) return;
     const statement = stepsStatement(table, session_id, since);
     const result = await executeSql(req.dbHost, req.dbToken, warehouse_id, statement.sql, statement.parameters);
     const steps = sqlResultToObjects(result);
@@ -3106,6 +3216,7 @@ app.get('/api/inspire/step-results', requireToken, async (req, res) => {
     const { catalog, schema } = parsedDb;
     const stepTable = `\`${catalog}\`.\`${schema}\`.\`__inspire_step\``;
     const sessionTable = `\`${catalog}\`.\`${schema}\`.\`__inspire_session\``;
+    if (await refuseHiddenSession(req, res, session_id)) return;
 
     // Fetch all ended_success steps that carry payload data
     const sql = `SELECT step_id, stage_name, step_name, status, result_json FROM ${stepTable} WHERE session_id = ${session_id} AND status IN (${LIVE_STEP_STATUSES.map((st) => `'${escapeSqlStringLiteral(st)}'`).join(', ')}) ORDER BY last_updated, step_id`;
@@ -3216,10 +3327,14 @@ app.get('/api/inspire/usecases', requireToken, async (req, res) => {
     }
     const { catalog, schema } = parsedDb;
     const table = `\`${catalog}\`.\`${schema}\`.\`__inspire_usecases\``;
+    if (!listAll && await refuseHiddenSession(req, res, session_id)) return;
     let sql;
     if (listAll) {
       const lim = Math.min(Math.max(parseInt(String(limitRaw || '300'), 10) || 300, 1), 1000);
-      sql = `SELECT * FROM ${table} ORDER BY session_id DESC, id LIMIT ${lim}`;
+      // SEC-02 (F4): only the sessions this person may see are read.
+      const shownIds = (await visibleSessionList(req, warehouse_id, parsedDb, sessionListCap(true))).rows.map((r) => String(r.session_id)).filter((id) => /^\d+$/.test(id));
+      if (!shownIds.length) return res.json({ usecases: [], count: 0, all_sessions: true });
+      sql = `SELECT * FROM ${table} WHERE session_id IN (${shownIds.join(', ')}) ORDER BY session_id DESC, id LIMIT ${lim}`;
     } else {
       sql = `SELECT * FROM ${table} WHERE session_id = ${session_id} ORDER BY id`;
     }
@@ -3379,8 +3494,15 @@ app.get('/api/inspire/feedback', requireToken, async (req, res) => {
     if (!tables || !warehouse_id || !String(business_name || '').trim()) {
       return res.status(400).json({ error: 'inspire_database (catalog.schema), warehouse_id and business_name required.' });
     }
+    // SEC-02 (F4): feedback on a session this person may not see is left out, so the business's sessions are checked first.
+    const business = String(business_name).trim().toLowerCase();
+    const parsedDb = splitInspireDatabase(inspire_database);
+    const listed = parsedDb ? (await visibleSessionList(req, warehouse_id, parsedDb, sessionListCap(true))).rows : [];
+    const shown = new Set(listed.filter((r) => String(r.business_name || '').trim().toLowerCase() === business).map((r) => String(r.session_id)));
+    if (!shown.size) return res.json({ available: true, history: [], latest: [] });
     const query = feedbackHistoryStatement(tables.feedback, business_name);
-    const history = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouse_id, query.sql, query.parameters));
+    const history = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouse_id, query.sql, query.parameters))
+      .filter((r) => shown.has(String(r.session_id)));
     res.json({ available: true, history, latest: latestFeedbackByKey(history) });
   } catch (err) {
     if (isMissingTableError(err)) return res.json({ available: false, history: [], latest: [], message: FEEDBACK_NOT_AVAILABLE });
@@ -3404,6 +3526,8 @@ const implementApi = registerImplementRoutes(app, {
   hostedRun,
   runDefaults: () => ({ inspireDatabase: DEFAULT_INSPIRE_DB, warehouseId: DEFAULT_WAREHOUSE_ID }),
   appToken: appOwnToken,
+  sessionHidden,
+  visibleSessions: visibleSessionsOf,
 });
 
 registerMacroRoutes(app, { requireToken, executeSql, sqlResultToObjects, fetchImpl: fetch, now: () => new Date() });
@@ -3482,6 +3606,7 @@ app.get('/api/inspire/genie-progress', requireToken, async (req, res) => {
     }
     const { catalog, schema } = parsedDb;
     const ucTable = `\`${catalog}\`.\`${schema}\`.\`__inspire_usecases\``;
+    if (await refuseHiddenSession(req, res, sidStr)) return;
     const inList = safeIds.map((id) => `'${escapeSqlStringLiteral(id)}'`).join(',');
     const sql = `SELECT
         CAST(COUNT(*) AS INT) AS selected_total,
@@ -3546,10 +3671,15 @@ app.get('/api/inspire/results', requireToken, async (req, res) => {
 
     let sql;
     if (session_id) {
+      if (await refuseHiddenSession(req, res, session_id)) return;
       sql = `SELECT results_json, completed_on, session_id FROM ${table} WHERE session_id = ${session_id} LIMIT 1`;
     } else {
-      // Get latest completed session
-      sql = `SELECT results_json, completed_on, session_id FROM ${table} WHERE completed_on IS NOT NULL AND COALESCE(LOWER(processing_status), '') <> 'failed' ORDER BY completed_on DESC LIMIT 1`;
+      // Get the latest completed session this person may see (SEC-02 F4): the newest ones are checked in order.
+      const latest = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouse_id,
+        `SELECT session_id FROM ${table} WHERE results_json IS NOT NULL AND completed_on IS NOT NULL AND COALESCE(LOWER(processing_status), '') <> 'failed' ORDER BY completed_on DESC LIMIT 20`));
+      const visible = await visibleSessionsOf(req, latest);
+      if (!visible.length) return res.json({ results: null, found: false, message: 'No completed session found.' });
+      sql = `SELECT results_json, completed_on, session_id FROM ${table} WHERE session_id = ${String(visible[0].session_id).replace(/\D/g, '')} LIMIT 1`;
     }
 
     const result = await executeSql(req.dbHost, req.dbToken, warehouse_id, sql);

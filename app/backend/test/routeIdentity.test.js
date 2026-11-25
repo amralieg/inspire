@@ -13,8 +13,11 @@ const scopedRoutes = () => Object.entries(P.ROUTE_POLICY).filter(([, e]) => e.id
 
 // REQ-418 / D-SL-10B: a route reads with the App's service principal unless it is a who-did-what action of the person.
 test('data routes read with the App, and only who-did-what routes keep the person token; an unknown route keeps the person (fail before: the data routes read as the person)', () => {
-  for (const key of ['GET /api/workspace/list', 'GET /api/catalogs', 'GET /api/catalogs/:catalog/schemas', 'GET /api/tables/:catalog/:schema',
-    'GET /api/inspire/implement/values', 'POST /api/run/check', 'POST /api/output-folder/check', 'POST /api/inspire/samples/copy']) {
+  // SEC-02 (F3, F5): a read of data or metadata the caller names runs as the person, so the four browse routes moved to the person.
+  for (const key of ['GET /api/workspace/list', 'GET /api/catalogs', 'GET /api/catalogs/:catalog/schemas', 'GET /api/tables/:catalog/:schema', 'GET /api/inspire/implement/values']) {
+    assert.equal(P.identityFor(key), 'person', key);
+  }
+  for (const key of ['POST /api/run/check', 'POST /api/output-folder/check', 'POST /api/inspire/samples/copy']) {
     assert.equal(P.identityFor(key), 'app', key);
   }
   assert.equal(P.identityFor('GET /api/health'), 'app');
@@ -43,7 +46,8 @@ test('the refusal for a person route with no sign-in names the route and the fix
 
 test('the App user scopes are the who-did-what scopes: the manager check, a Request for Access, a grant or a schema the person makes, and the own-folder share', () => {
   const scopes = P.appUserScopes();
-  assert.deepEqual(scopes, ['apps', 'catalog.catalogs:read', 'sql', 'workspace.workspace']);
+  // SEC-02 (D6): the browse, principals and workspace reads of the person add catalog.schemas:read, catalog.tables:read, files and iam.access-control:read.
+  assert.deepEqual(scopes, ['apps', 'catalog.catalogs:read', 'catalog.schemas:read', 'catalog.tables:read', 'files', 'iam.access-control:read', 'sql', 'workspace.workspace']);
   assert.deepEqual(scopes.filter((s) => !DOCUMENTED_USER_SCOPES.includes(s)), [], 'not a documented Databricks Apps user scope');
   for (const [key, entry] of scopedRoutes()) {
     assert.ok(entry.scopes.length, `${key} names no scope`);
@@ -73,8 +77,8 @@ test('only the own-folder check writes with the person (the App writes the outpu
   const writers = scopedRoutes().filter(([, e]) => e.outputWrite === true).map(([key]) => key).sort();
   assert.deepEqual(writers, ['POST /api/output-folder/check'], 'the one person route that shares the person\'s own folder with the App');
   assert.deepEqual(P.ROUTE_POLICY['POST /api/output-folder/check'].scopes, P.OUTPUT_WRITE_SCOPES);
-  assert.deepEqual(personRoutes().map(([key]) => key).sort(), ['POST /api/access-request', 'POST /api/access-request/check',
-    'POST /api/inspire/implement/grant-access']);
+  // SEC-02: every read of data or metadata the caller names is a person route too (the who-did-what actions stay).
+  assert.deepEqual(personRoutes().map(([key]) => key).sort(), ["GET /api/catalogs", "GET /api/catalogs/:catalog/schemas", "GET /api/inspire/implement/columns", "GET /api/inspire/implement/principals", "GET /api/inspire/implement/table-lookup", "GET /api/inspire/implement/values", "GET /api/inspire/value/answers", "GET /api/tables/:catalog/:schema", "GET /api/workspace/export", "GET /api/workspace/list", "GET /api/workspace/status", "POST /api/access-request", "POST /api/access-request/check", "POST /api/data-management/columns", "POST /api/grouping/profile", "POST /api/inspire/implement/grant-access", "POST /api/inspire/implement/group-counts", "POST /api/inspire/implement/readiness", "POST /api/inspire/implement/swaps", "POST /api/inspire/value/case-plan", "POST /api/inspire/value/estimate", "POST /api/inspire/value/filter", "POST /api/inspire/value/scope", "POST /api/money/currency-rates", "POST /api/money/rate-sample", "POST /api/money/value-preview", "POST /api/relationships", "PUT /api/inspire/value/answers"]);
 });
 
 test('a path inside a recorded output folder matches only on a path boundary, after the path is made canonical', () => {
@@ -94,5 +98,7 @@ test('the person routes the owner setup wizard calls are covered by the App scop
   }
   const asKey = (p) => (p === '/api/catalogs' ? 'GET /api/catalogs' : p.startsWith('/api/catalogs/') ? 'GET /api/catalogs/:catalog/schemas' : `GET ${p}`);
   const wizardPerson = [...called].map(asKey).filter((key) => P.ROUTE_POLICY[key] && P.ROUTE_POLICY[key].identity === 'person').sort();
-  assert.deepEqual(wizardPerson, [], 'the picker reads are App reads now (REQ-418)');
+  // SEC-02 (F5): the picker reads run as the person (reverses REQ-418), and the App scope list covers them.
+  assert.deepEqual(wizardPerson, ['GET /api/catalogs', 'GET /api/catalogs/:catalog/schemas']);
+  for (const key of wizardPerson) for (const scope of P.ROUTE_POLICY[key].scopes) assert.ok(P.scopeCovers(P.appUserScopes(), scope), `${key}: ${scope}`);
 });

@@ -226,14 +226,14 @@ test('the output folder check answers the same verdict a launch would, without l
   assert.deepEqual(S.state.created, [], 'the refused probe created nothing');
 });
 
-test('a launched run opens its output folder with the App token, for a passed check and for a manager skip of that exact folder', async () => {
+test('SEC-02 (reverses REQ-418): a launched run opens its output folder with the person’s own token, for a passed check and for a manager skip of that exact folder', async () => {
   for (const [person, seed] of [[ME, {}], [BOSS, { managers: [BOSS], folders: { '/Shared/demos': { id: 7, writers: [S.APP_SP] } } }]]) {
     S.reset({ notebookPresent: true, sessionRows: { [S.APP_DB]: [{ session_id: '1001', generation_path: './../demos/', business_name: 'Acme' }] }, ...seed });
     assert.equal((await launch(undefined, { person })).status, 200, person);
     S.state.calls.length = 0;
     const got = await S.request('GET', `/api/workspace/list?path=${encodeURIComponent('/Workspace/Shared/demos/acme')}`, { person: 'someone@example.com' });
     assert.equal(got.status, 200, got.text);
-    assert.deepEqual([...new Set(S.state.calls.filter((c) => c.path === '/api/2.0/workspace/list').map((c) => c.token))], ['app-sp-token'], person);
+    assert.deepEqual([...new Set(S.state.calls.filter((c) => c.path === '/api/2.0/workspace/list').map((c) => c.token))], [S.PERSON_TOKEN], person);
   }
 });
 

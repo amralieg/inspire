@@ -1521,6 +1521,8 @@ paths:
                     $ref: '#/components/schemas/ValueReview'
         '400':
           description: No answers, or a parameter is missing or malformed
+        '401':
+          $ref: '#/components/responses/PersonSignInRequired'
         '422':
           description: The sample gave no value to show; the error says why
   /api/inspire/value/answers:

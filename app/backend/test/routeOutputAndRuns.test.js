@@ -18,38 +18,38 @@ const CHECKED = {
   launches: [launched('1001', '/Users/launcher@example.com/inspire_out'), launched('1002', '/Shared/demos'), launched('1004', '/')],
 };
 
-test('the output folder of a session in the App database lists and downloads with the App token, so every App user sees what the App produced', async () => {
+test('SEC-02 (reverses REQ-418): the output folder of a session in the App database lists and downloads with the person’s own token', async () => {
   for (const path of [`${OUT}/acme`, `${OUT}/acme/docs`, '/Users/launcher@example.com//inspire_out/acme/report.pdf', '/Shared/demos/acme']) {
     S.reset(structuredClone(CHECKED));
     const got = await list(path);
     assert.equal(got.status, 200, `${path}: ${got.text}`);
-    assert.deepEqual(tokensTo('/api/2.0/workspace/list'), [APP_TOKEN], path);
+    assert.deepEqual(tokensTo('/api/2.0/workspace/list'), [S.PERSON_TOKEN], path);
   }
   S.reset(structuredClone(CHECKED));
   const file = await S.request('GET', `/api/workspace/export?path=${encodeURIComponent(`${OUT}/acme/catalog.csv`)}`, { person: NONOWNER });
   assert.notEqual(file.status, 401, file.text);
-  assert.deepEqual(tokensTo('/api/2.0/workspace/export'), [APP_TOKEN]);
+  assert.deepEqual(tokensTo('/api/2.0/workspace/export'), [S.PERSON_TOKEN]);
 });
 
 // REQ-418 (D-SL-10B): the App's service principal browses every folder the same way, the run's own output and any other alike.
-test('every workspace browse reads as the App, the run\u2019s own output subfolder and any other folder alike (REQ-418)', async () => {
+test('every workspace browse reads as the person, the run\u2019s own output subfolder and any other folder alike (SEC-02)', async () => {
   for (const path of [OUT, `${OUT}/`, `${OUT}/other_business`, `${OUT}/other_business/catalog.pdf`, `${OUT}/acme_implemented`, `${OUT}/acmex`,
     '/Workspace/Users/launcher@example.com', '/Shared/demos', '/Shared/demos/beta/x.csv', '/acme']) {
     S.reset(structuredClone(CHECKED));
     const got = await list(path);
     assert.equal(got.status, 200, `${path}: ${got.text}`);
-    assert.deepEqual(tokensTo('/api/2.0/workspace/list'), [APP_TOKEN], path);
+    assert.deepEqual(tokensTo('/api/2.0/workspace/list'), [S.PERSON_TOKEN], path);
   }
 });
 
-test('a run whose own output subfolder is unknown browses as the App the same way (REQ-418)', async () => {
+test('a run whose own output subfolder is unknown browses as the person the same way (SEC-02)', async () => {
   for (const name of [undefined, null, '', '   ', 7]) {
     S.reset({ sessionRows: { [S.APP_DB]: [{ session_id: '1001', generation_path: OUT, business_name: name }] }, launches: [launched('1001', '/Users/launcher@example.com/inspire_out')] });
     for (const path of [OUT, `${OUT}/acme`, `${OUT}/_`]) {
       S.state.calls.length = 0;
       const got = await list(path);
       assert.equal(got.status, 200, `${JSON.stringify(name)} ${path}: ${got.text}`);
-      assert.deepEqual(tokensTo('/api/2.0/workspace/list'), [APP_TOKEN], `${JSON.stringify(name)} ${path}`);
+      assert.deepEqual(tokensTo('/api/2.0/workspace/list'), [S.PERSON_TOKEN], `${JSON.stringify(name)} ${path}`);
     }
   }
 });
@@ -63,7 +63,7 @@ test('a .. escape out of an output folder is refused before any token is chosen 
   }
 });
 
-test('a sibling folder, a prefix trick, a root folder and another database session all browse as the App (REQ-418)', async () => {
+test('a sibling folder, a prefix trick, a root folder and another database session all browse as the person (SEC-02)', async () => {
   for (const path of [`${OUT}x`, `${OUT}_other/secret`, '/Workspace/Users/launcher@example.com',
     '/Users/someone-else/inspire_out', '/Workspace/Users/hr@example.com/hr_out/payroll']) {
     S.reset({
@@ -72,11 +72,11 @@ test('a sibling folder, a prefix trick, a root folder and another database sessi
     });
     const got = await list(path);
     assert.equal(got.status, 200, `${path}: ${got.text}`);
-    assert.deepEqual(tokensTo('/api/2.0/workspace/list'), [APP_TOKEN], path);
+    assert.deepEqual(tokensTo('/api/2.0/workspace/list'), [S.PERSON_TOKEN], path);
   }
 });
 
-test('a session in the App database whose launch record has no passed write check browses as the App too (REQ-418)', async () => {
+test('a session in the App database whose launch record has no passed write check browses as the person too (SEC-02)', async () => {
   const cases = [
     ['released main or the notebook: no launch record', { sessionRows: { [S.APP_DB]: [{ session_id: '1003', generation_path: '/Users/old@example.com/released_out' }] }, launches: [] }],
     ['a launch record without a passed check', { sessionRows: { [S.APP_DB]: [{ session_id: '1003', generation_path: '/Users/old@example.com/released_out' }] },
@@ -90,7 +90,7 @@ test('a session in the App database whose launch record has no passed write chec
     S.reset(seed);
     const got = await list('/Users/old@example.com/released_out/acme');
     assert.equal(got.status, 200, `${label}: ${got.text}`);
-    assert.deepEqual(tokensTo('/api/2.0/workspace/list'), [APP_TOKEN], label);
+    assert.deepEqual(tokensTo('/api/2.0/workspace/list'), [S.PERSON_TOKEN], label);
   }
 });
 

@@ -73,12 +73,12 @@ test('the policy read of a source runs with the App token, never the person toke
   assert.deepEqual([...new Set(policyCalls.map((c) => c.token))], [SP]);
 });
 
-test('data routes are the App identity, and only who-did-what routes keep the person token (fail before: catalogs and run check used the person)', () => {
-  for (const key of ['GET /api/catalogs', 'GET /api/tables/:catalog/:schema', 'POST /api/run/check', 'POST /api/output-folder/check',
-    'POST /api/inspire/implement/preflight', 'POST /api/money/rate-sample']) {
+test('SEC-02: the run, folder and preflight checks are the App identity; catalog, table and rate-sample reads and who-did-what routes are the person', () => {
+  for (const key of ['POST /api/run/check', 'POST /api/output-folder/check', 'POST /api/inspire/implement/preflight']) {
     assert.equal(RP.identityFor(key), 'app', key);
   }
-  for (const key of ['POST /api/access-request', 'POST /api/access-request/check', 'POST /api/inspire/implement/grant-access']) {
+  for (const key of ['GET /api/catalogs', 'GET /api/tables/:catalog/:schema', 'POST /api/money/rate-sample',
+    'POST /api/access-request', 'POST /api/access-request/check', 'POST /api/inspire/implement/grant-access']) {
     assert.equal(RP.identityFor(key), 'person', key);
   }
 });

@@ -58,12 +58,12 @@ const launch = async (url, scope) => {
 test('the catalog list is the catalogs the App principal can read now, partial ones carry their missing GRANT lines, and the installer pick is ignored (REQ-420)', async () => {
   await withInspire(async (url) => {
     const got = await (await fetch(`${url}/api/catalogs?warehouse_id=wh`, { headers: signedIn })).json();
-    assert.deepEqual(got.catalogs.map((c) => c.name), ['half', 'main'], 'exactly the granted catalogs; hr (person only) and dropped (installer pick only) are not listed');
+    assert.deepEqual(got.catalogs.map((c) => c.name), ['dropped', 'half', 'hr', 'main'], 'SEC-02: the list is the catalogs the person can read (their own token), the installer pick is ignored');
     assert.equal(got.spGrants, true);
     const half = got.catalogs.find((c) => c.name === 'half');
     assert.deepEqual(half.partial.missing, [`GRANT SELECT ON CATALOG \`half\` TO \`${SP_ID}\``, `GRANT READ METADATA ON CATALOG \`half\` TO \`${SP_ID}\``]);
     assert.equal(got.catalogs.find((c) => c.name === 'main').partial, undefined, 'a fully granted catalog carries no flag (must-keep)');
-    assert.deepEqual(got.permissions.map((p) => p.statements), [half.partial.missing], 'the Permission Required entry names the same lines');
+    assert.deepEqual(got.permissions.map((p) => p.statements), [got.catalogs.flatMap((c) => (c.partial ? c.partial.missing : []))], 'the Permission Required entry names the same lines, for every catalog the person sees that the App cannot fully read');
   }, { INSPIRE_DATA_CATALOGS: '["main","dropped"]' });
 });
 
