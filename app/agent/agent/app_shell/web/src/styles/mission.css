@@ -16,7 +16,7 @@
 .av-i[aria-current="page"]{background:var(--well);font-weight:650}
 .av-n2{margin-inline-start:auto;color:var(--muted);font-size:12px}
 .av-i:disabled{opacity:.5;cursor:default}
-.welcome{display:flex;flex-direction:column;gap:14px;margin:20px auto 0;max-width:720px;padding:22px 24px;border-radius:16px;border:1px solid var(--brand-bd);background:var(--brand-wash)}
+.welcome{display:flex;flex-direction:column;gap:14px;margin:20px auto 0;max-width:1272px;padding:22px 24px;border-radius:16px;border:1px solid var(--brand-bd);background:var(--brand-wash)}
 .welcome-k{margin:0;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--brand-ink)}
 .welcome-q{margin:0;font-size:24px;line-height:1.25;font-weight:700}
 .welcome-steps{display:grid;gap:8px;margin:0;padding:0;list-style:none}
