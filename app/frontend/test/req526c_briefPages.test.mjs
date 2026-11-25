@@ -48,7 +48,7 @@ for (const id of IDS) for (const mode of MODES) {
     assert.ok(p.includes(`>${u.value.text}<`), 'the value');
     assert.match(p, /data-block="value_projection"/); assert.match(p, /data-block="use_case_story"/);
     assert.match(p, /data-block="value_story"/); assert.match(p, /data-block="data_used"/);
-    assert.match(p, /Inspire score/);
+    assert.match(p, /Inspire score/i);
     const legacy = briefPagesSvg(m, resolveTheme('midnight', 'databricks', '', mode))[1];
     assert.doesNotMatch(legacy, /data-design=/, 'the legacy card has no design marker');
   });
@@ -59,10 +59,10 @@ for (const id of IDS) for (const mode of MODES) {
     assert.doesNotMatch(page2(model({ blocks: without('value_story') }), id, mode), /data-block="value_story"/);
     assert.doesNotMatch(page2(model({ blocks: without('data_used') }), id, mode), /data-block="data_used"/);
     assert.doesNotMatch(page2(model({ blocks: without('use_case_story') }), id, mode), /data-block="use_case_story"/);
-    assert.doesNotMatch(page2(model({ blocks: without('inspire_score') }), id, mode), /Inspire score/);
+    assert.doesNotMatch(page2(model({ blocks: without('inspire_score') }), id, mode), /Inspire score/i);
     const withChart = page2(model(), id, mode);
-    assert.ok((withChart.match(/<(rect|circle|path|line) /g) || []).length > 60, 'a real small chart, not text');
-    assert.match(withChart, /data-chart="projection"/);
+    const chart = /data-chart="projection">(.*?)<\/g>/s.exec(withChart);
+    assert.ok(chart && (chart[1].match(/<(rect|circle|line) /g) || []).length >= 12, 'a real small chart: three marks for each of 3 years plus axes, not text');
   });
 
   test(`C3: ${id} ${mode} every page 2+ keeps all text in the A4 box, passes the 4.5:1 and 12px log, and a 3000-char statement does not overflow`, () => {

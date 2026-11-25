@@ -25,18 +25,21 @@ export const DESIGN_STYLES = [
 ];
 
 const QUALITY_ORDER = ['Ultra High', 'Very High', 'High', 'Medium', 'Low'];
+const mapUseCase = (u) => ({
+  id: u.id, name: u.name, short: u.short || u.name, domain: u.domain || 'Other', subdomain: u.subdomain, statement: u.statement, solution: u.solution,
+  businessValue: u.businessValue, beneficiary: u.beneficiary, sponsor: u.sponsor, technique: u.technique, quality: u.quality, score: Number.isFinite(u.score) ? u.score : null,
+  priorityScore: u.priorityScore, feasibility: u.feasibility, valueScore: u.valueScore, verb: u.value?.verb || '', tables: u.tables,
+  value: u.value ? { amount: u.value.amount, currency: u.value.currency, text: u.value.text, yearText: `${u.value.text} a year`, status: u.value.status, story: u.value.story || '', yearly: u.value.yearly || [] } : null,
+});
 const median = (nums) => [...nums].sort((a, b) => a - b)[Math.floor(nums.length / 2)];
 
 export function toDesignModel(doc) {
   const cur = doc.total.currency;
   // Valued and scored use cases in the total's currency: the ones every chart can place.
   const own = doc.useCases.filter((u) => u.value && u.value.currency === cur && Number.isFinite(u.score));
-  const useCases = own.map((u) => ({
-    id: u.id, name: u.name, short: u.short || u.name, domain: u.domain || 'Other', subdomain: u.subdomain, statement: u.statement, solution: u.solution,
-    businessValue: u.businessValue, beneficiary: u.beneficiary, sponsor: u.sponsor, technique: u.technique, quality: u.quality, score: u.score,
-    priorityScore: u.priorityScore, feasibility: u.feasibility, valueScore: u.valueScore, verb: u.value.verb || '', tables: u.tables,
-    value: { amount: u.value.amount, currency: u.value.currency, text: u.value.text, yearText: `${u.value.text} a year`, status: u.value.status },
-  }));
+  const useCases = own.map(mapUseCase);
+  // Every use case of the document, valued or not: the brief gives each one a page (value null = not calculated yet, score null = none).
+  const pageUseCases = doc.useCases.map(mapUseCase);
   const ranked = [...useCases].sort((a, b) => b.value.amount - a.value.amount);
 
   const byDomain = new Map();
@@ -57,7 +60,7 @@ export function toDesignModel(doc) {
 
   return {
     businessName: doc.businessName, language: doc.language, rtl: doc.rtl, blocks: [...doc.blocks], executiveSummary: '',
-    useCases, ranked, domains, verbs, quality,
+    useCases, pageUseCases, ranked, domains, verbs, quality,
     total: { amount: doc.total.amount, currency: cur, text: doc.total.text, yearText: `${doc.total.text} a year`, n: doc.total.n, nWithValue: doc.total.nWithValue, nDomains: domains.length },
     median: useCases.length ? { score: median(useCases.map((u) => u.score)), value: median(useCases.map((u) => u.value.amount)) } : null,
   };
