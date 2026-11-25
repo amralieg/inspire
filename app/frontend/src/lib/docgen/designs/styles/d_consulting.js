@@ -1,6 +1,7 @@
 // Option D "Consulting": a board-pack exhibit page. White, navy and one blue, action titles that state the conclusion, numbered exhibits,
 // a waterfall that builds the total, a labelled 2x2, a prioritisation funnel, a ranked table with spark bars and Harvey balls, a source line.
-import { t, T, rect, line, icon, svgDoc, money, DISCLAIMER, bestInk, wrap, has } from '../core.js';
+import { t, T, rect, line, icon, svgDoc, money, DISCLAIMER, bestInk, wrap, has, iconName, VERB_ICON } from '../core.js';
+import { ucPage, factCols, NOT_YET } from '../ucPage.js';
 import { quadrant, waterfall, funnel, harvey, hbars } from '../charts.js';
 
 const BODY = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
@@ -209,4 +210,36 @@ function briefPage1(m, th) {
   return svgDoc(W, H, s, BODY);
 }
 
-export default { id: 'd_consulting', name: 'D. Consulting (Board Pack)', themes: { light, dark }, fonts: { display: BODY, body: BODY }, infographic, deckCover, deckDomain, deckUseCase, briefPage1 };
+
+// REQ-526 part C: the brief use case page in this design (board-pack topline, action title, panel of three facts, flat bars, source line).
+function ucSkin(m, th, u, showScore) {
+  const W = 794; const P = 48; const CW = W - 2 * P;
+  const sub = [u.domain, u.subdomain].filter(Boolean).join(' · ');
+  return {
+    id: 'd_consulting', P, footH: 76, gap: 16, pad: 0, labelH: 28, chipH: 24, chipPad: 10, chartH: 190, factsH: 74,
+    bg: th.page, boxBg: th.page, font: BODY, kind: 'sans', body: th.ink,
+    frame: (n) => rect(0, 0, W, 1123, th.page) + topline(W, P, th, `${m.businessName} · Use case ${n - 1}`)
+      + t(P, 1052, `Source: Databricks Inspire AI analysis of the ${m.businessName} catalog.`, { size: 12, fill: th.slate, bg: th.page, font: BODY, maxW: CW, lines: 1, ctx: 'source' })
+      + line(P, 1076, W - P, 1076, th.rule, 1) + t(W - P, 1096, String(n), { size: 12, fill: th.slate, bg: th.page, anchor: 'end', font: BODY, ctx: 'page' }),
+    head: () => {
+      const nm = T(P, 96, u.name, { size: 22, weight: 700, fill: th.ink, bg: th.page, font: BODY, maxW: CW, lines: 3, lh: 28, ctx: 'uc name' });
+      return { h: 96 + (nm.lines - 1) * 28 + 14, svg: t(P, 68, [u.id, sub].filter(Boolean).join(' · '), { size: 12, weight: 700, fill: th.blueText, bg: th.page, caps: true, ls: 0.6, font: BODY, maxW: CW, lines: 1, ctx: 'uc kicker' }) + nm.svg };
+    },
+    tile: (y) => {
+      let s = rect(P, y, CW, 84, th.panel);
+      if (u.value) s += t(P + 18, y + 42, u.value.text, { size: 28, weight: 700, fill: th.mode === 'dark' ? th.ink : th.navy, bg: th.panel, font: BODY, ctx: 'uc value' }) + t(P + 18, y + 64, `${u.value.status || 'estimated'} a year`, { size: 12, fill: th.slate, bg: th.panel, font: BODY, ctx: 'uc value l' });
+      else s += t(P + 18, y + 48, NOT_YET, { size: 16, weight: 700, fill: th.slate, bg: th.panel, font: BODY, ctx: 'uc nv' });
+      if (showScore && u.score != null) s += line(P + 236, y + 14, P + 236, y + 70, th.rule, 1) + harvey(P + 272, y + 42, 16, u.score, th.navy, th.page) + t(P + 302, y + 40, u.score.toFixed(1), { size: 20, weight: 700, fill: th.ink, bg: th.panel, font: BODY, ctx: 'uc score' }) + t(P + 302, y + 62, 'Inspire score of 10', { size: 12, fill: th.slate, bg: th.panel, font: BODY, ctx: 'uc score l' });
+      if (u.verb) s += line(P + 490, y + 14, P + 490, y + 70, th.rule, 1) + icon(VERB_ICON[u.verb] || 'target', P + 508, y + 30, 24, th.blueText, 1.8) + T(P + 542, y + 38, u.verb, { size: 13, weight: 700, fill: th.ink, bg: th.panel, font: BODY, maxW: 150, lines: 2, lh: 16, ctx: 'uc verb' }).svg;
+      return { h: 84, svg: s };
+    },
+    label: (text, x, y, w) => t(x, y + 12, text, { size: 12, weight: 700, fill: th.blueText, bg: th.page, caps: true, ls: 0.6, font: BODY, ctx: 'uc label' }) + line(x, y + 20, x + w, y + 20, th.rule, 1),
+    chipW: (l) => Math.ceil(l.length * 12 * 0.56 + 20),
+    chipSvg: (l, x, y, w) => rect(x, y, w, 24, th.panel, { stroke: th.rule }) + t(x + 10, y + 16, l, { size: 12, fill: th.ink, bg: th.panel, font: BODY, ctx: 'chip' }),
+    chart: { colors: [th.barAlt, th.bar, th.green], bar: 'bars', radius: 0, ink: th.ink, muted: th.slate, grid: th.rule, bg: th.page },
+    facts: (facts, x, y, w) => factCols(facts, x, y, w, { font: BODY }, { bg: th.page, labelFill: th.slate, valueFill: th.ink, rule: th.rule }),
+  };
+}
+const briefUseCasePage = (m, th, u, idx) => ucPage(m, u, idx, ucSkin(m, th, u, has(m, 'inspire_score')));
+
+export default { id: 'd_consulting', name: 'D. Consulting (Board Pack)', themes: { light, dark }, fonts: { display: BODY, body: BODY }, infographic, deckCover, deckDomain, deckUseCase, briefPage1, briefUseCasePage };

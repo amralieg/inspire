@@ -1,7 +1,8 @@
 // Option B "Editorial": an executive magazine page. Paper, ink, one lava-red accent, hairline rules, a headline that states the number,
 // a tonal treemap where only the leading domain carries colour, a thin-ring donut, a hollow-dot quadrant, numbered list instead of boxes.
-import { wrap, t, T, rect, line, circle, icon, svgDoc, runW, money, VERB_ICON, DISCLAIMER, bestInk, contrast, has, verbColors } from '../core.js';
-import { donut, quadrant, treemapChart } from '../charts.js';
+import { wrap, t, T, rect, line, circle, icon, svgDoc, runW, money, VERB_ICON, DISCLAIMER, bestInk, contrast, has, verbColors, iconName } from '../core.js';
+import { ucPage, factCols, NOT_YET } from '../ucPage.js';
+import { donut, quadrant, treemapChart, meter } from '../charts.js';
 
 const DISPLAY = "'Playfair Display', Didot, 'Bodoni 72', Georgia, serif";
 const SERIF = "'Source Serif 4', 'Iowan Old Style', Georgia, serif";
@@ -193,5 +194,44 @@ function briefPage1(m, th) {
   return svgDoc(W, H, s, BODY);
 }
 
-export default { id: 'b_editorial', name: 'B. Editorial (Paper and Ink)', themes: { light, dark }, fonts: { display: DISPLAY, serif: SERIF, body: BODY }, infographic, deckCover, deckDomain, deckUseCase, briefPage1 };
+
+// REQ-526 part C: the brief use case page in this design (masthead, serif headline, hairline rules, lollipop projection, no boxes).
+function ucSkin(m, th, u, showScore) {
+  const W = 794; const P = 48; const CW = W - 2 * P;
+  const sub = [u.domain, u.subdomain].filter(Boolean).join(' · ');
+  return {
+    id: 'b_editorial', P, footH: 70, gap: 16, pad: 0, labelH: 28, chipH: 24, chipPad: 4, chartH: 190, factsH: 76,
+    bg: th.paper, boxBg: th.paper, font: BODY, bodyFont: SERIF, kind: 'serif', body: th.body,
+    frame: (n) => rect(0, 0, W, 1123, th.paper) + masthead(W, P, 26, th, m.businessName, `Databricks Inspire AI · No. ${n - 1}`)
+      + rect(P, 1060, CW, 1, th.rule) + t(P, 1082, `Page ${n}`, { size: 12, fill: th.grey, bg: th.paper, font: BODY, ctx: 'foot' }),
+    head: () => {
+      const nm = T(P, 150, u.name, { size: 32, weight: 700, fill: th.ink, bg: th.paper, font: DISPLAY, kind: 'serif', maxW: CW, lines: 3, lh: 38, ctx: 'uc name' });
+      return { h: 150 + (nm.lines - 1) * 38 + 18, svg: kicker(P, 112, [u.id, sub].filter(Boolean).join(' · '), th, { maxW: CW, lines: 1 }) + nm.svg };
+    },
+    tile: (y) => {
+      let s = rect(P, y, CW, 3, th.rule) + rect(P, y + 84, CW, 1, th.hair);
+      if (u.value) {
+        s += t(P, y + 46, u.value.text, { size: 38, weight: 700, fill: th.accentText, bg: th.paper, font: DISPLAY, kind: 'serif', ctx: 'uc value' });
+        s += t(P, y + 68, `${u.value.status || 'estimated'} a year`, { size: 12, fill: th.grey, bg: th.paper, caps: true, ls: 1.2, font: BODY, ctx: 'uc value l' });
+      } else s += t(P, y + 50, NOT_YET, { size: 20, weight: 700, fill: th.grey, bg: th.paper, font: DISPLAY, kind: 'serif', ctx: 'uc nv' });
+      if (showScore && u.score != null) {
+        s += line(P + 236, y + 14, P + 236, y + 74, th.hair, 1) + t(P + 256, y + 46, u.score.toFixed(1), { size: 38, weight: 700, fill: th.ink, bg: th.paper, font: DISPLAY, kind: 'serif', ctx: 'uc score' });
+        s += meter(P + 256, y + 56, 120, 3, u.score, th.accent, th.hair, 0) + t(P + 256, y + 74, 'Inspire score of 10', { size: 12, fill: th.grey, bg: th.paper, caps: true, ls: 1.2, font: BODY, ctx: 'uc score l' });
+      }
+      if (u.verb) {
+        s += line(P + 470, y + 14, P + 470, y + 74, th.hair, 1) + icon(VERB_ICON[u.verb] || 'target', P + 490, y + 24, 26, th.ink, 1.6);
+        s += t(P + 490, y + 68, u.verb, { size: 12, weight: 700, fill: th.ink, bg: th.paper, caps: true, ls: 1.2, font: BODY, maxW: 190, lines: 1, ctx: 'uc verb' });
+      }
+      return { h: 88, svg: s };
+    },
+    label: (text, x, y, w) => kicker(x, y + 12, text, th) + line(x, y + 20, x + w, y + 20, th.hair, 1),
+    chipW: (l) => Math.ceil(l.length * 12 * 0.56 + 8),
+    chipSvg: (l, x, y, w) => t(x, y + 15, l, { size: 12, fill: th.ink, bg: th.paper, font: BODY, ctx: 'chip' }) + line(x, y + 22, x + w, y + 22, th.rule, 1),
+    chart: { colors: [th.tones[4], th.ink, th.accent], bar: 'lollipop', radius: 0, ink: th.ink, muted: th.grey, grid: th.hair, bg: th.paper },
+    facts: (facts, x, y, w) => factCols(facts, x, y, w, { font: BODY }, { bg: th.paper, labelFill: th.accentText, valueFill: th.body, rule: th.rule, kind: 'serif', valueFont: SERIF }),
+  };
+}
+const briefUseCasePage = (m, th, u, idx) => ucPage(m, u, idx, ucSkin(m, th, u, has(m, 'inspire_score')));
+
+export default { id: 'b_editorial', name: 'B. Editorial (Paper and Ink)', themes: { light, dark }, fonts: { display: DISPLAY, serif: SERIF, body: BODY }, infographic, deckCover, deckDomain, deckUseCase, briefPage1, briefUseCasePage };
 void runW; void VERB_ICON; void bestInk;

@@ -165,10 +165,9 @@ export function briefPagesSvg(m, theme) {
   const d = designed(m, theme);
   if (d) {
     resetLog();
-    // Page 1 is the design's own; the use case pages use the same colours and font through the plain card (blocks honoured there).
-    const plain = { ...theme, deco: 'none', shape: 'bar', font: theme.fonts.body };
-    const rest = briefUseCasePages(m, plain);
-    return [rtlRoot(m, d.design.briefPage1(d.dm, theme.tokens)), ...rest];
+    // Page 1 and every use case page are the design's own (use case pages carry data-design); a use case with no value says "not calculated yet".
+    const pages = d.dm.pageUseCases.map((u, i) => d.design.briefUseCasePage(d.dm, theme.tokens, u, i));
+    return [rtlRoot(m, d.design.briefPage1(d.dm, theme.tokens)), ...pages.map((p) => rtlRoot(m, p))];
   }
   const W = 794; const H = 1123;
   const wrapPage = (id, body) => `<svg ${NS} viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="${esc(theme.font)}"${m.rtl ? ' direction="rtl"' : ''}>${defs(theme, id)}${backdrop(theme, W, H, id)}${body}</svg>`;

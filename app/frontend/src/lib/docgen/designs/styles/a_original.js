@@ -1,7 +1,8 @@
 // Option A "Original": the agent's own document system (teal + sand + gold, Fraunces display over Inter body, coral eyebrows, gold rule,
 // rings art on a teal gradient cover), rendered as a graphic-led infographic. Fixes: coral and gold text darkened or lightened to 4.5:1,
 // no 8.6pt micro text, real charts (bars, donut, quadrant) instead of chips only, value and score on every card.
-import { t, T, rect, line, circle, icon, svgDoc, textW, runW, money, VERB_ICON, DISCLAIMER, wrap, has, verbColors } from '../core.js';
+import { t, T, rect, line, circle, icon, svgDoc, textW, runW, money, VERB_ICON, DISCLAIMER, wrap, has, verbColors, iconName } from '../core.js';
+import { ucPage, factCols, NOT_YET } from '../ucPage.js';
 import { hbars, donut, legend, quadrant, meter } from '../charts.js';
 
 const DISPLAY = "Fraunces, 'Iowan Old Style', Georgia, serif";
@@ -231,8 +232,55 @@ function briefPage1(m, th) {
   return svgDoc(W, H, s, BODY, defs(th));
 }
 
+
+// REQ-526 part C: the brief use case page in this design (teal band head, sand cards, gold rules, coral eyebrows, gradient meter).
+function ucSkin(m, th, u, showScore) {
+  const W = 794; const P = 48; const CW = W - 2 * P; const dk = th.mode === 'dark';
+  const sub = [u.domain, u.subdomain].filter(Boolean).join(' · ');
+  const valueInk = dk ? th.tealMid : th.teal;
+  return {
+    id: 'a_original', P, footH: 70, gap: 10, pad: 10, labelH: 24, chipH: 24, chipPad: 12, chartH: 130, factsH: 68,
+    bg: th.page, boxBg: th.sand, font: BODY, kind: 'sans', body: th.body,
+    defs: () => defs(th),
+    frame: (n) => rect(0, 0, W, 1123, th.page) + line(P, 1062, W - P, 1062, th.line)
+      + t(P, 1084, `${m.businessName} · Databricks Inspire AI`, { size: 12, fill: th.muted, bg: th.page, font: BODY, maxW: 560, lines: 1, ctx: 'foot' })
+      + t(W - P, 1084, `Page ${n}`, { size: 12, weight: 700, fill: th.muted, bg: th.page, anchor: 'end', font: BODY, ctx: 'foot' }),
+    head: () => {
+      const nm = T(P, 118, u.name, { size: 26, weight: 700, fill: '#FFFFFF', bg: '#0F5E5A', font: DISPLAY, kind: 'serif', maxW: CW - 70, lines: 3, lh: 32, ctx: 'uc name' });
+      const h = 118 + (nm.lines - 1) * 32 + 30;
+      return { h, svg: rect(0, 0, W, h, 'url(#aHero)') + rings(W - 340, -50, 0.6, th.gold) + wordmark(P, 44, 12, '#0B4642', th)
+        + eyebrow(P, 82, [u.id, sub].filter(Boolean).join(' · '), th, '#0F5E5A', { fill: th.heroMuted, maxW: CW - 70, lines: 1 }) + nm.svg
+        + circle(W - P - 20, 92, 22, th.gold) + icon(iconName(u.domain), W - P - 31, 81, 22, th.goldInk, 2) };
+    },
+    tile: (y) => {
+      let s = rect(P, y, CW, 92, th.card, { rx: 14, stroke: th.line });
+      if (u.value) {
+        s += t(P + 20, y + 48, u.value.text, { size: 32, weight: 700, fill: valueInk, bg: th.card, font: DISPLAY, kind: 'serif', ctx: 'uc value' });
+        s += t(P + 20, y + 72, `${u.value.status || 'estimated'} a year`, { size: 12, fill: th.muted, bg: th.card, font: BODY, ctx: 'uc value l' });
+      } else s += t(P + 20, y + 52, NOT_YET, { size: 18, weight: 700, fill: th.muted, bg: th.card, font: DISPLAY, kind: 'serif', ctx: 'uc nv' });
+      if (showScore && u.score != null) {
+        s += line(P + 250, y + 16, P + 250, y + 76, th.line, 1) + t(P + 270, y + 32, 'Inspire score', { size: 12, weight: 700, fill: th.muted, bg: th.card, caps: true, ls: 1, font: BODY, ctx: 'uc score l' });
+        s += rect(P + 270, y + 44, 150, 10, th.barTrack, { rx: 5 }) + rect(P + 270, y + 44, (u.score / 10) * 150, 10, 'url(#aBar)', { rx: 5 });
+        s += t(P + 270, y + 78, u.score.toFixed(1), { size: 20, weight: 700, fill: th.ink, bg: th.card, font: DISPLAY, kind: 'serif', ctx: 'uc score' }) + t(P + 270 + runW(u.score.toFixed(1), 20, 700) + 6, y + 78, 'of 10', { size: 12, fill: th.muted, bg: th.card, font: BODY, ctx: 'uc score of' });
+      }
+      if (u.verb) {
+        s += line(P + 450, y + 16, P + 450, y + 76, th.line, 1) + circle(P + 484, y + 46, 18, th.sand2) + icon(VERB_ICON[u.verb] || 'target', P + 473, y + 35, 22, th.coralText, 2);
+        s += t(P + 512, y + 44, 'What it does', { size: 12, fill: th.muted, bg: th.card, font: BODY, ctx: 'uc verb l' }) + t(P + 512, y + 64, u.verb, { size: 14, weight: 700, fill: th.ink, bg: th.card, font: BODY, maxW: 170, lines: 1, ctx: 'uc verb' });
+      }
+      return { h: 92, svg: s };
+    },
+    label: (text, x, y) => eyebrow(x, y + 12, text, th, th.sand) + rect(x, y + 18, 36, 3, th.gold, { rx: 2 }),
+    box: (x, y, w, h) => rect(x, y, w, h, th.sand, { rx: 14 }),
+    chipW: (l) => Math.ceil(l.length * 12 * 0.56 + 24),
+    chipSvg: (l, x, y, w) => { const f = dk ? th.sand2 : th.mint; return rect(x, y, w, 24, f, { rx: 12 }) + t(x + 12, y + 16, l, { size: 12, fill: dk ? th.ink : th.tealDark, bg: f, font: BODY, ctx: 'chip' }); },
+    chart: { colors: [th.mint2, th.teal, th.gold], bar: 'bars', radius: 4, ink: th.ink, muted: th.muted, grid: th.line, bg: th.sand },
+    facts: (facts, x, y, w) => rect(x, y, w, 78, th.sand, { rx: 14 }) + factCols(facts, x + 14, y + 4, w - 28, { font: BODY }, { bg: th.sand, labelFill: th.coralText, valueFill: th.body }),
+  };
+}
+const briefUseCasePage = (m, th, u, idx) => ucPage(m, u, idx, ucSkin(m, th, u, has(m, 'inspire_score')));
+
 export default {
   id: 'a_original', name: 'A. Original (Teal and Sand)', themes: { light, dark }, fonts: { display: DISPLAY, body: BODY },
-  infographic, deckCover, deckDomain, deckUseCase, briefPage1,
+  infographic, deckCover, deckDomain, deckUseCase, briefPage1, briefUseCasePage,
 };
 void wrap;

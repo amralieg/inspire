@@ -1,6 +1,7 @@
 // Option C "Bold": a data-visual poster. Navy hero, one vivid colour per domain carried through every chart, heavy geometric sans,
 // rounded cards on a cool grey canvas, icons in filled circles, bubble scatter (bubble = value), big donut, colourful treemap.
-import { t, T, rect, line, circle, icon, svgDoc, money, VERB_ICON, DISCLAIMER, bestInk, arc, has, verbColors } from '../core.js';
+import { t, T, rect, line, circle, icon, svgDoc, money, VERB_ICON, DISCLAIMER, bestInk, runW, arc, has, verbColors, iconName } from '../core.js';
+import { ucPage, factCols, NOT_YET } from '../ucPage.js';
 import { donut, quadrant, treemapChart } from '../charts.js';
 
 const BODY = "'Avenir Next', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif";
@@ -217,5 +218,50 @@ function briefPage1(m, th) {
   return svgDoc(W, H, s, BODY, '<clipPath id="cHero"><rect x="0" y="0" width="794" height="170"/></clipPath>');
 }
 
-export default { id: 'c_bold', name: 'C. Bold (Data Poster)', themes: { light, dark }, fonts: { display: BODY, body: BODY }, infographic, deckCover, deckDomain, deckUseCase, briefPage1 };
+
+// REQ-526 part C: the brief use case page in this design (navy hero, one colour per domain, white rounded cards, segmented score meter).
+function ucSkin(m, th, u, showScore) {
+  const W = 794; const P = 40; const CW = W - 2 * P;
+  const di = Math.max(0, m.domains.findIndex((d) => d.name === u.domain)); const c = CATS[di % CATS.length];
+  const sub = [u.domain, u.subdomain].filter(Boolean).join(' · ');
+  let heroH = 0;
+  return {
+    id: 'c_bold', P, footH: 64, gap: 12, pad: 10, labelH: 24, chipH: 24, chipPad: 12, chartH: 130, factsH: 68,
+    bg: th.canvas, boxBg: th.card, font: BODY, kind: 'sans', body: th.ink,
+    defs: () => `<clipPath id="cHero"><rect x="0" y="0" width="${W}" height="${heroH}"/></clipPath>`,
+    frame: (n) => rect(0, 0, W, 1123, th.canvas) + t(P, 1092, `${m.businessName} · Databricks Inspire AI`, { size: 12, fill: th.muted, bg: th.canvas, font: BODY, maxW: 560, lines: 1, ctx: 'foot' })
+      + t(W - P, 1092, `Page ${n}`, { size: 12, weight: 800, fill: th.muted, bg: th.canvas, anchor: 'end', font: BODY, ctx: 'foot' }),
+    head: () => {
+      const nm = T(P, 108, u.name, { size: 28, weight: 800, fill: th.heroInk, bg: th.hero, font: BODY, maxW: CW - 70, lines: 3, lh: 34, ctx: 'uc name' });
+      heroH = 108 + (nm.lines - 1) * 34 + 30;
+      return { h: heroH, svg: rect(0, 0, W, heroH, th.hero) + `<g clip-path="url(#cHero)">${circle(W - 30, 20, 110, c, { op: 0.2 }) + circle(W - 150, heroH - 6, 46, CATS[3], { op: 0.16 })}</g>`
+        + t(P, 40, 'DATABRICKS INSPIRE AI · USE CASE BRIEF', { size: 12, weight: 800, fill: th.heroAccent, bg: th.hero, ls: 2, font: BODY, ctx: 'brand' })
+        + t(P, 72, [u.id, sub].filter(Boolean).join(' · '), { size: 14, weight: 600, fill: th.heroMuted, bg: th.hero, font: BODY, maxW: CW - 70, lines: 1, ctx: 'uc kicker' }) + nm.svg
+        + chip(W - P - 24, 52, 24, c, iconName(u.domain), 24) };
+    },
+    tile: (y) => {
+      const cards = [0, showScore && u.score != null ? 1 : 0, u.verb ? 1 : 0].filter((v, i) => i === 0 || v).length; const w = (CW - 12 * (cards - 1)) / cards; let x = P; let s = '';
+      s += rect(x, y, w, 96, th.hero, { rx: 16 }) + rect(x, y, 8, 96, c);
+      if (u.value) s += t(x + 24, y + 52, u.value.text, { size: 32, weight: 800, fill: th.heroInk, bg: th.hero, font: BODY, ctx: 'uc value' }) + t(x + 24, y + 76, `${u.value.status || 'estimated'} a year`, { size: 12, fill: th.heroMuted, bg: th.hero, font: BODY, ctx: 'uc value l' });
+      else s += t(x + 24, y + 56, NOT_YET, { size: 18, weight: 800, fill: th.heroMuted, bg: th.hero, font: BODY, ctx: 'uc nv' });
+      x += w + 12;
+      if (showScore && u.score != null) {
+        s += card(x, y, w, 96, th) + t(x + 16, y + 28, 'Inspire score', { size: 12, weight: 800, fill: th.muted, bg: th.card, font: BODY, ctx: 'uc score l' }) + segMeter(x + 16, y + 44, u.score, 10, c, th.track, 10, Math.min(14, (w - 32 - 27) / 10), 3, 10);
+        s += t(x + 16, y + 82, u.score.toFixed(1), { size: 20, weight: 800, fill: th.ink, bg: th.card, font: BODY, ctx: 'uc score' }) + t(x + 16 + runW(u.score.toFixed(1), 20, 800) + 6, y + 82, 'of 10', { size: 12, fill: th.muted, bg: th.card, font: BODY, ctx: 'uc score of' });
+        x += w + 12;
+      }
+      if (u.verb) s += card(x, y, w, 96, th) + chip(x + 38, y + 48, 22, c, VERB_ICON[u.verb] || 'target', 22) + t(x + 70, y + 42, 'What it does', { size: 12, fill: th.muted, bg: th.card, font: BODY, ctx: 'uc verb l' }) + T(x + 70, y + 62, u.verb, { size: 14, weight: 800, fill: th.ink, bg: th.card, font: BODY, maxW: w - 84, lines: 2, lh: 17, ctx: 'uc verb' }).svg;
+      return { h: 96, svg: s };
+    },
+    label: (text, x, y) => circle(x + 5, y + 9, 5, c) + t(x + 18, y + 14, text, { size: 14, weight: 800, fill: th.ink, bg: th.card, font: BODY, ctx: 'uc label' }),
+    box: (x, y, w, h) => card(x, y, w, h, th),
+    chipW: (l) => Math.ceil(l.length * 12 * 0.56 + 36),
+    chipSvg: (l, x, y, w) => rect(x, y, w, 24, th.track, { rx: 12 }) + circle(x + 12, y + 12, 4, c) + t(x + 24, y + 16, l, { size: 12, fill: th.ink, bg: th.track, font: BODY, ctx: 'chip' }),
+    chart: { colors: [CATS[8], c, CATS.filter((k) => k !== c && k !== CATS[8])[3]], bar: 'bars', radius: 6, ink: th.ink, muted: th.muted, grid: th.grid, bg: th.card },
+    facts: (facts, x, y, w) => { const cw = (w - 12 * (facts.length - 1)) / facts.length; return facts.map((f, i) => card(x + i * (cw + 12), y, cw, 76, th) + factCols([f], x + i * (cw + 12) + 14, y + 2, cw - 28, { font: BODY }, { bg: th.card, labelFill: th.muted, valueFill: th.ink })).join(''); },
+  };
+}
+const briefUseCasePage = (m, th, u, idx) => ucPage(m, u, idx, ucSkin(m, th, u, has(m, 'inspire_score')));
+
+export default { id: 'c_bold', name: 'C. Bold (Data Poster)', themes: { light, dark }, fonts: { display: BODY, body: BODY }, infographic, deckCover, deckDomain, deckUseCase, briefPage1, briefUseCasePage };
 void line;
