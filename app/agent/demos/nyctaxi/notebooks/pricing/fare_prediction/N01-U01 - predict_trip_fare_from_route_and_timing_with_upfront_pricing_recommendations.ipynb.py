@@ -1,15 +1,15 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC > ## How to finish this notebook with Genie Code
+# MAGIC > ## How to finish this notebook with Databricks AI
 # MAGIC >
-# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Genie Code fills them from your data:
+# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Databricks AI fills them from your data:
 # MAGIC >
-# MAGIC > 1. Open the **Genie Code** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
+# MAGIC > 1. Open the **Databricks AI** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
 # MAGIC > 2. Set the widgets **Execution** to `Here` and **Smoke test** to `true`
-# MAGIC > 3. Ask Genie Code: *Fill every GENIE SLOT cell by following the Genie Code instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
+# MAGIC > 3. Ask Databricks AI: *Fill every GENIE SLOT cell by following the Databricks AI instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
 # MAGIC > 4. Set **Smoke test** to `false` and run it again, then set **Execution** to `As job` for the scheduled runs
 # MAGIC >
-# MAGIC > Genie Code not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
+# MAGIC > Databricks AI not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
 # MAGIC
 
 # COMMAND ----------
@@ -60,7 +60,7 @@
 # MAGIC | **Primary Table** | samples.nyctaxi.trips |
 # MAGIC | **Tables Involved** | samples.nyctaxi.trips |
 # MAGIC | **Statement** | Offering reliable upfront fares requires predicting `fare_amount` from route and timing before the trip completes, yet pricing currently depends on post-trip meter totals that cannot support quote-based products. This limits revenue from fixed-price offerings. |
-# MAGIC | **Solution** | Databricks Genie Code engineers features from `trip_distance`, `pickup_zip`, `dropoff_zip` and time-of-day/day-of-week derived from `tpep_pickup_datetime`, trains a Ridge regression (alpha tuned by cross-validation) to predict `fare_amount`, then uses ai_query to translate predicted fares into upfront quote recommendations. |
+# MAGIC | **Solution** | Databricks AI engineers features from `trip_distance`, `pickup_zip`, `dropoff_zip` and time-of-day/day-of-week derived from `tpep_pickup_datetime`, trains a Ridge regression (alpha tuned by cross-validation) to predict `fare_amount`, then uses ai_query to translate predicted fares into upfront quote recommendations. |
 # MAGIC | **Business Value** | The Product Pricing Manager launches upfront fare quotes grounded in predicted `fare_amount`, aiming to increase booked-trip conversion and protect realized fare-per-mile [ESTIMATE: depends on `fare_amount`]. |
 # MAGIC | **Quality** | Very High |
 # MAGIC | **Quality Reasons** | Predictors `trip_distance`, `pickup_zip`, `dropoff_zip` and time-of-day/day-of-week from `tpep_pickup_datetime` train a cross-validated Ridge regression to estimate `fare_amount` before trip completion, producing a predicted_fare per route-time with residual evaluation. ai_query converts predictions into upfront quote recommendations, enabling the fixed-price product revenue outcome [ESTIMATE: depends on fare_amount]. |
@@ -70,11 +70,11 @@
 
 # COMMAND ----------
 
-# DBTITLE 0,Genie Code instruction
+# DBTITLE 0,Databricks AI instruction
 # MAGIC %md
-# MAGIC ## Genie Code instruction
+# MAGIC ## Databricks AI instruction
 # MAGIC
-# MAGIC > Genie Code: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
+# MAGIC > Databricks AI: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
 # MAGIC
 # MAGIC ## 1. Decision and Owner
 # MAGIC
@@ -105,7 +105,7 @@
 # MAGIC
 # MAGIC ## 6. Output Mapping
 # MAGIC
-# MAGIC Map `entity_label` to the driver finding key (`entity_id`), that is the named route or timing driver. `value` is the effect size of that driver on `fare_amount` against the overall-mean baseline, expressed in the units of `fare_amount` per unit of the driver (for example dollars per mile of `trip_distance`, or dollar shift for a corridor or hour bucket relative to baseline); VALUE_TYPE is 'effect size'. `segment_or_item` holds the group or dimension level the finding belongs to (for example the specific corridor or hour-of-day bucket). Each row's top reasons are derived from the model's signed coefficient contributions, not from an LLM. Set `data_quality_flag` to something other than ok when the finding's group has fewer than 30 rows (sparse, Monitor only) or when its driver showed high VIF before interpretation. Priority tiers and recommended actions are assigned by Inspire's rule-based writer; do not ask Genie Code or an LLM to set them.
+# MAGIC Map `entity_label` to the driver finding key (`entity_id`), that is the named route or timing driver. `value` is the effect size of that driver on `fare_amount` against the overall-mean baseline, expressed in the units of `fare_amount` per unit of the driver (for example dollars per mile of `trip_distance`, or dollar shift for a corridor or hour bucket relative to baseline); VALUE_TYPE is 'effect size'. `segment_or_item` holds the group or dimension level the finding belongs to (for example the specific corridor or hour-of-day bucket). Each row's top reasons are derived from the model's signed coefficient contributions, not from an LLM. Set `data_quality_flag` to something other than ok when the finding's group has fewer than 30 rows (sparse, Monitor only) or when its driver showed high VIF before interpretation. Priority tiers and recommended actions are assigned by Inspire's rule-based writer; do not ask Databricks AI or an LLM to set them.
 # MAGIC
 # MAGIC ## 7. Definition of Done
 # MAGIC
@@ -120,7 +120,7 @@
 # COMMAND ----------
 
 # DBTITLE 0,Inspire harness (do not edit)
-# Inspire harness (do not edit): the tested functions every other cell uses. Genie Code fills only the cells marked GENIE SLOT.
+# Inspire harness (do not edit): the tested functions every other cell uses. Databricks AI fills only the cells marked GENIE SLOT.
 GENIE_READINESS_THRESHOLDS = {'F': {'min_rows': 1, 'min_join_coverage': 0.8, 'min_group_rows': 30, 'min_periods': 2, 'fdr_alpha': 0.05}}
 
 import re as _jl_re, os as _jl_os, hashlib as _jl_hashlib
@@ -484,7 +484,7 @@ INSPIRE_READINESS_RULES = {
 class InspireSlotNotFilled(Exception):
     def __init__(self, slot):
         self.slot = slot
-        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Genie Code to fill every cell marked GENIE SLOT, then run the notebook again.")
+        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Databricks AI to fill every cell marked GENIE SLOT, then run the notebook again.")
 
 
 class InspireReadinessStop(Exception):
@@ -2380,7 +2380,7 @@ NEXT_RUN = operationalize(CTX, CHAMPION, DRIFT_PSI, spark, SLOTS)
 # COMMAND ----------
 
 # DBTITLE 0,12. Contract check
-# 12. Contract check (Inspire, do not edit). Genie Code is done when this cell prints PASSED.
+# 12. Contract check (Inspire, do not edit). Databricks AI is done when this cell prints PASSED.
 import json
 CONTRACT = run_contract_check(spark, CTX, READINESS, allow_zero_rows=bool(EVALUATION.get("no_new_rows")))
 if CTX["is_child"]:

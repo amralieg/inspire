@@ -559,7 +559,7 @@ def _restyle_inspire(ns, tmp_path, monkeypatch, files, app=None):
     inst._genie_notebook_spec = lambda uc: dict(_NB_SPEC)
     inst._genie_widget_names = lambda instruction, spec: ["result_table"]
     inst._genie_involved_tables = lambda uc: ["main.s.orders"]
-    inst._implement_runner = lambda uc: pytest.fail("a look-only edit installs no Genie Code")
+    inst._implement_runner = lambda uc: pytest.fail("a look-only edit installs no Databricks AI")
     inst._implement_genie_loop = lambda *a: pytest.fail("a look-only edit never asks Genie")
     inst._implement_fill_and_preview = lambda *a: pytest.fail("a look-only edit never re-runs the notebook")
     inst._implement_schedule = lambda *a: pytest.fail("a look-only edit leaves the schedule alone")
@@ -607,7 +607,7 @@ def test_a_look_only_edit_rewrites_the_app_settings_and_redeploys_without_genie(
 
 def test_a_look_only_edit_of_a_merged_app_changes_nothing_and_says_the_host_keeps_its_look(agent_ns, tmp_path, monkeypatch):
     inst, context, seen, calls = _merge_flow(agent_ns, tmp_path, monkeypatch, outputs={"app_look": {"layout": "home"}})
-    inst._implement_runner = lambda uc: pytest.fail("no Genie Code for a look change")
+    inst._implement_runner = lambda uc: pytest.fail("no Databricks AI for a look change")
     context["restyle"] = ["app"]
     fields = inst._implement_app(context, None)
     assert seen["deployed"] == [] and "label" not in seen

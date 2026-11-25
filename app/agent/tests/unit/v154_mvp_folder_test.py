@@ -117,7 +117,7 @@ def test_an_edited_notebook_blocks_the_build_and_names_the_notebook_the_person_e
 def _writer(agent_ns, workspace):
     inst = _inspire(agent_ns)
     inst.w_client = types.SimpleNamespace(workspace=workspace, config=types.SimpleNamespace(host="https://h"))
-    inst._genie_notebook_cells = lambda uc, instruction: ([_cell(None, "# header"), _cell("Genie Code instruction", instruction),
+    inst._genie_notebook_cells = lambda uc, instruction: ([_cell(None, "# header"), _cell("Databricks AI instruction", instruction),
                                                           _cell("Run controls (Inspire, do not edit)", "main()")], {})
     inst._genie_notebook_object = lambda cells, name: {"cells": cells}
     inst._implement_dismissals = lambda uc_id, table: None
@@ -126,7 +126,7 @@ def _writer(agent_ns, workspace):
 
 OLD = f"{USE_CASE_DIR}/mvp/v2/{FILE}"
 NEW = f"{USE_CASE_DIR}/mvp/v3/{FILE}"
-OLD_NOTEBOOK = {"cells": [_cell(None, "# header"), _cell("Genie Code instruction", "old"), _cell("Run controls (Inspire, do not edit)", "old"),
+OLD_NOTEBOOK = {"cells": [_cell(None, "# header"), _cell("Databricks AI instruction", "old"), _cell("Run controls (Inspire, do not edit)", "old"),
                           _cell("Feature prep", "df = spark.table('main.s.orders')")]}
 
 
@@ -397,7 +397,7 @@ def _regenerating(agent_ns, workspace):
     inst = build_inspire(agent_ns, loader=FakeLoader(), _generate_genie_instruction_for_use_case=generate)
     inst.notebook_output_dir, inst._implement_root_dir = DISCOVERY, APP
     inst.w_client = types.SimpleNamespace(workspace=workspace, config=types.SimpleNamespace(host="https://h"))
-    inst._genie_notebook_cells = lambda uc, instruction: ([_cell("Genie Code instruction", instruction)], {})
+    inst._genie_notebook_cells = lambda uc, instruction: ([_cell("Databricks AI instruction", instruction)], {})
     inst._genie_notebook_object = lambda cells, name: {"cells": cells, "metadata": {}}
     inst._implement_emit = lambda *a, **k: 1
     inst.merged = []
@@ -414,7 +414,7 @@ def test_the_instruction_notebook_a_build_writes_lives_in_the_session_notebooks_
     assert fresh["notebook_path"].startswith(f"{NOTEBOOKS}/sales/retention/") and fresh["notebook_path"].endswith(".ipynb")
     assert ("mkdirs", f"{NOTEBOOKS}/sales/retention") in workspace.calls
     assert [uc["notebook_path"] for uc in inst.merged] == [fresh["notebook_path"]], "the Results page links to the notebook the build wrote"
-    assert f"{NOTEBOOKS}/AGENTS.md" in workspace.texts, "Genie Code reads AGENTS.md beside the notebooks it opens"
+    assert f"{NOTEBOOKS}/AGENTS.md" in workspace.texts, "Databricks AI reads AGENTS.md beside the notebooks it opens"
     assert not [path for _kind, path in workspace.calls if path.startswith(DISCOVERY)], \
         "the builder cannot see the folder of the person who ran Discover, so it never writes there"
 
@@ -485,7 +485,7 @@ def test_a_failed_grant_on_the_instruction_notebook_folder_is_its_own_warning(ag
     notebook = f"{APP}/acme/session_5150/notebooks/customer_care_retention/general/{FILE}.ipynb"
     first, second = inst._implement_folder_access(dict(UC, notebook_path=notebook), (5150, "N01-U01", 3), "someone@example.com")
     assert first.startswith(f"Folder: someone@example.com may not open this MVP in {USE_CASE_DIR}, because")
-    assert second.startswith(f"Folder: someone@example.com may not open the Genie Code instruction notebook {notebook}, because")
+    assert second.startswith(f"Folder: someone@example.com may not open the Databricks AI instruction notebook {notebook}, because")
 
 
 class ResourceDoesNotExist(Exception):
@@ -504,7 +504,7 @@ def test_an_instruction_notebook_that_is_gone_is_reported_as_gone_not_as_a_permi
 
     inst, grants = _access_inspire(agent_ns, _Gone())
     warnings = inst._implement_folder_access(dict(UC, notebook_path=notebook), (5150, "N01-U01", 3), "someone@example.com")
-    assert warnings == [f"Folder: the Genie Code instruction notebook {notebook} is no longer in the workspace, so Inspire did not "
+    assert warnings == [f"Folder: the Databricks AI instruction notebook {notebook} is no longer in the workspace, so Inspire did not "
                         "share it with someone@example.com."]
     assert len(grants) == 1
 

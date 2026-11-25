@@ -78,7 +78,7 @@ def _canonicalize_fields(ucs: list[dict]) -> list[dict]:
                 "priority_score": float(_first(uc, "priority_score", "Priority Score", default=0) or 0),
                 "bob_score": float(_first(uc, "bob_score", "BoB Score", default=0) or 0),
                 "idea_theme": _first(uc, "idea_theme", "Idea Theme"),
-                "has_genie_code": _first(uc, "has_genie_code", "Has Genie Code", default="N"),
+                "has_genie_code": _first(uc, "has_genie_code", "Has Databricks AI", default="N"),
             }
         )
     return out

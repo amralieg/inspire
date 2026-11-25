@@ -1,7 +1,7 @@
-"""Genie Code finds a Unity Gateway route before a build: the Codex route's models first, then the Claude models the Anthropic
+"""Databricks AI finds a Unity Gateway route before a build: the Codex route's models first, then the Claude models the Anthropic
 route lists, called through the MLflow responses path with web search off and the reply schema in the prompt. With no route
 it stops before Genie starts, with the choices that change the outcome. Only a route that answered is reused, and a route
-Genie Code refuses during a build is dropped for the next round."""
+Databricks AI refuses during a build is dropped for the next round."""
 import io
 import json
 import tomllib
@@ -64,7 +64,7 @@ def test_the_codex_route_wins_when_one_of_its_listed_models_answers_and_the_hard
     assert (route.model, route.base, route.web_search, route.schema_in_prompt) == ("system.ai.kimi-k3", CODEX, True, False)
     assert gateway.probes() == [(f"{CODEX}/responses", first), (f"{CODEX}/responses", "system.ai.kimi-k3")]
     assert not any(path.startswith("/ai-gateway/anthropic") for _m, path, _b in gateway.calls), "the Anthropic route is not listed"
-    assert agent_ns["genie_code_route_note"](found).startswith(f"Genie Code built this with system.ai.kimi-k3, because {first}")
+    assert agent_ns["genie_code_route_note"](found).startswith(f"Databricks AI built this with system.ai.kimi-k3, because {first}")
 
 
 def test_an_empty_codex_list_falls_through_to_the_newest_claude_on_the_mlflow_path(agent_ns):
@@ -96,7 +96,7 @@ def test_both_routes_empty_is_no_route_with_the_plain_reason_the_admin_fix_and_t
     assert "Tried 1 model: " + agent_ns["GENIE_CODE_MODEL"] + " through the Codex route" in verdict["reason"]
     assert "the Codex route and the Anthropic route list no model" in verdict["reason"]
     assert "choose I will build it myself and run the notebook yourself" in verdict["reason"]
-    assert verdict["fix"].startswith("Ask a workspace admin to serve a model to Genie Code through Unity Gateway")
+    assert verdict["fix"].startswith("Ask a workspace admin to serve a model to Databricks AI through Unity Gateway")
     assert "ticket" not in verdict["reason"].lower() and "contact" not in verdict["reason"].lower()
 
 
@@ -256,7 +256,7 @@ def test_the_discover_start_records_the_verdict_as_a_warning_step_and_never_stop
     assert verdict["available"] is False
     [step] = inst.emitted
     assert step["step_name"] == fresh_ns["GENIE_CODE_CHECK_STEP"] and step["status"] == "ended_warning"
-    assert step["result_json"]["genie_code"] == verdict and step["message"].startswith("Genie Code is not available")
+    assert step["result_json"]["genie_code"] == verdict and step["message"].startswith("Databricks AI is not available")
 
 
 def test_the_discover_start_verdict_names_the_route_when_one_answers_and_is_skipped_for_other_operations(fresh_ns, monkeypatch):
@@ -274,7 +274,7 @@ def test_a_check_that_crashes_is_an_unknown_verdict_not_a_stop(fresh_ns, monkeyp
     inst = _inspire(fresh_ns, Gateway(), monkeypatch)
     inst._implement_genie_found = lambda: (_ for _ in ()).throw(ValueError("boom"))
     verdict = inst.genie_code_verdict()
-    assert verdict["available"] is None and verdict["reason"].startswith("Inspire could not check Genie Code")
+    assert verdict["available"] is None and verdict["reason"].startswith("Inspire could not check Databricks AI")
 
 
 def test_gpt_oss_models_are_never_probed_or_chosen_on_either_route_because_they_reject_parallel_tool_calls(agent_ns):

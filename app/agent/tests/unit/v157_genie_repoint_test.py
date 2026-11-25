@@ -33,7 +33,7 @@ def _flow(ns, tmp_path, monkeypatch, files, app=OWN_APP, outputs=None, assets=No
     _serve_files(ns, monkeypatch, files)
     inst._implement_api, _calls = _router({("GET", f"/api/2.0/apps/{app['name']}"): app, **(routes or {})})
     inst._implement_notebook_paths = lambda uc, key: ("/W/acme_implemented/Sales", "/W/acme_implemented/Sales/N01-U01")
-    inst._implement_runner = inst._genie_runner_factory = lambda uc: pytest.fail("pointing the App at its Genie Agent needs no Genie Code")
+    inst._implement_runner = inst._genie_runner_factory = lambda uc: pytest.fail("pointing the App at its Genie Agent needs no Databricks AI")
     inst._implement_genie_loop = lambda *a, **k: pytest.fail("pointing the App at its Genie Agent never asks Genie")
     context["repoint"] = ["app"]
     return inst, context, seen
@@ -195,7 +195,7 @@ def test_rebuilding_only_the_genie_agent_points_the_app_at_it_in_the_same_versio
                                     lambda uc: made.append(uc) or "runner")
     status = inst._implement_one_locked(target, (5150, "N01-U01", 3))
     assert status == "ready", inst.updates[-1]
-    assert made == ["N01-U01"], "Genie Code is installed once, for the Genie Agent only"
+    assert made == ["N01-U01"], "Databricks AI is installed once, for the Genie Agent only"
     name, deployed, _reads, space_id = inst.deployed[0]
     settings = json.loads(deployed["inspire_app.json"])
     assert (name, space_id, settings["genie"], json.loads(deployed["pages/n01_u01.json"])["genie"]) == ("churn-desk", "g1", GENIE, GENIE)

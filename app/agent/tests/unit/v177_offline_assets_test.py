@@ -263,7 +263,7 @@ def test_genie_is_told_environment_4_ships_its_libraries_and_the_notebook_instal
     install = agent_ns["GENIE_NO_INSTALL_RULE"]
     assert install.startswith("Install nothing: no pip line, no library install and no download from the internet")
     assert install.endswith("serverless environment 4 ships.")
-    assert install in agent_ns["GENIE_AGENTS_FILE_TEMPLATE"], "Genie Code reads its agents file while it builds"
+    assert install in agent_ns["GENIE_AGENTS_FILE_TEMPLATE"], "Databricks AI reads its agents file while it builds"
     inst = build_inspire(agent_ns)
     for technique in ("Classification", "Forecasting", "Sentiment Analysis"):
         rules = inst._genie_platform_rules(inst._genie_notebook_spec(make_uc(**{"Analytics Technique": technique})))

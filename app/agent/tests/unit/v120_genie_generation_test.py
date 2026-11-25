@@ -202,7 +202,7 @@ def test_discover_writes_no_genie_code_in_any_mode_when_widget_15_is_zero(agent_
     assert calls["generated"] == [] and calls["genie_notebooks"] == []
     assert sorted(calls["skeletons"]) == sorted(uc["No"] for uc in ucs)
     assert all(uc["has_genie_code"] == "N" for uc in ucs)
-    assert "Discover Auto-Genie: Genie Code for no use case (widget 13 = 0)" in capsys.readouterr().out
+    assert "Discover Auto-Genie: Databricks AI for no use case (widget 13 = 0)" in capsys.readouterr().out
 
 
 def test_auto_genie_passes_the_live_schema_index_into_generation(agent_ns):
@@ -290,7 +290,7 @@ def test_discover_ultra_high_end_to_end_with_real_generation_validation_and_writ
     assert by_id["N01-U03"]["notebook_path"] == inst._build_notebook_workspace_paths(by_id["N01-U03"])[1]
     assert sum(1 for uid, _ in writes if uid == "N01-U03") == 1
     genie_cells = ["".join("".join(c["source"]) for c in obj["cells"]) for uid, obj in writes if uid == "N01-U02"]
-    assert "Copy the cell below into Genie Code without the surrounding quotes" in genie_cells[-1] and "discount_pct" not in genie_cells[-1]
+    assert "Copy the cell below into Databricks AI without the surrounding quotes" in genie_cells[-1] and "discount_pct" not in genie_cells[-1]
     assert GOOD.strip().splitlines()[0] in genie_cells[-1]
     assert sorted(c["step"] for c in agent.calls) == sorted(["Genie_Instruction_N01-U01", "Genie_Instruction_N01-U02",
                                                             "Genie_Instruction_N01-U02_repair", "Genie_Instruction_N01-U03",

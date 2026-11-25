@@ -3,7 +3,7 @@
 **Business Name:** Samples bakehouse
 
 ## Executive Summary
-Samples bakehouse operates in a business where margins are shaped daily by what comes out of the oven, what sells before close, and how customers feel about every visit. This catalog positions Samples bakehouse to turn its operational, sales, and customer-voice data into a durable competitive advantage, moving from intuition-led decisions to evidence-led ones across production, pricing, and franchise execution. Concrete opportunities make this tangible. Forecast Product Demand to Reduce Waste lets production planners right-size next-day batches so unsold quantity waste shrinks while recovering lost sales. Reduce Customer Attrition to Protect Revenue gives retention teams a ranked queue of at-risk customers to defend spend before it lapses. Detect Shifting Customer Concerns to Lower Risk surfaces emerging themes across review periods before they harden into reputation damage. With Databricks Genie Code, Samples bakehouse can unlock these outcomes without heavy engineering overhead, letting business owners query data in plain language, operationalize forecasts, and act on customer sentiment at the pace a bakery and franchise network demands. The result is a measurable lift in revenue protection, margin recovery, and brand strength.
+Samples bakehouse operates in a business where margins are shaped daily by what comes out of the oven, what sells before close, and how customers feel about every visit. This catalog positions Samples bakehouse to turn its operational, sales, and customer-voice data into a durable competitive advantage, moving from intuition-led decisions to evidence-led ones across production, pricing, and franchise execution. Concrete opportunities make this tangible. Forecast Product Demand to Reduce Waste lets production planners right-size next-day batches so unsold quantity waste shrinks while recovering lost sales. Reduce Customer Attrition to Protect Revenue gives retention teams a ranked queue of at-risk customers to defend spend before it lapses. Detect Shifting Customer Concerns to Lower Risk surfaces emerging themes across review periods before they harden into reputation damage. With Databricks AI, Samples bakehouse can unlock these outcomes without heavy engineering overhead, letting business owners query data in plain language, operationalize forecasts, and act on customer sentiment at the pace a bakery and franchise network demands. The result is a measurable lift in revenue protection, margin recovery, and brand strength.
 
 ## Overview
 - **Total Use Cases:** 30
@@ -14,7 +14,7 @@ Samples bakehouse operates in a business where margins are shaped daily by what 
 ### Menu
 *5 use cases*
 
-The Menu domain is where Samples bakehouse converts baking craft into profitable, waste-aware assortment decisions. It governs what is produced, how it is bundled, and how local tastes shape each counter, making it central to both margin and customer satisfaction. Forecast Product Demand to Reduce Waste equips production planners to adjust next-day batch sizes per product, cutting unsold quantity waste while recovering lost sales. Increase Basket Size to Grow Revenue arms merchandising managers with bundle and counter-prompt offers that lift average totalPrice and quantity per transaction. Optimize Local Product Mix to Grow Revenue tailors assortment plans per location to match regional demand. With Databricks Genie Code, these decisions become fast and repeatable, letting teams forecast, test bundles, and refine local mix directly from their data to grow revenue and shrink waste at the same time.
+The Menu domain is where Samples bakehouse converts baking craft into profitable, waste-aware assortment decisions. It governs what is produced, how it is bundled, and how local tastes shape each counter, making it central to both margin and customer satisfaction. Forecast Product Demand to Reduce Waste equips production planners to adjust next-day batch sizes per product, cutting unsold quantity waste while recovering lost sales. Increase Basket Size to Grow Revenue arms merchandising managers with bundle and counter-prompt offers that lift average totalPrice and quantity per transaction. Optimize Local Product Mix to Grow Revenue tailors assortment plans per location to match regional demand. With Databricks AI, these decisions become fast and repeatable, letting teams forecast, test bundles, and refine local mix directly from their data to grow revenue and shrink waste at the same time.
 
 #### #1 [N01-U01](https://<workspace-host>/editor/notebooks/2123456789000049): Forecast Product Demand to Reduce Waste
 
@@ -33,7 +33,7 @@ The Menu domain is where Samples bakehouse converts baking craft into profitable
 Perishable baked goods lose value fast, and without a per-product demand forecast the production team over-bakes some items and under-bakes others, driving both waste and lost sales recorded in quantity and totalPrice.
 
 **Solution:**
-Databricks Genie Code aggregates quantity by product and day from dateTime, fits a per-product time-series forecast, then uses ai_query to translate forecasts into daily batch-size recommendations.
+Databricks AI aggregates quantity by product and day from dateTime, fits a per-product time-series forecast, then uses ai_query to translate forecasts into daily batch-size recommendations.
 
 **Business Value:**
 The Production Planner adjusts next-day batch sizes per product, reducing unsold quantity waste and recovering sales lost to stockouts [ESTIMATE: depends on quantity, totalPrice].
@@ -65,7 +65,7 @@ The Production Planner adjusts next-day batch sizes per product, reducing unsold
 Products frequently bought together are not being promoted as bundles, so the business misses upsell revenue that would show in higher totalPrice per transaction.
 
 **Solution:**
-Databricks Genie Code groups line items by transactionID to mine product co-occurrence from product, scores affinity between items, then uses ai_query to produce bundle and upsell recommendations.
+Databricks AI groups line items by transactionID to mine product co-occurrence from product, scores affinity between items, then uses ai_query to produce bundle and upsell recommendations.
 
 **Business Value:**
 The Merchandising Manager launches bundle and counter-prompt offers, increasing average totalPrice and quantity per transaction [ESTIMATE: depends on totalPrice, quantity].
@@ -97,7 +97,7 @@ The Merchandising Manager launches bundle and counter-prompt offers, increasing 
 A one-size-fits-all menu ignores that different franchises sell different products in different proportions, leaving revenue on the table where local demand is misaligned with the offered mix.
 
 **Solution:**
-Databricks Genie Code computes per-franchise product revenue and quantity contribution and solves a constrained assortment optimization that reallocates emphasis toward locally high-performing product lines subject to a limited menu-slot constraint.
+Databricks AI computes per-franchise product revenue and quantity contribution and solves a constrained assortment optimization that reallocates emphasis toward locally high-performing product lines subject to a limited menu-slot constraint.
 
 **Business Value:**
 The Franchise Operations Director receives a per-location menu assortment plan, aiming to grow totalPrice by aligning the product mix with local demand revealed in quantity and product patterns [ESTIMATE: depends on totalPrice].
@@ -129,7 +129,7 @@ The Franchise Operations Director receives a per-location menu assortment plan, 
 Some products sell in volume but contribute little revenue while others carry the business, yet without classifying products by sales momentum the menu keeps slow movers that tie up production capacity measured in quantity and totalPrice.
 
 **Solution:**
-Databricks Genie Code builds per-product sales trend and contribution features from product, quantity, totalPrice, and dateTime, classifies products into momentum tiers, then uses ai_query to recommend keep, promote, or retire actions.
+Databricks AI builds per-product sales trend and contribution features from product, quantity, totalPrice, and dateTime, classifies products into momentum tiers, then uses ai_query to recommend keep, promote, or retire actions.
 
 **Business Value:**
 The Menu Strategy Manager rationalizes the product list, reallocating production capacity toward high-contribution products and lifting total totalPrice [ESTIMATE: depends on totalPrice, quantity].
@@ -161,7 +161,7 @@ The Menu Strategy Manager rationalizes the product list, reallocating production
 Reviews mention products customers want, praise, or wish existed, but these revenue signals stay unstructured and unused, so the business misses chances to expand profitable menu lines.
 
 **Solution:**
-Databricks Genie Code classifies review text into product and theme categories, tracks their frequency per franchiseID over review_date, and surfaces rising positive themes for menu expansion decisions.
+Databricks AI classifies review text into product and theme categories, tracks their frequency per franchiseID over review_date, and surfaces rising positive themes for menu expansion decisions.
 
 **Business Value:**
 The Menu Development Manager uses the classified theme trends to decide which products to expand or pilot, aiming to increase positively mentioned product themes in review and grow revenue from new offerings [ESTIMATE: depends on review].
@@ -179,7 +179,7 @@ The Menu Development Manager uses the classified theme trends to decide which pr
 ### Customers
 *6 use cases*
 
-The Customers domain protects and grows the lifetime value of every Samples bakehouse guest. It is responsible for understanding who buys, how often, and why spend rises or falls, which makes it a direct lever on sustainable revenue. Reduce Customer Attrition to Protect Revenue gives the retention lead a ranked queue of at-risk customers to intervene before they lapse. Reverse Spending Decline to Protect Revenue drives a weekly win-back queue ranked by at-risk spend, while Segment Customers to Grow Revenue assigns differentiated offers that increase repeat purchase frequency and captured spend. Databricks Genie Code lets marketing and retention teams build these ranked queues and segments from live data without technical bottlenecks, turning customer signals into timely, revenue-defending action.
+The Customers domain protects and grows the lifetime value of every Samples bakehouse guest. It is responsible for understanding who buys, how often, and why spend rises or falls, which makes it a direct lever on sustainable revenue. Reduce Customer Attrition to Protect Revenue gives the retention lead a ranked queue of at-risk customers to intervene before they lapse. Reverse Spending Decline to Protect Revenue drives a weekly win-back queue ranked by at-risk spend, while Segment Customers to Grow Revenue assigns differentiated offers that increase repeat purchase frequency and captured spend. Databricks AI lets marketing and retention teams build these ranked queues and segments from live data without technical bottlenecks, turning customer signals into timely, revenue-defending action.
 
 #### #3 [N02-U01](https://<workspace-host>/editor/notebooks/2123456789000058): Reduce Customer Attrition to Protect Revenue
 
@@ -198,7 +198,7 @@ The Customers domain protects and grows the lifetime value of every Samples bake
 Repeat customers quietly stop buying, and without an early signal the business loses recurring spend in totalPrice before any outreach happens.
 
 **Solution:**
-Databricks Genie Code builds per-customer purchase-interval and spend-trend features from customerID, dateTime, and totalPrice, trains a classifier to predict lapse probability, then uses ai_query to prioritize and recommend re-engagement actions.
+Databricks AI builds per-customer purchase-interval and spend-trend features from customerID, dateTime, and totalPrice, trains a classifier to predict lapse probability, then uses ai_query to prioritize and recommend re-engagement actions.
 
 **Business Value:**
 The Customer Retention Lead works a ranked queue of at-risk customers, reducing lapse rate and recovering spend tracked in totalPrice [ESTIMATE: depends on customerID, totalPrice].
@@ -230,7 +230,7 @@ The Customer Retention Lead works a ranked queue of at-risk customers, reducing 
 Top-spending customers who quietly reduce their purchase frequency or basket value represent concentrated revenue at risk, yet their decline is easy to miss amid overall transaction volume.
 
 **Solution:**
-Databricks Genie Code builds per-customer rolling spend and frequency time series from customerID, totalPrice, and dateTime, then applies an Isolation Forest on recent-versus-baseline behavioral features to flag high-value customers whose activity is anomalously declining.
+Databricks AI builds per-customer rolling spend and frequency time series from customerID, totalPrice, and dateTime, then applies an Isolation Forest on recent-versus-baseline behavioral features to flag high-value customers whose activity is anomalously declining.
 
 **Business Value:**
 The Customer Marketing Lead works a weekly win-back outreach queue ranked by at-risk spend, aiming to recover declining totalPrice from high-value customerID accounts and reduce silent revenue erosion [ESTIMATE: depends on totalPrice].
@@ -262,7 +262,7 @@ The Customer Marketing Lead works a weekly win-back outreach queue ranked by at-
 Without distinct behavioral groups the marketing team sends uniform offers to all customers, missing chances to upsell frequent buyers and re-activate occasional ones, leaving revenue in totalPrice on the table.
 
 **Solution:**
-Databricks Genie Code engineers per-customer recency, frequency, and spend features from customerID, dateTime, and totalPrice, clusters customers with K-Means, then uses ai_query to recommend a tailored offer plan per segment.
+Databricks AI engineers per-customer recency, frequency, and spend features from customerID, dateTime, and totalPrice, clusters customers with K-Means, then uses ai_query to recommend a tailored offer plan per segment.
 
 **Business Value:**
 The Marketing Manager assigns differentiated offers per segment, increasing repeat purchase frequency and spend captured in totalPrice [ESTIMATE: depends on totalPrice, customerID].
@@ -294,7 +294,7 @@ The Marketing Manager assigns differentiated offers per segment, increasing repe
 First-time customers may buy once and never return, but without tracking retention by the period they first appeared the business cannot tell which onboarding moments keep customers spending in totalPrice.
 
 **Solution:**
-Databricks Genie Code assigns each customerID to a cohort by first dateTime, measures repeat-purchase rates over subsequent periods, then uses ai_query to recommend onboarding and win-back offers.
+Databricks AI assigns each customerID to a cohort by first dateTime, measures repeat-purchase rates over subsequent periods, then uses ai_query to recommend onboarding and win-back offers.
 
 **Business Value:**
 The Customer Marketing Manager designs cohort-specific onboarding offers, lifting repeat-purchase rate and retained spend in totalPrice [ESTIMATE: depends on customerID, totalPrice].
@@ -326,7 +326,7 @@ The Customer Marketing Manager designs cohort-specific onboarding offers, liftin
 Without knowing how long customers typically stay active before lapsing, the business cannot time retention efforts, so it either acts too late or wastes effort on customers unlikely to leave.
 
 **Solution:**
-Databricks Genie Code constructs each customer's active span from first and last dateTime and models time-to-lapse with a Kaplan-Meier and Cox survival approach using spend and frequency covariates derived from totalPrice and transactionID.
+Databricks AI constructs each customer's active span from first and last dateTime and models time-to-lapse with a Kaplan-Meier and Cox survival approach using spend and frequency covariates derived from totalPrice and transactionID.
 
 **Business Value:**
 The Customer Marketing Lead times retention offers to the modeled lapse window, aiming to extend active customer lifespan and protect recurring totalPrice from customerID cohorts [ESTIMATE: depends on totalPrice].
@@ -358,7 +358,7 @@ The Customer Marketing Lead times retention offers to the modeled lapse window, 
 If a small share of customers drives a disproportionate share of revenue, losing even a few of them is a severe risk, and the business may be under-investing in retaining them.
 
 **Solution:**
-Databricks Genie Code ranks customerID by cumulative totalPrice over dateTime and applies a Pareto concentration analysis to quantify how much revenue sits in the top customer tiers and how stable that concentration is over time.
+Databricks AI ranks customerID by cumulative totalPrice over dateTime and applies a Pareto concentration analysis to quantify how much revenue sits in the top customer tiers and how stable that concentration is over time.
 
 **Business Value:**
 The Customer Marketing Lead receives a tiered loyalty investment plan focused on the revenue-concentrated top tier, aiming to protect concentrated totalPrice and increase retention of the highest-value customerID segment [ESTIMATE: depends on totalPrice].
@@ -376,7 +376,7 @@ The Customer Marketing Lead receives a tiered loyalty investment plan focused on
 ### Sales
 *5 use cases*
 
-The Sales domain safeguards the integrity of every transaction at Samples bakehouse, ensuring pricing is correct, scenarios are informed, and anomalies are caught early. It is a frontline defender of margin and revenue. Recover Margin Leakage from Pricing Gaps to Protect Revenue delivers the pricing manager a product-level correction list that closes the gap between expected and realized value. Simulate Pricing Scenarios to Grow Revenue helps choose price points that maximize expected totalPrice while balancing volume, and Detect Sales Anomalies to Protect Revenue flags abnormal product-day sales for rapid correction. With Databricks Genie Code, pricing and operations teams can run corrections, scenarios, and anomaly reviews on demand, converting pricing discipline into recovered and protected revenue.
+The Sales domain safeguards the integrity of every transaction at Samples bakehouse, ensuring pricing is correct, scenarios are informed, and anomalies are caught early. It is a frontline defender of margin and revenue. Recover Margin Leakage from Pricing Gaps to Protect Revenue delivers the pricing manager a product-level correction list that closes the gap between expected and realized value. Simulate Pricing Scenarios to Grow Revenue helps choose price points that maximize expected totalPrice while balancing volume, and Detect Sales Anomalies to Protect Revenue flags abnormal product-day sales for rapid correction. With Databricks AI, pricing and operations teams can run corrections, scenarios, and anomaly reviews on demand, converting pricing discipline into recovered and protected revenue.
 
 #### #4 [N03-U01](https://<workspace-host>/editor/notebooks/2123456789000060): Recover Margin Leakage from Pricing Gaps to Protect Revenue
 
@@ -395,7 +395,7 @@ The Sales domain safeguards the integrity of every transaction at Samples bakeho
 Variation between recorded unitPrice and effective price per unit (totalPrice divided by quantity) across transactions can reveal discounting, manual overrides, or data-entry errors that silently erode margin.
 
 **Solution:**
-Databricks Genie Code models effective unit price against product and quantity using Ridge regression to quantify expected price, then isolates transactions and products where realized price falls systematically below the modeled expectation.
+Databricks AI models effective unit price against product and quantity using Ridge regression to quantify expected price, then isolates transactions and products where realized price falls systematically below the modeled expectation.
 
 **Business Value:**
 The Pricing Manager receives a product-level pricing correction list each cycle, targeting the gap between expected and realized price to recover leaked margin and increase realized totalPrice [ESTIMATE: depends on unitPrice].
@@ -427,7 +427,7 @@ The Pricing Manager receives a product-level pricing correction list each cycle,
 Managers hesitate to adjust prices because they cannot see how a change in unitPrice on a given product would ripple through purchase quantity and total totalPrice across the customer base.
 
 **Solution:**
-Databricks Genie Code estimates product-level price-volume response from historical unitPrice, quantity, and totalPrice variation and runs Monte Carlo scenarios over candidate price points to project revenue distributions per product.
+Databricks AI estimates product-level price-volume response from historical unitPrice, quantity, and totalPrice variation and runs Monte Carlo scenarios over candidate price points to project revenue distributions per product.
 
 **Business Value:**
 The Pricing Manager uses the scenario guide to choose price points that maximize expected totalPrice, balancing volume loss in quantity against unit margin for each product [ESTIMATE: depends on totalPrice].
@@ -459,7 +459,7 @@ The Pricing Manager uses the scenario guide to choose price points that maximize
 Sudden unexplained drops or spikes in daily product sales can signal supply gaps, pricing errors, or local issues, but these go unnoticed until revenue in totalPrice has already eroded.
 
 **Solution:**
-Databricks Genie Code builds daily per-product sales series from totalPrice and quantity, trains an anomaly detector on the multi-day patterns, then uses ai_query to explain each flagged day and route it to investigation.
+Databricks AI builds daily per-product sales series from totalPrice and quantity, trains an anomaly detector on the multi-day patterns, then uses ai_query to explain each flagged day and route it to investigation.
 
 **Business Value:**
 The Store Operations Manager receives a daily queue of abnormal product-day sales, acting to correct pricing or supply issues and prevent further loss in totalPrice [ESTIMATE: depends on totalPrice].
@@ -491,7 +491,7 @@ The Store Operations Manager receives a daily queue of abnormal product-day sale
 Unexplained drift toward cash payments at specific franchises can signal unrecorded sales, skimming, or card-terminal failures that erode recorded revenue and complicate reconciliation.
 
 **Solution:**
-Databricks Genie Code decomposes the daily share of each paymentMethod per franchiseID over dateTime, applies STL trend decomposition to isolate structural shifts from seasonal noise, and flags franchises with statistically significant cash-share drift.
+Databricks AI decomposes the daily share of each paymentMethod per franchiseID over dateTime, applies STL trend decomposition to isolate structural shifts from seasonal noise, and flags franchises with statistically significant cash-share drift.
 
 **Business Value:**
 The Finance Controller re-prioritizes reconciliation audits weekly toward franchises with abnormal paymentMethod drift, aiming to recover unrecorded revenue in totalPrice and reduce reconciliation exceptions [ESTIMATE: depends on totalPrice].
@@ -523,7 +523,7 @@ The Finance Controller re-prioritizes reconciliation audits weekly toward franch
 Unusual card and payment behavior such as repeated same-card transactions or atypical amounts can indicate fraud, and undetected it drives chargeback losses tied to totalPrice.
 
 **Solution:**
-Databricks Genie Code profiles per-card and per-transaction behavior from cardNumber, paymentMethod, totalPrice, and dateTime, trains an anomaly detector on these features, then uses ai_query to explain flags and recommend holds.
+Databricks AI profiles per-card and per-transaction behavior from cardNumber, paymentMethod, totalPrice, and dateTime, trains an anomaly detector on these features, then uses ai_query to explain flags and recommend holds.
 
 **Business Value:**
 The Payments Risk Analyst reviews a flagged-transaction queue and places holds, preventing fraud losses carried in totalPrice [ESTIMATE: depends on totalPrice, cardNumber].
@@ -541,7 +541,7 @@ The Payments Risk Analyst reviews a flagged-transaction queue and places holds, 
 ### Franchise
 *5 use cases*
 
-The Franchise domain is the backbone of consistent, scalable growth for Samples bakehouse, aligning each location's planning, staffing, and performance to a shared standard. Strong franchise execution directly shapes profitability and brand trust. Forecast Franchise Revenue to Improve Planning gives operations directors per-franchise forecasts to set purchasing and cash-flow commitments. Optimize Staffing to Reduce Labor Cost aligns shift coverage to forecasted peaks, cutting idle labor and understaffed rushes, while Close Franchise Performance Gaps to Improve Consistency targets coaching by peer group to raise consistency. Databricks Genie Code makes these forecasts and coaching priorities accessible to franchise leaders, enabling tighter planning, leaner labor cost, and a more uniform guest experience across the network.
+The Franchise domain is the backbone of consistent, scalable growth for Samples bakehouse, aligning each location's planning, staffing, and performance to a shared standard. Strong franchise execution directly shapes profitability and brand trust. Forecast Franchise Revenue to Improve Planning gives operations directors per-franchise forecasts to set purchasing and cash-flow commitments. Optimize Staffing to Reduce Labor Cost aligns shift coverage to forecasted peaks, cutting idle labor and understaffed rushes, while Close Franchise Performance Gaps to Improve Consistency targets coaching by peer group to raise consistency. Databricks AI makes these forecasts and coaching priorities accessible to franchise leaders, enabling tighter planning, leaner labor cost, and a more uniform guest experience across the network.
 
 #### #6 [N04-U01](https://<workspace-host>/editor/notebooks/2123456789000065): Forecast Franchise Revenue to Improve Planning
 
@@ -560,7 +560,7 @@ The Franchise domain is the backbone of consistent, scalable growth for Samples 
 Franchise-level revenue swings make it hard to plan ingredient purchasing, staffing budgets, and cash flow, leading to over-commitment in slow weeks and missed opportunity in peaks.
 
 **Solution:**
-Databricks Genie Code aggregates weekly totalPrice per franchiseID over dateTime and fits a Prophet forecast with calendar seasonality per franchise to project forward revenue with confidence bands.
+Databricks AI aggregates weekly totalPrice per franchiseID over dateTime and fits a Prophet forecast with calendar seasonality per franchise to project forward revenue with confidence bands.
 
 **Business Value:**
 The Franchise Operations Director uses per-franchise revenue forecasts to set weekly purchasing and cash-flow commitments, aiming to reduce planning variance and align spend to projected totalPrice [ESTIMATE: depends on totalPrice].
@@ -592,7 +592,7 @@ The Franchise Operations Director uses per-franchise revenue forecasts to set we
 Transaction volume varies sharply by hour and day, and without an hourly forecast the business overstaffs quiet periods and understaffs peaks, hurting both labor cost and service speed visible in transactionID flow.
 
 **Solution:**
-Databricks Genie Code aggregates transactionID counts into hourly buckets from dateTime per franchiseID, forecasts volume by time slot, then uses ai_query to recommend shift-level staffing.
+Databricks AI aggregates transactionID counts into hourly buckets from dateTime per franchiseID, forecasts volume by time slot, then uses ai_query to recommend shift-level staffing.
 
 **Business Value:**
 The Store Scheduling Manager aligns shift coverage to forecasted peaks, reducing idle labor cost and understaffed peak periods measured by hourly transactionID volume [ESTIMATE: depends on transactionID, dateTime].
@@ -624,7 +624,7 @@ The Store Scheduling Manager aligns shift coverage to forecasted peaks, reducing
 Franchises differ widely in what customers talk about, yet operators lack a way to group peer franchises with similar review profiles to share what works and coach outliers.
 
 **Solution:**
-Databricks Genie Code derives topic distributions from chunked_text per franchiseID, applies K-Means to segment franchises into review-profile clusters, then uses ai_query to produce peer benchmark coaching notes for each cluster.
+Databricks AI derives topic distributions from chunked_text per franchiseID, applies K-Means to segment franchises into review-profile clusters, then uses ai_query to produce peer benchmark coaching notes for each cluster.
 
 **Business Value:**
 The Franchise Enablement Manager assigns targeted coaching by peer group, increasing topic-profile consistency derived from chunked_text across franchiseID [ESTIMATE: depends on chunked_text].
@@ -656,7 +656,7 @@ The Franchise Enablement Manager assigns targeted coaching by peer group, increa
 Franchise locations contribute unevenly to sales, but without a clear concentration view the business spreads support and promotion budget evenly instead of toward the highest-return locations tracked in totalPrice.
 
 **Solution:**
-Databricks Genie Code aggregates totalPrice and transaction counts by franchiseID, applies Pareto concentration analysis, then uses ai_query to recommend where to focus support and promotion resources.
+Databricks AI aggregates totalPrice and transaction counts by franchiseID, applies Pareto concentration analysis, then uses ai_query to recommend where to focus support and promotion resources.
 
 **Business Value:**
 The Franchise Operations Director reallocates support and promotion budget toward top-contributing franchises, increasing total totalPrice return on spend [ESTIMATE: depends on totalPrice, franchiseID].
@@ -688,7 +688,7 @@ The Franchise Operations Director reallocates support and promotion budget towar
 Baking and staffing to a flat weekly plan wastes labor and ingredients on slow days and causes stockouts or long waits on peak days, hurting both cost and customer experience.
 
 **Solution:**
-Databricks Genie Code derives day-of-week and hour demand profiles per franchiseID from dateTime, quantity, and totalPrice, and uses trend decomposition to quantify stable peak-versus-trough patterns distinct from random variation.
+Databricks AI derives day-of-week and hour demand profiles per franchiseID from dateTime, quantity, and totalPrice, and uses trend decomposition to quantify stable peak-versus-trough patterns distinct from random variation.
 
 **Business Value:**
 The Franchise Operations Director adjusts staffing and bake volumes to the recurring demand profile, aiming to reduce labor and waste cost on troughs and recover lost sales on peaks measured through quantity and totalPrice [ESTIMATE: depends on quantity].
@@ -706,7 +706,7 @@ The Franchise Operations Director adjusts staffing and bake volumes to the recur
 ### Complaints
 *2 use cases*
 
-The Complaints domain turns customer frustration into a structured roadmap for improvement at Samples bakehouse. It is responsible for detecting recurring issues and directing field attention where it matters most to customer experience. Identify Product Quality Issues to Improve Customer Experience lets the product quality lead reprioritize fixes based on extracted theme frequency across customer feedback. Close Service Gaps to Improve Customer Experience provides regional managers a coaching priority list focused on statistically confirmed service shortfalls. With Databricks Genie Code, complaint text becomes an organized, ranked signal, allowing leaders to fix root causes faster and measurably improve the guest experience.
+The Complaints domain turns customer frustration into a structured roadmap for improvement at Samples bakehouse. It is responsible for detecting recurring issues and directing field attention where it matters most to customer experience. Identify Product Quality Issues to Improve Customer Experience lets the product quality lead reprioritize fixes based on extracted theme frequency across customer feedback. Close Service Gaps to Improve Customer Experience provides regional managers a coaching priority list focused on statistically confirmed service shortfalls. With Databricks AI, complaint text becomes an organized, ranked signal, allowing leaders to fix root causes faster and measurably improve the guest experience.
 
 #### #12 [N05-U01](https://<workspace-host>/editor/notebooks/2123456789000071): Identify Product Quality Issues to Improve Customer Experience
 
@@ -725,7 +725,7 @@ The Complaints domain turns customer frustration into a structured roadmap for i
 Customer reviews in chunked_text contain specific recurring complaints (product quality, service, freshness) that are not captured in any structured field, leaving product and operations teams blind to systemic issues.
 
 **Solution:**
-Databricks Genie Code uses ai_query to extract complaint entities and topics from chunked_text, clusters them by franchiseID and review_date period, and produces a ranked product and service fix action list.
+Databricks AI uses ai_query to extract complaint entities and topics from chunked_text, clusters them by franchiseID and review_date period, and produces a ranked product and service fix action list.
 
 **Business Value:**
 The Product Quality Lead reprioritizes which recurring issues to fix based on extracted theme frequency across chunked_text, aiming to reduce repeat complaint volume and increase customer satisfaction [ESTIMATE: depends on chunked_text volume].
@@ -757,7 +757,7 @@ The Product Quality Lead reprioritizes which recurring issues to fix based on ex
 Some franchises persistently trail the network in review sentiment, but without a statistical comparison against peers, operations cannot tell genuine underperformers from normal variation and misallocates coaching effort.
 
 **Solution:**
-Databricks Genie Code scores sentiment per review, computes each franchise's sentiment deviation from the network mean over review_date, and isolates statistically significant laggards for coaching.
+Databricks AI scores sentiment per review, computes each franchise's sentiment deviation from the network mean over review_date, and isolates statistically significant laggards for coaching.
 
 **Business Value:**
 The Regional Operations Manager receives a coaching priority list that focuses field support on statistically confirmed laggards, aiming to lift below-average sentiment in review per franchiseID [ESTIMATE: depends on franchiseID].
@@ -775,7 +775,7 @@ The Regional Operations Manager receives a coaching priority list that focuses f
 ### Sentiment
 *1 use case*
 
-The Sentiment domain gives Samples bakehouse an early read on how customers feel before dissatisfaction translates into lost revenue. It converts qualitative voice into prioritized operational action. Detect Customer Dissatisfaction to Protect Revenue enables the franchise operations manager to re-prioritize which franchiseID locations receive quality-review visits each week, directing attention to where sentiment is softening fastest. Databricks Genie Code makes this sentiment signal continuous and actionable, so review visits and interventions follow the data, protecting revenue and reinforcing customer loyalty across locations.
+The Sentiment domain gives Samples bakehouse an early read on how customers feel before dissatisfaction translates into lost revenue. It converts qualitative voice into prioritized operational action. Detect Customer Dissatisfaction to Protect Revenue enables the franchise operations manager to re-prioritize which franchiseID locations receive quality-review visits each week, directing attention to where sentiment is softening fastest. Databricks AI makes this sentiment signal continuous and actionable, so review visits and interventions follow the data, protecting revenue and reinforcing customer loyalty across locations.
 
 #### #13 [N06-U01](https://<workspace-host>/editor/notebooks/2123456789000076): Detect Customer Dissatisfaction to Protect Revenue
 
@@ -794,7 +794,7 @@ The Sentiment domain gives Samples bakehouse an early read on how customers feel
 Franchise locations may accumulate negative customer feedback in chunked_text over time without a structured way to flag which franchises are deteriorating, risking reputation and repeat-purchase revenue.
 
 **Solution:**
-Databricks Genie Code scores sentiment on chunked_text using ai_query, aggregates sentiment by franchiseID over review_date windows, flags franchises with worsening negative-sentiment trends, and produces a prioritized franchise intervention queue.
+Databricks AI scores sentiment on chunked_text using ai_query, aggregates sentiment by franchiseID over review_date windows, flags franchises with worsening negative-sentiment trends, and produces a prioritized franchise intervention queue.
 
 **Business Value:**
 The Franchise Operations Manager re-prioritizes which franchiseID locations receive quality-review visits each week, aiming to reduce the count of negative-sentiment reviews in chunked_text and protect repeat-purchase revenue [ESTIMATE: depends on chunked_text volume].
@@ -812,7 +812,7 @@ The Franchise Operations Manager re-prioritizes which franchiseID locations rece
 ### Advocacy
 *3 use cases*
 
-The Advocacy domain amplifies what customers already love about Samples bakehouse, turning authentic praise into growth. It is responsible for identifying strengths and channeling them into marketing and franchise learning. Identify Customer Praise Drivers to Grow Revenue helps the marketing manager prioritize which proven strengths to feature per franchise. Extract Winning Themes to Grow Revenue delivers a ranked list of customer-authentic praise themes to seed campaigns, and Identify Top Franchises to Grow Revenue provides an advocacy scorecard that highlights which locations to study and replicate. With Databricks Genie Code, these praise signals are surfaced and ranked automatically, letting marketing and operations scale what works and grow positively-driven revenue.
+The Advocacy domain amplifies what customers already love about Samples bakehouse, turning authentic praise into growth. It is responsible for identifying strengths and channeling them into marketing and franchise learning. Identify Customer Praise Drivers to Grow Revenue helps the marketing manager prioritize which proven strengths to feature per franchise. Extract Winning Themes to Grow Revenue delivers a ranked list of customer-authentic praise themes to seed campaigns, and Identify Top Franchises to Grow Revenue provides an advocacy scorecard that highlights which locations to study and replicate. With Databricks AI, these praise signals are surfaced and ranked automatically, letting marketing and operations scale what works and grow positively-driven revenue.
 
 #### #16 [N07-U01](https://<workspace-host>/editor/notebooks/2123456789000073): Identify Customer Praise Drivers to Grow Revenue
 
@@ -831,7 +831,7 @@ The Advocacy domain amplifies what customers already love about Samples bakehous
 Franchises lack a structured view of what customers specifically praise in free-text reviews, leaving successful product and service attributes unamplified in marketing and menu decisions.
 
 **Solution:**
-Databricks Genie Code applies ai_classify over the chunked_text free-text column to label each chunk into positive driver categories, aggregates label frequency per franchiseID, then uses ai_query to turn the top praise drivers into a marketing message playbook.
+Databricks AI applies ai_classify over the chunked_text free-text column to label each chunk into positive driver categories, aggregates label frequency per franchiseID, then uses ai_query to turn the top praise drivers into a marketing message playbook.
 
 **Business Value:**
 The Marketing Manager prioritizes which proven strengths to feature per franchise, increasing the share of positively-classified chunks in chunked_text and lifting repeat-purchase intent captured across review_uri [ESTIMATE: depends on chunked_text].
@@ -863,7 +863,7 @@ The Marketing Manager prioritizes which proven strengths to feature per franchis
 Positive reviews contain the exact phrases and product mentions customers love, but marketing crafts promotions from intuition rather than the authentic language that already resonates in the review corpus.
 
 **Solution:**
-Databricks Genie Code extracts praised products, attributes, and emotive phrases from highly positive entries in review, aggregates frequency across franchiseID, and compiles the winning language into a messaging playbook.
+Databricks AI extracts praised products, attributes, and emotive phrases from highly positive entries in review, aggregates frequency across franchiseID, and compiles the winning language into a messaging playbook.
 
 **Business Value:**
 The Brand Marketing Lead receives a ranked list of customer-authentic praise themes to seed campaigns, aiming to increase positive-review frequency in review and campaign conversion [ESTIMATE: depends on review].
@@ -895,7 +895,7 @@ The Brand Marketing Lead receives a ranked list of customer-authentic praise the
 Franchises generate differing volumes of positive advocacy in customer reviews, but leadership lacks a defensible ranking of which locations consistently delight customers and why, leaving proven practices unshared across the network.
 
 **Solution:**
-Databricks Genie Code scores each review in review for sentiment polarity, aggregates net-positive advocacy per franchiseID over review_date, and ranks franchises so leaders can replicate the behaviors of top performers.
+Databricks AI scores each review in review for sentiment polarity, aggregates net-positive advocacy per franchiseID over review_date, and ranks franchises so leaders can replicate the behaviors of top performers.
 
 **Business Value:**
 The Franchise Operations Director receives a ranked advocacy scorecard that reprioritizes which locations to study and replicate, aiming to increase the share of positive reviews in review and lift repeat-visit revenue [ESTIMATE: depends on franchiseID].
@@ -913,7 +913,7 @@ The Franchise Operations Director receives a ranked advocacy scorecard that repr
 ### Trends
 *2 use cases*
 
-The Trends domain gives Samples bakehouse foresight, detecting how customer concerns and satisfaction evolve over time. It is essential for staying ahead of risk rather than reacting to it. Detect Shifting Customer Concerns to Lower Risk lets the customer experience director act on emerging topic shifts across review_date periods, changing focus before issues escalate. Anticipate Satisfaction Decline to Protect Revenue uses forecasts to decide which franchises receive preemptive coaching or resource support. Databricks Genie Code turns time-based signals into early warnings, enabling leaders to intervene proactively and protect both reputation and revenue.
+The Trends domain gives Samples bakehouse foresight, detecting how customer concerns and satisfaction evolve over time. It is essential for staying ahead of risk rather than reacting to it. Detect Shifting Customer Concerns to Lower Risk lets the customer experience director act on emerging topic shifts across review_date periods, changing focus before issues escalate. Anticipate Satisfaction Decline to Protect Revenue uses forecasts to decide which franchises receive preemptive coaching or resource support. Databricks AI turns time-based signals into early warnings, enabling leaders to intervene proactively and protect both reputation and revenue.
 
 #### #24 [N08-U01](https://<workspace-host>/editor/notebooks/2123456789000074): Detect Shifting Customer Concerns to Lower Risk
 
@@ -932,7 +932,7 @@ The Trends domain gives Samples bakehouse foresight, detecting how customer conc
 Shifts in what customers write about in chunked_text over review_date (for example a sudden rise in freshness or service complaints) can precede revenue loss, but there is no mechanism to detect topic drift early.
 
 **Solution:**
-Databricks Genie Code classifies review topics from chunked_text with ai_query, tracks topic-share trends across review_date periods per franchiseID, detects statistically significant topic shifts, and produces an early warning briefing.
+Databricks AI classifies review topics from chunked_text with ai_query, tracks topic-share trends across review_date periods per franchiseID, detects statistically significant topic shifts, and produces an early warning briefing.
 
 **Business Value:**
 The Customer Experience Director acts on emerging topic shifts detected across review_date periods, changing which issues get escalated first to prevent dissatisfaction from spreading and to lower reputational risk [ESTIMATE: depends on review_date coverage].
@@ -964,7 +964,7 @@ The Customer Experience Director acts on emerging topic shifts detected across r
 Without a forward view of how customer sentiment is trending per franchise, the business reacts late to satisfaction decline and loses the window to intervene before reviewers churn.
 
 **Solution:**
-Databricks Genie Code builds per-franchise sentiment time series from review and review_date, forecasts future sentiment trajectory, and flags franchises on a downward path for proactive planning.
+Databricks AI builds per-franchise sentiment time series from review and review_date, forecasts future sentiment trajectory, and flags franchises on a downward path for proactive planning.
 
 **Business Value:**
 The Franchise Operations Manager uses the forecast to decide which franchises get preemptive coaching or resource support, aiming to reverse projected sentiment decline in review and protect future revenue [ESTIMATE: depends on review].
@@ -982,7 +982,7 @@ The Franchise Operations Manager uses the forecast to decide which franchises ge
 ### Moderation
 *1 use case*
 
-The Moderation domain defends the credibility of the customer voice that Samples bakehouse increasingly relies on for decisions. Protecting review integrity protects the brand's reputation and the trust behind every data-driven choice. Prevent Fake Review Manipulation to Protect Reputation lets the trust and safety lead triage suspected manipulation faster, reducing the count of near-duplicate chunks and keeping authentic feedback trustworthy. With Databricks Genie Code, suspicious patterns are surfaced quickly, allowing the team to safeguard review integrity and ensure every downstream insight rests on honest customer signal.
+The Moderation domain defends the credibility of the customer voice that Samples bakehouse increasingly relies on for decisions. Protecting review integrity protects the brand's reputation and the trust behind every data-driven choice. Prevent Fake Review Manipulation to Protect Reputation lets the trust and safety lead triage suspected manipulation faster, reducing the count of near-duplicate chunks and keeping authentic feedback trustworthy. With Databricks AI, suspicious patterns are surfaced quickly, allowing the team to safeguard review integrity and ensure every downstream insight rests on honest customer signal.
 
 #### #30 [N09-U01](https://<workspace-host>/editor/notebooks/2123456789000078): Prevent Fake Review Manipulation to Protect Reputation
 
@@ -1001,7 +1001,7 @@ The Moderation domain defends the credibility of the customer voice that Samples
 Coordinated fake or duplicated reviews distort franchise reputation signals and mislead operational decisions, but near-identical text chunks are not currently flagged for moderation.
 
 **Solution:**
-Databricks Genie Code embeds chunked_text, clusters chunks with DBSCAN to find dense near-duplicate groups within and across franchiseID, then uses ai_query to explain each suspicious cluster and build a moderation investigation queue keyed by review_uri.
+Databricks AI embeds chunked_text, clusters chunks with DBSCAN to find dense near-duplicate groups within and across franchiseID, then uses ai_query to explain each suspicious cluster and build a moderation investigation queue keyed by review_uri.
 
 **Business Value:**
 The Trust and Safety Lead triages suspected manipulation faster, reducing the count of near-duplicate chunks in chunked_text that corrupt reputation metrics tied to review_uri [ESTIMATE: depends on chunked_text].

@@ -2,7 +2,7 @@
  "declaration": {
   "allowed": "", "applies": "run", "choices": [], "default": "all", "group": "scope", "help": "Run scope.", "high": null, "high_open": false,
   "kind": "number", "label": "Run scope", "low": null, "low_open": false, "many": false, "name": "run_scope",
-  "reason": "Genie Code chose it when it built the notebook", "source": "widget", "unit": "", "whole": false
+  "reason": "Databricks AI chose it when it built the notebook", "source": "widget", "unit": "", "whole": false
  },
  "kept": {"top_k": "10"},
  "read": [

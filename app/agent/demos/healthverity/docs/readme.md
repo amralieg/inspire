@@ -3,7 +3,7 @@
 **Business Name:** Samples healthverity
 
 ## Executive Summary
-Samples healthverity operates at the intersection of real-world healthcare data and commercial opportunity, where the ability to translate claims, cohorts, and provider networks into trusted, licensable products defines competitive advantage. The use cases in this catalog position the organization to convert its vast patient and claims assets into revenue-generating offerings with the precision and speed the market now demands. Concrete impact is already within reach. Reveal Emerging Condition Trends to Grow Revenue lets commercial teams refresh and promote rising-condition cohorts ahead of demand, while Segment Patient Utilization to Grow Revenue sharpens which cohorts to package and license. On the integrity side, Detect Billing Anomalies to Prevent Revenue Loss protects the value of the underlying data by surfacing a ranked provider investigation queue before quality issues reach customers. Databricks Genie Code is the accelerant for this transformation, enabling analysts, curators, and partnership leads to interrogate complex healthcare data in natural language and move from question to insight without friction. For Samples healthverity, this means faster dataset launches, tighter data quality, and smarter sourcing decisions, all compounding into durable revenue growth.
+Samples healthverity operates at the intersection of real-world healthcare data and commercial opportunity, where the ability to translate claims, cohorts, and provider networks into trusted, licensable products defines competitive advantage. The use cases in this catalog position the organization to convert its vast patient and claims assets into revenue-generating offerings with the precision and speed the market now demands. Concrete impact is already within reach. Reveal Emerging Condition Trends to Grow Revenue lets commercial teams refresh and promote rising-condition cohorts ahead of demand, while Segment Patient Utilization to Grow Revenue sharpens which cohorts to package and license. On the integrity side, Detect Billing Anomalies to Prevent Revenue Loss protects the value of the underlying data by surfacing a ranked provider investigation queue before quality issues reach customers. Databricks AI is the accelerant for this transformation, enabling analysts, curators, and partnership leads to interrogate complex healthcare data in natural language and move from question to insight without friction. For Samples healthverity, this means faster dataset launches, tighter data quality, and smarter sourcing decisions, all compounding into durable revenue growth.
 
 ## Overview
 - **Total Use Cases:** 21
@@ -14,7 +14,7 @@ Samples healthverity operates at the intersection of real-world healthcare data 
 ### Commercial
 *6 use cases*
 
-The Commercial domain is where Samples healthverity turns healthcare data assets into monetizable products, aligning dataset roadmaps and pricing with genuine market demand. Its core responsibility is to ensure that the right cohorts reach the right buyers at the right moment, maximizing licensing revenue while keeping offerings fresh and defensible. Several opportunities make this tangible. Reveal Emerging Condition Trends to Grow Revenue allows the Commercial Data Product Manager to prioritize refreshing and promoting rising-condition cohorts, increasing timely licensing. Anticipate Specialty Demand to Grow Revenue helps the Product Roadmap Owner sequence specialty dataset builds against forecast demand, lifting the count of datasets launched into receptive markets. Quantify Cohort Longevity to Grow Revenue equips the Pricing Analyst with observation-window survival estimates to set longitudinal pricing tiers. With Databricks Genie Code, these teams can explore demand signals and cohort characteristics conversationally, compressing the cycle from market insight to launched, priced product and strengthening Samples healthverity's commercial engine.
+The Commercial domain is where Samples healthverity turns healthcare data assets into monetizable products, aligning dataset roadmaps and pricing with genuine market demand. Its core responsibility is to ensure that the right cohorts reach the right buyers at the right moment, maximizing licensing revenue while keeping offerings fresh and defensible. Several opportunities make this tangible. Reveal Emerging Condition Trends to Grow Revenue allows the Commercial Data Product Manager to prioritize refreshing and promoting rising-condition cohorts, increasing timely licensing. Anticipate Specialty Demand to Grow Revenue helps the Product Roadmap Owner sequence specialty dataset builds against forecast demand, lifting the count of datasets launched into receptive markets. Quantify Cohort Longevity to Grow Revenue equips the Pricing Analyst with observation-window survival estimates to set longitudinal pricing tiers. With Databricks AI, these teams can explore demand signals and cohort characteristics conversationally, compressing the cycle from market insight to launched, priced product and strengthening Samples healthverity's commercial engine.
 
 #### #1 [N01-U01](https://<workspace-host>/editor/notebooks/1123456789000021): Reveal Emerging Condition Trends to Grow Revenue
 
@@ -33,7 +33,7 @@ The Commercial domain is where Samples healthverity turns healthcare data assets
 The mix of conditions in the data captured by diagnosis_code over date_service shifts over time, and without tracking these trends the commercial team misses rising conditions that represent timely cohort-licensing opportunities for life-sciences clients.
 
 **Solution:**
-Databricks Genie Code tracks diagnosis-code frequency over time, decomposes trend from seasonality to surface rising and declining conditions, and prioritizes which condition datasets to refresh and promote.
+Databricks AI tracks diagnosis-code frequency over time, decomposes trend from seasonality to surface rising and declining conditions, and prioritizes which condition datasets to refresh and promote.
 
 **Business Value:**
 The Commercial Data Product Manager prioritizes refreshing and promoting rising-condition cohorts, increasing timely licensable offerings measured by growth in diagnosis_code frequency over date_service [ESTIMATE: depends on diagnosis_code].
@@ -65,7 +65,7 @@ The Commercial Data Product Manager prioritizes refreshing and promoting rising-
 Changing procedure volume by provider taxonomy over date_service signals which clinical specialties are rising in activity, informing which specialty datasets to build ahead of client demand.
 
 **Solution:**
-Databricks Genie Code builds monthly procedure volume series per taxonomy, forecasts near-term demand with Prophet, then calls ai_query to explain the trajectory and recommend a dataset build roadmap.
+Databricks AI builds monthly procedure volume series per taxonomy, forecasts near-term demand with Prophet, then calls ai_query to explain the trajectory and recommend a dataset build roadmap.
 
 **Business Value:**
 The Product Roadmap Owner sequences specialty dataset builds against forecast demand, increasing count of datasets launched ahead of demand and reducing late-to-market specialty products [ESTIMATE: depends on procedure_code].
@@ -97,7 +97,7 @@ The Product Roadmap Owner sequences specialty dataset builds against forecast de
 The length of time each hvid remains observable in the claims stream between first and last date_service determines how long a patient can be followed, a key driver of the price of longitudinal cohorts.
 
 **Solution:**
-Databricks Genie Code derives per-patient first and last service dates, fits a Kaplan-Meier model treating last-observed as the event to estimate observation-window survival curves, then calls ai_query to explain retention segments and draft panel longevity pricing inputs.
+Databricks AI derives per-patient first and last service dates, fits a Kaplan-Meier model treating last-observed as the event to estimate observation-window survival curves, then calls ai_query to explain retention segments and draft panel longevity pricing inputs.
 
 **Business Value:**
 The Pricing Analyst uses observation-window survival estimates to set longitudinal cohort pricing tiers, increasing count of correctly-priced panels and reducing underpriced long-horizon cohorts [ESTIMATE: depends on date_service].
@@ -129,7 +129,7 @@ The Pricing Analyst uses observation-window survival estimates to set longitudin
 Shifts over time in where procedures are performed (place_of_service_std_id) for a given procedure_code reveal migration between higher and lower acuity settings that payer and life-science clients pay to understand.
 
 **Solution:**
-Databricks Genie Code builds monthly procedure-by-site time series from date_service, applies STL decomposition to isolate directional site-of-care shifts, then uses ai_query to narrate the shift and recommend which site-of-care insight packages to prioritize.
+Databricks AI builds monthly procedure-by-site time series from date_service, applies STL decomposition to isolate directional site-of-care shifts, then uses ai_query to narrate the shift and recommend which site-of-care insight packages to prioritize.
 
 **Business Value:**
 The Analytics Product Manager prioritizes which site-of-care insight packages to build, increasing count of billable analytic deliverables and reducing time spent on low-movement procedures [ESTIMATE: depends on place_of_service_std_id].
@@ -161,7 +161,7 @@ The Analytics Product Manager prioritizes which site-of-care insight packages to
 Variation in payer_type composition across regions and over date_service affects how representative a dataset is for commercial clients, and unstable payer mix lowers the sellable value of a cohort.
 
 **Solution:**
-Databricks Genie Code engineers payer-mix features per region-period and trains a Random Forest to classify each segment as stable or volatile, then calls ai_query to explain drivers and recommend positioning actions for sales collateral.
+Databricks AI engineers payer-mix features per region-period and trains a Random Forest to classify each segment as stable or volatile, then calls ai_query to explain drivers and recommend positioning actions for sales collateral.
 
 **Business Value:**
 The Commercial Strategy Manager uses stability labels to decide which cohorts to promote, increasing count of well-positioned sellable datasets and reducing mispositioned pitches [ESTIMATE: depends on payer_type].
@@ -193,7 +193,7 @@ The Commercial Strategy Manager uses stability labels to decide which cohorts to
 Claim activity is spread unevenly across regions captured in patient_state and patient_zip3, and without quantifying this concentration the commercial team cannot target which geographies have the richest data to pitch to regional life-sciences and payer clients.
 
 **Solution:**
-Databricks Genie Code aggregates claim and patient density by state and zip3, maps concentration intensity, and ranks geographies by data richness to produce a market expansion target list.
+Databricks AI aggregates claim and patient density by state and zip3, maps concentration intensity, and ranks geographies by data richness to produce a market expansion target list.
 
 **Business Value:**
 The Commercial Data Product Manager prioritizes regional data offerings, increasing licensable coverage measured by distinct hvid and claim_id counts per patient_state and patient_zip3 [ESTIMATE: depends on claim_id].
@@ -211,7 +211,7 @@ The Commercial Data Product Manager prioritizes regional data offerings, increas
 ### Cohorts
 *4 use cases*
 
-The Cohorts domain is the heart of Samples healthverity's product value, where raw patient and claims data is shaped into well-defined, representative, and licensable populations. Its strategic importance lies in designing cohorts that are both commercially attractive and clinically credible. Opportunities here are compelling. Segment Patient Utilization to Grow Revenue enables the Commercial Data Product Manager to prioritize which patient cohorts to package and license, expanding the addressable cohort base. Reveal Clinical Pathway Patterns to Grow Revenue supports designing condition-based cohort offerings from detected pathway communities, while Close Demographic Gaps to Grow Revenue lets the Cohort Design Lead apply representativeness labels to decide which cohorts need sampling correction. Databricks Genie Code empowers cohort designers to query utilization, pathways, and demographic coverage in natural language, accelerating the creation of differentiated cohort products that command premium value for Samples healthverity.
+The Cohorts domain is the heart of Samples healthverity's product value, where raw patient and claims data is shaped into well-defined, representative, and licensable populations. Its strategic importance lies in designing cohorts that are both commercially attractive and clinically credible. Opportunities here are compelling. Segment Patient Utilization to Grow Revenue enables the Commercial Data Product Manager to prioritize which patient cohorts to package and license, expanding the addressable cohort base. Reveal Clinical Pathway Patterns to Grow Revenue supports designing condition-based cohort offerings from detected pathway communities, while Close Demographic Gaps to Grow Revenue lets the Cohort Design Lead apply representativeness labels to decide which cohorts need sampling correction. Databricks AI empowers cohort designers to query utilization, pathways, and demographic coverage in natural language, accelerating the creation of differentiated cohort products that command premium value for Samples healthverity.
 
 #### #2 [N02-U01](https://<workspace-host>/editor/notebooks/1123456789000029): Segment Patient Utilization to Grow Revenue
 
@@ -230,7 +230,7 @@ The Cohorts domain is the heart of Samples healthverity's product value, where r
 HealthVerity licenses cohort datasets, but without data-driven patient utilization segments derived from hvid, diagnosis_code, and procedure_code, the commercial team cannot identify which patient groups are most valuable to package for life-sciences clients.
 
 **Solution:**
-Databricks Genie Code engineers per-patient utilization features and applies K-Means clustering to discover natural patient segments, producing labeled cohorts the commercial team can prioritize for licensing offers.
+Databricks AI engineers per-patient utilization features and applies K-Means clustering to discover natural patient segments, producing labeled cohorts the commercial team can prioritize for licensing offers.
 
 **Business Value:**
 The Commercial Data Product Manager prioritizes which patient cohorts to package and license, increasing addressable cohort offerings measured by distinct hvid counts per segment and procedure diversity from procedure_code [ESTIMATE: depends on hvid].
@@ -262,7 +262,7 @@ The Commercial Data Product Manager prioritizes which patient cohorts to package
 The relationships between diagnoses and procedures captured in diagnosis_code and procedure_code across patient claims hold clinical-pathway value, but without mapping these co-occurrence networks the commercial team cannot design high-value condition-based cohort products.
 
 **Solution:**
-Databricks Genie Code builds a co-occurrence graph linking diagnosis_code and procedure_code across claims, applies community detection to surface clinical pathway clusters, and recommends condition-based cohort products.
+Databricks AI builds a co-occurrence graph linking diagnosis_code and procedure_code across claims, applies community detection to surface clinical pathway clusters, and recommends condition-based cohort products.
 
 **Business Value:**
 The Commercial Data Product Manager designs condition-based cohort offerings from detected pathway communities, increasing packageable cohort products measured by linked diagnosis_code and procedure_code pairs per community [ESTIMATE: depends on diagnosis_code].
@@ -294,7 +294,7 @@ The Commercial Data Product Manager designs condition-based cohort offerings fro
 Imbalances in patient_gender, patient_year_of_birth and patient_state relative to clinical activity reduce how representative a cohort is, lowering its value for life-science clients requiring balanced panels.
 
 **Solution:**
-Databricks Genie Code engineers demographic distribution features per condition cohort and trains a classifier to label cohorts as representative or skewed, then uses ai_query to explain the imbalance and recommend sampling correction actions.
+Databricks AI engineers demographic distribution features per condition cohort and trains a classifier to label cohorts as representative or skewed, then uses ai_query to explain the imbalance and recommend sampling correction actions.
 
 **Business Value:**
 The Cohort Design Lead applies representativeness labels to decide which cohorts need sampling correction, increasing count of balanced sellable cohorts and reducing client-flagged demographic skew [ESTIMATE: depends on patient_year_of_birth].
@@ -326,7 +326,7 @@ The Cohort Design Lead applies representativeness labels to decide which cohorts
 Institutional claims carry discharge and admission signals in inst_discharge_status_std_id, inst_admit_type_std_id, and inst_drg_std_id, but these are not synthesized into a readmission-risk indicator that would make the dataset more valuable for payer and provider analytics clients.
 
 **Solution:**
-Databricks Genie Code engineers per-patient institutional features and trains a Random Forest classifier to label patients by readmission-risk tier, producing a flagged cohort enriching the licensed dataset.
+Databricks AI engineers per-patient institutional features and trains a Random Forest classifier to label patients by readmission-risk tier, producing a flagged cohort enriching the licensed dataset.
 
 **Business Value:**
 The Clinical Data Scientist delivers readmission-risk tier labels per patient, increasing enriched-cohort coverage measured by institutional claim counts from claim_type and discharge statuses from inst_discharge_status_std_id available to analytics clients [ESTIMATE: depends on claim_id].
@@ -344,7 +344,7 @@ The Clinical Data Scientist delivers readmission-risk tier labels per patient, i
 ### Quality
 *7 use cases*
 
-The Quality domain safeguards the trust that underpins every Samples healthverity data product. By ensuring claims are accurate, complete, and free of duplication, this domain protects both revenue and the organization's reputation as a reliable data partner. Its impact is direct and measurable. Detect Billing Anomalies to Prevent Revenue Loss gives the Data Quality Lead a ranked provider investigation queue, increasing the share of flagged anomalies caught early. Classify Coding Completeness to Improve Data Quality lets the Data Curation Lead work a pre-release correction list to raise the share of fully-coded claims. Prevent Duplicate Billing to Protect Revenue provides a weekly review queue of suspected duplicate clusters to lift the share of de-duplicated records. With Databricks Genie Code, quality teams can triage, investigate, and validate data issues conversationally, turning data integrity from a cost center into a competitive differentiator for Samples healthverity.
+The Quality domain safeguards the trust that underpins every Samples healthverity data product. By ensuring claims are accurate, complete, and free of duplication, this domain protects both revenue and the organization's reputation as a reliable data partner. Its impact is direct and measurable. Detect Billing Anomalies to Prevent Revenue Loss gives the Data Quality Lead a ranked provider investigation queue, increasing the share of flagged anomalies caught early. Classify Coding Completeness to Improve Data Quality lets the Data Curation Lead work a pre-release correction list to raise the share of fully-coded claims. Prevent Duplicate Billing to Protect Revenue provides a weekly review queue of suspected duplicate clusters to lift the share of de-duplicated records. With Databricks AI, quality teams can triage, investigate, and validate data issues conversationally, turning data integrity from a cost center into a competitive differentiator for Samples healthverity.
 
 #### #7 [N03-U01](https://<workspace-host>/editor/notebooks/1123456789000028): Detect Billing Anomalies to Prevent Revenue Loss
 
@@ -363,7 +363,7 @@ The Quality domain safeguards the trust that underpins every Samples healthverit
 Unusual billing behavior by rendering providers, visible across prov_rendering_npi, line_charge, and procedure_units_billed, can indicate upcoding or billing errors that distort real-world evidence quality and erode data trust with licensing clients.
 
 **Solution:**
-Databricks Genie Code engineers per-provider billing features and trains an Isolation Forest to flag providers whose charge and unit patterns deviate from peers, producing a ranked investigation queue.
+Databricks AI engineers per-provider billing features and trains an Isolation Forest to flag providers whose charge and unit patterns deviate from peers, producing a ranked investigation queue.
 
 **Business Value:**
 The Data Quality Lead receives a ranked provider investigation queue, increasing the share of flagged anomalies in line_charge and procedure_units_billed reviewed before data release and preventing distorted claims from reaching clients [ESTIMATE: depends on line_charge].
@@ -395,7 +395,7 @@ The Data Quality Lead receives a ranked provider investigation queue, increasing
 Incomplete or inconsistent coding across diagnosis_code, procedure_code, diagnosis_code_qual, and procedure_code_qual reduces the usability of claims for client analytics, yet claims are not scored for coding completeness before they are released.
 
 **Solution:**
-Databricks Genie Code engineers coding-completeness features per claim and trains a classifier to tier claims by completeness, producing a pre-release correction worklist for the curation team.
+Databricks AI engineers coding-completeness features per claim and trains a classifier to tier claims by completeness, producing a pre-release correction worklist for the curation team.
 
 **Business Value:**
 The Data Curation Lead works a pre-release correction list, increasing the share of fully-coded claims measured by populated diagnosis_code, procedure_code and their qualifier fields before client delivery [ESTIMATE: depends on claim_id].
@@ -427,7 +427,7 @@ The Data Curation Lead works a pre-release correction list, increasing the share
 Identical or near-identical claims submitted under separate claim_id values for the same hvid, date_service, procedure_code and prov_billing_npi inflate reimbursement and distort data products sold to clients.
 
 **Solution:**
-Databricks Genie Code engineers per-claim fingerprints from the billing fields, trains an Isolation Forest to flag statistically unusual duplicate clusters, then calls ai_query to explain each flagged cluster and draft a billing integrity review entry.
+Databricks AI engineers per-claim fingerprints from the billing fields, trains an Isolation Forest to flag statistically unusual duplicate clusters, then calls ai_query to explain each flagged cluster and draft a billing integrity review entry.
 
 **Business Value:**
 The Data Quality Lead works a weekly review queue of suspected duplicate clusters, increasing the share of de-duplicated claims and reducing erroneous line_charge totals carried into licensed datasets [ESTIMATE: depends on line_charge].
@@ -459,7 +459,7 @@ The Data Quality Lead works a weekly review queue of suspected duplicate cluster
 Variation between billed and allowed amounts in line_charge and line_allowed across procedures signals inconsistent reimbursement patterns that reduce the analytic reliability of the pricing dimension licensed to payer clients.
 
 **Solution:**
-Databricks Genie Code models expected allowed amounts as a function of charge, procedure, and setting, flags claims whose actual allowed amounts deviate sharply from the model, and produces a pricing review queue.
+Databricks AI models expected allowed amounts as a function of charge, procedure, and setting, flags claims whose actual allowed amounts deviate sharply from the model, and produces a pricing review queue.
 
 **Business Value:**
 The Data Quality Lead reviews reimbursement-gap outliers before release, increasing the share of validated line_allowed values relative to line_charge and protecting the integrity of the licensed pricing dimension [ESTIMATE: depends on line_allowed].
@@ -491,7 +491,7 @@ The Data Quality Lead reviews reimbursement-gap outliers before release, increas
 Inconsistent combinations of inst_discharge_status_std_id, inst_admit_type_std_id and inst_drg_std_id on institutional claims signal coding errors that undermine the clinical integrity of institutional data products.
 
 **Solution:**
-Databricks Genie Code encodes institutional claim attribute combinations and trains an Isolation Forest to detect improbable discharge-admit-DRG combinations, then uses ai_query to explain each anomaly and generate an audit queue entry.
+Databricks AI encodes institutional claim attribute combinations and trains an Isolation Forest to detect improbable discharge-admit-DRG combinations, then uses ai_query to explain each anomaly and generate an audit queue entry.
 
 **Business Value:**
 The Clinical Data Auditor works an audit queue of improbable institutional coding combinations, increasing the share of validated institutional claims and reducing coding inconsistencies passed to clients [ESTIMATE: depends on inst_discharge_status_std_id].
@@ -523,7 +523,7 @@ The Clinical Data Auditor works an audit queue of improbable institutional codin
 Longitudinal patient journeys depend on continuous claim activity per hvid over date_service, but patients who stop appearing create gaps that weaken the dataset's value for life-sciences research, and these drop-offs are not predicted in advance.
 
 **Solution:**
-Databricks Genie Code models time-to-last-observation per patient using survival analysis to estimate continuity risk, producing a list of patients likely to drop from the longitudinal record for data gap remediation.
+Databricks AI models time-to-last-observation per patient using survival analysis to estimate continuity risk, producing a list of patients likely to drop from the longitudinal record for data gap remediation.
 
 **Business Value:**
 The Clinical Data Scientist targets at-risk longitudinal records for enrichment, increasing retained continuous patient journeys measured by active hvid spans over date_service and improving dataset research value [ESTIMATE: depends on hvid].
@@ -555,7 +555,7 @@ The Clinical Data Scientist targets at-risk longitudinal records for enrichment,
 A small set of providers may concentrate disproportionate use of procedure modifiers (procedure_modifier_1 through procedure_modifier_4), a pattern associated with coding irregularities that reduce the trustworthiness of claims data.
 
 **Solution:**
-Databricks Genie Code computes modifier-usage rates per provider, applies Pareto concentration analysis to isolate the top contributors to modifier volume, then uses ai_query to explain outlier providers and draft a coding review prioritization list.
+Databricks AI computes modifier-usage rates per provider, applies Pareto concentration analysis to isolate the top contributors to modifier volume, then uses ai_query to explain outlier providers and draft a coding review prioritization list.
 
 **Business Value:**
 The Compliance Analyst prioritizes coding reviews on providers concentrating modifier use, increasing count of reviewed high-modifier providers and reducing modifier-related data-quality complaints [ESTIMATE: depends on procedure_modifier_1].
@@ -573,7 +573,7 @@ The Compliance Analyst prioritizes coding reviews on providers concentrating mod
 ### Partnerships
 *4 use cases*
 
-The Partnerships domain determines the breadth and depth of Samples healthverity's data footprint, directing sourcing toward the specialties, hubs, and providers that most expand coverage and value. Strong partnerships translate directly into richer cohorts and more complete offerings. The opportunities are strategic. Fill Specialty Coverage Gaps to Grow Revenue allows the Data Acquisition Manager to prioritize which specialty data to source next, increasing complete specialty cohorts. Prioritize Referral Hubs to Grow Revenue helps the Partnerships Lead target outreach to high-centrality provider hubs, while Prioritize Provider Networks to Grow Revenue focuses sourcing on top-contributing providers to raise high-value claim coverage. Databricks Genie Code lets partnership teams interrogate network centrality, coverage gaps, and provider contribution in plain language, sharpening outreach decisions and accelerating the growth of Samples healthverity's data supply.
+The Partnerships domain determines the breadth and depth of Samples healthverity's data footprint, directing sourcing toward the specialties, hubs, and providers that most expand coverage and value. Strong partnerships translate directly into richer cohorts and more complete offerings. The opportunities are strategic. Fill Specialty Coverage Gaps to Grow Revenue allows the Data Acquisition Manager to prioritize which specialty data to source next, increasing complete specialty cohorts. Prioritize Referral Hubs to Grow Revenue helps the Partnerships Lead target outreach to high-centrality provider hubs, while Prioritize Provider Networks to Grow Revenue focuses sourcing on top-contributing providers to raise high-value claim coverage. Databricks AI lets partnership teams interrogate network centrality, coverage gaps, and provider contribution in plain language, sharpening outreach decisions and accelerating the growth of Samples healthverity's data supply.
 
 #### #9 [N04-U01](https://<workspace-host>/editor/notebooks/1123456789000038): Fill Specialty Coverage Gaps to Grow Revenue
 
@@ -592,7 +592,7 @@ The Partnerships domain determines the breadth and depth of Samples healthverity
 Under-represented provider specialties in prov_rendering_std_taxonomy relative to the diagnosis and procedure mix they treat create coverage gaps that reduce the completeness of licensed specialty cohorts.
 
 **Solution:**
-Databricks Genie Code clusters providers by their taxonomy and clinical activity profile using K-Means, identifies sparse specialty clusters against the diagnosis-procedure demand, then calls ai_query to explain gaps and draft a data sourcing prioritization list.
+Databricks AI clusters providers by their taxonomy and clinical activity profile using K-Means, identifies sparse specialty clusters against the diagnosis-procedure demand, then calls ai_query to explain gaps and draft a data sourcing prioritization list.
 
 **Business Value:**
 The Data Acquisition Manager prioritizes which specialty data to source next, increasing count of complete specialty cohorts and reducing coverage gaps flagged by clients [ESTIMATE: depends on prov_rendering_std_taxonomy].
@@ -624,7 +624,7 @@ The Data Acquisition Manager prioritizes which specialty data to source next, in
 Referral relationships between prov_referring_npi and prov_rendering_npi form a provider network whose influential hubs indicate where data-partnership outreach yields the broadest patient coverage.
 
 **Solution:**
-Databricks Genie Code constructs a referral graph from the referring and rendering NPI edges, computes PageRank and betweenness centrality with GraphFrames, then uses ai_query to profile top hubs and draft a partnership targeting list.
+Databricks AI constructs a referral graph from the referring and rendering NPI edges, computes PageRank and betweenness centrality with GraphFrames, then uses ai_query to profile top hubs and draft a partnership targeting list.
 
 **Business Value:**
 The Partnerships Lead targets outreach to high-centrality provider hubs, increasing count of high-coverage partnerships and reducing wasted outreach to low-connectivity providers [ESTIMATE: depends on prov_referring_npi].
@@ -656,7 +656,7 @@ The Partnerships Lead targets outreach to high-centrality provider hubs, increas
 Claim volume and charges concentrate among a subset of billing providers captured in prov_billing_npi, claim_id, and line_charge, but without quantifying this concentration the partnership team cannot focus data-sourcing efforts on the providers contributing the richest claim data.
 
 **Solution:**
-Databricks Genie Code ranks billing providers by claim volume and charge contribution, applies Pareto analysis to isolate the vital few driving most data value, and produces a partnership target list.
+Databricks AI ranks billing providers by claim volume and charge contribution, applies Pareto analysis to isolate the vital few driving most data value, and produces a partnership target list.
 
 **Business Value:**
 The Data Partnerships Manager focuses sourcing outreach on top-contributing providers, increasing high-value claim coverage measured by claim_id volume and line_charge share per prov_billing_npi [ESTIMATE: depends on line_charge].
@@ -688,7 +688,7 @@ The Data Partnerships Manager focuses sourcing outreach on top-contributing prov
 Claim submission volume fluctuates over time across the dataset captured in date_service and claim_id, making it hard for data operations teams to plan ingestion and curation capacity, risking backlog and delayed data delivery to licensing clients.
 
 **Solution:**
-Databricks Genie Code aggregates distinct claim_id counts by month derived from date_service, fits a time-series forecast, and projects future claim volume so the operations team can pre-allocate processing capacity.
+Databricks AI aggregates distinct claim_id counts by month derived from date_service, fits a time-series forecast, and projects future claim volume so the operations team can pre-allocate processing capacity.
 
 **Business Value:**
 The Data Operations Manager uses the monthly claim-volume projection to schedule ingestion capacity ahead of demand, reducing processing backlog measured by claim counts per period from claim_id and improving on-time data delivery [ESTIMATE: depends on claim_id].

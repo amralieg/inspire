@@ -1,4 +1,4 @@
-"""Genie Code's relay on a serverless sandbox that refuses connections to 127.0.0.1: the relay listens on the IPv6 loopback first,
+"""Databricks AI's relay on a serverless sandbox that refuses connections to 127.0.0.1: the relay listens on the IPv6 loopback first,
 falls back to 127.0.0.1, and every stream that breaks on either side is logged with its class, bytes, time and upstream status
 instead of being swallowed."""
 import http.server
@@ -140,7 +140,7 @@ def test_a_sandbox_without_an_ipv6_loopback_falls_back_to_127_0_0_1_and_logs_why
     try:
         assert runner.run("build it", str(tmp_path / "w"))["exit"] == 0
         assert made == ["::1", "127.0.0.1"] and runner.relay.base.startswith("http://127.0.0.1:")
-        said = [line for _level, line in runner.logger.records if line.startswith("[GENIE-RELAY] Genie Code calls")]
+        said = [line for _level, line in runner.logger.records if line.startswith("[GENIE-RELAY] Databricks AI calls")]
         assert len(said) == 1 and "Address family not supported" in said[0]
         assert not _fired(runner.logger), "a relay that works on 127.0.0.1 is not a failure"
     finally:
@@ -228,7 +228,7 @@ def test_genie_code_hanging_up_mid_stream_is_logged_on_the_genie_code_side(agent
         relay.stop()
         route.close()
     fired = _fired(logger)
-    assert len(fired) == 1 and "Genie Code side" in fired[0] and "status 200" in fired[0], fired
+    assert len(fired) == 1 and "Databricks AI side" in fired[0] and "status 200" in fired[0], fired
 
 
 def test_a_request_the_relay_cannot_parse_is_logged_not_dropped_silently(agent_ns):
@@ -297,7 +297,7 @@ def test_genie_code_error_output_that_stops_being_readable_is_logged(agent_ns, t
     runner = _runner(agent_ns, tmp_path, "https://workspace.example.com", lambda command, env=None, **kw: Proc())
     runner.relay_factory = lambda host, logger, loopback: None
     runner._run_once("build it", str(tmp_path / "w"), label="build")
-    said = [line for _level, line in runner.logger.records if "reading Genie Code's error output stopped" in line]
+    said = [line for _level, line in runner.logger.records if "reading Databricks AI's error output stopped" in line]
     assert len(said) == 1 and "OSError" in said[0] and "after 1 line:" in said[0]
 
 

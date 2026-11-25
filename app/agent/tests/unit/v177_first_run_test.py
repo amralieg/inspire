@@ -127,7 +127,7 @@ def test_the_build_reads_the_main_table_s_count_once_and_writes_the_scope_into_t
     template = agent_ns["GENIE_RUN_CONTROLS_TEMPLATE"]
     assert 'INSPIRE_SCOPE_VALUES = inspire_scope_start_values(INSPIRE_RUN.get("scope"))' in template
     assert not re.search(r"^(run_scope|scope_groups|scope_days|scope_records) =", template, re.M), \
-        "the Run controls bind no generic name Genie Code could also bind"
+        "the Run controls bind no generic name Databricks AI could also bind"
     assert template.index("inspire_check_settings_read(run") < template.index("inspire_scope_start(") < template.index("outcome = inspire_run_use_case(use_case,")
 
 

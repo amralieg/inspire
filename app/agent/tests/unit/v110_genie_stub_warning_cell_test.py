@@ -1,10 +1,10 @@
-"""v1.1.2 P33 -- the first cell of a Genie Code notebook is customer-appropriate.
+"""v1.1.2 P33 -- the first cell of a Databricks AI notebook is customer-appropriate.
 
-v1.1.0 put a Genie Code round-trip warning in cell[0] of the Genie notebook and v1.1.2 stripped
+v1.1.0 put a Databricks AI round-trip warning in cell[0] of the Genie notebook and v1.1.2 stripped
 Databricks-internal jargon from it. v1.3.0 reduces the notebook to two cells, so cell[0] is the
 only text the user reads besides the instruction:
     cell[0]  markdown  "# <id>: <name>", a short card, a one-line disclaimer, then the copy line
-    cell[1]  code      the self-contained Genie Code instruction as a raw string
+    cell[1]  code      the self-contained Databricks AI instruction as a raw string
 
 Regression coverage:
     A. The writer emits exactly those two cells, title first.
@@ -25,8 +25,8 @@ from _agentload import agent_source, load_agent_namespace
 
 
 POSITIVE_ANCHORS = (
-    "Genie Code",
-    "Copy the cell below into Genie Code without the surrounding quotes",
+    "Databricks AI",
+    "Copy the cell below into Databricks AI without the surrounding quotes",
     "Disclaimer",
 )
 

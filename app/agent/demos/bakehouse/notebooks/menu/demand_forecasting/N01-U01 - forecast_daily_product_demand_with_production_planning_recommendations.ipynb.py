@@ -1,15 +1,15 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC > ## How to finish this notebook with Genie Code
+# MAGIC > ## How to finish this notebook with Databricks AI
 # MAGIC >
-# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Genie Code fills them from your data:
+# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Databricks AI fills them from your data:
 # MAGIC >
-# MAGIC > 1. Open the **Genie Code** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
+# MAGIC > 1. Open the **Databricks AI** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
 # MAGIC > 2. Set the widgets **Execution** to `Here` and **Smoke test** to `true`
-# MAGIC > 3. Ask Genie Code: *Fill every GENIE SLOT cell by following the Genie Code instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
+# MAGIC > 3. Ask Databricks AI: *Fill every GENIE SLOT cell by following the Databricks AI instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
 # MAGIC > 4. Set **Smoke test** to `false` and run it again, then set **Execution** to `As job` for the scheduled runs
 # MAGIC >
-# MAGIC > Genie Code not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
+# MAGIC > Databricks AI not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
 # MAGIC
 
 # COMMAND ----------
@@ -60,7 +60,7 @@
 # MAGIC | **Primary Table** | samples.bakehouse.sales_transactions |
 # MAGIC | **Tables Involved** | samples.bakehouse.sales_transactions |
 # MAGIC | **Statement** | Perishable baked goods lose value fast, and without a per-product demand forecast the production team over-bakes some items and under-bakes others, driving both waste and lost sales recorded in `quantity` and `totalPrice`. |
-# MAGIC | **Solution** | Databricks Genie Code aggregates `quantity` by `product` and day from `dateTime`, fits a per-product time-series forecast, then uses ai_query to translate forecasts into daily batch-size recommendations. |
+# MAGIC | **Solution** | Databricks AI aggregates `quantity` by `product` and day from `dateTime`, fits a per-product time-series forecast, then uses ai_query to translate forecasts into daily batch-size recommendations. |
 # MAGIC | **Business Value** | The Production Planner adjusts next-day batch sizes per product, reducing unsold `quantity` waste and recovering sales lost to stockouts [ESTIMATE: depends on `quantity`, `totalPrice`]. |
 # MAGIC | **Quality** | Very High |
 # MAGIC | **Quality Reasons** | `quantity` is summed per `product` per day from `dateTime`, enriched with calendar features (day-of-week, month) and fit with per-product Prophet or ai_forecast to project next-7-day demand. The forecasted demand KPI is converted by ai_query into batch-size recommendations, directly cutting unsold `quantity` waste and recovering stockout sales in `totalPrice` [ESTIMATE: depends on `quantity`, `totalPrice`]. |
@@ -71,16 +71,16 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC > **Unverified references:** Inspire could not find these tables or columns in the Unity Catalog metadata of this workspace: `samples.bakehouse.totalprice`. Correct or remove them before Genie Code builds on them.
+# MAGIC > **Unverified references:** Inspire could not find these tables or columns in the Unity Catalog metadata of this workspace: `samples.bakehouse.totalprice`. Correct or remove them before Databricks AI builds on them.
 # MAGIC
 
 # COMMAND ----------
 
-# DBTITLE 0,Genie Code instruction
+# DBTITLE 0,Databricks AI instruction
 # MAGIC %md
-# MAGIC ## Genie Code instruction
+# MAGIC ## Databricks AI instruction
 # MAGIC
-# MAGIC > Genie Code: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
+# MAGIC > Databricks AI: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
 # MAGIC
 # MAGIC ## 1. Decision and Owner
 # MAGIC
@@ -114,7 +114,7 @@
 # MAGIC
 # MAGIC ## 6. Output Mapping
 # MAGIC
-# MAGIC Genie Code maps `entity_label` to `product`. The `value` column carries the forecast daily demand in whole units of `quantity` (units of product per day), which the Production Planner reads directly as the recommended batch size for that day. `segment_or_item` carries the forecast `period` (the target day within the next-7-day horizon) so each product has one row per forecast day. Each row's top reasons are rule-based and derived from the series' own recent pattern: the day-of-week level and the trend direction relative to the prior week (for example "higher weekend demand" or "declining week-over-week"), stated from the fitted seasonal and trend components, not from an LLM. Set `data_quality_flag` to something other than ok when the series fell back to seasonal naive (too short for Holt-Winters), when the series' `missing_period_rate` is elevated, or when the acceptance backtest failed and the published value is the flagged seasonal naive forecast; otherwise ok. Priority tiers and recommended actions are assigned by Inspire's writer using rules; do not have Genie Code or an LLM set them.
+# MAGIC Databricks AI maps `entity_label` to `product`. The `value` column carries the forecast daily demand in whole units of `quantity` (units of product per day), which the Production Planner reads directly as the recommended batch size for that day. `segment_or_item` carries the forecast `period` (the target day within the next-7-day horizon) so each product has one row per forecast day. Each row's top reasons are rule-based and derived from the series' own recent pattern: the day-of-week level and the trend direction relative to the prior week (for example "higher weekend demand" or "declining week-over-week"), stated from the fitted seasonal and trend components, not from an LLM. Set `data_quality_flag` to something other than ok when the series fell back to seasonal naive (too short for Holt-Winters), when the series' `missing_period_rate` is elevated, or when the acceptance backtest failed and the published value is the flagged seasonal naive forecast; otherwise ok. Priority tiers and recommended actions are assigned by Inspire's writer using rules; do not have Databricks AI or an LLM set them.
 # MAGIC
 # MAGIC ## 7. Definition of Done
 # MAGIC
@@ -122,13 +122,13 @@
 # MAGIC - The notebook ran top to bottom in this session with run controls set to Here, and then again as the tagged job.
 # MAGIC - The contract-check cell (the last cell) printed PASSED.
 # MAGIC - No Inspire cell was edited, no threshold was changed in code, no table was renamed, no job was created or deleted; only slot cells (and a pinned `%pip install` line if a package is missing) were touched.
-# MAGIC - STOP RULE: if the readiness gate raises `InspireReadinessStop` (or `InspireNoChampion`/`InspireRejected`), Genie Code stops, shows the user the plain message the gate printed, and does not lower thresholds, fabricate data, drop a check, switch tables or edit the gate to force a pass.
+# MAGIC - STOP RULE: if the readiness gate raises `InspireReadinessStop` (or `InspireNoChampion`/`InspireRejected`), Databricks AI stops, shows the user the plain message the gate printed, and does not lower thresholds, fabricate data, drop a check, switch tables or edit the gate to force a pass.
 # MAGIC
 
 # COMMAND ----------
 
 # DBTITLE 0,Inspire harness (do not edit)
-# Inspire harness (do not edit): the tested functions every other cell uses. Genie Code fills only the cells marked GENIE SLOT.
+# Inspire harness (do not edit): the tested functions every other cell uses. Databricks AI fills only the cells marked GENIE SLOT.
 GENIE_READINESS_THRESHOLDS = {'E': {'min_rows': 1,
        'min_join_coverage': 0.8,
        'min_seasonal_cycles': 2,
@@ -498,7 +498,7 @@ INSPIRE_READINESS_RULES = {
 class InspireSlotNotFilled(Exception):
     def __init__(self, slot):
         self.slot = slot
-        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Genie Code to fill every cell marked GENIE SLOT, then run the notebook again.")
+        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Databricks AI to fill every cell marked GENIE SLOT, then run the notebook again.")
 
 
 class InspireReadinessStop(Exception):
@@ -2408,7 +2408,7 @@ NEXT_RUN = operationalize(CTX, CHAMPION, DRIFT_PSI, spark, SLOTS)
 # COMMAND ----------
 
 # DBTITLE 0,12. Contract check
-# 12. Contract check (Inspire, do not edit). Genie Code is done when this cell prints PASSED.
+# 12. Contract check (Inspire, do not edit). Databricks AI is done when this cell prints PASSED.
 import json
 CONTRACT = run_contract_check(spark, CTX, READINESS, allow_zero_rows=bool(EVALUATION.get("no_new_rows")))
 if CTX["is_child"]:

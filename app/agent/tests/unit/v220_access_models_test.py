@@ -1,6 +1,6 @@
-"""v2.2.0 a live walk on a workspace where the App's identity could read nothing and Genie Code hit its rate limit.
+"""v2.2.0 a live walk on a workspace where the App's identity could read nothing and Databricks AI hit its rate limit.
 
-A 429 from Genie Code ended a build round at once, so three rate-limited rounds in thirty seconds ended the build; it now
+A 429 from Databricks AI ended a build round at once, so three rate-limited rounds in thirty seconds ended the build; it now
 waits with backoff, jitter and any Retry-After the error names, and asks again without using a round. The quality bar
 said use cases meet the bar on data it never read, the warning said the readable tables went ahead when none was read,
 the value text said AI Enhanced Discovery reads a KPI it did not read, Discover listed one GRANT per table where one

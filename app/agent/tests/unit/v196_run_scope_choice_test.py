@@ -1,5 +1,5 @@
-"""First run is a choice of all, groups, recent or records, never a number, even when the Genie Code notebook declares its own
-run_scope widget, and the Genie Code ready line names the CPU whose CLI builds the run unpacked, offline."""
+"""First run is a choice of all, groups, recent or records, never a number, even when the Databricks AI notebook declares its own
+run_scope widget, and the Databricks AI ready line names the CPU whose CLI builds the run unpacked, offline."""
 import json
 import os
 import types
@@ -72,5 +72,5 @@ def test_the_genie_code_ready_line_names_the_cpu_whose_cli_builds_the_run_unpack
     runner = fresh_ns["DatabricksInspire"]._implement_runner(fake, "N01-U01")
     assert runner.install()["machine"] == named == fresh_ns["inspire_asset_machine"](machine)
     ready = [m for step, m, status in emitted if status == "ended_success"]
-    assert ready == [f"Genie Code {fresh_ns['GENIE_CODE_CLI_VERSION']} is ready and uses the model {fresh_ns['GENIE_CODE_MODEL']} "
+    assert ready == [f"Databricks AI {fresh_ns['GENIE_CODE_CLI_VERSION']} is ready and uses the model {fresh_ns['GENIE_CODE_MODEL']} "
                      f"(installed at {tmp_path / 'r' / 'bin' / 'genie'} on the {named} CPU)"]

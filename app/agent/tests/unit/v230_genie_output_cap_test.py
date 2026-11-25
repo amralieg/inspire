@@ -1,6 +1,6 @@
 """Unity Gateway's Anthropic route stops a Claude answer at its own default output limit when the request names none, and ends the
-stream with response.incomplete and no reason; Genie Code sends no limit, so one long file write was cut off about 60 s in and
-resent again and again. The relay now asks for the model family's own limit, and every Genie Code run is told to write long
+stream with response.incomplete and no reason; Databricks AI sends no limit, so one long file write was cut off about 60 s in and
+resent again and again. The relay now asks for the model family's own limit, and every Databricks AI run is told to write long
 files in parts."""
 import http.server
 import json

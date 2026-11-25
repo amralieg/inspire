@@ -1,4 +1,4 @@
-"""Shared doubles for the v1.2.0 GENIE lane tests (Genie Code grounding, validation, notebooks)."""
+"""Shared doubles for the v1.2.0 GENIE lane tests (Databricks AI grounding, validation, notebooks)."""
 import types
 from unittest.mock import MagicMock
 

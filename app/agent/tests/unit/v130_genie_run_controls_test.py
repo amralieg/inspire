@@ -1,6 +1,6 @@
 """v1.3.0 Genie notebooks: the first cell is a short use-case card with the disclaimer and the copy line, the second
-holds the instruction, Genie Code adds its cells after it, and the Run controls cell stays last and ends with inspire_main(),
-which runs Genie Code's run_use_case() here or as the notebook's tagged Databricks job (dbx_inspire_ai_* tags on a
+holds the instruction, Databricks AI adds its cells after it, and the Run controls cell stays last and ends with inspire_main(),
+which runs Databricks AI's run_use_case() here or as the notebook's tagged Databricks job (dbx_inspire_ai_* tags on a
 persistent job with a paused schedule), so the dashboard registers every run and the work runs once."""
 import ast
 import os
@@ -118,7 +118,7 @@ def test_every_notebook_has_the_card_the_instruction_and_the_run_controls(agent_
     assert 'without the surrounding quotes (the `r"""` and `"""` lines)' in cls._GENIE_COPY_LINE
     assert len(head.strip().splitlines()) <= 14, "the card was 44 lines with two tables"
     titles = [c["metadata"]["application/vnd.databricks.v1+cell"].get("title") for c in nb["cells"]]
-    assert titles[1:] == ["Genie Code instruction", agent_ns["GENIE_NUMBER_HELPERS_TITLE"], "Run controls (Inspire, do not edit)"]
+    assert titles[1:] == ["Databricks AI instruction", agent_ns["GENIE_NUMBER_HELPERS_TITLE"], "Run controls (Inspire, do not edit)"]
     assert _text(nb["cells"][2]) == agent_ns["GENIE_NUMBER_TEXT_SOURCE"], "the helpers cell holds Inspire's tested copy as it is"
     controls = _text(nb["cells"][-1])
     ast.parse(controls)
@@ -189,8 +189,8 @@ def test_main_runs_nothing_before_genie_code_builds_the_notebook(agent_ns):
     launcher, calls = _launcher(ns)
     out = []
     gate = ns["inspire_main"](dbu=_dbutils(), launcher_cls=launcher, out=out.append)
-    assert gate == {"execution": "not built"} and "launch" not in calls, "no job is created for a notebook Genie Code has not built"
-    assert any("Genie Code has not built this notebook yet" in line for line in out)
+    assert gate == {"execution": "not built"} and "launch" not in calls, "no job is created for a notebook Databricks AI has not built"
+    assert any("Databricks AI has not built this notebook yet" in line for line in out)
 
 
 def test_as_job_creates_the_tagged_persistent_job_runs_it_and_stops_here(agent_ns):
@@ -420,7 +420,7 @@ def test_genie_code_adds_its_cells_above_the_last_run_controls_cell_and_builds_r
             "<date>, 'run_id': <id>} after the write, or {'status': 'stopped', 'stop_reason': <the message the STOP RULE "
             "printed>} when a check stops the run") in rule
     assert "Check each test run by that outcome, never by counting the output table's rows, which also holds earlier runs" in rule, \
-        "round 22: Genie Code counted rows by as_of_date, took an earlier run's 53,123 rows as its own and reported success"
+        "round 22: Databricks AI counted rows by as_of_date, took an earlier run's 53,123 rows as its own and reported success"
     assert "returns the run's outcome (written, with its row count, as_of_date and run_id, or stopped, with the reason)" in agents
     assert "and prints that outcome" in agents and "check each run by its outcome" in agents
     done = prompt[prompt.index("## 8. Definition of Done"):]
@@ -531,7 +531,7 @@ def test_the_tag_cap_keeps_every_id_and_drops_the_kind_tags_first_when_every_tag
 
 
 def test_app_builds_carry_the_launcher_tag_the_run_controls_rule_spares(agent_ns):
-    # The rule tells Genie Code never to cancel a run the App launched. That only holds if the App's launch really tags it.
+    # The rule tells Databricks AI never to cancel a run the App launched. That only holds if the App's launch really tags it.
     tags = agent_ns["inspire_identity_tags"]("biz", "9000000000000000004", "Inspire App")
     assert tags["dbx_inspire_ai_launcher_source"] == "Inspire App"
     assert "`dbx_inspire_ai_launcher_source` = `Inspire App`" in agent_ns["GENIE_RUN_CONTROLS_RULE"]

@@ -49,7 +49,7 @@ def test_batch_writer_writes_genie_notebooks_and_marker_skeletons(agent_ns):
     writes = _capture_writes(inst)
     inst.assemble_use_case_notebooks([make_uc("N01-U01", genie_instruction="instruction " + "x" * 200), make_uc("N01-U02")], translations={})
     by_id = {w["id"]: "".join(_cell_text(c) for c in w["obj"]["cells"]) for w in writes}
-    assert "Copy the cell below into Genie Code without the surrounding quotes" in by_id["N01-U01"] and 'r"""\ninstruction xxx' in by_id["N01-U01"]
+    assert "Copy the cell below into Databricks AI without the surrounding quotes" in by_id["N01-U01"] and 'r"""\ninstruction xxx' in by_id["N01-U01"]
     assert "run_contract_check(" not in by_id["N01-U01"]
     assert "generate_genie_code_instruction = False" not in by_id["N01-U01"]
     assert "generate_genie_code_instruction = False" in by_id["N01-U02"]
@@ -61,7 +61,7 @@ def test_skeleton_how_to_matches_a_notebook_without_an_instruction(agent_ns):
     inst._assemble_skeleton_notebook(make_uc())
     cell0 = _cell_text(writes[0]["obj"]["cells"][0])
     assert "print(genie_instruction)" not in cell0
-    assert "Next step: generate the Genie Code instruction" in cell0 and "this one does not have it yet" in cell0
+    assert "Next step: generate the Databricks AI instruction" in cell0 and "this one does not have it yet" in cell0
     assert "Operation = Generate Use Cases" in cell0
     all_text = "".join(_cell_text(c) for c in writes[0]["obj"]["cells"])
     assert "genie_instruction = " not in all_text

@@ -1,7 +1,7 @@
 """REQ-389 (third reopen): the Table Scope the person chose on the Data step is the scope the build reads, end to end in the notebook.
 A walked build chose Whole data: the job parameter 17_table_scope carried the whole-data scope and the readiness count was
 the whole table (3,333 rows). But the notebook's spec normaliser dropped spec.data.table_scope, and the Discover run's Table Scope
-line, stored in the session's generation-instruction section, was replayed verbatim into the Genie Code prompt. The generated
+line, stored in the session's generation-instruction section, was replayed verbatim into the Databricks AI prompt. The generated
 notebook then said it covered only the visa and amex rows. These tests fail before the change and pass after it."""
 import json
 import os

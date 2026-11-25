@@ -306,7 +306,7 @@ def test_a_build_whose_cells_never_pass_the_training_rows_through_the_sample_is_
 
 
 def test_the_cell_check_asks_for_the_sample_only_in_genie_cells_and_only_when_it_applies(agent_ns, sdk_stub):
-    notebook = {"cells": [_cell("Genie Code instruction", "# instruction"),
+    notebook = {"cells": [_cell("Databricks AI instruction", "# instruction"),
                           _cell(agent_ns["GENIE_NUMBER_HELPERS_TITLE"], agent_ns["GENIE_NUMBER_TEXT_SOURCE"]),
                           _cell(None, "z = fmt_num(3)\nmodel.fit(rows)\ninspire_write_summary(spark, table, facts, run_id, as_of_date)"),
                           _cell("Run controls (Inspire, do not edit)", "x = inspire_training_sample(rows, 'k')")]}

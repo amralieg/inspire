@@ -1,15 +1,15 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC > ## How to finish this notebook with Genie Code
+# MAGIC > ## How to finish this notebook with Databricks AI
 # MAGIC >
-# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Genie Code fills them from your data:
+# MAGIC > Inspire wrote and tested the run controls, data checks, evaluation, business output, summary and the final contract check. The cells marked **GENIE SLOT** are still stubs, so the notebook is not runnable until Databricks AI fills them from your data:
 # MAGIC >
-# MAGIC > 1. Open the **Genie Code** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
+# MAGIC > 1. Open the **Databricks AI** panel (**⌘K** on macOS, **Ctrl-K** on Windows/Linux) in Agent mode
 # MAGIC > 2. Set the widgets **Execution** to `Here` and **Smoke test** to `true`
-# MAGIC > 3. Ask Genie Code: *Fill every GENIE SLOT cell by following the Genie Code instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
+# MAGIC > 3. Ask Databricks AI: *Fill every GENIE SLOT cell by following the Databricks AI instruction cell, run the notebook, and keep fixing the slots until the last cell prints Contract check PASSED. Do not edit the other cells.*
 # MAGIC > 4. Set **Smoke test** to `false` and run it again, then set **Execution** to `As job` for the scheduled runs
 # MAGIC >
-# MAGIC > Genie Code not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
+# MAGIC > Databricks AI not enabled in this workspace? An engineer can fill the same GENIE SLOT cells by hand; the contract check is the definition of done either way.
 # MAGIC
 
 # COMMAND ----------
@@ -60,7 +60,7 @@
 # MAGIC | **Primary Table** | samples.tpcds_sf1.inventory |
 # MAGIC | **Tables Involved** | samples.tpcds_sf1.inventory,samples.tpcds_sf1.date_dim,samples.tpcds_sf1.item |
 # MAGIC | **Statement** | Inventory managers lack forward visibility into how `inv_quantity_on_hand` will trend per item and warehouse, leading to both stockouts and overstock across the catalog, store, and web channels. |
-# MAGIC | **Solution** | Databricks Genie Code aggregates `inv_quantity_on_hand` over `d_date` per `inv_item_sk` and `inv_warehouse_sk`, fits a Prophet or ai_forecast time-series model with calendar features, then uses ai_query to explain projected on-hand gaps and recommend replenishment timing. |
+# MAGIC | **Solution** | Databricks AI aggregates `inv_quantity_on_hand` over `d_date` per `inv_item_sk` and `inv_warehouse_sk`, fits a Prophet or ai_forecast time-series model with calendar features, then uses ai_query to explain projected on-hand gaps and recommend replenishment timing. |
 # MAGIC | **Business Value** | The Inventory Planner receives item-warehouse forecasts that reduce stockout events and lower excess carrying positions tracked via `inv_quantity_on_hand` [ESTIMATE: depends on `inv_quantity_on_hand`], protecting sellable revenue and reducing holding cost. |
 # MAGIC | **Quality** | Very High |
 # MAGIC | **Quality Reasons** | Signal from `inv_quantity_on_hand`, `inv_date_sk`, `inv_item_sk`, `inv_warehouse_sk` joined to date_dim (`d_date`, `d_moy`) and item `i_category`. Building weekly on-hand series per item-warehouse and fitting Prophet/ai_forecast with seasonal/holiday features produces projected on-hand gap KPIs driving replenishment timing [ESTIMATE: depends on `inv_quantity_on_hand`]. |
@@ -70,11 +70,11 @@
 
 # COMMAND ----------
 
-# DBTITLE 0,Genie Code instruction
+# DBTITLE 0,Databricks AI instruction
 # MAGIC %md
-# MAGIC ## Genie Code instruction
+# MAGIC ## Databricks AI instruction
 # MAGIC
-# MAGIC > Genie Code: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
+# MAGIC > Databricks AI: this cell is your brief for this notebook. Fill only the GENIE SLOT cells, keep their function names and return columns, and stop when the last cell prints Contract check PASSED or a readiness stop explains why the data is not ready.
 # MAGIC
 # MAGIC ## 1. Decision and Owner
 # MAGIC
@@ -108,7 +108,7 @@
 # MAGIC
 # MAGIC ## 6. Output Mapping
 # MAGIC
-# MAGIC Map `entity_label` to the item-warehouse series key built from `inventory.inv_item_sk` and `inventory.inv_warehouse_sk`. `value` is the forecast weekly on-hand quantity (unit: units of `inventory.inv_quantity_on_hand`), with magnitude [ESTIMATE: depends on `inventory.inv_quantity_on_hand`]. `segment_or_item` carries `item.i_category` for the forecasted item so the planner can group by category. Each row's top reasons come from the forecast components (trend direction and seasonal position from the fitted ExponentialSmoothing model, surfaced by Inspire's explanation cell), not from invented drivers. Set `data_quality_flag` to something other than ok when the series fell back to simple exponential smoothing (too short for seasonal fitting), when the series had periods interpolated above the missing threshold, or when the published value is the flagged seasonal naive forecast because the candidate failed acceptance. Priority tiers and recommended replenishment actions are assigned by Inspire's rule-based writer; do not have Genie Code or an LLM assign them.
+# MAGIC Map `entity_label` to the item-warehouse series key built from `inventory.inv_item_sk` and `inventory.inv_warehouse_sk`. `value` is the forecast weekly on-hand quantity (unit: units of `inventory.inv_quantity_on_hand`), with magnitude [ESTIMATE: depends on `inventory.inv_quantity_on_hand`]. `segment_or_item` carries `item.i_category` for the forecasted item so the planner can group by category. Each row's top reasons come from the forecast components (trend direction and seasonal position from the fitted ExponentialSmoothing model, surfaced by Inspire's explanation cell), not from invented drivers. Set `data_quality_flag` to something other than ok when the series fell back to simple exponential smoothing (too short for seasonal fitting), when the series had periods interpolated above the missing threshold, or when the published value is the flagged seasonal naive forecast because the candidate failed acceptance. Priority tiers and recommended replenishment actions are assigned by Inspire's rule-based writer; do not have Databricks AI or an LLM assign them.
 # MAGIC
 # MAGIC ## 7. Definition of Done
 # MAGIC
@@ -122,7 +122,7 @@
 # COMMAND ----------
 
 # DBTITLE 0,Inspire harness (do not edit)
-# Inspire harness (do not edit): the tested functions every other cell uses. Genie Code fills only the cells marked GENIE SLOT.
+# Inspire harness (do not edit): the tested functions every other cell uses. Databricks AI fills only the cells marked GENIE SLOT.
 GENIE_READINESS_THRESHOLDS = {'E': {'min_rows': 1,
        'min_join_coverage': 0.8,
        'min_seasonal_cycles': 2,
@@ -512,7 +512,7 @@ INSPIRE_READINESS_RULES = {
 class InspireSlotNotFilled(Exception):
     def __init__(self, slot):
         self.slot = slot
-        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Genie Code to fill every cell marked GENIE SLOT, then run the notebook again.")
+        super().__init__(f"GENIE SLOT '{slot}' is not filled yet. Ask Databricks AI to fill every cell marked GENIE SLOT, then run the notebook again.")
 
 
 class InspireReadinessStop(Exception):
@@ -2422,7 +2422,7 @@ NEXT_RUN = operationalize(CTX, CHAMPION, DRIFT_PSI, spark, SLOTS)
 # COMMAND ----------
 
 # DBTITLE 0,12. Contract check
-# 12. Contract check (Inspire, do not edit). Genie Code is done when this cell prints PASSED.
+# 12. Contract check (Inspire, do not edit). Databricks AI is done when this cell prints PASSED.
 import json
 CONTRACT = run_contract_check(spark, CTX, READINESS, allow_zero_rows=bool(EVALUATION.get("no_new_rows")))
 if CTX["is_child"]:

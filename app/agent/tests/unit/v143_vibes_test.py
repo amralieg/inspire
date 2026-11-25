@@ -723,7 +723,7 @@ def test_the_app_rolls_back_to_its_saved_page_under_the_same_name_and_a_failed_c
 def test_the_alert_rolls_back_in_place_to_its_saved_condition_and_a_failed_check_saves_nothing(agent_ns, tmp_path):
     inst, calls, queries = _alert_inspire(agent_ns, tmp_path, {("PATCH", "/api/2.0/alerts/al-1"): {"id": "al-1"}},
                                           rows=[{"triggered": True}])
-    inst._implement_runner = lambda uc: pytest.fail("a rollback never installs Genie Code")
+    inst._implement_runner = lambda uc: pytest.fail("a rollback never installs Databricks AI")
     inst._implement_genie_loop = _no_loop
     artifact = {"condition_text": "refunds above 10 today", "condition_sql": GOOD}
     context = dict(_output_context(agent_ns, **ALERT, alert_condition_text="refunds above 10 this week", alert_vibes=VIBES),

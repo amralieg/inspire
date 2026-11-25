@@ -81,7 +81,7 @@ def test_every_core_widget_default_passes_its_own_range_in_every_pattern(agent_n
         assert tiers == ({"act_now_amount", "review_amount"} if basis == "measured" else {"act_now_share", "review_share"}), family
         left_open = {w["name"] for w in widgets if w["default"] == ""}
         assert left_open == ({"currency", "act_now_amount", "review_amount"} if basis == "measured" else {"currency"}), \
-            f"{family}: only the currency and the measured amounts are set by Genie Code from the source data"
+            f"{family}: only the currency and the measured amounts are set by Databricks AI from the source data"
         assert [w["allowed"] for w in widgets if w["name"] in left_open - {"currency"}] == (["at least 0"] * 2 if basis == "measured"
                                                                                             else []), family
         numeric = [w for w in widgets if w["name"] not in plain | left_open]
@@ -134,7 +134,7 @@ def test_a_default_the_code_leaves_open_is_chosen_in_the_instruction_or_falls_ba
     assert widgets_in(out)["season_length"] == "1", "no usable choice falls back to one period, never 'None'"
     assert "None" not in widgets_in(out).values()
     assert [name for name, value in widgets_in(out).items() if value == "you choose"] == ["currency"], \
-        "a default with a fallback is never left open; the currency stays for Genie Code to read from the source amounts"
+        "a default with a fallback is never left open; the currency stays for Databricks AI to read from the source amounts"
     assert inst._apply_genie_instruction_contract("N01-U07", out, spec) == out
     for bad in ("0", "2.5", "None", "you choose", "-"):
         again = inst._apply_genie_instruction_contract("N01-U07", instruction.replace("`12`", f"`{bad}`" if bad[0].isdigit() else bad), spec)

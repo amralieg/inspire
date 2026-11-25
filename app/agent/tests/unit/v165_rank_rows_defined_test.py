@@ -91,7 +91,7 @@ def test_a_nested_definition_is_not_one_the_run_can_call(agent_ns):
 
 
 def test_the_cell_check_after_each_genie_round_reports_an_undefined_rank_rows_and_skips_inspire_cells(agent_ns, sdk_stub):
-    notebook = {"cells": [_cell("Genie Code instruction", "# instruction"), _cell(None, "import pandas as pd"), _cell(None, USE),
+    notebook = {"cells": [_cell("Databricks AI instruction", "# instruction"), _cell(None, "import pandas as pd"), _cell(None, USE),
                           _cell(agent_ns["GENIE_NUMBER_HELPERS_TITLE"], DEFINE),
                           _cell("Run controls (Inspire, do not edit)", "def main():\n    inspire_write_summary('f', 't', 'r', 'd')\n")]}
     inst = _notebook_inspire(agent_ns, _NotebookWorkspace(notebook, modified_at=5))

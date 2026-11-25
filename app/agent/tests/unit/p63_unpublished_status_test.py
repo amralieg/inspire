@@ -67,7 +67,7 @@ def _state(name, state, error=""):
 @pytest.mark.parametrize("asked, status, held, warnings, expected", [
     (["app", "genie_space"], {**_state("app", "ready"), **_state("genie_space", "failed", "the Genie Agent still failed")}, {}, [], "ready_with_warnings"),
     (["app", "alert"], {**_state("app", "ready"), **_state("alert", "failed", "the alert query failed")}, {}, [], "ready_with_warnings"),
-    (["app", "genie_space"], _state("app", "ready"), {"genie_space": "Genie Code could not be installed"}, [], "ready_with_warnings"),
+    (["app", "genie_space"], _state("app", "ready"), {"genie_space": "Databricks AI could not be installed"}, [], "ready_with_warnings"),
     (["dashboard", "genie_space"], _state("genie_space", "failed", "x"), {"dashboard": "the warehouse is stopped"}, [], "failed"),
     (["app", "alert"], _state("app", "ready"), {}, [], "ready"),
     (["app", "alert"], _state("app", "ready"), {}, ["Notebook: a warning"], "ready_with_warnings"),
