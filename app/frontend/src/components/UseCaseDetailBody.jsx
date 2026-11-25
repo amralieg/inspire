@@ -2,14 +2,12 @@ import { useState } from 'react';
 import { Check, Copy, ExternalLink } from 'lucide-react';
 import { BestOfBestDetail, FeedbackControls, UseCaseStrategyDetail } from './UseCaseStrategyDetail';
 import { workspaceNotebookUrl } from '../lib/workspaceLinks';
-import { placeholderWords } from '../lib/placeholderWords';
 import { copyText } from '../lib/clipboard';
 import { START_MVP_LABEL } from '../lib/implementWizard';
 import { KIND_INFORMATIONAL_LABEL, kindChipStyle } from '../lib/useCaseKind';
-import { beneficiaryFromUc, fieldOf, hasShippedGenieCode, notebookPathOf, sponsorFromUc } from '../lib/useCaseFields';
+import { aiWording, beneficiaryFromUc, fieldOf, hasShippedGenieCode, notebookPathOf, sidePanelTextOf, sponsorFromUc } from '../lib/useCaseFields';
 
 const s = (v) => (v == null ? '' : String(v));
-const stripHtml = (v) => (v == null ? '' : placeholderWords(String(v).replace(/<[^>]*>/g, ' ')).replace(/\s{2,}/g, ' ').trim());
 
 export function CopyButton({ text }) {
   const [copied, setCopied] = useState(false);
@@ -63,13 +61,11 @@ export default function UseCaseDetailBody({
 }) {
   const u = uc && typeof uc === 'object' ? uc : {};
   const notebookPath = notebookPathOf(u, allNotebookFiles);
-  const statement = stripHtml(fieldOf(u, 'Statement', 'statement') || u.description || u.problem_statement);
-  const solution = stripHtml(fieldOf(u, 'Solution', 'solution'));
-  const businessValue = stripHtml(fieldOf(u, 'Business Value', 'business_value') || u.business_impact);
+  const { statement, solution, businessValue } = sidePanelTextOf(u);
   const beneficiary = beneficiaryFromUc(u);
   const sponsor = sponsorFromUc(u);
-  const quality = s(fieldOf(u, 'Quality', 'quality'));
-  const alignment = s(fieldOf(u, 'Business Priority Alignment', 'business_priority_alignment'));
+  const quality = aiWording(s(fieldOf(u, 'Quality', 'quality')));
+  const alignment = aiWording(s(fieldOf(u, 'Business Priority Alignment', 'business_priority_alignment')));
   const rawSql = u.SQL || u.sql || u.sql_query || '';
   const sql = typeof rawSql === 'string' ? rawSql : String(rawSql);
   const resultTable = s(u.result_table);
