@@ -344,6 +344,9 @@ function makeApp(overrides = {}, { mount } = {}) {
     },
     hostedRun: state.hostedRun || null,
     appToken: async () => state.appToken || '',
+    // SEC-02: the session check of server.js (L1). The harness person may see every session unless a test sets state.hiddenSessions.
+    sessionHidden: async (_req, sid) => (state.hiddenSessions && state.hiddenSessions.includes(String(sid)) ? { status: 403, request: 'person', permissions: [], unreadable: [] } : null),
+    visibleSessions: async (_req, sessions) => sessions.filter((s) => !(state.hiddenSessions && state.hiddenSessions.includes(String(s.session_id)))),
     useCaseAlerts: state.useCaseAlerts,
     runDefaults: () => state.runDefaults || {},
     appFetch: async (url, opts = {}) => {
