@@ -40,6 +40,9 @@ import { recordName, recordSentenceName,
 } from './records.js';
 import { SectionHelp } from './SectionHelp.jsx';
 import { approvalValues, isAwaitingApproval } from './records.js';
+import { moneyKindOf, moneyLabel } from './impact.js';
+import RecordStory from './RecordStory.jsx';
+import { queueOf, storyOf } from './story.js';
 import { ClusterBar, useChoices } from './KindParts.jsx';
 
 const tierClass = (t) => `tier tier--${String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
@@ -267,17 +270,17 @@ export function ExplainedAnswer({ explained }) {
   return <div className="explained" data-explained="done"><Markdown text={String(explained.text)} /></div>;
 }
 
-function Why({ view, row, meta, explain, title, genieBusy, explained, compared }) {
+function Why({ view, row, meta, explain, title, genieBusy, explained, compared, told = false }) {
   const reasons = meta.reasons ? reasonsOf(row[meta.reasons]).slice(0, 8) : [];
   const button = explain && <ExplainButton title={title} busy={genieBusy || explained?.state === 'busy'} onClick={explain} />;
   return (
     <section className="sec" aria-label="Why it is flagged">
       <h3><GenieMark size={13} />Why it is flagged</h3>
-      {view.explanation ? <p>{view.explanation}</p> : <div className="unexplained"><p>{view.held ? `${HELD}: ${view.held}.` : UNEXPLAINED}</p>{button}</div>}
-      {compared && <p className="compared" data-compared>{compared}</p>}
-      {view.evidence.length > 0 && <ul className="ev">{view.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul>}
+      {told ? null : view.explanation ? <p>{view.explanation}</p> : <div className="unexplained"><p>{view.held ? `${HELD}: ${view.held}.` : UNEXPLAINED}</p>{button}</div>}
+      {compared && !told && <p className="compared" data-compared>{compared}</p>}
+      {view.evidence.length > 0 && !told && <ul className="ev">{view.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul>}
       {reasons.length > 0 && <div className="reasons">{reasons.map((t, i) => <span key={`${i}-${t}`} className="chip chip--static">{t}</span>)}</div>}
-      {view.explanation && button && <div className="why-x">{button}</div>}
+      {(view.explanation || told) && button && <div className="why-x">{button}</div>}
       <ExplainedAnswer explained={explained} />
     </section>
   );
@@ -295,7 +298,7 @@ function AskAbout({ meta, onAsk, busy }) {
   );
 }
 
-function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners, app, pageId, nonce, aliases, onEdit, onDelete, acts, onExplain, genieBusy, model,
+function Drawer({ queue = null, meta, row: given, onClose, history, canModify, tracker, owners, app, pageId, nonce, aliases, onEdit, onDelete, acts, onExplain, genieBusy, model,
   work, tomorrow, today, focusOwner, closedReadOnly, clusterRows = [], onActed }) {
   const ref = useDialog(!!given, onClose);
   const log = useHistory(pageId, history && given ? recordRef(meta, given) : null, nonce);
@@ -345,12 +348,17 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
   explainKey.current = linkKey;
   useEffect(() => { setExplained(null); }, [linkKey]);
   // REQ-400: the population line comes from one deterministic read, so it shows even when Genie cannot answer.
-  const [compared, setCompared] = useState('');
+  const [population, setPopulation] = useState(null);
+  const compared = population?.text || '';
+  const saveLabel = population?.money?.label || moneyLabel(moneyKindOf(useCase), row?._inspire_money ?? saving?.amount ?? 1);
+  const told = row && view && history ? storyOf(current ? { ...row, ...current } : row, meta, population?.compared || null, log.data) : null;
+  const story = told?.headline && (told.bridge || told.strip || told.trend.length) ? told : null;
+  const storyKind = useCase?.kind || '';
   useEffect(() => {
-    setCompared('');
+    setPopulation(null);
     if (!linkKey) return undefined;
     let live = true;
-    getPopulation(pageId, linkKey).then((out) => { if (live) setCompared(out?.text || ''); }).catch(() => {});
+    getPopulation(pageId, linkKey).then((out) => { if (live) setPopulation(out || null); }).catch(() => {});
     return () => { live = false; };
   }, [linkKey, pageId, nonce]);
   const explain = genieOn(app, pageId) && onExplain ? () => {
@@ -392,6 +400,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
     const saved = await action.save(pickChoice(action.form, choices, c.id), doneText({ action_status: c.status, [CHOICE_COLUMN]: c.id }, '', '', choices), closeWrite(c),
       () => window.dispatchEvent(new CustomEvent(AGENT_OPEN, { detail: { pageId, recordKey: linkKey } })));
     if (saved && statusKind(c.status) === 'done') onClose();
+    return !!saved;
   };
   const open3 = acting && !closed && !work;
   const menu = acting && !readOnly ? [
@@ -437,15 +446,17 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
               <div className="done" role="status">{doneText(current, shownUnit(unit, recordCurrency(meta, current, row), kind), kind, choices)}{closedBy && <small className="done-by" data-closed-by>{closedBy}</small>}
                 {readOnly && <small className="done-by" data-read-only>{undoBatch ? READ_ONLY : theirs ? READ_ONLY_THEIRS : READ_ONLY_KEPT}</small>}</div>
             )}
-            {saving && (
-              <section className="sec" aria-label="Could save">
-                <h3>Could save</h3>
+            {story ? <RecordStory story={story} view={view} kind={storyKind} money={population?.money || null} queue={queue}
+              primary={open3 && !work && resolveWay ? { label: resolveText(current?.value_at_stake ?? row.value_at_stake, shownUnit(unit, recordCurrency(meta, current, row), kind), kind),
+                onSave: finish(resolveWay.c), write: closeWrite(resolveWay.c), attrs: { 'data-act': QUICK_CLOSE.done[1], 'data-choice': resolveWay.c.id, 'data-key': 'd' } } : null} /> : saving && (
+              <section className="sec" aria-label={saveLabel}>
+                <h3>{saveLabel}</h3>
                 <div className="save">{saving.text}</div>
                 <div className="fx">{saving.formula || NO_FORMULA}</div>
                 {saving.note && <div className="fx">{saving.note}</div>}
               </section>
             )}
-            <Why view={view} row={row} meta={meta} explain={explain} title={title} genieBusy={genieBusy} explained={explained} compared={compared} />
+            <Why told={!!story} view={view} row={row} meta={meta} explain={explain} title={title} genieBusy={genieBusy} explained={explained} compared={compared} />
             {view.confidence && (
               <section className="sec" aria-label="How sure the AI is">
                 <h3><GenieMark size={13} />How sure the AI is</h3>
@@ -467,7 +478,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
             {acting && !readOnly && (
               <section className="sec dr-act" aria-label="Actions">
                 <div className="dr-acts">
-                  {open3 && resolveWay && (
+                  {open3 && resolveWay && !(story && !work) && (
                     <SaveButton write={closeWrite(resolveWay.c)} className="btn btn--pri" data-act={QUICK_CLOSE.done[1]} data-choice={resolveWay.c.id} data-key="d" onClick={finish(resolveWay.c)}>
                       <Icon name="check" size={15} />{resolveText(current?.value_at_stake ?? row.value_at_stake, shownUnit(unit, recordCurrency(meta, current, row), kind), kind)}
                     </SaveButton>
@@ -544,7 +555,7 @@ export function RecordPanel({ meta, app, pageId, row, list, onClose, onChanged, 
   const choices = pageChoices(app, pageId);
   return (
     <>
-      <Drawer meta={meta} row={row} onClose={onClose} history canModify={false} tracker={!!(decides && list?.actions)} owners={list?.summary?.owners || []} app={app} onActed={acted} clusterRows={list?.rows || []}
+      <Drawer queue={queueOf(list?.status_counts)} meta={meta} row={row} onClose={onClose} history canModify={false} tracker={!!(decides && list?.actions)} owners={list?.summary?.owners || []} app={app} onActed={acted} clusterRows={list?.rows || []}
         pageId={pageId} nonce={nonce} aliases={list?.ai?.columns || NO_ALIASES} acts={acts} onExplain={onExplain} genieBusy={genieBusy} model={list?.money}
         work={null} tomorrow={nextDay(today)} today={today} />
       <ConflictNote conflicts={acts.conflicts} labelOf={labelOf} onClose={acts.clearConflicts} />
@@ -1146,7 +1157,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
           )}
         </>
       )}
-      <Drawer meta={meta} row={shown} onClose={work ? stopWork : close} history={history} canModify={canModify} tracker={tracker} owners={owners} app={app} pageId={pageId} onActed={acted} clusterRows={data?.rows || []}
+      <Drawer queue={queueOf(data?.status_counts)} meta={meta} row={shown} onClose={work ? stopWork : close} history={history} canModify={canModify} tracker={tracker} owners={owners} app={app} pageId={pageId} onActed={acted} clusterRows={data?.rows || []}
         nonce={drawerNonce} aliases={aliases} onEdit={edit} onDelete={setDoomed} acts={acts} onExplain={onExplain} genieBusy={genieBusy} model={data?.money}
         work={work && !work.ended && shown ? { text: workText, next: workNext } : null} tomorrow={tomorrow} today={today} focusOwner={ownerFocus}
         closedReadOnly={everything} />

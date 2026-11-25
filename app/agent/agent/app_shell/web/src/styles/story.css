@@ -1,0 +1,26 @@
+.story { display: grid; gap: 8px; }
+.st-head { display: flex; align-items: center; gap: 8px; font-size: 22px; margin: 0; }
+.st-money { font-size: 13px; font-weight: 600; color: var(--muted, #64748b); }
+.st-arrow { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; }
+.st-arrow.st-up { border-bottom: 11px solid var(--good, #15803d); }
+.st-arrow.st-down { border-top: 11px solid var(--bad, #b91c1c); }
+.st-svg { display: block; width: 100%; height: auto; max-width: 420px; }
+.st-bar.st-up, .st-dot { fill: var(--accent, #2563eb); }
+.st-bar.st-down { fill: var(--bad, #b91c1c); }
+.st-bar.st-edge { fill: var(--muted, #94a3b8); }
+.st-band { fill: var(--accent, #2563eb); opacity: .15; }
+.st-flag { fill: var(--bad, #b91c1c); }
+.st-line { fill: none; stroke: var(--accent, #2563eb); stroke-width: 2.5; }
+.st-n, .st-k { font-size: 11px; fill: currentColor; }
+.st-note, .st-lead { margin: 0; color: var(--muted, #64748b); }
+.st-do { font-weight: 600; }
+.st-sure summary { cursor: pointer; font-weight: 600; }
+.st-foot { display: flex; align-items: center; gap: 12px; }
+.st-queue { color: var(--muted, #64748b); font-size: 13px; }
+.st-anim { animation-duration: .9s; animation-fill-mode: both; animation-timing-function: ease-out; }
+.st-grow { transform-box: fill-box; transform-origin: bottom; animation-name: st-grow; }
+.st-pop { transform-box: fill-box; transform-origin: center; animation-name: st-pop; }
+.st-draw { stroke-dasharray: 600; animation-name: st-draw; }
+@keyframes st-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes st-pop { from { transform: scale(0); } to { transform: scale(1); } }
+@keyframes st-draw { from { stroke-dashoffset: 600; } to { stroke-dashoffset: 0; } }
