@@ -191,6 +191,8 @@ REVIEWED = {
         ('_run_implement_mode', 'missing'),
     },
     'name': {
+        # REQ-518 (SEC-01 S4, 5ff80186c line): the Unity Catalog table name a row filter or column mask holds back, named in the refusal.
+        ('_read', 'held[0]'),
         # REQ-204/REQ-197: the Table Scope view name Inspire computed, named in the refusal to rewrite a view that is not one.
         ('scope_view_definition', 'view'),
         # REQ-225: the owned view name of the Table Scope, Inspire's own scope['view'] key (the live dict is keyed by it), named in
@@ -790,7 +792,8 @@ def _raised(call, *args, **kwargs):
 
 def _fake(**attrs):
     return types.SimpleNamespace(logger=types.SimpleNamespace(info=lambda *a, **k: None, warning=lambda *a, **k: None,
-                                                              error=lambda *a, **k: None), **attrs)
+                                                              error=lambda *a, **k: None),
+                                  _w_client_or_none=lambda: attrs.get("w_client"), **attrs)
 
 
 def _own(agent_ns, error, words):
