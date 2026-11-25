@@ -16,7 +16,7 @@ export function createLimiter(limit) {
 }
 
 // A request that never got an answer (the browser's own network failure, not a refusal from the App).
-export const isNetworkFailure = (err) => !err?.status && /^(?:TypeError: )?(?:Failed to fetch|NetworkError|Load failed|network error)/i.test(String(err?.message || ''));
+export const isNetworkFailure = (err) => err?.network === true || !err?.status && /^(?:TypeError: )?(?:Failed to fetch|NetworkError|Load failed|network error)/i.test(String(err?.message || ''));
 
 // Runs a listing through the limiter; a network failure is tried once more before it counts as a failure.
 export function queuedListing(limit, run) {
