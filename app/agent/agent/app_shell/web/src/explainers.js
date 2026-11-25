@@ -4,7 +4,10 @@
 export const TEMPLATES = ['bridge', 'band', 'trend', 'bars', 'share', 'funnel', 'network', 'beforeafter'];
 
 const t = (term, plain) => ({ term, plain });
-const E = (template, what, why, ...terms) => ({ template, what, why, terms });
+const E = (template, what, why, ...terms) => {
+  if (!TEMPLATES.includes(template)) throw new Error(`explainers.js: unknown template ${template}`);
+  return { template, what, why, terms };
+};
 
 export const EXPLAINERS = {
   risk_propensity: E('bars', 'Ranks each record by how likely the outcome is, from a pattern in past records.',
