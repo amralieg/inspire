@@ -1,12 +1,18 @@
 """REQ-515: with the real databricks SDK imported before the notebook loads and no credentials anywhere, the three callers
 that probe `w_client` read it as absent instead of raising the SDK's "cannot configure default credentials"."""
-import databricks.sdk  # noqa: F401  (the real SDK, imported first, as xdist ordering can do)
-import databricks.sdk.config  # noqa: F401
 import pytest
 
 
 @pytest.fixture
-def bare(fresh_ns, monkeypatch, tmp_path):
+def real_sdk():
+    """The real SDK, imported before the notebook loads, as xdist ordering can do. Imported here, not at module level, so collecting
+    this file never puts the SDK into other tests' workers (v130_run_once_jobs guard)."""
+    import databricks.sdk  # noqa: F401
+    import databricks.sdk.config  # noqa: F401
+
+
+@pytest.fixture
+def bare(real_sdk, fresh_ns, monkeypatch, tmp_path):
     import os
     for name in [n for n in os.environ if n.startswith("DATABRICKS_")]:
         monkeypatch.delenv(name)
