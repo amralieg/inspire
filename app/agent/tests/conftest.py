@@ -100,6 +100,18 @@ def _restore_app_shell_imports():
     sys.path[:] = path
 
 
+@pytest.fixture(autouse=True)
+def viewer_gate_is_tested_elsewhere(request, monkeypatch):
+    """SEC-02 (REQ-518): the MVP App viewer gate (Shell.viewer_gate) runs on every route and fails closed for an App with no `sources`.
+    Unit tests under tests/unit probe handlers with settings and headers that name no sources or token, so the gate is off for them.
+    The gate itself is tested by tests/test_sec0*.py (outside tests/unit), which build their own Shell and keep the real gate."""
+    if os.sep + "unit" + os.sep in str(request.node.fspath):
+        shell_core = sys.modules.get("shell_core")
+        if shell_core is not None and hasattr(shell_core, "Shell"):
+            monkeypatch.setattr(shell_core.Shell, "viewer_gate", lambda self, headers: None)
+    yield
+
+
 @pytest.fixture(scope="session")
 def agent_ns():
     """The shared, read-only agent namespace. Do not rebind names in it."""
