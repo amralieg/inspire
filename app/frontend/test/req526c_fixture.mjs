@@ -12,5 +12,8 @@ const VERBS = ['GROW REVENUE', 'AVOID RISK', 'CUT COST'];
 export const yearsOf = (i) => [1, 2, 3].map((year) => ({ year, low: 20000 + i * 5000 * year, likely: 40000 + i * 12500 * year, high: 70000 + i * 20000 * year }));
 export const mkValues = ({ yearly = true } = {}) => Object.fromEntries(VALUED.map((u, i) => [u.No, { amount: 40000 + i * 12500, currency: 'USD', status: i % 2 ? 'calculated' : 'estimated', verb: VERBS[i % 3],
   story: 'It pays back within the first year because the manual review step disappears.', yearly: yearly ? yearsOf(i) : [], factors: [] }]));
-export const model = ({ values = mkValues(), blocks = ALL_BLOCKS, language = 'English', ucs = UCS } = {}) =>
-  buildDocModel({ businessName: 'Acme Bakes', useCases: ucs, values, options: { ...defaultDocOptions(language), blocks } });
+export const SUMMARY = ['Harvest Group runs bakeries where margins are shaped daily by what comes out of the oven and what sells before close.',
+  'Concrete opportunities make this tangible: forecast demand, protect the best customers and act on sentiment before it hardens.'];
+// REQ-526 part E: `summary` (paragraphs, default none) is the session's executive summary.
+export const model = ({ values = mkValues(), blocks = ALL_BLOCKS, language = 'English', ucs = UCS, summary } = {}) =>
+  buildDocModel({ businessName: 'Acme Bakes', useCases: ucs, values, options: { ...defaultDocOptions(language), blocks }, summary });
