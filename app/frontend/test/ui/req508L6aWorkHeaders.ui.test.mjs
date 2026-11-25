@@ -28,12 +28,12 @@ const PAGES = [
 ];
 
 for (const [name, open, state, opts] of PAGES) {
-  test(`${name}: one page header (text-h1, no gradient, the shared icon tile) and the 1200px page width`, async () => {
+  test(`${name}: one page header (text-h1, no gradient, the shared icon tile) and the REQ-520 FRAME page width`, async () => {
     const ui = await openUi(open, state, '', opts);
     const { page } = ui;
     try {
       await page.setViewportSize({ width: 1440, height: 900 });
-      assertHeader(assert, await headerFacts(page), { name });
+      assertHeader(assert, await headerFacts(page), { name, width: name === 'Monitor' ? null : '1488px' }); // REQ-520 FRAME: 1440px content + gutters (Monitor keeps its uncapped frame)
       assert.deepEqual(ui.pageErrors, []);
     } finally {
       await ui.close();

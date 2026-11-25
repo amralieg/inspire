@@ -18,13 +18,14 @@ async function openLaunch() {
   return ui;
 }
 
-test('Launch: at most 60 words and 9 controls above the fold, and no more than one primary button', async () => {
+test('Launch: at most 60 words and 10 controls above the fold, and no more than one primary button', async () => {
   const ui = await openLaunch();
   const { page } = ui;
   try {
     const f = await screenFacts(page);
     assert.ok(f.bodyWords <= 60, `Launch body words ${f.bodyWords} > 60 (${describe(f)})`);
-    assert.ok(f.controls.length <= 9, `Launch controls above the fold ${f.controls.length} > 9 (${describe(f)})`);
+    // 9 + 1: REQ-521 added the "Show everything" checkbox to the picker, which is open by default (owner ask, newest).
+    assert.ok(f.controls.length <= 10, `Launch controls above the fold ${f.controls.length} > 10 (${describe(f)})`);
     assert.ok(f.primaries.length <= 1, `at most one primary (${describe(f)})`);
     if (f.primaries.length) assert.deepEqual(f.primaries, ['Get Started'], 'the one primary is Get Started');
     assert.deepEqual(ui.pageErrors, []);

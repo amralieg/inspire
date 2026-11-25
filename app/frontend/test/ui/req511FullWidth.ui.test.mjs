@@ -94,14 +94,20 @@ const PAGES = [
 
 for (const width of [1440, 1920]) {
   for (const [name, open] of PAGES) {
-    test(`${name}: the page frame is full width with no max-width at ${width}px`, async () => {
+    test(`${name}: the page frame is ${name.startsWith('Review') ? 'the REQ-520 FRAME column' : 'full width with no max-width'} at ${width}px`, async () => {
       const { ui, anchor } = await open();
       try {
         await ui.page.setViewportSize({ width, height: 900 });
         await anchor.first().waitFor({ timeout: 25000 });
         const facts = await frameFacts(anchor.first());
-        assert.deepEqual(facts.caps, [], `${name}: no ancestor caps the width`);
-        assert.ok(facts.own >= width - 48 - 280, `${name}: content is ${facts.own}px, needs at least ${width - 48 - 280} (viewport less px-6 and a 280px rail)`);
+        if (name.startsWith('Review')) {
+          // REQ-520 (Caps everywhere): Review sits in the FRAME column (max-w-[1488px], 1440px of content), nothing narrower.
+          assert.deepEqual(facts.caps.map((c) => c.replace(/^.*max-width /, '')), ['1488px'], `${name}: only the FRAME cap`);
+          assert.ok(facts.own >= Math.min(width, 1488) - 48 - 280, `${name}: content is ${facts.own}px, needs at least ${Math.min(width, 1488) - 48 - 280}`);
+        } else {
+          assert.deepEqual(facts.caps, [], `${name}: no ancestor caps the width`);
+          assert.ok(facts.own >= width - 48 - 280, `${name}: content is ${facts.own}px, needs at least ${width - 48 - 280} (viewport less px-6 and a 280px rail)`);
+        }
         assert.deepEqual(ui.pageErrors, []);
       } finally {
         await ui.close();
