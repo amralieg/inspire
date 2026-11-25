@@ -771,6 +771,9 @@ export default function ResultsPage({
   };
   // The six column headers are labels now; their sorts live in the one Sort control (REQ-510 L5, 24 controls cap): "<key>:<dir>" options.
   const COLUMN_SORT_LABELS = [['no', '#'], ['name', 'Use case'], ['mvp', 'MVP'], ['docs', 'Docs'], ['score', 'Score'], ['value', 'Value']];
+  // A header click sorts that column ascending, a second click flips it; the Sort select reads the same colSort state.
+  const toggleColSort = (key) => setColSort((cur) => ({ key, dir: cur?.key === key && cur.dir === 'asc' ? 'desc' : 'asc' }));
+  const ariaSortOf = (key) => (colSort?.key === key ? (colSort.dir === 'asc' ? 'ascending' : 'descending') : 'none');
   if (colSort) {
     const sign = colSort.dir === 'asc' ? 1 : -1;
     filteredUseCases = [...filteredUseCases].sort((a, b) => sign * COLUMN_COMPARE[colSort.key](a, b));
@@ -2148,14 +2151,14 @@ export default function ResultsPage({
                             {[['mvp', 'MVP'], ['docs', 'Docs']].map(([k, l], n) => (
                               <Fragment key={k}>
                                 {n > 0 && <span aria-hidden="true">/</span>}
-                                <span data-sort-head={k} className={colSort?.key === k ? 'text-text-primary' : ''}>{l}{colSort?.key === k ? (colSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</span>
+                                <button type="button" data-sort-head={k} aria-sort={ariaSortOf(k)} onClick={() => toggleColSort(k)} className={`uppercase font-semibold tracking-[0.06em] ${colSort?.key === k ? 'text-text-primary' : ''}`}>{l}{colSort?.key === k ? (colSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</button>
                               </Fragment>
                             ))}
                           </div>
                         ) : key ? (
-                          <span key={key} data-sort-head={key} className={`${cls} ${colSort?.key === key ? 'text-text-primary' : ''}`}>
+                          <button type="button" key={key} data-sort-head={key} aria-sort={ariaSortOf(key)} onClick={() => toggleColSort(key)} className={`${cls} uppercase font-semibold tracking-[0.06em] ${key === 'no' || key === 'name' ? 'text-left' : ''} ${colSort?.key === key ? 'text-text-primary' : ''}`}>
                             {label}{colSort?.key === key ? (colSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
-                          </span>
+                          </button>
                         ) : <div key={`gap${i}`} />
                       ))}
                     </div>
