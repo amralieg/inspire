@@ -52,3 +52,24 @@
   .genie{width:100%}
   .g-resize,.g-max{display:none}
 }
+/* REQ-535: the grey notice lines fold into one info chip. */
+.g-info{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;box-sizing:border-box;margin:8px 16px 0;padding:5px 12px;border-radius:999px;border:1px solid var(--brand-bd);background:var(--brand-wash);color:var(--brand-ink);font-size:12px;line-height:1.35;align-self:flex-start}
+.g-info>svg{flex:none}
+.g-info>span+span::before{content:'\00b7';margin-inline-end:10px}
+[data-genie-full] .g-info{align-self:center;width:max-content;max-width:min(780px,calc(100% - 32px));border-radius:14px}
+/* REQ-535: a ranked answer read as steps. */
+.gd{display:grid;gap:10px;margin-bottom:8px;padding:10px 12px;border-radius:10px;background:var(--panel);border:1px solid var(--line)}
+.gd-step h4{display:flex;align-items:center;gap:8px;margin:0 0 4px;font-size:13px;font-weight:700}
+.gd-step h4 span{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--brand-wash);color:var(--brand-ink);font-size:11px}
+.gd-step p{margin:0}
+.gd-bars{display:grid;gap:4px;margin:0;padding:0;list-style:none}
+.gd-bars li{display:grid;grid-template-columns:minmax(60px,140px) 1fr auto;align-items:center;gap:8px;font-size:12px}
+.gd-bl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gd-bt{height:8px;border-radius:4px;background:var(--well);overflow:hidden}
+.gd-bt i{display:block;height:100%;background:var(--brand);transition:width .3s ease}
+.gd-chip{display:inline-block;padding:2px 10px;border-radius:999px;border:1px solid var(--brand-bd);background:var(--brand-wash);color:var(--brand-ink);font-size:12px}
+.gd-quiet{color:var(--muted)}
+.gd-act,.gd-nav{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:6px}
+.gd-nav small{color:var(--muted)}
+.gd-nav .link{margin-inline-start:auto}
+@media (prefers-reduced-motion: reduce){.gd-bt i{transition:none}}

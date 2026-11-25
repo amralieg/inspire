@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { GenieMark, Icon } from './icons.jsx';
 import { agentAsk, agentBriefing, agentFeedback, agentPrepare, agentStatus, agentTurn, askGenie, explainGenie, getFreshness, getPage, retryable, undoRecords, waitingOf, writeRecord } from './api.js';
-import { POLL_MS, latestRunText, stepText } from './freshness.js';
+import { POLL_MS, latestRunText, runFlag, stepText } from './freshness.js';
+import { NOT_RECORDED } from './format.js';
+import GuidedAnswer from './GuidedAnswer.jsx';
+import { guideOf } from './guide.js';
 import WaitingForAccess from './WaitingForAccess.jsx';
 import { reducedMotion } from './theme.js';
 import { integer } from './format.js';
@@ -431,13 +434,19 @@ export function Answer({ message, url, onTick, genie, page = null, rating = true
   const blockData = useBlockData(blocks, page, app, themeKey);
   const words = String(a.text || '').split(/(\s+)/).length;
   const done = blocks.length > 0 || message.shown >= words;
+  const decisions = Boolean(app?.options?.decisions) && pageDecides(page);
+  const guide = useMemo(() => (done && page && genie && !blocks.length ? guideOf(a, page, { decisions }) : null), [done, page, genie, blocks.length, a, decisions]);
+  const shown = guide ? guide.shownColumns : null;
+  const table = answerColumns(a).filter((c) => !shown || shown.includes(c.key));
   return (
     <div className="msg-b">
       {!done && <AgentSteps steps={message.steps} />}
       {blocks.length > 0 ? <Blocks blocks={blocks} ctx={blocksCtx(genie, message, page, blockData)} /> : <Typing message={message} onTick={onTick} />}
+      {guide && <GuidedAnswer guide={guide} genie={genie} message={message} person={app?.user?.email || ''} />}
       {done && a.rows?.length > 0 && (
         <div className="msg-t">
-          <DataTable label="Genie's answer" columns={answerColumns(a)} rows={a.rows} />
+          <DataTable label="Genie's answer" columns={table} rows={a.rows}
+            onRow={guide ? (row) => { if (row.record_key) genie.openRecord(genie.key, row.record_key); } : undefined} />
         </div>
       )}
       {done && a.truncated && <p className="g-foot" style={{ padding: '6px 0 0' }}>Showing the first {integer(a.rows.length)} rows of the answer.</p>}
@@ -492,7 +501,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
     look();
     return () => { alive = false; clearTimeout(timer); };
   }, [key]);
-  const buildLine = build?.active ? stepText(build.active) : build?.last_run ? latestRunText(build.last_run) : '';
+  const buildLine = build?.active ? stepText(build.active) : build?.last_run && runFlag(build.last_run.status).text !== NOT_RECORDED ? latestRunText(build.last_run) : '';
   const agent = mode?.mode === 'agent';
   const width = useGenieWidth(panel);
   const tick = useCallback((n, shown) => setThread((t) => t.map((m) => (m.n === n ? { ...m, shown } : m))), [setThread]);
@@ -517,6 +526,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
   const status = !home ? 'Each use case has its own Genie Agent'
     : on && agent ? `Answers about ${page && page.id !== home.id ? home.title : 'this use case'} from its data ${who}${info.enabled ? `; asks the Genie Agent${info.title ? ` "${info.title}"` : ''} when it needs the data` : ''}`
       : on ? `Answers from the Genie Agent${info.title ? ` "${info.title}"` : ''} · ${who}` : `Ask is off for this use case${info.note ? `: ${info.note}` : ''}`;
+  const notices = Boolean(buildLine) || (on && Boolean(mode?.note)) || (on && !info.enabled && Boolean(info.note));
   return (
     <aside ref={panel} className={`genie is-open ${full ? 'genie--full' : ''}`} aria-label="Ask Genie" style={full ? undefined : { '--genie-w': `${width.shown}px` }} data-genie-full={full || undefined}>
       {!full && <Resizer width={width} />}
@@ -532,10 +542,16 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
         )}
         {!full && <button className="ibtn" onClick={onClose} aria-label="Close Ask Genie"><Icon name="x" size={18} /></button>}
       </header>
-      {buildLine && <p className="g-note" role="status" data-build-status>{buildLine}</p>}
-      {on && mode?.note && <p className="g-note" role="note" data-agent-note>{mode.note}</p>}
-      {on && !info.enabled && info.note && <p className="g-note g-note--sub" role="note" data-genie-gap>{info.note}</p>}
+      {notices && (
+        <div className="g-info" role="status" data-notices data-build-status={buildLine ? '' : undefined}>
+          <Icon name="info" size={13} />
+          {buildLine && <span>{buildLine}</span>}
+          {on && mode?.note && <span role="note" data-agent-note>{mode.note}</span>}
+          {on && !info.enabled && info.note && <span role="note" data-genie-gap>{info.note}</span>}
+        </div>
+      )}
       <div className="g-log" ref={log} role="log" aria-live="polite" aria-label="Genie conversation">
+        <div className="g-col" data-genie-column>
         {!home && (
           <div className="g-empty g-pick">
             <GenieMark size={28} />
@@ -572,6 +588,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
           </div>
         )))}
         <NewMessages follow={follow} />
+        </div>
       </div>
       {on && about && (
         <div className="g-about">
