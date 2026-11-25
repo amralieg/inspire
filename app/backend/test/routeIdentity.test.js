@@ -4,9 +4,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const P = require('../lib/routePolicy');
 
-// unity-catalog: the Request for Access API page names it ("API scopes: unity-catalog") (REQ-311).
-const DOCUMENTED_USER_SCOPES = ['ai-functions', 'ai-gateway', 'apps', 'files', 'genie', 'model-serving', 'postgres', 'sql', 'unity-catalog', 'vector-search',
-  'sql:restricted-query', 'iam.access-control:read', 'iam.current-user:read',
+// RC3-01: only the scopes the Apps API accepts; unity-catalog and the default iam.* scopes are not settable.
+const DOCUMENTED_USER_SCOPES = ['ai-functions', 'ai-gateway', 'apps', 'files', 'genie', 'model-serving', 'postgres', 'sandbox', 'sql', 'vector-search',
+  'sql:read', 'sql:restricted-query',
   ...['catalog.catalogs', 'catalog.connections', 'catalog.schemas', 'catalog.tables', 'workspace.workspace'].flatMap((s) => [s, `${s}:read`])];
 const personRoutes = () => Object.entries(P.ROUTE_POLICY).filter(([, e]) => e.identity === 'person');
 const scopedRoutes = () => Object.entries(P.ROUTE_POLICY).filter(([, e]) => e.identity === 'person' || e.outputWrite === true);
@@ -46,12 +46,12 @@ test('the refusal for a person route with no sign-in names the route and the fix
 
 test('the App user scopes are the who-did-what scopes: the manager check, a Request for Access, a grant or a schema the person makes, and the own-folder share', () => {
   const scopes = P.appUserScopes();
-  // SEC-02 (D6): the browse, principals and workspace reads of the person add catalog.schemas:read, catalog.tables:read, files and iam.access-control:read.
-  assert.deepEqual(scopes, ['apps', 'catalog.catalogs:read', 'catalog.schemas:read', 'catalog.tables:read', 'files', 'iam.access-control:read', 'sql', 'workspace.workspace']);
+  // SEC-02 (D6): the browse, principals and workspace reads of the person add catalog.schemas:read, catalog.tables:read and files (iam.access-control:read is a default scope, RC3-01).
+  assert.deepEqual(scopes, ['apps', 'catalog.catalogs:read', 'catalog.schemas:read', 'catalog.tables:read', 'files', 'sql', 'workspace.workspace']);
   assert.deepEqual(scopes.filter((s) => !DOCUMENTED_USER_SCOPES.includes(s)), [], 'not a documented Databricks Apps user scope');
   for (const [key, entry] of scopedRoutes()) {
     assert.ok(entry.scopes.length, `${key} names no scope`);
-    for (const scope of entry.scopes) assert.ok(P.scopeCovers(scopes, scope), `${key}: ${scope} is not in the App scope list`);
+    for (const scope of entry.scopes) assert.ok(P.scopeCovers(scopes, scope) || P.DEFAULT_USER_SCOPES.includes(scope), `${key}: ${scope} is not in the App scope list`);
   }
   const used = new Set([...P.MANAGER_SCOPES, ...scopedRoutes().flatMap(([, e]) => e.scopes)]);
   assert.deepEqual(scopes.filter((s) => !used.has(s)), [], 'a scope no person route needs');

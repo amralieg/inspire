@@ -275,7 +275,7 @@ class AppScopesTest(unittest.TestCase):
         for scope in ("sql", "catalog.catalogs:read", "workspace.workspace", "apps"):
             self.assertIn(scope, setup.INSPIRE_APP_OWN_SCOPES)
         # REQ-518 reverses REQ-418: data is read with the person's own token, so the data scopes are back (all were in v1.3.0).
-        for scope in ("catalog.schemas:read", "catalog.tables:read", "files", "iam.access-control:read"):
+        for scope in ("catalog.schemas:read", "catalog.tables:read", "files"):
             self.assertIn(scope, setup.INSPIRE_APP_OWN_SCOPES)
         self.assertNotIn("model-serving", setup.INSPIRE_APP_OWN_SCOPES)
 
@@ -2002,4 +2002,4 @@ class ServicePrincipalOnlyTest(unittest.TestCase):
 
     def test_the_app_user_scopes_are_only_the_ones_a_person_sends_as_themselves(self):
         self.assertEqual(sorted(setup.INSPIRE_APP_OWN_SCOPES),
-                         ["apps", "catalog.catalogs:read", "catalog.schemas:read", "catalog.tables:read", "files", "iam.access-control:read", "sql", "workspace.workspace"])
+                         ["apps", "catalog.catalogs:read", "catalog.schemas:read", "catalog.tables:read", "files", "sql", "workspace.workspace"])

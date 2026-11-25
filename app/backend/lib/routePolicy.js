@@ -70,6 +70,8 @@ const IDENTITIES = {
 };
 const MANAGER_SCOPES = ['apps'];
 // The one user scope a run's output needs: the person's own folder is shared with the App's principal with the person's sign-in.
+// RC3-01: every App has these; the Apps API refuses them as a requested user scope, so appUserScopes never returns them.
+const DEFAULT_USER_SCOPES = ['iam.access-control:read', 'iam.current-user:read'];
 const OUTPUT_WRITE_SCOPES = ['workspace.workspace'];
 const NO_PERSON_TOKEN = 'Inspire needs your own sign-in for this, and the Databricks Apps proxy sent none, so it cannot act as you; '
   + 'ask an App manager to re-run the Inspire installer, which turns on user authorization with the scopes Inspire needs';
@@ -319,7 +321,7 @@ function scopeCovers(scopes, scope) {
 
 function appUserScopes(table = ROUTE_POLICY) {
   const scopes = Object.values(table).filter((e) => e.identity === 'person' || e.outputWrite === true).flatMap((e) => e.scopes || []);
-  const all = [...new Set([...MANAGER_SCOPES, ...scopes])];
+  const all = [...new Set([...MANAGER_SCOPES, ...scopes])].filter((s) => !DEFAULT_USER_SCOPES.includes(s));
   return all.filter((s) => !(s.endsWith(READ_ONLY) && all.includes(s.slice(0, -READ_ONLY.length)))).sort();
 }
 
@@ -556,6 +558,7 @@ module.exports = {
   RULES,
   IDENTITIES,
   MANAGER_SCOPES,
+  DEFAULT_USER_SCOPES,
   OUTPUT_WRITE_SCOPES,
   NO_PERSON_TOKEN,
   ROUTE_POLICY,
