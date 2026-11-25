@@ -355,13 +355,15 @@ test('every card and closed record on Performance shows a visible Ask Genie, and
   await page.locator('[data-mode="screen"]').click(); // REQ-506: Genie fills the page, so the screen comes back
   await goSection(page, 'performance');
   const card = page.locator('section.imp[data-page="n01_u05"]');
+  await card.locator('[data-figure="measured"] dd b:not(.faint)').waitFor(); // the figures arrive after the section opens
+  const measuredShown = await card.locator('[data-figure="measured"] dd b').innerText(); // read before asking: the ask opens Genie, which replaces the screen (REQ-506)
   await card.getByRole('button', { name: 'Ask Genie about The impact of Price-loss decision desk', exact: true }).click();
   await page.locator('form.ask-box .sugg').first().click();
   await until(() => explained.length === 2);
   const impact = explained[1];
   assert.deepEqual([impact.kind, impact.page, impact.title], ['text', 'n01_u05', 'The impact of Price-loss decision desk']);
   assert.deepEqual(Object.keys(impact.context.fields).slice(0, 5), ['Promised', 'Estimated', 'Reported', 'Measured', 'Said wrong']);
-  assert.equal(impact.context.fields.Measured, await card.locator('[data-figure="measured"] dd b').innerText());
+  assert.equal(impact.context.fields.Measured, measuredShown);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

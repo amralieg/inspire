@@ -2128,7 +2128,7 @@ export default function ResultsPage({
 
               {/* Use case cards — only this region scrolls; sidebar + filter bar stay visible */}
               <div
-                className={`overflow-y-auto pe-0.5 [-webkit-overflow-scrolling:touch] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-strong/70 [&::-webkit-scrollbar-track]:bg-transparent ${
+                className={`overflow-y-auto scroll-pt-10 pe-0.5 [-webkit-overflow-scrolling:touch] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-strong/70 [&::-webkit-scrollbar-track]:bg-transparent ${
                   embedded
                     ? 'h-[min(28rem,60vh)]'
                     : 'h-[min(calc(100dvh-12rem),56rem)]'

@@ -500,7 +500,8 @@ for (const file of EXAMPLES) {
   test(`the ${file} example renders its dashboard, the Screen button and settings with no error`, async () => {
     const info = owned(appInfo(DECIDE, 1, {}, `examples/${file}`));
     const { page, seen, context } = await openApp(browser, served.base, info, { ready: '.ph h1', hash: DASH, watch: prefsFirst(MY_KEY, PERSON, {}),
-      routes: { 'scenario/evaluate': ({ route, json }) => json(200, evaluated(route.request().postDataJSON().values || {})),
+      routes: { ...versionRoutes('plan').routes, ...reviewRoutes(null, []), // REQ-506: Screen opens the Work section, whose plan versions and forecast review read their own routes
+        'scenario/evaluate': ({ route, json }) => json(200, evaluated(route.request().postDataJSON().values || {})),
       'scenario/saved': ({ json }) => json(200, { scenarios: [], decisions: [], mine: 0, note: '' }) } });
     const rail = await menuIds(page);
     // REQ-506 gap2 put Dashboard (and Plan) entries ahead of Settings: after the theme and tour items only those two may come before Settings.
