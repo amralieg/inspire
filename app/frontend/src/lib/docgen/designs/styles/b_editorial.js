@@ -1,6 +1,6 @@
 // Option B "Editorial": an executive magazine page. Paper, ink, one lava-red accent, hairline rules, a headline that states the number,
 // a tonal treemap where only the leading domain carries colour, a thin-ring donut, a hollow-dot quadrant, numbered list instead of boxes.
-import { wrap, t, T, rect, line, circle, icon, svgDoc, runW, money, VERB_ICON, DISCLAIMER, bestInk, contrast } from '../core.js';
+import { wrap, t, T, rect, line, circle, icon, svgDoc, runW, money, VERB_ICON, DISCLAIMER, bestInk, contrast, has, verbColors } from '../core.js';
 import { donut, quadrant, treemapChart } from '../charts.js';
 
 const DISPLAY = "'Playfair Display', Didot, 'Bodoni 72', Georgia, serif";
@@ -33,8 +33,8 @@ function infographic(m, th, { W, H }) {
   // KPI band: four columns separated by hairlines
   let y = small ? 222 : 240;
   s += rect(P, y, CW, 1, th.hair);
-  const k = [[m.total.text, 'estimated a year'], [String(m.total.n), 'use cases'], [String(m.total.nDomains), 'domains'], [Math.max(...m.useCases.map((u) => u.score)).toFixed(1), 'best Inspire score']];
-  const kw = CW / 4;
+  const k = [[m.total.text, 'estimated a year'], [String(m.total.n), 'use cases'], [String(m.total.nDomains), 'domains'], [Math.max(...m.useCases.map((u) => u.score)).toFixed(1), 'best Inspire score']].filter((k) => k[1] !== 'best Inspire score' || has(m, 'inspire_score'));
+  const kw = CW / k.length;
   k.forEach(([v, l], i) => {
     const x = P + i * kw;
     if (i) s += line(x, y + 12, x, y + 72, th.hair, 1);
@@ -50,16 +50,16 @@ function infographic(m, th, { W, H }) {
   s += treemapChart(items, { x: P, y: y + 12, w: CW, h: th1 }, { gap: 3, inkOn: inkOn(th), font: BODY, displayFont: DISPLAY, icons: true }).svg;
   y += th1 + 34;
   // Figure 2 (quadrant) and Figure 3 (verb ring)
-  const lw = CW * 0.62; const rx = P + lw + 24; const rw = CW - lw - 24; const fh = small ? 176 : 196;
+  const hasV = m.verbs.length > 0; const lw = hasV ? CW * 0.62 : CW; const rx = P + lw + 24; const rw = CW - lw - 24; const fh = small ? 176 : 196;
   s += kicker(P, y, 'Figure 2', th) + t(P + 74, y, 'Score against value', { size: 15, weight: 700, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', ctx: 'fig title' });
-  s += kicker(rx, y, 'Figure 3', th) + t(rx + 74, y, 'What it does', { size: 15, weight: 700, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', ctx: 'fig title' });
-  const vt = VERB_TONE(th);
+  if (hasV) s += kicker(rx, y, 'Figure 3', th) + t(rx + 74, y, 'What it does', { size: 15, weight: 700, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', ctx: 'fig title' });
+  const vt = verbColors(VERB_TONE(th), m.verbs, [th.tones[3], th.tones[4], th.tones[2], th.tones[5]]);
   const doFirst = (u) => u.score >= m.median.score && u.value.amount >= m.median.value;
   s += quadrant(m.useCases, { x: P - 4, y: y + 10, w: lw, h: fh - 10 }, { colorOf: (u) => (doFirst(u) ? th.accent : th.paper), dotStroke: th.dotHollow, dotOp: 1, axis: th.rule, grid: th.grey,
     ink: th.ink, muted: th.grey, bg: th.paper, quadFill: th.quad, quadBg: th.quad, quadInk: th.accentText, mx: m.median.score, my: m.median.value, labelTop: 3, font: BODY, r: () => 4.5 });
   const r1 = small ? 44 : 56; const cx = rx + r1 + 4; const cy = y + 22 + r1;
-  s += donut(m.verbs.map((v) => ({ name: v.name, value: v.value, color: vt[v.name] })), cx, cy, r1 - 7, r1, { gap: 0.04, centerTop: `${Math.round((m.verbs[0].value / m.total.amount) * 100)}%`, centerBottom: cap(m.verbs[0].name), ink: th.ink, muted: th.grey, bg: th.paper, font: BODY, displayFont: DISPLAY, centerSize: 24 });
-  let ly = cy + r1 + 22;
+  if (hasV) s += donut(m.verbs.map((v) => ({ name: v.name, value: v.value, color: vt[v.name] })), cx, cy, r1 - 7, r1, { gap: 0.04, centerTop: `${Math.round((m.verbs[0].value / m.total.amount) * 100)}%`, centerBottom: cap(m.verbs[0].name), ink: th.ink, muted: th.grey, bg: th.paper, font: BODY, displayFont: DISPLAY, centerSize: 24 });
+  let ly = hasV ? cy + r1 + 22 : y;
   m.verbs.forEach((v) => {
     s += rect(rx, ly - 9, 10, 10, vt[v.name], { stroke: th.ink, sw: 0.6 });
     s += t(rx + 16, ly, cap(v.name), { size: 12, fill: th.ink, bg: th.paper, font: BODY, ctx: 'legend' }) + t(rx + rw, ly, money(v.value), { size: 12, weight: 700, fill: th.ink, bg: th.paper, anchor: 'end', font: BODY, ctx: 'legend v' });
@@ -78,16 +78,16 @@ function infographic(m, th, { W, H }) {
     s += t(x, yy + 36, String(i + 1), { size: 34, weight: 700, fill: th.accentText, bg: th.paper, font: DISPLAY, kind: 'serif', ctx: 'list num' });
     s += t(x + 34, yy + 18, u.short, { size: 14, weight: 700, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', maxW: colW - 110, lines: 2, lh: 17, ctx: 'list title' });
     s += icon(u.domain && m.domains.find((d) => d.name === u.domain).icon, x + 34, yy + 40, 13, th.grey, 1.6);
-    s += t(x + 52, yy + 51, `${u.domain} · ${cap(u.verb)}`, { size: 12, fill: th.grey, bg: th.paper, font: BODY, ctx: 'list meta' });
+    s += t(x + 52, yy + 51, [u.domain, cap(u.verb)].filter(Boolean).join(' · '), { size: 12, fill: th.grey, bg: th.paper, font: BODY, ctx: 'list meta' });
     s += t(x + colW, yy + 22, u.value.text, { size: 18, weight: 700, fill: th.ink, bg: th.paper, anchor: 'end', font: DISPLAY, kind: 'serif', ctx: 'list value' });
     s += t(x + colW, yy + 38, 'a year', { size: 12, fill: th.grey, bg: th.paper, anchor: 'end', font: BODY, ctx: 'list unit' });
-    s += t(x + colW, yy + 53, `score ${u.score.toFixed(1)}`, { size: 12, weight: 700, fill: th.body, bg: th.paper, anchor: 'end', font: BODY, ctx: 'list score' });
+    if (has(m, 'inspire_score')) s += t(x + colW, yy + 53, `score ${u.score.toFixed(1)}`, { size: 12, weight: 700, fill: th.body, bg: th.paper, anchor: 'end', font: BODY, ctx: 'list score' });
     s += line(x, yy + rowH - 4, x + colW, yy + rowH - 4, th.hair, 1);
   });
   y += rows * rowH + 6;
   s += t(P, y + 14, 'How to read.', { size: 12, weight: 700, fill: th.ink, bg: th.paper, font: BODY, ctx: 'how' });
   s += T(P + 82, y + 14, 'Tile area = yearly value. Filled red dots sit above the median score and the median value (dashed lines). Score = Inspire score out of 10.', { size: 12, fill: th.body, bg: th.paper, maxW: CW - 82, lines: 2, lh: 15, font: BODY, ctx: 'how' }).svg;
-  s += T(P, y + 48, DISCLAIMER, { size: 12, fill: th.grey, bg: th.paper, italic: true, maxW: CW, lines: 3, lh: 15, font: SERIF, kind: 'serif', ctx: 'disc' }).svg;
+  if (has(m, 'disclaimer')) s += T(P, y + 48, DISCLAIMER, { size: 12, fill: th.grey, bg: th.paper, italic: true, maxW: CW, lines: 3, lh: 15, font: SERIF, kind: 'serif', ctx: 'disc' }).svg;
   return svgDoc(W, H, s, BODY);
 }
 
@@ -165,7 +165,8 @@ function briefPage1(m, th) {
   const cw = (CW - 40) / 3; const text = m.executiveSummary;
   const words = text.split(' ');
   const per = Math.ceil(words.length / 3);
-  for (let c = 0; c < 3; c += 1) {
+  // The App has no executive summary field: with no text the columns are left out and the figure moves up.
+  for (let c = 0; text && c < 3; c += 1) {
     const x = P + c * (cw + 20);
     let chunk = words.slice(c * per, (c + 1) * per).join(' ');
     let y0 = 282;
@@ -179,13 +180,15 @@ function briefPage1(m, th) {
     if (c) s += line(x - 10, 270, x - 10, 590, th.hair, 1);
   }
   // figure
+  s += `<g transform="translate(0 ${text ? 0 : -340})">`;
   s += rect(P, 612, CW, 3, th.rule);
   s += kicker(P, 640, 'Figure 1', th) + t(P + 74, 640, 'Yearly value by domain', { size: 15, weight: 700, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', ctx: 'fig' });
   const items = m.domains.map((d, i) => ({ name: d.name, value: d.value, text: d.text, icon: d.icon, color: th.tones[Math.min(i, th.tones.length - 1)] }));
   s += treemapChart(items, { x: P, y: 654, w: CW, h: 250 }, { gap: 3, inkOn: inkOn(th), font: BODY, displayFont: DISPLAY, icons: true }).svg;
   s += t(P, 926, 'Tile area = estimated yearly value. Red = the leading domain.', { size: 12, italic: true, fill: th.grey, bg: th.paper, font: SERIF, kind: 'serif', ctx: 'cap' });
+  s += '</g>';
   s += rect(P, 950, CW, 1, th.hair);
-  s += T(P, 976, DISCLAIMER, { size: 12, italic: true, fill: th.grey, bg: th.paper, font: SERIF, kind: 'serif', maxW: CW, lines: 3, lh: 16, ctx: 'disc' }).svg;
+  if (has(m, 'disclaimer')) s += T(P, 976, DISCLAIMER, { size: 12, italic: true, fill: th.grey, bg: th.paper, font: SERIF, kind: 'serif', maxW: CW, lines: 3, lh: 16, ctx: 'disc' }).svg;
   s += rect(P, 1060, CW, 1, th.rule) + t(P, 1082, 'Page 1', { size: 12, fill: th.grey, bg: th.paper, font: BODY, ctx: 'foot' });
   return svgDoc(W, H, s, BODY);
 }

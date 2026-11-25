@@ -1,7 +1,7 @@
 // Option A "Original": the agent's own document system (teal + sand + gold, Fraunces display over Inter body, coral eyebrows, gold rule,
 // rings art on a teal gradient cover), rendered as a graphic-led infographic. Fixes: coral and gold text darkened or lightened to 4.5:1,
 // no 8.6pt micro text, real charts (bars, donut, quadrant) instead of chips only, value and score on every card.
-import { t, T, rect, line, circle, icon, svgDoc, textW, runW, money, VERB_ICON, DISCLAIMER, wrap } from '../core.js';
+import { t, T, rect, line, circle, icon, svgDoc, textW, runW, money, VERB_ICON, DISCLAIMER, wrap, has, verbColors } from '../core.js';
 import { hbars, donut, legend, quadrant, meter } from '../charts.js';
 
 const DISPLAY = "Fraunces, 'Iowan Old Style', Georgia, serif";
@@ -46,8 +46,7 @@ function ucCard(u, i, x, y, w, h, th, m) {
   s += t(x + 12, y + 62, u.short, { size: 14, weight: 700, fill: th.ink, bg: th.card, maxW: w - 24, lines: 2, lh: 17, font: DISPLAY, kind: 'serif', ctx: 'card title' });
   s += line(x + 12, y + h - 30, x + w - 12, y + h - 30, th.line, 1);
   s += t(x + 12, y + h - 11, u.value.yearText, { size: 14, weight: 700, fill: th.mode === 'dark' ? th.tealMid : th.teal, bg: th.card, font: BODY, ctx: 'card value' });
-  s += t(x + w - 12, y + h - 11, `Score ${u.score.toFixed(1)}`, { size: 12, weight: 700, fill: th.body, bg: th.card, anchor: 'end', font: BODY, ctx: 'card score' });
-  void m;
+  if (has(m, 'inspire_score')) s += t(x + w - 12, y + h - 11, `Score ${u.score.toFixed(1)}`, { size: 12, weight: 700, fill: th.body, bg: th.card, anchor: 'end', font: BODY, ctx: 'card score' });
   return s;
 }
 
@@ -62,8 +61,8 @@ function infographic(m, th, { W, H }) {
   s += eyebrow(P, 86, 'Value at a glance', th, '#0B4642', { fill: th.heroMuted });
   s += t(P, 124, m.businessName, { size: 36, weight: 700, fill: '#FFFFFF', bg: '#0B4642', font: DISPLAY, kind: 'serif', maxW: CW - 120, lines: 1, ctx: 'hero title' });
   s += t(P, 150, `${m.total.n} use cases across ${m.total.nDomains} domains, ranked by yearly value`, { size: 14, fill: th.heroMuted, bg: '#0F5E5A', font: BODY, ctx: 'hero sub' });
-  const kpis = [['Total yearly value', m.total.text, 'wallet', true], ['Use cases', String(m.total.n), 'layers'], ['Domains', String(m.total.nDomains), 'compass'], ['Top Inspire score', Math.max(...m.useCases.map((u) => u.score)).toFixed(1), 'star']];
-  const kw = (CW - 3 * 12) / 4; const ky = small ? 166 : 176; const kh = small ? 60 : 66;
+  const kpis = [['Total yearly value', m.total.text, 'wallet', true], ['Use cases', String(m.total.n), 'layers'], ['Domains', String(m.total.nDomains), 'compass'], ['Top Inspire score', Math.max(...m.useCases.map((u) => u.score)).toFixed(1), 'star']].filter((k) => k[0] !== 'Top Inspire score' || has(m, 'inspire_score'));
+  const kw = (CW - (kpis.length - 1) * 12) / kpis.length; const ky = small ? 166 : 176; const kh = small ? 60 : 66;
   kpis.forEach(([l, v, ic, gold], i) => {
     const x = P + i * (kw + 12);
     s += rect(x, ky, kw, kh, '#FFFFFF', { rx: 14, op: 0.1, stroke: '#FFFFFF', sw: 1 }).replace('stroke="#FFFFFF"', 'stroke="#FFFFFF" stroke-opacity=".26"');
@@ -73,17 +72,18 @@ function infographic(m, th, { W, H }) {
   });
   // section 1: value by domain + donut by verb
   let y = h0 + 20;
-  const lw = 456; const rh = 20; const nd = Math.min(m.domains.length, 9);
-  const h1 = Math.max(50 + nd * rh + 10, 58 + 92 + 26 + m.verbs.length * 18);
+  const hasV = m.verbs.length > 0; const lw = hasV ? 456 : CW; const rh = 20; const nd = Math.min(m.domains.length, 9);
+  const h1 = Math.max(50 + nd * rh + 10, hasV ? 58 + 92 + 26 + m.verbs.length * 18 : 0);
   s += rect(P, y, lw, h1, th.card, { rx: 14, stroke: th.line });
   s += eyebrow(P + 16, y + 22, 'Where the value sits', th, th.card) + head(P + 16, y + 42, 'Yearly value by domain', th, th.card, 16);
   const bars = hbars(m.domains.slice(0, nd).map((d) => ({ label: d.name, value: d.value, text: d.text, icon: d.icon })), { x: P + 16, y: y + 50, w: lw - 32 },
     { rowH: rh, barH: 9, labelW: 118, valueW: 60, track: th.barTrack, fill: () => 'url(#aBar)', ink: th.ink, bg: th.card, icon: true, iconC: th.mode === 'dark' ? th.tealMid : th.teal, font: BODY });
   s += bars.svg;
   const rx = P + lw + 14; const rw = CW - lw - 14;
+  const vc = verbColors(VERB_COLOR(th), m.verbs, [th.teal, th.gold, th.coral, th.green, th.tealMid]);
+  if (hasV) {
   s += rect(rx, y, rw, h1, th.sand, { rx: 14 });
   s += eyebrow(rx + 16, y + 22, 'Value verb', th, th.sand) + head(rx + 16, y + 42, 'What the value does', th, th.sand, 16);
-  const vc = VERB_COLOR(th);
   const parts = m.verbs.map((v) => ({ name: v.name, value: v.value, color: vc[v.name] }));
   const r1 = 46; const cy = y + 58 + r1;
   s += donut(parts, rx + 16 + r1, cy, r1 - 14, r1, { gap: 0.03 });
@@ -91,6 +91,7 @@ function infographic(m, th, { W, H }) {
   s += t(rx + 32 + 2 * r1, cy - 8, `${Math.round((top.value / m.total.amount) * 100)}%`, { size: 26, weight: 700, fill: th.ink, bg: th.sand, font: DISPLAY, kind: 'serif', ctx: 'donut big' });
   s += T(rx + 32 + 2 * r1, cy + 12, `of the value is to ${top.name.toLowerCase()}`, { size: 12, fill: th.body, bg: th.sand, maxW: rw - 48 - 2 * r1, lines: 2, lh: 15, font: BODY, ctx: 'donut note' }).svg;
   s += legend(m.verbs.map((v) => ({ name: v.name.toLowerCase().replace(/^\w/, (c) => c.toUpperCase()), color: vc[v.name], text: `${v.n} · ${money(v.value)}` })), rx + 16, cy + r1 + 26, { rowH: 18, ink: th.ink, bg: th.sand, w: rw - 32, font: BODY });
+  }
   y += h1 + 16;
   // section 2: quadrant
   const h2 = small ? 166 : 186;
@@ -113,7 +114,7 @@ function infographic(m, th, { W, H }) {
   s += rect(P, y, CW, 1, th.line);
   s += t(P, y + 20, 'How to read', { size: 12, weight: 700, fill: th.ink, bg: th.page, font: BODY, ctx: 'legend head' });
   s += t(P + 84, y + 20, 'Bar = yearly value per domain. Dot size = yearly value. Dashed lines = median score and value. Score = Inspire score out of 10.', { size: 12, fill: th.body, bg: th.page, maxW: CW - 84, lines: 2, lh: 15, font: BODY, ctx: 'legend' });
-  s += T(P, y + 52, DISCLAIMER, { size: 12, fill: th.muted, bg: th.page, maxW: CW, lines: 3, lh: 15, italic: true, font: BODY, ctx: 'disclaimer' }).svg;
+  if (has(m, 'disclaimer')) s += T(P, y + 52, DISCLAIMER, { size: 12, fill: th.muted, bg: th.page, maxW: CW, lines: 3, lh: 15, italic: true, font: BODY, ctx: 'disclaimer' }).svg;
   return svgDoc(W, H, s, BODY, defs(th));
 }
 
@@ -211,10 +212,12 @@ function briefPage1(m, th) {
     s += t(x + 14, 368, v, { size: 26, weight: 700, fill: i ? '#FFFFFF' : th.goldText, bg: '#0F5E5A', font: DISPLAY, kind: 'serif', ctx: 'kpi' });
     s += t(x + 14, 392, l, { size: 12, fill: th.heroMuted, bg: '#0F5E5A', font: BODY, ctx: 'kpi l' });
   });
-  s += eyebrow(P, 470, 'Executive summary', th, th.page) + rect(P, 480, 54, 3, th.gold, { rx: 2 });
-  const ex = T(P, 506, m.executiveSummary, { size: 13, fill: th.body, bg: th.page, maxW: 420, lines: 16, lh: 19, font: BODY, ctx: 'exec' });
-  s += ex.svg;
-  const rx = 500; const rw = W - P - rx;
+  // The App has no executive summary field: the part is left out when the text is empty, and the domain panel takes the width.
+  if (m.executiveSummary) {
+    s += eyebrow(P, 470, 'Executive summary', th, th.page) + rect(P, 480, 54, 3, th.gold, { rx: 2 });
+    s += T(P, 506, m.executiveSummary, { size: 13, fill: th.body, bg: th.page, maxW: 420, lines: 16, lh: 19, font: BODY, ctx: 'exec' }).svg;
+  }
+  const rx = m.executiveSummary ? 500 : P; const rw = W - P - rx;
   s += rect(rx, 456, rw, 300, th.sand, { rx: 14 });
   s += head(rx + 14, 484, 'Value by domain', th, th.sand, 15);
   s += hbars(m.domains.slice(0, 9).map((d) => ({ label: d.name, value: d.value, text: d.text })), { x: rx + 14, y: 494, w: rw - 28 },
@@ -223,7 +226,7 @@ function briefPage1(m, th) {
   s += eyebrow(P, y, 'Start with these three', th, th.page) + rect(P, y + 10, 54, 3, th.gold, { rx: 2 });
   const cw = (W - 2 * P - 24) / 3;
   m.ranked.slice(0, 3).forEach((u, i) => { s += ucCard(u, i, P + i * (cw + 12), y + 26, cw, 120, th, m); });
-  s += T(P, 1010, DISCLAIMER, { size: 12, fill: th.muted, bg: th.page, maxW: W - 2 * P, lines: 3, lh: 15, italic: true, font: BODY, ctx: 'disc' }).svg;
+  if (has(m, 'disclaimer')) s += T(P, 1010, DISCLAIMER, { size: 12, fill: th.muted, bg: th.page, maxW: W - 2 * P, lines: 3, lh: 15, italic: true, font: BODY, ctx: 'disc' }).svg;
   s += line(P, 1062, W - P, 1062, th.line) + t(P, 1084, `${m.businessName} · Databricks Inspire AI`, { size: 12, fill: th.muted, bg: th.page, font: BODY, ctx: 'foot' }) + t(W - P, 1084, '1 / 6', { size: 12, weight: 700, fill: th.muted, bg: th.page, anchor: 'end', font: BODY, ctx: 'foot' });
   return svgDoc(W, H, s, BODY, defs(th));
 }

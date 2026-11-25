@@ -1,6 +1,6 @@
 // Option C "Bold": a data-visual poster. Navy hero, one vivid colour per domain carried through every chart, heavy geometric sans,
 // rounded cards on a cool grey canvas, icons in filled circles, bubble scatter (bubble = value), big donut, colourful treemap.
-import { t, T, rect, line, circle, icon, svgDoc, money, VERB_ICON, DISCLAIMER, bestInk, arc } from '../core.js';
+import { t, T, rect, line, circle, icon, svgDoc, money, VERB_ICON, DISCLAIMER, bestInk, arc, has, verbColors } from '../core.js';
 import { donut, quadrant, treemapChart } from '../charts.js';
 
 const BODY = "'Avenir Next', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif";
@@ -9,7 +9,7 @@ const light = { mode: 'light', canvas: '#EEF1F4', card: '#FFFFFF', hero: '#1B313
   ink: '#0B1A20', muted: '#4A5A63', grid: '#C9D2D8', track: '#E3E8EC', accentText: '#C42A12', quad: '#FFF1EE' };
 const dark = { mode: 'dark', canvas: '#0E1A20', card: '#1B3139', hero: '#14262D', heroInk: '#FFFFFF', heroMuted: '#B9C7CD', heroAccent: '#FFAB00',
   ink: '#F2F5F7', muted: '#AFBEC6', grid: '#3C5560', track: '#2B4550', accentText: '#FF8A75', quad: '#2A2F35' };
-const VERB_C = { 'AVOID RISK': '#FF3621', 'GROW REVENUE': '#00A972', 'CUT COST': '#2272B4', 'SAVE TIME': '#FFAB00' };
+const VERB_C0 = { 'AVOID RISK': '#FF3621', 'GROW REVENUE': '#00A972', 'CUT COST': '#2272B4', 'SAVE TIME': '#FFAB00' };
 const ink = (c) => bestInk(c, '#0B1A20', '#FFFFFF');
 const cap = (s) => s.toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
 const colorMap = (m) => Object.fromEntries(m.domains.map((d, i) => [d.name, CATS[i % CATS.length]]));
@@ -36,8 +36,8 @@ function infographic(m, th, { W, H }) {
   s += t(P + 4, 84, 'Where the value is', { size: 34, weight: 800, fill: th.heroInk, bg: th.hero, font: BODY, ctx: 'title' });
   s += t(P + 4, 108, `${m.total.n} use cases, sized and scored, so you can pick where to start.`, { size: 14, weight: 500, fill: th.heroMuted, bg: th.hero, font: BODY, ctx: 'title sub' });
   const kp = [[m.total.text, 'estimated a year', 'wallet', CATS[3]], [String(m.total.n), 'use cases', 'layers', CATS[0]], [String(m.total.nDomains), 'domains', 'compass', CATS[2]],
-    [Math.max(...m.useCases.map((u) => u.score)).toFixed(1), 'top score', 'star', CATS[5]]];
-  const kw = (CW - 3 * 10) / 4; const ky = small ? 128 : 136; const kh = small ? 70 : 78;
+    [Math.max(...m.useCases.map((u) => u.score)).toFixed(1), 'top score', 'star', CATS[5]]].filter((k) => k[1] !== 'top score' || has(m, 'inspire_score'));
+  const kw = (CW - (kp.length - 1) * 10) / kp.length; const ky = small ? 128 : 136; const kh = small ? 70 : 78;
   kp.forEach(([v, l, ic, c], i) => {
     const x = P + i * (kw + 10);
     s += rect(x, ky, kw, kh, '#FFFFFF', { rx: 14, op: 0.08 });
@@ -53,18 +53,19 @@ function infographic(m, th, { W, H }) {
   s += treemapChart(items, { x: P + 12, y: y + 38, w: CW - 24, h: tmh }, { gap: 4, rx: 10, inkOn: ink, font: BODY, displayFont: BODY, icons: true }).svg;
   y += tmh + 46 + 12;
   // scatter + donut
-  const lw = Math.round(CW * 0.6); const rw = CW - lw - 12; const ch = small ? 222 : 252;
-  s += card(P, y, lw, ch, th) + card(P + lw + 12, y, rw, ch, th);
+  const hasV = m.verbs.length > 0; const VERB_C = verbColors(VERB_C0, m.verbs, [CATS[1], CATS[2], CATS[3], CATS[4]]); const lw = hasV ? Math.round(CW * 0.6) : CW; const rw = CW - lw - 12; const ch = small ? 222 : 252;
+  s += card(P, y, lw, ch, th) + (hasV ? card(P + lw + 12, y, rw, ch, th) : '');
   s += H2(P + 18, y + 28, 'Score vs value', th, th.card) + SUB(P + lw - 18, y + 28, 'Bubble = value', th, th.card, { anchor: 'end' });
   const vmax = Math.max(...m.useCases.map((u) => u.value.amount));
   s += quadrant(m.useCases, { x: P + 6, y: y + 38, w: lw - 16, h: ch - 58 }, { colorOf: (u) => cm[u.domain], dotStroke: th.card, dotOp: 0.88, axis: th.muted, grid: th.grid,
     ink: th.ink, muted: th.muted, bg: th.card, quadFill: th.quad, quadBg: th.quad, quadInk: th.accentText, mx: m.median.score, my: m.median.value, labelTop: 3, font: BODY, quadRx: 8,
     r: (u) => 3.5 + 11 * Math.sqrt(u.value.amount / vmax) });
   const rx = P + lw + 12;
+  if (hasV) {
   s += H2(rx + 18, y + 28, 'What it does', th, th.card);
   const r1 = small ? 48 : 60; const cx = rx + rw / 2; const cy = y + 44 + r1;
-  const top = m.verbs[0];
-  s += donut(m.verbs.map((v) => ({ name: v.name, value: v.value, color: VERB_C[v.name] })), cx, cy, r1 - (small ? 13 : 18), r1, { gap: 0.05, centerTop: `${Math.round((top.value / m.total.amount) * 100)}%`, centerBottom: cap(top.name), ink: th.ink, muted: th.muted, bg: th.card, font: BODY, displayFont: BODY, centerSize: small ? 19 : 22 });
+  const top = m.verbs[0] || { value: 0, name: '' };
+  if (hasV) s += donut(m.verbs.map((v) => ({ name: v.name, value: v.value, color: VERB_C[v.name] })), cx, cy, r1 - (small ? 13 : 18), r1, { gap: 0.05, centerTop: `${Math.round((top.value / m.total.amount) * 100)}%`, centerBottom: cap(top.name), ink: th.ink, muted: th.muted, bg: th.card, font: BODY, displayFont: BODY, centerSize: small ? 19 : 22 });
   let ly = cy + r1 + (small ? 18 : 22);
   m.verbs.forEach((v) => {
     s += chip(rx + 26, ly - 4, 8, VERB_C[v.name], VERB_ICON[v.name], 10);
@@ -72,6 +73,7 @@ function infographic(m, th, { W, H }) {
     s += t(rx + rw - 16, ly, money(v.value), { size: 12, weight: 800, fill: th.ink, bg: th.card, anchor: 'end', font: BODY, ctx: 'legend v' });
     ly += small ? 16 : 19;
   });
+  }
   y += ch + 12;
   // top use cases
   s += H2(P + 4, y + 18, 'Top use cases by value', th, th.canvas, 17) + SUB(W - P, y + 18, 'Numbers match the chart', th, th.canvas, { anchor: 'end' });
@@ -85,15 +87,15 @@ function infographic(m, th, { W, H }) {
     s += chip(x + 34, yy + 30, 17, c, d.icon, 18);
     s += t(x + 34, yy + 62, `#${i + 1}`, { size: 12, weight: 800, fill: th.ink, bg: th.card, anchor: 'middle', font: BODY, ctx: 'rank' });
     s += T(x + 62, yy + 26, u.short, { size: 13, weight: 700, fill: th.ink, bg: th.card, font: BODY, maxW: colW - 160, lines: 2, lh: 16, ctx: 'uc title' }).svg;
-    s += t(x + 62, yy + 62, `${u.domain} · ${cap(u.verb)}`, { size: 12, fill: th.muted, bg: th.card, font: BODY, ctx: 'uc meta' });
+    s += t(x + 62, yy + 62, [u.domain, cap(u.verb)].filter(Boolean).join(' · '), { size: 12, fill: th.muted, bg: th.card, font: BODY, ctx: 'uc meta' });
     s += t(x + colW - 14, yy + 32, u.value.text, { size: 22, weight: 800, fill: th.ink, bg: th.card, anchor: 'end', font: BODY, ctx: 'uc value' });
-    s += segMeter(x + colW - 14 - 88, yy + 44, u.score, 10, c, th.track);
-    s += t(x + colW - 14, yy + 66, `score ${u.score.toFixed(1)}`, { size: 12, weight: 700, fill: th.muted, bg: th.card, anchor: 'end', font: BODY, ctx: 'uc score' });
+    if (has(m, 'inspire_score')) s += segMeter(x + colW - 14 - 88, yy + 44, u.score, 10, c, th.track);
+    if (has(m, 'inspire_score')) s += t(x + colW - 14, yy + 66, `score ${u.score.toFixed(1)}`, { size: 12, weight: 700, fill: th.muted, bg: th.card, anchor: 'end', font: BODY, ctx: 'uc score' });
   });
   y += rows * (rowH + 10) + 2;
   s += t(P + 4, y + 14, 'How to read', { size: 12, weight: 800, fill: th.ink, bg: th.canvas, font: BODY, ctx: 'how' });
   s += T(P + 88, y + 14, 'One colour per domain in every chart. Tile area and bubble size = yearly value. The shaded corner sits above the median score and value. Score is out of 10.', { size: 12, fill: th.ink, bg: th.canvas, maxW: CW - 92, lines: 2, lh: 15, font: BODY, ctx: 'how' }).svg;
-  s += T(P + 4, y + 50, DISCLAIMER, { size: 12, fill: th.muted, bg: th.canvas, maxW: CW - 8, lines: 3, lh: 15, font: BODY, ctx: 'disc' }).svg;
+  if (has(m, 'disclaimer')) s += T(P + 4, y + 50, DISCLAIMER, { size: 12, fill: th.muted, bg: th.canvas, maxW: CW - 8, lines: 3, lh: 15, font: BODY, ctx: 'disc' }).svg;
   return svgDoc(W, H, s, BODY, `<clipPath id="cHero"><rect x="0" y="0" width="${W}" height="${hh}"/></clipPath>`);
 }
 
@@ -188,9 +190,14 @@ function briefPage1(m, th) {
   s += t(P, 46, 'DATABRICKS INSPIRE AI · USE CASE BRIEF', { size: 12, weight: 800, fill: th.heroAccent, bg: th.hero, ls: 2, font: BODY, ctx: 'brand' });
   s += t(P, 98, m.businessName, { size: 36, weight: 800, fill: th.heroInk, bg: th.hero, font: BODY, ctx: 'title' });
   s += t(P, 132, `${m.total.yearText} estimated · ${m.total.n} use cases · ${m.total.nDomains} domains`, { size: 16, weight: 600, fill: th.heroMuted, bg: th.hero, font: BODY, ctx: 'sub' });
-  s += card(P, 194, CW, 250, th);
-  s += H2(P + 20, 226, 'Summary', th, th.card, 18);
-  s += T(P + 20, 254, m.executiveSummary, { size: 13, fill: th.ink, bg: th.card, font: BODY, maxW: CW - 40, lines: 10, lh: 18.5, ctx: 'summary' }).svg;
+  // The App has no executive summary field: with no text the card is left out and the rest moves up.
+  const sum = m.executiveSummary ? 0 : 266;
+  if (m.executiveSummary) {
+    s += card(P, 194, CW, 250, th);
+    s += H2(P + 20, 226, 'Summary', th, th.card, 18);
+    s += T(P + 20, 254, m.executiveSummary, { size: 13, fill: th.ink, bg: th.card, font: BODY, maxW: CW - 40, lines: 10, lh: 18.5, ctx: 'summary' }).svg;
+  }
+  s += `<g transform="translate(0 ${-sum})">`;
   s += card(P, 460, CW, 300, th);
   s += H2(P + 20, 492, 'Value by domain', th, th.card, 18);
   const items = m.domains.map((d) => ({ name: d.name, value: d.value, text: d.text, icon: d.icon, color: cm[d.name] }));
@@ -201,10 +208,11 @@ function briefPage1(m, th) {
     s += card(x, 812, w, 158, th) + chip(x + 34, 848, 18, c, d.icon, 18);
     s += t(x + w - 16, 856, u.value.text, { size: 22, weight: 800, fill: th.ink, bg: th.card, anchor: 'end', font: BODY, ctx: 'v' });
     s += T(x + 16, 896, u.short, { size: 13, weight: 700, fill: th.ink, bg: th.card, font: BODY, maxW: w - 30, lines: 2, lh: 17, ctx: 't' }).svg;
-    s += segMeter(x + 16, 938, u.score, 10, c, th.track);
-    s += t(x + w - 16, 946, u.score.toFixed(1), { size: 12, weight: 800, fill: th.muted, bg: th.card, anchor: 'end', font: BODY, ctx: 's' });
+    if (has(m, 'inspire_score')) s += segMeter(x + 16, 938, u.score, 10, c, th.track);
+    if (has(m, 'inspire_score')) s += t(x + w - 16, 946, u.score.toFixed(1), { size: 12, weight: 800, fill: th.muted, bg: th.card, anchor: 'end', font: BODY, ctx: 's' });
   });
-  s += T(P, 1010, DISCLAIMER, { size: 12, fill: th.muted, bg: th.canvas, font: BODY, maxW: CW, lines: 3, lh: 16, ctx: 'disc' }).svg;
+  s += '</g>';
+  if (has(m, 'disclaimer')) s += T(P, 1010, DISCLAIMER, { size: 12, fill: th.muted, bg: th.canvas, font: BODY, maxW: CW, lines: 3, lh: 16, ctx: 'disc' }).svg;
   s += t(W - P, 1090, 'Page 1', { size: 12, fill: th.muted, bg: th.canvas, anchor: 'end', font: BODY, ctx: 'foot' });
   return svgDoc(W, H, s, BODY, '<clipPath id="cHero"><rect x="0" y="0" width="794" height="170"/></clipPath>');
 }

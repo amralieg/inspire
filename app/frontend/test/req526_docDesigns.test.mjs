@@ -77,7 +77,7 @@ for (const id of NEW_IDS) for (const mode of ['light', 'dark']) {
     resetLog();
     const pages = briefPagesSvg(model(), th);
     assert.equal(pages.length, 1 + UCS.length);
-    assert.ok(pages[0].includes('Acme Bakes') && pages[0].includes('width="794"'));
+    assert.ok(/acme bakes/i.test(pages[0]) && pages[0].includes('width="794"'));
     const bad1 = LOG.filter((e) => contrast(e.fill, e.bg) < 4.5 || e.size < 12).map((e) => `${e.ctx} ${e.fill}/${e.bg} ${e.size}`);
     assert.deepEqual(bad1, []);
     assert.ok(pages[1].includes(th.fonts.body.split(',')[0].replace(/'/g, '')), 'later pages use the design font');
@@ -124,4 +124,12 @@ test('D9: old styles still render the plain infographic', () => {
   const svg = infographicSvg(model(), resolveTheme('midnight', 'databricks', '', 'light'));
   assert.match(svg, /Three-year projection|Value per use case/);
   assert.match(svg, /width="1200"/);
+});
+
+test('D10: the theme contract part B reads: design id, tokens with mode, fonts with display and body; old styles leave them unset', () => {
+  const th = resolveTheme('bold', 'databricks', '', 'dark');
+  assert.equal(th.design, 'bold'); assert.equal(th.tokens.mode, 'dark');
+  assert.ok(th.fonts.display && th.fonts.body);
+  const old = resolveTheme('midnight', 'databricks', '', 'dark');
+  assert.equal(old.design, undefined); assert.equal(old.tokens, undefined);
 });

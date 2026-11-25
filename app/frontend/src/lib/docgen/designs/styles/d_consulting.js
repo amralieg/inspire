@@ -1,6 +1,6 @@
 // Option D "Consulting": a board-pack exhibit page. White, navy and one blue, action titles that state the conclusion, numbered exhibits,
 // a waterfall that builds the total, a labelled 2x2, a prioritisation funnel, a ranked table with spark bars and Harvey balls, a source line.
-import { t, T, rect, line, icon, svgDoc, money, DISCLAIMER, bestInk, wrap } from '../core.js';
+import { t, T, rect, line, icon, svgDoc, money, DISCLAIMER, bestInk, wrap, has } from '../core.js';
 import { quadrant, waterfall, funnel, harvey, hbars } from '../charts.js';
 
 const BODY = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
@@ -67,7 +67,7 @@ function infographic(m, th, { W, H }) {
   const e4 = exhibit(P, y + 10, 4, 'The top use cases by estimated value', th, CW); s += e4.svg; y += 24;
   const cols = { rank: P, name: P + 26, dom: P + 296, val: P + 412, bar: P + 470, score: P + 584, verb: W - P };
   s += rect(P, y, CW, 22, th.panel);
-  [['#', cols.rank + 4, 'start'], ['Use case', cols.name, 'start'], ['Domain', cols.dom, 'start'], ['Value a year', cols.val + 48, 'end'], ['Score', cols.score, 'start'], ['Lever', cols.verb, 'end']].forEach(([h, x, a]) => {
+  [['#', cols.rank + 4, 'start'], ['Use case', cols.name, 'start'], ['Domain', cols.dom, 'start'], ['Value a year', cols.val + 48, 'end'], ['Score', cols.score, 'start'], ['Lever', cols.verb, 'end']].filter((c) => (c[0] !== 'Score' || has(m, 'inspire_score')) && (c[0] !== 'Lever' || m.verbs.length)).forEach(([h, x, a]) => {
     s += t(x, y + 15, h, { size: 12, weight: 700, fill: th.slate, bg: th.panel, anchor: a, font: BODY, ctx: 'th' });
   });
   y += 22;
@@ -80,13 +80,13 @@ function infographic(m, th, { W, H }) {
     s += icon(dname, cols.dom, cy - 10, 13, th.slate, 1.8) + t(cols.dom + 18, cy, u.domain, { size: 12, fill: th.ink, bg: th.page, font: BODY, maxW: 92, lines: 1, ctx: 'td' });
     s += t(cols.val + 48, cy, u.value.text, { size: 12, weight: 700, fill: th.ink, bg: th.page, anchor: 'end', font: BODY, ctx: 'td' });
     s += rect(cols.bar, cy - 8, 96, 8, th.panel) + rect(cols.bar, cy - 8, (u.value.amount / vmax) * 96, 8, isDf(u) ? th.blue : th.barAlt);
-    s += harvey(cols.score + 6, cy - 4, 6, u.score, th.navy, th.page) + t(cols.score + 18, cy, u.score.toFixed(1), { size: 12, fill: th.ink, bg: th.page, font: BODY, ctx: 'td' });
-    s += t(cols.verb, cy, cap(u.verb), { size: 12, fill: th.slate, bg: th.page, anchor: 'end', font: BODY, ctx: 'td' });
+    if (has(m, 'inspire_score')) s += harvey(cols.score + 6, cy - 4, 6, u.score, th.navy, th.page) + t(cols.score + 18, cy, u.score.toFixed(1), { size: 12, fill: th.ink, bg: th.page, font: BODY, ctx: 'td' });
+    if (m.verbs.length) s += t(cols.verb, cy, cap(u.verb), { size: 12, fill: th.slate, bg: th.page, anchor: 'end', font: BODY, ctx: 'td' });
     s += line(P, yy + rowH, W - P, yy + rowH, th.rule, 0.6);
   });
   y += rows * rowH + 16;
   s += T(P, y, `How to read: dashed lines mark the median score (${m.median.score.toFixed(1)}) and median value (${money(m.median.value)}). Blue = do first. Harvey ball = score out of 10.`, { size: 12, fill: th.ink, bg: th.page, font: BODY, maxW: CW, lines: 2, lh: 15, ctx: 'how' }).svg;
-  s += T(P, y + 34, `Source: Databricks Inspire AI analysis of the ${m.businessName} catalog. ${DISCLAIMER}`, { size: 12, fill: th.slate, bg: th.page, font: BODY, maxW: CW, lines: 3, lh: 15, ctx: 'source' }).svg;
+  s += T(P, y + 34, `Source: Databricks Inspire AI analysis of the ${m.businessName} catalog.${has(m, 'disclaimer') ? ` ${DISCLAIMER}` : ''}`, { size: 12, fill: th.slate, bg: th.page, font: BODY, maxW: CW, lines: 3, lh: 15, ctx: 'source' }).svg;
   return svgDoc(W, H, s, BODY);
 }
 
@@ -194,17 +194,17 @@ function briefPage1(m, th) {
   y += 280; s += line(P, y, W - P, y, th.rule, 1); y += 26;
   const e2 = exhibit(P, y, 2, 'Top seven use cases by value', th, CW); s += e2.svg; y += 14;
   s += rect(P, y, CW, 24, th.panel);
-  [['Use case', P + 10, 'start'], ['Domain', P + 420, 'start'], ['Value a year', P + 600, 'end'], ['Score', W - P - 10, 'end']].forEach(([h, x, a]) => { s += t(x, y + 16, h, { size: 12, weight: 700, fill: th.slate, bg: th.panel, anchor: a, font: BODY, ctx: 'th' }); });
+  [['Use case', P + 10, 'start'], ['Domain', P + 420, 'start'], ['Value a year', P + 600, 'end'], ['Score', W - P - 10, 'end']].filter((c) => c[0] !== 'Score' || has(m, 'inspire_score')).forEach(([h, x, a]) => { s += t(x, y + 16, h, { size: 12, weight: 700, fill: th.slate, bg: th.panel, anchor: a, font: BODY, ctx: 'th' }); });
   y += 24;
   m.ranked.slice(0, 7).forEach((u) => {
     const cy = y + 22;
     s += T(P + 10, cy, u.short, { size: 13, fill: th.ink, bg: th.page, font: BODY, maxW: 400, lines: 1, ctx: 'td' }).svg;
     s += t(P + 420, cy, u.domain, { size: 13, fill: th.ink, bg: th.page, font: BODY, ctx: 'td' });
     s += t(P + 600, cy, u.value.text, { size: 13, weight: 700, fill: th.ink, bg: th.page, anchor: 'end', font: BODY, ctx: 'td' });
-    s += harvey(W - P - 50, cy - 4, 7, u.score, th.navy, th.page) + t(W - P - 10, cy, u.score.toFixed(1), { size: 13, fill: th.ink, bg: th.page, anchor: 'end', font: BODY, ctx: 'td' });
+    if (has(m, 'inspire_score')) s += harvey(W - P - 50, cy - 4, 7, u.score, th.navy, th.page) + t(W - P - 10, cy, u.score.toFixed(1), { size: 13, fill: th.ink, bg: th.page, anchor: 'end', font: BODY, ctx: 'td' });
     s += line(P, y + 34, W - P, y + 34, th.rule, 0.6); y += 34;
   });
-  s += T(P, 1010, `Source: Databricks Inspire AI analysis of the ${m.businessName} catalog. ${DISCLAIMER}`, { size: 12, fill: th.slate, bg: th.page, font: BODY, maxW: CW, lines: 4, lh: 15, ctx: 'source' }).svg;
+  s += T(P, 1010, `Source: Databricks Inspire AI analysis of the ${m.businessName} catalog.${has(m, 'disclaimer') ? ` ${DISCLAIMER}` : ''}`, { size: 12, fill: th.slate, bg: th.page, font: BODY, maxW: CW, lines: 4, lh: 15, ctx: 'source' }).svg;
   s += line(P, 1076, W - P, 1076, th.rule, 1) + t(W - P, 1096, '1', { size: 12, fill: th.slate, bg: th.page, anchor: 'end', font: BODY, ctx: 'page' });
   return svgDoc(W, H, s, BODY);
 }

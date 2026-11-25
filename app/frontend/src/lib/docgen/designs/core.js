@@ -6,6 +6,16 @@ export { ICONS };
 
 export const DISCLAIMER = 'Estimated or calculated value, not a promised value. Databricks does not promise or guarantee this number. Specialist business value teams in your organization must validate every number before it is shared or used in a decision.';
 
+// REQ-526: a content block is shown unless the model lists blocks and this one is not ticked.
+export const has = (m, id) => !Array.isArray(m.blocks) || m.blocks.includes(id);
+// Every verb the data holds (and the empty one) gets a colour: the style's own for the known verbs, then the pool in order.
+export function verbColors(known, verbs, pool) {
+  const out = { ...known }; let i = 0;
+  for (const v of verbs) if (!out[v.name]) { out[v.name] = pool[i % pool.length]; i += 1; }
+  out[''] = pool[0];
+  return out;
+}
+
 export const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 // ---------- money, same rule as the App (targetKpi.stakeShort + valueLedger 20M+ cap) ----------
