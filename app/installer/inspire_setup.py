@@ -615,12 +615,13 @@ GENIE_CODE_CONSTANTS = ("UNITY_GATEWAY_CODEX_PATH", "UNITY_GATEWAY_ANTHROPIC_PAT
                         "GENIE_CODE_MODEL_CHECK", "GENIE_CODE_ADMIN_FIX", "GENIE_CODE_UNFIT_MODEL_PATTERN")
 GENIE_CODE_CHECK_TIMEOUT_S = 10
 GENIE_CODE_CODEX_PROBES = 3
+# REQ-518 (reverses REQ-418): data is read with the person's own token, so the App's user scopes also carry catalog.schemas:read, catalog.tables:read and files (all in v1.3.0). REQ-418 note:
 # REQ-418: data is read and written as the App's service principal, so the App's user token only sends what a person does as themselves:
 # "apps" (who manages the App), "catalog.catalogs:read" and "sql" (a Request for Access, a schema a person creates, a grant they run) and
 # "workspace.workspace" (sharing the person's own output folder with the App). "unity-catalog" is not an App user scope: the workspace refuses it ("The specified scope unity-catalog ..."), which drops every
 # user scope and installs Inspire without user authorization. Request for Access runs with the scopes the App has and falls back to
 # the copyable SQL when the token cannot send the request (REQ-311/313).
-INSPIRE_APP_OWN_SCOPES = ("apps", "catalog.catalogs:read", "sql", "workspace.workspace")
+INSPIRE_APP_OWN_SCOPES = ("apps", "catalog.catalogs:read", "catalog.schemas:read", "catalog.tables:read", "files", "sql", "workspace.workspace")
 USER_SCOPES_REFUSED = ("Inspire was installed without user authorization, so it lists no catalogs, schemas or tables, starts no run "
                        "and the Run tab cannot show pages Inside Inspire, because it reads them only with each person's own sign-in: {why}. "
                        "A workspace admin allows the scopes {scopes} for Apps, then runs this installer again.")
@@ -828,10 +829,18 @@ def _error_words(exc, limit=160):
     return text if limit is None else text[:limit]
 
 
+def _customer_catalog(ctx):
+    """REQ-518 D6: the catalog holds customer data (schema mode, or it is also a catalog the App reads), so the installer never asks for MANAGE on it."""
+    return bool(ctx.get("SCHEMA_MODE")) or ctx.get("CATALOG") in (ctx.get("DATA_CATALOGS") or [])
+
+
 def _rights_unread(exc, ctx):
     """The ask is about Inspire's own catalog, so the target is bound to ctx["CATALOG"] and never a customer catalog."""
     name, person = ctx["CATALOG"], ctx["USER_EMAIL"]
     if getattr(getattr(exc, "response", None), "status_code", None) == 403:
+        if _customer_catalog(ctx):
+            return (f"you cannot see who holds what on catalog `{name}` (HTTP 403). A catalog owner can run "
+                    f"GRANT USE CATALOG ON CATALOG `{name}` TO `{person}`")
         return (f"you cannot see who can grant on catalog `{name}` (HTTP 403). A catalog owner can run "
                 f"GRANT MANAGE ON CATALOG `{name}` TO `{person}`")
     return f"your rights on catalog `{name}` could not be read ({_error_words(exc)})"
@@ -1458,8 +1467,9 @@ def _catalog_access_for_new_apps(ctx, sp):
     w, warehouse_id, catalog = ctx["w"], ctx["WAREHOUSE_ID"], ctx["CATALOG"]
     setting = ctx.get("NEW_APPS_CATALOG_ACCESS", NEW_APPS_ACCOUNT_USERS)
     need = f"⚠️ Apps that Implement creates cannot read result tables in `{catalog}` yet: their service principals need USE CATALOG"
-    owners = (f"A catalog owner can run GRANT MANAGE ON CATALOG `{catalog}` TO `{sp}`, "
-              f"or GRANT USE CATALOG ON CATALOG `{catalog}` TO `{NEW_APPS_ACCOUNT_USERS}`")
+    use_ask = f"GRANT USE CATALOG ON CATALOG `{catalog}` TO `{NEW_APPS_ACCOUNT_USERS}`"
+    owners = (f"A catalog owner can run {use_ask}" if _customer_catalog(ctx)
+              else f"A catalog owner can run GRANT MANAGE ON CATALOG `{catalog}` TO `{sp}`, or {use_ask}")
     try:
         owner = str(getattr(w.catalogs.get(catalog), "owner", "") or "")
         rows = _statement_rows(w, warehouse_id, f"SHOW GRANTS ON CATALOG `{catalog}`")
@@ -1498,9 +1508,8 @@ def _catalog_access_for_new_apps(ctx, sp):
             return f"{need}, and {sql} failed ({_error_words(exc, 120)}). {owners}"
         return (f"New Apps can use catalog `{catalog}`: the installer granted USE CATALOG on it to account users ✅. "
                 f"This opens no data by itself: account users hold no schema, table, volume or function in `{catalog}`")
-    return (
-        f"{need}, which account users do not hold, and Inspire can grant it only with MANAGE on the catalog. {owners}"
-    )
+    only = "" if _customer_catalog(ctx) else ", and Inspire can grant it only with MANAGE on the catalog"
+    return f"{need}, which account users do not hold{only}. {owners}"
 
 
 def _effective_privileges(ctx, catalog, principal):
@@ -1519,16 +1528,17 @@ def _new_apps_probe(ctx, sp):
     manage = f"GRANT MANAGE ON CATALOG `{catalog}` TO `{sp}`"
     create = f"GRANT CREATE SCHEMA ON CATALOG `{catalog}` TO `{sp}`"
     covers = lambda held, privilege: bool(held & {privilege, "ALL_PRIVILEGES"})
+    customer = _customer_catalog(ctx)
     try:
         users = _effective_privileges(ctx, catalog, NEW_APPS_ACCOUNT_USERS)
         inspire = _effective_privileges(ctx, catalog, sp)
     except Exception as exc:
         return (False, f"⚠️ New Apps cannot read Build results in `{catalog}`: what account users and {sp} hold on it could not be read "
-                       f"({_error_words(exc, 120)})", [use, manage])
+                       f"({_error_words(exc, 120)})", [use] if customer else [use, manage])
     missing, statements = [], []
     if not covers(users, "USE_CATALOG"):
         missing.append("account users hold no USE CATALOG")
-        statements += [use, manage]
+        statements += [use] if customer else [use, manage]
     if not covers(inspire, "USE_CATALOG"):
         missing.append(f"{sp} holds no USE CATALOG")
         statements.append(f"GRANT USE CATALOG ON CATALOG `{catalog}` TO `{sp}`")
@@ -1551,8 +1561,8 @@ def _new_apps_access_check(ctx, sp):
     catalog = ctx["CATALOG"]
     manage = f"GRANT MANAGE ON CATALOG `{catalog}` TO `{sp}`"
     needed = [sql for sql in statements if sql != manage]
-    raise RuntimeError(f"{line[3:] if line.startswith('⚠️ ') else line}. A catalog owner runs {' and '.join(needed)} (opens no data), "
-                       f"or, because `{catalog}` is Inspire's own catalog, {manage} so Inspire can grant it. Or pick another catalog, or set "
+    own = "" if _customer_catalog(ctx) else f", or, because `{catalog}` is Inspire's own catalog, {manage} so Inspire can grant it"
+    raise RuntimeError(f"{line[3:] if line.startswith('⚠️ ') else line}. A catalog owner runs {' and '.join(needed)} (opens no data){own}. Or pick another catalog, or set "
                        f'NEW_APPS_CATALOG_ACCESS = "{NEW_APPS_OFF}" to accept that Build cannot share results. '
                        "Inspire stopped before it deploys the new App version, so the App keeps its last working version. "
                        "Then run this installer again.")
@@ -2440,6 +2450,9 @@ def _person_privileges(full, held):
 def _grant_refusal(ctx, held):
     """Inspire's own catalog only: the target is bound to ctx["CATALOG"]."""
     name, person = ctx["CATALOG"], ctx["USER_EMAIL"]
+    if _customer_catalog(ctx):
+        return (f"you are not its owner or a metastore admin, and `{name}` holds customer data, so Inspire asks for no grant that lets it "
+                f"grant on `{name}`. The catalog owner can run GRANT USE CATALOG ON CATALOG `{name}` TO `{person}`")
     why = " (ALL PRIVILEGES does not include MANAGE)" if "ALL_PRIVILEGES" in held else ""
     return (f"you are not its owner or a metastore admin and hold no MANAGE on it{why}. The catalog owner can run "
             f"GRANT MANAGE ON CATALOG `{name}` TO `{person}`, or make you the owner of `{name}`")
