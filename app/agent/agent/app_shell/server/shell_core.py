@@ -5177,8 +5177,12 @@ class Shell:
         sql, params = shell_sql.population_query(page["result_table"], score, records.get("tier") or "", row.get(score))
         stats = self.execute(ws, sql, params, 1, delta=False)["rows"][0]
         label = next((c.get("label") for c in records.get("columns") or [] if c.get("column") == score and c.get("label")), score)
-        return population_summary(row.get(score), stats, label=str(label), against=reasons_text(row.get(records.get("reasons") or "")),
-                                  quality=q_value_text(row), direction=rank_direction(records, score))
+        out = population_summary(row.get(score), stats, label=str(label), against=reasons_text(row.get(records.get("reasons") or "")),
+                                 quality=q_value_text(row), direction=rank_direction(records, score))
+        words = money_words(row.get(RECORD_STAKE), money_kind_of(page))
+        if words["kind"] and out.get("count"):
+            out["money"] = words  # REQ-532: the record's own amount, labelled by its kind and sign
+        return out
 
     def record_fields(self, headers: dict, ident) -> dict:
         page = self.page(ident)
