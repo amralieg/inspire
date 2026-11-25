@@ -563,13 +563,13 @@ def test_a_new_app_is_created_with_a_resource_to_run_this_use_case_s_job(agent_n
 def test_an_existing_app_gets_this_job_s_resource_and_keeps_every_other_one(agent_ns, sdk_stub):
     other = {"name": "serving", "serving_endpoint": {"name": "ep", "permission": "CAN_QUERY"}}
     app = {"description": OURS_APP, "compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-2",
-           "resources": [WAREHOUSE, other]}
+           "user_api_scopes": ["sql:restricted-query"], "resources": [WAREHOUSE, other]}
     inst, context, calls = _deploy(agent_ns, [app, dict(app, resources=[WAREHOUSE, other, OWN_JOB])] + DEPLOYED)
     fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
     assert "_warnings" not in fields
     patch = [c for c in calls if c[0] == "PATCH"]
     assert patch == [("PATCH", "/api/2.0/apps/churn-desk", {"name": "churn-desk", "description": OURS_APP,
-                                                             "resources": [WAREHOUSE, other, OWN_JOB], "user_api_scopes": []})]
+                                                             "resources": [WAREHOUSE, other, OWN_JOB], "user_api_scopes": ["sql:restricted-query"]})]
     held = dict(app, resources=[WAREHOUSE, OWN_JOB])
     again, context, calls = _deploy(agent_ns, [held] + DEPLOYED)
     again._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
@@ -583,7 +583,7 @@ def test_a_merged_app_keeps_another_page_s_job_and_adds_this_page_s(agent_ns, sd
     host_job = {"name": "job-n01-u07", "job": {"id": "555", "permission": "CAN_MANAGE_RUN"}}
     ours = {"name": "job-n01-u01-s5150", "job": {"id": "77", "permission": "CAN_MANAGE_RUN"}}
     app = {"description": "Inspire use case N01-U07 (session 777): Sales desk", "compute_status": {"state": "ACTIVE"},
-           "service_principal_client_id": "sp-7", "resources": [WAREHOUSE, host_job]}
+           "service_principal_client_id": "sp-7", "user_api_scopes": ["sql:restricted-query"], "resources": [WAREHOUSE, host_job]}
     inst, context, calls = _deploy(agent_ns, [app, dict(app, resources=[WAREHOUSE, host_job, ours])] + DEPLOYED,
                                    jobs={"n01_u07": "555", "n01_u01_s5150": "77"},
                                    app_host={"merged": True, "settings": {"auth": "sp", "options": {}}, "source": "/W/sales"})
@@ -593,7 +593,7 @@ def test_a_merged_app_keeps_another_page_s_job_and_adds_this_page_s(agent_ns, sd
 
 
 def test_a_job_resource_the_app_cannot_get_is_a_warning_and_the_app_still_deploys(agent_ns, sdk_stub):
-    app = {"description": OURS_APP, "compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-2", "resources": [WAREHOUSE]}
+    app = {"description": OURS_APP, "compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-2", "user_api_scopes": ["sql:restricted-query"], "resources": [WAREHOUSE]}
     inst, context, calls = _deploy(agent_ns, [app, RuntimeError("PERMISSION_DENIED: no CAN MANAGE on job 77")] + DEPLOYED)
     fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
     assert fields["app_url"] == "https://churn-desk.example"
@@ -604,7 +604,7 @@ def test_a_job_resource_the_app_cannot_get_is_a_warning_and_the_app_still_deploy
 
 def test_a_failed_build_gives_the_app_back_the_resources_it_held(agent_ns, sdk_stub):
     app = {"description": OURS_APP, "compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-2",
-           "active_deployment": {"deployment_id": "dep0"}, "resources": [WAREHOUSE]}
+           "active_deployment": {"deployment_id": "dep0"}, "user_api_scopes": ["sql:restricted-query"], "resources": [WAREHOUSE]}
     grown = dict(app, resources=[WAREHOUSE, OWN_JOB])
     answers = [app, grown, {"deployment_id": "dep1", "status": {"state": "FAILED", "message": "boom"}}] + [{}] * len(SHELL_FILES)
     inst, context, calls = _deploy(agent_ns, answers + [grown, app])

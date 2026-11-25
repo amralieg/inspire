@@ -3229,11 +3229,31 @@ def _deploy_inspire(ns, answers, access=None):
             inst.uploads[body["path"]] = (base64.b64decode(body["content"]).decode("utf-8"), body["overwrite"])
             return {}
         calls.append((method, path, body))
+        readback, pending[0] = pending[0], None
+        if readback is not None and (method, path) == ("GET", readback[0]) and not (
+                queue and isinstance(queue[0], dict) and "user_api_scopes" in queue[0]):
+            return dict(readback[1])  # the read-back of a just-created App answers with the App as created; a scripted read still wins
         answer = queue.pop(0)
         if isinstance(answer, Exception):
             raise answer
+        # The real Apps API answers every read of an App with the user authorization scopes it holds, and a create or update that asks for
+        # scopes holds them (SEC-01 S6b: the build reads them back and refuses an App that does not hold the scopes it needs). A scripted
+        # answer that names its own user_api_scopes is the refusal case and is returned as scripted.
+        if method in ("POST", "PATCH") and path.startswith("/api/2.0/apps") and isinstance(body, dict) and "user_api_scopes" in body:
+            held_scopes[0] = list(body["user_api_scopes"])
+        # An App that was never asked for scopes holds the read-only viewer scope Inspire gives every shared-view App, so a test about
+        # something else does not trip the scope check; a per-user build (or a script naming its own scopes) sees what it scripts.
+        host = context.get("app_host") or {}
+        shared_view = (((host.get("settings") or {}).get("auth") if host.get("merged") else (context["spec"]["outputs"] or {}).get("app_access")) or "") == "sp" \
+            or (not host.get("merged") and not (context["spec"]["outputs"] or {}).get("app_access"))
+        if isinstance(answer, dict) and "user_api_scopes" not in answer and "compute_status" in answer and (
+                path.startswith("/api/2.0/apps/") or (method, path) == ("POST", "/api/2.0/apps")) and (held_scopes[0] is not None or shared_view):
+            answer = dict(answer, user_api_scopes=list(["sql:restricted-query"] if held_scopes[0] is None else held_scopes[0]))
+        if (method, path) == ("POST", "/api/2.0/apps") and isinstance(answer, dict) and isinstance(body, dict) and body.get("user_api_scopes"):
+            pending[0] = (f"/api/2.0/apps/{body['name']}", answer)
         return answer
 
+    held_scopes, pending = [None], [None]
     inst._implement_api = api
     inst.tagged = []
     inst._implement_tag_app = lambda context, app_name: inst.tagged.append(app_name)
@@ -3263,11 +3283,11 @@ def test_app_deploy_imports_the_shell_as_files_and_grants_every_table_the_page_a
         # The App's read objects are persisted with the build: no scope view here, and the one source table the pages read directly.
         "_asset": {"backend": "delta", "views": [], "access_mode": "sp", "reasons_view": "", "sources_read": ["main.s.orders"]}}
     assert fields["_grants"]["name"] == "sp-1", "the grants the deploy ran for the App's service principal are handed back"
-    assert [c[:2] for c in calls] == [("GET", "/api/2.0/apps/churn-desk"), ("POST", "/api/2.0/apps"),
+    assert [c[:2] for c in calls] == [("GET", "/api/2.0/apps/churn-desk"), ("POST", "/api/2.0/apps"), ("GET", "/api/2.0/apps/churn-desk"),
                                       ("POST", "/api/2.0/apps/churn-desk/deployments"), ("GET", "/api/2.0/apps/churn-desk")]
     assert calls[1][2]["resources"] == [{"name": "sql-warehouse", "sql_warehouse": {"id": "wh1", "permission": "CAN_USE"}}]
     assert calls[1][2]["description"].startswith("Inspire use case N01-U01 (session 5150): Predict churn")
-    assert calls[2][2] == {"source_code_path": "/W/acme_implemented/Sales/apps/churn-desk", "mode": "SNAPSHOT"}
+    assert calls[3][2] == {"source_code_path": "/W/acme_implemented/Sales/apps/churn-desk", "mode": "SNAPSHOT"}
     assert inst.spark.statements[0].startswith("SELECT level, privilege, principal")
     statements = _not_access_reads(inst.spark.statements)
     feedback = [s for s in statements if ("CREATE TABLE" in s or "MODIFY" in s) and "__inspire_value_ledger" not in s]
@@ -3277,7 +3297,9 @@ def test_app_deploy_imports_the_shell_as_files_and_grants_every_table_the_page_a
     assert inst.genie_grants == [("genie", "g1", [{"type": "service_principal", "name": "sp-1"}], "CAN_RUN")]
     assert sorted(imported) == [f"/W/acme_implemented/Sales/apps/churn-desk/{name}" for name in sorted(SHELL_FILES)]
     assert set(inst.formats) == {"RAW"}, "every App file is imported as a file, never converted into a notebook"
-    assert inst.uploads == {f"/W/acme_implemented/Sales/apps/churn-desk/{name}": (text, True) for name, text in SHELL_FILES.items()}
+    # SEC-01 W6: the App's settings list the source tables its pages read directly (never the result table).
+    shipped = dict(SHELL_FILES, **{"inspire_app.json": json.dumps({"sources": ["main.s.orders"]}, indent=2)})
+    assert inst.uploads == {f"/W/acme_implemented/Sales/apps/churn-desk/{name}": (text, True) for name, text in shipped.items()}
     assert inst.tagged == ["churn-desk"], "a new App is tagged as soon as it exists, before its compute is waited on"
 
 
@@ -3293,7 +3315,7 @@ def test_every_import_format_the_agent_names_exists_in_the_sdk_serverless_ships(
 
 
 def test_an_app_without_a_genie_agent_gets_no_genie_grant_and_a_failed_grant_is_a_warning(agent_ns, sdk_stub):
-    answers = [{"description": OURS_APP, "compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-2"},
+    answers = [{"description": OURS_APP, "compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-2", "user_api_scopes": ["sql:restricted-query"]},
                {"deployment_id": "dep1", "status": {"state": "SUCCEEDED"}}, {"url": "https://churn-desk.example/"}]
     inst, context, _calls, _imported = _deploy_inspire(agent_ns, list(answers))
     assert "_warnings" not in inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
@@ -3309,8 +3331,8 @@ def test_an_app_without_a_genie_agent_gets_no_genie_grant_and_a_failed_grant_is_
 @pytest.mark.parametrize("answers,needle", [
     ([RuntimeError("PERMISSION_DENIED: no Apps access")], "the App churn-desk could not be read: PERMISSION_DENIED"),
     ([RuntimeError("RESOURCE_DOES_NOT_EXIST"), RuntimeError("QUOTA_EXCEEDED: 50 apps")], "could not be created: QUOTA_EXCEEDED"),
-    ([{"description": OURS_APP, "compute_status": {"state": "ERROR", "message": "boom"}}, {},
-      {"description": OURS_APP, "compute_status": {"state": "ERROR", "message": "boom"}}],
+    ([{"description": OURS_APP, "compute_status": {"state": "ERROR", "message": "boom"}, "user_api_scopes": ["sql:restricted-query"]}, {},
+      {"description": OURS_APP, "compute_status": {"state": "ERROR", "message": "boom"}, "user_api_scopes": ["sql:restricted-query"]}],
      "the App compute failed to start: boom"),
     ([{"description": "Finance team tool", "compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-9"}],
      "the App churn-desk exists but is not this use case's App, so Inspire neither deploys to it nor grants it access to "
@@ -3346,7 +3368,7 @@ def test_an_existing_app_that_cannot_read_its_tables_is_never_shipped_and_the_bu
     # H 50d990bd (REQ-037..042): an App that cannot read its data is never deployed, fresh or existing. The existing App keeps
     # its last good version; the build stops with the exact grants to ask for.
     inst, context, calls, imported = _deploy_inspire(agent_ns, [
-        {"description": OURS_APP, "compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-2"},
+        {"description": OURS_APP, "compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-2", "user_api_scopes": ["sql:restricted-query"]},
         {"deployment_id": "dep1", "status": {"state": "SUCCEEDED"}}, {"url": "https://churn-desk.example/"}], LIVE_ACCESS)
     with pytest.raises(agent_ns["ImplementBlocked"]) as blocked:
         inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
@@ -3379,7 +3401,7 @@ def test_a_read_grant_the_platform_refuses_blocks_a_fresh_app_and_no_deploy_call
 
 def test_an_existing_app_whose_service_principal_reads_through_a_group_is_redeployed(agent_ns, sdk_stub):
     inst, context, calls, imported = _deploy_inspire(agent_ns, [
-        {"description": OURS_APP, "compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-2"},
+        {"description": OURS_APP, "compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-2", "user_api_scopes": ["sql:restricted-query"]},
         {"deployment_id": "dep1", "status": {"state": "SUCCEEDED"}}, {"url": "https://churn-desk.example/"}],
         LIVE_ACCESS + [_row("catalog", "USE_CATALOG", "app-readers"), _row("schema", "USE_SCHEMA", "app-readers")])
     group = types.SimpleNamespace(groups=[types.SimpleNamespace(display="app-readers")])
