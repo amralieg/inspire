@@ -298,7 +298,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
       </ol>
       <div data-wizard-body="" className="h-[min(44rem,calc(100dvh-15rem))] space-y-2 overflow-y-auto overscroll-contain">
         {measure && <div hidden={page !== 'scope:facts'}><MeasureSettings measure={measure} /></div>}
-        {body()}
+        <div key={page.startsWith('macro:') ? 'macro' : page} className="tab-panel-enter space-y-2">{body()}</div>
       </div>
     </ModalDialog>
   );
