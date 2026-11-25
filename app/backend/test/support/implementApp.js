@@ -96,6 +96,11 @@ function makeApp(overrides = {}, { mount } = {}) {
   // state.accessSent records the statements the dialog sent.
   app.post('/api/access-request/check', (req, res) => res.json(state.accessCheck || { offered: false, destinations: [], reason: 'no one has set up where access requests for these go yet' }));
   app.post('/api/access-request', (req, res) => {
+    if (Array.isArray(req.body?.objects)) {
+      state.accessSentObjects = req.body.objects;
+      const results = req.body.objects.map((o) => ({ type: o.type, full_name: o.full_name, sent: true, destinations: ['owner@example.com'], reason: '' }));
+      return res.json(state.accessSend || { sent: true, destinations: ['owner@example.com'], reason: '', links: [], results });
+    }
     state.accessSent = req.body?.statements || [];
     res.json(state.accessSend || { sent: false, destinations: [], reason: 'no destination' });
   });
