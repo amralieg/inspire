@@ -1,0 +1,59 @@
+/* REQ-541: the 14 visual blocks and 10 motions. Theme tokens only. A motion is a class on .vz; with no class the picture is the finished end state. */
+.vz { display: block; width: 100%; max-width: 560px; min-width: 0; box-sizing: border-box; overflow: hidden; color: var(--ink); }
+.vz-svg { display: block; width: 100%; height: auto; overflow: hidden; }
+.vz-empty { padding: 20px 12px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; font-size: 13px; }
+.vz-t { fill: var(--ink); font-size: 11px; font-family: inherit; }
+.vz-muted { fill: var(--muted); }
+.vz-strong { font-weight: 700; }
+.vz-v { font-weight: 600; font-variant-numeric: tabular-nums; }
+.vz-big { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.vz-axis, .vz-grid, .vz-stem { stroke: var(--line); stroke-width: 1; fill: none; }
+.vz-axis.vz-line { stroke: var(--muted); stroke-width: 2; }
+.vz-region { fill: var(--well); stroke: var(--line); }
+.vz-track { fill: none; stroke: var(--line); stroke-width: 14; stroke-linecap: round; }
+.vz-arc { fill: none; stroke: var(--brand); stroke-width: 14; stroke-linecap: round; }
+.vz-arc.vz-over { stroke: var(--coral-line); }
+.vz-limit { stroke: var(--ink); stroke-width: 3; }
+.vz-fill-up { fill: var(--brand); fill-opacity: .8; }
+.vz-fill-down { fill: var(--muted); fill-opacity: .55; }
+.vz-fill-total { fill: var(--ink); fill-opacity: .75; }
+.vz-dot { fill: var(--brand); fill-opacity: .55; stroke: none; }
+.vz-dot.vz-out { fill: var(--coral-line); fill-opacity: .9; }
+.vz-dot.vz-hub { fill-opacity: .9; }
+.vz-line { fill: none; stroke: var(--brand); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.vz-edge { stroke: var(--muted); stroke-opacity: .6; }
+.vz-band { fill: var(--brand); fill-opacity: .14; stroke: none; }
+.vz-ribbon { fill-opacity: .22; stroke: none; }
+.vz-panel { fill: var(--card); stroke: var(--line); stroke-width: 1; }
+.vz-marker { stroke: var(--coral-line); stroke-width: 3; }
+circle.vz-focus { fill: var(--amber-line); fill-opacity: 1; stroke: var(--ink); stroke-width: 2; }
+rect.vz-focus { stroke: var(--ink); stroke-width: 2.5; fill-opacity: 1; }
+.vz-arc.vz-focus { stroke-width: 18; }
+.vz-panel.vz-focus { fill: var(--well); stroke: var(--brand); stroke-width: 2.5; }
+line.vz-focus { stroke: var(--coral-line); stroke-width: 3; }
+
+.vz-svg .vz-mark { transform-box: fill-box; transform-origin: center; }
+.vz-svg .vz-mark, .vz-svg .vz-mark.vz-line { animation-duration: var(--vz-dur, 700ms); animation-timing-function: cubic-bezier(.2, .7, .2, 1); animation-fill-mode: both; }
+.vz-calm { --vz-dur: 380ms; --vz-step: 0ms; }
+.vz { --vz-step: 70ms; }
+.vz-m-build .vz-mark { animation-name: vz-rise; animation-delay: calc(var(--i) * var(--vz-step)); }
+.vz-m-count_up .vz-mark { animation-name: vz-fade; animation-delay: calc(var(--i) * var(--vz-step) * .5); }
+.vz-m-morph .vz-mark { animation-name: vz-morph; }
+.vz-m-pulse .vz-mark[data-focus], .vz-m-pulse:not(:has([data-focus])) .vz-mark { animation-name: vz-pulse; animation-duration: calc(var(--vz-dur, 700ms) * 1.4); animation-iteration-count: 3; }
+.vz-m-slide .vz-mark { animation-name: vz-slide; animation-delay: calc(var(--i) * var(--vz-step)); }
+.vz-m-fill .vz-mark { animation-name: vz-fill; transform-origin: left center; animation-delay: calc(var(--i) * var(--vz-step)); }
+.vz-m-trace .vz-mark { animation-name: vz-fade; animation-delay: calc(var(--i) * var(--vz-step) * .5); }
+.vz-m-trace .vz-mark.vz-line { stroke-dasharray: 1; animation-name: vz-trace; animation-duration: calc(var(--vz-dur, 700ms) * 2); }
+.vz-m-split_merge .vz-mark { animation-name: vz-split; }
+.vz-m-zoom .vz-mark { animation-name: vz-zoom; }
+.vz-m-reveal .vz-mark { animation-name: vz-fade; animation-delay: calc(var(--i) * var(--vz-step) * 2); animation-duration: calc(var(--vz-dur, 700ms) * 1.5); }
+@keyframes vz-rise { from { opacity: 0; transform: translateY(10px); } }
+@keyframes vz-fade { from { opacity: 0; } }
+@keyframes vz-morph { from { opacity: .4; transform: scale(.7, 1.25); } }
+@keyframes vz-pulse { 50% { transform: scale(1.35); } }
+@keyframes vz-slide { from { opacity: 0; transform: translateX(-24px); } }
+@keyframes vz-fill { from { transform: scaleX(0); } }
+@keyframes vz-trace { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes vz-split { from { opacity: .3; transform: translateX(calc(var(--s) * 22px)); } }
+@keyframes vz-zoom { from { opacity: 0; transform: scale(1.8); } }
+@media (prefers-reduced-motion: reduce) { .vz-svg .vz-mark, .vz-svg .vz-mark.vz-line { animation: none !important; } }
