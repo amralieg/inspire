@@ -45,6 +45,8 @@ import { SkeletonCard, SkeletonStats } from '../components/SkeletonLoader';
 import { DataAccessBadge, InsightsGrid, SidebarFilterPanel } from '../components/ResultsInsights';
 import { usePortfolio } from '../components/PortfolioCards';
 import UseCaseCard from '../components/UseCaseCard';
+import HelpMeChoose from '../components/HelpMeChoose';
+import Button from '../components/ui/Button';
 import UseCaseRow, { ROW_GRID } from '../components/results/UseCaseRow';
 import ReviewReader from '../components/results/ReviewReader';
 import { AllRunsValuePanel, RunValueLine, RunValuePanel } from '../components/ValueTotalsPanel';
@@ -215,6 +217,9 @@ export default function ResultsPage({
   const [filterLevels, setFilterLevels] = useState({});
   const [filterKpi, setFilterKpi] = useState('all');
   const [sortBy, setSortBy] = useState('inspire');
+  // REQ-538: Help me choose. The picked set is plain page state (a reload shows every use case); helpOpen shows the wizard.
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpPicked, setHelpPicked] = useState(null); // { keys: Set, total, chips }
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [showBestOfBestOnly, setShowBestOfBestOnly] = useState(false);
 
@@ -737,6 +742,9 @@ export default function ResultsPage({
   const archivedCount = builtUseCases.filter(isArchivedUc).length;
   const archiveCounts = { active: builtUseCases.length - archivedCount, archived: archivedCount };
   filteredUseCases = filteredUseCases.filter((uc) => inArchiveView(archiveView, isArchivedUc(uc)));
+
+  const helpKeyOf = (uc) => `${cardKeyOf(uc)}\u0001${uc?.Name ?? ''}`;
+  if (helpPicked) filteredUseCases = filteredUseCases.filter((uc) => helpPicked.keys.has(helpKeyOf(uc)));
 
   // Apply favorites filter
   if (showFavoritesOnly) {
@@ -1794,6 +1802,10 @@ export default function ResultsPage({
                     />
                   </div>
 
+                  <Button variant="secondary" size="sm" className="shrink-0" onClick={() => setHelpOpen(true)} disabled={builtUseCases.length < 2}>
+                    <Sparkles size={14} />Help me choose
+                  </Button>
+
                   {/* Favorites toggle */}
                   <button
                     type="button"
@@ -2108,6 +2120,22 @@ export default function ResultsPage({
                 )}
               </div>
 
+              {helpPicked && (
+                <div data-help-banner="" className="mb-3 flex shrink-0 flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-surface px-4 py-2">
+                  <span className="text-xs font-semibold text-text-primary">Picked for you: {helpPicked.keys.size} of {helpPicked.total}</span>
+                  {helpPicked.chips.map((chip) => (
+                    <span key={chip} dir="auto" className="rounded-full border border-db-red/20 bg-db-red-50 px-2 py-0.5 text-caption font-medium text-db-red-fg">{chip}</span>
+                  ))}
+                  <span className="ms-auto flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setHelpOpen(true)}>Start over</Button>
+                    <Button variant="secondary" size="sm" onClick={() => setHelpPicked(null)}>Show all use cases</Button>
+                  </span>
+                </div>
+              )}
+              {helpOpen && (
+                <HelpMeChoose useCases={builtUseCases.filter((uc) => !isArchivedUc(uc))} onClose={() => setHelpOpen(false)}
+                  onDone={({ picked, total, chips }) => { setHelpPicked({ keys: new Set(picked.map(helpKeyOf)), total, chips }); setHelpOpen(false); }} />
+              )}
               {bulkOn && bulkHere && <ValueBulkProgress />}
               {docsRun.run?.sessionId === String(selectedSessionId ?? '') && <DocsRunProgress />}
               {bulkOn && filteredUseCases.length > 0 && (

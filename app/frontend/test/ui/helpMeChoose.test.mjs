@@ -49,15 +49,15 @@ test('counts are live given the earlier answers, and an option that leaves nothi
 });
 
 test('several picks inside one question are OR, picks across questions are AND', () => {
-  assert.deepEqual(nos(pickedAfter(FIX, { goals: ['grow', 'comply'] })), ['1', '10', '12', '2', '3', '6', '7', '8', '9'].sort((a, b) => Number(a) - Number(b)));
-  assert.deepEqual(nos(pickedAfter(FIX, { goals: ['save'], domain: ['Area A', 'Area C'] })), ['1', '11', '4']);
+  assert.deepEqual(nos(pickedAfter(FIX, { goals: ['grow', 'comply'] })), ['1', '2', '3', '6', '7', '8', '9', '10', '12']);
+  assert.deepEqual(nos(pickedAfter(FIX, { goals: ['save'], domain: ['area a', 'area c'] })), ['1', '4', '11']);
 });
 
 test('Grow means Opportunity or Improvement, Protect means Risk or Problem, Both is everything, an unknown Type is its own option', () => {
   const type = counts(wizardSteps(FIX, {}), 'type');
   assert.deepEqual(type, { Grow: 6, Protect: 4, Both: 12, Weird: 1 });
-  assert.deepEqual(nos(pickedAfter(FIX, { type: ['grow'] })), ['1', '11', '2', '5', '6', '9']);
-  assert.deepEqual(nos(pickedAfter(FIX, { type: ['protect'] })), ['10', '3', '4', '7']);
+  assert.deepEqual(nos(pickedAfter(FIX, { type: ['grow'] })), ['1', '2', '5', '6', '9', '11']);
+  assert.deepEqual(nos(pickedAfter(FIX, { type: ['protect'] })), ['3', '4', '7', '10']);
 });
 
 test('Time to Value: this quarter is 4 or more, within 6 months is 3.5 or more, bigger bets is any', () => {
@@ -81,7 +81,7 @@ test('a question that cannot narrow is skipped, and a field nobody has drops its
 });
 
 test('the trail names each answer with the count it left', () => {
-  const answers = { goals: ['grow'], domain: ['Area A'] };
+  const answers = { goals: ['grow'], domain: ['area a'] };
   const steps = wizardSteps(FIX, answers);
   assert.deepEqual(trailOf(steps, answers, FIX.length), [
     { id: 'goals', label: 'Grow', count: 5 },
