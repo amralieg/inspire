@@ -88,7 +88,9 @@ export function ucPage(m, u, idx, S) {
   }
   if (facts.length) body += S.facts(facts, P, y, CW);
   // Right to left: the page is mirrored as a whole, and each text is flipped back about its own anchor so the words read normally.
-  if (m.rtl) body = `<g transform="translate(${PW} 0) scale(-1 1)">${body.replace(/<text ([^>]*?)x="([\d.-]+)"/g, (_, a, x) => `<text transform="translate(${2 * Number(x)} 0) scale(-1 1)" ${a}x="${x}"`)}</g>`;
+  if (m.rtl) body = `<g transform="translate(${PW} 0) scale(-1 1)">${body.replace(/<text ([^>]*?)x="([\d.-]+)"/g, (_, a, x) => `<text transform="translate(${2 * Number(x)} 0) scale(-1 1)" ${a}x="${x}"`)
+    // Icons (core.js icon(): a 24-unit group at x with scale k) are flipped back inside their own box, so arrows keep their direction.
+    .replace(/<g transform="translate\(([-\d.]+) ([-\d.]+)\) scale\(([-\d.]+)\)" fill="none"/g, (_, x, y, k) => `<g transform="translate(${Number(x) + 24 * Number(k)} ${y}) scale(${-Number(k)} ${k})" fill="none"`)}</g>`;
   return svgDoc(PW, PH, `<g data-design="${S.id}" data-page="usecase">${body}</g>`, S.font, typeof S.defs === 'function' ? S.defs() : S.defs || '');
 }
 
