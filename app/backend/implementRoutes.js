@@ -492,7 +492,8 @@ function registerImplementRoutes(app, deps) {
       loadResultTableHolder(req, warehouseId, catalog, schema, table),
     ]);
     // REQ-418: whether the person can grant the App access is read with their own sign-in (the grant authority); the App reads the rest.
-    const person = P.forwardedTokenOf(req) || req.dbToken;
+    // SEC-02 (AT5b, REQ-518): with no person sign-in nothing stands in for it, so no grant rows are read and the offer is copy-only (fail closed).
+    const person = P.forwardedTokenOf(req);
     // REQ-418: every build runs as the App's service principal, so the App is the builder of the result table.
     const builder = true;
     const createsSchema = I.schemaNotCreated(rows) ? await createsUseCaseSchema(req, warehouseId, table, useCaseId) : false;
@@ -509,7 +510,7 @@ function registerImplementRoutes(app, deps) {
     access.app = I.appAccessCheck(access.app, own ? null : warehouse);
     const appGaps = I.accessPlan(table, rows, '', { createsSchema }).gaps;
     if (appGaps.length && builder) {
-      const offer = I.newAppsAccessOffer(table, await accessRowsOf(req, person, warehouseId, table), appGaps);
+      const offer = I.newAppsAccessOffer(table, person ? await accessRowsOf(req, person, warehouseId, table) : [], appGaps);
       if (offer) access.app = { ...access.app, offer };
     }
     access.app_warehouse = appWarehouse;

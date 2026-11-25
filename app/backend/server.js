@@ -2807,6 +2807,8 @@ async function taskErrorOf(req, taskRunId) {
 
 app.get('/api/run/:runId', requireToken, async (req, res) => {
   try {
+    // SEC-02 (F6 class, REQ-518): the run state and its tasks' error text belong to the run's session, so the same check as the output runs first.
+    if (await refuseHiddenRun(req, res, req.params.runId)) return;
     const response = await dbFetch(req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get?run_id=${req.params.runId}`);
     if (!response.ok) {
       const action = `read run ${req.params.runId}`;
