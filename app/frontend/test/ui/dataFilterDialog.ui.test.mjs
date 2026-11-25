@@ -36,7 +36,8 @@ test('Load groups refused for the signed-in person opens Permission Required wit
     const text = await dialog.locator('[data-permission-statements=""]').textContent();
     assert.match(text, /GRANT USE CATALOG ON CATALOG `adb_fe_uae_01` TO `harness\.person@example\.com`;/);
     assert.match(text, /GRANT USE SCHEMA ON SCHEMA `adb_fe_uae_01`\.`demo_telco` TO `harness\.person@example\.com`;/);
-    assert.match(text, /GRANT SELECT ON SCHEMA `adb_fe_uae_01`\.`demo_telco` TO `harness\.person@example\.com`;/);
+    // SEC-02 AT2 (68f0a0622, REQ-518): a read refusal never asks SELECT on the whole schema.
+    assert.doesNotMatch(text, /GRANT (SELECT|READ METADATA) ON (SCHEMA|CATALOG)/);
     assert.ok(await dialog.getByRole('button', { name: 'Try again' }).count() === 1, 'Try again is offered');
     assert.ok(await dialog.getByRole('button', { name: 'Copy' }).count() === 1, 'Copy is offered');
     assert.ok(PERSON.length > 0);
@@ -64,7 +65,8 @@ test('a column-list refusal opens Permission Required once from the shared error
     // The SQL sits under Advanced, which stays closed while a request offer is shown (REQ-311). innerText of a closed disclosure is '', so the listed text is read.
     const text = await dialog.locator('[data-permission-statements=""]').textContent();
     assert.match(text, /GRANT USE SCHEMA ON SCHEMA `adb_fe_uae_01`\.`demo_telco` TO `harness\.person@example\.com`;/);
-    assert.match(text, /GRANT SELECT ON SCHEMA `adb_fe_uae_01`\.`demo_telco` TO `harness\.person@example\.com`;/);
+    // SEC-02 AT2 (68f0a0622, REQ-518): a read refusal never asks SELECT on the whole schema.
+    assert.doesNotMatch(text, /GRANT (SELECT|READ METADATA) ON (SCHEMA|CATALOG)/);
   } finally {
     await ui.close();
   }
