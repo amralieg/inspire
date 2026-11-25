@@ -1801,15 +1801,19 @@ async function appCatalogGrants(req, listing = null) {
   return spGrantedCatalogs(dbFetch, req.dbHost, token, SP_CLIENT_ID, listing);
 }
 
+// REQ-521: "Show everything" also lists the objects the person may only browse, each marked readable:false.
+const wantsUnreadable = (req) => ['1', 'true'].includes(String(req.query.include_unreadable || '').toLowerCase());
+
 app.get('/api/catalogs', requireToken, async (req, res) => {
   try {
     const token = req.dbToken;
     const warehouseId = String(req.query.warehouse_id || '').trim();
+    const showUnreadable = wantsUnreadable(req);
     let raw = [];
     let restCut = false;
     let restErr = null;
     try {
-      ({ items: raw, truncated: restCut } = await listCatalogs(dbFetch, req.dbHost, token));
+      ({ items: raw, truncated: restCut } = await listCatalogs(dbFetch, req.dbHost, token, { browse: showUnreadable }));
     } catch (e) {
       restErr = e.message || String(e);
       console.warn(`   ⚠️ UC REST catalogs failed: ${restErr}`);
@@ -1821,6 +1825,7 @@ app.get('/api/catalogs', requireToken, async (req, res) => {
           name: c.name,
           comment: c.comment || '',
           owner: c.owner || '',
+          ...(showUnreadable ? { readable: c.browse_only !== true } : {}),
         });
       }
     }
@@ -1829,11 +1834,15 @@ app.get('/api/catalogs', requireToken, async (req, res) => {
       const sqlNames = await listCatalogNamesSql(req.dbHost, token, warehouseId);
       for (const name of sqlNames) {
         if (!byName.has(name) && !String(name).startsWith('__')) {
-          byName.set(name, { name, comment: '', owner: '' });
+          byName.set(name, { name, comment: '', owner: '', ...(showUnreadable ? { readable: true } : {}) });
         }
       }
     }
-    const catalogs = [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+    const allCatalogs = [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+    // REQ-521: an unreadable catalog skips the App-grant check (the person must get access first) and carries no `partial`.
+    const catalogs = showUnreadable ? allCatalogs.filter((c) => c.readable) : allCatalogs;
+    const unreadableCatalogs = showUnreadable ? allCatalogs.filter((c) => !c.readable) : [];
+    const withUnreadable = (list) => (unreadableCatalogs.length ? [...list, ...unreadableCatalogs].sort((a, b) => a.name.localeCompare(b.name)) : list);
     let source = 'none';
     if (raw.length > 0 && byName.size > countAfterRest) source = 'rest+sql';
     else if (raw.length > 0) source = 'rest';
@@ -1844,11 +1853,11 @@ app.get('/api/catalogs', requireToken, async (req, res) => {
     if (granted) {
       const offered = grantedCatalogList(catalogs, granted);
       const permission = partialPermission(offered, SP_CLIENT_ID);
-      return res.json({ catalogs: offered, source, spGrants: true, truncated: truncatedByRest(restCut, byName, countAfterRest),
+      return res.json({ catalogs: withUnreadable(offered), source, spGrants: true, truncated: truncatedByRest(restCut, byName, countAfterRest),
         ...(permission ? { permissions: [permission] } : {}) });
     }
     res.json({
-      catalogs,
+      catalogs: withUnreadable(catalogs),
       source,
       truncated: restCut && byName.size === countAfterRest,
       restError: restErr && catalogs.length === 0 ? restErr : undefined,
@@ -1865,12 +1874,13 @@ app.get('/api/catalogs/:catalog/schemas', requireToken, async (req, res) => {
     const { catalog } = req.params;
     const token = req.dbToken;
     const warehouseId = String(req.query.warehouse_id || '').trim();
+    const showUnreadable = wantsUnreadable(req);
     let raw = [];
     let restCut = false;
     let restErr = null;
     let restStatus = 502;
     try {
-      ({ items: raw, truncated: restCut } = await listSchemas(dbFetch, req.dbHost, token, catalog));
+      ({ items: raw, truncated: restCut } = await listSchemas(dbFetch, req.dbHost, token, catalog, { browse: showUnreadable }));
     } catch (e) {
       restErr = e.message || String(e);
       restStatus = restFailureStatus(e);
@@ -1884,6 +1894,7 @@ app.get('/api/catalogs/:catalog/schemas', requireToken, async (req, res) => {
         name: s.name,
         full_name: full,
         comment: s.comment || '',
+        ...(showUnreadable ? { readable: s.browse_only !== true } : {}),
       });
     }
     const countAfterRest = byKey.size;
@@ -1891,7 +1902,7 @@ app.get('/api/catalogs/:catalog/schemas', requireToken, async (req, res) => {
       const sqlRows = await listSchemasSql(req.dbHost, token, warehouseId, catalog);
       for (const row of sqlRows) {
         const k = row.full_name || `${catalog}.${row.name}`;
-        if (!byKey.has(k)) byKey.set(k, row);
+        if (!byKey.has(k)) byKey.set(k, showUnreadable ? { ...row, readable: true } : row);
       }
     }
     // A use case's own result schema (`_inspire_<business>_<use case>`) is not the person's data (REQ-387): the one rule, inspireOwnObjects.js.
@@ -1914,13 +1925,14 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
     const personToken = req.dbToken;
     const token = personToken;
     const warehouseId = String(req.query.warehouse_id || '').trim();
+    const showUnreadable = wantsUnreadable(req);
     let raw = [];
     let restCut = false;
     let restErr = null;
     let restStatus = 502;
     let hiddenMetricViews = [];
     try {
-      ({ items: raw, truncated: restCut, metricViews: hiddenMetricViews } = await listTables(dbFetch, req.dbHost, token, catalog, schema));
+      ({ items: raw, truncated: restCut, metricViews: hiddenMetricViews } = await listTables(dbFetch, req.dbHost, token, catalog, schema, { browse: showUnreadable }));
     } catch (e) {
       restErr = e.message || String(e);
       restStatus = restFailureStatus(e);
@@ -1938,6 +1950,7 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
       comment: t.comment || '',
       owner: t.owner || '',
       columns: (t.columns || []).length,
+      ...(showUnreadable ? { readable: t.browse_only !== true } : {}),
     });
     const byKey = new Map();
     for (const t of raw) {
@@ -1956,11 +1969,14 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
       for (const name of listed.metricViews) metricViews.add(`${catalog}.${schema}.${name}`);
       const hidden = new Set(hiddenMetricViews);
       for (const row of listed.rows) {
-        if (!byKey.has(row.full_name) && !hidden.has(row.full_name)) byKey.set(row.full_name, row);
+        if (!byKey.has(row.full_name) && !hidden.has(row.full_name)) byKey.set(row.full_name, showUnreadable ? { ...row, readable: true } : row);
       }
     }
     // Inspire's own tables and views are not the person's data (REQ-387): the one rule, inspireOwnObjects.js.
-    let tables = [...byKey.values()].filter((t) => !isInspireOwnName(t.full_name)).sort((a, b) => a.full_name.localeCompare(b.full_name));
+    const allTables = [...byKey.values()].filter((t) => !isInspireOwnName(t.full_name)).sort((a, b) => a.full_name.localeCompare(b.full_name));
+    // REQ-521: a browse-only table is never probed (the person cannot read it); it is listed after the probe as readable:false.
+    const unreadableTables = allTables.filter((t) => t.readable === false);
+    let tables = showUnreadable ? allTables.filter((t) => t.readable !== false) : allTables;
     const probeWarehouse = warehouseId || DEFAULT_WAREHOUSE_ID;
     if (personToken && probeWarehouse && tables.length) {
       const spToken = await appOwnToken().catch(() => '');
@@ -1974,6 +1990,7 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
         }
       } });
     }
+    if (unreadableTables.length) tables = [...tables, ...unreadableTables].sort((a, b) => a.full_name.localeCompare(b.full_name));
     console.log(`   📋 tables ${catalog}.${schema}: REST=${raw.length} merged=${tables.length}`);
     if (raw.length === 0 && tables.length === 0 && restErr) {
       return PM_ERROR.sendFailure(res, restStatus, restErr);

@@ -2443,6 +2443,12 @@ function registerImplementRoutes(app, deps) {
     if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
     try {
       const who = RP.forwardedPerson(req.headers || {});
+      // REQ-521: {objects} is Request Access for picked objects; any grantee in the body is ignored.
+      if (req.body && req.body.objects !== undefined) {
+        const checked = AR.checkObjects(req.body.objects);
+        if (checked.error) return res.status(400).json({ error: checked.error });
+        return res.json(await AR.sendObjectRequest({ call: accessRequestCall(req, token), who, objects: checked.objects }));
+      }
       return res.json(await AR.sendAccessRequest({ call: accessRequestCall(req, token), who, statements: req.body?.statements, host: req.dbHost }));
     } catch (err) {
       return sendError(res, err);
