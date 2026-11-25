@@ -21,6 +21,11 @@ const themeOf = (id, mode) => ({ ...resolveTheme('executive', 'databricks', '', 
 const slideXml = async (zip, n) => zip.file(`ppt/slides/slide${n}.xml`).async('string');
 const texts = (xml) => [...xml.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((x) => x[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>'));
 const open = async (id, mode) => JSZip.loadAsync(await buildPptx(doc(), themeOf(id, mode)));
+// The use case slides come after the domain slides (grouped by domain): find one by its title.
+const ucSlide = async (zip, name) => {
+  for (let n = 2 + nDomains; n < EXPECT; n += 1) { const t = texts(await slideXml(zip, n)); if (t.includes(name)) return t.join(' '); }
+  return '';
+};
 const nDomains = new Set(doc().useCases.map((u) => u.domain)).size;
 const EXPECT = 1 + nDomains + UCS.length + 1;
 
@@ -35,18 +40,16 @@ for (const id of Object.keys(COVER)) for (const mode of ['light', 'dark']) {
     assert.match(await rels(2), /charts\/chart/, 'first domain slide has a native chart');
     assert.match(await rels(EXPECT), /charts\/chart/, 'portfolio slide has a native chart');
     for (let n = 1; n <= EXPECT; n += 1) assert.ok(texts(await slideXml(zip, n)).length > 0, `slide ${n} has text runs`);
-    const uc = VALUED[0];
-    const ucText = texts(await slideXml(zip, 1 + nDomains + 1)).join(' ');
-    assert.ok(ucText.includes(doc().useCases[0].name), 'use case name');
-    assert.ok(ucText.includes(values[uc.No] && doc().useCases[0].value.text), 'money text');
+    const u0 = doc().useCases[0];
+    const ucText = await ucSlide(zip, u0.name);
+    assert.ok(ucText.includes(u0.name), 'use case name');
+    assert.ok(ucText.includes(u0.value.text), 'money text');
   });
 }
 
 test('D2: a use case without a value says not calculated yet and no number is invented', async () => {
   const zip = await open('original', 'light');
-  const last = UCS.length - 1;
-  const t = texts(await slideXml(zip, 1 + nDomains + 1 + last)).join(' ');
-  assert.ok(t.includes(doc().useCases[last].name));
+  const t = await ucSlide(zip, doc().useCases[UCS.length - 1].name);
   assert.ok(t.includes('not calculated yet'));
 });
 

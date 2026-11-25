@@ -1,5 +1,6 @@
 // FX-113 (REQ-503): the PowerPoint deck with pptxgenjs: cover, summary, slides per use case, value roll-up.
 import PptxGenJS from 'pptxgenjs';
+import { buildDesignDeck } from './designs/pptxDesign.js';
 
 const hex = (c) => String(c).replace('#', '');
 const has = (m, id) => m.blocks.includes(id);
@@ -9,6 +10,13 @@ export async function buildPptx(m, theme) {
   const pptx = new PptxGenJS();
   pptx.layout = 'LAYOUT_WIDE';
   if (m.rtl) pptx.rtlMode = true;
+  // REQ-526: the four chosen designs build their own native deck; every other style builds as before.
+  if (theme.design && theme.tokens) buildDesignDeck(pptx, m, theme);
+  else buildClassicDeck(pptx, m, theme);
+  return writePptx(pptx);
+}
+
+function buildClassicDeck(pptx, m, theme) {
   const bg = hex(theme.bg); const ink = hex(theme.ink); const muted = hex(theme.muted); const [a0, a1, a2] = theme.accents.map(hex);
   const face = theme.font.split(',')[0];
   const align = m.rtl ? 'right' : 'left';
@@ -55,6 +63,9 @@ export async function buildPptx(m, theme) {
   roll.addText(`${m.total.nWithValue} of ${m.total.n} use cases have a calculated value.`, { x: 0.8, y: 3.1, w: 11.7, h: 0.6, fontSize: 18, color: muted, fontFace: face, align });
   if (has(m, 'disclaimer')) roll.addText('Estimates are AI-generated from your data and strategy. Treat them as a starting point.', { x: 0.8, y: 6.6, w: 11.7, h: 0.4, fontSize: 12, color: muted, fontFace: face, align });
 
+}
+
+async function writePptx(pptx) {
   // In the browser a blob is the one output pptxgenjs compresses (a byte-array output is stored as is, about 25% larger); Node has no zip blob.
   if (typeof window !== 'undefined') return new Uint8Array(await (await pptx.exportPresentation({ compression: true })).arrayBuffer());
   return new Uint8Array(await pptx.write({ outputType: 'uint8array' }));
