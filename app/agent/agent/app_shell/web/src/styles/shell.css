@@ -28,7 +28,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .nothing-fix h2{margin:0 0 4px;font-size:15.5px}
 .nothing-fix p{margin:0 0 6px;font-size:14px}
 .nothing-fix .nothing-run{color:var(--muted)}
-.mark{display:flex;align-items:center;gap:10px;background:none;border:0;padding:0;cursor:pointer;text-align:start;min-width:0}
+.mark{display:flex;align-items:center;gap:10px;background:none;border:0;padding:0;text-align:start;min-width:0}
 .mark-tile{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;background:var(--btn-bg);color:var(--btn-fg)}
 .mark-t{display:flex;flex-direction:column;line-height:1.2;min-width:0}
 .mark-t b{font-size:14.5px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
