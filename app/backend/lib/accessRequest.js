@@ -212,7 +212,19 @@ const MAX_OBJECTS = 50;
 const TOO_MANY = `Pick at most ${MAX_OBJECTS} objects per request.`;
 const BAD_OBJECT = 'Each object needs a type of CATALOG, SCHEMA or TABLE and its full name.';
 
-// Returns { error } for a refused body, else { objects: [{ type, full_name }] } with nothing else carried over from the body.
+const BAD_NEED = 'Each object can ask access only for you, for Inspire, or for both.';
+const NO_APP_PRINCIPAL = 'Inspire could not find its own account in this workspace, so ask the data owner to run the grant below';
+const NO_APP_ACCOUNT = 'Inspire has no account of its own here, so only your access can be asked for';
+const ROLES = ['person', 'inspire'];
+
+// REQ-522: `need` is role words only (never a principal name). Absent means the person, so a REQ-521 body is unchanged.
+function needOf(raw) {
+  if (raw === undefined) return ['person'];
+  if (!Array.isArray(raw) || !raw.length || raw.some((r) => !ROLES.includes(r))) return null;
+  return ROLES.filter((r) => raw.includes(r));
+}
+
+// Returns { error } for a refused body, else { objects: [{ type, full_name, need }] } with nothing else carried over from the body.
 function checkObjects(objects) {
   if (!Array.isArray(objects) || !objects.length) return { error: BAD_OBJECT };
   if (objects.length > MAX_OBJECTS) return { error: TOO_MANY };
@@ -222,7 +234,9 @@ function checkObjects(objects) {
     const fullName = String(o && o.full_name || '').trim();
     const parts = fullName.split('.');
     if (!OBJECT_PARTS[type] || parts.length !== OBJECT_PARTS[type] || parts.some((p) => !p.trim())) return { error: BAD_OBJECT };
-    clean.push({ type, full_name: fullName });
+    const need = needOf(o.need);
+    if (!need) return { error: BAD_NEED };
+    clean.push({ type, full_name: fullName, need });
   }
   return { objects: clean };
 }
@@ -237,33 +251,36 @@ function objectStatements(objects, who) {
   return out;
 }
 
-// One batched request for the picked objects, always as the person. Answers per object; the existing RfA path does the work.
-async function sendObjectRequest({ call, who, objects }) {
-  const answer = (rows, sent, reason, destinations = []) => rows.map((o) => ({ type: o.type, full_name: o.full_name, sent, destinations, reason }));
-  if (!who) return { sent: false, destinations: [], reason: NO_PERSON, links: [], results: answer(objects, false, NO_PERSON) };
-  const pending = [];
-  const results = new Map();
-  for (const o of objects) {
-    const found = await destinationsOfChain(call, o);
-    if (found.labels.length) {
-      pending.push({ object: o, labels: found.labels });
-    } else {
-      results.set(o.full_name, { type: o.type, full_name: o.full_name, sent: false, destinations: [], reason: found.reason || NO_DESTINATION });
-    }
-  }
-  let reason = '';
-  if (pending.length) {
-    const check = await checkOffer({ call, who, statements: objectStatements(pending.map((p) => p.object), who) });
-    const got = await call('/api/3.0/rfa/requests', { method: 'POST', body: JSON.stringify(requestBodyOf(check.pending)) });
-    if (!got.ok) reason = failureText(got);
-    for (const p of pending) {
-      results.set(p.object.full_name, { type: p.object.type, full_name: p.object.full_name, sent: got.ok, destinations: got.ok ? p.labels : [], reason });
-    }
-  }
-  const ordered = objects.map((o) => results.get(o.full_name));
-  const sentRows = ordered.filter((r) => r.sent);
-  const failed = ordered.find((r) => !r.sent);
-  return { sent: sentRows.length > 0, destinations: [...new Set(sentRows.flatMap((r) => r.destinations))], reason: sentRows.length ? '' : (failed ? failed.reason : ''), links: [], results: ordered };
+// One batched request for the picked objects: the person as requester and, where asked, the App through behalf_of. Answers per object per
+// principal (person before inspire); the existing RfA path does the work. Grantees are built here only: `who` and `app`.
+async function sendObjectRequest({ call, who, objects, app = '' }) {
+  const row = (o, role, sent, reason, destinations = [], extra = {}) => ({ type: o.type, full_name: o.full_name, for: role, sent, destinations, reason, ...extra });
+  const wanted = objects.flatMap((o) => (o.need || ['person']).map((role) => ({ o, role })));
+  const summary = (rows) => {
+    const sentRows = rows.filter((r) => r.sent);
+    const failed = rows.find((r) => !r.sent);
+    return { sent: sentRows.length > 0, destinations: [...new Set(sentRows.flatMap((r) => r.destinations))], reason: sentRows.length ? '' : (failed ? failed.reason : ''), links: [], results: rows };
+  };
+  if (!who) return summary(wanted.map(({ o, role }) => row(o, role, false, NO_PERSON)));
+  const granteeOf = { person: who, inspire: app };
+  const destinationsOf = new Map();
+  for (const o of objects) destinationsOf.set(`${o.type}:${o.full_name}`, await destinationsOfChain(call, o));
+  const live = wanted.filter(({ o, role }) => granteeOf[role] && destinationsOf.get(`${o.type}:${o.full_name}`).labels.length);
+  const statementsOf = (o, role) => objectStatements([o], granteeOf[role]);
+  let check = { pending: [] };
+  if (live.length) check = await checkOffer({ call, who, statements: live.flatMap(({ o, role }) => statementsOf(o, role)) });
+  let posted = null;
+  if (check.pending.length) posted = await call('/api/3.0/rfa/requests', { method: 'POST', body: JSON.stringify(requestBodyOf(check.pending)) });
+  const inPending = (o, role) => check.pending.some((p) => p.securable.type === o.type && p.securable.full_name === o.full_name
+    && (p.grantee.toLowerCase() === String(granteeOf[role]).toLowerCase()));
+  const rows = wanted.map(({ o, role }) => {
+    const found = destinationsOf.get(`${o.type}:${o.full_name}`);
+    if (!granteeOf[role]) return row(o, role, false, NO_APP_ACCOUNT);
+    if (!found.labels.length) return row(o, role, false, found.reason || NO_DESTINATION);
+    if (!inPending(o, role)) return row(o, role, false, NO_APP_PRINCIPAL, [], { statements: statementsOf(o, role) });
+    return posted.ok ? row(o, role, true, '', found.labels) : row(o, role, false, failureText(posted));
+  });
+  return summary(rows);
 }
 
 module.exports = {
