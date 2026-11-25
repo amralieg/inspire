@@ -11,7 +11,7 @@ export default function ReviewReader({ onClose, children }) {
   }, [onClose]);
   return (
     <aside data-review-reader="" aria-label="Use case reader"
-      className="fixed inset-y-0 end-0 z-40 flex w-[min(40rem,94vw)] flex-col border-s border-border bg-bg shadow-2xl">
+      className="drawer-enter fixed inset-y-0 end-0 z-40 flex w-[min(40rem,94vw)] flex-col border-s border-border bg-bg shadow-2xl">
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-surface px-4 py-2.5">
         <span className="text-caption font-semibold uppercase tracking-[0.18em] text-text-secondary">Use case</span>
         <button type="button" onClick={onClose} aria-label="Close the reader"
