@@ -115,32 +115,35 @@ async function launch(url, params, headers = signedIn) {
 const ucCalls = (workspace) => workspace.calls.filter((c) => c.path.startsWith('/api/2.1/unity-catalog') || c.path === '/api/2.0/sql/statements');
 const launched = (workspace) => workspace.calls.filter((c) => c.path.startsWith('/api/2.1/jobs/'));
 
-// REQ-418 (D-SL-10B): the pickers list with the App's service principal, the same lists for every person.
-test('the Launch pickers list catalogs, schemas and tables with the App’s service principal, so every person sees the same lists', async () => {
+// SEC-02 (REQ-518, reverses REQ-418): the pickers list with the person's own token, so each person sees what they can read.
+test('the Launch pickers list catalogs, schemas and tables with the person’s own token, so each person sees only what they can read', async () => {
   await withInspire(async (url, workspace) => {
     const catalogs = await get(url, '/api/catalogs?warehouse_id=wh');
     assert.equal(catalogs.status, 200, JSON.stringify(catalogs.data));
-    assert.deepEqual(catalogs.data.catalogs.map((c) => c.name), ['hr', 'main']);
+    assert.deepEqual(catalogs.data.catalogs.map((c) => c.name), ['main']);
     const schemas = await get(url, '/api/catalogs/main/schemas?warehouse_id=wh');
-    assert.deepEqual(schemas.data.schemas.map((s) => s.full_name), ['main.information_schema', 'main.s', 'main.secret']);
+    assert.deepEqual(schemas.data.schemas.map((s) => s.full_name), ['main.information_schema', 'main.s']);
     const tables = await get(url, '/api/tables/main/s?warehouse_id=wh');
     assert.deepEqual(tables.data.tables.map((t) => t.full_name), ['main.s.orders', 'main.s.returns']);
     const unseen = await get(url, '/api/catalogs/nowhere/schemas');
-    assert.deepEqual([unseen.status, unseen.data.schemas], [403, undefined], 'a catalog the App cannot see answers the status the App got, never 502');
+    assert.deepEqual([unseen.status, unseen.data.schemas], [403, undefined], 'a catalog the person cannot see answers the status they got, never 502');
     const calls = ucCalls(workspace);
     assert.ok(calls.length >= 6, `${calls.length} reads`);
-    assert.deepEqual([...new Set(calls.map((c) => c.token))], [SP_TOKEN], 'every listing read is the App’s service principal');
+    // The only App-token reads are the App's own grant checks (effective-permissions, SEC-01 W4 pickable probes); every listing read is the person's own token.
+    const asApp = calls.filter((c) => c.token !== PERSON);
+    assert.ok(asApp.every((c) => c.path === '/api/2.0/sql/statements' || c.path.startsWith('/api/2.1/unity-catalog/effective-permissions/')), `App reads: ${JSON.stringify(asApp.map((c) => c.path))}`);
+    assert.ok(calls.filter((c) => !c.path.startsWith('/api/2.0/sql/statements') && !c.path.includes('effective-permissions')).every((c) => c.token === PERSON), 'every listing read is the person’s own token');
     assert.ok(!calls.some((c) => c.path.includes('include_browse')), 'a picker never asks for tables the App may only browse');
   });
 });
 
-test('with no forwarded person token the pickers still list as the App, so a person without a sign-in sees the same picker (REQ-418)', async () => {
+test('with no forwarded person token the pickers answer 401 and read nothing as the App (SEC-02)', async () => {
   await withInspire(async (url, workspace) => {
     for (const path of ['/api/catalogs?warehouse_id=wh', '/api/catalogs/main/schemas', '/api/tables/main/s']) {
       const got = await get(url, path, {});
-      assert.equal(got.status, 200, `${path}: ${JSON.stringify(got.data)}`);
+      assert.equal(got.status, 401, `${path}: ${JSON.stringify(got.data)}`);
     }
-    assert.deepEqual([...new Set(ucCalls(workspace).map((c) => c.token))], [SP_TOKEN]);
+    assert.deepEqual(ucCalls(workspace).filter((c) => c.token === SP_TOKEN), [], 'nothing is read as the App');
   });
 });
 

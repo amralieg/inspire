@@ -59,6 +59,12 @@ function answerSql(body) {
   const sql = String(body.statement || '');
   const conflict = state.conflictOn ? state.conflictOn(sql) : '';
   if (conflict) return { statement_id: 's1', status: { state: 'FAILED', error: { message: conflict } } };
+  // SEC-02: a session whose scope this test did not seed reads as one table the person can read, so the session check lets them in.
+  if (/__inspire_session/.test(sql) && /\bschemas_str, tables_str FROM\b/.test(sql) && /session_id (=|IN)/.test(sql)) {
+    const ids = ((/session_id (?:=|IN) \(?([\d, ]+)\)?/.exec(sql) || [])[1] || '').split(',').map((x) => x.trim()).filter(Boolean);
+    return sqlResult(['session_id', 'catalogs', 'schemas_str', 'tables_str'], ids.map((id) => [id, '', '', 'main.s.t']));
+  }
+  if (/LIMIT 0\s*$/.test(sql) && !/__inspire_/.test(sql)) return sqlResult(['x'], []);
   if (/^\s*SELECT catalog_json_path\b/i.test(sql)) {
     if (state.catalogQueryError) return { statement_id: 's1', status: { state: 'FAILED', error: { message: state.catalogQueryError } } };
     if (state.catalogColumnMissing) return { statement_id: 's1', status: { state: 'FAILED', error: { message: '[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column with name `catalog_json_path` cannot be resolved.' } } };
@@ -323,7 +329,8 @@ async function stubFetch(url, opts = {}) {
   const file = u.pathname.startsWith('/api/2.0/fs/files/') ? decodeURIComponent(u.pathname.slice('/api/2.0/fs/files'.length)) : '';
   if (file && Object.hasOwn(state.files, file)) {
     if (state.files[file] == null) return json({ error_code: 'NOT_FOUND', message: 'not found' }, 404);
-    if (token !== APP_TOKEN) return json({ error_code: 'PERMISSION_DENIED', message: 'no READ VOLUME' }, 403);
+    // SEC-02: a person reads a volume file with their own token (the fake grants READ VOLUME to the App and to the signed-in person).
+    if (token !== APP_TOKEN && token !== PERSON_TOKEN) return json({ error_code: 'PERMISSION_DENIED', message: 'no READ VOLUME' }, 403);
     const whole = Buffer.from(state.files[file]);
     const range = /^bytes=(\d+)-$/.exec(String(headers.Range || headers.range || ''));
     const part = range ? whole.subarray(Number(range[1])) : whole;

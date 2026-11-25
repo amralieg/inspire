@@ -22,8 +22,10 @@ function fakeWarehouse() {
     return m ? m[1].split(',').map((x) => x.replace(/['\s]/g, '')) : null;
   };
   const answer = (sql, parameters) => {
+    // SEC-02: the session check reads the scope row (one readable table) and probes the table with the person's token.
+    if (/schemas_str, tables_str FROM/.test(sql)) return { columns: ['session_id', 'catalogs', 'schemas_str', 'tables_str'], rows: ((/session_id (?:=|IN) \(?([\d, ]+)\)?/.exec(sql) || [])[1] || '').split(',').map((x) => x.trim()).filter(Boolean).map((id) => [id, '', '', 'main.s.t']) };
     const bound = Object.fromEntries((parameters || []).map((p) => [p.name, p.value]));
-    if (sql.includes('ORDER BY create_at DESC')) return { columns: ['session_id', 'business_name', 'create_at'], rows: [['43', 'Second', '2026-11-21 10:00:00'], ['42', 'First', '2026-11-20 10:00:00']] };
+    if ((sql.includes('ORDER BY create_at DESC') || sql.includes('business_rank'))) return { columns: ['session_id', 'business_name', 'create_at'], rows: [['43', 'Second', '2026-11-21 10:00:00'], ['42', 'First', '2026-11-20 10:00:00']] };
     const listed = sql.includes('session_id IN (') ? sidsOf(sql, bound) : null;
     const sids = listed || (sql.includes('__inspire_value_answers') ? [String(Object.values(bound)[0])] : (/session_id = (\d+)/.exec(sql) || [])[1] ? [/session_id = (\d+)/.exec(sql)[1]] : []);
     const lead = (sid, row) => (listed ? [sid, ...row] : row);
@@ -57,7 +59,7 @@ test.after(async () => {
   if (warehouse) await new Promise((resolve) => warehouse.server.close(resolve));
 });
 const get = async (route) => {
-  const resp = await fetch(`${inspire.url}${route}`);
+  const resp = await fetch(`${inspire.url}${route}`, { headers: { 'x-forwarded-email': 'person@example.com', 'x-forwarded-access-token': 'person-token' } });
   const body = await resp.json();
   assert.equal(resp.status, 200, `${route}: ${JSON.stringify(body)}`);
   return body;

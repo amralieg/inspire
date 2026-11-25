@@ -19,6 +19,8 @@ const stake = (id, amount) => [id, 'money', 'USD', null, String(amount), '1'];
 
 function fakeWarehouse(state) {
   const answer = (sql, parameters) => {
+    // SEC-02: the session check reads the scope row (one readable table) and probes the table with the person's token.
+    if (/schemas_str, tables_str FROM/.test(sql)) return { columns: ['session_id', 'catalogs', 'schemas_str', 'tables_str'], rows: ((/session_id (?:=|IN) \(?([\d, ]+)\)?/.exec(sql) || [])[1] || '').split(',').map((x) => x.trim()).filter(Boolean).map((id) => [id, '', '', 'main.s.t']) };
     const bound = Object.fromEntries((parameters || []).map((p) => [p.name, p.value]));
     // The list form (`session_id IN (...)`) answers every listed session, each row led by its session_id.
     const m = /session_id IN \(([^)]*)\)/.exec(sql);
@@ -39,7 +41,7 @@ function fakeWarehouse(state) {
       const sid = Object.values(bound)[0];
       return { columns: ANSWER_COLUMNS, rows: state.answersBySession[sid] || [] };
     }
-    if (sql.includes('ORDER BY create_at DESC')) return { columns: ['session_id', 'business_name', 'create_at'], rows: state.sessions };
+    if ((sql.includes('ORDER BY create_at DESC') || sql.includes('business_rank'))) return { columns: ['session_id', 'business_name', 'create_at'], rows: state.sessions };
     if (sql.includes('processing_status')) return { columns: ['session_id', 'table_scope'], rows: [['42', '{}']] };
     if (sql.includes('primary_table FROM')) return { columns: ['id', 'primary_table'], rows: state.useCases.map((id) => [id, 'c.s.orders']) };
     if (sql.includes('SELECT id, business_domain')) return { columns: ['id', 'business_domain', 'value_estimate'], rows: state.useCases.map((id) => [id, 'D', null]) };
@@ -75,7 +77,7 @@ test.after(async () => {
   if (warehouse) await new Promise((resolve) => warehouse.server.close(resolve));
 });
 const get = async (route) => {
-  const resp = await fetch(`${inspire.url}${route}`);
+  const resp = await fetch(`${inspire.url}${route}`, { headers: { 'x-forwarded-email': 'person@example.com', 'x-forwarded-access-token': 'person-token' } });
   const text = await resp.text();
   return { status: resp.status, text, body: JSON.parse(text) };
 };

@@ -7,12 +7,11 @@ const TABLE_DENIED = "[PERMISSION_DENIED] User does not have SELECT on Table 'ad
 const CATALOG_DENIED = "[PERMISSION_DENIED] User does not have USE CATALOG on Catalog 'adb_fe_uae_01'.";
 const PERSON = 'harness.person@example.com';
 
-test('a schema refusal maps to USE CATALOG, USE SCHEMA and SELECT on the schema for the named principal', () => {
+test('a schema refusal maps to USE CATALOG and USE SCHEMA for the named principal, and never SELECT on the schema (SEC-02 F9)', () => {
   const p = permissionFor(SCHEMA_DENIED, PERSON);
   assert.deepEqual(p.statements, [
     `GRANT USE CATALOG ON CATALOG \`adb_fe_uae_01\` TO \`${PERSON}\``,
     `GRANT USE SCHEMA ON SCHEMA \`adb_fe_uae_01\`.\`demo_telco\` TO \`${PERSON}\``,
-    `GRANT SELECT ON SCHEMA \`adb_fe_uae_01\`.\`demo_telco\` TO \`${PERSON}\``,
   ]);
   assert.equal(p.principal, PERSON);
   assert.equal(p.why, 'Inspire reads this with your own access.');

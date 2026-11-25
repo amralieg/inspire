@@ -24,6 +24,8 @@ const asText = (v) => (typeof v === 'string' ? v : JSON.stringify(v));
 function fakeWarehouse() {
   const state = { statements: [], session: null, completed: null };
   const answer = (sql) => {
+    // SEC-02: the session check reads the scope row (one readable table) and probes the table with the person's token.
+    if (/schemas_str, tables_str FROM/.test(sql)) return { columns: ['session_id', 'catalogs', 'schemas_str', 'tables_str'], rows: ((/session_id (?:=|IN) \(?([\d, ]+)\)?/.exec(sql) || [])[1] || '').split(',').map((x) => x.trim()).filter(Boolean).map((id) => [id, '', '', 'main.s.t']) };
     if (sql.startsWith('SELECT results_json, completed_on, session_id FROM')) {
       if (state.denied) return { failed: state.denied };
       if (state.pending) return { columns: ['results_json', 'completed_on', 'session_id'], rows: [[asText(state.pending), null, '42']] };
@@ -61,7 +63,7 @@ async function startApp(warehouseUrl) {
   const inspire = await startInspire({ DATABRICKS_HOST: warehouseUrl, DATABRICKS_TOKEN: 'test-token', NODE_ENV: 'test' });
   return {
     get: async (route) => {
-      const resp = await fetch(`${inspire.url}${route}`);
+      const resp = await fetch(`${inspire.url}${route}`, { headers: { 'x-forwarded-email': 'person@example.com', 'x-forwarded-access-token': 'person-token' } });
       return { status: resp.status, body: await resp.json() };
     },
     stop: inspire.stop,
@@ -86,7 +88,8 @@ const reset = (session, completed, { pending = null, denied = '' } = {}) => {
   warehouse.state.pending = pending;
   warehouse.state.denied = denied;
 };
-const statements = () => warehouse.state.statements.map((s) => s.statement);
+// SEC-02: the session check (the scope row and the LIMIT 0 probe of its table) is not part of the read being counted.
+const statements = () => warehouse.state.statements.map((s) => s.statement).filter((sql) => !/schemas_str, tables_str FROM|LIMIT 0\s*$/.test(sql));
 
 test('GET /api/inspire/results answers the summary results_json holds, from that one read', async () => {
   reset(null, { domains: [], title: 'Acme Use Cases Catalog', ...FIXTURE.results_json });
@@ -127,7 +130,8 @@ test('GET /api/inspire/results says whether the Inspire Database has the run, ke
   assert.equal(broken.status, 500, 'any other failure is not a missing permission');
   reset(null, null);
   const latest = await app.get('/api/inspire/results?inspire_database=c.s&warehouse_id=w1');
-  assert.ok(statements()[0].includes("WHERE completed_on IS NOT NULL AND COALESCE(LOWER(processing_status), '') <> 'failed' ORDER BY completed_on DESC LIMIT 1"),
+  // SEC-02: the newest finished runs are listed first and the newest one the person may see is read (was: LIMIT 1).
+  assert.ok(statements()[0].includes("WHERE results_json IS NOT NULL AND completed_on IS NOT NULL AND COALESCE(LOWER(processing_status), '') <> 'failed' ORDER BY completed_on DESC LIMIT 20"),
     'with no run named, the newest run that finished without failing');
   assert.equal(latest.body.results, null);
 });

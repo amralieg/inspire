@@ -15,7 +15,7 @@ test('every documented route that can answer the person sign-in 401 names the sh
   // REQ-418: the App's service principal answers every data route, so a launch, a session read or a folder browse never needs the person's
   // sign-in. The routes that act as the person (who-did-what and grants) do.
   assert.ok(keys.includes('POST /api/access-request') && keys.includes('POST /api/inspire/implement/grant-access'));
-  assert.ok(!keys.includes('GET /api/workspace/list'), 'a folder browse reads as the App (REQ-418)');
+  assert.ok(keys.includes('GET /api/workspace/list'), 'a folder browse reads as the person (SEC-02, reverses REQ-418)');
   assert.ok(!keys.includes('POST /api/run') && !keys.includes('GET /api/inspire/session') && !keys.includes('GET /api/health') && !keys.includes('GET /api/run/:runId'));
   assert.deepEqual(missing(doc, keys), []);
   assert.ok(doc.components.responses.PersonSignInRequired, 'the shared response exists');

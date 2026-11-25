@@ -166,8 +166,16 @@ test('the identity check reports a route with no entry, no identity, an App rout
 test('every person route takes its token through requireToken, so its declared identity picks the token', () => {
   const tails = registrationTails(mountedFiles(SERVER));
   const person = [...tails.keys()].filter((key) => P.ROUTE_POLICY[key] && P.ROUTE_POLICY[key].identity === 'person');
-  // REQ-418: the person's own token is kept for who-did-what routes only; every data route reads as the App.
-  assert.deepEqual(person.sort(), ['POST /api/access-request', 'POST /api/access-request/check', 'POST /api/inspire/implement/grant-access'], 'the who-did-what person routes');
+  // SEC-02 (REQ-518, reverses REQ-418): every route that reads or lists data as the caller (catalog, table, folder, value and implement reads) is a
+  // person route, beside the who-did-what routes.
+  assert.deepEqual(person.sort(), [
+    'GET /api/catalogs', 'GET /api/catalogs/:catalog/schemas', 'GET /api/inspire/implement/columns', 'GET /api/inspire/implement/principals',
+    'GET /api/inspire/implement/table-lookup', 'GET /api/inspire/implement/values', 'GET /api/inspire/value/answers', 'GET /api/tables/:catalog/:schema',
+    'GET /api/workspace/export', 'GET /api/workspace/list', 'GET /api/workspace/status', 'POST /api/access-request', 'POST /api/access-request/check',
+    'POST /api/data-management/columns', 'POST /api/grouping/profile', 'POST /api/inspire/implement/grant-access', 'POST /api/inspire/implement/group-counts',
+    'POST /api/inspire/implement/readiness', 'POST /api/inspire/implement/swaps', 'POST /api/inspire/value/case-plan', 'POST /api/inspire/value/estimate',
+    'POST /api/inspire/value/filter', 'POST /api/inspire/value/scope', 'POST /api/money/currency-rates', 'POST /api/money/rate-sample',
+    'POST /api/money/value-preview', 'POST /api/relationships', 'PUT /api/inspire/value/answers'], 'the person routes');
   assert.deepEqual(person.filter((key) => !/^\s*,\s*(rejectUnsafeQueryPath\s*,\s*)?requireToken\b/.test(tails.get(key))), []);
 });
 

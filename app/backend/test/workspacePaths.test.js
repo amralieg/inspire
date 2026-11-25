@@ -50,14 +50,14 @@ test('list, export and status refuse a relative or .. path with 400 before any w
   }
 });
 
-test('an encoded .. under an App output volume cannot climb out of the files API with the App token (must-exclude)', async () => {
+test('an encoded .. under an App output volume cannot climb out of the files API with the person token (must-exclude)', async () => {
   const escape = `${VOLUME_OUT}/acme/${Array(7).fill('%2e%2e').join('/')}/secrets/list`;
   for (const route of ['/api/workspace/list', '/api/workspace/export']) {
     S.reset(VOLUME_SEED());
     await S.request('GET', `${route}?path=${encodeURIComponent(escape)}`, { person: NONOWNER });
     const called = actions().map((c) => c.path);
     assert.ok(called.length > 0, `${route} reached the files API`);
-    assert.deepEqual([...new Set(actions().map((c) => c.token))], ['app-sp-token'], 'the path sits inside an App output folder, so it reads with the App token');
+    assert.deepEqual([...new Set(actions().map((c) => c.token))], ['person-token'], 'SEC-02: a folder read is the person’s own token, also inside an App output folder');
     for (const p of called) assert.ok(p.startsWith(`/api/2.0/fs/`) && p.includes('/Volumes/main/inspire/vol/out/acme/'), `${route} called ${p}`);
   }
 });

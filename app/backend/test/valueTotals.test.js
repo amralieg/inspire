@@ -20,9 +20,11 @@ function fakeWarehouse(state) {
   // The list form (`session_id IN (...)`) answers the rows of every listed session, each led by its session_id column.
   const sidsOf = (sql) => { const m = /session_id IN \(([^)]*)\)/.exec(sql); return m ? m[1].split(',').map((x) => x.replace(/['\s]/g, '')) : null; };
   const answer = (sql, parameters) => {
+    // SEC-02: the session check reads the scope row (one readable table) and probes the table with the person's token.
+    if (/schemas_str, tables_str FROM/.test(sql)) return { columns: ['session_id', 'catalogs', 'schemas_str', 'tables_str'], rows: ((/session_id (?:=|IN) \(?([\d, ]+)\)?/.exec(sql) || [])[1] || '').split(',').map((x) => x.trim()).filter(Boolean).map((id) => [id, '', '', 'main.s.t']) };
     const bound = Object.fromEntries((parameters || []).map((p) => [p.name, p.value]));
     const listed = sql.includes('session_id IN (') ? (sql.includes('__inspire_value_answers') ? Object.values(bound).map(String) : sidsOf(sql)) : null;
-    if (listed && !sql.includes('ORDER BY create_at DESC')) {
+    if (listed && !(sql.includes('ORDER BY create_at DESC') || sql.includes('business_rank'))) {
       const per = (rowsOf) => listed.flatMap((sid) => rowsOf(sid).map((row) => [sid, ...row]));
       if (sql.includes('__inspire_value_answers')) {
         return { columns: ['session_id', ...ANSWER_COLUMNS], rows: per((sid) => {
@@ -46,7 +48,7 @@ function fakeWarehouse(state) {
       }
       return { columns: ANSWER_COLUMNS, rows: [...latest.values()] };
     }
-    if (sql.includes('ORDER BY create_at DESC')) return { columns: ['session_id', 'business_name', 'create_at'], rows: state.sessions };
+    if ((sql.includes('ORDER BY create_at DESC') || sql.includes('business_rank'))) return { columns: ['session_id', 'business_name', 'create_at'], rows: state.sessions };
     if (sql.includes('primary_table FROM')) return { columns: ['id', 'primary_table'], rows: state.useCases.map((id) => [id, state.noTable.includes(id) ? '' : 'c.s.orders']) };
     if (sql.includes('SELECT id, business_domain')) return { columns: ['id', 'business_domain', 'value_estimate'], rows: state.useCases.map((id) => [id, 'D', null]) };
     if (sql.includes('PARTITION BY use_case_id ORDER BY spec_version')) return { columns: ['use_case_id', 'spec'], rows: state.useCases.includes('C') ? [['C', JSON.stringify(RULE)]] : [] };
@@ -80,7 +82,7 @@ test.after(async () => {
   if (warehouse) await new Promise((resolve) => warehouse.server.close(resolve));
 });
 const get = async (route) => {
-  const resp = await fetch(`${inspire.url}${route}`);
+  const resp = await fetch(`${inspire.url}${route}`, { headers: { 'x-forwarded-email': 'person@example.com', 'x-forwarded-access-token': 'person-token' } });
   return { status: resp.status, body: await resp.json() };
 };
 const set = (patch) => Object.assign(state, { answersBySession: {}, sessions: [], useCases: [], noTable: [] }, patch);
@@ -159,7 +161,8 @@ const withRuns = (count) => {
 const sentFor = async (route) => {
   state.sent.length = 0;
   const reply = await get(route);
-  return { reply, sent: state.sent.map((s) => s.sql) };
+  // SEC-02: the session check (the scope row and one LIMIT 0 probe per table) is not part of the value read being counted.
+  return { reply, sent: state.sent.map((s) => s.sql).filter((sql) => !/schemas_str, tables_str FROM|LIMIT 0\s*$/.test(sql)) };
 };
 
 test('the all-runs read sends the same few statements for 2 runs and for 10 runs', async (t) => {
@@ -195,7 +198,7 @@ test('a single-run read never sends the same statement twice', async () => {
   state.sent.length = 0;
   const { status } = await get(`/api/inspire/value/totals?${QUERY}&session_id=42`);
   assert.equal(status, 200);
-  const keys = state.sent.map((s) => JSON.stringify([s.sql, s.parameters]));
+  const keys = state.sent.filter((s) => !/schemas_str, tables_str FROM|LIMIT 0\s*$/.test(s.sql)).map((s) => JSON.stringify([s.sql, s.parameters]));
   const dup = keys.filter((k, i) => keys.indexOf(k) !== i);
   assert.deepEqual(dup, [], `${keys.length} statements, ${dup.length} repeated`);
 });

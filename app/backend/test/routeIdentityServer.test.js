@@ -11,43 +11,49 @@ test.after(() => S.stopServer());
 const callsTo = (prefix) => S.state.calls.filter((c) => c.path.startsWith(prefix));
 const tokensTo = (prefix) => [...new Set(callsTo(prefix).map((c) => c.token))];
 
-test('a CAN_USE person who lists a workspace folder reads the workspace with the App token, never the person token (REQ-418)', async () => {
+const PERSON_TOKEN = S.PERSON_TOKEN;
+
+test('SEC-02 (reverses REQ-418): a CAN_USE person who lists a workspace folder reads it with their own token, never the App token', async () => {
   S.reset();
   const got = await S.request('GET', '/api/workspace/list?path=%2FUsers%2Fsomeone-else%2Fprivate', { person: NONOWNER });
   assert.equal(got.status, 200, got.text);
   assert.ok(callsTo('/api/2.0/workspace/list').length > 0, 'the folder was listed');
-  assert.deepEqual(tokensTo('/api/2.0/workspace/list'), [APP_TOKEN]);
+  assert.deepEqual(tokensTo('/api/2.0/workspace/list'), [PERSON_TOKEN]);
 });
 
-test('a CAN_USE person who browses catalogs, schemas and tables, or reads columns, does it with the App token (REQ-418)', async () => {
-  for (const [route, prefix] of [
-    ['/api/catalogs', '/api/2.1/unity-catalog/catalogs'],
-    ['/api/catalogs/main/schemas', '/api/2.1/unity-catalog/schemas'],
-    ['/api/tables/main/sales', '/api/2.1/unity-catalog/tables'],
-    ['/api/workspace/export?path=%2FUsers%2Fsomeone-else%2Fnotes.py', '/api/2.0/workspace/export'],
-    ['/api/workspace/status?path=%2FUsers%2Fsomeone-else', '/api/2.0/workspace/get-status'],
-    ['/api/warehouses', '/api/2.0/sql/warehouses'],
+test('SEC-02 (reverses REQ-418): a CAN_USE person who browses catalogs, schemas and tables, or reads columns, does it with their own token; warehouses stay the App', async () => {
+  for (const [route, prefix, token] of [
+    ['/api/catalogs', '/api/2.1/unity-catalog/catalogs', PERSON_TOKEN],
+    ['/api/catalogs/main/schemas', '/api/2.1/unity-catalog/schemas', PERSON_TOKEN],
+    ['/api/tables/main/sales', '/api/2.1/unity-catalog/tables', PERSON_TOKEN],
+    ['/api/workspace/export?path=%2FUsers%2Fsomeone-else%2Fnotes.py', '/api/2.0/workspace/export', PERSON_TOKEN],
+    ['/api/workspace/status?path=%2FUsers%2Fsomeone-else', '/api/2.0/workspace/get-status', PERSON_TOKEN],
+    ['/api/warehouses', '/api/2.0/sql/warehouses', APP_TOKEN],
   ]) {
     S.reset();
     const got = await S.request('GET', route, { person: NONOWNER });
     assert.notEqual(got.status, 401, `${route}: ${got.text}`);
     assert.ok(callsTo(prefix).length > 0, `${route} reached ${prefix}`);
-    assert.deepEqual(tokensTo(prefix), [APP_TOKEN], route);
+    assert.deepEqual(tokensTo(prefix), [token], route);
   }
   S.reset({ tableColumns: { 'hr.payroll.salaries': ['employee_id', 'salary'] } });
   const columns = await S.request('GET', '/api/inspire/implement/columns?warehouse_id=wh1&table=hr.payroll.salaries', { person: NONOWNER });
   assert.equal(columns.status, 200, columns.text);
-  assert.deepEqual(tokensTo('/api/2.0/sql/statements'), [APP_TOKEN]);
+  assert.deepEqual(tokensTo('/api/2.0/sql/statements'), [PERSON_TOKEN]);
 });
 
-test('with no forwarded token the App data routes still read as the App, and a person route refuses with the reason and the fix (REQ-418)', async () => {
+test('SEC-02: with no forwarded token the data routes refuse 401 and read nothing as the App; the App routes still read as the App, and a person route refuses with the reason and the fix', async () => {
   for (const route of ['/api/workspace/list?path=%2FUsers%2Fsomeone-else', '/api/catalogs', '/api/tables/main/sales',
     '/api/inspire/implement/values?warehouse_id=wh1&table=hr.payroll.salaries&column=name']) {
     S.reset({ tableColumns: { 'hr.payroll.salaries': ['name'] } });
     const got = await S.request('GET', route, { person: NONOWNER, userToken: false });
-    assert.equal(got.status, 200, `${route}: ${got.text}`);
-    assert.ok(S.state.calls.filter((c) => !['auth', 'policy'].includes(c.category) && c.token === APP_TOKEN).length > 0, `${route} read as the App`);
+    assert.equal(got.status, 401, `${route}: ${got.text}`);
+    assert.deepEqual(S.state.calls.filter((c) => !['auth', 'policy'].includes(c.category) && c.token === APP_TOKEN), [], `${route} read nothing as the App`);
   }
+  S.reset();
+  const warehouses = await S.request('GET', '/api/warehouses', { person: NONOWNER, userToken: false });
+  assert.equal(warehouses.status, 200, warehouses.text);
+  assert.ok(S.state.calls.filter((c) => !['auth', 'policy'].includes(c.category) && c.token === APP_TOKEN).length > 0, 'an App route reads as the App');
   S.reset();
   const who = await S.request('POST', '/api/access-request', { person: NONOWNER, userToken: false, body: { statements: [] } });
   assert.equal(who.status, 401, who.text);

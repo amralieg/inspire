@@ -41,10 +41,12 @@ const SPEC_ROWS = [
 function fakeWarehouse() {
   const state = { statements: [], missingLedger: false };
   const answer = (sql) => {
+    // SEC-02: the session check reads the scope row (one readable table) and probes the table with the person's token.
+    if (/schemas_str, tables_str FROM/.test(sql)) return { columns: ['session_id', 'catalogs', 'schemas_str', 'tables_str'], rows: ((/session_id (?:=|IN) \(?([\d, ]+)\)?/.exec(sql) || [])[1] || '').split(',').map((x) => x.trim()).filter(Boolean).map((id) => [id, '', '', 'main.s.t']) };
     if (sql.includes(`FROM ${LEDGER}`) && state.missingLedger) {
       return { failed: `[TABLE_OR_VIEW_NOT_FOUND] The table or view ${LEDGER} cannot be found.` };
     }
-    if (sql.includes('FROM `c`.`s`.`__inspire_session` ORDER BY create_at DESC')) {
+    if ((sql.includes('FROM `c`.`s`.`__inspire_session` ORDER BY create_at DESC') || sql.includes('business_rank'))) {
       const ids = state.manySessions ? Array.from({ length: 21 }, (_, i) => [String(100 + i)]) : [['42'], ['43']];
       return { columns: ['session_id'], rows: ids };
     }
@@ -85,7 +87,7 @@ test.before(async () => {
   const inspire = await startInspire({ DATABRICKS_HOST: warehouse.url, DATABRICKS_TOKEN: 'test-token', NODE_ENV: 'test' });
   app = {
     get: async (route) => {
-      const resp = await fetch(`${inspire.url}${route}`);
+      const resp = await fetch(`${inspire.url}${route}`, { headers: { 'x-forwarded-email': 'person@example.com', 'x-forwarded-access-token': 'person-token' } });
       return { status: resp.status, body: await resp.json() };
     },
     stop: inspire.stop,
@@ -101,7 +103,8 @@ const reset = ({ missingLedger = false, manySessions = false } = {}) => {
   warehouse.state.missingLedger = missingLedger;
   warehouse.state.manySessions = manySessions;
 };
-const statements = () => warehouse.state.statements.map((s) => s.statement);
+// SEC-02: the session check (the scope row and the LIMIT 0 probe of its table) is not part of the read being counted.
+const statements = () => warehouse.state.statements.map((s) => s.statement).filter((sql) => !/schemas_str, tables_str FROM|LIMIT 0\s*$/.test(sql));
 
 test('GET /api/inspire/value answers the use case map and the run from the aggregated rows, keeping money and time apart', async () => {
   reset();

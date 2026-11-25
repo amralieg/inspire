@@ -2458,7 +2458,9 @@ async function droppedCatalogRefusal(req, params) {
 const SCOPE_PROBE_CEILING = 500;
 const SCOPE_PROBE_BATCH = 8;
 const UNCHECKED_SCOPE = { status: 403, request: 'person', permissions: [], unreadable: [] };
-async function launcherReadRefusal(req, scope, { emptyScopeRefuses = false } = {}) {
+// A launch (failClosed false) only stops on a table the person is known to have lost: the launcher always sees their own session, so a check
+// that could not run does not stop the run (it hides the session from everyone else, sessionHiddenFrom).
+async function launcherReadRefusal(req, scope, { emptyScopeRefuses = false, failClosed = true } = {}) {
   const person = forwardedTokenOf(req);
   const { catalogs, schemas, tables: picked } = ucMetadataParts(scope);
   const entries = [...picked, ...schemas, ...catalogs];
@@ -2489,6 +2491,7 @@ async function launcherReadRefusal(req, scope, { emptyScopeRefuses = false } = {
     }
   }
   if (!lost.length && !unchecked) return null;
+  if (!lost.length && !failClosed) return null;
   if (!lost.length) return { ...UNCHECKED_SCOPE, message: 'Inspire could not check that you can read every table of this scope, so it is not shown. Try again, or ask the person who launched it.' };
   const email = RP.forwardedPerson(req.headers);
   const names = lost.sort();
@@ -2557,7 +2560,7 @@ async function sessionHidden(req, sessionId) {
     const { inspireDatabase, warehouseId } = requestedInspireDb(req);
     const parsed = splitInspireDatabase(inspireDatabase);
     const token = await appOwnToken();
-    if (/^\d+$/.test(sid) && parsed && warehouseId && token) {
+    if (isInt64Id(sid) && parsed && warehouseId && token) {
       const rows = sqlResultToObjects(await executeSql(req.dbHost, token, warehouseId,
         `SELECT session_id, catalogs, schemas_str, tables_str FROM \`${parsed.catalog}\`.\`${parsed.schema}\`.\`__inspire_session\` WHERE session_id = ${sid} LIMIT 1`));
       scope = rows[0] || null;
@@ -2635,9 +2638,9 @@ async function checkLaunchReads(req, params) {
     if (dropped) return { reads: { refusal: dropped, skipped: [], warnings: [] }, access: { permissions: [], warnings: [] }, model: [] };
     const reads = await runReadPlan(dbFetch, req, discoverReads(params));
     if (!reads.refusal) {
-      const lost = await launcherReadRefusal(req, reads.scope || params['01_uc_metadata']).catch((err) => {
+      const lost = await launcherReadRefusal(req, reads.scope || params['01_uc_metadata'], { failClosed: false }).catch((err) => {
         console.warn(`launcher read check: ${err.message || err}`);
-        return UNCHECKED_SCOPE;
+        return null;
       });
       if (lost) return { reads: { ...reads, refusal: lost }, access: { permissions: [], warnings: [] }, model: [] };
     }
