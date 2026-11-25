@@ -18,6 +18,7 @@ import { showcaseSettings, showcasesFrom, staysInShowcase } from './lib/showcase
 import PermissionHost from './components/PermissionHost';
 import BuildStarting from './components/BuildStarting';
 import { ValueBulkRunProvider } from './lib/valueBulkRun';
+import { DocsRunProvider } from './lib/docsRun.jsx';
 
 const noop = () => {};
 
@@ -521,6 +522,7 @@ export default function App() {
   return (
     <ThemeProvider>
     <ValueBulkRunProvider>
+    <DocsRunProvider>
     <div className="min-h-screen bg-bg text-text-primary relative">
       {!bare && page === 'landing' && <ParticleField count={40} />}
       <PermissionHost />
@@ -691,6 +693,7 @@ export default function App() {
 
       {!bare && page !== 'landing' && page !== 'setup' && <ScrollProgressRing />}
     </div>
+    </DocsRunProvider>
     </ValueBulkRunProvider>
     </ThemeProvider>
   );

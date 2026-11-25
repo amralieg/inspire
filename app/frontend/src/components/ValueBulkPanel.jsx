@@ -1,4 +1,5 @@
 import { Loader2 } from 'lucide-react';
+import BackgroundRunBar from './BackgroundRunBar';
 import ModalDialog from './ModalDialog';
 import { PlainMessage } from './TechnicalDetails';
 import { bulkCounts, useValueBulkRun } from '../lib/valueBulkRun';
@@ -91,14 +92,8 @@ export function ValueBulkProgress() {
   if (!run || run.open) return null;
   const { done, total } = bulkCounts(run);
   return (
-    <div data-bulk-bg="" className="mb-2 flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-secondary">
-      <span data-bulk-bg-text="" aria-live="polite" className="font-semibold text-text-primary">{run.running && <Loader2 size={14} className="me-1.5 inline motion-safe:animate-spin" aria-hidden />}{run.running ? 'Calculating value' : 'Value calculated'}: {bulkSummary(run.rows, run.items)}</span>
-      <div role="progressbar" aria-label="Value calculation progress" aria-valuemin={0} aria-valuenow={done} aria-valuemax={total}
-        className="h-2 min-w-24 flex-1 overflow-hidden rounded-full bg-bg-subtle">
-        <div className="h-full bg-primary-solid text-white" style={{ width: `${total ? Math.round((done / total) * 100) : 0}%` }} />
-      </div>
-      <button type="button" onClick={show} className={btn}>Open</button>
-      {run.running ? <button type="button" onClick={stop} className={btn}>Stop</button> : <button type="button" onClick={dismiss} className={btn}>Dismiss</button>}
-    </div>
+    <BackgroundRunBar barAttrs={{ 'data-bulk-bg': '' }} textAttrs={{ 'data-bulk-bg-text': '' }} running={run.running}
+      text={`${run.running ? 'Calculating value' : 'Value calculated'}: ${bulkSummary(run.rows, run.items)}`} meterLabel="Value calculation progress"
+      done={done} total={total} onOpen={show} onStop={stop} onDismiss={dismiss} />
   );
 }

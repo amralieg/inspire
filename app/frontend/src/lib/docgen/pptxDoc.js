@@ -26,7 +26,7 @@ export async function buildPptx(m, theme) {
   [a0, a1, a2].forEach((c, i) => cover.addShape('rect', { x: 0.8, y: 4.6 + i * 0.3, w: 4 - i * 1.1, h: 0.2, fill: { color: c } }));
 
   const sum = slide('Summary');
-  const head = ['Use case', ...(has(m, 'inspire_score') ? ['Score'] : []), 'Value'].map((t) => ({ text: t, options: { bold: true, color: 'FFFFFF', fill: { color: a2 === bg ? a0 : a2 } } }));
+  const head = ['Use case', ...(has(m, 'inspire_score') ? ['Score'] : []), 'Value'].map((t) => ({ text: t, options: { bold: true, color: theme.mode === 'dark' ? ink : 'FFFFFF', fill: { color: theme.mode === 'dark' ? hex(theme.surface) : a2 === bg ? a0 : a2 } } }));
   const rows = m.useCases.map((u) => [u.name, ...(has(m, 'inspire_score') ? [u.score != null ? u.score.toFixed(1) : '-'] : []), u.value ? u.value.text : NOT_YET].map((t) => ({ text: String(t), options: { color: ink } })));
   sum.addTable([head, ...rows], { x: 0.6, y: 1.5, w: 12.1, fontSize: 14, fontFace: face, border: { type: 'solid', color: muted, pt: 0.5 }, colW: has(m, 'inspire_score') ? [8, 1.6, 2.5] : [9.5, 2.6] });
 

@@ -67,16 +67,19 @@ async function makeFile(file, m, theme, options) {
   }
   if (file.kind === 'pptx') { const { buildPptx } = await import('./docgen/pptxDoc.js'); return buildPptx(m, theme); }
   const { buildXlsx } = await import('./docgen/xlsxDoc.js');
-  return toBytes(await buildXlsx(m, options.columns));
+  return toBytes(await buildXlsx(m, options.columns, theme));
 }
 
-// onFile(name, state, message): state is working, done or failed. Returns the saved paths.
-export async function generateDocs({ plan, options, useCases, values, businessName, folder, post, inspireDatabase, warehouseId, sessionId, onFile }) {
-  const theme = resolveTheme(options.style, options.palette, options.customColor);
+// onFile(name, state, message): state is working, done, failed or stopped. Returns the saved paths.
+// REQ-525: once `signal` is aborted no new file starts (the one being made finishes) and each file not started ends as stopped.
+export async function generateDocs({ plan, options, useCases, values, businessName, folder, post, inspireDatabase, warehouseId, sessionId, onFile, signal = null }) {
+  const theme = resolveTheme(options.style, options.palette, options.customColor, options.theme);
   const where = { inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId) };
   const saved = [];
   for (const language of options.languages) {
     const files = plan.filter((f) => f.language === language);
+    const halt = () => { files.forEach((f) => onFile(f.name, 'stopped')); };
+    if (signal?.aborted) { halt(); continue; }
     let translated = null;
     if (language !== 'English') {
       try {
@@ -88,6 +91,7 @@ export async function generateDocs({ plan, options, useCases, values, businessNa
       }
     }
     for (const file of files) {
+      if (signal?.aborted) { onFile(file.name, 'stopped'); continue; }
       onFile(file.name, 'working');
       try {
         const m = modelFor({ businessName, useCases, values, options, language, ids: file.useCaseIds, translated });

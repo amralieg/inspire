@@ -21,10 +21,11 @@ const CELL = {
 };
 const WIDTH = { name: 40, statement: 60, use_case_story: 60, value_story: 50, projection: 40, tables: 40 };
 
-export async function buildXlsx(model, columnIds) {
+// REQ-525: only the header fill follows the theme (dark: its page colour); the cells stay on the white sheet.
+export async function buildXlsx(model, columnIds, theme = null) {
   const cols = (columnIds || []).filter((id) => CELL[id]);
   const label = (id) => EXCEL_COLUMNS.find((c) => c.id === id)?.label || id;
-  const header = cols.map((id) => ({ value: label(id), fontWeight: 'bold', backgroundColor: '#1B3139', color: '#FFFFFF' }));
+  const header = cols.map((id) => ({ value: label(id), fontWeight: 'bold', backgroundColor: theme?.headFill || '#1B3139', color: '#FFFFFF' }));
   const rows = model.useCases.map((u) => cols.map((id) => CELL[id](u)));
   return writeXlsxFile([header, ...rows], { columns: cols.map((id) => ({ width: WIDTH[id] || 16 })) }).toBlob();
 }

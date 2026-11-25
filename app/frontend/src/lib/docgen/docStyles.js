@@ -20,11 +20,40 @@ export const DOC_PALETTES = [
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
+// REQ-525: the Light / Dark theme choice. Light is the style as designed. Dark keeps the style's shapes, font and accents on a dark page.
+export const DOC_THEMES = [{ id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }];
+const DARK_BASE = { bg: '#121A1F', surface: '#1E2A30', ink: '#F2F5F6', muted: '#A9B8BE' };
+const MIN_CONTRAST = 4.5;
+
+const channels = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+const luminance = (hex) => {
+  const [r, g, b] = channels(hex).map((v) => v / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+export const contrastRatio = (a, b) => { const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+const toHex = (rgb) => `#${rgb.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+
+// A colour mixed towards white in small steps until it reads at 4.5:1 on every background; unchanged when it already does.
+function lift(hex, backgrounds) {
+  const rgb = channels(hex);
+  for (let t = 0; t <= 1.0001; t += 0.05) {
+    const c = toHex(rgb.map((v) => v + (255 - v) * t));
+    if (backgrounds.every((bg) => contrastRatio(c, bg) >= MIN_CONTRAST)) return c;
+  }
+  return '#FFFFFF';
+}
+const isDarkStyle = (s) => luminance(s.bg) < 0.1 && luminance(s.surface) < 0.15 && luminance(s.ink) > 0.6;
+
 // The style keeps its own look when the palette is "databricks" (the default); any other palette (or a custom brand colour) leads the accents.
-export function resolveTheme(styleId, paletteId, customHex) {
+// `mode` is 'light' (default, exactly the style) or 'dark' (REQ-525): a dark page, light text, and every accent and text colour at 4.5:1 or more.
+export function resolveTheme(styleId, paletteId, customHex, mode = 'light') {
   const style = DOC_STYLES.find((s) => s.id === styleId) || DOC_STYLES[0];
   const palette = DOC_PALETTES.find((p) => p.id === paletteId) || DOC_PALETTES[0];
   let accents = paletteId && palette.id !== 'databricks' ? [...palette.colors] : [...style.accents];
   if (typeof customHex === 'string' && HEX.test(customHex.trim())) accents = [customHex.trim(), ...accents.slice(0, 2)];
-  return { ...style, paletteId: palette.id, accents };
+  if (mode !== 'dark') return { ...style, paletteId: palette.id, accents, mode: 'light' };
+  const base = isDarkStyle(style) ? { bg: style.bg, surface: style.surface, ink: style.ink, muted: style.muted } : DARK_BASE;
+  const behind = [base.bg, base.surface];
+  const muted = lift(base.muted, behind);
+  return { ...style, ...base, muted, paletteId: palette.id, accents: accents.map((c) => lift(c, behind)), mode: 'dark', headFill: base.bg };
 }
