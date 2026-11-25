@@ -1,4 +1,4 @@
-"""RC3-03 (rc3 live walk, build run 799370920396931, N01-U01 on the bakehouse sample): the build ended "MVP READY WITH WARNINGS" with
+"""RC3-03 (rc3 live walk, N01-U01 on the bakehouse sample): the build ended "MVP READY WITH WARNINGS" with
 8 warnings. Three classes are fixed here, offline through the notebook namespace and the App shell's shell_sql:
 
 W1/W2  group_by and run_scope are Inspire's own choice settings (IMPLEMENT_CHOICE_KINDS), not numeric widgets. When they are not in
