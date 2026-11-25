@@ -76,6 +76,9 @@ def test_the_rewrite_keeps_the_text_and_the_swap_marks_what_it_replaced(agent_ns
         def value_counts(self, table, column):
             return agent_ns["DeepEvidence"].value_counts(self, table, column)
 
+        def is_policied(self, table):
+            return False  # SEC-01 S4 (REQ-518): value_counts asks first; this table has no row filter or column mask
+
         def _read(self, kind, table, sql, args=None, budget="evidence", scopes=None):
             return [{"v": "first time buyers", "n": 7}]
 

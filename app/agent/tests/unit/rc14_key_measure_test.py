@@ -13,6 +13,9 @@ class _Deep:
     def __init__(self, ns, rows, measured):
         self.rows, self.measured, self.ns, self.reads = rows, measured, ns, []
 
+    def is_policied(self, table):
+        return False  # SEC-01 S4 (REQ-518): value_counts asks first; this table has no row filter or column mask
+
     def _read(self, kind, table, sql, args=None, budget="evidence", scopes=None):
         self.reads.append((kind, table, sql))
         return [{"v": v, "n": n} for v, n in self.rows]
