@@ -186,15 +186,16 @@ test('GET /api/inspire/portfolio answers from three aggregate reads however many
     assert.equal(Object.keys(got.data.sessions).length, 40);
     assert.equal(got.data.sessions['500'].live_assets, 9);
     assert.deepEqual(got.data.missing, []);
-    assert.equal(sqlCalls.length, 3, 'one read per table, never one per run');
-    assert.deepEqual(sqlCalls.map((c) => c.sql.match(/`__inspire_\w+`/)[0]).sort(), ['`__inspire_implement`', '`__inspire_session`', '`__inspire_usecases`']);
+    // SEC-02 (259d2b981, REQ-518): one more constant read lists the sessions this person may see; the three aggregates still run once per table.
+    assert.equal(sqlCalls.length, 4, 'one visible-session list plus one read per table, never one per run');
+    assert.deepEqual(sqlCalls.map((c) => c.sql.match(/`__inspire_\w+`/)[0]).sort(), ['`__inspire_implement`', '`__inspire_session`', '`__inspire_session`', '`__inspire_usecases`']);
     for (const bad of ['', 'main', 'a.b.c']) {
       const refused = await get(srv.url, `/api/inspire/portfolio?inspire_database=${encodeURIComponent(bad)}&warehouse_id=wh1`);
       assert.equal(refused.status, 400, bad);
       assert.equal(refused.data.error, 'Pick catalog.schema for the Inspire database, for example main.inspire, in Settings.');
     }
     assert.equal((await get(srv.url, '/api/inspire/portfolio?inspire_database=main.inspire')).status, 400, 'a warehouse is required');
-    assert.equal(sqlCalls.length, 3, 'a refused request reads nothing');
+    assert.equal(sqlCalls.length, 4, 'a refused request reads nothing');
   } finally {
     await srv.close();
   }
