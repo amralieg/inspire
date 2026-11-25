@@ -85,7 +85,7 @@ def test_every_ai_text_is_checked_for_another_level_and_a_numeric_confidence_in_
         assert detail.startswith(f"regexp_extract(coalesce(c.`{column}`, ''), ")
         assert f"coalesce(c.`{column}`, '') RLIKE " in checks[f"{label} gives the confidence as a number"][0]
     labels = list(checks)
-    assert labels[-1] == "ai_cat_driver outside its values" and labels.index("other option gives the confidence as a number") == len(labels) - 2
+    assert labels[-1] == "ai_cat_driver outside its values" and labels.index("do gives the confidence as a number") == len(labels) - 2
     sqlglot = pytest.importorskip("sqlglot")
     sqlglot.parse_one(agent_ns["inspire_ai_checked_sql"](TABLE, "_s", ai), read="databricks")
 

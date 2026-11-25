@@ -49,8 +49,8 @@ def _cites_the_facts(ns, sentence, facts):
 def test_one_ai_call_writes_the_next_action_result_other_option_and_evidence(agent_ns):
     ai = _ai(agent_ns)
     assert [name for name, _kind in agent_ns["inspire_ai_columns"](ai)] == [
-        "ai_explanation", "ai_confidence_reason", "ai_next_action", "ai_expected_result", "ai_other_option", "ai_evidence",
-        "ai_facts_hash", "ai_check", "ai_cat_driver"]
+        "ai_explanation", "ai_confidence_reason", "ai_next_action", "ai_expected_result", "ai_other_option", "ai_headline", "ai_what", "ai_why", "ai_do",
+        "ai_evidence", "ai_facts_hash", "ai_check", "ai_cat_driver"]
     prompt = ai["prompt"]
     assert prompt.index("the user's directive wins") < prompt.index('"next_action"')
     for key in ('"next_action": one plain sentence', '"expected_result": one plain sentence', '"other_option": one plain sentence',
@@ -62,7 +62,7 @@ def test_one_ai_call_writes_the_next_action_result_other_option_and_evidence(age
     assert reply.count("ai_query(") == 1, "every field comes from the one call that writes ai_explanation"
     checked = agent_ns["inspire_ai_checked_sql"](TABLE, "_s", ai)
     assert ("'explanation STRING, confidence_reason STRING, next_action STRING, expected_result STRING, other_option STRING, "
-            "ai_cat_driver STRING, evidence ARRAY<STRING>'") in checked
+            "headline STRING, what STRING, why STRING, do STRING, ai_cat_driver STRING, evidence ARRAY<STRING>'") in checked
     assert "trim(b.ai_json.next_action) AS `ai_next_action`" in checked
     assert "to_json(transform(b.ai_json.evidence, e -> trim(e))) AS `ai_evidence`" in checked
     update = agent_ns["inspire_ai_update_sql"](TABLE, "_s", ai)
@@ -95,6 +95,12 @@ def test_the_hedge_and_missing_reasoning_checks_cover_every_new_text_and_the_evi
         "no next action", "hedged next action", "next action reads as a Python object dump",
         "no expected result", "hedged expected result", "expected result reads as a Python object dump",
         "no other option", "hedged other option", "other option reads as a Python object dump",
+        "no headline", "hedged headline", "headline reads as a Python object dump",
+        "no what", "hedged what", "what reads as a Python object dump",
+        "no why", "hedged why", "why reads as a Python object dump",
+        "no do", "hedged do", "do reads as a Python object dump",
+        "headline over 12 words", "what is not one sentence", "why is not one sentence", "do is not one sentence",
+        "number repeated across headline, what, why and do",
         "evidence not 2 to 4 sentences", "hedged evidence", "evidence without a number from the facts",
         "evidence reads as a Python object dump",
         "explanation names another confidence level", "explanation gives the confidence as a number",
@@ -102,6 +108,10 @@ def test_the_hedge_and_missing_reasoning_checks_cover_every_new_text_and_the_evi
         "next action names another confidence level", "next action gives the confidence as a number",
         "expected result names another confidence level", "expected result gives the confidence as a number",
         "other option names another confidence level", "other option gives the confidence as a number",
+        "headline names another confidence level", "headline gives the confidence as a number",
+        "what names another confidence level", "what gives the confidence as a number",
+        "why names another confidence level", "why gives the confidence as a number",
+        "do names another confidence level", "do gives the confidence as a number",
         "ai_cat_driver outside its values"]
     tests = {label: test for label, test, _detail in checks}
     for name in NEW_TEXTS:
@@ -227,4 +237,4 @@ def test_genie_is_told_to_define_the_formula_and_the_app_columns_stay_free_text(
     assert "never set them either, nor `value_at_stake_formula`" in agent_ns["GENIE_RESULT_HISTORY_RULE"]
     for name in NEW_COLUMNS + ("value_at_stake_formula",):
         assert agent_ns["implement_genie_column_flags"](name, "string") == (False, False), name
-    assert "ai_next_action, ai_expected_result, ai_other_option, ai_evidence, ai_facts_hash" in agent_ns["GENIE_EXPLANATION_FACTS_RULE"]
+    assert "ai_next_action, ai_expected_result, ai_other_option, ai_headline, ai_what, ai_why, ai_do, ai_evidence, ai_facts_hash" in agent_ns["GENIE_EXPLANATION_FACTS_RULE"]
