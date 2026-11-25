@@ -39,7 +39,8 @@ test('F24: a run with no value shows "Not calculated" as a neutral grey badge wi
     await badge.waitFor({ timeout: 20000 });
     const facts = await badge.evaluate((el) => {
       const boxes = [];
-      for (let n = el; n && !n.matches('[data-run]'); n = n.parentElement) {
+      // e6f34abbe (REQ-510) restored the labelled dashed run-value box for a run with no total: the check is the badge and what is inside the box.
+      for (let n = el; n && !n.matches('[data-run], [data-run-value-box]'); n = n.parentElement) {
         const s = getComputedStyle(n);
         boxes.push({ style: s.borderTopStyle, width: s.borderTopWidth, border: s.borderTopColor, bg: s.backgroundColor });
       }

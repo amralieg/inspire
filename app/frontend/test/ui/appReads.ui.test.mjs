@@ -14,9 +14,6 @@ const METADATA = 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-2`
 const SELECT_RETURNS = 'GRANT SELECT ON TABLE `main`.`s`.`returns` TO `app-sp-2`';
 const METADATA_RETURNS = 'GRANT READ METADATA ON TABLE `main`.`s`.`returns` TO `app-sp-2`';
 const SELECT = 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-2`';
-// REQ-408: the dialog asks the two tables' reads at schema level: one SELECT and one READ METADATA on the schema.
-const SELECT_SCHEMA = 'GRANT SELECT ON SCHEMA `main`.`s` TO `app-sp-2`';
-const METADATA_SCHEMA = 'GRANT READ METADATA ON SCHEMA `main`.`s` TO `app-sp-2`';
 const DENIED = "[PERMISSION_DENIED] User does not have MANAGE on Catalog 'main'.";
 
 const unreadBuild = ({ appFailed = false } = {}) => {
@@ -91,7 +88,7 @@ test('a build whose App cannot read its data ends as action needed; a person who
     const copy = page.locator('[data-permission-dialog] [data-permission-statements]');
     await copy.waitFor({ timeout: 15000 });
     assert.equal(sqlStatementsOf(await copy.textContent()).sort().join('\n'),
-      [CATALOG, SCHEMA, SELECT_SCHEMA, METADATA_SCHEMA].sort().join('\n'));
+      [CATALOG, SCHEMA, SELECT, METADATA, SELECT_RETURNS, METADATA_RETURNS].sort().join('\n'));
     await page.keyboard.press('Escape'); // the dialog is modal: close it before the card's own buttons
 
     w.grants.length = 0;

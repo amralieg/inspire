@@ -27,8 +27,9 @@ test('the Use case details drawer opens on the overlay layer (z 50) over a black
   const ui = await openUi('implement', { useCase: HARNESS_USE_CASE });
   const { page } = ui;
   try {
-    const trigger = page.getByRole('button', { name: 'Use case details', exact: true });
+    const trigger = page.locator('[aria-label="Use case"]').getByRole('button', { name: 'More', exact: true });
     await trigger.click();
+    await page.getByRole('menuitem', { name: 'Use case details' }).click();
     const dialog = page.getByRole('dialog', { name: /^Use case details: / });
     await dialog.waitFor({ timeout: 15000 });
     const got = await layerOf(dialog);
@@ -39,7 +40,7 @@ test('the Use case details drawer opens on the overlay layer (z 50) over a black
     assert.equal(got.easing, 'cubic-bezier(0.16,1,0.3,1)');
     await page.keyboard.press('Escape');
     await dialog.waitFor({ state: 'detached', timeout: 10000 });
-    assert.equal(await trigger.evaluate((b) => b === document.activeElement), true, 'focus returns to the button that opened the drawer (must-keep)');
+    assert.equal(await trigger.evaluate((b) => b === document.activeElement), true, 'focus returns to the More button that opened the drawer (must-keep)');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -71,7 +72,8 @@ test('with prefers-reduced-motion the drawer opens with no motion longer than 80
   const ui = await openUi('implement', { useCase: HARNESS_USE_CASE }, '', { init: (page) => page.emulateMedia({ reducedMotion: 'reduce' }) });
   const { page } = ui;
   try {
-    await page.getByRole('button', { name: 'Use case details', exact: true }).click();
+    await page.locator('[aria-label="Use case"]').getByRole('button', { name: 'More', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Use case details' }).click();
     const dialog = page.getByRole('dialog', { name: /^Use case details: / });
     await dialog.waitFor({ timeout: 15000 });
     const got = await layerOf(dialog);

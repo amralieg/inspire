@@ -13,9 +13,6 @@ const METADATA = 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-2`
 const SELECT_RETURNS = 'GRANT SELECT ON TABLE `main`.`s`.`returns` TO `app-sp-2`';
 const METADATA_RETURNS = 'GRANT READ METADATA ON TABLE `main`.`s`.`returns` TO `app-sp-2`';
 const SELECT = 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-2`';
-// REQ-408: the dialog asks the two tables' reads at schema level: one SELECT and one READ METADATA on the schema.
-const SELECT_SCHEMA = 'GRANT SELECT ON SCHEMA `main`.`s` TO `app-sp-2`';
-const METADATA_SCHEMA = 'GRANT READ METADATA ON SCHEMA `main`.`s` TO `app-sp-2`';
 const DENIED = "[PERMISSION_DENIED] User does not have MANAGE on Catalog 'main'.";
 
 const unreadBuild = ({ appFailed = false } = {}) => {
@@ -88,8 +85,8 @@ test('Check again on an unreadable build opens See the grant, with the full read
     await dialog.waitFor({ timeout: 15000 });
     assert.match(await dialog.locator('#permission-required-title').innerText(), /^Permission Required$/);
     const statements = sqlStatementsOf(await dialog.locator('[data-permission-statements=""]').textContent());
-    assert.deepEqual(statements, [CATALOG, SCHEMA, SELECT_SCHEMA, METADATA_SCHEMA],
-      'the App needs USE CATALOG, USE SCHEMA, then SELECT and READ METADATA on the schema, once each (REQ-408; the same list the card shows)');
+    assert.deepEqual(statements, [CATALOG, SCHEMA, SELECT, METADATA, SELECT_RETURNS, METADATA_RETURNS],
+      'the App needs USE CATALOG, USE SCHEMA, then SELECT and READ METADATA on each table, once each (SEC-01 W3, 64d31b7a6; the same list the card shows)');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
