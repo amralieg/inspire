@@ -12,12 +12,16 @@ export const DESIGNS = { original: a_original, editorial_ink: b_editorial, bold:
 export const designOf = (styleId) => (Object.prototype.hasOwnProperty.call(DESIGNS, styleId) ? DESIGNS[styleId] : null);
 
 // Per design: the labels, which design tokens give the page, card, text and muted colours, the three accents shown on the wizard card,
-// and the primary accent token(s) a palette or a custom brand colour replaces.
+// and the primary accent token(s) a palette or a custom brand colour replaces, each with the backgrounds it must read on at 4.5:1.
 export const DESIGN_STYLES = [
-  { id: 'original', label: 'Inspire original', bg: 'page', surface: 'card', ink: 'ink', muted: 'muted', accents: ['teal', 'coral', 'gold'], primary: ['teal', 'tealMid'] },
-  { id: 'editorial_ink', label: 'Editorial ink', bg: 'paper', surface: 'paper', ink: 'ink', muted: 'grey', accents: ['accent', 'ink', 'grey'], primary: ['accent', 'accentText'] },
-  { id: 'bold', label: 'Bold data', bg: 'canvas', surface: 'card', ink: 'ink', muted: 'muted', accents: ['#FF3621', '#2272B4', '#00A972'], primary: ['heroAccent', 'accentText'] },
-  { id: 'consulting', label: 'Board pack', bg: 'page', surface: 'panel', ink: 'ink', muted: 'slate', accents: ['blue', 'navy', 'green'], primary: ['blue', 'blueText', 'navy'] },
+  { id: 'original', label: 'Inspire original', bg: 'page', surface: 'card', ink: 'ink', muted: 'muted', accents: ['teal', 'coral', 'gold'],
+    primary: [{ token: 'teal', on: ['page', 'card', 'sand'] }, { token: 'tealMid', on: ['page', 'card', 'sand'] }] },
+  { id: 'editorial_ink', label: 'Editorial ink', bg: 'paper', surface: 'paper', ink: 'ink', muted: 'grey', accents: ['accent', 'ink', 'grey'],
+    primary: [{ token: 'accent', on: ['paper', 'quad'] }, { token: 'accentText', on: ['paper', 'quad'] }] },
+  { id: 'bold', label: 'Bold data', bg: 'canvas', surface: 'card', ink: 'ink', muted: 'muted', accents: ['#FF3621', '#2272B4', '#00A972'],
+    primary: [{ token: 'heroAccent', on: ['hero'] }, { token: 'accentText', on: ['canvas', 'card', 'quad'] }] },
+  { id: 'consulting', label: 'Board pack', bg: 'page', surface: 'panel', ink: 'ink', muted: 'slate', accents: ['blue', 'navy', 'green'],
+    primary: [{ token: 'blue', on: ['page', 'panel', 'pale'] }, { token: 'blueText', on: ['page', 'panel', 'pale'] }, { token: 'navy', on: ['page', 'panel'] }] },
 ];
 
 const QUALITY_ORDER = ['Ultra High', 'Very High', 'High', 'Medium', 'Low'];

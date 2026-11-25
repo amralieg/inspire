@@ -1,6 +1,14 @@
+import { DESIGNS, DESIGN_STYLES } from './designs/model.js';
+
 // FX-113 (REQ-503): the 8 document styles and 4 colour palettes from the approved wireframe (frame 2b).
 // `shape` and `deco` steer how docSvg draws each style (not only its colours).
+// REQ-526: the four designs first; each card shows its light tokens, the infographic and brief are drawn by the design itself.
+const designEntry = (d) => {
+  const tk = DESIGNS[d.id].themes.light; const c = (k) => tk[k] || k;
+  return { id: d.id, label: d.label, bg: tk[d.bg], surface: tk[d.surface], ink: tk[d.ink], muted: tk[d.muted], accents: d.accents.map(c), font: DESIGNS[d.id].fonts.body, shape: 'bar', deco: 'rule', design: d.id };
+};
 export const DOC_STYLES = [
+  ...DESIGN_STYLES.map(designEntry),
   { id: 'midnight', label: 'Midnight bold', bg: '#0F2027', surface: '#1B3139', ink: '#FFFFFF', muted: '#9FB3BA', accents: ['#FF3621', '#FF8A00', '#FFFFFF'], font: 'Helvetica, Arial, sans-serif', shape: 'bar', deco: 'band' },
   { id: 'executive', label: 'Clean executive', bg: '#FFFFFF', surface: '#F2F4F5', ink: '#1B3139', muted: '#6B7C83', accents: ['#1B3139', '#FF3621', '#DCE0E2'], font: 'Helvetica, Arial, sans-serif', shape: 'bar', deco: 'rule' },
   { id: 'vivid', label: 'Vivid playful', bg: '#FFF1E6', surface: '#FFFFFF', ink: '#2D2A4A', muted: '#7A6F8F', accents: ['#FF6F59', '#FFB347', '#6C5CE7'], font: 'Verdana, Helvetica, sans-serif', shape: 'round', deco: 'blobs' },
@@ -42,12 +50,47 @@ function lift(hex, backgrounds) {
   }
   return '#FFFFFF';
 }
+// The colour moved towards black in small steps until it reads at 4.5:1 on every background (light pages).
+function darken(hex, backgrounds) {
+  const rgb = channels(hex);
+  for (let t = 0; t <= 1.0001; t += 0.05) {
+    const c = toHex(rgb.map((v) => v * (1 - t)));
+    if (backgrounds.every((bg) => contrastRatio(c, bg) >= MIN_CONTRAST)) return c;
+  }
+  return '#000000';
+}
+// The nearer of lift and darken: a brand colour is fitted to the backgrounds it sits on, whichever way they lie.
+const fit = (hex, backgrounds) => {
+  const up = lift(hex, backgrounds); const down = darken(hex, backgrounds);
+  const ok = (c) => backgrounds.every((bg) => contrastRatio(c, bg) >= MIN_CONTRAST);
+  if (ok(up) !== ok(down)) return ok(up) ? up : down;
+  return contrastRatio(hex, up) <= contrastRatio(hex, down) ? up : down;
+};
+
+// A design theme: today's fields from the design's own tokens, plus design, tokens and fonts. A palette or brand colour replaces the primary accent tokens.
+function resolveDesign(entry, paletteId, customHex, mode) {
+  const d = DESIGN_STYLES.find((x) => x.id === entry.id); const design = DESIGNS[d.id];
+  const palette = DOC_PALETTES.find((p) => p.id === paletteId) || DOC_PALETTES[0];
+  const tokens = { ...design.themes[mode === 'dark' ? 'dark' : 'light'] };
+  const brand = typeof customHex === 'string' && HEX.test(customHex.trim()) ? customHex.trim() : (paletteId && palette.id !== 'databricks' ? palette.colors[0] : '');
+  if (brand) {
+    const old = { ...tokens };
+    for (const { token, on } of d.primary) tokens[token] = fit(brand, on.map((k) => tokens[k]));
+    if (Array.isArray(tokens.tones)) tokens.tones = tokens.tones.map((c) => (c === old.accent ? tokens.accent : c));
+  }
+  const c = (k) => tokens[k] || k;
+  const out = { ...entry, bg: tokens[d.bg], surface: tokens[d.surface], ink: tokens[d.ink], muted: tokens[d.muted], accents: d.accents.map(c),
+    paletteId: palette.id, mode: tokens.mode, design: d.id, tokens, fonts: design.fonts };
+  return tokens.mode === 'dark' ? { ...out, headFill: out.bg } : out;
+}
+
 const isDarkStyle = (s) => luminance(s.bg) < 0.1 && luminance(s.surface) < 0.15 && luminance(s.ink) > 0.6;
 
 // The style keeps its own look when the palette is "databricks" (the default); any other palette (or a custom brand colour) leads the accents.
 // `mode` is 'light' (default, exactly the style) or 'dark' (REQ-525): a dark page, light text, and every accent and text colour at 4.5:1 or more.
 export function resolveTheme(styleId, paletteId, customHex, mode = 'light') {
   const style = DOC_STYLES.find((s) => s.id === styleId) || DOC_STYLES[0];
+  if (style.design) return resolveDesign(style, paletteId, customHex, mode);
   const palette = DOC_PALETTES.find((p) => p.id === paletteId) || DOC_PALETTES[0];
   let accents = paletteId && palette.id !== 'databricks' ? [...palette.colors] : [...style.accents];
   if (typeof customHex === 'string' && HEX.test(customHex.trim())) accents = [customHex.trim(), ...accents.slice(0, 2)];

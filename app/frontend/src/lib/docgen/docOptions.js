@@ -38,7 +38,7 @@ export function defaultDocOptions(language = 'English') {
     languages: [language],
     blocks: ['use_case_story', 'value_story', 'value_projection', 'inspire_score', 'data_used', 'disclaimer'],
     columns: ['name', 'inspire_score', 'value', 'value_status', 'domain', 'statement'],
-    style: 'midnight',
+    style: 'original', // REQ-526: the four designs come first; the original is the default
     palette: 'databricks',
     customColor: '',
     theme: 'light', // REQ-525: 'light' or 'dark' (PDF and PowerPoint; Excel stays light)
