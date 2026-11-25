@@ -57,7 +57,7 @@ def test_a_write_refusal_carries_the_waiting_state_and_the_grants_the_person_cop
     assert status == 403, (status, body)
     assert body["state"] == "waiting_for_access" and body["tables"] == ["main.s.orders"]
     grants = [g for p in body["permissions"] for g in p["statements"]]
-    assert "GRANT SELECT ON SCHEMA `main`.`s` TO `amr@example.com`" in grants  # REQ-408: the dialog asks at schema level
+    assert "GRANT SELECT ON TABLE `main`.`s`.`orders` TO `amr@example.com`" in grants  # REQ-518: the dialog asks at table level
     assert body["permissions"][0]["principal"] == "amr@example.com"
 
 
