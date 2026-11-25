@@ -1,6 +1,7 @@
 import { apiErrorDetail, parseApiErrorMessage } from './ucPermissionErrors.js';
 import { raisePermissions } from './permissionBus.js';
 import { withDeadline } from './startDeadline.js';
+import { splitTechnical } from './plainText.js';
 
 export const SHOWCASE_HEADER = 'X-Inspire-Showcase';
 
@@ -50,17 +51,35 @@ export async function responseError(resp, { raise = true } = {}) {
   return err;
 }
 
+// RC3-04: a request that gets no answer rejects with the browser's own TypeError ("Failed to fetch"). It becomes the plain
+// network sentence (one source: the network cause), the browser error kept on `cause`. A cancel stays a cancel.
+const networkError = (cause) => Object.assign(new Error(splitTechnical('Failed to fetch').plain, { cause }), { status: 0, network: true });
+const NETWORK_RETRY_MS = 700;
+
+async function send(url, init, { retry = false } = {}) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await fetch(url, init);
+    } catch (e) {
+      if (e?.name === 'AbortError') throw e;
+      if (!retry || attempt > 0) throw networkError(e);
+      await new Promise((r) => setTimeout(r, NETWORK_RETRY_MS));
+    }
+  }
+}
+
 export function makeApiFetch({ token, databricksHost, showcase = '' } = {}) {
   // raise: false for a check or probe that shows its own refusal inline, so the App-level dialog does not open over it.
+  // A read is tried once more when it gets no answer; a write never is.
   return async (url, { raise = true } = {}) => {
-    const resp = await fetch(url, { headers: requestHeaders(token, databricksHost, {}, showcase) });
+    const resp = await send(url, { headers: requestHeaders(token, databricksHost, {}, showcase) }, { retry: true });
     if (!resp.ok) throw await responseError(resp, { raise });
     return resp.json();
   };
 }
 
 const makeApiSendJson = (method) => ({ token, databricksHost, showcase = '' } = {}) => async (url, body, { signal, raise = true } = {}) => {
-  const resp = await fetch(url, {
+  const resp = await send(url, {
     method,
     headers: requestHeaders(token, databricksHost, { 'Content-Type': 'application/json' }, showcase),
     body: JSON.stringify(body),
