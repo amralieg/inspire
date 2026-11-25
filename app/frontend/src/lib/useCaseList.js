@@ -32,10 +32,9 @@ function overlayUserName(uc, row) {
 
 // Overlay shared by the id-match and Name + Business Domain branches (RC3-02 / REQ-512f).
 function overlayRowFlags(uc, row) {
-  // REQ-433: a refined score stored on the row wins over the first score and remembers it.
+  // A score refined by an earlier version stays stored on the row and wins over the first score.
   if (row.refined_score != null && row.refined_score !== '' && Number.isFinite(Number(row.refined_score))) {
     uc.inspire_score = Number(row.refined_score);
-    if (row.refined_from != null && row.refined_from !== '') uc.refined_from = Number(row.refined_from);
   }
   for (const field of ['quality', 'quality_mode', 'elite_status', 'elite_score', 'elite_assessment', 'selection_flags', 'selection_drop_reason', 'meets_quality_bar', 'below_bar_reason']) {
     if (row[field] != null && row[field] !== '' && (uc[field] == null || uc[field] === '')) uc[field] = row[field];

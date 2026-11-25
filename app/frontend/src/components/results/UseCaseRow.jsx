@@ -33,7 +33,7 @@ export function buildCell(status, { onImplement, onOpenMvp }) {
 
 export default function UseCaseRow({
   uc, index, selection = null, isFavorite = false, onToggleFavorite, onRename, implementStatus = null, onImplement, onOpenMvp,
-  onGenerateDocs, docsMade = false, assetLinks = [], yearly = null, valueSummary = null, canCalculate = false, onCalculate, onEdit, onUndoRefine, onOpen, open = false, rowAttrs = {}, isArchived = false, onToggleArchive,
+  onGenerateDocs, docsMade = false, assetLinks = [], yearly = null, valueSummary = null, canCalculate = false, onCalculate, onEdit, onOpen, open = false, rowAttrs = {}, isArchived = false, onToggleArchive,
 }) {
   const { title: titleProp, subtitle } = cardTitlesOfUseCase(uc, index);
   // The saved name shows at once; a refreshed use case takes over when its own name changes.
@@ -128,7 +128,7 @@ export default function UseCaseRow({
           {docsMade && <span data-docs-made="" className="inline-flex items-center justify-center gap-1 text-caption font-medium text-success-fg"><Check size={14} aria-hidden />Docs made</span>}
         </div>
       </div>
-      <div className="flex justify-center max-md:col-span-6 max-md:justify-start max-md:pb-3"><InspireScoreBadge row score={inspireScoreFromUc(uc)} refinedFrom={uc.refined_from} onUndo={onUndoRefine} /></div>
+      <div className="flex justify-center max-md:col-span-6 max-md:justify-start max-md:pb-3"><InspireScoreBadge row score={inspireScoreFromUc(uc)} /></div>
       <div className="flex justify-center max-md:col-span-6 max-md:justify-end max-md:pb-3"><ValueBox inset yearly={yearly} summary={valueSummary} canCalculate={canCalculate} onCalculate={calculate} onEdit={onEdit} /></div>
       <div className="flex justify-end max-md:col-start-12 max-md:row-start-1">
         {typeof onToggleArchive === 'function' && (

@@ -2,7 +2,7 @@
 // the data and which is an estimate; every name it gives is checked against the table columns and valueDrivers.json. The arithmetic is
 // valueDriversCalc (the one formula implementation); this file builds the plan, the grouped SQL and the C4 yearly.
 const VDC = require('./valueDriversCalc');
-const { binder } = require('./scoreRefine');
+const { binder } = require('./sqlBinder');
 const { parseExactJson } = require('./exactJson');
 const { replyContent } = require('./appFeedback');
 const VY = require('./valueYearly');

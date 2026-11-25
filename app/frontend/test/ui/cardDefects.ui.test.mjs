@@ -53,7 +53,7 @@ for (const [name, width, dir, dark] of SETUPS) {
       }
       assert.ok(n.l >= 0 && n.r <= width, 'the note is on screen');
       const box = await rect(card.locator('[data-value-box]'));
-      // Whole inside the red box, or whole below it (the tag overhangs the bottom edge by 10 px, so below means past it).
+      // REQ-524: the pill is inside the box now, so the note is whole inside the red box or whole below it.
       const inside = n.l >= box.l - 0.5 && n.r <= box.r + 0.5 && n.t >= box.t - 0.5 && n.b <= box.b + 0.5;
       const below = n.t >= box.b - 0.5;
       assert.ok(inside || below, 'the note is inside the value box or fully below it, never straddling its edge');

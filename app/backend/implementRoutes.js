@@ -1,6 +1,5 @@
 const { isMissingTableError } = require('./lib/inspireFeedback');
 const VALUE_DISCLAIMER = require('./lib/valueDisclaimer.json');
-const SR = require('./lib/scoreRefine');
 const { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, noSessionText, stepsStatement } = require('./lib/sqlInputs');
 const I = require('./lib/inspireImplement');
 const RL = require('./lib/relationships');
@@ -3038,52 +3037,6 @@ function registerImplementRoutes(app, deps) {
       const version = latest.version + 1;
       await appendAnswers(req, warehouseId, table, { sessionId: sid, useCaseId, version, answers: previous.answers, yearly: previous.yearly, savedBy: savedBy(req), note: `undo of v${latest.version}` });
       return res.json({ version, answers: previous.answers, yearly: previous.yearly });
-    } catch (err) {
-      return sendError(res, err);
-    }
-  });
-
-  // REQ-433: Apply stores the refined Inspire scores on the use case rows and keeps the old score and the reason in history; Undo restores them.
-  async function refineTables(req, warehouseId) {
-    const { catalog, schema } = dbOf(req, splitInspireDatabase);
-    const usecases = `\`${catalog}\`.\`${schema}\`.\`__inspire_usecases\``;
-    const history = `\`${catalog}\`.\`${schema}\`.\`__inspire_score_history\``;
-    const have = I.describedColumnNames(await sqlRows(req.dbHost, req.dbToken, warehouseId, { sql: `DESCRIBE TABLE ${usecases}`, parameters: null }));
-    const missing = SR.COLUMNS.filter(([name]) => !have.has(name));
-    if (missing.length) await ensureTableColumns(req.dbHost, req.dbToken, warehouseId, usecases, missing);
-    await executeSql(req.dbHost, req.dbToken, warehouseId, SR.historyCreateSql(history));
-    return { usecases, history };
-  }
-
-  app.post('/api/inspire/score-refine', requireToken, async (req, res) => {
-    try {
-      const warehouseId = warehouseOf(req);
-      const sid = sessionIdOf(req);
-      dbOf(req, splitInspireDatabase);
-      const changes = SR.parseChanges(req.body?.changes, I.badRequest);
-      const { usecases, history } = await refineTables(req, warehouseId);
-      for (const change of changes) {
-        const made = SR.applyStatements(usecases, history, sid, change);
-        await executeSql(req.dbHost, req.dbToken, warehouseId, made.update.sql, made.update.parameters);
-        await executeSql(req.dbHost, req.dbToken, warehouseId, made.record.sql, made.record.parameters);
-      }
-      return res.json({ applied: changes.map((c) => ({ use_case_id: c.use_case_id, score: c.score, from: c.from })) });
-    } catch (err) {
-      return sendError(res, err);
-    }
-  });
-
-  app.post('/api/inspire/score-refine/undo', requireToken, async (req, res) => {
-    try {
-      const warehouseId = warehouseOf(req);
-      const sid = sessionIdOf(req);
-      dbOf(req, splitInspireDatabase);
-      const ids = SR.parseIds(req.body?.use_case_ids, I.badRequest);
-      const { usecases, history } = await refineTables(req, warehouseId);
-      const made = SR.undoStatements(usecases, history, sid, ids);
-      await executeSql(req.dbHost, req.dbToken, warehouseId, made.record.sql, made.record.parameters);
-      await executeSql(req.dbHost, req.dbToken, warehouseId, made.update.sql, made.update.parameters);
-      return res.json({ restored: ids });
     } catch (err) {
       return sendError(res, err);
     }

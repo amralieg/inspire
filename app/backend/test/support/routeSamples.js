@@ -82,8 +82,6 @@ const SAMPLES = [
   { key: 'POST /api/money/currency-rates', rule: 'any', method: 'POST', path: '/api/money/currency-rates', body: { ...UC, base: 'USD' } },
   { key: 'POST /api/money/describe-value', rule: 'any', method: 'POST', path: '/api/money/describe-value', body: { ...UC, text: 'x', columns: ['a'] } },
   { key: 'POST /api/money/value-preview', rule: 'any', method: 'POST', path: '/api/money/value-preview', body: { ...UC, value: { method: 'fixed', amount: 120, currency: 'USD' } } },
-  { key: 'POST /api/inspire/score-refine', rule: 'any', method: 'POST', path: '/api/inspire/score-refine', body: { inspire_database: DB, warehouse_id: WH, session_id: '1001', changes: [{ use_case_id: 'N01-U01', score: 9.05, from: 8.5, reason: 'Order follows value' }] } },
-  { key: 'POST /api/inspire/score-refine/undo', rule: 'any', method: 'POST', path: '/api/inspire/score-refine/undo', body: { inspire_database: DB, warehouse_id: WH, session_id: '1001', use_case_ids: ['N01-U01'] } },
   { key: 'POST /api/inspire/value/estimate', rule: 'any', method: 'POST', path: '/api/inspire/value/estimate', body: { ...UC, table: 'main.s.orders', answers: { money: { currency: 'per_currency', value: { method: 'fixed', amount: 1, currency: 'USD' } } } } },
   { key: 'POST /api/inspire/value/case-plan', rule: 'any', method: 'POST', path: '/api/inspire/value/case-plan', body: { ...UC, table: 'main.s.orders' } },
   { key: 'POST /api/inspire/value/scope', rule: 'any', method: 'POST', path: '/api/inspire/value/scope', body: { ...UC, table: 'main.s.orders' } },

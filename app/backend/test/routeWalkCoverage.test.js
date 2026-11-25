@@ -49,8 +49,6 @@ const NOT_WALKED = {
   'PUT /api/inspire/value/answers': 'runs the estimate and appends one answers row with the App\u2019s service principal; valueAnswersRoutes.test.js drives it through the fake warehouse, including the 400 refusal and the bound parameters',
   'GET /api/inspire/value/answers/history': 'reads the saved versions of one use case with the App\u2019s service principal and changes nothing; valueAnswersRoutes.test.js drives it through the fake warehouse',
   'POST /api/inspire/value/answers/undo': 'appends the previous Calculate answers as a new version with the App\u2019s service principal; valueAnswersRoutes.test.js drives it, including the 409 refusal',
-  'POST /api/inspire/score-refine': 'writes the refined score and its history row with the App\u2019s service principal; scoreRefine.test.js drives it through the fake warehouse, including every refusal',
-  'POST /api/inspire/score-refine/undo': 'clears the refined score and writes the undo history row with the App\u2019s service principal; scoreRefine.test.js drives it through the fake warehouse',
   'POST /api/money/value-preview': 'reads three rows of a use case table through a money value with the person’s own sign-in and changes nothing; no non-owner harness row walks it yet, and the route samples prove the sign-in refusal',
   'POST /api/money/rate-sample': 'reads the rates of a money rule’s rate table with the person’s own sign-in and changes nothing; no non-owner harness row walks it yet, and the route samples prove the sign-in refusal',
   'GET /api/inspire/implement/diagnostics': 'reads the build through the same loadStatus read and person token as GET /api/inspire/implement/status, which the harness walks; no non-owner harness row walks it yet',
