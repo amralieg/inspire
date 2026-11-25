@@ -2520,6 +2520,49 @@ async function visibleSessions(req, warehouseId, parsedDb, sessions) {
   return sessions.filter((_s, i) => verdicts[i]);
 }
 
+// SEC-02 (F4, REQ-518): the one session check every route and every implement handler calls before it reads anything. The scope is read
+// with the App token (tracking table). Any failure to read it (no App token, no warehouse, bad id, read error) fails closed: the scope is
+// treated as empty, which hides the session from everyone except its launcher. Returns null (may see) or the refusal.
+function requestedInspireDb(req) {
+  const asked = String((req.query && req.query.inspire_database) || (req.body && req.body.inspire_database) || '').trim();
+  const warehouse = String((req.query && req.query.warehouse_id) || (req.body && req.body.warehouse_id) || DEFAULT_WAREHOUSE_ID || '').trim();
+  return { inspireDatabase: asked || DEFAULT_INSPIRE_DB, warehouseId: warehouse };
+}
+
+async function sessionHidden(req, sessionId) {
+  const sid = String(sessionId == null ? '' : sessionId).trim();
+  let scope = null;
+  try {
+    const { inspireDatabase, warehouseId } = requestedInspireDb(req);
+    const parsed = splitInspireDatabase(inspireDatabase);
+    const token = await appOwnToken();
+    if (/^\d+$/.test(sid) && parsed && warehouseId && token) {
+      const rows = sqlResultToObjects(await executeSql(req.dbHost, token, warehouseId,
+        `SELECT session_id, catalogs, schemas_str, tables_str FROM \`${parsed.catalog}\`.\`${parsed.schema}\`.\`__inspire_session\` WHERE session_id = ${sid} LIMIT 1`));
+      scope = rows[0] || null;
+    }
+  } catch {
+    scope = null;
+  }
+  try {
+    return await sessionHiddenFrom(req, sid, scope || {});
+  } catch {
+    return { status: 403, request: 'person', permissions: [], unreadable: [] };
+  }
+}
+
+// Cross-session lists: keeps the sessions the person may see. Same inspire database and warehouse as the request.
+async function visibleSessionsOf(req, sessions) {
+  const { inspireDatabase, warehouseId } = requestedInspireDb(req);
+  const parsed = splitInspireDatabase(inspireDatabase);
+  if (!parsed || !warehouseId) return [];
+  try {
+    return await visibleSessions(req, warehouseId, parsed, sessions);
+  } catch {
+    return [];
+  }
+}
+
 // SEC-01 (W2): Inspire's principal must hold no write privilege on a source. Unity Catalog's effective permissions decide, so a grant made
 // higher up or through a group counts. Inspire's own catalog and schema are not sources and are left out.
 const WRITE_GUARD_LIMIT = 50;
@@ -3404,6 +3447,8 @@ const implementApi = registerImplementRoutes(app, {
   hostedRun,
   runDefaults: () => ({ inspireDatabase: DEFAULT_INSPIRE_DB, warehouseId: DEFAULT_WAREHOUSE_ID }),
   appToken: appOwnToken,
+  sessionHidden,
+  visibleSessions: visibleSessionsOf,
 });
 
 registerMacroRoutes(app, { requireToken, executeSql, sqlResultToObjects, fetchImpl: fetch, now: () => new Date() });
