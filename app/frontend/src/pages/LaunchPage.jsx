@@ -47,7 +47,7 @@ import { leftOutLine, typeCheckBusyOf, unusableReasonOf } from '../lib/tableUsab
 import TypeCheckBusyTryAgain from '../components/TypeCheckBusyTryAgain';
 import ModalDialog from '../components/ModalDialog';
 import { sameSettings } from '../lib/businessProfiles';
-import { scopesFromObject, launchTableScopeText, filterValuesOf, labelAvailable, pickedTableNames, tableBrowseQuery, isUnreadable, MAX_ACCESS_OBJECTS, tableScopeOf, tableScopeSummary } from '../lib/tableScope';
+import { scopesFromObject, launchTableScopeText, filterValuesOf, labelAvailable, pickedTableNames, tableBrowseQuery, accessNeedOf, accessNeedText, INSPIRE_NEED_TITLE, MAX_ACCESS_OBJECTS, tableScopeOf, tableScopeSummary } from '../lib/tableScope';
 import { launchRelationshipsText, restoredRelationshipList } from '../lib/tableRelationships';
 import { PlainMessage } from '../components/TechnicalDetails';
 import LatestRunBadge from '../components/LatestRunBadge';
@@ -494,8 +494,13 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     setParams((p) => ({ ...p, '07_business_priorities': sel.join(',') }));
   }, [priorityChecks]);
 
-  const scope = useMemo(() => pickedScope(selectedCatalogs, selectedSchemas, selectedTables, wholeCatalogs),
-    [selectedCatalogs, selectedSchemas, selectedTables, wholeCatalogs]);
+  // REQ-522: a catalog or schema Inspire cannot read opens to browse but is never read whole (a run reads as Inspire).
+  const inspireBlocked = useMemo(() => new Set([
+    ...catalogs.filter((c) => accessNeedOf(c).includes('inspire')).map((c) => c.name),
+    ...schemas.filter((s) => accessNeedOf(s).includes('inspire')).map((s) => s.full_name),
+  ]), [catalogs, schemas]);
+  const scope = useMemo(() => pickedScope(selectedCatalogs, selectedSchemas.filter((s) => !inspireBlocked.has(s)), selectedTables, wholeCatalogs.filter((c) => !inspireBlocked.has(c))),
+    [selectedCatalogs, selectedSchemas, selectedTables, wholeCatalogs, inspireBlocked]);
   const scopeTables = useMemo(() => pickedTableNames(tableScopes, scope), [tableScopes, scope]);
   // The label is off whenever no picked table has a Row Group. The state follows that rule, and the typed text is kept for when a group comes back.
   useEffect(() => {
@@ -997,7 +1002,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   };
 
   // Table select all / deselect all
-  const pickableTables = filteredTables.filter((t) => !isUnreadable(t));
+  const pickableTables = filteredTables.filter((t) => accessNeedOf(t).length === 0);
   const allTablesSelected = pickableTables.length > 0 && pickableTables.every((t) => selectedTables.includes(t.full_name));
   const toggleAllTables = () => {
     if (allTablesSelected) {
@@ -1011,13 +1016,14 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
   const togglePick = (type) => (item) => {
     const full = type === 'CATALOG' ? item.name : item.full_name;
-    setRequestPicks((p) => (p.some((x) => x.full_name === full) ? p.filter((x) => x.full_name !== full) : [...p, { type, full_name: full }]));
+    setRequestPicks((p) => (p.some((x) => x.full_name === full) ? p.filter((x) => x.full_name !== full) : [...p, { type, full_name: full, ...(accessNeedOf(item).includes('inspire') ? { need: accessNeedOf(item) } : {}) }]));
   };
   const requestOf = (type) => ({
     full: (item) => (type === 'CATALOG' ? item.name : item.full_name),
     picked: requestPicks.map((x) => x.full_name),
     onToggle: togglePick(type),
     full_up: requestPicks.length >= MAX_ACCESS_OBJECTS,
+    openable: type !== 'TABLE',
   });
   const changeShowEverything = (on) => {
     setShowEverything(on);
@@ -1581,7 +1587,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         }}
                         getKey={(s) => s.full_name}
                         request={requestOf('SCHEMA')}
-                        getLabel={(s) => selectedCatalogs.length > 1 ? s.full_name : s.name}
+                        getLabel={(s) => selectedCatalogs.filter((c) => !inspireBlocked.has(c)).length > 1 ? s.full_name : s.name}
                         searchValue={schemaSearch}
                         onSearch={setSchemaSearch}
                         searchPlaceholder="Search schemas..."
@@ -2253,16 +2259,24 @@ function PickerList({ items, selected, onToggle, getKey, getLabel, extraOf = () 
             const key = getKey(item);
             const label = getLabel(item);
             const active = selected.includes(key);
-            // REQ-521: a row the person cannot read is never opened or picked as a source; it only carries a box to request access.
-            if (request && isUnreadable(item)) {
+            // REQ-521/522: a row the person cannot read, or a table Inspire cannot read, is never opened or picked as a source; it only
+            // carries a box to request access. A catalog or schema only Inspire cannot read still opens (see below).
+            const need = request ? accessNeedOf(item) : [];
+            const marker = need.length ? (
+              <span data-access-need={request.full(item)} title={need.includes('inspire') ? INSPIRE_NEED_TITLE : undefined} className="text-xs text-text-tertiary leading-snug">{accessNeedText(need)}</span>
+            ) : null;
+            const requestBox = need.length ? (() => {
               const full = request.full(item);
               const on = request.picked.includes(full);
               const capped = !on && request.full_up;
+              return <input type="checkbox" aria-label={`Request access to ${full}`} checked={on} disabled={capped} title={capped ? 'At most 50 objects per request.' : undefined} onChange={() => request.onToggle(item)} className="mt-2.5 shrink-0" />;
+            })() : null;
+            if (need.length && (need.includes('person') || !request.openable)) {
               return (
-                <label key={key} title={capped ? 'At most 50 objects per request.' : undefined} className="w-full flex items-start gap-2 px-2.5 py-2 rounded-md text-xs text-text-secondary">
-                  <input type="checkbox" aria-label={`Request access to ${full}`} checked={on} disabled={capped} onChange={() => request.onToggle(item)} className="mt-0.5 shrink-0" />
+                <label key={key} className="w-full flex items-start gap-2 px-2.5 py-2 rounded-md text-xs text-text-secondary">
+                  {requestBox}
                   <span className="font-mono break-all leading-snug">{label}</span>
-                  <span className="text-xs text-text-tertiary leading-snug">No read access</span>
+                  {marker}
                 </label>
               );
             }
@@ -2277,7 +2291,9 @@ function PickerList({ items, selected, onToggle, getKey, getLabel, extraOf = () 
             // Fail closed: an item that cannot be used is shown with its plain reason and cannot be picked.
             const reason = disabledReasonOf(item);
             return (
-              <div key={key}>
+              <div key={key} className={need.length ? 'flex items-start' : undefined}>
+              {requestBox}
+              <div className={need.length ? 'min-w-0 flex-1' : undefined}>
               <button
                 type="button"
                 title={label}
@@ -2297,8 +2313,10 @@ function PickerList({ items, selected, onToggle, getKey, getLabel, extraOf = () 
                 </div>
                 <span className="font-mono break-all leading-snug">{label}</span>
                 {reason && <span data-unusable-reason="" className="text-xs text-error-fg leading-snug">{reason}</span>}
+                {marker}
               </button>
               {extraOf(item)}
+              </div>
               </div>
             );
           })

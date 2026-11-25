@@ -184,6 +184,19 @@ export function tableBrowseQuery(warehouseId, showEverything = false) {
 
 // REQ-521: a row the person cannot read is listed only to request access to it; it is never a run source.
 export const isUnreadable = (row) => row?.readable === false;
+
+// REQ-522: who must be given access before a row can be a run source. A run reads as Inspire's own account, so Inspire needs read
+// access as well as the person. The one rule the row marker and the Request Access body both use: [], ['person'], ['inspire'] or both.
+export function accessNeedOf(row) {
+  const need = [];
+  if (row?.readable === false || row?.request === 'person') need.push('person');
+  if (row?.inspire_readable === false || row?.request === 'inspire') need.push('inspire');
+  return need;
+}
+
+export const ACCESS_NEED_TEXT = { person: 'You need access', inspire: 'Inspire needs access', both: 'You and Inspire need access' };
+export const INSPIRE_NEED_TITLE = 'Runs read your data as Inspire, so Inspire needs read access too.';
+export const accessNeedText = (need) => (need.length === 2 ? ACCESS_NEED_TEXT.both : need[0] ? ACCESS_NEED_TEXT[need[0]] : '');
 export const MAX_ACCESS_OBJECTS = 50;
 
 export function filteredTablesOf(scopes, pickedTables = []) {
