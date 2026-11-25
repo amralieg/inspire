@@ -120,6 +120,8 @@ import {
   APP_ACCESS_NOTE,
   APP_ACCESS_POLICY_WHY,
   LAKEBASE_CHECKING,
+  LAKEBASE_BUILD_WAIT,
+  storageChecking,
   appBackendOf,
   appStorageText,
   sentSpec,
@@ -1354,7 +1356,7 @@ export default function ImplementWizard({
 
   const submit = async () => {
     setErrors([]);
-    if (blockedBy(stepId) || submitted.current) return;
+    if (blockedBy(stepId) || submitted.current || storagePending) return;
     submitted.current = true;
     setBusy(true);
     beginStartingBuild(sent.use_case_id);
@@ -1531,7 +1533,8 @@ export default function ImplementWizard({
   const sourceRefused = accessVerdict === 'refused';
   const sourceAccessRefused = sourceRefused && !preflight?.checks?.sources?.missing;
   const refusedFooterText = appUnreadable?.builtin?.length ? SOURCE_BUILT_IN_REFUSED_REASON : SOURCE_REFUSED_REASON;
-  const implementBlocked = busy || checksBusy || !placeSettled || dataMinimumBlocks(readCounted) || schemaJob?.state === 'running' || schemaJob?.state === 'failed' || rebuildNeedsChoice(plan, rebuildAsIs) || sourceRefused
+  const storagePending = storageChecking(spec, lakebase);
+  const implementBlocked = busy || checksBusy || storagePending || !placeSettled || dataMinimumBlocks(readCounted) || schemaJob?.state === 'running' || schemaJob?.state === 'failed' || rebuildNeedsChoice(plan, rebuildAsIs) || sourceRefused
     || (!ownErrors.length && (!preflight || !checkEntries.every(([, c]) => c.ok) || (lastStep && (!plan || Boolean(planError)))))
     || (lastStep && accessVerdict !== 'ok' && accessVerdict !== 'refused')
     || appReadsBlocked;
@@ -2551,8 +2554,8 @@ export default function ImplementWizard({
                 disabled={implementBlocked}
                 className="min-w-52"
                 onClick={submit}>
-                {(busy || checksBusy || !placeSettled) && <Loader2 size={14} className="animate-spin" />}
-                {busy ? 'Starting…' : !placeSettled ? 'Listing the Apps…' : checksBusy ? 'Checking access…' : BUILD_IT_LABEL}
+                {(busy || checksBusy || storagePending || !placeSettled) && <Loader2 size={14} className="animate-spin" />}
+                {busy ? 'Starting…' : !placeSettled ? 'Listing the Apps…' : checksBusy ? 'Checking access…' : storagePending ? `${LAKEBASE_BUILD_WAIT}…` : BUILD_IT_LABEL}
               </Button>
             )}
           </div>
