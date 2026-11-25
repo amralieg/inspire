@@ -1,7 +1,7 @@
 import { counted } from './plural.js';
 import { firstRunDefault, groupingBest, groupingCount, profileRecords } from './runScope.js';
 import {
-  APP_OWN_PLACEMENTS, APP_PLACEMENT_DEFAULT, IMPLEMENT_OUTPUTS, NONE_WORKS, affordable, blockOf, VIBE_PREVIOUS_DEFAULT, appBackendBlocks, appBackendDefault, appPagesOf, newAppPlacementBlock, placementTarget, placementThatFits,
+  APP_OWN_PLACEMENTS, APP_PLACEMENT_DEFAULT, IMPLEMENT_OUTPUTS, NONE_WORKS, affordable, blockOf, VIBE_PREVIOUS_DEFAULT, appPagesOf, newAppPlacementBlock, placementTarget, placementThatFits,
 } from './implementWizard.js';
 
 export const RECOMMENDED = 'Recommended';
@@ -150,14 +150,6 @@ export function bestAppPolicy(spec, targets, scope) {
 export function bestAppAccess({ personal = '' } = {}) {
   return personal ? pick('user', `${personal} looks personal, so each person sees only their own rows.`)
     : pick('sp', 'The App reads with its own access, so everyone sees the same rows.');
-}
-
-export function bestAppBackend(spec, lakebase) {
-  if (!spec?.outputs?.app) return null;
-  const blocks = appBackendBlocks(spec, lakebase);
-  const order = appBackendDefault(spec, lakebase) === 'lakebase' ? ['lakebase', 'delta'] : ['delta'];
-  const best = affordable(order, blocks, () => 'Pages open at once.').best;
-  return best?.id === 'lakebase' ? best : null;
 }
 
 export function bestAppOption() {

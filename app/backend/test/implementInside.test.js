@@ -256,8 +256,7 @@ test('the wizard locks an App Inside Inspire to per-user access, Delta tables an
     inside.outputs.app_warehouse_id], ['inspire', '', '', 'sp', 'delta', 'wh1']);
   assert.equal(W.insideInspire(inside), true);
   assert.deepEqual(W.withAppAccess(inside, 'sp').outputs.app_access, 'sp', 'the App reads as its service principal, the default (REQ-418 ruling 1)');
-  assert.equal(W.withAppBackend(inside, 'lakebase'), inside, 'Delta tables are locked');
-  assert.deepEqual(W.appBackendBlocks(inside, { state: 'available' }), { lakebase: { why: 'Fast pages need an App of its own', details: '' } });
+  assert.equal(W.appStorageText(inside, { state: 'available' }), 'Delta, because Fast pages need an App of its own', 'Delta tables are locked');
   assert.equal(W.appBackendOf({ ...inside, outputs: { ...inside.outputs, app_backend: 'lakebase' } }, { state: 'available' }), 'delta');
   assert.equal(W.withAppWarehouse(inside, 'wh1').outputs.app_warehouse_id, 'wh1', 'the build warehouse stays explicit Inside Inspire');
   assert.equal(W.withAppWarehouse(start, 'wh1').outputs.app_warehouse_id, '', 'an own App still leaves it empty for the build warehouse');
@@ -433,7 +432,7 @@ test('the wizard says plainly what happens to the App a use case has when its pa
   assert.equal(C.insideMoveNote(inside, ''), '', 'no note for a use case with no App yet');
   const back = W.withHeldApp(inside, held.outputs);
   assert.deepEqual([back.outputs.app_placement, back.outputs.app_name, back.outputs.app_access, back.outputs.app_backend, back.outputs.merge.app],
-    ['use_case', 'churn-desk', 'sp', 'lakebase', ''], 'Keep it puts back the App the use case has');
+    ['use_case', 'churn-desk', 'sp', '', ''], 'Keep it puts back the App the use case has (its storage is decided by Inspire, REQ-528)');
   const joinedBack = W.withHeldApp(inside, { ...held.outputs, app_name: 'inspire-hub-acme', app_placement: 'inspire', merge: { app: 'inspire-hub-acme' } });
   assert.deepEqual([joinedBack.outputs.app_placement, joinedBack.outputs.merge.app], [W.APP_PLACEMENT_DEFAULT, 'inspire-hub-acme']);
 });

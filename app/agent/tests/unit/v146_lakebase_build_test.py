@@ -23,7 +23,7 @@ APPS_POSTGRES_ENV = {"PGAPPNAME", "PGDATABASE", "PGHOST", "PGPORT", "PGSSLMODE",
 CHOICE_ERROR = ("choose where the App reads its data: 'lakebase' (its pages load instantly) or 'delta' (Delta tables, its pages take a "
                 "few seconds to load), not {}")
 FALLBACK = (f"{APP_LABEL}: it reads Delta tables, so its pages take a few seconds to load, because Inspire could not set up Lakebase: {{}}. Build the "
-            "App again with Vibe/Add/Remove Features on the Build page, or pick Lakebase again in the wizard, to switch it to Lakebase")
+            "App again with Vibe/Add/Remove Features on the Build page, to switch it to Lakebase")
 SP_NOTE = (f"{APP_LABEL}: it reads Delta tables, not Lakebase, because each viewer signs in as themselves and Lakebase does not carry Unity "
            "Catalog row filters, column masks or grants to each viewer")
 
@@ -1287,6 +1287,5 @@ def test_a_caller_with_no_identity_gets_the_rebuild_sentence_and_no_grant_to_run
     assert out["kind"] == "delta" and "permissions" not in out
     warning = out["warnings"][0]
     assert warning.startswith(PERMISSION_HEAD) and "<identity>" not in warning
-    assert warning.endswith("can grant. Build the App again with Vibe/Add/Remove Features on the Build page, or pick Lakebase again in the "
-                            "wizard, to switch it to Lakebase")
+    assert warning.endswith("can grant. Build the App again with Vibe/Add/Remove Features on the Build page, to switch it to Lakebase")
     assert "Ask the Lakebase project owner" not in warning

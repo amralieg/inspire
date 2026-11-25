@@ -223,10 +223,11 @@ test('the wizard offers Inside Inspire as not recommended, then locks per-user a
     assert.equal(await page.getByRole('radiogroup', { name: 'How Inspire organizes Apps' }).count(), 0);
     // No access choice is shown without a policied source: Inside Inspire reads as the App's service principal (REQ-418 ruling 1).
     assert.equal(await page.getByRole('region', { name: 'App access' }).count(), 0, 'no access choice without a policied source (must-exclude)');
-    await goToStorage(page);
-    assert.equal(await page.getByRole('radio', { name: /^Fast pages/ }).isDisabled(), true);
-    assert.equal(await page.locator('[data-blocked-reason="app-backend"] p').textContent(), INSIDE_BACKEND_REASON);
+    const storageStep = await goToStorage(page);
+    assert.equal(await storageStep.getByRole('radio').count(), 0, 'no storage choice (REQ-528)');
     await page.locator('[data-inside-warehouse]').waitFor();
+    await toSummary(page);
+    assert.equal(await page.locator('[data-picked-row="app_storage"] [data-picked-value]').innerText(), `Delta, because ${INSIDE_BACKEND_REASON}`);
     await startMvp(page);
     await until(() => made.jobs.length === 1, 'the build');
     const inserted = made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'))

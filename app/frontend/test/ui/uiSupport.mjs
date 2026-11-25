@@ -854,7 +854,7 @@ export function stubMoney(path, answerOf, calls) {
 export async function goToStorage(page) {
   await goToStep(page, 'Where it lives');
   await openFolded(page, 'Page storage');
-  return page.getByRole('group', { name: 'How fast do the App\'s pages open?' });
+  return page.getByRole('region', { name: 'Page storage' });
 }
 
 export async function onMoneyPart(page, part) {

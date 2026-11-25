@@ -51,7 +51,7 @@ test('every choice in the wizard shows exactly one Recommended badge, and it sit
     const seen = await auditEveryStep(page);
     assert.equal(seen.has('mode'), false, 'no MVP or notebook choice (must-exclude)');
     for (const choice of ['outputs', 'first-run', 'result-table', 'kpi', 'holdout', 'freshness', 'app-place', 'app-policy',
-      'app-access', 'app-backend', 'app-options', 'app-style', 'app-palette', 'app-theme', 'app-layout']) {
+      'app-access', 'app-options', 'app-style', 'app-palette', 'app-theme', 'app-layout']) {
       assert.ok(seen.has(choice), `the walk reached ${choice}: ${[...seen].join(', ')}`);
     }
     assert.equal(seen.has('merge-genie_space'), false, 'with nothing built there is no existing Genie Agent to add to (must-exclude)');
