@@ -25,7 +25,7 @@ function askFor(securable) {
 }
 
 export const FAILURE_CAUSES = [
-  { kind: 'network', transient: true, test: /^(?:TypeError:\s*)?(?:Failed to fetch|NetworkError when attempting to fetch resource\.?|Load failed|Network request failed|network error)$|\b(?:fetch failed|ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up)\b/i,
+  { kind: 'network', transient: true, test: /(?:^|(?<=: ))(?:TypeError:\s*)?(?:Failed to fetch|NetworkError when attempting to fetch resource\.?|Load failed|Network request failed|network error)$|\b(?:fetch failed|ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up)\b/i,
     text: () => 'Inspire lost its connection to Databricks, so try again in a minute and ask a workspace admin if it keeps happening' },
   { kind: 'signed_out', test: /\bInvalid access token\b|\b(?:access )?token (?:has |is )?expired\b|\bexpired (?:access )?token\b|\bCredential was not sent\b|\bUNAUTHENTICATED\b|\(HTTP 401\)|\bNo authentication token available\b/i,
     text: () => 'your Databricks sign-in has expired, so reload the page to sign in again' },
