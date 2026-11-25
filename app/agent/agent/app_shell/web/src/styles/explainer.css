@@ -1,0 +1,28 @@
+.term-chip-wrap { position: relative; display: inline-block; }
+.term-chip { border: 0; border-bottom: 1px dotted currentColor; background: none; color: inherit; font: inherit; padding: 0; cursor: help; }
+.term-chip:focus-visible, .ex-close:focus-visible, .explainer:focus-visible { outline: 2px solid var(--accent, #2563eb); outline-offset: 2px; }
+.explainer { position: absolute; z-index: 30; top: 100%; left: 0; width: 280px; margin-top: 6px; padding: 12px; background: var(--surface, #fff); color: var(--text, #111); border: 1px solid var(--line, #d4d4d8); border-radius: 8px; box-shadow: 0 6px 20px rgb(0 0 0 / 15%); font-size: 13px; line-height: 1.4; }
+.explainer p { margin: 6px 0 0; }
+.ex-svg { display: block; width: 100%; height: auto; }
+.ex-bar { fill: currentColor; }
+.ex-up { fill: var(--accent, #2563eb); }
+.ex-down { fill: var(--muted, #94a3b8); }
+.ex-band, .ex-range { fill: var(--accent, #2563eb); opacity: .15; }
+.ex-line, .ex-edge { fill: none; stroke: var(--accent, #2563eb); stroke-width: 2.5; }
+.ex-future { stroke-dasharray: 5 4; }
+.ex-dot { fill: var(--accent, #2563eb); }
+.ex-seg0 { fill: var(--accent, #2563eb); } .ex-seg1 { fill: #7c3aed; } .ex-seg2 { fill: var(--muted, #94a3b8); }
+.ex-record { padding-top: 6px; border-top: 1px solid var(--line, #d4d4d8); font-weight: 600; }
+.ex-close { margin-top: 8px; font: inherit; cursor: pointer; }
+.ex-anim { animation-duration: 1.2s; animation-fill-mode: both; animation-timing-function: ease-out; }
+.ex-grow { transform-box: fill-box; transform-origin: bottom; animation-name: ex-grow; }
+.ex-sweep { transform-box: fill-box; transform-origin: left; animation-name: ex-sweep; }
+.ex-fade { animation-name: ex-fade; }
+.ex-pop { transform-box: fill-box; transform-origin: center; animation-name: ex-pop; }
+.ex-draw { stroke-dasharray: 400; animation-name: ex-draw; }
+@keyframes ex-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes ex-sweep { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes ex-fade { from { opacity: 0; } }
+@keyframes ex-pop { from { transform: scale(0); } to { transform: scale(1); } }
+@keyframes ex-draw { from { stroke-dashoffset: 400; } to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) { .ex-anim { animation: none; } }
