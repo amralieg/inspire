@@ -615,13 +615,13 @@ GENIE_CODE_CONSTANTS = ("UNITY_GATEWAY_CODEX_PATH", "UNITY_GATEWAY_ANTHROPIC_PAT
                         "GENIE_CODE_MODEL_CHECK", "GENIE_CODE_ADMIN_FIX", "GENIE_CODE_UNFIT_MODEL_PATTERN")
 GENIE_CODE_CHECK_TIMEOUT_S = 10
 GENIE_CODE_CODEX_PROBES = 3
-# REQ-518 (reverses REQ-418): data is read with the person's own token, so the App's user scopes also carry catalog.schemas:read, catalog.tables:read and files (all in v1.3.0). REQ-418 note:
+# REQ-518 (reverses REQ-418): data is read with the person's own token, so the App's user scopes also carry catalog.schemas:read, catalog.tables:read and files (all in v1.3.0), and iam.access-control:read for the people search (F10). REQ-418 note:
 # REQ-418: data is read and written as the App's service principal, so the App's user token only sends what a person does as themselves:
 # "apps" (who manages the App), "catalog.catalogs:read" and "sql" (a Request for Access, a schema a person creates, a grant they run) and
 # "workspace.workspace" (sharing the person's own output folder with the App). "unity-catalog" is not an App user scope: the workspace refuses it ("The specified scope unity-catalog ..."), which drops every
 # user scope and installs Inspire without user authorization. Request for Access runs with the scopes the App has and falls back to
 # the copyable SQL when the token cannot send the request (REQ-311/313).
-INSPIRE_APP_OWN_SCOPES = ("apps", "catalog.catalogs:read", "catalog.schemas:read", "catalog.tables:read", "files", "sql", "workspace.workspace")
+INSPIRE_APP_OWN_SCOPES = ("apps", "catalog.catalogs:read", "catalog.schemas:read", "catalog.tables:read", "files", "iam.access-control:read", "sql", "workspace.workspace")
 USER_SCOPES_REFUSED = ("Inspire was installed without user authorization, so it lists no catalogs, schemas or tables, starts no run "
                        "and the Run tab cannot show pages Inside Inspire, because it reads them only with each person's own sign-in: {why}. "
                        "A workspace admin allows the scopes {scopes} for Apps, then runs this installer again.")

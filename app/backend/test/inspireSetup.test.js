@@ -198,10 +198,11 @@ assert "Databricks refused to create the catalog \x60inspire_lakebase\x60 on the
 patched = [p for p in patched if "/postgres/" not in p[1]]
 shared_calls = [p for p in patched if "/Shared/demos" in p[1] or p[1] == "/api/2.0/permissions/directories/99" or p[1] == "/api/2.0/workspace/mkdirs" and p[2] == {"path": "/Shared/demos"}]
 patched = [p for p in patched if p not in shared_calls]
-# REQ-478: MANAGE on the data catalog the person can grant on is one Unity Catalog permissions PATCH for the App's service principal, nothing else
+# REQ-518 (SEC-01/SEC-02 D6, supersedes REQ-478): the installer grants the App's service principal no MANAGE on a data catalog; a person shares
+# their own data with an App they build, so no Unity Catalog permissions PATCH is sent for a data catalog
 data_manage = [p for p in patched if "/unity-catalog/permissions/" in p[1]]
-assert data_manage == [("PATCH", "/api/2.1/unity-catalog/permissions/catalog/sales", {"changes": [{"principal": "SP", "add": ["MANAGE"]}]})], data_manage
-assert "MANAGE for Inspire's App, so it can share your data with the Apps it builds: 1 catalog, 0 schemas, 0 tables \u2705" in said, said
+assert data_manage == [], data_manage
+assert "MANAGE for Inspire's App, so it can share your data" not in said, said
 patched = [p for p in patched if p not in data_manage]
 assert patched == [("PATCH", "/api/2.0/permissions/sql/warehouses/wh", manage),
                    ("PATCH", "/api/2.0/permissions/database-projects/inspire-apps", manage),
