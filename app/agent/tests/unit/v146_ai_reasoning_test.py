@@ -121,7 +121,7 @@ def test_the_model_writes_only_the_reason_for_the_level_the_notebook_set(agent_n
     assert "failOnError => false" in reply and "temperature" not in reply
     checked = agent_ns["inspire_ai_checked_sql"](TABLE, "_s", ai)
     assert ("'explanation STRING, confidence_reason STRING, next_action STRING, expected_result STRING, other_option STRING, "
-            "ai_cat_driver STRING, evidence ARRAY<STRING>'") in checked
+            "headline STRING, what STRING, why STRING, do STRING, ai_cat_driver STRING, evidence ARRAY<STRING>'") in checked
     assert "ai_confidence " not in checked and "AS ai_confidence," not in checked
     labels = [label for label, _test, _detail in agent_ns["inspire_ai_checks"](ai)]
     assert labels[:6] == ["endpoint error", "unreadable reply", "hedged explanation", "explanation reads as a Python object dump",
@@ -133,8 +133,8 @@ def test_the_model_writes_only_the_reason_for_the_level_the_notebook_set(agent_n
     assert "t.ai_facts <=> c.ai_facts AND t.confidence_level <=> c.confidence_level" in update
     assert "ai_confidence =" not in update and "`ai_confidence_reason` = c.`ai_confidence_reason`" in update
     assert [name for name, _kind in agent_ns["inspire_ai_columns"](ai)] == [
-        "ai_explanation", "ai_confidence_reason", "ai_next_action", "ai_expected_result", "ai_other_option", "ai_evidence",
-        "ai_facts_hash", "ai_check", "ai_cat_driver"]
+        "ai_explanation", "ai_confidence_reason", "ai_next_action", "ai_expected_result", "ai_other_option", "ai_headline", "ai_what", "ai_why", "ai_do",
+        "ai_evidence", "ai_facts_hash", "ai_check", "ai_cat_driver"]
 
 
 def test_one_level_on_every_flagged_record_is_reported_as_a_rule_that_reads_too_little(agent_ns):
@@ -294,7 +294,7 @@ def test_genie_writes_the_facts_and_the_level_and_never_explains_rows_itself(age
     rule = agent_ns["GENIE_EXPLANATION_FACTS_RULE"]
     assert "so never call ai_query to explain rows and never write those columns" in rule
     assert "at most 4,000 per run and 40 per preview run" in rule
-    assert "ai_explanation, ai_confidence_reason, ai_next_action, ai_expected_result, ai_other_option, ai_evidence, ai_facts_hash" in rule
+    assert "ai_explanation, ai_confidence_reason, ai_next_action, ai_expected_result, ai_other_option, ai_headline, ai_what, ai_why, ai_do, ai_evidence, ai_facts_hash" in rule
     assert "Define `AI_CATEGORIES` at top level, after the Parameters cell" in rule
     columns = [name for name, _kind in agent_ns["INSPIRE_CORE_COLUMNS"]]
     assert "ai_facts" in columns and "confidence_level" in columns and "explanation" not in columns

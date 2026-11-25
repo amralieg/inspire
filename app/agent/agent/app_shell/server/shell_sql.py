@@ -6029,9 +6029,15 @@ def amount_tier_sql(stake: str, cutoffs: tuple, segments, names) -> str:
             "ELSE 'Monitor' END")
 
 
+FULL_SHARE_ACT_MIN, FULL_SHARE_ACT_PERCENT = 3, 20
+
+
 def share_cuts(shares, passed: int) -> tuple:
     act_now, review = (float(s) for s in shares)
-    return int(math.floor(act_now * passed + 1e-9)), int(math.floor((act_now + review) * passed + 1e-9))
+    act_now_cut, flagged = int(math.floor(act_now * passed + 1e-9)), int(math.floor((act_now + review) * passed + 1e-9))
+    if flagged >= passed:
+        act_now_cut = min(act_now_cut, max(FULL_SHARE_ACT_MIN, -(-passed * FULL_SHARE_ACT_PERCENT // 100)))
+    return act_now_cut, flagged
 
 
 def share_tier_sql(cuts: tuple, names) -> str:
