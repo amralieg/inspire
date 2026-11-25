@@ -1,7 +1,7 @@
 // REQ-526 part C: the brief use case page, one A4 page (794 x 1123) per use case, laid out once for all four designs.
 // The engine owns the flow (what is shown, how long text is cut so the page never overflows, the projection chart, the data chips, the fact row);
 // each style passes a skin that draws its own frame, head, value tile, labels, boxes, chips and chart marks in its own visual language.
-import { T, t, rect, line, circle, svgDoc, has, wrap, textW, money } from './core.js';
+import { T, t, rect, line, circle, svgDoc, has, wrap, textW, money, rtlMirror } from './core.js';
 
 export const PW = 794;
 export const PH = 1123;
@@ -88,9 +88,8 @@ export function ucPage(m, u, idx, S) {
   }
   if (facts.length) body += S.facts(facts, P, y, CW);
   // Right to left: the page is mirrored as a whole, and each text is flipped back about its own anchor so the words read normally.
-  if (m.rtl) body = `<g transform="translate(${PW} 0) scale(-1 1)">${body.replace(/<text ([^>]*?)x="([\d.-]+)"/g, (_, a, x) => `<text transform="translate(${2 * Number(x)} 0) scale(-1 1)" ${a}x="${x}"`)
-    // Icons (core.js icon(): a 24-unit group at x with scale k) are flipped back inside their own box, so arrows keep their direction.
-    .replace(/<g transform="translate\(([-\d.]+) ([-\d.]+)\) scale\(([-\d.]+)\)" fill="none"/g, (_, x, y, k) => `<g transform="translate(${Number(x) + 24 * Number(k)} ${y}) scale(${-Number(k)} ${k})" fill="none"`)}</g>`;
+  // Right to left: the page is mirrored as a whole (core.js rtlMirror).
+  if (m.rtl) body = rtlMirror(body, PW);
   return svgDoc(PW, PH, `<g data-design="${S.id}" data-page="usecase">${body}</g>`, S.font, typeof S.defs === 'function' ? S.defs() : S.defs || '');
 }
 

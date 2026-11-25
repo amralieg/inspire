@@ -1,7 +1,7 @@
 // FX-113 (REQ-503): the SVG infographic and brief pages. Every text is XML-escaped; every content block is wrapped in <g data-block="id">.
 import { moneyText } from '../valueWizard.js';
 import { designOf, toDesignModel } from './designs/model.js';
-import { resetLog } from './designs/core.js';
+import { resetLog, rtlSvg } from './designs/core.js';
 
 const NS = 'xmlns="http://www.w3.org/2000/svg"';
 export const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -136,9 +136,12 @@ function designed(m, theme) {
 }
 const rtlRoot = (m, svg) => (m.rtl ? svg.replace(/^<svg /, '<svg direction="rtl" ') : svg);
 
+// A design infographic or page 1: mirrored as a whole when right to left (use case pages mirror themselves in ucPage).
+const designRtl = (m, svg) => (m.rtl ? rtlSvg(svg) : svg);
+
 export function infographicSvg(m, theme) {
   const d = designed(m, theme);
-  if (d) { resetLog(); return rtlRoot(m, d.design.infographic(d.dm, theme.tokens, { W: 794, H: 1123 })); }
+  if (d) { resetLog(); return designRtl(m, d.design.infographic(d.dm, theme.tokens, { W: 794, H: 1123 })); }
   const W = 1200; const gap = 24; const cw = (W - 96 - gap) / 2;
   let y = 120; let body = '';
   body += header(m, theme, W, 50, `${m.total.n} use cases | ${m.total.nWithValue} with a calculated value`);
@@ -167,7 +170,7 @@ export function briefPagesSvg(m, theme) {
     resetLog();
     // Page 1 and every use case page are the design's own (use case pages carry data-design); a use case with no value says "not calculated yet".
     const pages = d.dm.pageUseCases.map((u, i) => d.design.briefUseCasePage(d.dm, theme.tokens, u, i));
-    return [rtlRoot(m, d.design.briefPage1(d.dm, theme.tokens)), ...pages.map((p) => rtlRoot(m, p))];
+    return [designRtl(m, d.design.briefPage1(d.dm, theme.tokens)), ...pages.map((p) => rtlRoot(m, p))];
   }
   const W = 794; const H = 1123;
   const wrapPage = (id, body) => `<svg ${NS} viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="${esc(theme.font)}"${m.rtl ? ' direction="rtl"' : ''}>${defs(theme, id)}${backdrop(theme, W, H, id)}${body}</svg>`;
