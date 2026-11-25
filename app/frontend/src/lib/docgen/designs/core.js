@@ -125,6 +125,16 @@ export function icon(name, x, y, s, c, sw = 2) {
   const body = nodes.map(([tag, a]) => `<${tag} ${Object.entries(a).filter(([k]) => k !== 'key').map(([k, v]) => `${k}="${esc(v)}"`).join(' ')}/>`).join('');
   return `<g transform="translate(${x} ${y}) scale(${s / 24})" fill="none" stroke="${c}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${body}</g>`;
 }
+// Right to left: mirror a page body as a whole about its width W; each text is flipped back about its own anchor so words read normally,
+// and each icon() group is flipped back inside its own 24-unit box so arrows keep their direction. Defs stay outside the transform.
+export const rtlMirror = (inner, W) => `<g transform="translate(${W} 0) scale(-1 1)">${inner.replace(/<text ([^>]*?)x="([\d.-]+)"/g, (_, a, x) => `<text transform="translate(${2 * Number(x)} 0) scale(-1 1)" ${a}x="${x}"`)
+  .replace(/<g transform="translate\(([-\d.]+) ([-\d.]+)\) scale\(([-\d.]+)\)" fill="none"/g, (_, x, y, k) => `<g transform="translate(${Number(x) + 24 * Number(k)} ${y}) scale(${-Number(k)} ${k})" fill="none"`)}</g>`;
+// The same for a finished design svg (svgDoc output): the body after </defs> is mirrored, the root keeps direction rtl.
+export const rtlSvg = (svg) => {
+  const W = Number(/viewBox="0 0 ([\d.]+) /.exec(svg)[1]); const d = svg.indexOf('</defs>') + 7; const end = svg.lastIndexOf('</svg>');
+  return svg.slice(0, d).replace(/^<svg /, '<svg direction="rtl" ') + rtlMirror(svg.slice(d, end), W) + svg.slice(end);
+};
+
 // The App's ten business priorities (LaunchPage BUSINESS_PRIORITIES) and their icons.
 export const VERB_ICON = { 'Increase Revenue': 'trending-up', 'Reduce Cost': 'dollar-sign', 'Optimize Operations': 'cog', 'Mitigate Risk': 'shield',
   'Empower Talent': 'users', 'Enhance Experience': 'star', 'Drive Innovation': 'rocket', 'Achieve ESG': 'leaf', 'Protect Revenue': 'lock', 'Execute Strategy': 'crosshair',
