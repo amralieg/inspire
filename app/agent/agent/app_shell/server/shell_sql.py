@@ -6835,6 +6835,22 @@ def population_query(table: str, stake: str, tier: str, stake_value) -> tuple:
             params.items)
 
 
+def compare_cohort_stats_query(table: str, measure: str, cohort: str, cohort_value) -> tuple:
+    """REQ-531: how many current rows share this cohort value, with the mean and sample spread of the measure over them."""
+    params = _Params()
+    return (f"SELECT COUNT({quote(measure)}) AS n, AVG({quote(measure)}) AS mean, STDDEV_SAMP({quote(measure)}) AS sd, "
+            f"COUNT({quote(measure)}) AS `_inspire_cohort_n` FROM {table_name(table)} WHERE {CURRENT_ROWS} "
+            f"AND CAST({quote(cohort)} AS STRING) = {params.add(str(cohort_value))}", params.items)
+
+
+def compare_cohort_sample_query(table: str, measure: str, cohort: str, cohort_value, lower: bool, limit: int = 20) -> tuple:
+    """REQ-531: up to `limit` rows of the cohort, best first (ascending when lower is better)."""
+    params = _Params()
+    return (f"SELECT `record_key`, {quote(measure)} AS `x` FROM {table_name(table)} WHERE {CURRENT_ROWS} "
+            f"AND {quote(measure)} IS NOT NULL AND CAST({quote(cohort)} AS STRING) = {params.add(str(cohort_value))} "
+            f"ORDER BY {quote(measure)} {'ASC' if lower else 'DESC'}, `record_key` ASC LIMIT {int(limit)}", params.items)
+
+
 def keys_within(match: dict, keys: list) -> tuple:
     params = match["params"]
     return (f"SELECT w.`_inspire_key` FROM ({match['keys']}) AS w WHERE w.`_inspire_key` IN ({_key_list(params, keys)})",

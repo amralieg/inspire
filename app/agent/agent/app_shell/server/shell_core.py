@@ -2990,6 +2990,8 @@ class Shell:
                 return 200, self.record_history(headers, query)
             if route == ("GET", "records/population"):
                 return 200, self.record_population(headers, query)
+            if route == ("GET", "records/compare"):
+                return 200, self.record_compare(headers, query)
             if route == ("GET", "records/fields"):
                 return 200, self.record_fields(headers, query.get("page"))
             if method == "POST" and route[1] in WRITE_SOURCES:
@@ -5183,6 +5185,112 @@ class Shell:
         if words["kind"] and out.get("count"):
             out["money"] = words  # REQ-532: the record's own amount, labelled by its kind and sign
         return out
+
+    COMPARE_MODES = ("history", "cohort", "picked", "population")
+    COMPARE_PICKED_MAX, COMPARE_SAMPLE = 10, 20
+
+    def record_compare(self, headers: dict, query: dict) -> dict:
+        """REQ-531: one reply shape, {mode, measure, direction, this, points, band, n, note}, for four views of a record: its own
+        history, a cohort sharing a column value, records the user picked, and the whole population. Every number is read or
+        computed here from the App's own table; the note is built only from those numbers."""
+        page = self.page(query.get("page"))
+        record_key = str(query.get("record_key") or query.get("key") or "")
+        if not record_key or len(record_key) > RECORD_KEY_CHARS:
+            raise HttpError(400, "name the record by its record_key, or by its key on the decision list")
+        mode = str(query.get("mode") or "")
+        if mode not in self.COMPARE_MODES:
+            raise HttpError(400, f"mode must be one of {', '.join(self.COMPARE_MODES)}")
+        ws, who = self.workspace(headers)
+        fields = self.change_table(ws, who, page)
+        names = {f["name"] for f in fields}
+        records = page.get("records") or {}
+        measure = str(query.get("measure") or records.get("rank") or "rank")
+        cohort = str(query.get("cohort_column") or "")
+        for label, column in (("measure", measure), ("cohort_column", cohort if mode == "cohort" else "")):
+            if column and column not in names:
+                raise HttpError(400, f"{label} {column!r} is not a column of the result table")
+        if mode == "cohort" and not cohort:
+            raise HttpError(400, "cohort mode needs cohort_column")
+        keys = []
+        if mode == "picked":
+            keys = [k for k in dict.fromkeys(k.strip() for k in str(query.get("keys") or "").split(",")) if k and k != record_key]
+            if not keys or len(keys) > self.COMPARE_PICKED_MAX:
+                raise HttpError(400, f"picked mode needs between 1 and {self.COMPARE_PICKED_MAX} keys")
+            if any(len(k) > RECORD_KEY_CHARS for k in keys):
+                raise HttpError(400, "a picked key is too long")
+        if mode == "population":
+            if measure != (records.get("rank") or "rank"):
+                raise HttpError(400, f"population compares by the page's ranking column {records.get('rank') or 'rank'!r}, not {measure!r}")
+            return self.compare_population(ws, page, record_key, measure)
+        direction = rank_direction(records, measure)
+        if mode == "history":
+            held = self.history_of(ws, who, page, fields, record_key, True)
+            row = held.get("current") or (held["versions"] or [{}])[-1]
+            points = [{"name": f"version {i}", "x": self.compare_x(v, measure), "t": str(v.get("valid_from") or "")}
+                      for i, v in enumerate(held["versions"], 1) if self.compare_x(v, measure) is not None]
+            return self.compare_reply(mode, measure, direction, record_key, self.compare_x(row, measure), points, "versions of this record")
+        if mode == "picked":
+            wanted = [record_key] + keys
+            rows = {str(r.get("record_key")): r for r in self.execute(ws, *shell_sql.current_query(page["result_table"], wanted),
+                                                                      len(wanted), delta=False)["rows"]}
+            if record_key not in rows:
+                raise HttpError(404, "no current record has this key")
+            points = [{"key": k, "name": "this record" if k == record_key else k, "x": self.compare_x(rows[k], measure)}
+                      for k in wanted if k in rows and self.compare_x(rows[k], measure) is not None]
+            return self.compare_reply(mode, measure, direction, record_key, self.compare_x(rows[record_key], measure), points,
+                                      "records, this one included")
+        sql, params = shell_sql.current_query(page["result_table"], [record_key])
+        found = self.execute(ws, sql, params, 1, delta=False)["rows"]
+        if not found:
+            raise HttpError(404, "no current record has this key")
+        row, value = found[0], found[0].get(cohort)
+        x = self.compare_x(row, measure)
+        if value is None or str(value) == "":
+            out = self.compare_reply(mode, measure, direction, record_key, x, [], "records in the cohort")
+            out["note"] = f"This record has no {cohort}, so it has no cohort to compare with."
+            return out
+        sql, params = shell_sql.compare_cohort_stats_query(page["result_table"], measure, cohort, value)
+        stats = self.execute(ws, sql, params, 1, delta=False)["rows"][0]
+        sql, params = shell_sql.compare_cohort_sample_query(page["result_table"], measure, cohort, value, direction == "lower", self.COMPARE_SAMPLE)
+        sample = self.execute(ws, sql, params, self.COMPARE_SAMPLE, delta=False)["rows"]
+        points = [{"key": str(r.get("record_key")), "name": "this record" if str(r.get("record_key")) == record_key else str(r.get("record_key")),
+                   "x": float(r["x"])} for r in sample if r.get("x") is not None]
+        n = int(float(stats.get("n") or 0))
+        mean, sd = (float(stats.get("mean") or 0), float(stats.get("sd") or 0)) if n else (None, None)
+        return self.compare_reply(mode, measure, direction, record_key, x, points, f"records with the same {cohort}",
+                                  stats=(n, mean, sd if n > 1 else None))
+
+    def compare_x(self, row: dict, measure: str):
+        value = row.get(measure)
+        try:
+            return None if value is None or isinstance(value, bool) or math.isnan(float(value)) else float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def compare_reply(self, mode: str, measure: str, direction: str, key: str, x, points: list, what: str, stats=None) -> dict:
+        """The one reply shape. stats is (n, mean, sd) when the server aggregated the set; otherwise the band comes from the points."""
+        shown = shell_sql.shown_number
+        xs = [p["x"] for p in points]
+        n, mean, sd = stats if stats else (len(xs), statistics.mean(xs) if xs else None, statistics.stdev(xs) if len(xs) > 1 else None)
+        band = [mean - sd, mean + sd] if n >= 2 and sd is not None else None
+        if not n or x is None:
+            note = (f"This record has no {measure} value to compare." if x is None else f"There are no {what} to compare with.")
+        else:
+            note = f"This record's {measure} is {shown(x)} against {shown(n)} {what}, averaging {shown(round(mean, 2))}"
+            note += f" with a normal band of {shown(round(band[0], 2))} to {shown(round(band[1], 2))}." if band else "; too few for a band."
+        return {"mode": mode, "measure": measure, "direction": direction, "this": {"key": key, "x": x}, "points": points,
+                "band": band, "n": n, "note": note}
+
+    def compare_population(self, ws, page: dict, record_key: str, measure: str) -> dict:
+        out = self.population_of(ws, page, record_key).get("compared")
+        if not out:
+            reply = self.compare_reply("population", measure, rank_direction(page.get("records") or {}, measure), record_key, None, [],
+                                       "records on this list")
+            return reply
+        return {"mode": "population", "measure": measure, "direction": out["direction"], "this": {"key": record_key, "x": out["x"]},
+                "points": out["points"], "band": out["band"] if out["n"] >= 2 else None, "n": out["n"],
+                "note": self.compare_reply("population", measure, out["direction"], record_key, out["x"], out["points"], "records on this list",
+                                           stats=(out["n"], out["mean"], out["sd"] if out["n"] > 1 else None))["note"]}
 
     def record_fields(self, headers: dict, ident) -> dict:
         page = self.page(ident)

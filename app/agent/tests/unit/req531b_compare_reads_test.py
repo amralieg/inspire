@@ -15,7 +15,7 @@ PAGE_C = dict(copy.deepcopy(PAGE), result_table="cat.sch.tbl")
 PAGE_C["records"] = dict(PAGE_C.get("records") or {}, rank="rank", tier="priority_tier", reasons="", key="record_key",
                          columns=[{"column": "rank", "label": "Rank", "format": "integer"},
                                   {"column": MEASURE, "label": "Score", "format": "number"}])
-FIELDS = [{"name": n} for n in ("record_key", "rank", MEASURE, COHORT, "priority_tier", "valid_from", "is_current", "change_source")]
+FIELDS = [{"name": n, "type": "string", "kind": "data", "role": "", "editable": False} for n in ("record_key", "rank", MEASURE, COHORT, "priority_tier", "valid_from", "is_current", "change_source")]
 THIS = {"record_key": "R1", "rank": 3, MEASURE: 10.0, COHORT: "g1", "priority_tier": "Monitor"}
 ROWS = {  # the current rows of the fixture table
     "R1": THIS,
@@ -44,7 +44,7 @@ class Rows:
         if "AS `_inspire_cohort_n`" in sql:
             return {"rows": [{"n": 3, "mean": statistics.mean([10.0, 4.0, 8.0]), "sd": statistics.stdev([10.0, 4.0, 8.0])}]}
         if "AS `x`" in sql:
-            asc = "ASC" in sql
+            asc = " ASC, `record_key`" in sql
             rows = sorted(({"record_key": k, "x": r[MEASURE if MEASURE in sql else "rank"]} for k, r in ROWS.items() if r[COHORT] == "g1"),
                           key=lambda r: r["x"], reverse=not asc)
             return {"rows": rows}
