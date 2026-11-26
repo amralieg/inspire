@@ -131,9 +131,11 @@ export default function PermissionRequired({ permissions, onStart, onRetry, onCl
       {otherRequestLinks(offer?.links).length > 0 && (
         <div data-request-links="" className="space-y-1">
           <p className="text-xs text-text-secondary">Also request access on:</p>
-          {otherRequestLinks(offer.links).map((link) => (
-            <a key={link.url} href={link.url} target="_blank" rel="noopener noreferrer" className="text-sm text-text-primary underline break-all">{link.full_name}</a>
-          ))}
+          <ul className="space-y-0.5">
+            {otherRequestLinks(offer.links).map((link) => (
+              <li key={link.url}><a href={link.url} target="_blank" rel="noopener noreferrer" className="text-sm text-text-primary underline break-all">{link.full_name}</a></li>
+            ))}
+          </ul>
         </div>
       )}
       {(text || steps) && (
