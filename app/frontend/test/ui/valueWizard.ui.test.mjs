@@ -91,8 +91,11 @@ test('W3: unticking a kind on the Kinds page previews without it, and the Terms 
     const total = dialog.locator('[data-save-total]');
     const summary = dialog.locator('[data-accept-summary]');
     assert.notEqual(await text(total), before, 'the total changed');
-    const t = await total.boundingBox();
-    const s = await summary.boundingBox();
+    // One frame for both boxes: read one by one, a box moving with the page transition lands on another frame.
+    const { t, s } = await dialog.evaluate((d) => {
+      const r = (el) => { const b = el.getBoundingClientRect(); return { y: b.y, height: b.height }; };
+      return { t: r(d.querySelector('[data-save-total]')), s: r(d.querySelector('[data-accept-summary]')) };
+    });
     assert.ok(t.y + t.height <= s.y + 1, 'total is above the summary');
     const rows = summary.locator('[data-kind-amount-row]');
     const ids = await rows.evaluateAll((n) => n.map((x) => x.getAttribute('data-kind-amount-row')));

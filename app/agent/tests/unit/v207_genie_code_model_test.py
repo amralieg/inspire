@@ -48,7 +48,7 @@ def _inspire(ns, gateway, monkeypatch):
 
 
 def _genie_steps(inst):
-    return [(e["status"], e["message"]) for e in inst.emitted if e["step_name"] == "Databricks AI" and e["status"] != "started"]
+    return [(e["status"], e["message"]) for e in inst.emitted if e["step_name"] == "Genie Code" and e["status"] != "started"]
 
 
 def test_a_gateway_without_the_first_model_builds_with_the_next_served_model_and_says_so(agent_ns, monkeypatch):
