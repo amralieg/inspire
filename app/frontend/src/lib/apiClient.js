@@ -2,6 +2,7 @@ import { apiErrorDetail, parseApiErrorMessage } from './ucPermissionErrors.js';
 import { raisePermissions } from './permissionBus.js';
 import { withDeadline } from './startDeadline.js';
 import { splitTechnical } from './plainText.js';
+import { trackAi } from './aiStatus.js';
 
 export const SHOWCASE_HEADER = 'X-Inspire-Showcase';
 
@@ -71,14 +72,14 @@ async function send(url, init, { retry = false } = {}) {
 export function makeApiFetch({ token, databricksHost, showcase = '' } = {}) {
   // raise: false for a check or probe that shows its own refusal inline, so the App-level dialog does not open over it.
   // A read is tried once more when it gets no answer; a write never is.
-  return async (url, { raise = true } = {}) => {
+  return (url, { raise = true } = {}) => trackAi(url, async () => {
     const resp = await send(url, { headers: requestHeaders(token, databricksHost, {}, showcase) }, { retry: true });
     if (!resp.ok) throw await responseError(resp, { raise });
     return resp.json();
-  };
+  });
 }
 
-const makeApiSendJson = (method) => ({ token, databricksHost, showcase = '' } = {}) => async (url, body, { signal, raise = true } = {}) => {
+const makeApiSendJson = (method) => ({ token, databricksHost, showcase = '' } = {}) => (url, body, { signal, raise = true } = {}) => trackAi(url, async () => {
   const resp = await send(url, {
     method,
     headers: requestHeaders(token, databricksHost, { 'Content-Type': 'application/json' }, showcase),
@@ -87,7 +88,7 @@ const makeApiSendJson = (method) => ({ token, databricksHost, showcase = '' } = 
   });
   if (!resp.ok) throw await responseError(resp, { raise });
   return resp.json();
-};
+});
 
 export const makeApiPostJson = makeApiSendJson('POST');
 // REQ-435: the same call with PUT, for the saved Value at stake answers.

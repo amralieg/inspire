@@ -77,7 +77,7 @@ export function progressOf(rows) {
 
 export function buildNextOf(rows) {
   const ranked = rows.filter((row) => !row.built).sort(byValue(primaryCurrency(rows)));
-  return { ...progressOf(rows), next: ranked.slice(0, NEXT_LIST_COUNT) };
+  return { ...progressOf(rows), unbuilt: ranked.length, next: ranked.slice(0, NEXT_LIST_COUNT) };
 }
 
 export function nextSharingTables(rows, focusId, count = NEXT_STEP_COUNT) {

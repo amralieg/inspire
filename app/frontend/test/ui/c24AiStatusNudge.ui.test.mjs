@@ -38,7 +38,7 @@ test('the header shows AI ready, working while an LLM call is pending, unavailab
   } });
   const { page } = ui;
   try {
-    await page.waitForFunction(() => !document.body.innerText.includes('Connecting to workspace'), null, { timeout: 20000 });
+    await go(page, '#/build/42/N01-U01');
     const badge = page.locator('header [data-ai-status]');
     await badge.waitFor({ timeout: 20000 });
     assert.match(await badge.innerText(), /AI: ready/);
@@ -72,7 +72,8 @@ test('a use case with a built asset nudges to build another and the button opens
     await nudge.waitFor({ timeout: 20000 });
     assert.match(await nudge.innerText(), /Build another: 3 more use cases in this run are ready to build/);
     await nudge.getByRole('button').click();
-    await page.locator('button[aria-current="true"]', { hasText: 'Track stock outs' }).waitFor({ timeout: 10000 });
+    await page.waitForFunction(() => window.location.hash === '#/build/42/N02-U01', null, { timeout: 10000 });
+    await page.locator('button[aria-current="true"]', { hasText: 'Forecast stock' }).waitFor({ timeout: 10000 });
   } finally {
     await ui.close();
   }
