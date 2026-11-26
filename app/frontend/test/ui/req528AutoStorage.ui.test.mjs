@@ -1,9 +1,10 @@
 // REQ-528 (Amr, 2026-11-25): "user must have the app using Lakebase, if not found, or not able to create it, then use delta, but this is not a choice
-// user can make any more". Fail-first contract: the Page storage step has no radio or option to pick Delta or Lakebase; Review & build carries one
+// user can make any more". Fail-first contract: the SQL warehouse for the App step has no radio or option to pick Delta or Lakebase; Review & build carries one
 // read-only line that names the storage and why; Lakebase when the check says it is available, Delta with the reason otherwise, Delta for per-user sign-in.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, goToStep, openFolded, openUi, toAppAccess, toSharedAccess, toSummary, POLICIED_SOURCE } from './uiSupport.mjs';
+import { APP_STORAGE_LABEL } from '../../src/lib/implementWizard.js';
 
 test.after(closeBrowser);
 
@@ -17,8 +18,8 @@ const filtered = (fn, body) => ({
 });
 
 async function storageHasNoChoice(page) {
-  await page.getByRole('region', { name: 'Page storage' }).waitFor();
-  const step = page.getByRole('region', { name: 'Page storage' });
+  await page.getByRole('region', { name: APP_STORAGE_LABEL }).waitFor();
+  const step = page.getByRole('region', { name: APP_STORAGE_LABEL });
   await step.getByRole('status').waitFor({ state: 'detached' });
   assert.equal(await step.getByRole('radio').count(), 0, 'no radio to pick Lakebase or Delta');
   assert.equal(await step.getByRole('group', { name: "How fast do the App's pages open?" }).count(), 0, 'the storage choice is gone');
@@ -38,7 +39,7 @@ async function toStorage(page) {
   await goToStep(page, 'What to build');
   await toSharedAccess(page);
   await goToStep(page, 'Where it lives');
-  await openFolded(page, 'Page storage');
+  await openFolded(page, APP_STORAGE_LABEL);
 }
 
 test('Lakebase available: no storage choice, and Review says Fast pages (Lakebase)', async () => {
@@ -77,7 +78,7 @@ test('per-user sign-in: Review says Delta, even with Lakebase available', async 
     await toAppAccess(ui.page);
     await ui.page.getByRole('region', { name: 'App access' }).getByRole('radio', { name: /^Sensitive data/ }).check();
     await goToStep(ui.page, 'Where it lives');
-    await openFolded(ui.page, 'Page storage');
+    await openFolded(ui.page, APP_STORAGE_LABEL);
     await storageHasNoChoice(ui.page);
     assert.match(await reviewLine(ui.page), /^Delta, because each person signs in as themselves/);
   } finally { await ui.close(); }

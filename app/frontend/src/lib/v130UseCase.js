@@ -1,4 +1,5 @@
 import { aiWording, fieldOf, isBlankField, plainReason } from './useCaseFields.js';
+import { plural } from './plural.js';
 import { KPI_BASELINE_MISMATCH, KPI_FILTER_MISMATCH_TEXT, kpiFilterMismatch, kpiFilterShown } from './kpiFilter.js';
 import { placeholderWords } from './placeholderWords.js';
 import { useCaseKindView } from './useCaseKind.js';
@@ -413,7 +414,7 @@ export function trackedKpiNote(entry) {
 
 function baselineWindow(baseline) {
   if (!baseline.window_days) return 'all data';
-  return `last ${baseline.window_days} days${baseline.window_anchor === KPI_WINDOW_ANCHOR ? ' to the newest data' : ''}`;
+  return `last ${plural(baseline.window_days, 'day')}${baseline.window_anchor === KPI_WINDOW_ANCHOR ? ' to the newest data' : ''}`;
 }
 
 export function kpiWithoutStaleBaselines(text, specs) {

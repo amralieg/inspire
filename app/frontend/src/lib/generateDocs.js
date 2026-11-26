@@ -5,6 +5,7 @@ import { infographicSvg, briefPagesSvg } from './docgen/docSvg.js';
 import { resolveTheme } from './docgen/docStyles.js';
 import { trackingIdOf } from './useCaseFields.js';
 import { summaryOf } from './docgen/docModel.js';
+import { labelTexts, labelsFrom } from './docgen/docLabels.js';
 
 const toBytes = async (v) => (v instanceof Blob ? new Uint8Array(await v.arrayBuffer()) : v instanceof ArrayBuffer ? new Uint8Array(v) : v);
 
@@ -34,6 +35,7 @@ export async function svgToPng(svg, scale = 1) {
 export const textsToTranslate = (useCases, values, summary = []) => {
   const texts = {};
   summaryOf(summary).forEach((p, i) => { texts[`summary|${i}`] = p; });
+  Object.assign(texts, labelTexts()); // RC6-B-11: the fixed labels of every document are translated with the data, never printed in English
   for (const uc of useCases) {
     const id = trackingIdOf(uc);
     const m = buildDocModel({ useCases: [uc], values, options: {} }).useCases[0];
@@ -46,6 +48,7 @@ export function modelFor({ businessName, useCases, values, options, language, id
   const picked = useCases.filter((uc) => ids.includes(trackingIdOf(uc)));
   const m = buildDocModel({ businessName, useCases: picked, values, options: { ...options, languages: [language] }, summary });
   if (!translated) return m;
+  m.labels = labelsFrom(translated);
   // REQ-526 part E: the executive summary is translated with the other texts, one entry per paragraph.
   if (m.summary.length) m.summary = m.summary.map((p, i) => translated[`summary|${i}`] || p);
   m.useCases.forEach((u) => {

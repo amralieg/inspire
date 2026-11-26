@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, goToStep, onStep, openRow, openUi, wizardInScreen, openFolded, POLICIED_SOURCE } from './uiSupport.mjs';
+import { APP_STORAGE_LABEL } from '../../src/lib/implementWizard.js';
 
 test.after(closeBrowser);
 
@@ -95,8 +96,8 @@ test('Who uses the App opens who sees which rows, and what people can do in the 
   try {
     await goToStep(page, 'Who uses the App');
     await page.getByRole('region', { name: 'App access' }).waitFor();
-    await goToStep(page, 'Page storage');
-    await openFolded(page, 'Page storage');
+    await goToStep(page, APP_STORAGE_LABEL);
+    await openFolded(page, APP_STORAGE_LABEL);
     assert.equal(await page.getByRole('radio', { name: /Lakebase|Delta/ }).count(), 0, 'REQ-528: no storage choice');
     await goToStep(page, 'Who uses the App');
     assert.equal(await page.locator('[data-choice="app-options"]').count(), 0, 'the App features are behind their Change row');

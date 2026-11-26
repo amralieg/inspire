@@ -26,6 +26,8 @@ const messageOf = (err) => String(err?.message || err || 'The value could not be
 const STEPS = ['Data', 'Kinds', 'Each kind', 'Value story', 'Terms and accept'];
 const btn = 'rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle disabled:opacity-50';
 const primary = 'rounded-md bg-primary-solid hover:bg-primary-solid-hover px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50';
+// RC6-B-04: the story's data line counts the rows read, so it says records; the use case's own noun (unusual transaction) counts something else.
+const STORY_NOUN = 'record';
 const withoutChoice = ({ choice, ...rest }) => rest; // eslint-disable-line no-unused-vars
 // A reopened value keeps the scope it was saved with; which card it was is read back from its structure.
 const scopeFromSaved = (s) => (s ? { ...s, choice: s.filters?.length ? 'filter' : s.window ? 'last_12' : 'all' } : null);
@@ -51,6 +53,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
   const [macroPage, setMacroPage] = useState('macro:offer');
   const [macroOpen, setMacroOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [calcWaiting, setCalcWaiting] = useState(false);
   const [error, setError] = useState('');
   const [history, setHistory] = useState([]);
   const askedFacts = useRef({ key: '', promise: null });
@@ -168,7 +171,27 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
     setAnswers(final);
     return save(final);
   };
-  const calculateNow = () => save(answers, false);
+  // REQ-442, RC6-B-05: Calculate now works on every step. Before the case plan is in, it asks for the plan with the scope so far (the recommended
+  // one when none is picked), waits for it with the footer showing progress, then saves the plan defaults as a Provisional estimate.
+  const askPlan = (sc) => {
+    const body = withoutChoice(sc);
+    const currency = answers?.currency || saved?.currency || DEFAULT_CURRENCY;
+    const key = JSON.stringify([body, currency]);
+    if (planKey.current !== key) { planKey.current = key; setAsk((a) => ({ id: (a?.id || 0) + 1, scope: body, currency })); }
+  };
+  const calculateNow = () => {
+    if (ready) return save(answers, false);
+    let sc = scope;
+    if (!sc) {
+      const pick = scopeChoices(facts).find((c) => c.recommended) || { id: 'all', label: 'All data' };
+      sc = { ...(scopeOfChoice(pick.id, facts) || { phrase: pick.label, filters: [], window: null }), choice: pick.id };
+      setScope(sc);
+    }
+    askPlan(sc);
+    setError('');
+    setCalcWaiting(true);
+    return undefined;
+  };
   const undo = async () => {
     setBusy(true); setError('');
     try {
@@ -194,10 +217,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
         } catch (err) { setError(messageOf(err)); setBusy(false); return; }
         setBusy(false);
       }
-      const body = withoutChoice(chosen);
-      const currency = answers?.currency || saved?.currency || DEFAULT_CURRENCY;
-      const key = JSON.stringify([body, currency]);
-      if (planKey.current !== key) { planKey.current = key; setAsk((a) => ({ id: (a?.id || 0) + 1, scope: body, currency })); }
+      askPlan(chosen);
       return go('kinds');
     }
     return go(pages[pages.indexOf(page) + 1]);
@@ -209,8 +229,9 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
   const anyOn = ready ? driversOn(plan, answers).length > 0 : false;
   const scopeDone = scope?.choice && (scope.choice !== 'filter' || Number.isFinite(Number(scope.rows_after)));
   const nextOff = busy || (page === 'data' && (!facts || !scopeDone)) || (page !== 'data' && !ready) || (page === 'kinds' && !anyOn);
-  const calcOff = busy || !ready || !anyOn;
-  const calcWhy = !ready ? 'Finish the Data step first' : !anyOn ? 'Tick a kind of value first' : 'Save these numbers as a provisional estimate';
+  const calcOff = busy || calcWaiting || (!ready && (!facts || (page === 'data' && !scopeDone))) || (ready && !anyOn);
+  const calcWhy = !ready ? (!facts ? 'Inspire is reading your data' : page === 'data' && !scopeDone ? 'Check your filter first' : 'Work out the value with the numbers so far')
+    : !anyOn ? 'Tick a kind of value first' : 'Save these numbers as a provisional estimate';
   const money = page !== 'data';
   // D21/D24: "Up to date" only when a value exists; a missing one says Calculating; no kind ticked says what to tick. No money before the Data step is done.
   const footerBusy = money && (!ready ? planState.status !== 'error' : anyOn && preview.status !== 'error' && !(preview.status === 'ready' && preview.yearly));
@@ -222,6 +243,14 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
   const onMacroPage = (p) => { if (p.startsWith('macro:')) setMacroPage(p); else { setMacroPage('macro:offer'); setMacroOpen(false); } };
   const fold = 'rounded-lg border border-border px-3 py-1.5';
   const foldTitle = 'cursor-pointer text-[13px] font-semibold text-text-primary';
+  // The plan Calculate now waited for is in: save it. A plan that failed, or has no kind ticked, lands on Kinds, which shows why.
+  useEffect(() => {
+    if (!calcWaiting) return;
+    if (planState.status === 'error') { setCalcWaiting(false); if (pageRef.current !== 'kinds') go('kinds'); return; }
+    if (!ready) return;
+    setCalcWaiting(false);
+    if (anyOn) save(answers, false); else if (pageRef.current !== 'kinds') go('kinds');
+  }, [calcWaiting, planState.status, ready]); // eslint-disable-line react-hooks/exhaustive-deps
   const body = () => {
     if (page === 'data') {
       if (factsState.status === 'error') {
@@ -256,7 +285,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
     }
     if (!ready) return <BusyNote data-wizard-loading="" className="flex flex-col items-center py-8 text-center text-sm text-text-secondary" text="Reading your data to plan the value." />;
     const ticked = driversOn(plan, answers);
-    const story = storyOf({ useCase: nameOfUseCase(uc), noun, currency: answers.currency, scope: answers.scope, drivers: ticked, projection: yearly?.projection, economics: answers.economics });
+    const story = storyOf({ useCase: nameOfUseCase(uc), noun: STORY_NOUN, currency: answers.currency, scope: answers.scope, drivers: ticked, projection: yearly?.projection, economics: answers.economics });
     const params = paramsOf(plan, answers, yearly);
     const kindAt = driver ? ticked.findIndex((d) => d.id === driver.id) + 1 : 0;
     return (
@@ -326,7 +355,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
     <ModalDialog titleId="calculate-value-title" title={dialogTitleFor(nameOfUseCase(uc))} onClose={onClose} closeLabel={done ? 'Dismiss' : 'Close'} widthClass="max-w-4xl"
       footer={(
         <>
-          <span data-preview-state={preview.status} className="me-auto min-h-[34px] truncate text-[12px] leading-[34px] text-text-secondary">{footerBusy ? <BusyNote inline text="Calculating..." size={14} /> : footerNote}</span>
+          <span data-preview-state={preview.status} className="me-auto min-h-[34px] truncate text-[12px] leading-[34px] text-text-secondary">{footerBusy || calcWaiting ? <BusyNote inline text="Calculating..." size={14} /> : footerNote}</span>
           {trail.length > 0 && !(last && busy) && <button type="button" className={btn} onClick={back}>Back</button>}
           {last ? (
             done && <button type="button" onClick={onClose} className={primary}>Close</button>

@@ -38,7 +38,8 @@ function askOf(def, input, source) {
 }
 
 function baseGroupings(columns, asked) {
-  const text_ = columns.filter((c) => !NUMERIC.test(String(c.data_type)) && !/^(date|timestamp)/i.test(String(c.data_type)));
+  const dates = VY.dateColumnsOf(columns);
+  const text_ = columns.filter((c) => !NUMERIC.test(String(c.data_type)) && !dates.includes(c));
   const first = asked && columns.find((c) => nameOf(c) === asked) ? asked : (text_[0] ? nameOf(text_[0]) : '');
   return first ? [{ column: first, label: `By ${first.replace(/_/g, ' ')}` }] : [];
 }
@@ -143,22 +144,23 @@ function filterSql(f, b) {
 
 // The filter and the dated rows: a row with no date counts toward neither the records nor the days (D4).
 // REQ-507: the chosen scope (plan.scope: filters and a window of absolute days) adds its bound conditions; its values are bound into `b`'s list.
-function whereOf(f, b, dateColumn, scope = null) {
+// RC6-B-08: a date kept as text (textDate) is read through the safe parse, so a row whose value does not parse is not dated.
+function whereOf(f, b, dateColumn, scope = null, textDate = false) {
   const base = filterSql(f, b);
-  const dated = `${quote(dateColumn)} IS NOT NULL`;
+  const dated = `${VY.dateRead(quote(dateColumn), textDate)} IS NOT NULL`;
   const chosen = VS.scopeClauses(scope);
   b.parameters.push(...chosen.parameters);
   const all = [...chosen.where, dated].join(' AND ');
   return base ? `${base} AND ${all}` : ` WHERE ${all}`;
 }
 
-function groupedSql(GP, scopes, plan, table, dateColumn) {
+function groupedSql(GP, scopes, plan, table, dateColumn, textDate = false) {
   const b = binder();
   return GP.statement(scopes, (ctx) => {
     const needed = [dateColumn, plan.grouping, ...plan.metrics.map((m) => m.column), plan.case_filter && plan.case_filter.column, ...VS.scopeColumns(plan.scope)].filter(Boolean);
     const from = GP.previewFrom(table, ctx, needed);
     const f = plan.case_filter;
-    const where = whereOf(f, b, dateColumn, plan.scope);
+    const where = whereOf(f, b, dateColumn, plan.scope, textDate);
     const group = plan.grouping ? `COALESCE(CAST(${quote(plan.grouping)} AS STRING), '(blank)')` : "'All'";
     const metrics = plan.metrics.filter((m) => ID_SHAPE.test(String(m.id))).map((m) => `, ${m.agg === 'avg' ? 'AVG' : 'SUM'}(CAST(${quote(m.column)} AS DOUBLE)) AS m_${m.id}`).join('');
     return `SELECT ${group} AS g, COUNT(*) AS records${metrics} FROM ${from}${where}${plan.grouping ? ' GROUP BY 1 ORDER BY records DESC' : ''} LIMIT ${GROUP_MAX_GROUPS}`;
@@ -311,8 +313,9 @@ function currentCountSql(GP, scopes, plan) {
   return GP.statement(scopes, (ctx) => {
     const f = plan.case_filter;
     const from = GP.previewFrom(plan.table, ctx, [plan.date_column, f && f.column, ...VS.scopeColumns(plan.scope)].filter(Boolean));
-    const where = whereOf(f, b, plan.date_column, plan.scope);
-    return `SELECT COUNT(*) AS records, DATEDIFF(MAX(${quote(plan.date_column)}), MIN(${quote(plan.date_column)})) + 1 AS days FROM ${from}${where}`;
+    const where = whereOf(f, b, plan.date_column, plan.scope, plan.date_text === true);
+    const d = VY.dateRead(quote(plan.date_column), plan.date_text === true);
+    return `SELECT COUNT(*) AS records, DATEDIFF(MAX(${d}), MIN(${d})) + 1 AS days FROM ${from}${where}`;
   }, b.parameters);
 }
 

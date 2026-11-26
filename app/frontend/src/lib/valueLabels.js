@@ -1,4 +1,5 @@
 import { valueChips } from './valueLedger.js';
+import { plural } from './plural.js';
 import disclaimer from '../../../backend/lib/valueDisclaimer.json' with { type: 'json' };
 
 // REQ-434: one text shared with the backend answers (backend/lib/valueDisclaimer.json); no copy of the words lives here.
@@ -42,6 +43,6 @@ export function yearlyBasis(yearly) {
   const b = yearly?.basis;
   if (!b) return '';
   const days = Number(b.days);
-  const span = days >= 45 ? `${Math.round(days / 30)} months` : `${days} ${days === 1 ? 'day' : 'days'}`;
+  const span = days >= 45 ? `${Math.round(days / 30)} months` : plural(days, 'day');
   return `Measured on ${count(b.sampled_records)} of ${count(b.eligible_records)} records, scaled to all of them, and to a year from ${span} of data.`;
 }

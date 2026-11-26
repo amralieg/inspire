@@ -134,18 +134,44 @@ test('C6: on the ramp page Calculate now sends the economics in the PUT', async 
   } finally { await ui.close(); }
 });
 
-test('C7: on the scope pages, before a plan exists, Calculate now is disabled and its title says why', async () => {
+// C7 changed by coordinator decision D-c22-03 (REQ-442, RC6-B-05): Calculate now is enabled on the scope pages; a press before the plan exists waits for it and sends nothing until it arrives.
+test('C7: on the scope pages, before a plan exists, Calculate now is enabled, a press shows the waiting state and sends 0 PUTs, and when the plan arrives exactly 1 PUT is sent', async () => {
+  for (const name of ['scope:facts', 'scope:choice', 'filter']) {
+    const puts = [];
+    const mount = (app) => {
+      app.post('/api/inspire/value/case-plan', (req, res) => setTimeout(() => res.json({ plan: PLAN }), 2500));
+      mountReq507({ puts })(app);
+    };
+    const { ui, card, page } = await openCard(mount);
+    try {
+      const dialog = await openWizard(page, card);
+      await goTo(dialog, name); // REQ-544: all three are sections of the Data page
+      // REQ-544: the int/rc14 Filter page was reached with its filter done; on the Data page that is the Filter card with its filter checked.
+      if (name === 'filter') { await dialog.locator('[data-filter-example]').first().click(); await dialog.getByRole('button', { name: 'Check filter' }).click(); await dialog.locator('[data-scope-count]').waitFor({ timeout: 15000 }); }
+      assert.equal(await calcNow(dialog).count(), 1, `${name} shows the button`);
+      assert.equal(await calcNow(dialog).isEnabled(), true, `${name} enabled`);
+      await calcNow(dialog).click();
+      assert.equal(await calcNow(dialog).isDisabled(), true, `${name} waiting: the button is held`);
+      await dialog.getByText('Calculating...').first().waitFor({ timeout: 2000 });
+      assert.equal(puts.length, 0, `${name}: nothing is sent without a plan`);
+      await dialog.locator('[data-wizard-page="save"]').waitFor({ timeout: 30000 });
+      assert.equal(puts.length, 1, `${name}: one PUT once the plan is in`);
+      assert.equal(puts[0].answers.calculated, false);
+    } finally { await ui.close(); }
+  }
+});
+
+test('C7b: when the plan request fails, Calculate now saves nothing, the button is idle again and the failure message is visible', async () => {
   const puts = [];
-  const { ui, card, page } = await openCard(mountReq507({ puts }));
+  const { ui, card, page } = await openCard(mountReq507({ puts, planReply: { status: 500, body: { error: 'The plan service is down.' } } }));
   try {
     const dialog = await openWizard(page, card);
-    for (const name of ['scope:facts', 'scope:choice', 'filter']) {
-      await goTo(dialog, name); // REQ-544: all three are sections of the Data page
-      assert.equal(await calcNow(dialog).count(), 1, `${name} shows the button`);
-      assert.equal(await calcNow(dialog).isDisabled(), true, `${name} disabled`);
-      assert.ok(((await calcNow(dialog).getAttribute('title')) || '').trim().length > 0, `${name} has a title that gives the reason`);
-      await calcNow(dialog).click({ force: true, timeout: 2000 }).catch(() => {});
-    }
-    assert.equal(puts.length, 0, 'nothing is sent without a plan');
+    await dialog.locator('[data-wizard-page="scope:facts"]').waitFor({ timeout: 15000 });
+    await calcNow(dialog).click();
+    await dialog.getByRole('alert').filter({ hasText: /down|could not|500/i }).first().waitFor({ timeout: 15000 });
+    assert.equal(puts.length, 0, 'nothing is saved');
+    assert.equal(await calcNow(dialog).isEnabled(), true, 'the button is idle again');
+    assert.equal(await dialog.getByText('Calculating...').count(), 0, 'the waiting state is gone');
+    assert.equal(await dialog.locator('[data-wizard-page="save"]').count(), 0);
   } finally { await ui.close(); }
 });

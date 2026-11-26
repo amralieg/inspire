@@ -11,7 +11,7 @@ import { HARNESS_USE_CASE } from './implementFixtures.js';
 import { expandBuild } from '../../../scripts/showcaseRecorder.mjs';
 import { ASSET_FILTER_STORAGE } from '../../src/lib/implementControl.js';
 import { buildChoiceKey } from '../../src/lib/wizardDraft.js';
-import { caseIdOf } from '../../src/lib/implementWizard.js';
+import { APP_STORAGE_LABEL, caseIdOf } from '../../src/lib/implementWizard.js';
 
 export { expandBuild };
 
@@ -427,7 +427,7 @@ export async function pollNow(page, route = '/api/inspire/implement/status', eve
 }
 
 const STEP_HOLDING = {
-  'Who uses the App': 'Where it lives', 'Page storage': 'Where it lives', 'Who uses the App and storage': 'Where it lives', 'Run it': 'First run', 'Schedule': 'First run',
+  'Who uses the App': 'Where it lives', [APP_STORAGE_LABEL]: 'Where it lives', 'Who uses the App and storage': 'Where it lives', 'Run it': 'First run', 'Schedule': 'First run',
   'Use case': 'Data & results', Data: 'Data & results', Results: 'Data & results', Summary: 'Review & build', 'What to build': 'What to deliver', Delivery: 'What to deliver', App: 'Where it lives', 'App placement': 'Where it lives', 'App access': 'Where it lives',
   'App features': 'Where it lives', 'App pages': 'Where it lives', 'App look': 'Where it lives', Measure: 'Review & build', 'Keep it fresh': 'First run', Vibes: 'Review & build',
 };
@@ -853,8 +853,8 @@ export function stubMoney(path, answerOf, calls) {
 
 export async function goToStorage(page) {
   await goToStep(page, 'Where it lives');
-  await openFolded(page, 'Page storage');
-  return page.getByRole('region', { name: 'Page storage' });
+  await openFolded(page, APP_STORAGE_LABEL);
+  return page.getByRole('region', { name: APP_STORAGE_LABEL });
 }
 
 export async function onMoneyPart(page, part) {

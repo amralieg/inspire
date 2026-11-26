@@ -29,7 +29,7 @@ test('Where it lives holds every App panel in order: place, pages, access, featu
   assert.deepEqual(where.panels, ['app_place', 'app_pages', 'app_features', 'app_experience', 'app_storage', 'app_look']);
   const policied = wizardSteps('mvp', APP_SPEC, { ...WITH_APP_AND_SCOPE, policied: true }).find((s) => s.id === 'where');
   assert.deepEqual(policied.panels, ['app_place', 'app_pages', 'app_access', 'app_features', 'app_experience', 'app_storage', 'app_look'], 'a policied source shows the identity choice in order (REQ-001 / D-EXP)');
-  assert.equal(steps.some((s) => s.id === 'app' || s.id === 'app_storage' || s.id === 'app_look'), false, 'no separate App, Page storage or App look step (must-exclude)');
+  assert.equal(steps.some((s) => s.id === 'app' || s.id === 'app_storage' || s.id === 'app_look'), false, 'no separate App, SQL warehouse for the App or App look step (must-exclude)');
 });
 
 test('a joined App and a use case without an App keep their short step lists', () => {

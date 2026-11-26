@@ -69,7 +69,7 @@ import { catalogListNote, droppedCatalogNames, pickedScope, scopeSummary, typedC
 import { SAMPLE_CATALOG, applySampleCopies, isSampleEntry, samplesTarget, scopesAfterSampleCopies, validCopyTarget } from '../lib/samplesCopy';
 import { DISCOVERY_AI_ENHANCED, DISCOVERY_MODE_TEXT, DISCOVERY_BADGE, DISCOVERY_PRIVACY, DISCOVERY_RECOMMENDED, DISCOVERY_STANDARD, discoveryTypeOf } from '../lib/discoveryType';
 import { WIZARD } from '../lib/layout';
-import { raisePermissions } from '../lib/permissionBus';
+import { raisePermissions, grantOfCatalog } from '../lib/permissionBus';
 import { withStartDeadline } from '../lib/startDeadline';
 
 /* ─── Constants — notebook v1.2.0 widget `05_use_cases_quality` ─── */
@@ -1463,7 +1463,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                           <button aria-label={`Remove ${s}`} onClick={() => setPickedChildren(selectedSchemas.filter((x) => x !== s), selectedTables)} className="hover:text-db-red-fg ms-0.5"><X size={14} /></button>
                         </span>
                       ))}
-                      {selectedCatalogs.map((c, i) => (
+                      {selectedCatalogs.filter((c) => !inspireBlocked.has(c)).map((c, i) => (
                         <span key={`${i}-${c}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-subtle text-text-secondary text-xs font-medium border border-border">
                           <Database size={14} />
                           {c}
@@ -1538,12 +1538,21 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         getKey={(c) => c.name}
                         request={requestOf('CATALOG')}
                         getLabel={(c) => c.name}
-                        extraOf={(c) => (c.partial ? (
-                          <div data-catalog-partial={c.name} className="px-2.5 pb-1.5 text-xs text-warning-fg">
-                            Inspire can read only part of this catalog.{' '}
-                            <button type="button" className="font-semibold underline" onClick={() => raisePermissions(catalogPermissions)}>Show the missing grant</button>
-                          </div>
-                        ) : null)}
+                        extraOf={(c) => (
+                          <>
+                            {inspireBlocked.has(c.name) && selectedCatalogs.includes(c.name) && (
+                              <p data-inspire-access-help={c.name} className="px-2.5 pb-1.5 text-xs text-warning-fg">
+                                Inspire cannot read this catalog yet, so it is not a source for the run. Pick a schema or table Inspire can read, or tick the box to request access.
+                              </p>
+                            )}
+                            {c.partial ? (
+                              <div data-catalog-partial={c.name} className="px-2.5 pb-1.5 text-xs text-warning-fg">
+                                Inspire can read only part of this catalog.{' '}
+                                <button type="button" className="font-semibold underline" onClick={() => raisePermissions(grantOfCatalog(catalogPermissions, c))}>Show the missing grant</button>
+                              </div>
+                            ) : null}
+                          </>
+                        )}
                         searchValue={catalogSearch}
                         onSearch={setCatalogSearch}
                         searchPlaceholder="Search catalogs..."

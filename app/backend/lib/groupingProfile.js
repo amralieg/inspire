@@ -3,6 +3,7 @@ const { tableScopeOf, normalizeTableScope } = require('../../frontend/src/lib/ta
 const I = require('./inspireImplement');
 const R = require('./groupingRule');
 const { parseExactJson } = require('./exactJson');
+const VY = require('./valueYearly');
 const { plural } = require('./plural');
 const { compileExpression } = require('../../agent/agent/app_shell/web/src/moneyValue.js');
 
@@ -271,14 +272,14 @@ function moneyValueSampleSql(table, value, scopes, filter = null) {
 // REQ-432: ONE statement for the Calculate estimate. A sample of the table's first records gives the amount counted per currency and
 // how many records were sampled; the whole table gives the eligible record count and the days its date column covers.
 const YEARLY_SAMPLE_ROWS = 10000;
-function moneyYearlySampleSql(table, value, dateColumn, scopes, filter = null) {
+function moneyYearlySampleSql(table, value, dateColumn, scopes, filter = null, textDate = false) {
   if (!RATE_TABLE_PATTERN.test(String(table || '')) || !RATE_COLUMN_PATTERN.test(String(dateColumn || ''))) return null;
   const parts = valueParts(value, filter);
   if (!parts) return null;
   const { amount, currency, counted, filterColumns } = parts;
   return statement(scopes, (ctx) => {
     const from = previewFrom(table, ctx, [...columnsIn(amount, currency), ...filterColumns, dateColumn]);
-    return `WITH base AS (SELECT CAST(${amount} AS DOUBLE) AS amt, ${currency} AS currency, ${counted || 'TRUE'} AS counted, ${q(dateColumn)} AS d FROM ${from}), `
+    return `WITH base AS (SELECT CAST(${amount} AS DOUBLE) AS amt, ${currency} AS currency, ${counted || 'TRUE'} AS counted, ${VY.dateRead(q(dateColumn), textDate)} AS d FROM ${from}), `
       + `smp AS (SELECT amt, currency, counted FROM base LIMIT ${YEARLY_SAMPLE_ROWS}), `
       + 'span AS (SELECT COUNT(*) AS n, DATEDIFF(MAX(d), MIN(d)) + 1 AS span_days FROM base) '
       + 'SELECT currency, SUM(CASE WHEN counted AND amt IS NOT NULL THEN amt ELSE 0 END) AS stake, (SELECT COUNT(*) FROM smp) AS sampled, '
@@ -287,9 +288,10 @@ function moneyYearlySampleSql(table, value, dateColumn, scopes, filter = null) {
 }
 
 // REQ-432: the records of a built use case's source table and the days its date column covers, to scale its measured value.
-function eligibleSql(table, dateColumn, scopes) {
+function eligibleSql(table, dateColumn, scopes, textDate = false) {
   if (!RATE_TABLE_PATTERN.test(String(table || '')) || !RATE_COLUMN_PATTERN.test(String(dateColumn || ''))) return null;
-  return statement(scopes, (ctx) => `SELECT COUNT(*) AS eligible, DATEDIFF(MAX(${q(dateColumn)}), MIN(${q(dateColumn)})) + 1 AS days FROM ${previewFrom(table, ctx, [dateColumn])}`);
+  const d = VY.dateRead(q(dateColumn), textDate);
+  return statement(scopes, (ctx) => `SELECT COUNT(*) AS eligible, DATEDIFF(MAX(${d}), MIN(${d})) + 1 AS days FROM ${previewFrom(table, ctx, [dateColumn])}`);
 }
 
 // The latest rate loaded for up to three currencies, into the base currency: the example reads real numbers from the rate table.

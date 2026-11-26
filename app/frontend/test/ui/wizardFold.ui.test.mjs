@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
 import { closeBrowser, goToStep, openUi, profileAt, shot, POLICIED_SOURCE } from './uiSupport.mjs';
+import { APP_STORAGE_LABEL } from '../../src/lib/implementWizard.js';
 
 test.after(closeBrowser);
 
@@ -19,7 +20,7 @@ test('steps fold one at a time: the first section opens, Next folds it and opens
     await goToStep(page, 'Who uses the App');
     assert.equal(await folded(page, 'Who sees which rows'), 0, 'the first section is open');
     assert.equal(await folded(page, 'What people can do'), 1, 'the later sections are folded');
-    assert.equal(await folded(page, 'Page storage'), 1);
+    assert.equal(await folded(page, APP_STORAGE_LABEL), 1);
     await next(page);
     assert.equal(await folded(page, 'Who sees which rows'), 1, 'Next folds the section it ends');
     assert.equal(await folded(page, 'What people can do'), 0, 'Next opens the following section');
@@ -28,7 +29,7 @@ test('steps fold one at a time: the first section opens, Next folds it and opens
     assert.equal(await folded(page, 'How people start in the App'), 0, 'the App experience screen opens after features (REQ-328, D-EXP)');
     await next(page);
     assert.equal(await folded(page, 'How people start in the App'), 1);
-    assert.equal(await folded(page, 'Page storage'), 0, 'the storage section opens after the experience screen');
+    assert.equal(await folded(page, APP_STORAGE_LABEL), 0, 'the storage section opens after the experience screen');
     await shot(page, 'fold-app-storage', false);
   } finally {
     await page.close();

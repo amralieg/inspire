@@ -79,7 +79,8 @@ export function withMoneyRule(spec, money) {
 }
 export const IMPLEMENT_STEPS = [DELIVERY_STEP, DATA_STEP];
 
-export const APP_STORAGE_LABEL = 'Page storage';
+// RC6-C-01: the wizard asks only for the SQL warehouse; storage is Inspire's pick and shows read only on Review as "App storage".
+export const APP_STORAGE_LABEL = 'SQL warehouse for the App';
 export const WIZARD_STEPS_MAX = 10;
 
 export const SUMMARY_STEP = { id: 'summary', label: 'Review & build', sections: ['vibes', 'money', 'kpi', 'holdout'], advanced: [], panels: ['summary', 'vibes'] };
@@ -2714,14 +2715,19 @@ export function buildsText(built) {
   return `The MVP: ${joinWords([...(built || []).filter(Boolean), 'the result table', 'the notebook that fills it'])}`;
 }
 
+// RC6-C-03 (REQ-514): the App is "App" in the Build wizard unless the person picked the Agentic experience.
+export function builtLabel(o, spec) {
+  return o.id === 'app' && spec?.outputs?.app_options?.experience !== 'agentic' ? 'App' : o.label;
+}
+
 export function builtSentence(spec) {
   const outputs = spec?.outputs || {};
-  return `${buildsText(IMPLEMENT_OUTPUTS.filter((o) => outputs[o.id]).map((o) => o.label))}.`;
+  return `${buildsText(IMPLEMENT_OUTPUTS.filter((o) => outputs[o.id]).map((o) => builtLabel(o, spec)))}.`;
 }
 
 export function pickedSummary(spec, sourceTables = [], more = {}) {
   const outputs = spec?.outputs || {};
-  const built = IMPLEMENT_OUTPUTS.filter((o) => outputs[o.id]).map((o) => o.label);
+  const built = IMPLEMENT_OUTPUTS.filter((o) => outputs[o.id]).map((o) => builtLabel(o, spec));
   const freshness = freshnessOf(spec?.schedule);
   const filters = (spec?.data?.filters || []).length;
   const principals = (spec?.sharing?.principals || []).map((p) => p.name).filter(Boolean);
@@ -2745,7 +2751,7 @@ export function pickedSummary(spec, sourceTables = [], more = {}) {
     row('schedule', FIRST_RUN_STEP.id, FRESH_LABEL, freshness === 'off' ? 'Run once now'
       : `${freshness === 'custom' ? 'Custom' : FRESHNESS_OPTIONS.find((o) => o.id === freshness).label}, runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}`),
     ...(principals.length ? [row('sharing', 'delivery', 'Shared with', principals.join(', '))] : []),
-    ...(app ? [row('app', 'where', OUTPUT_LABELS.app, joined ? `Joins ${outputs.merge.app}`
+    ...(app ? [row('app', 'where', builtLabel({ id: 'app', label: OUTPUT_LABELS.app }, spec), joined ? `Joins ${outputs.merge.app}`
       : [placement?.label, outputs.app_name].filter(Boolean).join(': ') || 'not placed yet')] : []),
     ...(app && !joined ? [
       row('app_access', 'where', 'App access', APP_ACCESS_CHOICES.find((c) => c.id === outputs.app_access)?.label || 'not picked yet'),

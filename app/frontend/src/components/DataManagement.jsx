@@ -26,7 +26,7 @@ function MetricViewsLine({ names }) {
 export default function DataManagement({ scope, scopes, relationships, onRelationships, apiFetch, warehouseId, ...rest }) {
   const listing = useDataTables({ scope, scopes, apiFetch, warehouseId });
   return (
-    <div data-data-management className="space-y-6">
+    <div data-data-management className="space-y-6 text-xs">
       {listing.metricViews.length > 0 && <MetricViewsLine names={listing.metricViews} />}
       <section aria-labelledby="data-management-relationships" data-section="relationships" className="space-y-2">
         <h3 id="data-management-relationships" className="text-sm font-bold text-text-primary">Relationships</h3>
