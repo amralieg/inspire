@@ -2,8 +2,8 @@ import ValueBox, { boxModel } from './ValueBox';
 import ValueDisclaimer from './ValueDisclaimer';
 
 // REQ-432, REQ-438: the value box under or beside the Inspire score on a card (all states), and its read-only form for the details drawer.
-export default function CardValueLine({ yearly = null, summary = null, canCalculate = false, onCalculate, onEdit }) {
-  return <ValueBox yearly={yearly} summary={summary} canCalculate={canCalculate} onCalculate={onCalculate} onEdit={onEdit} />;
+export default function CardValueLine({ yearly = null, summary = null, canCalculate = false, onCalculate, onEdit, calculating = false }) {
+  return <ValueBox yearly={yearly} summary={summary} canCalculate={canCalculate} onCalculate={onCalculate} onEdit={onEdit} calculating={calculating} />;
 }
 
 export function YearlyValueLine({ yearly, summary = null }) {

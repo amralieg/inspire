@@ -67,7 +67,8 @@ const TAGS = {
 
 // The status pill always sits inside the box (REQ-524): in the row (inset, REQ-511 A6) it is pinned at the bottom with the pencil inside; in the card box it
 // follows "Per year" in the flow, so it never rests on the border and overlaps no text.
-export default function ValueBox({ yearly = null, summary = null, status = '', canCalculate = false, onCalculate, onEdit, readOnly = false, inset = false }) {
+export default function ValueBox({ yearly = null, summary = null, status = '', canCalculate = false, onCalculate, onEdit, readOnly = false, inset = false, calculating = false }) {
+  const glow = calculating ? { 'data-value-calculating': 'on' } : {};
   const m = boxModel({ yearly, summary, status });
   const SZ = inset ? ROW_BOX : BOX;
   const amount = useCountUp(m.amount ?? 0);
@@ -87,7 +88,7 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
       return <div data-value-box="" data-value-box-state="not_estimated" title={why} className={`${SZ} border-border bg-bg-subtle text-text-secondary`}><span className="px-2 text-caption">Not estimated</span></div>;
     }
     return (
-      <button type="button" data-value-box="" data-value-box-state="not_estimated" data-value-calculate="" title={why} onClick={(e) => { e.stopPropagation(); onCalculate?.(); }} onKeyDown={stop}
+      <button type="button" data-value-box="" data-value-box-state="not_estimated" data-value-calculate="" {...glow} title={why} onClick={(e) => { e.stopPropagation(); onCalculate?.(); }} onKeyDown={stop}
         className={`${SZ} cursor-pointer border-dashed border-warning/60 bg-surface hover:bg-warning-bg`}>
         <span className="text-caption font-semibold text-text-primary">Not estimated</span>
         <span className="text-caption font-semibold text-db-red-fg">Calculate again</span>
@@ -97,7 +98,7 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
   if (m.state === 'none') {
     if (!canCalculate || readOnly) return null;
     return (
-      <button type="button" data-value-box="" data-value-box-state="none" data-value-calculate="" onClick={(e) => { e.stopPropagation(); onCalculate?.(); }} onKeyDown={stop}
+      <button type="button" data-value-box="" data-value-box-state="none" data-value-calculate="" {...glow} onClick={(e) => { e.stopPropagation(); onCalculate?.(); }} onKeyDown={stop}
         className={`${SZ} cursor-pointer border-dashed border-db-red/40 bg-surface hover:bg-db-red-50`}>
         <span className="text-[22px] leading-none text-db-red-fg">+</span>
         <span className="text-caption font-semibold text-db-red-fg">Calculate value</span>
@@ -114,7 +115,7 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
   const text = moneyText(m.unit, amount);
   const note = <ValueCheckNote check={yearly?.check} notCounted={!m.calculated && m.state !== 'measured'} />;
   const box = (
-    <div data-value-box="" data-value-box-state={m.state} data-value-yearly="" title={VALUE_DISCLAIMER} onClick={stop} onKeyDown={stop}
+    <div data-value-box="" data-value-box-state={m.state} data-value-yearly="" {...glow} title={VALUE_DISCLAIMER} onClick={stop} onKeyDown={stop}
       className={`${SZ} ${fill} ${inset ? 'pt-4 pb-5' : ''} ${pulse ? 'animate-pulse' : ''}`}>
       <span data-value-verb="" className={inset ? 'whitespace-nowrap text-caption font-semibold uppercase tracking-normal' : 'text-caption tracking-wide'}>{m.verb}</span>
       <span data-value-amount="" className={`${inset ? 'text-[20px]' : 'text-[22px]'} leading-6 font-extrabold tabular-nums ${amt}`}>{text}</span>

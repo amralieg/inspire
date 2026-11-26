@@ -765,3 +765,15 @@ textarea::placeholder {
 :is(.lucide-chevron-left, .lucide-chevron-right).rotate-90:dir(rtl) {
   rotate: -90deg;
 }
+
+/* REQ-464: the value box of a use case the bulk value run is working on glows in the accent; a static ring when motion is reduced. */
+@keyframes value-calculating-glow {
+  0%, 100% { box-shadow: 0 0 4px 0 rgba(255, 54, 33, 0.35), 0 0 10px 1px rgba(255, 54, 33, 0.15); }
+  50% { box-shadow: 0 0 10px 3px rgba(255, 54, 33, 0.65), 0 0 24px 6px rgba(255, 54, 33, 0.3); }
+}
+[data-value-calculating="on"] {
+  animation: value-calculating-glow 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-value-calculating="on"] { animation: none; box-shadow: 0 0 0 3px rgba(255, 54, 33, 0.45); }
+}

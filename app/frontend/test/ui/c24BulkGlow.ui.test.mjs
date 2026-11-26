@@ -135,6 +135,6 @@ test('3: a failed job stops the glow too, and the glow survives Run in backgroun
     await poll(() => state.puts.length === 2, 'two saves arrive');
     for (const { id } of [...state.puts]) state.releasePut(id);
     for (const id of ID3) await poll(async () => !(await glowing(page, id)), `${id} stops glowing when the run ends`);
-    assert.deepEqual(ui.pageErrors, []);
+    assert.deepEqual(ui.pageErrors.filter((e) => !/status of 500/.test(String(e))), [], 'only the stubbed 500 is logged');
   } finally { await ui.close(); }
 });

@@ -60,6 +60,7 @@ function UseCaseCardBody({
   canCalculate = false,
   onCalculate = null,
   onEdit = null,
+  calculating = false,
   selection = null,
   ...detailProps
 }) {
@@ -147,7 +148,7 @@ function UseCaseCardBody({
               </div>
               <div className="flex shrink-0 flex-wrap items-start gap-3 pb-3">
                 <InspireScoreBadge score={inspireScoreNum} />
-                <CardValueLine yearly={yearly} summary={valueSummary} canCalculate={canCalculate} onCalculate={onCalculate} onEdit={onEdit} />
+                <CardValueLine yearly={yearly} summary={valueSummary} canCalculate={canCalculate} onCalculate={onCalculate} onEdit={onEdit} calculating={calculating} />
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-2">

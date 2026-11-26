@@ -650,6 +650,8 @@ export default function ResultsPage({
     }
     if (any) setValueTick((n) => n + 1);
   }, [bulkHere, calculated.absorb]); // eslint-disable-line react-hooks/exhaustive-deps
+  // REQ-464: the use cases of the run that are being worked on now; their value boxes glow.
+  const bulkWorking = useMemo(() => new Set((bulkHere?.rows || []).filter((r) => r.state === 'working').map((r) => r.id)), [bulkHere]);
   const { hide: hideBulk } = bulkRun;
   useEffect(() => () => hideBulk(), [hideBulk]);
   const scrollToCard = useCallback((id) => {
@@ -1239,6 +1241,7 @@ export default function ResultsPage({
       valueSummary: valueTotals?.use_cases?.[tid] ?? null,
       valueReview: calculated.byId[tid]?.answers?.plan?.review || null,
       canCalculate: Boolean(runValueUrl && tid),
+      calculating: Boolean(tid && bulkWorking.has(tid)),
       onCalculate: () => openCalc(uc),
       onEdit: runValueUrl && tid ? () => openCalc(uc) : undefined,
       onSetRule: canImplement ? () => startImplement(uc) : undefined,
