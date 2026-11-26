@@ -50,12 +50,12 @@ test('RC6-C-04 (must-keep): the catalog exists, or the identity can create it, s
   }, (offer) => assert.equal(offer.state, 'available'));
 });
 
-test('RC6-C-04: Review reads Delta with the reason that names the catalog', async () => {
+test('RC6-C-04 (RC7-C-01): Review reads Delta with one plain line, no catalog or principal', async () => {
   const w = await import(pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', 'implementWizard.js')).href);
   const detail = `the catalog ${CATALOG} does not exist and builder@example.com has no CREATE CATALOG on the metastore`;
   const text = w.appStorageText({ outputs: { app: true } }, { state: 'no_catalog', detail });
-  assert.ok(text.startsWith('Delta, because'), text);
-  assert.ok(text.includes(CATALOG), text);
+  assert.equal(text, 'Delta tables (Lakebase is not set up in this workspace)');
+  assert.ok(!text.includes(CATALOG), text);
 });
 
 // RC6-C-04b (finding 2): effective permissions list grants only; the metastore owner, or a member of the owning group, creates catalogs too.
@@ -101,7 +101,7 @@ test('RC6-C-04b: the App service principal the build runs as is the identity pro
   try {
     const offer = await (await fetch(`${srv.url}/api/inspire/implement/lakebase?catalog_check=1`)).json();
     assert.equal(offer.state, 'no_catalog', offer.detail);
-    assert.ok(offer.detail.includes('app-sp-id'), offer.detail);
+    assert.ok(!offer.detail.includes('app-sp-id'), offer.detail); // RC7-C-01: no raw principal id in text; the probe identity is proven by the token check below
     const uc = made.fetches.filter((f) => f.path.startsWith(UC));
     assert.ok(uc.length >= 3, 'the probe read Unity Catalog');
     assert.deepEqual([...new Set(uc.map((f) => f.token))], ['sp-tok'], 'every catalog read goes with the App token');

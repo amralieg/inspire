@@ -1,4 +1,4 @@
-// One label for the delivery output, "Agentic App" (REQ-209, D-LABEL209). Internal ids stay `app`; progress step names stay `App`
+// One label for the delivery output, "App" (REQ-209, D-LABEL209). Internal ids stay `app`; progress step names stay `App`
 // (events name the step, not the label). Every person-facing surface reads the shared label file, so no source writes a plain
 // 'App' label for this output.
 const test = require('node:test');
@@ -20,9 +20,9 @@ function sourcesOf(dir) {
   });
 }
 
-test('the delivery output is labelled Agentic App in the one shared file, and the backend table reads it', () => {
-  assert.equal(LABELS.app, 'Agentic App');
-  assert.equal(I.IMPLEMENT_OUTPUT_LABELS.app, 'Agentic App');
+test('the delivery output is labelled App in the one shared file, and the backend table reads it', () => {
+  assert.equal(LABELS.app, 'App');
+  assert.equal(I.IMPLEMENT_OUTPUT_LABELS.app, 'App');
   assert.deepEqual(Object.keys(LABELS).sort(), ['alert', 'app', 'dashboard', 'genie_space']);
 });
 

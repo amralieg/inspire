@@ -400,7 +400,7 @@ def _final(seen):
     return next(u for u in reversed(seen["updates"]) if u.get("status", "").startswith("ready"))
 
 
-REFUSED_APP = f"Agentic App: Inspire could not point it at the swapped source tables by itself, because no copy of the one built in v1 was saved, so Genie rebuilds it"
+REFUSED_APP = f"App: Inspire could not point it at the swapped source tables by itself, because no copy of the one built in v1 was saved, so Genie rebuilds it"
 
 
 def test_a_settings_swap_re_points_each_built_output_that_reads_the_table_from_its_saved_copy_with_no_genie(agent_ns):

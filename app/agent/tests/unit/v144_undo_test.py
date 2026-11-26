@@ -230,7 +230,7 @@ def test_an_existing_app_whose_deployment_failed_gets_its_files_back_and_keeps_r
     assert [c[2] for c in calls if c[:2] == ("POST", "/api/2.0/workspace/delete")] == [
         {"path": f"{APP_DIR}/inspire_app.json"}, {"path": f"{APP_DIR}/pages/n01_u01.json"}], "files this build added are removed"
     assert [c[:2] for c in calls][-1] == ("GET", "/api/2.0/apps/churn-desk"), "no second deployment while the earlier one still runs"
-    assert _undo_lines(inst) == ["[IMPLEMENT-UNDO] N01-U01: the Agentic App build failed after Inspire had saved changes, so Inspire put the "
+    assert _undo_lines(inst) == ["[IMPLEMENT-UNDO] N01-U01: the App build failed after Inspire had saved changes, so Inspire put the "
                                  "App churn-desk's files back as they were; its earlier deployment kept running: the App deployment "
                                  "FAILED: boom"]
 

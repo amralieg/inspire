@@ -46,4 +46,4 @@ def test_a_layout_that_holds_none_of_the_minimum_charts_may_say_fewer_charts_wit
 
 def test_the_default_layout_still_refuses_a_fewer_charts_quote_the_customer_never_gave(agent_ns, tmp_path):
     [error] = _network_flow(agent_ns, tmp_path / "plain", "")
-    assert f"fewer_charts quotes {QUOTE!r}, but the customer gave no asks for this Agentic App" in error
+    assert f"fewer_charts quotes {QUOTE!r}, but the customer gave no asks for this App" in error

@@ -47,7 +47,7 @@ test('the outputs a person unticked without deciding are named as one list, thre
   };
   const tail = ', which you unticked; Inspire never deletes an output without asking';
   assert.deepEqual(refusal({ dashboard: false }), [400, `choose whether to delete or keep Dashboard${tail}`]);
-  assert.deepEqual(refusal({ dashboard: false, app: false, genie_space: false }), [400, `choose whether to delete or keep Dashboard, Genie Agent and Agentic App${tail}`]);
+  assert.deepEqual(refusal({ dashboard: false, app: false, genie_space: false }), [400, `choose whether to delete or keep Dashboard, Genie Agent and App${tail}`]);
 });
 
 test('joinAnd is the one list joiner of the backend', () => {

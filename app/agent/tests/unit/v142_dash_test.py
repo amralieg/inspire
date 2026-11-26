@@ -119,9 +119,9 @@ def test_the_dashboard_is_built_from_the_page_spec_and_the_app_reuses_it_without
     assert deployed["genie_note"] == "The Genie Agent is not ready: it was not built", \
         "the App page says why Ask Genie is off when this use case has no Genie Agent"
     assert len(seen["checked"]) == 2, "the App still runs its own files at the default filters before it deploys"
-    steps = [(e["step_name"], e["status"]) for e in inst.emitted if e["step_name"] == "Agentic App"]
-    assert steps == [("Agentic App", "started"), ("Agentic App", "ended_success")]
-    assert "no second Genie round" in next(e["message"] for e in inst.emitted if e["step_name"] == "Agentic App")
+    steps = [(e["step_name"], e["status"]) for e in inst.emitted if e["step_name"] == "App"]
+    assert steps == [("App", "started"), ("App", "ended_success")]
+    assert "no second Genie round" in next(e["message"] for e in inst.emitted if e["step_name"] == "App")
 
 
 def test_a_patch_on_an_existing_dashboard_keeps_its_id_and_never_moves_it(agent_ns, tmp_path):
@@ -156,9 +156,9 @@ def test_a_reused_page_spec_that_fails_the_app_check_fails_the_app_step_and_says
     inst, context, seen = _flow(agent_ns, tmp_path)
     inst._implement_dashboard(context, _runner(_churn_page(agent_ns)))
     inst._implement_app_check = lambda work, files, modules, warehouse: ["page n01_u01: chart:by_category failed: warehouse stopped"]
-    with pytest.raises(RuntimeError, match="the Agentic App was run at its default filters and page n01_u01: chart:by_category failed"):
+    with pytest.raises(RuntimeError, match="the App was run at its default filters and page n01_u01: chart:by_category failed"):
         inst._implement_app(context, _FileRunner([], []))
-    last = [e for e in inst.emitted if e["step_name"] == "Agentic App"][-1]
+    last = [e for e in inst.emitted if e["step_name"] == "App"][-1]
     assert last["status"] == "ended_error" and "warehouse stopped" in last["message"]
     assert seen["deployed"] == []
 

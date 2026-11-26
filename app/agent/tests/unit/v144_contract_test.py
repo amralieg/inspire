@@ -710,7 +710,7 @@ def test_the_pre_deploy_check_sends_a_page_with_too_few_charts_back_to_genie(age
     inst, context, seen = _app_flow(agent_ns, tmp_path / "bad", page=_small_page(agent_ns, fewer_charts="three charts are enough"),
                                     outputs=vibed)
     inst._implement_app(context, None)
-    assert seen["deployed"] == [] and "which is not in the customer's asks for this Agentic App word for word" in seen["errors"][0]
+    assert seen["deployed"] == [] and "which is not in the customer's asks for this App word for word" in seen["errors"][0]
     inst, context, seen = _app_flow(agent_ns, tmp_path / "good", page=_small_page(agent_ns, fewer_charts="two  CHARTS are enough"),
                                     outputs=vibed)
     inst._implement_app(context, None)
@@ -723,7 +723,7 @@ def test_the_app_prompt_asks_for_three_different_charts_and_aggregates_in_sql(ag
     prompt = seen["prompt"]
     assert "- charts: 3 to 8 of type" in prompt
     assert "each chart compares something the others do not, such as another measure, another split or another time grain" in prompt
-    assert ("Only when the customer's asks for this Agentic App ask for fewer than 3 charts, write fewer and set the top-level field "
+    assert ("Only when the customer's asks for this App ask for fewer than 3 charts, write fewer and set the top-level field "
             "fewer_charts to the words of those asks that say so, word for word; otherwise leave fewer_charts out.") in prompt
     assert ("The App pages through the decision list with SQL, one page of rows at a time, so the records dataset never limits its "
             "rows itself. Every KPI and every chart aggregates in SQL on the warehouse, with an aggregate expression over its dataset, "

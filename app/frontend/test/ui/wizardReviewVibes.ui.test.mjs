@@ -7,7 +7,7 @@ test.after(closeBrowser);
 
 const viewports = [{ width: 1280, height: 800 }, { width: 1024, height: 700 }];
 
-test('Review & build shows the vibes box in full on the first screen, and the chosen options scroll in their own list at 1280x800 and 1024x700', async () => {
+test('Review & build shows the vibes box in full on the first screen, and the chosen options have no scroll of their own at 1280x800 and 1024x700', async () => {
   const ui = await openUi('implement', STUDIO_STATE);
   const { page } = ui;
   try {
@@ -21,8 +21,9 @@ test('Review & build shows the vibes box in full on the first screen, and the ch
       assert.ok(vibes, 'the vibes box is on the Review & build step');
       assert.ok(vibes.y >= 0 && vibes.y + vibes.height <= v.height, `at ${v.width}x${v.height} the vibes box must sit fully on the first screen (y=${vibes.y}, h=${vibes.height}) without scrolling the page`);
       const list = await wizard.locator('[data-picked-summary]').evaluate((el) => ({ overflow: getComputedStyle(el).overflowY, scroll: el.scrollHeight, client: el.clientHeight }));
-      assert.equal(list.overflow, 'auto', `at ${v.width}x${v.height} the chosen options are a scrollable list`);
-      assert.ok(list.scroll > list.client, `at ${v.width}x${v.height} the list is taller than its box so the options scroll`);
+      // RC7-C-03: one scroll (the dialog body); the chosen options grow to their content.
+      assert.notEqual(list.overflow, 'auto', `at ${v.width}x${v.height} the chosen options have no scroll of their own`);
+      assert.ok(list.scroll <= list.client + 1, `at ${v.width}x${v.height} the list grows to its content`);
     }
     assert.deepEqual(ui.pageErrors, []);
   } finally {

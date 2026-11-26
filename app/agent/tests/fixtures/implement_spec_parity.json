@@ -8233,7 +8233,7 @@
         ]
       ],
       "errors": [
-        "outputs.merge.app must be text: the Agentic App to add to, or \"\" for a new one"
+        "outputs.merge.app must be text: the App to add to, or \"\" for a new one"
       ],
       "changes": [],
       "removed": []
@@ -8267,7 +8267,7 @@
         ]
       ],
       "errors": [
-        "outputs.merge.app 'it's' must name an existing Inspire Agentic App"
+        "outputs.merge.app 'it's' must name an existing Inspire App"
       ],
       "changes": [],
       "removed": []
@@ -8285,7 +8285,7 @@
         ]
       ],
       "errors": [
-        "outputs.merge.app 'x\"y' must name an existing Inspire Agentic App"
+        "outputs.merge.app 'x\"y' must name an existing Inspire App"
       ],
       "changes": [],
       "removed": []

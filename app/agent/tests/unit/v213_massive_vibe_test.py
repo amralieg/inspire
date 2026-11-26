@@ -122,7 +122,7 @@ def test_each_of_the_six_asks_is_reported_done_or_not_done_with_its_reason_and_t
     assert [c["ask"] for c in checks] == ASKS
     assert all(c["status"] in ("done", "missing") and c["evidence"].strip() for c in checks)
     verdict = {c["ask"]: (c["status"], c["evidence"]) for c in checks}
-    assert verdict[REMOVE_CHART] == ("done", "the built Agentic App no longer has the How concentrated the loss is pareto chart")
+    assert verdict[REMOVE_CHART] == ("done", "the built App no longer has the How concentrated the loss is pareto chart")
     assert verdict[ADD_CHART] == ("done", "Loss by region")
     assert verdict[RENAME_PAGE] == ("done", "Discount watch")
     assert verdict[ADD_KPI] == ("done", "Discount count")
@@ -132,13 +132,13 @@ def test_each_of_the_six_asks_is_reported_done_or_not_done_with_its_reason_and_t
     assert _asks_in(judge) == [ADD_CHART, RENAME_PAGE, FILTER_DEFAULT, ADD_KPI, THEME], "the remove is decided from the page itself"
     assert [c["ask"] for c in found["resend"]["app"]] == [FILTER_DEFAULT, THEME], "every ask not done goes back to Genie"
     warnings = agent_ns["implement_vibes_warnings"]("app", checks)
-    assert len(warnings) == 2 and all(w.startswith("Agentic App vibe not done: ") for w in warnings)
+    assert len(warnings) == 2 and all(w.startswith("App vibe not done: ") for w in warnings)
 
 
 def test_a_remove_ask_whose_chart_is_still_on_the_page_is_not_done_even_when_the_judge_says_done(agent_ns):
     found, calls = _round(agent_ns, _after(removed=False))
     verdict = {c["ask"]: (c["status"], c["evidence"]) for c in found["checks"]["app"]}
-    assert verdict[REMOVE_CHART] == ("missing", "the built Agentic App still has the How concentrated the loss is pareto chart, which the ask "
+    assert verdict[REMOVE_CHART] == ("missing", "the built App still has the How concentrated the loss is pareto chart, which the ask "
                                                 "takes out")
     assert REMOVE_CHART in [c["ask"] for c in found["resend"]["app"]]
     assert REMOVE_CHART not in _asks_in([p for k, p in calls if k == "judge"][0])

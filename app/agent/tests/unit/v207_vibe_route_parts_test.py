@@ -84,7 +84,7 @@ def test_a_built_ask_taken_out_becomes_an_undo_ask_for_its_part(agent_ns):
     removed = agent_ns["implement_removed_asks"](before, after)
     assert removed == {"app": [HOUR]}
     undo = agent_ns["implement_undo_routes"](removed)
-    assert undo["app"].startswith("Undo this earlier ask on the Agentic App") and HOUR in undo["app"]
+    assert undo["app"].startswith("Undo this earlier ask on the App") and HOUR in undo["app"]
     spec, changed, problems = agent_ns["implement_apply_vibe_routes"](after, undo)
     assert problems == [] and "app" in spec["retry_outputs"]
     assert agent_ns["implement_vibe_asks"](changed["app_vibes"]) == [kept, undo["app"]]

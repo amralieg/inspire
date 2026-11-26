@@ -506,7 +506,7 @@ def test_the_judge_gets_each_image_blocks_bytes_from_the_built_app(blocks_ns, tm
     assert found == [{"block": "mascot", "file": FILE, "alt": "The mascot waving", "caption": "Our mascot", "url": VOLUME,
                       "media_type": "image/png", "bytes": PNG, "error": ""}]
     held[f"/W/src/static/{FILE}"] = GIF
-    assert inst._implement_app_block_images(context)[0]["error"] == "the Agentic App's copy is not the image Inspire checked"
+    assert inst._implement_app_block_images(context)[0]["error"] == "the App's copy is not the image Inspire checked"
     stored = tmp_path / "implement" / "_app_blocks" / FILE
     stored.parent.mkdir(parents=True)
     stored.write_bytes(PNG)

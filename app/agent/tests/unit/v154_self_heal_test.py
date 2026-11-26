@@ -201,7 +201,7 @@ def test_a_part_that_timed_out_is_built_again_and_its_fields_come_back(agent_ns,
                                                                                      "600s (state STARTING)"), {"app_name": "churn-desk"}])
     assert inst._implement_part_attempts("N01-U01", KEY, "app", build) == {"app_name": "churn-desk"}
     [step] = _repairs(inst)
-    assert step["result_json"]["step"] == "the Agentic App" and step["message"].startswith("Attempt 2 of 3: Inspire is fixing it: ")
+    assert step["result_json"]["step"] == "the App" and step["message"].startswith("Attempt 2 of 3: Inspire is fixing it: ")
     assert inst.waits == [30]
 
 

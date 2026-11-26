@@ -217,8 +217,8 @@ def test_try_again_rebuilds_only_the_missed_asks_on_top_of_the_built_part_and_ke
                                 "kept": {"app:page:n01_u01": ["Keep the region filter"]}, "file": "page.json", "based": True}
     assert json.loads(built["bases"]["app"]["page.json"]) == PAGE, "Genie starts from the page as it is now"
     block = built["block"]
-    assert ("This time Inspire rebuilds only part of this Agentic App: the page n01_u01 of the Agentic App alone.\nThe page.json in your working folder "
-            "is the Agentic App as it is now: start from it, change only what the parts and asks named here need, and keep everything else in "
+    assert ("This time Inspire rebuilds only part of this App: the page n01_u01 of the App alone.\nThe page.json in your working folder "
+            "is the App as it is now: start from it, change only what the parts and asks named here need, and keep everything else in "
             "it as it is.") in block
     assert "try again on only these asks, which the last build missed:\n1. Add a count of customers at risk" in block
     assert "These asks of it are already done; keep them as they are:\n1. Keep the region filter" in block
@@ -246,8 +246,8 @@ def test_the_genie_round_starts_from_the_saved_part_when_one_is_given(agent_ns, 
             return {"exit": 0}
 
     context = {"uc_id": "N01-U01", "key": (5150, "N01-U01", 3), "bases": {"app": {"page.json": json.dumps(PAGE)}}}
-    inst._implement_genie_loop(context, Runner(), "Agentic App", "p", lambda work: {"app_name": "a"}, tools={"check.py": "x"})
-    inst._implement_genie_loop(dict(context, bases={}), Runner(), "Agentic App", "p", lambda work: {"app_name": "a"}, tools={"check.py": "x"})
+    inst._implement_genie_loop(context, Runner(), "App", "p", lambda work: {"app_name": "a"}, tools={"check.py": "x"})
+    inst._implement_genie_loop(dict(context, bases={}), Runner(), "App", "p", lambda work: {"app_name": "a"}, tools={"check.py": "x"})
     assert found == [["check.py", "page.json"], ["check.py"]]
 
 

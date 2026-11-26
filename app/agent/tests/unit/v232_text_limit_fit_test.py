@@ -1,7 +1,7 @@
 """v2.3.2 A generated text over its length limit never blocks a publish.
 
 A use case whose name carried a long label (the Data Filters label) made the App's page question run past 240 characters, and the
-publish stopped after three Genie rounds with "page.json does not fit the Agentic App". Genie rounds still run and give better text. After
+publish stopped after three Genie rounds with "page.json does not fit the App". Genie rounds still run and give better text. After
 the last round, Inspire shortens each over-limit text deterministically, keeps the page's labels and quoted values, logs the cut,
 and publishes. Texts under their limit are never touched.
 """
@@ -120,7 +120,7 @@ def test_the_last_genie_round_publishes_a_page_with_a_300_character_question_and
 
 def test_a_round_that_is_not_the_last_still_sends_the_long_question_back_to_genie(agent_ns, tmp_path):
     inst, build = _app_page_build(agent_ns, tmp_path, dict(question=LONG_QUESTION))
-    with pytest.raises(RuntimeError, match=r"page.json does not fit the Agentic App: .*question is longer than 240 characters"):
+    with pytest.raises(RuntimeError, match=r"page.json does not fit the App: .*question is longer than 240 characters"):
         build(1)
     assert not inst.logger.matching("[TEXT-LIMIT FIRED]"), "Genie gets the first chance to write a shorter question"
 

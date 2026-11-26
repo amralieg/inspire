@@ -294,7 +294,7 @@ def test_people_create_list_edit_pause_and_delete_their_own_alerts_as_the_servic
         "What fired: Records on the list on Desk n01_u05 are at least 2, counting only Category: A.",
         f"Why this threshold: 2 is the number {PERSON} set for this alert in the App.", "How often it checks: every day at 08:00 UTC.",
         "What to do first:", "1. Open the decision list (https://loss-desk-1.example.com/?open=n01_u05) and work its rows by rank, top "
-        "first; each row's recommended action says what to do with it.", "Where to look:", "Agentic App: https://loss-desk-1.example.com/?open=n01_u05",
+        "first; each row's recommended action says what to do with it.", "Where to look:", "App: https://loss-desk-1.example.com/?open=n01_u05",
         "When it clears: you get one more email when it returns to OK.", f"Set up in the App by {PERSON}."]
     assert "Item k" not in body["custom_description"] and "record_key" not in body["query_text"].split("\n", 1)[0]
     listed = call(s, "GET", "alerts", {"page": "n01_u05"}, headers=ME)[1]
@@ -535,7 +535,7 @@ def test_the_build_creates_the_alerts_folder_and_gives_the_app_service_principal
         {"compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-1"},
         RuntimeError("PERMISSION_DENIED: folder"), {"deployment_id": "dep1", "status": {"state": "SUCCEEDED"}}, {"url": "https://churn-desk.example/"}])
     fields = inst._implement_deploy_app(context, "churn-desk", files, READS, "g1", poll_s=0)
-    assert fields["_warnings"] == [f"Agentic App: people cannot set up alerts in it yet, because Inspire could not give its service principal CAN "
+    assert fields["_warnings"] == [f"App: people cannot set up alerts in it yet, because Inspire could not give its service principal CAN "
                                    f"MANAGE on the alerts folder {folder}: PERMISSION_DENIED: folder. Give it CAN MANAGE on that folder, or "
                                    "build the App again with Vibe/Add/Remove Features on the Build page"]
 
@@ -555,7 +555,7 @@ def test_turning_alerts_off_pauses_the_alerts_people_set_up(agent_ns, sdk_stub):
     inst._implement_owns_app = lambda uc, app: True
     context["app_host"] = {"name": "churn-desk", "merged": False, "settings": {"options": {"alerts": True}, "alert_folder": folder}}
     fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, "", poll_s=0)
-    assert fields["_notes"] == ["Agentic App: alerts are off now, so Inspire paused the 1 alert people set up in it; turn alerts on again "
+    assert fields["_notes"] == ["App: alerts are off now, so Inspire paused the 1 alert people set up in it; turn alerts on again "
                                 "to resume it"]
     assert "_warnings" not in fields, "pausing the alerts of an App whose alerts were turned off is a fact, not a warning"
     assert ("PATCH", "/api/2.0/alerts/11", {"schedule": {"quartz_cron_schedule": "0 0 8 * * ?", "timezone_id": "UTC",

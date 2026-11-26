@@ -11,7 +11,7 @@ const stage = (id, state, extra = {}) => ({ id, label: id, state, elapsed: '', .
 test('the Build page tiles are App, Dashboard, Genie Agent, Alerts, Notebook and Job, in that order', async () => {
   const C = await lib('implementControl.js');
   assert.deepEqual(C.ASSET_TILES.map((t) => [t.id, t.label]),
-    [['app', 'Agentic App'], ['dashboard', 'Dashboard'], ['genie_space', 'Genie Agent'], ['alert', 'Alerts'], ['notebook', 'Notebook'], ['job', 'Job']]);
+    [['app', 'App'], ['dashboard', 'Dashboard'], ['genie_space', 'Genie Agent'], ['alert', 'Alerts'], ['notebook', 'Notebook'], ['job', 'Job']]);
   for (const gone of ['MVP_TABS', 'BUILD_TAB', 'idleMvpTab', 'implementDefaultTab', 'collectedNoteText']) assert.equal(C[gone], undefined, gone);
 });
 
@@ -53,10 +53,10 @@ test('the sorted-to line counts the changes the build carries and names the part
   const latest = (routes, text) => ({ spec_version: 3, spec_json: { vibes: text }, asset_status: { vibe: { spec_version: 3, text, routes } } });
   const two = P.sortedTo([], latest({ app: 'Answer in euros', dashboard: 'Add a map', genie_space: 'Answer in euros' }, 'Answer in euros\nAdd a map'));
   assert.equal(two.count, 2);
-  assert.deepEqual(two.parts, ['Agentic App', 'Dashboard', 'Genie Agent']);
-  assert.equal(two.text, 'This build carries 2 changes. Inspire sorted them to: Agentic App, Dashboard, Genie Agent.');
+  assert.deepEqual(two.parts, ['App', 'Dashboard', 'Genie Agent']);
+  assert.equal(two.text, 'This build carries 2 changes. Inspire sorted them to: App, Dashboard, Genie Agent.');
   const one = P.sortedTo([], latest({ app: 'Answer in euros' }, 'Answer in euros'));
-  assert.equal(one.text, 'This build carries 1 change. Inspire sorted it to: Agentic App.');
+  assert.equal(one.text, 'This build carries 1 change. Inspire sorted it to: App.');
   assert.equal(P.sortedTo([], latest({}, 'Answer in euros')), null, 'nothing sorted yet shows no line');
   assert.equal(P.sortedTo([], { spec_version: 3, spec_json: {}, asset_status: { vibe: { spec_version: 2, text: 'old', routes: { app: 'old' } } } }), null,
     'the routes of another version never show');

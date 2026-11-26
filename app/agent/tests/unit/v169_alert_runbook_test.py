@@ -35,7 +35,7 @@ def test_the_build_time_alert_and_the_app_alert_both_carry_the_runbook_from_the_
     assert "Retention lead decides: Call at-risk customers before renewal." in built and "How the use case acts on it: Score every account weekly." \
         in built
     assert built.splitlines()[built.splitlines().index("Where to look:") + 1:][:3] == [
-        "Dashboard: https://h/d", "Genie Agent: https://h/genie/rooms/g1", "Agentic App: https://a.example.com"]
+        "Dashboard: https://h/d", "Genie Agent: https://h/genie/rooms/g1", "App: https://a.example.com"]
     s, ws = alerts_shell(tmp_path)
     s.by_id["n01_u05"]["runbook"] = shell_alerts.use_case_guide(use_case, "https://h/d", "https://h/genie/rooms/g1")
     assert save(s)[0] == 200
@@ -146,7 +146,7 @@ def test_the_inspire_app_alert_on_a_use_case_with_no_app_takes_its_steps_from_th
                          "What to do first:"]
     assert lines[4].startswith("1. Open the decision list (https://inspire.example.com/) and work the Act now rows by rank")
     assert "2. Retention lead decides: Call at-risk customers." in lines and "3. How the use case acts on it: Call the riskiest accounts first." in lines
-    assert lines[lines.index("Where to look:") + 1:][:2] == ["Dashboard: https://h/d", "Agentic App: https://inspire.example.com/"]
+    assert lines[lines.index("Where to look:") + 1:][:2] == ["Dashboard: https://h/d", "App: https://inspire.example.com/"]
     bare = ok("save", save_args(ok("page", {"table": "main.pricing.loss_desk_out", "manifest": manifest(), "page_id": "p"}),
                                 watch=dict(WATCH, filters={})))
     assert "decides" not in bare["body"]["custom_description"] and "How the use case acts" not in bare["body"]["custom_description"]

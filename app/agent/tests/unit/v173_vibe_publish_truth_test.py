@@ -109,7 +109,7 @@ def test_an_ask_whose_part_failed_to_publish_is_not_met_with_the_plain_reason(ag
     [check] = status[PART]["vibes_checks"]
     assert check["status"] == "missing"
     assert check["evidence"].startswith(agent_ns["IMPLEMENT_PUBLISH_MISSED"])
-    assert "publishing the Agentic App failed, so the live Agentic App does not have it" in check["evidence"] and reason in check["evidence"]
+    assert "publishing the App failed, so the live App does not have it" in check["evidence"] and reason in check["evidence"]
     assert status[PART]["state"] == "failed"
     assert status["genie_space"]["vibes_checks"][0]["status"] == "done", "another part's published ask stays met"
     spec = {"outputs": {"app": True, f"{PART}_vibes": HOUR_ASK, "genie_space": True}}

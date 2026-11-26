@@ -107,7 +107,7 @@ def test_the_run_s_repeated_setting_name_stops_the_app_at_once_and_never_goes_ba
     with pytest.raises(agent_ns["ImplementBlocked"]) as raised:
         build()
     message = str(raised.value)
-    assert message.startswith("Inspire wrote its own part of the Agentic App page wrong, and Genie cannot change that part")
+    assert message.startswith("Inspire wrote its own part of the App page wrong, and Genie cannot change that part")
     assert "repeats the name act_now_capacity of an earlier setting" in message
     assert inst.logger.matching("[INSPIRE-PAGE-PART FIRED] N01-U01")
     assert agent_ns["implement_known_repair"](raised.value, message)["kind"] == "stop", "no attempt repeats the same failure"

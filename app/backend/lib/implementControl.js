@@ -308,7 +308,8 @@ async function lakebaseCatalogProbe({ name, who, groups = [], get, held }) {
 }
 
 function lakebaseCatalogOffer(catalog) {
-  const { name, who, exists, canCreate } = catalog;
+  const { name, exists, canCreate } = catalog;
+  const who = 'the identity Inspire builds as'; // RC7-C-01: never a raw principal id in text
   const installer = 'run the Inspire installer again as someone with CREATE CATALOG on the metastore, which creates it and grants it ALL PRIVILEGES on it';
   if (exists === true || (exists === false && canCreate === true)) return { state: 'available', detail: '' };
   if (exists === 'hidden') return { state: 'no_catalog', detail: `${who || 'the build'} has no USE CATALOG on the catalog ${name}; run the Inspire installer again as an owner of it, which grants it ALL PRIVILEGES on it` };

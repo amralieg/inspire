@@ -204,5 +204,5 @@ def test_sharing_never_opens_a_same_named_app_made_again_after_the_join(agent_ns
     spec = _shared(agent_ns, "planner@example.com")
     status = {"app": {"state": "ready", "merged_into": "sales-desk", "created": OLD}}
     warnings = inst._implement_share("N01-U01", "main.inspire.churn_out", spec, {"app": "sales-desk"}, None, asset_status=status)
-    assert f"Sharing Agentic App: {STALE}, and Inspire did not share it" in warnings
+    assert f"Sharing App: {STALE}, and Inspire did not share it" in warnings
     assert not [c for c in calls if c[1] == "/api/2.0/permissions/apps/sales-desk"]

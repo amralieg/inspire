@@ -192,7 +192,7 @@ test('App owners are typed under Advanced settings like alert recipients, checke
     const owners = page.getByLabel('App owners (comma separated)');
     await owners.waitFor();
     // REQ-514: the App is always built, so there is no App checkbox to clear; the owners box stays.
-    assert.equal(await page.getByRole('checkbox', { name: /^Agentic App/ }).count(), 0, 'the App is not an option');
+    assert.equal(await page.getByRole('checkbox', { name: /^App/ }).count(), 0, 'the App is not an option');
     await page.getByText('You can always change this use case\u2019s settings and assumptions in the App and run it now. Add the work emails of other people who may do the same.').waitFor();
     assert.equal(await owners.inputValue(), '', 'nobody else unless named');
     await owners.pressSequentially(`${PAT}, nope`);

@@ -175,7 +175,7 @@ def test_the_check_reports_each_kind_of_name_the_module_never_binds_before_it_is
 
 
 def test_every_app_shell_module_the_shipped_modules_import_is_written_and_loaded(agent_ns):
-    """REQ-320 journey walk: the Agentic App failed with "No module named 'shell_actions'" because the build writes and loads only
+    """REQ-320 journey walk: the App failed with "No module named 'shell_actions'" because the build writes and loads only
     IMPLEMENT_APP_SHELL_MODULES, and the new modules the shell imports were not in it. Every shell_* module an App shell module
     imports must be in the list, and before the first module that imports it."""
     import re

@@ -1922,7 +1922,7 @@ export default function ImplementWizard({
                       <GrantList label="Grants Inspire ran for new Apps" items={newAppsGrant.ran} />
                     </div>
                   )}
-                  {(context?.gone_assets || []).includes('app') && <p className="ps-7 text-xs text-text-secondary">{goneAssetText('Agentic App', context.assets.app)}</p>}
+                  {(context?.gone_assets || []).includes('app') && <p className="ps-7 text-xs text-text-secondary">{goneAssetText(IMPLEMENT_OUTPUTS.find((o) => o.id === 'app')?.label, context.assets.app)}</p>}
                 </div>
                 {IMPLEMENT_OUTPUTS.filter((item) => OPTIONAL_OUTPUTS.includes(item.id)).map((item) => {
                   const Icon = ICONS[item.id];
@@ -2263,7 +2263,7 @@ export default function ImplementWizard({
               <VibesPanel spec={spec} built={built} live={liveFor} next={(context?.latest?.spec_version ?? 0) + 1} blocks={blocks} onChange={(value) => patch('vibes', value)}
                 onPrevious={(choice) => patch('vibe_previous', choice)} />
             )}
-            <section aria-label="What Inspire picked" data-picked-summary="" className="bg-bg border border-border rounded-lg p-4 space-y-3 h-48 overflow-y-auto">
+            <section aria-label="What Inspire picked" data-picked-summary="" className="bg-bg border border-border rounded-lg p-4 space-y-3">
               <dl className="grid grid-cols-1 sm:grid-cols-[10rem_1fr_auto] gap-x-4 gap-y-2 text-[12px]">
                 {summaryRows.map((row) => (
                   <div key={row.id} data-picked-row={row.id} className="contents">

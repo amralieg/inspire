@@ -13,7 +13,7 @@ const BASE = {
   config: { warehouse_id: 'wh1', result_table: 'main.inspire.churn_out' },
   outputs: { dashboard: true, genie_space: true, app: true, app_name: 'churn-desk', app_access: 'sp', alert: true, alert_recipients: ['owner@example.com'], inspire_url: 'https://inspire.example.com' },
 };
-const LABELS = { dashboard: 'Dashboard', genie_space: 'Genie Agent', app: 'Agentic App', alert: 'Alert' };
+const LABELS = { dashboard: 'Dashboard', genie_space: 'Genie Agent', app: 'App', alert: 'Alert' };
 
 function spec(outputs = {}, top = {}) {
   return I.validateImplementSpec({ ...JSON.parse(JSON.stringify(BASE)), ...top, outputs: { ...BASE.outputs, ...outputs } });
@@ -69,7 +69,7 @@ test('vibes of 2000 characters pass and 2001 is an error that names the output a
   }
   const emoji = '\u{1F600}';
   assert.deepEqual(spec({ app_vibes: emoji.repeat(2000) }).errors, [], 'a character is a code point, the way the agent counts it');
-  assert.deepEqual(spec({ app_vibes: emoji.repeat(2001) }).errors, ['the Agentic App vibes are 2,001 characters; at most 2,000 are allowed']);
+  assert.deepEqual(spec({ app_vibes: emoji.repeat(2001) }).errors, ['the App vibes are 2,001 characters; at most 2,000 are allowed']);
   assert.equal(I.vibesLength(`${emoji}ab`), 3);
 });
 
@@ -142,12 +142,12 @@ test('a rollback needs a saved snapshot on an earlier version, and copies that v
     }
     return null;
   };
-  assert.deepEqual(refused({ app: 2 }), [400, 'v2 has no saved Agentic App to roll back to'], 'a snapshot flag that is not true is no snapshot');
+  assert.deepEqual(refused({ app: 2 }), [400, 'v2 has no saved App to roll back to'], 'a snapshot flag that is not true is no snapshot');
   assert.deepEqual(refused({ genie_space: 1 }), [400, 'v1 has no saved Genie Agent to roll back to']);
   assert.deepEqual(refused({ dashboard: 3 }), [400, 'v3 has no saved Dashboard to roll back to'], 'the version being submitted is not earlier');
   assert.deepEqual(refused({ dashboard: 7 }), [400, 'v7 has no saved Dashboard to roll back to']);
   assert.deepEqual(refused({ dashboard: 1 }, []), [400, 'v1 has no saved Dashboard to roll back to'], 'no history, nothing to roll back to');
-  assert.deepEqual(refused({ alert: 1, app: 2 }), [400, 'v1 has no saved Alert to roll back to; v2 has no saved Agentic App to roll back to']);
+  assert.deepEqual(refused({ alert: 1, app: 2 }), [400, 'v1 has no saved Alert to roll back to; v2 has no saved App to roll back to']);
   const plain = spec().spec;
   assert.equal(I.rollbackSpec(history, plain), plain, 'a spec without a rollback passes through untouched');
 });
@@ -176,7 +176,7 @@ test('submit rolls an output back with the vibes of that version, and names the 
 
 test('submit and plan refuse a rollback to a version with no saved asset with the shared 400, and write and launch nothing', async () => {
   const history = [versionRow(2), versionRow(1, { snapshot: { dashboard: false } })];
-  for (const [rollback, message] of [[{ dashboard: 1 }, 'v1 has no saved Dashboard to roll back to'], [{ app: 3 }, 'v3 has no saved Agentic App to roll back to']]) {
+  for (const [rollback, message] of [[{ dashboard: 1 }, 'v1 has no saved Dashboard to roll back to'], [{ app: 3 }, 'v3 has no saved App to roll back to']]) {
     const { app, sqlCalls, jobs } = makeApp({ history });
     const srv = await listen(app);
     try {
@@ -261,7 +261,7 @@ test('the wizard counts, limits and words vibes the way the backend does, and a 
   assert.deepEqual(w.stepErrors('summary', ticked), ['the MVP vibes are 2,001 characters; at most 2,000 are allowed'], 'the one box can block Start');
   assert.deepEqual([w.vibesProblem('mvp', ticked.vibes, 'MVP')], spec({}, { vibes: ticked.vibes }).errors, 'in the words the backend uses');
   assert.deepEqual(w.stepErrors('delivery', ticked), [], 'the vibes are checked on the Vibes step, never on Delivery');
-  assert.deepEqual(w.planLines({ classes: ['rollback'], refill: false, rollback: ['app', 'dashboard'] }).slice(-1), ['Rolls back: Agentic App, Dashboard']);
+  assert.deepEqual(w.planLines({ classes: ['rollback'], refill: false, rollback: ['app', 'dashboard'] }).slice(-1), ['Rolls back: App, Dashboard']);
 });
 
 test('the Vibes step has one box for the whole MVP, and only what is typed in it can block Start', async () => {
@@ -284,8 +284,8 @@ test('the Vibes step says its one box is optional with gray example text, and na
   assert.equal(w.vibesSkippedText(all), '', 'every output picked, nothing to name');
   assert.equal(w.vibesSkippedText({ outputs: { ...all.outputs, alert: false } }),
     'Not picked in What to deliver, so not built: the Alert.');
-  assert.equal(w.vibesSkippedText({ outputs: { dashboard: true, alert: false } }), 'Not picked in What to deliver, so not built: the Genie Agent, the Agentic App and the Alert.');
-  assert.equal(w.vibesSkippedText(null), 'Not picked in What to deliver, so not built: the Dashboard, the Genie Agent, the Agentic App and the Alert.');
+  assert.equal(w.vibesSkippedText({ outputs: { dashboard: true, alert: false } }), 'Not picked in What to deliver, so not built: the Genie Agent, the App and the Alert.');
+  assert.equal(w.vibesSkippedText(null), 'Not picked in What to deliver, so not built: the Dashboard, the Genie Agent, the App and the Alert.');
   for (const text of [w.VIBES_STEP_TITLE, w.VIBES_STEP_NOTE, w.vibesSkippedText(null)]) assert.doesNotMatch(text, /[\u2013\u2014]|\bgrey\b/, text);
 });
 

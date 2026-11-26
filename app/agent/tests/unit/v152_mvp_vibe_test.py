@@ -245,7 +245,7 @@ def test_keep_builds_new_parts_for_what_the_vibe_changes_and_lists_the_old_ones_
     assert _run(inst, _vibe(previous)) == "ready", _final(inst)
     route = [prompt for kind, prompt in seen if kind == "route"][0]
     assert "USER DIRECTIVES ARE THE SUPREME AUTHORITY" in route and f"by number:\n1. {RISKY}.\n2. {WEEKDAYS}.\n" in route
-    assert "- dashboard: Dashboard (" not in route and "- dashboard: Dashboard\n" in route and "- app: Agentic App\n" in route
+    assert "- dashboard: Dashboard (" not in route and "- dashboard: Dashboard\n" in route and "- app: App\n" in route
     assert [(name, asset) for name, asset, _outputs in built] == [("dashboard", None), ("alert", "al-1")]
     dash_outputs = built[0][2]
     assert dash_outputs["dashboard_vibes"] == RISKY and dash_outputs["dashboard_name"] == "N01-U01 Predict churn v3"

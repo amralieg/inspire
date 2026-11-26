@@ -19,7 +19,7 @@ const LABELS = {
   businesses: 'Show the 3 businesses', runs: 'Show the 6 runs', use_cases: 'Show the runs that found the 18 use cases',
   domains: 'Show the runs that found the 3 domains', best_of_best: 'Show the runs with the 3 Best of Best use cases',
   // D-LABEL209: the App card names its output label
-  mvps_started: 'Show the 3 MVPs started in Build', mvps_live: 'Show the 2 live MVPs in Build', apps: 'Show the 1 Agentic App in Build',
+  mvps_started: 'Show the 3 MVPs started in Build', mvps_live: 'Show the 2 live MVPs in Build', apps: 'Show the 1 App in Build',
   dashboards: 'Show the 2 dashboards in Build', genie_spaces: 'Show the 2 Genie Agents in Build', alerts: 'Show the 1 alert in Build',
 };
 const totals = (page) => page.getByRole('region', { name: 'Across all runs' });
@@ -235,7 +235,7 @@ test('the MVP, App, dashboard, Genie Agent and alert cards open Build filtered t
     await card(page, 'apps').click();
     await strip.waitFor({ timeout: 20000 });
     assert.equal(await strip.getByRole('status').innerText(), 'Showing: use cases with an App in Acme');
-    const runs = strip.getByRole('group', { name: 'Runs with Agentic Apps' }); // D-LABEL209
+    const runs = strip.getByRole('group', { name: 'Runs with Apps' }); // D-LABEL209
     assert.deepEqual(await runButtons(strip), ['Acme 1', 'Beta Foods 1']);
     assert.equal(await runs.locator('[data-build-run="42"]').getAttribute('aria-pressed'), 'true');
     await runs.locator('[data-build-run="50"]').click();

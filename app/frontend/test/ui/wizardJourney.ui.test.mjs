@@ -100,7 +100,7 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
     await shot(page, '05-results', false);
     await goToStep(page, 'What to deliver');
     assert.equal(await page.locator('[data-output="notebook"]').count(), 0, 'REQ-514: the notebook is not a choice');
-    assert.equal(await page.getByRole('checkbox', { name: /^Agentic App/ }).count(), 0, 'REQ-514: the App is not a choice');
+    assert.equal(await page.getByRole('checkbox', { name: /^App/ }).count(), 0, 'REQ-514: the App is not a choice');
     assert.equal(await page.locator('[data-choice="outputs"]').evaluate((g) => [...g.querySelectorAll('[data-recommended]')].filter((b) => b.closest('[data-choice]') === g).length),
       0, 'REQ-514: the App is fixed, so nothing on What to deliver is Recommended');
     assert.equal(await page.getByRole('region', { name: 'App placement' }).count(), 0, 'where the App goes waits for Where it lives (must-exclude)');
@@ -185,7 +185,7 @@ test('an App Inspire cannot afford is dimmed on Deliver with one plain reason an
     await shot(page, 'app-unaffordable-05-deliver', false);
     await goToStep(page, 'Review & build');
     assert.doesNotMatch(await builtLine(page), /\bApp\b/);
-    assert.match(await page.locator('[data-picked-row="dropped"] [data-picked-value]').innerText(), /^Agentic App: \S/, 'Summary says the App is not built and why'); // D-LABEL209
+    assert.match(await page.locator('[data-picked-row="dropped"] [data-picked-value]').innerText(), /^App: \S/, 'Summary says the App is not built and why'); // D-LABEL209
     await summaryHasNoCapacity(page);
     await shot(page, 'app-unaffordable-07-summary', false);
     await page.getByRole('button', { name: BUILD_IT, exact: true }).click();

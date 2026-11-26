@@ -81,9 +81,9 @@ test('the Summary of an MVP build states what is built, never only a notebook, a
   const before = { ...spec, outputs: { ...spec.outputs, app: true, genie_space: true } };
   const after = w.withoutUnavailableOutputs(before, ['app']);
   const dropped = w.droppedOutputs(before, after, blocks);
-  assert.deepEqual(dropped, [{ id: 'app', label: 'Agentic App', why }]); // D-LABEL209: one output label
+  assert.deepEqual(dropped, [{ id: 'app', label: 'App', why }]); // D-LABEL209: one output label
   const rows = w.pickedSummary(after, [], { dropped });
-  assert.deepEqual(rows.find((r) => r.id === 'dropped'), { id: 'dropped', step: 'delivery', label: 'Not built', value: `Agentic App: ${why}` });
+  assert.deepEqual(rows.find((r) => r.id === 'dropped'), { id: 'dropped', step: 'delivery', label: 'Not built', value: `App: ${why}` });
   assert.ok(!rows.find((r) => r.id === 'outputs').value.includes('App,'), 'the dropped App is not listed as built');
   assert.equal(w.pickedSummary(after).some((r) => r.id === 'dropped'), false, 'nothing dropped, no row (must-exclude)');
   assert.deepEqual(w.droppedOutputs(before, after, {}), [], 'a person unticking it is not a drop');
@@ -115,7 +115,7 @@ test('the step list stays the same while the access checks come back; only a per
   assert.deepEqual(w.wizardSteps('mvp', spec).map((s) => s.id), before, 'a failed check blocks Next; it never unticks the App');
   const blocked = w.stepErrors('delivery', { ...w.defaultSpecFromUseCase(UC, { warehouseId: 'wh', inspireDatabase: 'main.inspire' }), outputs: { ...w.defaultSpecFromUseCase(UC, { warehouseId: 'wh', inspireDatabase: 'main.inspire' }).outputs, app: true } },
     { outputBlocks: w.outputBlocks(ON, { app: APP_DENIED }) });
-  assert.ok(blocked.some((e) => e.startsWith('Agentic App cannot be built: ')), blocked.join(' | '));
+  assert.ok(blocked.some((e) => e.startsWith('App cannot be built: ')), blocked.join(' | '));
   assert.notDeepEqual(w.wizardSteps('mvp', { outputs: { app: false, dashboard: true } }).map((s) => s.id), before, 'unticking the App does change the steps');
 });
 
@@ -165,7 +165,7 @@ test('Genie Agents turned off blocks only the Genie Agent, not a new App (REQ-15
     assert.doesNotMatch(p, /run the grant/);
   }
   assert.match(w.blockedOutputProblems({ outputs: { app: true } }, { app: { why: 'Needs access.', details: 'GRANT X' } })[0], /run the grant under Details/);
-  assert.equal(w.vibesSkippedText({ outputs: { dashboard: true, genie_space: false, app: false, alert: false } }, blocks), 'Not picked in What to deliver, so not built: the Agentic App and the Alert.'); // D-LABEL209: one output label
+  assert.equal(w.vibesSkippedText({ outputs: { dashboard: true, genie_space: false, app: false, alert: false } }, blocks), 'Not picked in What to deliver, so not built: the App and the Alert.'); // D-LABEL209: one output label
 });
 
 test('the Run it cost line does not repeat the schedule the sentence before it names', async () => {

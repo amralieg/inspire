@@ -252,7 +252,7 @@ def test_a_look_change_with_no_live_page_checks_the_saved_copy_and_never_copies_
     context.pop("previous_artifacts")
     inst._implement_kept_vibes(context, "app", {ASSET: ask}, {})
     [check] = context["asset_status"][ASSET]["vibes_checks"]
-    assert check["status"] == "missing" and check["evidence"].startswith("Inspire could not check this ask: the Agentic App only changed its look")
+    assert check["status"] == "missing" and check["evidence"].startswith("Inspire could not check this ask: the App only changed its look")
 
 
 def test_a_color_ask_a_restyle_newly_meets_is_met_and_never_called_nothing_new(agent_ns):

@@ -6,7 +6,7 @@ from v120_artifacts_support import FakeSpark
 from v140_implement_test import _inspire
 
 ASSET = "app"
-LABEL = "Agentic App"
+LABEL = "App"
 ADD = "Add a chart of expected faults by component type"
 REMOVE = "Remove the 'Response hours' KPI"
 KEEP = "Keep everything else exactly as it is"

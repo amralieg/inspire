@@ -30,7 +30,7 @@ test('a use case card shows its asset flags and no DBU text, and the page makes 
     const reader = await openReader(page, list.locator('[data-use-case-row]').first());
     const assets = reader.locator('[data-use-case-assets]').first();
     await assets.waitFor({ timeout: 15000 });
-    assert.match((await assets.innerText()).replace(/\s+/g, ' '), /Agentic App: Yes.*Dashboard: No.*Lakebase: Yes.*Genie Agent: No/);
+    assert.match((await assets.innerText()).replace(/\s+/g, ' '), /App: Yes.*Dashboard: No.*Lakebase: Yes.*Genie Agent: No/);
     assert.equal(await page.locator('[data-asset="dbus"]').count(), 0);
     assert.doesNotMatch(await page.locator('body').innerText(), /\bDBUs?\b/);
     assert.ok(asked.some((u) => u.includes('/api/inspire/implement/usecase-assets')), 'the flags are still read');

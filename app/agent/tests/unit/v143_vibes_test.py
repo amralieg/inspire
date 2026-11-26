@@ -13,7 +13,7 @@ from v142_merge_test import DASH, _dashboard_inspire, _host_page, _merge_flow
 VIBES = "Answer in plain words, put the riskiest customers first and always show the region"
 GOOD = "SELECT COUNT(*) > 10 AS triggered FROM main.s.orders WHERE status = 'refund'"
 ALL = {**VALID["outputs"], **ALERT}
-LABELS = {"genie_space": "Genie Agent", "dashboard": "Dashboard", "app": "Agentic App", "alert": "Alert"}
+LABELS = {"genie_space": "Genie Agent", "dashboard": "Dashboard", "app": "App", "alert": "Alert"}
 ASSETS = {"genie_space": "g1", "dashboard": "d1", "app": "churn-desk", "alert": "al-1", "preview_run_id": 5}
 BUILT = {"notebook_path": "/W/nb", "job_id": 77, "last_preview_run_id": 5, "result_rows": 40, "dashboard_id": "d1",
          "dashboard_url": "https://h/d", "genie_space_id": "g1", "app_name": "churn-desk", "alert_id": "al-1"}
@@ -185,8 +185,8 @@ def test_a_rollback_that_must_build_names_why_for_a_new_output_and_a_renamed_app
                    has_built_notebook=True)
     assert renamed["build"] == ["app"] and renamed["rollback_built"] == {"app": {"version": 2, "why": "renamed"}}
     warn = agent_ns["implement_rollback_built_warning"]
-    assert warn("app", renamed["rollback_built"]["app"]) == ("Agentic App: v2 could not be put back because the Agentic App now has a different name or "
-                                                            "target, so Inspire builds a new Agentic App with Genie instead")
+    assert warn("app", renamed["rollback_built"]["app"]) == ("App: v2 could not be put back because the App now has a different name or "
+                                                            "target, so Inspire builds a new App with Genie instead")
     assert warn("dashboard", {"version": 1, "why": "new"}) == ("Dashboard: v1 could not be put back because the version before had no "
                                                               "Dashboard, so Inspire builds a new Dashboard with Genie instead")
 
@@ -333,8 +333,8 @@ def test_an_unchanged_alert_that_meets_its_ask_is_reused_with_one_check_and_no_g
 def test_vibes_not_done_unit_turns_each_ask_into_a_warning_and_rejects_a_bad_shape(agent_ns):
     take = agent_ns["implement_vibes_not_done"]
     data = {"title": "x", "vibes_not_done": NOT_DONE + NOT_DONE + [{"ask": " Page   me ", "reason": "alerts send email"}]}
-    assert take(data, {"app_vibes": VIBES}, "app") == (["Agentic App vibe not done: Add a map of the regions: no table holds a location",
-                                                         "Agentic App vibe not done: Page me: alerts send email"], [])
+    assert take(data, {"app_vibes": VIBES}, "app") == (["App vibe not done: Add a map of the regions: no table holds a location",
+                                                         "App vibe not done: Page me: alerts send email"], [])
     assert data == {"title": "x"}, "the list is taken out of the artifact"
     stray = {"title": "x", "vibes_not_done": "junk"}
     assert take(stray, {}, "app") == ([], []) and stray == {"title": "x"}, "without vibes a stray list is dropped and says nothing"
@@ -371,7 +371,7 @@ def test_the_dashboard_and_the_app_report_vibes_they_could_not_do_and_never_depl
     assert context["artifacts"]["dashboard"] == context["page_spec"]
     app, app_context, app_seen = _flow(agent_ns, tmp_path / "app", outputs={"dashboard": False, "app_vibes": VIBES})
     fields = app._implement_app(app_context, _pages(page))
-    assert fields["_warnings"][-1] == "Agentic App vibe not done: Add a map of the regions: no table holds a location"
+    assert fields["_warnings"][-1] == "App vibe not done: Add a map of the regions: no table holds a location"
     deployed = json.loads(app_seen["deployed"][0][1]["pages/n01_u01.json"])
     assert "vibes_not_done" not in deployed and app_context["artifacts"]["app"]["title"] == deployed["title"]
     plain, plain_context, plain_seen = _flow(agent_ns, tmp_path / "plain", outputs={"dashboard": False})
@@ -715,7 +715,7 @@ def test_the_app_rolls_back_to_its_saved_page_under_the_same_name_and_a_failed_c
     broken_context["replay"] = {"app": _saved(page)}
     with pytest.raises(agent_ns["ImplementBlocked"]) as raised:
         broken._implement_app(broken_context, _NoGenie())
-    assert str(raised.value) == ("the v1 Agentic App no longer passes its checks against the current tables: the Agentic App was run at its default "
+    assert str(raised.value) == ("the v1 App no longer passes its checks against the current tables: the App was run at its default "
                                  "filters and page n01_u01: chart:by_category failed: UNRESOLVED_COLUMN")
     assert broken_seen["deployed"] == []
 
@@ -927,4 +927,4 @@ def test_only_the_live_app_version_makes_an_app_update(agent_ns):
     message = agent_ns["implement_plan_message"]
     assert message({"rollback": {"app": 2, "dashboard": 1}, "update": ["app"]}) == \
         "Genie rolls back the Dashboard and updates the App to the current Inspire App code"
-    assert message({"rollback": {"app": 1}, "update": []}) == "Genie rolls back the Agentic App"
+    assert message({"rollback": {"app": 1}, "update": []}) == "Genie rolls back the App"

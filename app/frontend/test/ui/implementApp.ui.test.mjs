@@ -49,7 +49,7 @@ test('the App starts on with its Genie Agent on and the alert off, a policied so
     const box = (name) => page.getByRole('checkbox', { name: new RegExp(`^${name}`) });
     assert.deepEqual([await box('Dashboard').isChecked(), await box('Alert').isChecked()], [false, false], 'the dashboard and the alert start off');
     assert.equal(await box('Genie Agent').count(), 0, 'REQ-514: the Genie Agent is not a choice');
-    assert.equal(await box('Agentic App').count(), 0, 'REQ-514: the App is not a choice');
+    assert.equal(await box('App').count(), 0, 'REQ-514: the App is not a choice');
     assert.equal(await page.locator('[data-output="genie_space"]').count(), 0, 'REQ-514: no separate Genie Agent card');
     await toAppAccess(page);
     await openFolded(page, 'Who sees which rows');
@@ -543,7 +543,7 @@ test('REQ-528: Inspire picks the App storage: Lakebase for a shared App, a per-u
   ui = await openUi('wizard', probe({ message: 'PERMISSION_DENIED: Lakebase is not enabled for this user' }, 403));
   try {
     await toStorageByDefault(ui.page);
-    assert.match(await review(ui.page), /^Delta, because Lakebase could not be created: .*PERMISSION_DENIED: Lakebase is not enabled for this user/);
+    assert.match(await review(ui.page), /^Delta tables \(Lakebase is not set up in this workspace\)$/);
     await toStart(ui.page);
     assert.equal(submittedSpec(ui.made).outputs.app_backend, 'delta');
   } finally {
@@ -623,8 +623,8 @@ test('Where results live offers its own schema, falls back to the Inspire databa
     assert.equal(await page.locator('[data-output="app"] input').count(), 0, 'the check run without the App still keeps the App it cannot build from being ticked again');
     await page.locator('[data-blocked-reason="app"]').waitFor();
     await toSummary(page);
-    await page.locator('[data-picked-row="dropped"]').getByText(/^Agentic App: /).waitFor();
-    assert.deepEqual((await footerErrors(page)).filter((e) => /^Agentic App /.test(e)), [], 'a check of the dropped App never shows on the Summary (must-exclude)');
+    await page.locator('[data-picked-row="dropped"]').getByText(/^App: /).waitFor();
+    assert.deepEqual((await footerErrors(page)).filter((e) => /^App /.test(e)), [], 'a check of the dropped App never shows on the Summary (must-exclude)');
     await startWhenReady(page);
     assert.equal(submittedSpec(made).config.result_table, 'sales.mvp.n01_u01_s42_out');
     assert.equal(submittedSpec(made).outputs.app, false);

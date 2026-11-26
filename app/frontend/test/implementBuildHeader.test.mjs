@@ -28,10 +28,10 @@ test('the header never says not published for a published App, and counts no vib
   assert.equal(lines, '1 published, with results not trusted yet. Open one to see why.');
 });
 
-test('the header and the Delivered chip come from the same payload: the chip says 1 Agentic App and the header says the App is published', () => {
+test('the header and the Delivered chip come from the same payload: the chip says 1 App and the header says the App is published', () => {
   const summary = buildSummary([item(latest)]);
   const app = summary.delivered.find((entry) => entry.id === 'app');
-  assert.equal(app?.text, '1 Agentic App'); // D-LABEL209: the delivery output reads Agentic App on every surface
+  assert.equal(app?.text, '1 App'); // D-LABEL209: the delivery output reads App on every surface
   assert.match(buildSummaryLines(summary).join(' '), /1 published/);
 });
 

@@ -565,11 +565,11 @@ test('the cards that read Rebuilding follow the recorded plan, and an asset vibe
   assert.deepEqual(busy(app, null), [], 'the spec diff alone cannot see where a whole-MVP vibe went');
   const cards = v.vibeCards([app, v1], app, null, '', appPlan);
   const whole = cards.find((c) => c.id === 'app');
-  assert.equal(v.rebuildingText(whole), 'Rebuilding the Agentic App only. Nothing else changes.');
+  assert.equal(v.rebuildingText(whole), 'Rebuilding the App only. Nothing else changes.');
   assert.equal(v.rebuildingText(cards.find((c) => c.id === 'app:page:decisions')), 'Rebuilding the Decisions page. This version changes other parts too.');
   const core = p.versionPlan([planStep(PLANNED({ classes: ['data'], refill: true, preview: true, refresh: ['genie_space', 'dashboard', 'app', 'alert'] }), 2)], app);
   assert.deepEqual(busy(app, core).sort(), Object.keys(BUILT_PARTS).sort(), 'a core change rebuilds the notebook and every part after it');
-  assert.equal(v.rebuildingText(v.vibeCards([app, v1], app, null, '', core).find((c) => c.id === 'app')), 'Rebuilding the Agentic App. This version changes other parts too.');
+  assert.equal(v.rebuildingText(v.vibeCards([app, v1], app, null, '', core).find((c) => c.id === 'app')), 'Rebuilding the App. This version changes other parts too.');
   const reasoning = p.versionPlan([planStep(PLANNED({ preview: true }), 2)], app);
   assert.deepEqual(busy(app, reasoning), ['ai_reasoning'], 'an AI reasoning ask only runs the notebook again');
   const page = v2({ retry_outputs: ['app:page:decisions'] });

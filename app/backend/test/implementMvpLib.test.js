@@ -48,7 +48,7 @@ test('kept versions come from the newest list, grouped by version newest first, 
     ] } } },
   ];
   assert.deepEqual(C.keptVersions(history), [
-    { version: 3, keptIn: 4, assets: [{ output: 'app', label: 'Agentic App', id: 'churn-desk-v3', url: 'https://x/churn-desk-v3', title: 'app v3' }] },
+    { version: 3, keptIn: 4, assets: [{ output: 'app', label: 'App', id: 'churn-desk-v3', url: 'https://x/churn-desk-v3', title: 'app v3' }] },
     { version: 2, keptIn: 4, assets: [
       { output: 'dashboard', label: 'Dashboard', id: 'd2', url: 'https://x/d2', title: 'dashboard v2' },
       { output: 'genie_space', label: 'Genie Agent', id: 'g2', url: 'https://x/g2', title: 'genie_space v2' },

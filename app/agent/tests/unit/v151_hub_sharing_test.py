@@ -45,14 +45,14 @@ def test_a_hub_some_shared_people_cannot_open_names_only_them(agent_ns):
     _inst, warnings, _calls, granted = _share(agent_ns, acl=[{"group_name": "Planners", "all_permissions": CAN_USE},
                                                              {"group_name": "buyers", "all_permissions": [{"permission_level": "CAN_VIEW"}]}],
                                               principals=principals)
-    assert warnings == ["Sharing Agentic App: sales-desk belongs to use case N01-U07, so Inspire did not share it with buyers; that use case's "
+    assert warnings == ["Sharing App: sales-desk belongs to use case N01-U07, so Inspire did not share it with buyers; that use case's "
                         "sharing decides who opens it"]
     assert not any(kind == "apps" for kind, _obj, _level in granted)
 
 
 def test_a_hub_whose_permissions_cannot_be_read_names_everyone_and_logs_why(agent_ns):
     inst, warnings, _calls, _granted = _share(agent_ns, refuse=True)
-    assert warnings == ["Sharing Agentic App: sales-desk belongs to use case N01-U07, so Inspire did not share it with planners; that use case's "
+    assert warnings == ["Sharing App: sales-desk belongs to use case N01-U07, so Inspire did not share it with planners; that use case's "
                         "sharing decides who opens it"]
     logged = [m for level, m in inst.logger.records if level == "WARNING"]
     assert any("sales-desk" in m and "PERMISSION_DENIED" in m for m in logged), logged

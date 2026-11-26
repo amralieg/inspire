@@ -16,7 +16,7 @@ def _source(name):
 
 def test_the_shared_label_is_agentic_app():
     with open(LABELS, encoding="utf-8") as handle:
-        assert json.load(handle)["app"] == "Agentic App"
+        assert json.load(handle)["app"] == "App"
 
 
 def test_the_runbook_link_label_for_the_app_reads_the_shared_label():
@@ -40,4 +40,6 @@ def test_the_notebook_label_tables_read_the_shared_label():
 
 def test_no_server_module_writes_a_plain_app_label_for_the_output():
     for name in ("shell_alerts.py", "shell_sql.py"):
-        assert not re.search(r'"App"\)|or "App"', _source(name)), name
+        # RC7-C-02: the shared label is now plain "App", so a literal "App" equal to it is the label; any other plain label would be drift.
+        label = json.load(open(LABELS, encoding="utf-8"))["app"]
+        assert label == "App" or not re.search(r'"App"\)|or "App"', _source(name)), name

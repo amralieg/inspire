@@ -125,7 +125,7 @@ test('an App update reads as App updated to the current Inspire App code in the 
   const rebuilt = [row(2, 'ready', { app: { state: 'ready', spec_version: 2, snapshot: true }, built_with: CURRENT }), builtOnOld];
   const back = I.planSubmission(rebuilt, I.validateImplementSpec({ ...SPEC, based_on_version: 2, rollback_outputs: { app: 1 } }).spec, null, { requester: OTHER });
   assert.equal(back.summary.update, undefined, 'must-exclude: putting an older App version back is a roll back');
-  assert.ok(W.planLines(back.summary).includes('Rolls back: Agentic App'));
+  assert.ok(W.planLines(back.summary).includes('Rolls back: App'));
 
   const plan = { classes: ['rollback'], build: [], refresh: [], restyle: [], repoint: [], relink: [], delete: [], keep_unmanaged: [], rollback: { app: 1 }, rollback_built: {}, update: ['app'] };
   const steps = [{ step_name: 'Inspire is working on Plan', result_json: { phase: 'Plan', spec_version: 3, plan } }];
