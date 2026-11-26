@@ -15,6 +15,7 @@ const CONTROL_ACTIONS = {
   build: { cancel: 'Stop the build' },
 };
 const RUN_ENDED = ['TERMINATED', 'SKIPPED', 'INTERNAL_ERROR'];
+const UC = '/api/2.1/unity-catalog';
 const LAKEBASE_KIND = 'lakebase';
 const LAKEBASE_PROBE_PATH = '/api/2.0/postgres/projects?page_size=1';
 const LAKEBASE_ABSENT_CODES = ['FEATURE_DISABLED', 'NOT_IMPLEMENTED', 'ENDPOINT_NOT_FOUND'];
@@ -281,9 +282,34 @@ function controlLogOwnerFix(rows, logTable) {
   return `ALTER TABLE ${logTable} OWNER TO \`${want}\``;
 }
 
-function lakebaseOffer(got, backends) {
+// RC6-C-04: the build writes Lakebase tables into one catalog. Read-only probe: does it exist for the build identity, and if not, may that identity
+// create it (CREATE CATALOG on the metastore)? `get(path)` answers { ok, status, data }; `held(metastoreId)` answers the privileges as a Set, or null.
+async function lakebaseCatalogProbe({ name, who, get, held }) {
+  const probe = { name, who, exists: null, canCreate: null };
+  const found = await get(`${UC}/catalogs/${encodeURIComponent(name)}`);
+  if (found.ok) return { ...probe, exists: true };
+  if (found.status === 403) return { ...probe, exists: 'hidden' };
+  if (found.status !== 404) return { ...probe, detail: errorOf(found) };
+  probe.exists = false;
+  const meta = await get(`${UC}/current-metastore-assignment`);
+  const id = str(dataOf(meta).metastore_id);
+  const privileges = id && who ? await held(id) : null;
+  if (privileges) probe.canCreate = privileges.has('ALL_PRIVILEGES') || privileges.has('CREATE_CATALOG');
+  return probe;
+}
+
+function lakebaseCatalogOffer(catalog) {
+  const { name, who, exists, canCreate } = catalog;
+  const installer = 'run the Inspire installer again as someone with CREATE CATALOG on the metastore, which creates it and grants it ALL PRIVILEGES on it';
+  if (exists === true || (exists === false && canCreate === true)) return { state: 'available', detail: '' };
+  if (exists === 'hidden') return { state: 'no_catalog', detail: `${who || 'the build'} has no USE CATALOG on the catalog ${name}; run the Inspire installer again as an owner of it, which grants it ALL PRIVILEGES on it` };
+  if (exists === false && canCreate === false) return { state: 'no_catalog', detail: `the catalog ${name} does not exist and ${who} has no CREATE CATALOG on the metastore; ${installer}` };
+  return { state: 'unknown', detail: `Inspire could not check the catalog ${name}${catalog.detail ? `: ${catalog.detail}` : ''}` };
+}
+
+function lakebaseOffer(got, backends, catalog) {
   if (!(backends || []).includes(LAKEBASE_KIND)) return { state: 'absent', detail: 'the App in this Inspire version reads only Delta tables' };
-  if (got && got.ok) return { state: 'available', detail: '' };
+  if (got && got.ok) return catalog ? lakebaseCatalogOffer(catalog) : { state: 'available', detail: '' };
   const code = str(dataOf(got).error_code).toUpperCase();
   if (got && (got.status === 404 || got.status === 501 || LAKEBASE_ABSENT_CODES.includes(code))) {
     return { state: 'absent', detail: 'this workspace does not have Lakebase' };
@@ -315,6 +341,7 @@ module.exports = {
   jobOwnerProblem,
   LAKEBASE_PROBE_PATH,
   lakebaseOffer,
+  lakebaseCatalogProbe,
   livePaths,
   liveStatus,
   ownerCheckPath,

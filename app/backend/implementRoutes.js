@@ -13,7 +13,8 @@ const { runWithQueryTags, lookupWithRetry } = require('./lib/sqlStatements');
 const { genieNotebookJobName, latestGenieNotebookRun } = require('./lib/genieNotebookJob');
 const C = require('./lib/implementControl');
 const LE = require('./lib/lakebaseEnforce');
-const { appShellCatalog, bundledBuildStamp } = require('./lib/appShell');
+const { appShellCatalog, bundledBuildStamp, lakebaseCatalogOf } = require('./lib/appShell');
+const { heldOn } = require('./lib/spCatalogs');
 const { moneyStatements, moneyView, moneyWithheld } = require('./lib/implementMoney');
 const FB = require('./lib/appFeedback');
 const { specVibeAsks } = require('../frontend/src/lib/vibeLimits.js');
@@ -862,7 +863,18 @@ function registerImplementRoutes(app, deps) {
     }
     const tables = String(q(req, 'tables') || '').split(',').map((t) => t.trim()).filter((t) => /^[^`.\s]+\.[^`.\s]+\.[^`.\s]+$/.test(t));
     const enforce = await LE.tablesEnforcement(tables.slice(0, LAKEBASE_ENFORCE_TABLES), fetchJsonFor(req));
-    return res.json({ ...C.lakebaseOffer(got, catalog.backends), enforce });
+    let probe;
+    if (got.ok && q(req, 'catalog_check')) {
+      const me = await loadTokenPrincipal(req);
+      const who = String(me.userName || me.applicationId || '').trim();
+      probe = await C.lakebaseCatalogProbe({
+        name: lakebaseCatalogOf(),
+        who,
+        get: fetchJsonFor(req),
+        held: async (metastoreId) => heldOn(dbFetch, req.dbHost, req.dbToken, metastoreId, who, 'metastore'),
+      }).catch((err) => ({ name: lakebaseCatalogOf(), who, exists: null, canCreate: null, detail: err.message }));
+    }
+    return res.json({ ...C.lakebaseOffer(got, catalog.backends, probe), enforce });
   });
 
   app.get('/api/inspire/implement/merge-targets', requireToken, async (req, res) => {
