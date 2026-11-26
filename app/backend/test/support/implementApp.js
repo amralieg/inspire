@@ -4,6 +4,7 @@ const { IMPLEMENT_COLUMNS, sampleCopyTable } = require('../../lib/inspireImpleme
 const { noPersonTokenBody } = require('../../lib/routePolicy');
 const { sqlCancelledError } = require('../../lib/sqlStatements');
 const { withServicePrincipal } = require('./appRecord');
+const { lakebaseCatalogOf } = require('../../lib/appShell');
 
 function sqlResultToObjects(result) {
   return result.rows || [];
@@ -132,6 +133,8 @@ function makeApp(overrides = {}, { mount } = {}) {
           const [data, status = 200] = state.responses[routed];
           return json(data, status);
         }
+        // RC6-C-04: the Lakebase catalog the build writes to exists by default; the name is the one the backend reads (a test overrides it through state.responses).
+        if (path.split('?')[0] === `/api/2.1/unity-catalog/catalogs/${encodeURIComponent(lakebaseCatalogOf())}`) return json({ name: lakebaseCatalogOf() });
         // REQ-418: the App's own token answers as the App's service principal; a person's token answers as the person.
         if (path.includes('/scim/v2/Me')) return json(token === (state.dbToken || 'tok') ? (state.appMe || { applicationId: state.builtAppSp || 'app-sp-id', displayName: 'inspire-manual' }) : state.me, 200, state.orgId === undefined ? ORG_ID : state.orgId);
         if (path.startsWith('/api/2.0/permissions/sql/warehouses/')) {
