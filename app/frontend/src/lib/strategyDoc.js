@@ -10,6 +10,7 @@ import { svgToPng, toBase64 } from './generateDocs.js';
 import { hasStrategyDocument, artifactTreeFiles } from './artifactFiles.js';
 import { sessionFailed, sessionFinished } from './monitorState.js';
 import { strategyGoals, v130View } from './v130UseCase.js';
+import { trackingIdOf } from './useCaseFields.js';
 
 export const OTHER_USE_CASES = 'Other use cases';
 const W = 794;
@@ -33,12 +34,16 @@ export function groupByObjective(useCases) {
   return out;
 }
 
-const headingPage = (theme, name, count) => {
+// The heading page lists the objective's use cases by id and name (an index of the pages that follow).
+const headingPage = (theme, name, items) => {
+  const count = items.length;
   const label = `${count} use case${count === 1 ? '' : 's'}`;
+  // Two columns of 28 rows; ids and names are cut to fit, the pages that follow carry each use case in full.
+  const rows = items.slice(0, 56).map((uc, i) => `<text x="${60 + Math.floor(i / 28) * 340}" y="${630 + (i % 28) * 16}" font-size="11" fill="${theme.ink}">${esc([trackingIdOf(uc), uc.name || uc.Name || ''].filter(Boolean).join('  ').slice(0, 52))}</text>`).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="${esc(theme.font)}">`
     + `<rect width="${W}" height="${H}" fill="${theme.bg}"/><rect x="60" y="470" width="120" height="8" fill="${theme.accents[0]}"/>`
     + `<text x="60" y="540" font-size="40" font-weight="700" fill="${theme.ink}">${esc(name)}</text>`
-    + `<text x="60" y="584" font-size="18" fill="${theme.muted}">${esc(label)}</text></svg>`;
+    + `<text x="60" y="584" font-size="18" fill="${theme.muted}">${esc(label)}</text>${rows}</svg>`;
 };
 
 // Every page of the strategy document as an SVG string: per objective one heading page, then the brief pages of its use cases.
@@ -46,7 +51,7 @@ export function strategyPagesSvg({ businessName, useCases, values, summary, foun
   const theme = resolveTheme(options.style, options.palette, options.customColor, options.theme);
   return groupByObjective(useCases).flatMap(({ name, items }) => {
     const m = buildDocModel({ businessName, useCases: items, values, options, summary, foundations });
-    return [headingPage(theme, name, items.length), ...briefPagesSvg(m, theme)];
+    return [headingPage(theme, name, items), ...briefPagesSvg(m, theme)];
   });
 }
 
