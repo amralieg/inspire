@@ -249,6 +249,7 @@ export function appStorageOf(spec, offer) {
   const detail = offer.detail ? `: ${offer.detail}` : '';
   if (offer.state === 'absent') return delta(LAKEBASE_ABSENT + detail);
   if (offer.state === 'denied') return delta(`Lakebase could not be created${detail || ': Inspire does not have access yet'}`);
+  if (offer.state === 'no_catalog') return delta(offer.detail);
   if (offer.state !== 'available') return delta(`Inspire could not check Lakebase here${detail}`);
   if (outputs.app_access === 'user' && !perUserFastPages(offer)) {
     const refused = Object.entries(enforceOf(offer)).filter(([, t]) => !t.enforced).map(([name, t]) => `${name} uses Standard pages because ${t.reason}`);

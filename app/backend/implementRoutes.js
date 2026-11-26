@@ -13,7 +13,8 @@ const { runWithQueryTags, lookupWithRetry } = require('./lib/sqlStatements');
 const { genieNotebookJobName, latestGenieNotebookRun } = require('./lib/genieNotebookJob');
 const C = require('./lib/implementControl');
 const LE = require('./lib/lakebaseEnforce');
-const { appShellCatalog, bundledBuildStamp } = require('./lib/appShell');
+const { appShellCatalog, bundledBuildStamp, lakebaseCatalogOf } = require('./lib/appShell');
+const { heldOn } = require('./lib/spCatalogs');
 const { moneyStatements, moneyView, moneyWithheld } = require('./lib/implementMoney');
 const FB = require('./lib/appFeedback');
 const { specVibeAsks } = require('../frontend/src/lib/vibeLimits.js');
@@ -214,7 +215,7 @@ function registerImplementRoutes(app, deps) {
   const fetchJsonFor = (req) => (path) => jsonOf(dbFetch, req.dbHost, req.dbToken, path);
 
   const readMeFor = (req) => (token) => jsonOf(dbFetch, req.dbHost, token, P.SCIM_ME_PATH);
-  const { accessRowsOf, appReads, appTokenOf, grantSourceAccess, runPersonGrants, sourceAccess } = SA.createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken });
+  const { accessRowsOf, appIdentity, appReads, appTokenOf, grantSourceAccess, runPersonGrants, sourceAccess } = SA.createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken });
 
   async function loadTokenPrincipal(req) {
     const got = await readMeFor(req)(req.dbToken);
@@ -862,7 +863,25 @@ function registerImplementRoutes(app, deps) {
     }
     const tables = String(q(req, 'tables') || '').split(',').map((t) => t.trim()).filter((t) => /^[^`.\s]+\.[^`.\s]+\.[^`.\s]+$/.test(t));
     const enforce = await LE.tablesEnforcement(tables.slice(0, LAKEBASE_ENFORCE_TABLES), fetchJsonFor(req));
-    return res.json({ ...C.lakebaseOffer(got, catalog.backends), enforce });
+    let probe;
+    // catalog_check=1: the only real caller, the Review offer in ImplementWizard.jsx, always sends it. Without it the route answers from the
+    // Lakebase API alone, as before RC6-C-04, so the plain API check (and its route test of one Databricks call) is unchanged.
+    if (got.ok && q(req, 'catalog_check')) {
+      // RC6-C-04b: startVersion launches the build job with the App's service principal token (triggerInspireNotebookJob sets no run_as), and the
+      // notebook creates IMPLEMENT_LAKEBASE_CATALOG as the job's identity, so that principal is probed, with its own token.
+      const token = await appTokenOf(req);
+      const me = token ? await appIdentity(req, token) : { id: '', groups: [] };
+      const who = me.id;
+      const get = (path) => jsonOf(dbFetch, req.dbHost, token, path);
+      probe = await C.lakebaseCatalogProbe({
+        name: lakebaseCatalogOf(),
+        who,
+        groups: me.groups,
+        get,
+        held: async (metastoreId) => heldOn(dbFetch, req.dbHost, token, metastoreId, who, 'metastore'),
+      }).catch((err) => ({ name: lakebaseCatalogOf(), who, exists: null, canCreate: null, detail: err.message }));
+    }
+    return res.json({ ...C.lakebaseOffer(got, catalog.backends, probe), enforce });
   });
 
   app.get('/api/inspire/implement/merge-targets', requireToken, async (req, res) => {
