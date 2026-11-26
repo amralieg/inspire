@@ -9,16 +9,18 @@ test.after(closeBrowser);
 
 const GENERATED = '/Workspace/Users/me@example.com/inspire_out';
 const SESSIONS = REVIEW_SESSIONS.map((s, i) => (i === 0 ? { ...s, generation_path: GENERATED } : s));
+const ROOT = `${GENERATED}/acme`;
 const at = (day, hour = 12) => Date.UTC(2026, 10, day, hour);
-const file = (name, modified_at, file_size = 40000) => ({ name, path: `${GENERATED}/${name}`, is_directory: false, file_size, ...(modified_at ? { modified_at } : {}) });
-const FOLDER = { name: 'docs', path: `${GENERATED}/docs`, is_directory: true, file_size: 0, modified_at: at(19) };
+const file = (name, modified_at, file_size = 40000) => ({ name, path: `${ROOT}/${name}`, is_directory: false, file_size, ...(modified_at ? { modified_at } : {}) });
+const FOLDER = { name: 'docs', path: `${ROOT}/docs`, is_directory: true, file_size: 0, modified_at: at(19) };
 const OLDEST = file('a_catalog.pdf', at(20));
 const NEWEST = file('b_use_cases.xlsx', at(26));
 const MIDDLE = file('c_deck.pptx', at(23));
 const UNDATED = file('d_notes.md', 0);
 const STRATEGY = file('Acme_strategy.pdf', at(24));
 
-const backendOf = (files) => (app) => { app.get('/api/workspace/list', (_req, res) => res.json({ files })); };
+// Only the run folder (the business folder under the output path) lists the files; a sub folder is empty (a folder that lists itself would loop the tree walk).
+const backendOf = (files) => (app) => { app.get('/api/workspace/list', (req, res) => res.json({ files: /\/inspire_out\/acme\/?$/.test(String(req.query.path || '')) ? files : [] })); };
 const open = (files) => openUi('results', { ...REVIEW_STATE, sessions: SESSIONS, results: REVIEW_RESULTS }, '', { mount: backendOf(files) });
 const rowOf = (page, f) => page.locator(`[data-asset-row="${f.name}"]`).first();
 

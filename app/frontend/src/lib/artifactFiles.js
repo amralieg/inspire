@@ -34,6 +34,42 @@ export function fileSizeText(bytes) {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+const TYPE_NAMES = {
+  pdf: 'PDF', xlsx: 'Excel', xls: 'Excel', csv: 'CSV', pptx: 'PowerPoint', ppt: 'PowerPoint', docx: 'Word', doc: 'Word', md: 'Markdown', json: 'JSON',
+  txt: 'Text', log: 'Log', png: 'Image', jpg: 'Image', jpeg: 'Image', svg: 'Image', ipynb: 'Notebook', py: 'Python', sql: 'SQL', html: 'HTML', zip: 'Zip',
+};
+
+// The kind of a listed item in plain words: Folder, a known document type, or the upper-case extension.
+export function fileTypeText(file) {
+  if (file?.is_directory) return 'Folder';
+  const ext = fileExtension(file);
+  return TYPE_NAMES[ext] || (ext ? ext.toUpperCase() : 'File');
+}
+
+const modifiedMs = (file) => {
+  const n = Number(file?.modified_at);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+};
+
+// The created date from the listing's modified time (empty when the listing gave none).
+export function fileDateText(file) {
+  const ms = modifiedMs(file);
+  return ms ? new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+}
+
+// Folders first (listing order kept), then files newest first; a file with no time goes last in its listing order.
+export function filesNewestFirst(files) {
+  const list = Array.isArray(files) ? files : [];
+  const folders = list.filter((f) => f && f.is_directory);
+  const rest = list.filter((f) => f && !f.is_directory).map((f, i) => ({ f, i }));
+  rest.sort((a, b) => (modifiedMs(b.f) - modifiedMs(a.f)) || (a.i - b.i));
+  return [...folders, ...rest.map((x) => x.f)];
+}
+
+// True when any listed file is the run's strategy document (a PDF whose name says strategy).
+export const hasStrategyDocument = (files) => (Array.isArray(files) ? files : [])
+  .some((f) => f && !f.is_directory && fileExtension(f) === 'pdf' && /strateg/i.test(String(f.name || '')));
+
 export async function fileProblemText(action, name, resp) {
   let why = resp ? `the workspace answered ${resp.status}` : 'the App did not answer';
   if (resp) {
