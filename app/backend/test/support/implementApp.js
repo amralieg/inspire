@@ -106,6 +106,7 @@ function makeApp(overrides = {}, { mount } = {}) {
   });
   async function dbFetchImpl(_host, token, path, opts = {}) {
         fetches.push({ path, opts, token });
+        if (state.fetchLatencyMs) await new Promise((done) => setTimeout(done, state.fetchLatencyMs));
         const routed = `${String(opts.method || 'GET').toUpperCase()} ${path.split('?')[0]}`;
         if (state.workspace) {
           const got = await state.workspace({ token, path, method: String(opts.method || 'GET').toUpperCase(), body: opts.body ? JSON.parse(opts.body) : null });
@@ -198,6 +199,7 @@ function makeApp(overrides = {}, { mount } = {}) {
     },
     executeSql: async (_h, token, warehouse, sql, parameters, options) => {
       if (options && options.signal && options.signal.aborted) throw sqlCancelledError(null);
+      if (state.sqlLatencyMs) await new Promise((done) => setTimeout(done, state.sqlLatencyMs));
       sqlCalls.push({ sql, parameters, token, warehouse, options });
       // A denial needle matches the statement text and its bound parameters (a picked table is often bound, not written, into the SQL).
       const denialText = `${sql} ${JSON.stringify(parameters || [])}`;
