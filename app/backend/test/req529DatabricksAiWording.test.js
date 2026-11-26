@@ -6,7 +6,7 @@ const path = require('node:path');
 
 const APP = path.resolve(__dirname, '..', '..');
 const ROOTS = ['frontend/src', 'backend', 'installer', 'scripts', 'docs', 'CLAUDE.md'];
-const SKIP_DIR = new Set(['node_modules', 'dist', 'test', 'tests', '__pycache__', 'docgen', 'agent']);
+const SKIP_DIR = new Set(['node_modules', 'dist', 'build', 'test', 'tests', '__pycache__', 'docgen', 'agent']);
 const SKIP_FILE = /^(GenerateDocs.*|ledger\.md)$/;
 const EXT = /\.(js|jsx|mjs|py|md|json|sh)$/;
 // Visible wording: "Genie Code" with space or hyphen in any case, but the lowercase kebab id genie-code stays.
