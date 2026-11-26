@@ -11,6 +11,7 @@ import ChoosePage from '../../src/pages/ChoosePage';
 import LaunchPage from '../../src/pages/LaunchPage';
 import SetupWizard from '../../src/pages/SetupWizard';
 import ConfigPage from '../../src/pages/ConfigPage';
+import SettingsPanel from '../../src/components/SettingsPanel';
 import MonitorPage from '../../src/pages/MonitorPage';
 import GenerateDataPage from '../../src/pages/GenerateDataPage';
 import App from '../../src/App';
@@ -103,6 +104,7 @@ function HarnessContent({ open, discoveryType, step, run }) {
   if (open === 'setup') return <SetupHarness blank={step === 'blank'} />;
   if (open === 'monitor') return <MonitorHarness run={run} />;
   if (open === 'config') return <ConfigHarness />;
+  if (open === 'settings') return <SettingsHarness />;
   if (open === 'launch') return <LaunchHarness />;
   if (open === 'generate') {
     return (
@@ -231,6 +233,16 @@ function LaunchHarness() {
       <output aria-label="Launched">{launched}</output>
       {notes?.warnings?.length > 0 && <MonitorPage settings={SETTINGS} update={() => {}} sessionId={HARNESS_SESSION_ID} runId={null} launchNotes={notes.warnings}
         launchDetails={notes.details} onComplete={() => {}} onResultsSession={() => {}} onOpenImplement={() => {}} />}
+    </ThemeProvider>
+  );
+}
+
+function SettingsHarness() {
+  const [settings, setSettings] = useState(SETTINGS);
+  const update = (key, value) => setSettings((prev) => ({ ...prev, [key]: typeof value === 'function' ? value(prev[key]) : value }));
+  return (
+    <ThemeProvider>
+      <SettingsPanel settings={settings} update={update} onClose={() => {}} />
     </ThemeProvider>
   );
 }
