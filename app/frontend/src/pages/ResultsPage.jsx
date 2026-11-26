@@ -130,6 +130,7 @@ import ResultsBusiness from '../components/results/ResultsBusiness';
 import RunStepper from '../components/RunStepper';
 import ResultsAssets from '../components/results/ResultsAssets';
 import { sessionFailed, sessionFinished, sessionSucceeded } from '../lib/monitorState';
+import { useStrategyDocument } from '../lib/strategyDoc';
 import { placeholderWords } from '../lib/placeholderWords';
 import { reducedMotion } from '../lib/motion';
 import { PlainMessage } from '../components/TechnicalDetails';
@@ -1203,6 +1204,13 @@ export default function ResultsPage({
     loadArtifacts(generationPath);
   }, [generationPath, selectedSessionId, token, serverEnvHasPat, loadArtifacts, showcase]);
 
+  // C24 (RC7-B-13, REQ-121): a finished run with no strategy PDF listed gets one, built here and saved once into its Assets folder.
+  const strategyDoc = useStrategyDocument({
+    enabled: !showcase && Boolean(selectedSessionId), session: selectedSession, sessionId: selectedSessionId, folder: generationPath,
+    useCases: builtUseCases, values: docValuesOf({ byId: calculated.byId, totals: valueTotals }), businessName: runBusiness(selectedSession), summary: summaryParagraphs, foundations: foundationsList,
+    rootFiles: artifactsLoading ? null : artifactsRootFiles, tree: artifactTree, post: apiPostJson, inspireDatabase: inspireDb, warehouseId,
+    onSaved: () => loadArtifacts(generationPath),
+  });
   const highPriorityCount = computeHighPriorityCount(builtUseCases);
   const hasMvpData = !!(selectedSessionId && inspireDb && warehouseId);
   const canImplement = !showcase && hasMvpData && !isProgressive;
@@ -2284,6 +2292,13 @@ export default function ResultsPage({
             )}
             {view === 'assets' && (
               <div {...resultsPanel('assets', view)} className="tab-panel-enter min-w-0 flex-1">
+              {strategyDoc.state === 'building' && <p data-strategy-doc-building="" role="status" className="mb-2 text-caption text-text-secondary">Building the strategy document...</p>}
+              {strategyDoc.state === 'failed' && (
+                <p data-strategy-doc-failed="" className="mb-2 text-caption text-text-secondary">
+                  The strategy document could not be saved.{' '}
+                  <button type="button" onClick={strategyDoc.retry} className="font-medium text-db-red-fg hover:underline">Retry</button>
+                </p>
+              )}
               <ResultsAssets
                 allUseCases={builtUseCases}
                 apiFetch={apiFetch}

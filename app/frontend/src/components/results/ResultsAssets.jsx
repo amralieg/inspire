@@ -303,7 +303,7 @@ export default function ResultsAssets({
                       )}
                       {!artifactsLoading && artifactsRootFiles && artifactsRootFiles.length > 0 && !hasStrategyDocument(artifactTreeFiles(artifactsRootFiles, artifactTree)) && (
                         <p data-testid="strategy-document-note" className="mt-2 text-caption text-text-secondary">
-                          No strategy document is listed here. A run no longer writes one by itself: tick the use cases on the Use cases tab and choose Generate docs to make a PDF.
+                          No strategy document is listed here. To make another PDF, tick the use cases on the Use cases tab and choose Generate docs.
                         </p>
                       )}
                     </div>
