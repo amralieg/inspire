@@ -137,7 +137,8 @@ function fakeHosted() {
 }
 
 async function runPages(overrides, who, headers = {}) {
-  const made = makeApp(overrides);
+  // c23 SEC-01: hosted pages come only from the default Inspire database, so the harness names it.
+  const made = makeApp({ runDefaults: { inspireDatabase: 'main.inspire', warehouseId: 'wh1' }, ...overrides });
   const srv = await listen(made.app);
   try {
     const resp = await fetch(`${srv.url}/api/run/pages?inspire_database=main.inspire&warehouse_id=wh1`, {
@@ -185,7 +186,7 @@ test('a decision on a page Inside Inspire is checked against the live page of it
   };
   const handlerOf = (state) => {
     let handler = null;
-    const made = makeApp({ ...state, hostedRun: { ...fakeHosted(), useDecisions: (fn) => { handler = fn; } } });
+    const made = makeApp({ runDefaults: { inspireDatabase: 'main.inspire', warehouseId: 'wh1' }, ...state, hostedRun: { ...fakeHosted(), useDecisions: (fn) => { handler = fn; } } });
     return { handler, made };
   };
   const req = { dbHost: 'https://workspace.example.com', dbToken: 'user-token', headers: { 'x-forwarded-access-token': 'user-token', 'x-forwarded-email': OWNER } };
