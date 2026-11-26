@@ -16,14 +16,14 @@ async function open(page, card) {
   await dialog.waitFor();
   return dialog;
 }
-const STEPS = ['Data', 'Filter', 'Kinds', 'Each value', 'Ramp and cost', 'Market data', 'Story', 'Save'];
-// Every page from the current one to story:approve, the last page with a Next button (the Save page only follows the approval).
+const STEPS = ['Data', 'Kinds', 'Each kind', 'Value story', 'Terms and accept'];
+// Every page from the current one to terms, the last page with a Next button (the Save page only follows the approval).
 const pagesOf = async (dialog) => {
   const seen = [];
   for (let i = 0; i < 24; i += 1) {
     await dialog.locator('[data-wizard-page]').first().waitFor();
     seen.push(await dialog.locator('[data-wizard-page]').first().getAttribute('data-wizard-page'));
-    if (seen.at(-1) === 'story:approve') break;
+    if (seen.at(-1) === 'terms') break;
     await next(dialog);
   }
   return seen;

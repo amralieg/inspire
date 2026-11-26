@@ -12,7 +12,7 @@ export const SCRIM_STYLE = { backgroundColor: 'var(--color-scrim)' };
 // `header` replaces the default title bar, `bare` hands the body to the caller's own layout, and `dismissible={false}` drops the
 // Close button (a cover that the person cannot dismiss).
 export default function ModalDialog({ titleId, title, onClose, overlayAttrs = {}, dialogAttrs = {},
-  widthClass = 'max-w-lg', footer = null, header = null, bare = false, dismissible = true, children }) {
+  widthClass = 'max-w-lg', footer = null, header = null, bare = false, dismissible = true, closeLabel = 'Close', children }) {
   const panel = useRef(null);
   useModal(panel, onClose);
   const closeRef = useRef(onClose);
@@ -27,7 +27,7 @@ export default function ModalDialog({ titleId, title, onClose, overlayAttrs = {}
             <div className="flex shrink-0 items-start gap-3 border-b border-border px-5 pt-5 pb-3">
               <h2 id={titleId} className="min-w-0 flex-1 text-base font-bold text-text-primary">{title}</h2>
               {dismissible && (
-                <button type="button" onClick={() => closeRef.current?.()} aria-label="Close" title="Close (Esc)"
+                <button type="button" onClick={() => closeRef.current?.()} aria-label={closeLabel} title="Close (Esc)"
                   className="shrink-0 rounded-md p-1.5 text-text-secondary hover:bg-bg-subtle">
                   <X size={16} />
                 </button>

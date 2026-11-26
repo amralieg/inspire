@@ -68,7 +68,7 @@ export function StepKind({ driver, answers, yearly, onInput, status, error }) {
     <div data-wizard-page={`driver:${driver.id}`} className="space-y-2 lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:items-start lg:gap-x-3 lg:gap-y-2 lg:space-y-0">
       <div className="flex flex-wrap items-center gap-3 lg:col-span-2">
         <span aria-hidden="true" className="text-2xl">{DRIVER_ICONS[driver.id] || ''}</span>
-        <div className="min-w-0 flex-1"><h3 className="text-sm font-bold text-text-primary">{driver.label}</h3><p className="text-[12px] text-text-secondary">{driver.why}</p></div>
+        <div className="min-w-0 flex-1"><p className="text-[12px] text-text-secondary">{driver.why}</p></div>
         <div className="rounded-lg border border-border px-3 py-1 text-end"><p className="text-caption uppercase tracking-wide text-text-secondary">{driver.label}</p><p data-kind-amount="" className="text-lg font-extrabold tabular-nums text-text-primary">{part ? moneyText(unit, part.amount) : stale ? 'Not set' : '...'}{part && <span className="text-caption font-normal text-text-secondary"> per year</span>}</p></div>
         <div className="rounded-lg border border-border bg-bg-subtle px-3 py-1 text-end"><p className="text-caption uppercase tracking-wide text-text-secondary">Running total</p><p data-run-total="" className="text-lg font-extrabold tabular-nums text-text-primary">{stale ? 'Not set' : totalText(yearly) || '...'}{!stale && yearly?.total && <span className="text-caption font-normal text-text-secondary"> per year</span>}</p></div>
       </div>

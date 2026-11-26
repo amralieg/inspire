@@ -93,7 +93,7 @@ test('3: Edit shows the editor and changes the spec; Keep restores the opening v
   } finally { await ui.close(); }
 });
 
-test('4: Approve story and save sends one PUT with the toggled holdout and the panel money', async () => {
+test('4: Accept and save sends one PUT with the toggled holdout and the panel money', async () => {
   const state = calculated();
   const { ui, panel, dialog } = await openPanel(state);
   try {
@@ -101,7 +101,7 @@ test('4: Approve story and save sends one PUT with the toggled holdout and the p
     await goTo(dialog, 'scope:facts');
     await dialog.locator('[data-measure-edit]').click();
     await dialog.locator('[data-measure-editor]').getByLabel('Hold back').check();
-    await goTo(dialog, 'story:approve');
+    await goTo(dialog, 'terms');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     await saveFrom(dialog);
     await button(dialog, 'Close').last().click();
@@ -113,14 +113,14 @@ test('4: Approve story and save sends one PUT with the toggled holdout and the p
   } finally { await ui.close(); }
 });
 
-test('5: without a measure prop the dialog shows no measure section and Approve story and save carries the saved money through', async () => {
+test('5: without a measure prop the dialog shows no measure section and Accept and save carries the saved money through', async () => {
   const state = calculated();
   const { ui, panel, dialog } = await openPanel(state, '&step=nomeasure');
   try {
     await button(panel, 'Edit').click();
     await dialog.waitFor();
     assert.equal(await dialog.locator('[data-measure-settings]').count(), 0);
-    await goTo(dialog, 'story:approve');
+    await goTo(dialog, 'terms');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     await saveFrom(dialog);
     await button(dialog, 'Close').last().click();

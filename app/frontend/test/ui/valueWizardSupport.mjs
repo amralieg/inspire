@@ -113,28 +113,49 @@ export const openWizard = async (page, card) => {
   return dialog;
 };
 export const next = (dialog) => dialog.getByRole('button', { name: 'Next', exact: true }).click();
-// Click Next until the wizard shows the page (scope:facts, scope:choice, filter, kinds, driver:<id>, economics:ramp, economics:cost, macro:offer, factors,
-// story:draft, story:params, story:approve). The Save page has no Next: reach it with saveFrom.
+// REQ-544: the dialog has 5 pages: data, kinds, driver:<id>, story, terms. The older page names still mark the sections inside them
+// (scope:facts, scope:choice and filter on Data; story:draft, story:params, economics:*, macro:*, factors on the Value story; save once saved),
+// so a test names the section it wants and goTo walks to its page, opens the folds around it, and picks the Filter card for 'filter'.
+const STORY_SECTIONS = ['story:draft', 'story:params', 'factors'];
+const pageOfSection = (page) => (page === 'scope:facts' || page === 'scope:choice' || page === 'filter' ? 'data'
+  : STORY_SECTIONS.includes(page) || page.startsWith('economics:') || page.startsWith('macro:') ? 'story'
+    : page === 'story:approve' || page === 'save' ? 'terms' : page);
+export const openFolds = (dialog, marker) => dialog.locator(`[data-wizard-page="${marker}"]`).first().evaluate((el) => {
+  for (let d = el.closest('details'); d; d = d.parentElement?.closest('details')) d.open = true;
+});
+// Click Next until the wizard shows the page, then open the folds around the section. The Terms page has no Next: reach it, then saveFrom.
 export async function goTo(dialog, page) {
-  // REQ-507: the Save page is reached through the approval (one PUT), so goTo 'save' walks to story:approve and approves.
-  if (page === 'save') { await goTo(dialog, 'story:approve'); await saveFrom(dialog); return; }
+  if (page === 'save') { await goTo(dialog, 'terms'); await saveFrom(dialog); return; }
+  const target = pageOfSection(page);
+  const marker = (m) => (m === 'story' ? 'story:draft' : m === 'data' ? 'scope:facts' : m);
   for (let i = 0; i < 24; i += 1) {
     // Settle first: while the case plan loads no page is shown, and a Next click then would skip the target. A plan error shows an alert instead of a page: stop there.
     await dialog.locator('[data-wizard-page], [role="alert"]').first().waitFor({ timeout: 15000 });
-    if (await dialog.locator(`[data-wizard-page="${page}"]`).count()) return;
-    if (!(await dialog.locator('[data-wizard-page]').count())) return;
+    if (await dialog.locator(`[data-wizard-page="${marker(target)}"]`).count()) {
+      if (page === 'filter' && !(await dialog.locator('[data-wizard-page="filter"]').count())) await dialog.locator('[data-scope-choice="filter"]').click();
+      await openFolds(dialog, page).catch(() => {});
+      if (target !== 'data' && target !== 'kinds') await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
+      return;
+    }
+    if (!(await dialog.locator('[data-wizard-page]').count())) { if (await dialog.locator('[role="alert"]').count()) return; continue; }
+    const prev = await dialog.locator('[data-wizard-page]').first().getAttribute('data-wizard-page');
     await next(dialog).catch(async (e) => {
       const at = await dialog.locator('[data-wizard-page]').evaluateAll((n) => n.map((x) => x.getAttribute('data-wizard-page')));
       throw new Error(`goTo ${page}: no Next button on page ${JSON.stringify(at)}: ${e.message.split('\n')[0]}`);
     });
+    // REQ-544: the Data page stays on screen while the case plan loads, so wait for the page to change (or a plan error) before the next click.
+    await dialog.page().waitForFunction((p) => {
+      const el = document.querySelector('[role=dialog] [data-wizard-page]');
+      return document.querySelector('[role=dialog] [role=alert]') || (el && el.getAttribute('data-wizard-page') !== p);
+    }, prev, { timeout: 15000 }).catch(() => {});
   }
   throw new Error(`wizard never reached ${page}`);
 }
-// REQ-507: on story:approve tick the terms and click "Approve story and save" (the one PUT); resolves when the Save page shows.
+// REQ-544: on the Terms page tick the terms and click "Accept and save" (the one PUT); resolves when the saved page shows.
 export async function saveFrom(dialog) {
-  await dialog.locator('[data-wizard-page="story:approve"]').waitFor({ timeout: 15000 });
-  await dialog.getByLabel('I have read and accept these terms').check();
-  await dialog.getByRole('button', { name: 'Approve story and save' }).click();
+  await dialog.locator('[data-wizard-page="terms"]').waitFor({ timeout: 15000 });
+  await dialog.locator('[data-value-accept]').check();
+  await dialog.getByRole('button', { name: 'Accept and save' }).click();
   await dialog.locator('[data-wizard-page="save"]').waitFor({ timeout: 15000 });
 }
 // Set a range input's value the way a drag does.

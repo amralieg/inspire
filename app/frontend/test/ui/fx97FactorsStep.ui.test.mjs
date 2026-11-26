@@ -63,10 +63,10 @@ test('X2: a cost-only plan has no factors step even when the plan lists factors'
     const seen = [];
     for (let i = 0; i < 24; i += 1) {
       seen.push(await dialog.locator('[data-wizard-page]').first().getAttribute('data-wizard-page'));
-      if (seen.at(-1) === 'story:approve') break;
+      if (seen.at(-1) === 'terms') break;
       await dialog.getByRole('button', { name: 'Next', exact: true }).click();
     }
-    assert.equal(seen.at(-1), 'story:approve', seen.join());
+    assert.equal(seen.at(-1), 'terms', seen.join());
     assert.ok(!seen.includes('factors'), seen.join());
   } finally { await ui.close(); }
 });

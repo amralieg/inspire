@@ -248,8 +248,8 @@ test('6: after a PUT answers succeeds, the card amount and the run total change 
     await card.getByRole('button', { name: 'Edit value' }).click();
     const dialog = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
     await dialog.waitFor();
-    // REQ-507: walk to the story approval, then the one PUT is "Approve story and save" (terms ticked first).
-    await goTo(dialog, 'story:approve');
+    // REQ-507: walk to the story approval, then the one PUT is "Accept and save" (terms ticked first).
+    await goTo(dialog, 'terms');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     await saveFrom(dialog);
     await page.waitForFunction(() => document.querySelector('[data-use-case-no="N01-U01"] [data-value-amount]')?.textContent.trim() === '$3M', null, { timeout: 15000 });

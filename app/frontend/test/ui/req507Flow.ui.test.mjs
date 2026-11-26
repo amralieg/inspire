@@ -1,4 +1,4 @@
-// REQ-507 L7: the redesigned wizard flow. 8 steps (Data, Filter, Kinds, Each value, Ramp and cost, Market data, Story, Save); the records found
+// REQ-507 L7: the redesigned wizard flow. 5 steps since REQ-544 (Data, Kinds, Each kind, Value story, Terms and accept); the records found
 // come first and no money shows before the Data step is done; the case plan is asked only after the Filter step, with the chosen scope;
 // "Credit" reads "Share caused by this use case"; the confidence is its own Low/Medium/High question, apart from the money.
 import test from 'node:test';
@@ -9,7 +9,7 @@ import { goTo507, mountReq507, routesOf, textOf } from './req507Support.mjs';
 
 test.after(closeBrowser);
 
-const STEPS = ['Data', 'Filter', 'Kinds', 'Each value', 'Ramp and cost', 'Market data', 'Story', 'Save'];
+const STEPS = ['Data', 'Kinds', 'Each kind', 'Value story', 'Terms and accept'];
 
 test('R507-F1: the wizard opens on the records found, asks the scope route first, not the case plan, and shows no money', async () => {
   const calls = [];
@@ -28,20 +28,17 @@ test('R507-F1: the wizard opens on the records found, asks the scope route first
   } finally { await ui.close(); }
 });
 
-test('R507-F2: All data, then Next through Filter, asks the case plan once with the chosen scope and currency', async () => {
+test('R507-F2: All data, then Next, asks the case plan once with the chosen scope and currency', async () => {
   const calls = [];
   const { ui, card, page } = await openCard(mountReq507({ calls }));
   try {
     const dialog = await openWizard(page, card);
     await dialog.locator('[data-wizard-page="scope:facts"]').waitFor({ timeout: 15000 });
-    await dialog.getByRole('button', { name: 'Next', exact: true }).click();
     await dialog.locator('[data-wizard-page="scope:choice"]').waitFor();
     await dialog.locator('[data-scope-choice="all"]').click();
     assert.equal(await dialog.locator('[data-scope-choice="all"]').getAttribute('aria-pressed'), 'true');
     assert.doesNotMatch(await textOf(dialog.locator('[data-wizard-body]')), /\$|USD/, 'no money on the scope choice');
-    await dialog.getByRole('button', { name: 'Next', exact: true }).click();
-    await dialog.locator('[data-wizard-page="filter"]').waitFor();
-    assert.ok(!routesOf(calls).includes('case-plan'), 'no case plan on the Filter step');
+    assert.ok(!routesOf(calls).includes('case-plan'), 'no case plan on the Data step');
     await dialog.getByRole('button', { name: 'Next', exact: true }).click();
     await dialog.locator('[data-wizard-page="kinds"]').waitFor({ timeout: 15000 });
     const plans = calls.filter((c) => c.route === 'case-plan');
@@ -75,19 +72,18 @@ test('R507-F3: "Share caused by this use case" replaces Credit, and confidence i
   } finally { await ui.close(); }
 });
 
-test('R507-F4: without economic factors the Market data step is skipped, and the saved answers carry scope, economics and confidence', async () => {
+test('R507-F4: without economic factors the Public market data fold is absent, and the saved answers carry scope, economics and confidence', async () => {
   const puts = [];
   const { ui, card, page } = await openCard(mountReq507({ puts }));
   try {
     const dialog = await openWizard(page, card);
     await goTo507(dialog, 'economics:cost');
     await dialog.getByRole('radiogroup', { name: 'How confident are you in this value?' }).getByRole('radio', { name: 'High' }).check();
-    await dialog.getByRole('button', { name: 'Next', exact: true }).click();
-    await dialog.locator('[data-wizard-page="story:draft"]').waitFor({ timeout: 15000 });
+    await goTo507(dialog, 'story:draft');
     assert.equal(await dialog.locator('[data-wizard-page="macro:offer"]').count(), 0);
-    await goTo507(dialog, 'story:approve');
+    await goTo507(dialog, 'terms');
     await dialog.getByLabel('I have read and accept these terms').check();
-    await dialog.getByRole('button', { name: 'Approve story and save' }).click();
+    await dialog.getByRole('button', { name: 'Accept and save' }).click();
     await dialog.locator('[data-wizard-page="save"]').waitFor({ timeout: 15000 });
     assert.equal(puts.length, 1);
     const a = puts[0].answers;

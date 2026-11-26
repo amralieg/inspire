@@ -67,7 +67,7 @@ test('Calculate opens the wizard, Save on its last step saves the answers on the
     await dialog.waitFor();
     await dialog.getByRole('list', { name: 'Steps' }).waitFor();
     assert.match(await dialog.innerText(), /value at stake/i);
-    // REQ-507: goTo 'save' ticks the terms and clicks "Approve story and save" (the one PUT).
+    // REQ-507: goTo 'save' ticks the terms and clicks "Accept and save" (the one PUT).
     await goTo(dialog, 'save');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     const line = card.locator('[data-value-yearly]');
@@ -99,10 +99,10 @@ test('a failed save shows its one line in the box, keeps the box open, and the c
     const card = list.locator('[data-use-case-row]').filter({ hasText: 'Predict churn' });
     await card.locator('[data-value-calculate]').click();
     const dialog = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
-    await goTo(dialog, 'story:approve');
+    await goTo(dialog, 'terms');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     await dialog.getByLabel('I have read and accept these terms').check();
-    await dialog.getByRole('button', { name: 'Approve story and save' }).click();
+    await dialog.getByRole('button', { name: 'Accept and save' }).click();
     await dialog.getByRole('alert').waitFor({ timeout: 15000 });
     assert.match(await dialog.getByRole('alert').innerText(), /no date column/);
     assert.equal(await card.locator('[data-value-yearly]').count(), 0);

@@ -1,4 +1,4 @@
-// REQ-496 (FX-95) on the REQ-507 8-step wizard: confirming the value needs the explicit accept (the tick, then "Approve story and save"),
+// REQ-496 (FX-95) on the REQ-507 8-step wizard: confirming the value needs the explicit accept (the tick, then "Accept and save"),
 // the full disclaimer is in view beside it, and a value saved without the accept (Calculate now) is a Provisional estimate.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,11 +9,11 @@ import disclaimer from '../../../backend/lib/valueDisclaimer.json' with { type: 
 
 test.after(closeBrowser);
 
-const approveBtn = (dialog) => dialog.getByRole('button', { name: 'Approve story and save' });
+const approveBtn = (dialog) => dialog.getByRole('button', { name: 'Accept and save' });
 const tick = (dialog) => dialog.getByRole('checkbox', { name: 'I have read and accept these terms' });
-const toApprove = async (dialog) => { await goTo507(dialog, 'story:approve'); await dialog.locator('[data-accept-terms]').waitFor({ timeout: 15000 }); };
+const toApprove = async (dialog) => { await goTo507(dialog, 'terms'); await dialog.locator('[data-accept-terms]').waitFor({ timeout: 15000 }); };
 
-test('A1: before the tick Approve story and save is disabled and a click sends nothing', async () => {
+test('A1: before the tick Accept and save is disabled and a click sends nothing', async () => {
   const puts = [];
   const { ui, card, page } = await openCard(mountReq507({ puts }));
   try {
@@ -90,6 +90,7 @@ test('A5: a value saved without the accept (Calculate now) is a Provisional esti
     const dialog = await openWizard(page, card);
     await toApprove(dialog);
     assert.equal(await tick(dialog).isChecked(), false);
+    await dialog.getByRole('button', { name: 'Back', exact: true }).click(); // REQ-544: Calculate now lives on steps 1-4
     await dialog.getByRole('button', { name: 'Calculate now', exact: true }).click();
     await dialog.locator('[data-wizard-page="save"]').waitFor({ timeout: 15000 });
     assert.equal(puts.length, 1);
@@ -106,7 +107,7 @@ test('A6: the full disclaimer is in view on the approval step at 1280x800 in a w
   try {
     await page.setViewportSize({ width: 1280, height: 800 });
     const dialog = await openWizard(page, card);
-    await goTo(dialog, 'story:approve');
+    await goTo(dialog, 'terms');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     const panel = dialog.locator('[data-accept-terms]');
     await panel.waitFor({ timeout: 15000 });

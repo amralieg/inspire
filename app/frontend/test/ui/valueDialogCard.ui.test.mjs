@@ -81,8 +81,8 @@ test('D23: the dialog and its buttons stay put at every step, and the counts fro
       if (!(await nextBtn.count())) break;
       await next(dialog);
     }
-    assert.deepEqual(boxes.map((b) => b.page), ['scope:facts', 'scope:choice', 'filter', 'kinds', 'driver:risk_avoided', 'driver:time_saved', 'driver:revenue_uplift',
-      'economics:ramp', 'economics:cost', 'story:draft', 'story:params', 'story:approve'], 'walked every step');
+    assert.deepEqual(boxes.map((b) => b.page), ['data', 'kinds', 'driver:risk_avoided', 'driver:time_saved', 'driver:revenue_uplift',
+      'story:draft', 'terms'], 'walked every step');
     for (const b of boxes) {
       assert.equal(b.y, boxes[0].y, `dialog top at ${b.page}: ${JSON.stringify(boxes)}`);
       assert.equal(b.h, boxes[0].h, `dialog height at ${b.page}`);

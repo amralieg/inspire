@@ -68,7 +68,7 @@ test('FX-51: a person Save of an out-of-range number is allowed and the dialog s
   const { ui, card, page } = await openCard(mount({ puts, check: false }));
   try {
     const dialog = await openWizard(page, card);
-    await goTo(dialog, 'save'); // REQ-507: the approval on story:approve is the one PUT
+    await goTo(dialog, 'save'); // REQ-507: the approval on terms is the one PUT
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     assert.equal(await dialog.locator('[data-value-range-note]').count(), 1);
     assert.match(await text(dialog.locator('[data-value-range-note]')), NOTE);

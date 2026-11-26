@@ -72,10 +72,10 @@ test('2: Edit opens the wizard over the MVP wizard; a stubbed Save updates the b
     await button(panel, 'Edit').click();
     const dialog = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
     await dialog.waitFor();
-    await goTo(dialog, 'story:approve');
+    await goTo(dialog, 'terms');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     await dialog.getByLabel('I have read and accept these terms').check();
-    await dialog.getByRole('button', { name: 'Approve story and save' }).click();
+    await dialog.getByRole('button', { name: 'Accept and save' }).click();
     await page.waitForFunction(() => document.querySelector('[data-mvp-value] [data-value-amount]')?.textContent.trim() === '$3M', null, { timeout: 15000 });
     assert.equal(state.puts.length, 1);
     assert.equal(await page.locator('[data-mvp-value]').count(), 1, 'still on the last step, no reload');

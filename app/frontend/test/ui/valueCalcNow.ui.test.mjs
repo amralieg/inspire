@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser } from './uiSupport.mjs';
-import { PLAN, openCard, openWizard } from './valueWizardSupport.mjs';
+import { PLAN, goTo, openCard, openWizard } from './valueWizardSupport.mjs';
 import { mountReq507, textOf } from './req507Support.mjs';
 
 test.after(closeBrowser);
@@ -24,9 +24,9 @@ async function goTo507(dialog, target) {
   throw new Error(`wizard never reached ${target}`);
 }
 const approve = async (dialog) => {
-  await goTo507(dialog, 'story:approve');
+  await goTo507(dialog, 'terms');
   await dialog.getByRole('checkbox', { name: 'I have read and accept these terms' }).check();
-  await dialog.getByRole('button', { name: 'Approve story and save' }).click();
+  await dialog.getByRole('button', { name: 'Accept and save' }).click();
   await dialog.locator('[data-wizard-page="save"]').waitFor({ timeout: 15000 });
 };
 
@@ -66,17 +66,19 @@ test('C2: on a kind page the number changed so far is the one sent', async () =>
   } finally { await ui.close(); }
 });
 
-test('C3: the Save step has no Calculate now button, and Approve story and save sends calculated true shown as Reviewed calculation', async () => {
+test('C3: the Save step has no Calculate now button, and Accept and save sends calculated true shown as Reviewed calculation', async () => {
   const puts = [];
   const { ui, card, page } = await openCard(mountReq507({ puts }));
   try {
     const dialog = await openWizard(page, card);
     await goTo507(dialog, 'kinds');
     assert.equal(await calcNow(dialog).count(), 1, 'Calculate now before the Save step');
-    await goTo507(dialog, 'story:approve');
+    await goTo507(dialog, 'story:draft');
     assert.equal(await calcNow(dialog).count(), 1, 'Calculate now on the last page before the Save step');
+    await goTo507(dialog, 'terms');
+    assert.equal(await calcNow(dialog).count(), 0, 'no Calculate now on the Terms step (REQ-544)');
     await dialog.getByRole('checkbox', { name: 'I have read and accept these terms' }).check();
-    await dialog.getByRole('button', { name: 'Approve story and save' }).click();
+    await dialog.getByRole('button', { name: 'Accept and save' }).click();
     await dialog.locator('[data-wizard-page="save"]').waitFor({ timeout: 15000 });
     assert.equal(await calcNow(dialog).count(), 0, 'no Calculate now on the Save step');
     assert.equal(puts.length, 1);
@@ -107,7 +109,7 @@ test('C5: after a confirmed save, Back and Calculate now with no change saves th
     await approve(dialog);
     assert.match(await textOf(dialog.locator('[data-save-total]')), /Reviewed calculation/);
     await dialog.getByRole('button', { name: 'Back', exact: true }).click();
-    await dialog.locator('[data-wizard-page="story:approve"]').waitFor({ timeout: 15000 });
+    await dialog.locator('[data-wizard-page="story:draft"]').waitFor({ timeout: 15000 });
     await calcNow(dialog).click();
     await dialog.locator('[data-wizard-page="save"]').waitFor({ timeout: 15000 });
     assert.equal(puts.length, 2);
@@ -122,7 +124,7 @@ test('C6: on the ramp page Calculate now sends the economics in the PUT', async 
   const { ui, card, page } = await openCard(mountReq507({ puts }));
   try {
     const dialog = await openWizard(page, card);
-    await goTo507(dialog, 'economics:ramp');
+    await goTo(dialog, 'economics:ramp'); // REQ-544: the ramp is a fold on the Value story page
     await dialog.getByRole('spinbutton', { name: 'Year 1 share captured (%)' }).fill('25');
     await calcNow(dialog).click();
     await dialog.locator('[data-wizard-page="save"]').waitFor({ timeout: 15000 });
@@ -138,7 +140,7 @@ test('C7: on the scope pages, before a plan exists, Calculate now is disabled an
   try {
     const dialog = await openWizard(page, card);
     for (const name of ['scope:facts', 'scope:choice', 'filter']) {
-      await goTo507(dialog, name);
+      await goTo(dialog, name); // REQ-544: all three are sections of the Data page
       assert.equal(await calcNow(dialog).count(), 1, `${name} shows the button`);
       assert.equal(await calcNow(dialog).isDisabled(), true, `${name} disabled`);
       assert.ok(((await calcNow(dialog).getAttribute('title')) || '').trim().length > 0, `${name} has a title that gives the reason`);
