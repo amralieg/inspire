@@ -265,6 +265,16 @@ function controlLogSelect(table, { sessionId, useCaseId, limit = 50 }) {
   };
 }
 
+// Every Stop of the session in one statement, so a page that checks many use cases reads the log once (c25_history). A run id or job id
+// belongs to one use case, so stoppedByRecord finds each row's own Stop in this list.
+function controlLogCancelsSelect(table, { sessionId, limit = 1000 }) {
+  return {
+    sql: `SELECT l.asset, l.asset_id, l.action, l.result, l.message, l.acted_by, date_format(l.acted_at, 'yyyy-MM-dd\\'T\\'HH:mm:ss.SSSXXX') AS acted_at FROM ${table} AS l `
+      + `WHERE l.session_id = :sid AND l.action = 'cancel' ORDER BY l.acted_at DESC LIMIT ${Math.max(1, Math.min(5000, Number(limit) || 1000))}`,
+    parameters: [{ name: 'sid', value: String(sessionId), type: 'BIGINT' }],
+  };
+}
+
 function controlLogOwnerSql(catalog, schema) {
   return {
     sql: `SELECT table_name, table_owner FROM \`${catalog}\`.information_schema.tables WHERE table_schema = lower(:schema) `
@@ -343,6 +353,7 @@ module.exports = {
   controlLogOwnerFix,
   controlLogOwnerSql,
   controlLogSelect,
+  controlLogCancelsSelect,
   controlLogTableName,
   controlPhrase,
   controlRequest,

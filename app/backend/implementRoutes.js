@@ -8,7 +8,7 @@ const { invokeChatModel, appChatModels } = require('./lib/modelAccess');
 const { mapLimit } = require('./lib/mapLimit');
 
 // REQ-323: how many history rows are enriched at once.
-const HISTORY_ROW_CONCURRENCY = 8;
+const HISTORY_ROW_CONCURRENCY = 25;
 const { runWithQueryTags, lookupWithRetry } = require('./lib/sqlStatements');
 const { genieNotebookJobName, latestGenieNotebookRun } = require('./lib/genieNotebookJob');
 const C = require('./lib/implementControl');
@@ -833,9 +833,10 @@ function registerImplementRoutes(app, deps) {
         return Object.assign(rows[0], { live_version: live ? live.spec_version : null, live_spec_json: live ? live.spec_json : null });
       });
       // REQ-323: the Jobs API reads run at most HISTORY_ROW_CONCURRENCY at a time; the run summary is one warehouse statement for all rows.
+      const stops = sessionStopsReader(req);
       const [notebook] = await Promise.all([
         latestGenieRunOf(req, sid).then((run) => ({ run, error: '' }), (err) => ({ run: null, error: err.message })),
-        mapLimit(latest, HISTORY_ROW_CONCURRENCY, async (row) => { row.stalled = await stalledOf(req, row); }),
+        mapLimit(latest, HISTORY_ROW_CONCURRENCY, async (row) => { row.stalled = await stalledOf(req, row, stops); }),
         latestRunsOf(req, warehouseId, latest, (id) => versionsByUc[id]),
       ]);
       res.json({ history, latest, notebook_run: notebook.run, notebook_run_error: notebook.error });
@@ -1618,25 +1619,37 @@ function registerImplementRoutes(app, deps) {
   }
 
   // REQ-231: who pressed Stop on this run, from the control log. A read that fails is no record, so the run reads as outside Inspire.
-  async function stoppedByOf(req, row, runId) {
+  // `stops` is an optional shared read of every Stop of the session (see sessionStopsReader), so a page of many rows reads the log once.
+  async function stoppedByOf(req, row, runId, stops = null) {
     const { catalog, schema } = dbOf(req, splitInspireDatabase);
     try {
-      const select = C.controlLogSelect(C.controlLogTableName(catalog, schema), { sessionId: sessionIdOf(req), useCaseId: row.use_case_id, limit: 200 });
-      return C.stoppedByRecord(await sqlRows(req.dbHost, req.dbToken, warehouseOf(req), select), { runId, jobId: row.job_id });
+      const rows = stops ? await stops()
+        : await sqlRows(req.dbHost, req.dbToken, warehouseOf(req), C.controlLogSelect(C.controlLogTableName(catalog, schema), { sessionId: sessionIdOf(req), useCaseId: row.use_case_id, limit: 200 }));
+      return C.stoppedByRecord(rows, { runId, jobId: row.job_id });
     } catch (err) {
       console.warn(`implement stop record read failed: ${err.message}`);
       return null;
     }
   }
 
-  async function stalledOf(req, row) {
+  // One warehouse read of the session's Stops, started by the first row that needs it and shared by the rest.
+  function sessionStopsReader(req) {
+    const { catalog, schema } = dbOf(req, splitInspireDatabase);
+    let read = null;
+    return () => {
+      if (!read) read = sqlRows(req.dbHost, req.dbToken, warehouseOf(req), C.controlLogCancelsSelect(C.controlLogTableName(catalog, schema), { sessionId: sessionIdOf(req) }));
+      return read;
+    };
+  }
+
+  async function stalledOf(req, row, stops = null) {
     if (!row || (!I.IMPLEMENT_ACTIVE_STATUSES.includes(row.status) && !I.implementEndedRecord(row))) return null;
     const runId = String(row.implement_run_id ?? '');
     const got = /^\d{1,19}$/.test(runId)
       ? await jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get?run_id=${runId}`).catch(() => null)
       : null;
     const runState = got && got.ok && got.data && got.data.state ? got.data.state : {};
-    const stopper = String(runState.result_state || '') === 'CANCELED' ? await stoppedByOf(req, row, runId) : null;
+    const stopper = String(runState.result_state || '') === 'CANCELED' ? await stoppedByOf(req, row, runId, stops) : null;
     const stalled = I.implementStalled(row, got && got.ok ? got.data : null, Date.now(), stopper);
     const { catalog, schema } = dbOf(req, splitInspireDatabase);
     const ended = I.implementRunEndedStatement(I.implementTableName(catalog, schema), { session_id: sessionIdOf(req), ...row }, stalled);
