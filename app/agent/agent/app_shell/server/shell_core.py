@@ -2363,7 +2363,17 @@ class Shell:
             ws.blocked = blocked_tables(self.settings)
             ws.token_digest = hashlib.sha256(token.encode()).hexdigest()
             return ws, f"user:{who}"
+        self.refuse_sp_on_protected()
         return self.service(), "sp"
+
+    def refuse_sp_on_protected(self) -> None:
+        # SEC-06: the service principal sees what the tables' row filters and column masks hide from a person, so a read that would
+        # run as it is refused while the App lists protected tables; only the person's own token reads them.
+        protected = self.settings.get("protected")
+        if protected:
+            named = ", ".join(sorted(protected))
+            raise HttpError(403, f"This App reads {named}, which limit the rows or columns each person may see, so it reads them only "
+                            "as the signed-in person. Open it as a per-user App.")
 
     def viewer_of(self, ws) -> str:
         digest = getattr(ws, "token_digest", "")
@@ -5220,6 +5230,7 @@ class Shell:
         return out
 
     def overlay_rows(self, table: str, columns: list, column: str, values: list) -> list:
+        self.refuse_sp_on_protected()
         sql, params = shell_pg.overlay_query(table, columns, column, values, self.sources.get(table, ""))
         result = self.execute(self.service(), sql, params, shell_pg.OVERLAY_ROWS, delta=True)
         if result.get("truncated"):
