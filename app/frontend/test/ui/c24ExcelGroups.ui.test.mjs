@@ -104,7 +104,7 @@ test('(c)(d) the generated xlsx has only the ticked columns and the ID cell link
     assert.deepEqual(rows[0], want, 'exactly the ticked columns, in the existing order');
     assert.ok(!want.some((l) => off.columns.map((id) => EXCEL_COLUMNS.find((c) => c.id === id).label).includes(l)));
     const xml = await sheetXml(save.content_base64);
-    assert.match(xml, /HYPERLINK\(&quot;[^"]*#\/review\/42\/N01-U01&quot;/, 'row 1 ID cell links to #/review/<run>/<use case id>');
+    assert.match(xml, /HYPERLINK\("[^"]*#\/review\/42\/N01-U01"/, 'row 1 ID cell links to #/review/<run>/<use case id>');
   } finally { await ui.close(); }
 });
 
@@ -117,8 +117,8 @@ test('(d) buildXlsx: the ID cell of every row is a hyperlink to that use case, t
   const blob = await buildXlsx(model, ['id', 'name']);
   const buf = Buffer.from(await blob.arrayBuffer());
   const xml = await sheetXml(buf.toString('base64'));
-  assert.match(xml, /HYPERLINK\(&quot;https:\/\/app\.example\.com\/#\/review\/42\/N01-U01&quot;/);
-  assert.match(xml, /HYPERLINK\(&quot;https:\/\/app\.example\.com\/#\/review\/42\/N02-U01&quot;/);
+  assert.match(xml, /HYPERLINK\("https:\/\/app\.example\.com\/#\/review\/42\/N01-U01"/);
+  assert.match(xml, /HYPERLINK\("https:\/\/app\.example\.com\/#\/review\/42\/N02-U01"/);
   const rows = (await readXlsx(buf))[0].data;
   assert.deepEqual(rows[0], ['ID', 'Use case']);
   const plain = Buffer.from(await (await buildXlsx({ ...model, appUrl: '' }, ['id', 'name'])).arrayBuffer());

@@ -9,7 +9,17 @@ const projectionText = (u) => (u.value?.yearly || []).map((y) => `Y${y.year}: ${
 
 const lines = (items) => text((items || []).join('\n'));
 
+// C24 (REQ-465): where the App opens one use case (#/review/<run>/<id>, as hashLink reads it); empty when the App address or the run is unknown.
+const useCaseLink = (m, u) => (m.appUrl && m.sessionId && u.id ? `${String(m.appUrl).replace(/\/+$/, '')}/#/review/${encodeURIComponent(m.sessionId)}/${encodeURIComponent(u.id)}` : '');
+const quote = (v) => String(v).replace(/"/g, '""');
+// The ID is a HYPERLINK formula: the sheet writer has no link cell, the cell XML takes the formula without its leading equals sign, and Excel and Sheets draw the formula as a link.
+const idCell = (m, u) => {
+  const link = useCaseLink(m, u);
+  return link ? { value: `HYPERLINK("${quote(link)}","${quote(u.id)}")`, type: 'Formula', color: '#0B57D0', align: 'left', alignVertical: 'top' } : text(u.id);
+};
+
 const CELL = {
+  id: (u) => text(u.id), // replaced by idCell in buildXlsx, which knows the model
   name: (u) => text(u.name),
   inspire_score: (u) => num(u.score),
   value: (u) => num(u.value ? u.value.amount : null),
@@ -32,6 +42,6 @@ export async function buildXlsx(model, columnIds, theme = null) {
   const cols = (columnIds || []).filter((id) => CELL[id]);
   const label = (id) => EXCEL_COLUMNS.find((c) => c.id === id)?.label || id;
   const header = cols.map((id) => ({ value: label(id), fontWeight: 'bold', backgroundColor: theme?.headFill || '#1B3139', color: '#FFFFFF' }));
-  const rows = model.useCases.map((u) => cols.map((id) => CELL[id](u)));
+  const rows = model.useCases.map((u) => cols.map((id) => (id === 'id' ? idCell(model, u) : CELL[id](u))));
   return writeXlsxFile([header, ...rows], { columns: cols.map((id) => ({ width: WIDTH[id] || 16 })) }).toBlob();
 }

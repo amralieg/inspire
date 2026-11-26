@@ -5,6 +5,7 @@ import { infographicSvg, briefPagesSvg } from './docgen/docSvg.js';
 import { resolveTheme } from './docgen/docStyles.js';
 import { trackingIdOf } from './useCaseFields.js';
 import { summaryOf } from './docgen/docModel.js';
+import { orderedColumns } from './docgen/docOptions.js';
 import { labelTexts, labelsFrom } from './docgen/docLabels.js';
 
 const toBytes = async (v) => (v instanceof Blob ? new Uint8Array(await v.arrayBuffer()) : v instanceof ArrayBuffer ? new Uint8Array(v) : v);
@@ -75,7 +76,7 @@ async function makeFile(file, m, theme, options) {
   }
   if (file.kind === 'pptx') { const { buildPptx } = await import('./docgen/pptxDoc.js'); return buildPptx(m, theme); }
   const { buildXlsx } = await import('./docgen/xlsxDoc.js');
-  return toBytes(await buildXlsx(m, options.columns, theme));
+  return toBytes(await buildXlsx(m, orderedColumns(options.columns), theme));
 }
 
 // onFile(name, state, message): state is working, done, failed or stopped. Returns the saved paths.
@@ -103,6 +104,8 @@ export async function generateDocs({ plan, options, useCases, values, businessNa
       onFile(file.name, 'working');
       try {
         const m = modelFor({ businessName, useCases, values, options, language, ids: file.useCaseIds, translated, summary });
+        m.sessionId = String(sessionId ?? '');
+        m.appUrl = typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}`.replace(/\/+$/, '') : '';
         const bytes = await toBytes(await makeFile(file, m, theme, options));
         await post('/api/inspire/docs/save', { ...where, folder, name: file.name, content_base64: toBase64(bytes), use_case_ids: file.useCaseIds });
         saved.push(`${folder}/${file.name}`);

@@ -59,7 +59,7 @@ test('options: the 4 kinds, the content blocks and Excel columns from the wirefr
   assert.deepEqual(d.languages, ['Arabic']);
   for (const id of ['use_case_story', 'value_story', 'value_projection', 'disclaimer']) assert.ok(d.blocks.includes(id), id);
   assert.ok(!d.blocks.includes('sql'));
-  assert.deepEqual(d.columns.slice(0, 3), ['name', 'inspire_score', 'value']);
+  assert.deepEqual(d.columns.slice(0, 4), ['id', 'name', 'inspire_score', 'value']);
 });
 
 test('planFiles: one file for all vs one per use case, one set per language, safe unique names', () => {

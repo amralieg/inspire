@@ -1,5 +1,5 @@
 import { Check, FileSpreadsheet, FileText, Globe, Image as ImageIcon, Plus, Presentation, Sparkles, X } from 'lucide-react';
-import { CONTENT_BLOCKS, EXCEL_COLUMNS } from '../lib/docgen/docOptions.js';
+import { CONTENT_BLOCKS, EXCEL_COLUMNS, EXCEL_GROUPS, orderedColumns } from '../lib/docgen/docOptions.js';
 import { DOC_PALETTES, DOC_STYLES, DOC_THEMES, resolveTheme } from '../lib/docgen/docStyles.js';
 import { DOCUMENT_LANGUAGE_CHOICES } from '../constants/documentLanguages.js';
 import { plural } from '../lib/plural.js';
@@ -161,15 +161,34 @@ export function StylePage({ options, set, svg, thumbs = {} }) {
   );
 }
 
+// C24 (REQ-503): the columns by group. A group tick is all / some (mixed) / none; a column tick sits under it.
 export function ColumnsPage({ options, set }) {
+  const label = Object.fromEntries(EXCEL_COLUMNS.map((c) => [c.id, c.label]));
+  const pick = (columns) => set({ columns: orderedColumns(columns) });
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-      {EXCEL_COLUMNS.map((c) => {
-        const on = options.columns.includes(c.id);
+    <div className="space-y-3">
+      {EXCEL_GROUPS.map((g) => {
+        const n = g.columns.filter((id) => options.columns.includes(id)).length;
+        const state = n === 0 ? 'false' : n === g.columns.length ? 'true' : 'mixed';
+        const rest = options.columns.filter((id) => !g.columns.includes(id));
         return (
-          <button key={c.id} type="button" role="checkbox" aria-checked={on} data-doc-column={c.id} onClick={() => set({ columns: toggle(options.columns, c.id) })} className={`${card(on)} flex items-center gap-2 py-2`}>
-            <span className={tick(on)} aria-hidden /><span className="text-sm font-semibold text-text-primary">{c.label}</span>
-          </button>
+          <div key={g.id} data-doc-group-box={g.id} className="space-y-1.5">
+            <button type="button" role="checkbox" aria-checked={state} data-doc-group={g.id} onClick={() => pick(state === 'true' ? rest : [...rest, ...g.columns])} className="flex items-center gap-2 text-start">
+              <span className={tick(state !== 'false')} aria-hidden>{state === 'mixed' && <span className="block h-0.5 w-2.5 translate-y-[6px] bg-white mx-auto" />}</span>
+              <span className="text-sm font-bold text-text-primary">{g.label}</span>
+              <span className="text-xs text-text-secondary">{n} of {g.columns.length}</span>
+            </button>
+            <div className="grid grid-cols-2 gap-2 ps-6 sm:grid-cols-3">
+              {g.columns.map((id) => {
+                const on = options.columns.includes(id);
+                return (
+                  <button key={id} type="button" role="checkbox" aria-checked={on} data-doc-column={id} onClick={() => pick(toggle(options.columns, id))} className={`${card(on)} flex items-center gap-2 py-2`}>
+                    <span className={tick(on)} aria-hidden /><span className="text-sm font-semibold text-text-primary">{label[id]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         );
       })}
     </div>

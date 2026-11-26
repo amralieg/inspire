@@ -18,33 +18,24 @@ export const CONTENT_BLOCKS = [
   { id: 'disclaimer', label: 'Disclaimer', hint: 'Estimates are AI-generated' },
 ];
 
-export const EXCEL_COLUMNS = [
-  { id: 'name', label: 'Use case' },
-  { id: 'inspire_score', label: 'Inspire score' },
-  { id: 'value', label: 'Value' },
-  { id: 'value_status', label: 'Value status' },
-  { id: 'domain', label: 'Domain' },
-  { id: 'statement', label: 'Statement' },
-  { id: 'use_case_story', label: 'Use case story' },
-  { id: 'value_story', label: 'Value story' },
-  { id: 'projection', label: 'Projection' },
-  { id: 'tables', label: 'Tables' },
-  // C23: the detail columns the agent Excel had.
-  { id: 'business_value', label: 'Business value' },
-  { id: 'sponsor', label: 'Sponsor' },
-  { id: 'beneficiary', label: 'Beneficiary' },
-  { id: 'technique', label: 'Technique' },
-  { id: 'design', label: 'Technical design' },
-  { id: 'type', label: 'Type' },
-  { id: 'priority_alignment', label: 'Priority alignment' },
-  { id: 'strategic_alignment', label: 'Strategic alignment' },
-  { id: 'kpis', label: 'KPIs' },
-  { id: 'key_results', label: 'Expected key results' },
-  { id: 'measures', label: 'Measures of success' },
-  { id: 'financial', label: 'Financial benefits' },
-  { id: 'non_financial', label: 'Non-financial benefits' },
-  { id: 'foundations', label: 'Foundations' },
+// C24 (REQ-503): each column belongs to exactly one group; the Excel step shows a group tick over its column ticks.
+const COLUMN_GROUPS = [
+  { id: 'identity', label: 'Identity', columns: [['id', 'ID'], ['name', 'Use case'], ['domain', 'Domain'], ['type', 'Type']] },
+  { id: 'business', label: 'Business', columns: [['statement', 'Statement'], ['use_case_story', 'Use case story'], ['business_value', 'Business value'], ['sponsor', 'Sponsor'],
+    ['beneficiary', 'Beneficiary'], ['priority_alignment', 'Priority alignment'], ['strategic_alignment', 'Strategic alignment']] },
+  { id: 'value', label: 'Value', columns: [['inspire_score', 'Inspire score'], ['value', 'Value'], ['value_status', 'Value status'], ['value_story', 'Value story'],
+    ['projection', 'Projection'], ['financial', 'Financial benefits'], ['non_financial', 'Non-financial benefits']] },
+  { id: 'data', label: 'Data', columns: [['tables', 'Tables'], ['technique', 'Technique'], ['foundations', 'Foundations']] },
+  { id: 'delivery', label: 'Delivery', columns: [['design', 'Technical design'], ['kpis', 'KPIs'], ['key_results', 'Expected key results'], ['measures', 'Measures of success']] },
 ];
+// The flat list in the sheet order (the order the Excel had before the groups); each column names its group.
+const LEGACY_ORDER = ['id', 'name', 'inspire_score', 'value', 'value_status', 'domain', 'statement', 'use_case_story', 'value_story', 'projection', 'tables', 'business_value', 'sponsor',
+  'beneficiary', 'technique', 'design', 'type', 'priority_alignment', 'strategic_alignment', 'kpis', 'key_results', 'measures', 'financial', 'non_financial', 'foundations'];
+const BY_ID = Object.fromEntries(COLUMN_GROUPS.flatMap((g) => g.columns.map(([id, label]) => [id, { id, label, group: g.id }])));
+export const EXCEL_COLUMNS = LEGACY_ORDER.map((id) => BY_ID[id]);
+export const EXCEL_GROUPS = COLUMN_GROUPS.map((g) => ({ id: g.id, label: g.label, columns: EXCEL_COLUMNS.filter((c) => c.group === g.id).map((c) => c.id) }));
+// The ticked columns in the sheet order (an unknown id is dropped).
+export const orderedColumns = (ids) => EXCEL_COLUMNS.map((c) => c.id).filter((id) => (ids || []).includes(id));
 
 export function defaultDocOptions(language = 'English') {
   return {
@@ -52,7 +43,7 @@ export function defaultDocOptions(language = 'English') {
     layout: 'one',
     languages: [language],
     blocks: ['use_case_story', 'value_story', 'value_projection', 'inspire_score', 'data_used', 'disclaimer'],
-    columns: ['name', 'inspire_score', 'value', 'value_status', 'domain', 'statement', 'use_case_story', 'business_value', 'sponsor', 'beneficiary', 'technique', 'design', 'kpis', 'key_results', 'tables'],
+    columns: orderedColumns(['id', 'name', 'inspire_score', 'value', 'value_status', 'domain', 'statement', 'use_case_story', 'business_value', 'sponsor', 'beneficiary', 'technique', 'design', 'kpis', 'key_results', 'tables']),
     style: 'original', // REQ-526: the four designs come first; the original is the default
     palette: 'databricks',
     customColor: '',
