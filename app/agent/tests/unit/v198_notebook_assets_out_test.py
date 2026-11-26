@@ -27,7 +27,9 @@ RETIRED_KEYS = ("doc_name_using_technique",)
 FROZEN_KEYS_FIXTURE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fixtures", "translation_frozen_keys.json")
 FROZEN_KEYS = tuple(k for k in json.load(open(FROZEN_KEYS_FIXTURE, encoding="utf-8"))["keys"]
                     if k not in COUNT_NOTICE_KEYS and k not in RETIRED_KEYS)
-FROZEN_TRANSLATIONS_SHA256 = "4c86c8c31667ef5460e6ad0cf6c6320fbaf6dd53beee6644f19e6dfc0ac76e71"
+# REQ-529 renamed the visible "Genie Code" to "Databricks AI" in every language (155 frozen strings, each now names Databricks AI,
+# placeholders unchanged), so the frozen text is re-pinned to that rename.
+FROZEN_TRANSLATIONS_SHA256 = "df22d87ff10f3bdd7e0e197d46a3659ccc1e827b6c562fe8a89b2ea699004660"
 IMPORT_BYTES_CAP = 8_000_000
 
 
