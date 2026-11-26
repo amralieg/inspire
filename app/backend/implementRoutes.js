@@ -2602,16 +2602,18 @@ function registerImplementRoutes(app, deps) {
     await refuseMetricView(req, warehouseId, table);
     const columns = GP.scopedColumns(await I.readPickedTable(table, () => sqlRows(req.dbHost, req.dbToken, warehouseId, I.columnsStatement(table))), scopes, table);
     const dateColumn = VY.dateColumnOf(columns);
-    if (!dateColumn) throw I.badRequest(VY.noDateReason(table, columns, 'scale the sample'), 422);
-    const textDate = VY.isTextDate(columns, dateColumn);
-    const made = GP.moneyYearlySampleSql(table, money.value, dateColumn, scopes, answers.lost_filter ?? null, textDate);
+    // c25_nodate (RC7-B-03 class): no date column, or a text date where no value parses, is no dead end: the period the person gave or one assumed year scales the sample.
+    const period = VY.periodOf(req.body?.period_days);
+    const textDate = dateColumn ? VY.isTextDate(columns, dateColumn) : false;
+    const made = GP.moneyYearlySampleSql(table, money.value, dateColumn, scopes, answers.lost_filter ?? null, textDate, period.days);
     if (!made) throw I.badRequest('Name the value: a fixed amount, one column, or an equation over the table columns, with one currency.');
     const found = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters, { rowLimit: 100, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }));
     const entries = found.map((r) => ({ kind: 'money', unit: String(r.currency ?? ''), amount: Number(r.stake) })).filter((e) => e.unit && e.amount > 0);
     const basis = found[0] || {};
-    // RC6-B-08: a date kept as text where no value parses gives no days: the clean skip, not a SQL error or a wrong number.
-    if (textDate && found.length && !(Number(basis.days) > 0)) throw I.badRequest(VY.noDateReason(table, columns, 'scale the sample'), 422);
-    const yearly = VY.yearlyOf({ entries, sampled: basis.sampled, eligible: basis.eligible, days: basis.days, kpi: answers.kpi, rule: money.rule });
+    // RC6-B-08: a date kept as text where no value parses gives no days: the period scales the sample, never a SQL error or a wrong number.
+    const unscaled = !dateColumn || (textDate && found.length && !(Number(basis.days) > 0));
+    const read = VY.yearlyOf({ entries, sampled: basis.sampled, eligible: basis.eligible, days: unscaled ? period.days : basis.days, kpi: answers.kpi, rule: money.rule });
+    const yearly = read && unscaled ? { ...read, period_days: period.days, period_assumed: period.assumed } : read;
     if (!yearly) throw I.badRequest(`Inspire read a sample of ${table} and found no record that counts toward the value, so it shows no number.`, 422);
     const units = [...new Set(yearly.entries.map((e) => e.unit))];
     if (driven) {
@@ -2786,8 +2788,7 @@ function registerImplementRoutes(app, deps) {
       const columns = GP.scopedColumns(await I.readPickedTable(table, () => sqlRows(req.dbHost, req.dbToken, warehouseId, I.columnsStatement(table))), scopes, table);
       const dateColumn = VY.dateColumnOf(columns);
       // RC7-B-03: no date column is no dead end: the period the person gave (period_days) or one assumed year scales the counts, and the plan says which.
-      const given = Math.round(Number(req.body?.period_days));
-      const period = dateColumn ? null : { days: given > 0 && given <= 36500 ? given : VY.ASSUMED_DAYS, assumed: !(given > 0 && given <= 36500) };
+      let period = dateColumn ? null : VY.periodOf(req.body?.period_days);
       const textDate = dateColumn ? VY.isTextDate(columns, dateColumn) : false;
       const dated = dateColumn ? { date_column: dateColumn, ...(textDate ? { date_text: true } : {}) } : { date_column: '', period_days: period.days, period_assumed: period.assumed };
       const useCase = await planUseCaseOf(req, warehouseId, useCaseId);
@@ -2822,9 +2823,9 @@ function registerImplementRoutes(app, deps) {
           const countSql = VCP.currentCountSql(GP, scopes, { ...plan, table, ...dated });
           population = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, countSql.sql, countSql.parameters, { rowLimit: 1, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }))[0] || {};
         }
+        // RC6-B-08 / c25_nodate: a date kept as text where no value parses gives no days: the period scales the counts, and the plan says which.
+        if (!period && textDate && population.records !== undefined && !(Number(population.days) > 0)) period = VY.periodOf(req.body?.period_days);
         if (period) population = { ...population, days: period.days };
-        // RC6-B-08: a date kept as text where no value parses: the count answers with no days. The clean skip that names the table and the columns checked.
-        if (textDate && population.records !== undefined && !(Number(population.days) > 0)) throw I.badRequest(VY.noDateReason(table, columns, 'scale the counts'), 422);
         read = { key: readKey, counted: VCP.groupsFrom(rows, plan, population) };
         return { plan, counted: read.counted };
       };
@@ -2852,7 +2853,7 @@ function registerImplementRoutes(app, deps) {
         valueCheck = !review.approved || outsideRange(final, range) ? { amount: final, low: range.low, high: range.high } : null;
       }
       const anchored = anchor ? { likely_value: { amount: anchor.typical, currency: currencyOf(req.body?.currency), reason: anchor.reason }, economic_trend: anchor.economic_trend, economic_factors: anchor.economic_factors || [] } : {};
-      return res.json({ plan: { ...plan, ...anchored, ...(review ? { review } : {}), table, ...dated, days: counted.days, groups: counted.groups, use_case_id: useCaseId, basis: VCP.PLAN_BASIS, ...(valueCheck ? { value_check: valueCheck } : {}) } });
+      return res.json({ plan: { ...plan, ...anchored, ...(review ? { review } : {}), table, ...dated, ...(dateColumn && period ? { period_days: period.days, period_assumed: period.assumed } : {}), days: counted.days, groups: counted.groups, use_case_id: useCaseId, basis: VCP.PLAN_BASIS, ...(valueCheck ? { value_check: valueCheck } : {}) } });
     } catch (err) {
       return sendError(res, estimateFailure(err, table));
     }

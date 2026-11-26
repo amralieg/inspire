@@ -75,7 +75,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
         if (!got?.facts) throw new Error('Inspire could not read the data for this use case.');
         setFactsState({ status: 'ready', facts: got.facts, error: '' });
       })
-      .catch((err) => { if (live) setFactsState({ status: 'error', facts: null, error: messageOf(err) }); });
+      .catch((err) => { if (live) setFactsState({ status: 'error', facts: null, error: messageOf(err), final: isDeterministicFailure(err) }); });
     return () => { live = false; };
   }, [factsTry]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -258,7 +258,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
         return (
           <div className="space-y-3 py-6 text-center">
             <PlainMessage text={factsState.error} role="alert" dir="auto" className="rounded-md border border-error/30 bg-error-bg px-3 py-2 text-[12px] text-error-fg" />
-            <button type="button" className={btn} onClick={() => setFactsTry((n) => n + 1)}>{VALUE_LABELS.retry}</button>
+            {!factsState.final && <button type="button" className={btn} onClick={() => setFactsTry((n) => n + 1)}>{VALUE_LABELS.retry}</button>}
           </div>
         );
       }

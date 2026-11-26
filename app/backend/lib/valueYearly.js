@@ -68,10 +68,17 @@ function dateColumnOf(columns) {
 const isTextDate = (columns, name) => (columns || []).some((c) => String(c.column_name) === String(name) && /^string/i.test(String(c.data_type || '')));
 const dateRead = (quoted, text) => (text ? `TRY_CAST(${quoted} AS TIMESTAMP)` : quoted);
 
+// c25_nodate: the span to scale to a year when the table gives no usable date: the period the person gave (1..36500 days), else one assumed year.
+function periodOf(given) {
+  const days = Math.round(Number(given));
+  const ok = days > 0 && days <= 36500;
+  return { days: ok ? days : ASSUMED_DAYS, assumed: !ok };
+}
+
 // The reason a table is skipped for a year-scaled value: its name and the columns that were checked.
 function noDateReason(table, columns, doing) {
   const names = (columns || []).map((c) => String(c.column_name)).slice(0, 12);
   return `${table || 'The table'} has no date column to ${doing} to a year (columns checked: ${names.length ? names.join(', ') : 'none'}), so Inspire cannot work out a value per year.`;
 }
 
-module.exports = { PERIOD, ASSUMED_DAYS, extrapolate, valueVerb, yearlyOf, dateColumnOf, dateColumnsOf, isTextDate, dateRead, noDateReason };
+module.exports = { PERIOD, ASSUMED_DAYS, extrapolate, valueVerb, yearlyOf, dateColumnOf, dateColumnsOf, isTextDate, dateRead, noDateReason, periodOf };
