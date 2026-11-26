@@ -65,38 +65,46 @@ test('W2: on a kind page a slider moves the number box, one preview follows the 
   } finally { await ui.close(); }
 });
 
-test('W3: the save page has the total above a row of five tiles, unticking a tile previews without it, and one editor opens under the grid', async () => {
+test('W3: unticking a kind on the Kinds page previews without it, and the Terms page lists the ticked kinds with the total above and no tiles or editor', async () => {
   const previews = [];
   const { ui, card, page } = await openCard(mountWizard({ previews }));
   try {
     await page.setViewportSize({ width: 1280, height: 800 });
     const dialog = await openWizard(page, card);
     await goTo(dialog, 'terms');
-    await saveFrom(dialog);
-    const total = dialog.locator('[data-save-total]');
-    const tiles = dialog.locator('[data-tile]');
-    assert.equal(await tiles.count(), 5);
-    const t = await total.boundingBox();
-    const boxes = [];
-    for (let i = 0; i < 5; i += 1) boxes.push(await tiles.nth(i).boundingBox());
-    assert.ok(t.y + t.height <= boxes[0].y + 1, 'total is above the grid');
-    assert.ok(boxes.every((b) => Math.abs(b.y - boxes[0].y) <= 1), 'five tiles in one row');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-    const before = await text(total);
+    const before = await text(dialog.locator('[data-save-total]'));
+    await dialog.getByRole('button', { name: 'Back', exact: true }).click();
+    for (let i = 0; i < 6 && !(await dialog.locator('[data-wizard-page="kinds"]').count()); i += 1) {
+      await dialog.getByRole('button', { name: 'Back', exact: true }).click();
+      await sleep(200);
+    }
+    await dialog.locator('[data-wizard-page="kinds"]').waitFor({ timeout: 15000 });
+    await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     previews.length = 0;
-    await tiles.nth(0).locator('input[type=checkbox]').uncheck();
+    await dialog.getByLabel('Include Losses avoided').uncheck();
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     await sleep(400);
-    assert.equal(previews.length, 1);
+    assert.equal(previews.length, 1, 'one preview for one untick');
     assert.equal(previews[0].answers.drivers.risk_avoided.on, false);
-    assert.notEqual(await text(total), before);
-    await tiles.nth(1).getByRole('button', { name: 'Edit numbers' }).click();
-    await tiles.nth(2).getByRole('button', { name: 'Edit numbers' }).click();
-    assert.equal(await dialog.locator('[data-editor]').count(), 1, 'one editor at a time');
-    const e = await dialog.locator('[data-editor]').boundingBox();
-    const grid = await tiles.nth(0).boundingBox();
-    assert.ok(e.y >= grid.y + grid.height - 1, 'the editor sits under the grid');
-    assert.equal(await dialog.locator('[data-editor] input[type=range]').count() > 0, true);
+    await goTo(dialog, 'terms');
+    const total = dialog.locator('[data-save-total]');
+    const summary = dialog.locator('[data-accept-summary]');
+    assert.notEqual(await text(total), before, 'the total changed');
+    const t = await total.boundingBox();
+    const s = await summary.boundingBox();
+    assert.ok(t.y + t.height <= s.y + 1, 'total is above the summary');
+    const rows = summary.locator('[data-kind-amount-row]');
+    const ids = await rows.evaluateAll((n) => n.map((x) => x.getAttribute('data-kind-amount-row')));
+    assert.ok(ids.length > 0 && !ids.includes('risk_avoided'), `one row per ticked kind, risk_avoided absent: ${ids}`);
+    for (const row of await rows.all()) assert.match(await text(row), /\$[\d.,]+\w* a year/);
+    assert.equal(await summary.locator('input[type=checkbox]').count(), 0, 'no checkbox in the summary');
+    assert.equal(await summary.locator('[data-editor]').count(), 0, 'no editor in the summary');
+    assert.equal(await dialog.locator('input[type=checkbox]:not([data-value-accept])').count(), 1, 'the only other checkbox is the include-in-docs tick, no kind tick');
+    assert.equal(await dialog.getByLabel('Include this story in generated docs').count(), 1);
+    assert.equal(await dialog.locator('[data-value-accept]').count(), 1);
+    assert.equal(await dialog.locator('[data-tile]').count(), 0, 'no tiles on the terms page');
+    assert.equal(await dialog.locator('[data-editor]').count(), 0, 'no editor on the terms page');
   } finally { await ui.close(); }
 });
 

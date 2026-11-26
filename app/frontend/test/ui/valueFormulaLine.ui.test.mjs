@@ -97,13 +97,13 @@ test('F5: each input shows its business-words help, and a data input shows its h
   } finally { await ui.close(); }
 });
 
-test('F6: the Save page editor shows the same formula line for the opened driver', async () => {
+test('F6: the Each-kind page for time saved shows the formula line built from its inputs', async () => {
   const { ui, card, page } = await openCard(mount(SAVED, []));
   try {
     const dialog = await openWizard(page, card);
-    await goTo(dialog, 'save');
-    await dialog.getByRole('button', { name: 'Edit numbers' }).first().click();
-    await dialog.locator('[data-editor="time_saved"] [data-formula-line]').waitFor({ timeout: 15000 });
-    assert.match(await text(dialog.locator('[data-editor="time_saved"] [data-formula-line]')), /1\.8 hours saved × \$104 an hour/);
+    await goTo(dialog, 'driver:time_saved');
+    const line = dialog.locator('[data-wizard-page="driver:time_saved"] [data-formula-line]');
+    await line.waitFor({ timeout: 15000 });
+    assert.match(await text(line), /1\.8 hours saved × \$104 an hour/);
   } finally { await ui.close(); }
 });
