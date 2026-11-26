@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { reducedMotion } from './theme.js';
-import { TOUR_WAIT_MS, fillTourText, holeOf, pickTourLanguage, placeTour, tourSection } from './tour.js';
+import { TOUR_WAIT_MS, capStops, fillTourText, holeOf, pickTourLanguage, placeTour, tourSection } from './tour.js';
 import { parseHash } from './links.js';
 import './styles/tour.css';
 
@@ -23,7 +23,7 @@ function inView(rect, view) {
 
 export default function Tour({ tour, help = null, facts, queue, section, onSection, onEnd }) {
   const language = useMemo(() => pickTourLanguage(tour?.languages, navigator.languages || [navigator.language]), [tour]);
-  const steps = useMemo(() => (help ? help.steps : (language?.steps || []).map((s) => ({ ...s, text: fillTourText(s.text, facts) }))).filter((s) => s.title).slice(0, help ? Infinity : TOUR_MAX_STOPS),
+  const steps = useMemo(() => capStops((help ? help.steps : (language?.steps || []).map((s) => ({ ...s, text: fillTourText(s.text, facts) }))).filter((s) => s.title), help ? Infinity : TOUR_MAX_STOPS),
     [help, language, facts]);
   const [at, setAt] = useState(0);
   const [way, setWay] = useState(1);

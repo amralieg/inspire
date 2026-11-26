@@ -5,6 +5,17 @@ export const TOUR_WAIT_MS = 4000;
 const SENTENCE = /[^]*?(?:[.!?](?=\s|$)|[。！？؟।]|$)\s*/gu;
 const TOKEN = /\{([^{}]*)\}/g;
 
+export const TOUR_KEEP = ['todo', 'value', 'saved', 'settings'];
+
+// Cap a stop list: the stops a person needs always stay, the free slots go to the next stops in template order, and the order is kept.
+export function capStops(steps, max) {
+  if (steps.length <= max) return steps;
+  const keep = new Set();
+  steps.forEach((s, i) => { if (TOUR_KEEP.includes(s.anchor) && keep.size < max) keep.add(i); });
+  steps.forEach((s, i) => { if (keep.size < max) keep.add(i); });
+  return steps.filter((s, i) => keep.has(i));
+}
+
 export function sentencesOf(text) {
   return (String(text || '').match(SENTENCE) || []).filter(Boolean);
 }
