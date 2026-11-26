@@ -1,7 +1,9 @@
 // FX-113 (REQ-503): wizard options and the file plan (wireframe frames 2a and 2c).
 import { trackingIdOf } from '../useCaseFields.js';
 
-export const DOC_KINDS = ['infographic', 'pptx', 'pdf', 'xlsx'];
+export const DOC_KINDS = ['infographic', 'pptx', 'pdf', 'xlsx', 'docx'];
+// C24 (RC7-B-11): Word is offered and starts unticked, so the files a run makes by default stay the four it made before.
+const DEFAULT_KINDS = DOC_KINDS.filter((k) => k !== 'docx');
 
 export const CONTENT_BLOCKS = [
   { id: 'use_case_story', label: 'Use case story', hint: 'What the use case does, in plain words' },
@@ -39,7 +41,7 @@ export const orderedColumns = (ids) => EXCEL_COLUMNS.map((c) => c.id).filter((id
 
 export function defaultDocOptions(language = 'English') {
   return {
-    kinds: [...DOC_KINDS],
+    kinds: [...DEFAULT_KINDS],
     layout: 'one',
     languages: [language],
     blocks: ['use_case_story', 'value_story', 'value_projection', 'inspire_score', 'data_used', 'disclaimer'],
@@ -72,7 +74,7 @@ export function planFiles(options, useCases) {
     for (const kind of kinds) {
       if (kind === 'infographic') push(kind, 'pdf', 'infographic', ids, language);
       else if (kind === 'xlsx') push(kind, 'xlsx', 'use_cases', ids, language);
-      else if (kind === 'pptx' || kind === 'pdf') {
+      else if (kind === 'pptx' || kind === 'pdf' || kind === 'docx') {
         const stem = kind === 'pptx' ? 'deck' : 'brief';
         if (options.layout === 'each') ids.forEach((id) => push(kind, kind, `${stem}_${safe(id)}`, [id], language));
         else push(kind, kind, stem, ids, language);

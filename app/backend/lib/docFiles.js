@@ -6,6 +6,7 @@ const MAGIC = {
   pdf: Buffer.from('%PDF'),
   pptx: Buffer.from([0x50, 0x4b]),
   xlsx: Buffer.from([0x50, 0x4b]),
+  docx: Buffer.from([0x50, 0x4b]),
 };
 
 const problem = (status, error) => ({ status, error });
@@ -33,7 +34,7 @@ function docFileProblem({ generationPath, folder, name, bytes }) {
   if (!file || file.includes('/') || file.includes('\\') || file.includes('..') || file.startsWith('.')) return problem(400, 'The file name must be a plain name without folders.');
   const ext = (/\.([A-Za-z0-9]+)$/.exec(file) || [])[1];
   const kind = ext && ext.toLowerCase();
-  if (!kind || !MAGIC[kind]) return problem(415, 'Only png, pdf, pptx and xlsx files can be saved.');
+  if (!kind || !MAGIC[kind]) return problem(415, 'Only png, pdf, pptx, xlsx and docx files can be saved.');
   if (!bytes || !bytes.length) return problem(400, 'The file is empty.');
   if (bytes.length > DOC_MAX_BYTES) return problem(413, `The file is over ${Math.floor(DOC_MAX_BYTES / (1024 * 1024))} MB, the most that can be saved.`);
   if (!bytes.subarray(0, MAGIC[kind].length).equals(MAGIC[kind])) return problem(415, `The bytes are not a ${kind} file.`);

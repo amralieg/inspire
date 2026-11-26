@@ -2,12 +2,13 @@
 import { aiWording, fieldOf, inspireScoreFromUc, trackingIdOf, scoreOf } from '../useCaseFields.js';
 import { moneyText } from '../valueWizard.js';
 import { v130View, kpiText } from '../v130UseCase.js';
+import { plainDocText, foundationLabel } from './docText.js';
 
 export const RTL_LANGUAGES = ['Arabic', 'Hebrew', 'Persian', 'Farsi', 'Urdu'];
 export const isRtl = (language) => RTL_LANGUAGES.includes(language);
 
 // REQ-529c: every text in a document (PDF, PowerPoint, Excel) goes through the wording rule, so older runs never print the retired product name.
-const clean = (v) => aiWording(v).trim();
+const clean = (v) => plainDocText(aiWording(v)).trim();
 const tablesOf = (uc) => clean(fieldOf(uc, 'Tables Involved', 'tables_involved')).split(/[,;\n]+/).map((t) => t.trim()).filter(Boolean);
 
 export const STORY_NOT_APPROVED = 'Story not approved yet';
@@ -40,8 +41,10 @@ function valueOf(raw) {
 // REQ-526 part E: the session's executive summary paragraphs (from reviewFigures.executiveSummaryOf), kept as clean non-empty strings.
 export const summaryOf = (summary) => (Array.isArray(summary) ? summary.map((p) => clean(p)).filter(Boolean) : []);
 
-export function buildDocModel({ businessName, useCases, values, options, summary }) {
+export function buildDocModel({ businessName, useCases, values, options, summary, foundations }) {
   const opts = options || {};
+  // C24 (RC7-B-12): the run's foundations by code, so a use case's "F1" prints as the foundation's name.
+  const foundationNames = new Map((Array.isArray(foundations) ? foundations : []).map((f) => [String(f.id).toUpperCase(), f.name]));
   const language = (opts.languages && opts.languages[0]) || opts.language || 'English';
   const list = (useCases || []).map((uc) => {
     const id = trackingIdOf(uc);
@@ -59,7 +62,7 @@ export function buildDocModel({ businessName, useCases, values, options, summary
       design: clean(fieldOf(uc, 'High Level Design', 'high_level_design')), type: clean(fieldOf(uc, 'type', 'Type')),
       priorityAlignment: clean(fieldOf(uc, 'Business Priority Alignment', 'business_priority_alignment')), strategicAlignment: clean(fieldOf(uc, 'Strategic Goals Alignment', 'strategic_goals_alignment')),
       kpis: lines(v.kpis.map(kpiText)), keyResults: lines(v.keyResults.map((k) => k.statement)), measures: lines(v.measures), financial: lines(v.financial), nonFinancial: lines(v.nonFinancial),
-      foundations: lines(v.foundations),
+      foundations: lines(v.foundations.flatMap((f) => (/^F\d+(\s*[,;]\s*F\d+)+$/i.test(f.trim()) ? f.split(/\s*[,;]\s*/) : [f])).map((f) => foundationLabel(f, foundationNames))),
       priorityScore: scoreOf(uc, 'priority_score', 'Priority Score', 'Priority'), feasibility: scoreOf(uc, 'feasibility', 'Feasibility'), valueScore: scoreOf(uc, 'value_score', 'Value'),
     };
   });

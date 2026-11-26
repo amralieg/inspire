@@ -42,6 +42,7 @@ const { runWithRequestDeadline } = require('./lib/sqlStatements');
 const { fsApiPath } = require('./lib/workspacePaths');
 const { int64Id, isInt64Id, requireInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const { parseExactJson } = require('./lib/exactJson');
+const DT = require('./lib/docTranslate');
 const { grantJobViewer, rememberViewer } = require('./lib/jobViewer');
 const PM = require('./lib/permissions');
 const UA = require('./lib/useCaseAssets');
@@ -3666,25 +3667,33 @@ function registerImplementRoutes(app, deps) {
       if (keys.some((k) => typeof texts[k] !== 'string')) throw I.badRequest('every text must be a string.');
       if (keys.some((k) => texts[k].length > DOC_TEXT_CHARS)) throw I.badRequest(`a text is over ${DOC_TEXT_CHARS} characters.`, 413);
       if (/^english$/i.test(language)) return res.json({ language, texts });
-      const messages = [
-        { role: 'system', content: `You translate short business texts into ${language}. Reply with one JSON object that has exactly the same keys as the input, each value the translation of that text. Keep names, numbers, product names and acronyms as they are. If the user's input names a wording or term to use, that explicit input wins. Reply with JSON only.` },
-        { role: 'user', content: JSON.stringify(texts) },
-      ];
-      const asked = await askChatModel(req, messages, FB.JSON_ANSWER_MAX_TOKENS);
-      if (!asked.got) throw I.badRequest(`No model could translate: ${asked.reason}`, 503);
-      const reply = asked.got.data && asked.got.data.choices && asked.got.data.choices[0] && asked.got.data.choices[0].message;
-      const raw = String((reply && reply.content) || '');
-      let parsed = null;
-      try {
-        const body = /\{[\s\S]*\}/.exec(raw);
-        parsed = body ? parseExactJson(body[0]) : null;
-      } catch (_) { parsed = null; }
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw I.badRequest('The model gave no usable translation.', 502);
+      const system = `You translate short business texts into ${language}. Reply with one JSON object that has exactly the same keys as the input, each value the translation of that text. Keep names, numbers, product names and acronyms as they are. If the user's input names a wording or term to use, that explicit input wins. Reply with JSON only.`;
+      // RC7-B-09: the texts go in chunks; a chunk whose reply holds nothing usable is asked once more; a key still without a translation keeps
+      // its source text and is named in `untranslated`, so one bad reply never fails the file.
       const out = {};
       const untranslated = [];
-      for (const k of keys) {
-        if (typeof parsed[k] === 'string' && parsed[k].trim()) out[k] = parsed[k];
-        else { out[k] = texts[k]; untranslated.push(k); }
+      let reached = false;
+      for (const chunk of DT.chunkTexts(texts)) {
+        const chunkKeys = Object.keys(chunk);
+        const messages = [
+          { role: 'system', content: system },
+          { role: 'user', content: JSON.stringify(chunk) },
+        ];
+        let got = {};
+        for (let attempt = 0; attempt < 2 && !Object.keys(got).length; attempt += 1) {
+          const asked = await askChatModel(req, messages, FB.JSON_ANSWER_MAX_TOKENS);
+          if (!asked.got) {
+            if (!reached) throw I.badRequest(`No model could translate: ${asked.reason}`, 503);
+            continue;
+          }
+          reached = true;
+          const reply = asked.got.data && asked.got.data.choices && asked.got.data.choices[0] && asked.got.data.choices[0].message;
+          got = DT.readTranslations((reply && reply.content) || '', chunkKeys);
+        }
+        for (const k of chunkKeys) {
+          if (typeof got[k] === 'string') out[k] = got[k];
+          else { out[k] = texts[k]; untranslated.push(k); }
+        }
       }
       return res.json({ language, texts: out, ...(untranslated.length ? { untranslated } : {}) });
     } catch (err) {
