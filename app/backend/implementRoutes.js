@@ -2446,13 +2446,14 @@ function registerImplementRoutes(app, deps) {
 
   // Request for Access (REQ-311): the Permission Required dialog checks whether a destination is set, then sends the request as the person.
   // Both routes read the signed-in person's token only; the request names no principal, so it is always the requester's own.
+  const scopeOf = (raw) => (Array.isArray(raw) ? raw.map((x) => String(x || '').trim()).filter(Boolean) : undefined);
   const accessRequestCall = (req, token) => (path, opts) => jsonOf(dbFetch, req.dbHost, token, path, opts);
   app.post('/api/access-request/check', requireToken, async (req, res) => {
     const token = P.personTokenOf(req);
     if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
     try {
       const who = RP.forwardedPerson(req.headers || {});
-      return res.json(await AR.checkAccessRequest({ call: accessRequestCall(req, token), who, statements: req.body?.statements, host: req.dbHost }));
+      return res.json(await AR.checkAccessRequest({ call: accessRequestCall(req, token), who, statements: req.body?.statements, host: req.dbHost, scope: scopeOf(req.body?.scope) }));
     } catch (err) {
       return sendError(res, err);
     }
@@ -2468,7 +2469,7 @@ function registerImplementRoutes(app, deps) {
         if (checked.error) return res.status(400).json({ error: checked.error });
         return res.json(await AR.sendObjectRequest({ call: accessRequestCall(req, token), who, objects: checked.objects, app: appId }));
       }
-      return res.json(await AR.sendAccessRequest({ call: accessRequestCall(req, token), who, statements: req.body?.statements, host: req.dbHost }));
+      return res.json(await AR.sendAccessRequest({ call: accessRequestCall(req, token), who, statements: req.body?.statements, host: req.dbHost, scope: scopeOf(req.body?.scope) }));
     } catch (err) {
       return sendError(res, err);
     }

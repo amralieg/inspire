@@ -106,9 +106,9 @@ async function destinationsOfChain(call, securable) {
 }
 
 // Reads the destinations of each requestable securable once (with its parents), resolves each grantee, and keeps the requests that can be sent.
-async function checkAccessRequest({ call, who, statements, host }) {
+async function checkAccessRequest({ call, who, statements, host, scope }) {
   const got = await checkOffer({ call, who, statements });
-  return { ...got, links: linksOf(statements, host) };
+  return { ...got, links: await personLinks(call, linksOf(statements, host, scope)) };
 }
 
 async function checkOffer({ call, who, statements }) {
@@ -183,10 +183,31 @@ function explorerUrl(host, securable) {
   return `${base}${build(parts)}`;
 }
 
-function linksOf(statements, host) {
+// c23: a securable is in the run's scope when the scope names it, its schema, or its catalog. No scope given: everything is in.
+function inScope(fullName, scope) {
+  if (!Array.isArray(scope)) return true;
+  return scope.some((s) => fullName === s || fullName.startsWith(`${s}.`));
+}
+
+// c23: a link names a catalog only the person's own token can list. The listing failing leaves the links as the statements gave them
+// (the statements came from the person's own dialog); a listing that answers drops every catalog it does not hold.
+async function personLinks(call, links) {
+  if (!links.length) return links;
+  let listed;
+  try {
+    const got = await call('/api/2.1/unity-catalog/catalogs?max_results=1000');
+    listed = got && got.ok && Array.isArray(got.data?.catalogs) ? new Set(got.data.catalogs.map((c) => c.name)) : null;
+  } catch {
+    listed = null;
+  }
+  return listed ? links.filter((l) => listed.has(l.full_name.split('.')[0])) : links;
+}
+
+function linksOf(statements, host, scope) {
   const seen = new Set();
   const links = [];
   for (const request of requestsOf(statements)) {
+    if (!inScope(request.securable.full_name, scope)) continue;
     const url = explorerUrl(host, request.securable);
     const key = `${request.securable.type}:${request.securable.full_name}`;
     if (!url || seen.has(key)) continue;
@@ -197,12 +218,13 @@ function linksOf(statements, host) {
 }
 
 // Sends the requests the check kept. Destinations are read first, so no request is sent where none is set.
-async function sendAccessRequest({ call, who, statements, host }) {
+async function sendAccessRequest({ call, who, statements, host, scope }) {
   const check = await checkOffer({ call, who, statements });
-  if (!check.offered) return { sent: false, destinations: [], reason: check.reason, links: linksOf(statements, host) };
+  const links = () => personLinks(call, linksOf(statements, host, scope));
+  if (!check.offered) return { sent: false, destinations: [], reason: check.reason, links: await links() };
   const got = await call('/api/3.0/rfa/requests', { method: 'POST', body: JSON.stringify(requestBodyOf(check.pending)) });
-  if (!got.ok) return { sent: false, destinations: [], reason: failureText(got), links: linksOf(statements, host) };
-  return { sent: true, destinations: check.destinations, reason: '', links: linksOf(statements, host) };
+  if (!got.ok) return { sent: false, destinations: [], reason: failureText(got), links: await links() };
+  return { sent: true, destinations: check.destinations, reason: '', links: await links() };
 }
 
 // REQ-521: Request Access for picked objects. Read access only; one GRANT per privilege so requestsOf merges them unchanged.
@@ -286,5 +308,5 @@ async function sendObjectRequest({ call, who, objects, app = '' }) {
 module.exports = {
   MAX_OBJECTS, checkObjects, objectStatements, sendObjectRequest,
   RFA_SCOPE, COMMENT, NO_DESTINATION, NO_PRINCIPAL, requestsOf, parseGrant, destinationsPath, destinationLabel, requestBodyOf,
-  checkAccessRequest, sendAccessRequest, explorerUrl, linksOf,
+  checkAccessRequest, sendAccessRequest, explorerUrl, linksOf, inScope,
 };

@@ -107,7 +107,9 @@ test('REQ-406 (c): a refused send opens the form and shows one plain line, never
 
 test('REQ-406: several securables open the first and list the rest as plain links', async () => {
   const other = { type: 'TABLE', full_name: 'main.s.orders', url: 'https://workspace.example.com/explore/data/main/s/orders' };
-  const { dialog } = await openDialog({ accessCheck: { offered: false, destinations: [], reason: '', links: [FORM, other] } });
+  // c23: the dialog lists only securables its own statements name, so this dialog also asks for the table.
+  const withTable = { ...PERMISSION, statements: [...STATEMENTS, `GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders\` TO \`${PERSON}\``] };
+  const { dialog } = await openDialog({ checkPermissions: [withTable], accessCheck: { offered: false, destinations: [], reason: '', links: [FORM, other] } });
   await dialog.getByRole('button', { name: 'Request access' }).waitFor({ timeout: 15000 });
   const links = dialog.locator('[data-request-links=""] a');
   assert.deepEqual(await links.evaluateAll((els) => els.map((el) => el.getAttribute('href'))), [other.url]);

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import ModalDialog from './ModalDialog';
 import { copyStepsText, copyText, grantAsk, grantListKey } from '../lib/permissionBus';
 import { accessRequestResultText, checkAccessRequest, offerShown, sendAccessRequest, statementsOf } from '../lib/accessRequest';
-import { otherRequestLinks, requestFormLink, requestFormText } from '../lib/accessRequestText';
+import { groupRequestLinks, linksOfRun, otherRequestLinks, requestFormLink, requestFormText } from '../lib/accessRequestText';
 import { Loader2 } from 'lucide-react';
 
 const BUTTON = 'inline-flex h-8 items-center justify-center px-3 rounded-lg text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle';
@@ -42,7 +42,7 @@ export default function PermissionRequired({ permissions, onStart, onRetry, onCl
     let live = true;
     const pending = checkAccessRequest(asked).catch(() => ({ offered: false, links: [] }));
     checkRef.current = pending;
-    pending.then((got) => { if (live) setOffer(got); });
+    pending.then((got) => { if (live) setOffer({ ...got, links: linksOfRun(got?.links, asked) }); });
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per grant list: the key stands for the statements
   }, [listKey]);
@@ -67,7 +67,7 @@ export default function PermissionRequired({ permissions, onStart, onRetry, onCl
       if (tab) tab.close();
       setRequestText(accessRequestResultText(sent));
     } else {
-      const first = requestFormLink(sent?.links?.length ? sent.links : (got.links || []));
+      const first = requestFormLink(linksOfRun(sent?.links?.length ? sent.links : (got.links || []), asked));
       let opened = false;
       if (first && tab) {
         try { tab.location = first.url; opened = true; } catch { opened = false; }
@@ -131,11 +131,26 @@ export default function PermissionRequired({ permissions, onStart, onRetry, onCl
       {otherRequestLinks(offer?.links).length > 0 && (
         <div data-request-links="" className="space-y-1">
           <p className="text-xs text-text-secondary">Also request access on:</p>
-          <ul className="space-y-0.5">
-            {otherRequestLinks(offer.links).map((link) => (
-              <li key={link.url}><a href={link.url} target="_blank" rel="noopener noreferrer" className="text-sm text-text-primary underline break-all">{link.full_name}</a></li>
-            ))}
-          </ul>
+          <div data-request-box="" className="max-h-64 overflow-y-auto rounded-md border border-border p-2">
+            <ul className="space-y-1">
+              {groupRequestLinks(otherRequestLinks(offer.links)).map((group) => (
+                <li key={group.parent} data-request-row="">
+                  {group.items.length === 1 ? (
+                    <a href={group.items[0].url} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-text-primary underline break-words">{group.items[0].full_name}</a>
+                  ) : (
+                    <details>
+                      <summary className="cursor-pointer font-mono text-sm text-text-primary">{group.label}</summary>
+                      <ul className="ms-4 mt-1 space-y-0.5">
+                        {group.items.map((link) => (
+                          <li key={link.url}><a href={link.url} target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-text-primary underline break-words">{link.full_name}</a></li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
       {(text || steps) && (
