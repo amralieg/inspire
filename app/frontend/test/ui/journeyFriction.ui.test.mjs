@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, goToStep, openUi, startMvp, toSummary } from './uiSupport.mjs';
 
-// REQ-322: the Agentic App and its Genie Agent start ticked together, the App card says what the Genie Agent does, and the person can untick it.
+// REQ-322: the App and its Genie Agent start ticked together, the App card says what the Genie Agent does, and the person can untick it.
 // REQ-323: a submitted build shows on the Build page at once, before the history read returns it.
 // REQ-324: the Review wait names the checks that run together.
 // REQ-325: a real mouse click anywhere on a delivery card, including its description text, ticks it, at 1440x900 and 1280x800.
@@ -23,7 +23,7 @@ async function toDelivery(page) {
 const card = (page, id) => page.locator(`[data-output="${id}"]`);
 const tick = (page, id) => card(page, id).getByRole('checkbox').first();
 
-test('the Agentic App and its Genie Agent start ticked, the App card says what the Genie Agent does, and the Genie Agent unticks (REQ-322)', async () => {
+test('the App and its Genie Agent start ticked, the App card says what the Genie Agent does, and the Genie Agent unticks (REQ-322)', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, columns: DATED });
   const { page } = ui;
   try {

@@ -81,7 +81,7 @@ def test_an_older_app_version_kept_on_lakebase_is_logged_at_info(agent_ns):
     asset_status = {"app": {"state": "ready", "spec_version": 3}}
     before = {"app": {"id": "desk-v2", "url": "https://h/a", "title": "Desk", "version": 2, "backend": "lakebase"}}
     assert inst._implement_keep_side((5150, "N01-U01", 3), ["app"], before, {"app": "desk-v3"}, asset_status) == []
-    assert inst.logger.matching("[IMPLEMENT-NOTE] N01-U01: Agentic App: the App of v2 keeps its Lakebase copy as it is now", "INFO")
+    assert inst.logger.matching("[IMPLEMENT-NOTE] N01-U01: App: the App of v2 keeps its Lakebase copy as it is now", "INFO")
     assert [r for r in inst.logger.records if r[0] == "WARNING"] == []
 
 
@@ -103,8 +103,8 @@ def test_an_app_made_again_by_someone_else_is_an_info_note_at_delete(agent_ns):
     fact = agent_ns["implement_app_remade_text"]("desk")
     outcome, emitted, logger = _remade(agent_ns)
     assert (outcome["state"], outcome["warnings"]) == ("released", [])
-    assert emitted == [("Agentic App", f"Agentic App: {fact}, and Inspire left it as it is", "ended_success")]
-    assert logger.matching(f"[IMPLEMENT-NOTE] N01-U01: Agentic App: {fact}", "INFO")
+    assert emitted == [("App", f"App: {fact}, and Inspire left it as it is", "ended_success")]
+    assert logger.matching(f"[IMPLEMENT-NOTE] N01-U01: App: {fact}", "INFO")
     assert not [r for r in logger.records if r[0] == "WARNING" and fact in r[1]]
 
 
@@ -113,6 +113,6 @@ def test_a_sync_warning_beside_the_app_made_again_is_the_warning_and_the_fact_st
     synced = "App: the Lakebase sync task could not be removed from the job: PERMISSION_DENIED"
     outcome, emitted, logger = _remade(agent_ns, synced=synced)
     assert outcome["warnings"] == [synced]
-    assert emitted == [("Agentic App", synced, "ended_warning")]
-    assert logger.matching(f"[IMPLEMENT-NOTE] N01-U01: Agentic App: {fact}", "INFO")
+    assert emitted == [("App", synced, "ended_warning")]
+    assert logger.matching(f"[IMPLEMENT-NOTE] N01-U01: App: {fact}", "INFO")
     assert not [r for r in logger.records if r[0] == "WARNING" and fact in r[1]]

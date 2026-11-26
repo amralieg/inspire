@@ -48,7 +48,7 @@ def test_an_app_whose_run_is_not_reliable_is_not_published_and_says_why_and_the_
     assert "app" not in built and "dashboard" in built, built
     assert final["asset_status"][agent_ns["IMPLEMENT_NOT_RELIABLE"]] == {"reason": REASON, "spec_version": 3}
     said = agent_ns["implement_unreliable_app_text"](REASON)
-    assert final["status_message"].startswith(f"Agentic App not published: {agent_ns['implement_short_reason'](REASON)}")
+    assert final["status_message"].startswith(f"App not published: {agent_ns['implement_short_reason'](REASON)}")
     assert said in final["status_message"] and said.startswith(f"{APP_LABEL}: not published, because the latest run's results are not reliable yet")
     assert said.endswith("build it again with Vibe/Add/Remove Features on the Build page")
     assert not any("FIRED" in str(e.get("message") or "") for e in emitted if e.get("step_name") == "App"), "the customer message carries no log tag"

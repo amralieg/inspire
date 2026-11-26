@@ -115,7 +115,7 @@ def test_merge_targets_access_and_look_normalize_and_bad_ones_are_rejected(agent
     for changes, needle in (({"merge": {"alert": "x"}}, "outputs.merge.alert is not one of dashboard, genie_space, app"),
                             ({"merge": {"dashboard": "a/b?c"}}, "outputs.merge.dashboard 'a/b?c' must name an existing Inspire dashboard"),
                             ({"merge": {"genie_space": "x" * 65}}, "must name an existing Inspire Genie Agent"),
-                            ({"merge": {"app": "Bad_App"}}, "outputs.merge.app 'Bad_App' must name an existing Inspire Agentic App"),
+                            ({"merge": {"app": "Bad_App"}}, "outputs.merge.app 'Bad_App' must name an existing Inspire App"),
                             ({"merge": "sales-desk"}, "outputs.merge must be an object"),
                             ({"app_access": "everyone"}, "choose who the App reads its data as"),
                             ({"app_look": {"layout": "grid"}}, "the App layout 'grid' is not one Inspire offers; pick one of sidebar, tabs, home")):
@@ -124,7 +124,7 @@ def test_merge_targets_access_and_look_normalize_and_bad_ones_are_rejected(agent
 
 
 def test_round_50_a_merge_target_that_is_not_text_is_refused_even_when_it_reads_as_an_id(agent_ns):
-    for name, label in (("dashboard", "dashboard"), ("genie_space", "Genie Agent"), ("app", "Agentic App")):
+    for name, label in (("dashboard", "dashboard"), ("genie_space", "Genie Agent"), ("app", "App")):
         for value in (5, True, ["dA"]):
             errors = _spec(agent_ns, outputs={**VALID["outputs"], "merge": {name: value}})[1]
             assert f'outputs.merge.{name} must be text: the {label} to add to, or "" for a new one' in errors, (name, value, errors)
@@ -192,7 +192,7 @@ def test_a_merged_app_adds_this_page_keeps_the_other_pages_and_the_hosts_access_
     assert files["requirements.txt"] == ""
     assert {"main.inspire.sales_out", "main.s.stores", "main.inspire.churn_out", "main.s.orders"} <= set(reads)
     assert space_id == "gA"
-    note = "Agentic App: this page uses the style, layout, palette and mode of the App sales-desk"
+    note = "App: this page uses the style, layout, palette and mode of the App sales-desk"
     assert fields["_notes"] == [note] and fields["_asset"] == {"merged_into": "sales-desk", "page": "n01_u01_s5150"}
     assert "_warnings" not in fields, "the host's own look is a fact of the join, never a warning"
     assert ours["genie"]["space_id"] == "gA" and ours["genie_note"] == "", "the joining page names its own Genie Agent"
@@ -222,7 +222,7 @@ def test_a_use_case_of_the_hosts_own_session_keeps_its_plain_page_id(agent_ns, t
     inst, context, seen, _calls = _merge_flow(agent_ns, tmp_path, monkeypatch, app=app)
     fields = inst._implement_app(context, None)
     assert json.loads(seen["deployed"][0][1]["inspire_app.json"])["pages"] == ["n01_u07", "n01_u01"]
-    assert fields["_notes"] == ["Agentic App: this page uses the style, layout, palette and mode of the App sales-desk"] and "_warnings" not in fields
+    assert fields["_notes"] == ["App: this page uses the style, layout, palette and mode of the App sales-desk"] and "_warnings" not in fields
 
 
 @pytest.mark.parametrize("app,needle", [
@@ -387,7 +387,7 @@ def test_a_sensitive_use_case_is_never_merged_into_a_service_principal_app(agent
     inst._implement_scope_columns = lambda table: list(columns.get(table, []))
     fields = inst._implement_app(context, None)
     assert json.loads(seen["deployed"][0][1]["inspire_app.json"])["auth"] == "user", "a per-user App stays per-user"
-    assert fields["_notes"][0] == "Agentic App: this page uses the sign-in, style, layout, palette and mode of the App sales-desk"
+    assert fields["_notes"][0] == "App: this page uses the sign-in, style, layout, palette and mode of the App sales-desk"
     assert not any("of the App sales-desk" in w for w in fields.get("_warnings") or [])
 
 
@@ -400,7 +400,7 @@ def test_an_old_page_that_now_fails_is_kept_and_named_while_this_pages_failure_g
     fields = inst._implement_app(context, None)
     assert seen["deployed"], "this use case publishes its own page although another page of the App no longer works"
     kept = [w for w in fields.get("_warnings") or [] if "no longer works at the default filters" in w]
-    assert kept == ["Agentic App: page 'Sales desk' of use case N01-U07 no longer works at the default filters, so the App keeps it as it "
+    assert kept == ["App: page 'Sales desk' of use case N01-U07 no longer works at the default filters, so the App keeps it as it "
                     "was. To fix it: build that use case again with Vibe/Add/Remove Features on the Build page or remove the page"], fields
     failing[:] = ["page n01_u01_s5150: kpi:revenue failed: DIVIDE_BY_ZERO"]
     seen["deployed"].clear()
@@ -408,7 +408,7 @@ def test_an_old_page_that_now_fails_is_kept_and_named_while_this_pages_failure_g
         inst._implement_app(context, None)
     assert type(raised.value) is RuntimeError, "a failure of this use case's own page is Genie's to fix"
     # The send-back verdict to Genie keeps the exact page id (D-NAMES, 44ad35ca5); only the person's copy names a page by its title.
-    assert str(raised.value) == "the Agentic App was run at its default filters and page n01_u01_s5150: kpi:revenue failed: DIVIDE_BY_ZERO"
+    assert str(raised.value) == "the App was run at its default filters and page n01_u01_s5150: kpi:revenue failed: DIVIDE_BY_ZERO"
 
 
 def test_rebuilding_a_use_cases_own_app_keeps_the_pages_merged_into_it(agent_ns, tmp_path, monkeypatch):
@@ -513,7 +513,7 @@ def test_a_joining_page_whose_genie_agent_did_not_build_is_off_with_the_reason_a
     ours = json.loads(deployed[1]["pages/n01_u01_s5150.json"])
     assert ours["genie"] is None and ours["genie_note"].startswith("The Genie Agent is not ready")
     assert json.loads(deployed[1]["inspire_app.json"])["genie"]["space_id"] == "gA" and deployed[3] == ""
-    assert f"Agentic App: {ours['genie_note']}" in fields["_warnings"]
+    assert f"App: {ours['genie_note']}" in fields["_warnings"]
 
 
 def test_a_merged_app_deploys_into_the_hosts_folder_without_retagging_it_and_grants_every_pages_tables(agent_ns, sdk_stub):
@@ -612,8 +612,8 @@ def test_a_look_only_edit_of_a_merged_app_changes_nothing_and_says_the_host_keep
     fields = inst._implement_app(context, None)
     assert seen["deployed"] == [] and "label" not in seen
     assert fields["app_name"] == "sales-desk" and fields["app_url"] == "https://sales-desk.example"
-    assert fields["_notes"] == ["Agentic App: this page uses the style, layout, palette and mode of the App sales-desk",
-                                "Agentic App: this page uses the look, data backend and SQL warehouse of the App sales-desk, so nothing is "
+    assert fields["_notes"] == ["App: this page uses the style, layout, palette and mode of the App sales-desk",
+                                "App: this page uses the look, data backend and SQL warehouse of the App sales-desk, so nothing is "
                                 "redeployed"]
     assert not fields["_warnings"], "a look edit of a page that joined an App is a fact, never a warning"
     assert not [e for e in inst.emitted if e.get("status") == "ended_warning"]
@@ -644,9 +644,9 @@ def test_a_look_or_backend_edit_of_an_app_whose_pages_fail_todays_checks_is_rebu
     inst._implement_genie_loop = loop
     context = dict(_output_context(agent_ns, app_look={"layout": "tabs"}), restyle=["app"], assets={"genie_space": "g1"}, asset_status={})
     fields = inst._implement_app(context, None)
-    note = ("Agentic App: its pages no longer passed Inspire's checks (page n01_u01: the page has 2 charts; it needs 3 to 8; page n01_u01: "
+    note = ("App: its pages no longer passed Inspire's checks (page n01_u01: the page has 2 charts; it needs 3 to 8; page n01_u01: "
             "kpi:revenue failed: TABLE_OR_VIEW_NOT_FOUND), so Genie rebuilt them with the new look and data backend")
-    assert made == ["N01-U01"] and asked == [("runner", "Agentic App")], "Genie rebuilds the Agentic App instead of refusing the edit"
+    assert made == ["N01-U01"] and asked == [("runner", "App")], "Genie rebuilds the App instead of refusing the edit"
     assert len(checks) == 3 and len(inst.deployed) == 1, (
         "the restyled pages are checked, then the held pages as they are, which passed, so the restyle caused the problems; then the "
         "rebuilt App is checked and deployed")
@@ -666,7 +666,7 @@ def test_a_look_only_edit_of_an_app_inspire_cannot_read_is_rebuilt_by_genie(agen
     inst._genie_runner_factory = lambda uc: made.append(uc) or "runner"
     context["restyle"] = ["app"]
     inst._implement_app(context, None)
-    assert made == ["N01-U01"] and seen["label"] == "Agentic App" and len(seen["deployed"]) == 1
+    assert made == ["N01-U01"] and seen["label"] == "App" and len(seen["deployed"]) == 1
 
 
 def _page_runner(ns):
@@ -777,7 +777,7 @@ def test_a_use_case_taken_out_of_an_app_says_its_old_page_stays_there(agent_ns, 
                                     asset_status={"app": {"state": "ready", "merged_into": "sales-desk"}})
     fields = inst._implement_app(context, None)
     assert seen["deployed"][0][0] == "churn-desk"
-    assert "Agentic App: this use case is now part of the Agentic App churn-desk; the Agentic App sales-desk keeps what Inspire built there before" in \
+    assert "App: this use case is now part of the App churn-desk; the App sales-desk keeps what Inspire built there before" in \
         fields["_notes"][0]
     assert not any("is now part of" in w for w in fields.get("_warnings") or []), "the move is a note, not a warning"
     inst, context, seen = _app_flow(agent_ns, tmp_path / "own", assets={"app": "churn-desk-old"})
@@ -941,7 +941,7 @@ def test_an_output_another_use_case_still_holds_is_never_deleted(agent_ns, name,
             lambda asset_id, key, holders, status: taken.append((asset_id, [h["use_case_id"] for h in holders])) or {
                 "state": "released", "note": "its part is out"})
     outcome = inst._implement_delete_output(name, asset, (5150, "N01-U01", 3))
-    label = {"dashboard": "Dashboard", "genie_space": "Genie Agent", "app": "Agentic App"}[name]
+    label = {"dashboard": "Dashboard", "genie_space": "Genie Agent", "app": "App"}[name]
     assert taken == [(asset, ["N01-U07"])], "only this use case's part is taken out, and only the use case still holding it keeps it"
     assert outcome["state"] == "released" and outcome["stays_for"] == ["N01-U07"] and outcome["taken_out_of"] == asset
     assert ("DELETE", path) not in inst.calls and inst.emitted[-1][2:4] == ("its part is out; it stays for use case N01-U07", "ended_success")
@@ -977,10 +977,10 @@ def test_sharing_a_merged_app_names_the_use_case_whose_sharing_decides(agent_ns)
     inst._implement_access_rows = lambda table, warnings=None: None
     inst._implement_grant = lambda *a: None
     warnings = inst._implement_share("N01-U01", "main.inspire.churn_out", spec, {"app": "sales-desk"}, None)
-    assert ("Sharing Agentic App: sales-desk belongs to use case N01-U07, so Inspire did not share it with planners; that use case's sharing "
+    assert ("Sharing App: sales-desk belongs to use case N01-U07, so Inspire did not share it with planners; that use case's sharing "
             "decides who opens it") in warnings
     moved = {"app": {"state": "ready", "merged_into": "other-desk"}}
-    assert any(w.startswith("Sharing Agentic App: sales-desk belongs to use case N01-U07") for w in
+    assert any(w.startswith("Sharing App: sales-desk belongs to use case N01-U07") for w in
                inst._implement_share("N01-U01", "main.inspire.churn_out", spec, {"app": "sales-desk"}, None, asset_status=moved)), \
         "pages that went to another App give no right to share this one"
 

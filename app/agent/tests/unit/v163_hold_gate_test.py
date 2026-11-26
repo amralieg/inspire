@@ -296,7 +296,7 @@ def test_an_escalated_rebuild_refreshes_and_checks_the_outputs_that_read_its_res
     final = inst.updates[-1]
     assert final["asset_status"]["dashboard"]["state"] == "failed" and gone in final["status_message"]
     plans = [event["message"] for event in inst.emitted if event["step_name"] == "Plan"]
-    assert plans[-1].endswith("and Inspire refreshes and checks the Genie Agent, Dashboard, Agentic App that read its results")
+    assert plans[-1].endswith("and Inspire refreshes and checks the Genie Agent, Dashboard, App that read its results")
 
 
 
@@ -832,7 +832,7 @@ def test_a_re_point_that_drops_the_asked_ask_genie_panel_publishes_and_lists_the
     assert "held" not in final, "nothing is held"
     [entry] = [e for e in final["checklist"] if e["requirement"] == ask]
     assert entry["status"] == "not_met" and entry["part"] == "app"
-    assert f"Agentic App: {ask}: the built Agentic App never shows the words 'N01-U07 Sales questions'" in inst.updates[-1]["status_message"]
+    assert f"App: {ask}: the built App never shows the words 'N01-U07 Sales questions'" in inst.updates[-1]["status_message"]
     assert "is published with 1 unmet ask" in inst.updates[-1]["status_message"]
 
 

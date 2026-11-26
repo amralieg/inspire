@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { APP_EXPERIENCE_CHOICES, APP_EXPERIENCE_DEFAULT, IMPLEMENT_OUTPUTS, experienceDefault, experienceOf, withAppOption } from '../src/lib/implementWizard.js';
 
-test('the delivery step labels the App "Agentic App" (REQ-209)', () => {
+test('the delivery step labels the App "App" (REQ-209)', () => {
   const app = IMPLEMENT_OUTPUTS.find((o) => o.id === 'app');
-  assert.equal(app.label, 'Agentic App');
+  assert.equal(app.label, 'App');
 });
 
 test('the experience decision offers Classic UI (default), Agentic and Both, and Classic UI is the default', () => {

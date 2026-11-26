@@ -23,7 +23,7 @@ test('an App step that ended with info notes only is green and carries its notes
   const { statusChip } = await lib('implementWizard.js');
   const stages = mvpStages(STEPS, built('ready', { state: 'ready', spec_version: 3, notes: [NOTE, NOTE, ' '] }));
   const app = stages.find((s) => s.id === 'App');
-  assert.deepEqual([app.state, app.notes], ['done', [`Agentic App: ${NOTE}`]], 'one note, once, and no blank ones, named after its part');
+  assert.deepEqual([app.state, app.notes], ['done', [`App: ${NOTE}`]], 'one note, once, and no blank ones, named after its part');
   assert.equal(stages.find((s) => s.id === 'Done').state, 'done');
   assert.equal(statusChip('ready').tone, 'success');
   const older = mvpStages(STEPS, built('ready', { state: 'ready', spec_version: 2, notes: [NOTE] }));

@@ -339,7 +339,7 @@ def test_when_sharing_cannot_be_checked_nothing_is_deleted_or_changed_and_the_ve
     inst._implement_select = broken
     with pytest.raises(agent_ns["ImplementBlocked"]) as raised:
         inst._implement_delete_output("app", "sales-desk", KEY)
-    assert str(raised.value) == ("Agentic App: Inspire could not check whether other use cases share sales-desk, so it neither deleted it nor took "
+    assert str(raised.value) == ("App: Inspire could not check whether other use cases share sales-desk, so it neither deleted it nor took "
                                  "this use case's pages out of it: TABLE_OR_VIEW_NOT_FOUND: __inspire_implement; submit again")
     assert inst.calls == [] and inst.updates == []
 

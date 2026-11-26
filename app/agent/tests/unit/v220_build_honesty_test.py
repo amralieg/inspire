@@ -39,7 +39,7 @@ def method_source(name):
 def test_a_held_app_leads_the_status_with_a_short_plain_reason(agent_ns):
     delivery = agent_ns["implement_delivery"](["dashboard", "app"], {"dashboard": {"state": "ready"}}, {"app": DQ_REASON}, 3)
     assert delivery["delivered"] == ["dashboard"] and delivery["spec_version"] == 3
-    assert delivery["not_delivered"] == [{"output": "app", "label": "Agentic App",
+    assert delivery["not_delivered"] == [{"output": "app", "label": "App",
                                           "reason": "Every record has a data quality issue, most often: franchiseID differs across chunks"}]
     assert agent_ns["implement_delivery_lead"](delivery) == (f"{APP_LABEL} not published: Every record has a data quality issue, most often: "
                                                               "franchiseID differs across chunks")

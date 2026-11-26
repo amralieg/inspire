@@ -257,7 +257,7 @@ def test_scopes_the_workspace_will_not_give_block_a_per_user_app(agent_ns, sdk_s
     undone = [m for lvl, m in inst.logger.records if m.startswith("[IMPLEMENT-UNDO]")]
     if undo:
         assert calls[-1][2]["user_api_scopes"] == []
-        assert undone == ["[IMPLEMENT-UNDO] N01-U01: the Agentic App build failed after Inspire had saved changes, so Inspire gave the App "
+        assert undone == ["[IMPLEMENT-UNDO] N01-U01: the App build failed after Inspire had saved changes, so Inspire gave the App "
                           f"churn-desk back its user authorization scopes (none): {str(raised.value)[:300]}"]
     else:
         assert undone == [], "a refused scope change leaves nothing to undo"
@@ -269,7 +269,7 @@ def test_scopes_that_cannot_be_given_back_stop_the_build_and_say_so(agent_ns, sd
     inst, context, calls, imported = _deploy_inspire(agent_ns, [existing, held, held, RuntimeError("PERMISSION_DENIED: no CAN MANAGE")])
     with pytest.raises(agent_ns["ImplementBlocked"]) as raised:
         inst._implement_deploy_app(_user_context(agent_ns, context), "churn-desk", SHELL_FILES, READS, poll_s=0)
-    assert str(raised.value).startswith("the Agentic App build failed after Inspire had saved changes (the App churn-desk shows each person only")
+    assert str(raised.value).startswith("the App build failed after Inspire had saved changes (the App churn-desk shows each person only")
     assert str(raised.value).endswith("and Inspire could not undo them: the App churn-desk still holds the user authorization scopes "
                                       "genie; before this build it held none: PERMISSION_DENIED: no CAN MANAGE")
     assert imported == [] and not any(c[1].endswith("/deployments") for c in calls)
@@ -360,7 +360,7 @@ def test_a_new_app_that_fails_while_it_starts_is_stopped_once_its_compute_settle
     assert "could not undo" not in str(raised.value)
     assert fake.calls[-1][:3] == ("POST", "/api/2.0/apps/churn-desk/stop", "ACTIVE") and fake.state() == "STOPPED"
     assert [m for _lvl, m in inst.logger.records if m.startswith("[IMPLEMENT-UNDO]")][0].startswith(
-        "[IMPLEMENT-UNDO] N01-U01: the Agentic App build failed after Inspire had saved changes, so Inspire stopped the new App churn-desk")
+        "[IMPLEMENT-UNDO] N01-U01: the App build failed after Inspire had saved changes, so Inspire stopped the new App churn-desk")
 
 
 def test_an_app_that_stays_starting_past_the_wait_blocks_with_the_reason_and_no_scope_advice(agent_ns, sdk_stub):

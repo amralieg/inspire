@@ -289,7 +289,7 @@ def test_moving_into_inspire_leaves_the_old_app_as_it_is_and_says_so_for_an_app_
     shared = {"app": {"state": "ready", "spec_version": 2, "merged_into": "sales-desk", "page": "n01_u01_s5150"}}
     inst, context, seen = _builder(agent_ns, tmp_path / "shared", monkeypatch, asset_status=shared, assets={"app": "sales-desk"})
     fields = inst._implement_app(context, _pages(_churn_page(agent_ns)))
-    assert fields["_notes"] == ["Agentic App: this use case's page is now inside Inspire; the Agentic App sales-desk keeps what Inspire built there before "
+    assert fields["_notes"] == ["App: this use case's page is now inside Inspire; the App sales-desk keeps what Inspire built there before "
                                 "and is no longer refreshed for it"]
     assert not any("keeps what Inspire built" in w for w in fields.get("_warnings") or []), "the move the user chose is a note"
     assert _app_calls(seen["calls"]) == [] and not any(c[0] == "DELETE" for c in seen["calls"])

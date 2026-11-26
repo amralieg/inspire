@@ -23,7 +23,7 @@ test('a build whose App ended with an info note only reads Ready and green, with
     await page.locator('[data-mvp-progress] p', { hasText: /^Ready$/ }).first().waitFor();
     const note = page.locator('[data-mvp-progress] [data-stage-notes] [data-stage-note="App"]');
     await note.waitFor();
-    assert.equal(await note.textContent(), `Agentic App: ${NOTE}`); // D-LABEL209: the output label prefixes the note; the step id stays App
+    assert.equal(await note.textContent(), `App: ${NOTE}`); // D-LABEL209: the output label prefixes the note; the step id stays App
     assert.match(await note.evaluate((el) => el.closest('ul').className), /text-text-secondary/, 'the note reads in neutral text');
     assert.equal(await page.locator('[data-mvp-progress] [data-stage="App"]').getAttribute('data-stage-state'), 'done');
     assert.equal(await page.locator('[data-mvp-progress] [data-stage-state="warning"]').count(), 0, 'no step is yellow');

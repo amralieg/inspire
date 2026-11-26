@@ -130,7 +130,7 @@ def test_run_4b_the_globe_ask_changes_only_its_chart_and_genie_s_bar_to_area_cha
     assert (fixed["key"], fixed["change"]) == ("charts:buffer_by_tier", "changed")
     assert fixed["what"] == "changed the Cash buffer by action tier chart: its type from stacked_bar to stacked_area"
     assert context["untargeted"]["app"]["blocked"] == []
-    assert inst.logger.matching("[IMPLEMENT-UNTARGETED] N02-U01 Agentic App: put back the Cash buffer by action tier chart as v3 built it: no ask "
+    assert inst.logger.matching("[IMPLEMENT-UNTARGETED] N02-U01 App: put back the Cash buffer by action tier chart as v3 built it: no ask "
                                 "targets it, and Genie changed the Cash buffer by action tier chart: its type from stacked_bar to "
                                 "stacked_area", "INFO")
 
@@ -246,7 +246,7 @@ def test_an_untargeted_chart_whose_dataset_a_targeted_change_removed_goes_to_rep
     assert "round" not in held["evidence"].lower(), "the entry's rounds field carries the count, so the evidence never says it again"
     assert held in agent_ns["implement_unmet_asks"](context["asset_status"]), "an unrequested change holds the version"
     assert context["asset_status"]["checklist_summary"]["met"] == 0, "an unrequested change is never counted as met"
-    assert inst.logger.matching("[IMPLEMENT-UNTARGETED] N02-U01 Agentic App: the Cash buffer by action tier chart stays as Genie changed it, so "
+    assert inst.logger.matching("[IMPLEMENT-UNTARGETED] N02-U01 App: the Cash buffer by action tier chart stays as Genie changed it, so "
                                 "this version is held", "WARNING")
 
 

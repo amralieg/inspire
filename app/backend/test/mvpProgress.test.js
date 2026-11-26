@@ -126,7 +126,7 @@ test('a retried output round is still running, names the next round, and never h
   const stages = mvpStages(sentBack, latestOf('building_outputs', outputs), { now: at('10:20:30') });
   assert.deepEqual(states(stages).slice(6), [['App', 'running'], ['Done', 'waiting']]);
   const summary = mvpProgressSummary(stages, latestOf('building_outputs', outputs), { now: at('10:20:30') });
-  assert.equal(summary.headline, 'Genie is building the Agentic App…');
+  assert.equal(summary.headline, 'Genie is building the App…');
   assert.equal(summary.detail, 'Round 2 of up to 3: Genie is fixing what failed in round 1');
   const genie = mvpStages([...base, row('Genie Agent', 'started', '10:15:02')], latestOf('building_outputs', { dashboard: true, genie_space: true }), { now: at('10:16:00') });
   assert.equal(mvpProgressSummary(genie, latestOf('building_outputs', { dashboard: true, genie_space: true }), { now: at('10:16:00') }).headline,
@@ -446,11 +446,11 @@ test('an App-only vibe shows Vibe, Plan, Start Databricks AI, the App rebuild an
   const latest = v2('building_outputs');
   const stages = mvpStages(APP_VIBE_STEPS, latest, { now: at('10:02:00') });
   assert.deepEqual(ids(stages), ['Vibe', 'Plan', 'Genie Code', 'App', 'Done']);
-  assert.deepEqual(labels(stages), ['Vibe', 'Plan', 'Start Databricks AI', 'Rebuild the Agentic App', 'Done']);
+  assert.deepEqual(labels(stages), ['Vibe', 'Plan', 'Start Databricks AI', 'Rebuild the App', 'Done']);
   assert.deepEqual(states(stages), [['Vibe', 'done'], ['Plan', 'done'], ['Genie Code', 'done'], ['App', 'running'], ['Done', 'waiting']]);
   for (const absent of ['Dashboard', 'Genie Agent', 'Alert', 'Instruction', 'Genie build', 'Preview run']) assert.ok(!ids(stages).includes(absent), `${absent} must not show`);
   const summary = mvpProgressSummary(stages, latest, { now: at('10:02:00') });
-  assert.equal(summary.headline, 'Genie is rebuilding the Agentic App…');
+  assert.equal(summary.headline, 'Genie is rebuilding the App…');
   assert.equal(summary.percent, 60);
   assert.equal(stages.at(-1).working, 'Inspire is sharing the MVP');
   assert.deepEqual(versionPlan(APP_VIBE_STEPS, latest).refresh, ['app']);
@@ -461,7 +461,7 @@ test('the scope says which chosen parts this version keeps as they are, and a co
   const { mvpScope } = await lib('mvpProgress.js');
   const app = mvpScope(APP_VIBE_STEPS, v2('building_outputs'));
   assert.deepEqual(app.notes, [{ kind: 'kept', text: 'Kept as is: the notebook, the Dashboard, the Genie Agent and the Alert' }]);
-  assert.deepEqual(app.vibe, [{ kind: 'route', id: 'app', text: `Sent to the Agentic App: “${VIBE}”`, note: '' }]);
+  assert.deepEqual(app.vibe, [{ kind: 'route', id: 'app', text: `Sent to the App: “${VIBE}”`, note: '' }]);
   const core = plan({ classes: ['data'], refill: true, preview: true, refresh: ['genie_space', 'dashboard', 'app', 'alert'], schedule: true, sharing: false });
   const coreScope = mvpScope([step('Plan', 'ended_success', '10:00:32', { plan: core })], v2('filling', { spec_json: { outputs: ALL_OUTPUTS } }));
   assert.deepEqual(coreScope.notes, [{ kind: 'refill', text: 'This change reaches the analysis, so Genie rebuilds the notebook and every part after it' }]);
@@ -472,7 +472,7 @@ test('the scope says which chosen parts this version keeps as they are, and a co
   assert.deepEqual(first.notes, [], 'a first build keeps nothing and changes nothing, so it says neither');
   const unticked = mvpScope([step('Plan', 'ended_success', '10:00:32', { plan: plan({ classes: ['deselect'], keep_unmanaged: ['alert'], sharing: false }) })],
     v2('building_outputs', { spec_json: { outputs: { ...ALL_OUTPUTS, alert: false } } }));
-  assert.deepEqual(unticked.notes.map((n) => n.text), ['Kept as is: the notebook, the Dashboard, the Genie Agent and the Agentic App', 'Left in place and no longer refreshed: the Alert']);
+  assert.deepEqual(unticked.notes.map((n) => n.text), ['Kept as is: the notebook, the Dashboard, the Genie Agent and the App', 'Left in place and no longer refreshed: the Alert']);
 });
 
 test('a core plan shows the notebook stages, the preview run and every output it rebuilds, in the order the agent builds them', async () => {
@@ -481,7 +481,7 @@ test('a core plan shows the notebook stages, the preview run and every output it
   const latest = { ...v2('filling'), spec_json: { outputs: ALL_OUTPUTS } };
   const stages = mvpStages([step('Plan', 'ended_success', '10:00:32', { plan: core }), unversioned('Genie Code', 'started', '10:00:40')], latest, { now: at('10:01:00') });
   assert.deepEqual(ids(stages), ['Plan', 'Instruction', 'Genie Code', 'Genie build', 'Preview run', 'Genie Agent', 'Dashboard', 'Alert', 'App', 'Done']);
-  assert.deepEqual(labels(stages).slice(5, 9), ['Rebuild the Genie Agent', 'Rebuild the Dashboard', 'Rebuild the Alert', 'Rebuild the Agentic App']);
+  assert.deepEqual(labels(stages).slice(5, 9), ['Rebuild the Genie Agent', 'Rebuild the Dashboard', 'Rebuild the Alert', 'Rebuild the App']);
   assert.deepEqual(states(stages).slice(0, 3), [['Plan', 'done'], ['Instruction', 'skipped'], ['Genie Code', 'running']]);
   assert.equal(stages.at(-1).working, 'Inspire is scheduling the job');
 });
@@ -491,7 +491,7 @@ test('a restyle, a roll back, a new build after a lost roll back, a removal and 
   const latest = { ...v2('building_outputs'), spec_json: { outputs: ALL_OUTPUTS } };
   const stagesOf = (p) => mvpStages([step('Plan', 'ended_success', '10:00:32', { plan: p })], latest, { now: at('10:01:00') });
   const restyle = stagesOf(plan({ classes: ['outputs'], refresh: ['app'], restyle: ['app'] }));
-  assert.deepEqual(labels(restyle), ['Plan', 'Restyle the Agentic App', 'Done']);
+  assert.deepEqual(labels(restyle), ['Plan', 'Restyle the App', 'Done']);
   assert.ok(!ids(restyle).includes('Genie Code'), 'a restyle never starts Databricks AI');
   const back = stagesOf(plan({ classes: ['outputs', 'rollback'], rollback: { dashboard: 2 } }));
   assert.deepEqual(labels(back), ['Plan', 'Roll the Dashboard back to v2', 'Done']);
@@ -519,7 +519,7 @@ test('an AI reasoning ask runs the notebook again on a preview and rebuilds no o
   assert.deepEqual(labels(stages), ['Vibe', 'Plan', 'Preview run', 'Done']);
   const scope = mvpScope(steps, latest);
   assert.deepEqual(scope.notes.map((n) => n.kind), ['rerun', 'kept']);
-  assert.equal(scope.notes[1].text, 'Kept as is: the Dashboard, the Genie Agent, the Agentic App and the Alert', 'the notebook runs again, so it is not listed as kept');
+  assert.equal(scope.notes[1].text, 'Kept as is: the Dashboard, the Genie Agent, the App and the Alert', 'the notebook runs again, so it is not listed as kept');
   assert.deepEqual(scope.vibe, [{ kind: 'route', id: 'ai_reasoning', text: 'Sent to the AI reasoning: “say how sure each row is”',
     note: 'This ask changes the AI reasoning, so Inspire runs the notebook again.' }]);
 });
@@ -562,7 +562,7 @@ test('the vibe step shows where each ask went, and the finished record names whe
   ]);
   const record = { state: 'routed', text: VIBE, previous: 'remove', spec_version: 2, routes: { app: 'add a filter' } };
   const done = vibeRoutingLines(vibeRouting([routed(lines, 'ended_success')], v2('ready_with_warnings', { asset_status: { vibe: record } })));
-  assert.deepEqual(done.map((l) => [l.kind, l.text]), [['route', 'Sent to the Agentic App: “add a filter”']]);
+  assert.deepEqual(done.map((l) => [l.kind, l.text]), [['route', 'Sent to the App: “add a filter”']]);
   const older = vibeRoutingLines(vibeRouting([routed(lines, 'ended_success')], v2('ready', { asset_status: { vibe: { ...record, spec_version: 1 } } })));
   assert.equal(older.length, 2, 'the record of another version is not this one');
   assert.equal(vibeRouting([], { ...building, spec_json: { outputs: ALL_OUTPUTS } }), null, 'no vibe, nothing to show');
@@ -618,7 +618,7 @@ test('the App reads no count of asks no part can do, no no-part line and no not_
   assert.deepEqual(vibeRoutingLines(vibeRouting([routed(['no part can do this vibe'], 'ended_warning')], building)), []);
   const record = { state: 'routed', text: VIBE, spec_version: 2, routes: { app: 'add a filter' }, not_routed: [{ ask: 'a map', reason: 'no region column' }] };
   assert.deepEqual(vibeRoutingLines(vibeRouting([], v2('ready', { asset_status: { vibe: record } }))).map((l) => [l.kind, l.text]),
-    [['route', 'Sent to the Agentic App: “add a filter”']]);
+    [['route', 'Sent to the App: “add a filter”']]);
   const routing = vibeRouting([routed(['sent to App: dark header'], 'ended_success')], building);
   assert.deepEqual(Object.keys(routing).sort(), ['routes', 'state', 'text']);
   const fs = require('node:fs');

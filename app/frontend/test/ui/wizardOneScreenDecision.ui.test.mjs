@@ -55,7 +55,7 @@ const appPath = (placement) => {
   let picked = false;
   return {
     // REQ-514: the App is always built, so there is no App tile to tick.
-    setup: async (page) => { assert.equal(await page.getByRole('checkbox', { name: /^Agentic App/ }).count(), 0, 'the App is not an option'); },
+    setup: async (page) => { assert.equal(await page.getByRole('checkbox', { name: /^App/ }).count(), 0, 'the App is not an option'); },
     beforeNext: async (page, name) => {
       if (!name.includes('Where it lives') || picked) return;
       picked = true;

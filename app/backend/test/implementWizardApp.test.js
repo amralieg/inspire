@@ -67,7 +67,7 @@ test('REQ-528: the storage is decided by Inspire: no guide or choice text is lef
   assert.equal(w.appBackendOf(shared, { state: 'absent' }), 'delta', 'no Lakebase here means Delta');
   assert.equal(w.appStorageText(shared, { state: 'available' }), 'Fast pages (Lakebase)');
   assert.equal(w.appStorageText(shared, { state: 'absent' }), 'Delta, because Lakebase is not available here');
-  assert.equal(w.appStorageText(shared, { state: 'denied', detail: 'PERMISSION_DENIED' }), 'Delta, because Lakebase could not be created: PERMISSION_DENIED');
+  assert.equal(w.appStorageText(shared, { state: 'denied', detail: 'PERMISSION_DENIED' }), 'Delta tables (Lakebase is not set up in this workspace)');
   assert.match(w.appStorageText({ outputs: { app: true, app_access: 'user' } }, { state: 'available' }), /^Delta, because each person signs in as themselves/);
   assert.equal(w.appStorageText({ outputs: { app: false } }, { state: 'available' }), '');
 });
@@ -206,7 +206,7 @@ test('the App reads Lakebase when the workspace has it and Inspire can use it, D
   assert.equal(w.appBackendOf(oldLakebase, offer('absent')), 'delta', 'a workspace without Lakebase reads Delta tables');
   const perUser = w.withAppAccess(oldLakebase, 'user');
   assert.equal(w.appBackendOf(perUser, offer('available')), 'delta');
-  assert.equal(w.appStorageText(spec, offer('unknown')), 'Delta, because Inspire could not check Lakebase here');
+  assert.equal(w.appStorageText(spec, offer('unknown')), 'Delta tables (Lakebase is not set up in this workspace)');
   assert.equal(w.appStorageText(spec, null), 'Inspire is still checking whether Lakebase is available here');
   assert.equal(w.appBackendOf(w.withAppAccess(perUser, 'sp'), offer('available')), 'lakebase', 'back to a shared App, Lakebase comes back');
   const joined = w.withMergeTarget(spec, 'app', { id: 'churn-desk', name: 'churn-desk', access: 'sp' });

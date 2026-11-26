@@ -78,7 +78,7 @@ def test_an_edit_after_a_version_with_a_vibe_checklist_carries_it_runs_the_vibe_
     assert _run(inst, dict(VALID, vibes=APP_ASK, vibe_previous="remove"), 4) in ("ready", "ready_with_warnings"), inst.updates[-1]
     assert seen and all(args["v"] == 4 for _where, args in seen), "the carry read the versions before v4"
     step = _vibe_step(inst)
-    assert (step["status"], step["message"]) == ("ended_success", f"sent to Agentic App: {APP_ASK}"), "the Vibe step ran on v4"
+    assert (step["status"], step["message"]) == ("ended_success", f"sent to App: {APP_ASK}"), "the Vibe step ran on v4"
     assert [call[0] for call in calls if call[0] in ("genie_space", "dashboard", "app", "alert")] == ["app"]
     start = next(update for update in inst.updates if update.get("status") == "filling")["asset_status"]
     assert set(agent_ns["IMPLEMENT_VERSION_RECORDS"]).isdisjoint(start), f"v3's own records reached v4's start: {sorted(start)}"

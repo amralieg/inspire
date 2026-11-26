@@ -114,7 +114,7 @@ def test_the_route_prompt_says_what_is_built_lists_the_notebook_and_names_the_un
         assert text.startswith(agent_ns["USER_DIRECTIVE_SUPREMACY_PREAMBLE"])
         assert "keep every ask, in their own words, and never drop, soften, merge away or add one" in text
         assert f"- dashboard: Dashboard\n- notebook: {NOTEBOOK}\n" in text
-        assert "Not ticked for this use case, so Inspire does not build them: Genie Agent, Agentic App, Alert.\n" in text
+        assert "Not ticked for this use case, so Inspire does not build them: Genie Agent, App, Alert.\n" in text
         assert f"The customer's asks, word for word, by number:\n1. {TREND}\n2. {HOLDOUT}\n\n" in text and "goes to the notebook" in text
         assert "Every ask gets at least one route and never two routes to the same part" in text and '"ask": <its number>' in text
     assert "Nothing is built for this use case yet" in first and "Nothing is built" not in rebuild
@@ -192,7 +192,7 @@ def test_a_first_build_sends_each_ask_to_a_ticked_output_or_the_notebook_and_nev
     assert _run(inst, dict(VALID, vibes=text), 1) == "ready_with_warnings", "the ask for the unticked alert goes to Genie's notebook build"
     prompt = _route_prompt(seen)
     assert "Nothing is built for this use case yet" in prompt and f"by number:\n1. {TREND}\n2. {HOLDOUT}\n3. {PAGER}\n" in prompt
-    assert (f"by id:\n- genie_space: Genie Agent\n- dashboard: Dashboard\n- app: Agentic App\n- notebook: {NOTEBOOK}\n"
+    assert (f"by id:\n- genie_space: Genie Agent\n- dashboard: Dashboard\n- app: App\n- notebook: {NOTEBOOK}\n"
             "Not ticked for this use case, so Inspire does not build them: Alert.\n") in prompt
     final = inst.updates[-1]
     notes = f"{HOLDOUT}\n{PAGER}"
@@ -256,7 +256,7 @@ def test_a_notebook_ask_on_a_rebuild_lands_in_the_notebook_vibes_and_reruns_the_
     assert _run(inst, dict(VALID, vibes=HOLDOUT, vibe_previous="remove")) in ("ready", "ready_with_warnings"), inst.updates[-1]
     prompt = _route_prompt(seen)
     assert "The parts Inspire built for this use case, or builds in this version, by id:" in prompt
-    assert (f"- genie_space: Genie Agent (Churn agent)\n- dashboard: Dashboard (Churn board)\n- app: Agentic App\n- notebook: {NOTEBOOK}\n"
+    assert (f"- genie_space: Genie Agent (Churn agent)\n- dashboard: Dashboard (Churn board)\n- app: App\n- notebook: {NOTEBOOK}\n"
             "- dashboard:by_region: dashboard chart Customers by region\n") in prompt
     assert "dashboard:old" not in prompt, "a part that did not build is not a target"
     plan = next(update for update in inst.updates if "change_classes" in update)
@@ -391,9 +391,9 @@ def test_the_vibe_step_gives_one_line_per_route_and_says_why_a_core_ask_rebuilds
     routes = {"app": APP_ASK, "notebook": HOLDOUT, "ai_reasoning": FRENCH}
     fallback = {"ask": PAGER, "reason": UNTICKED, "asset": "notebook"}
     assert lines(routes, [fallback], False) == [
-        f"sent to Agentic App: {APP_ASK}", f"sent to Notebook: {HOLDOUT}; {REBUILD_NOTE}", f"sent to AI reasoning: {FRENCH}; {RERUN_NOTE}",
+        f"sent to App: {APP_ASK}", f"sent to Notebook: {HOLDOUT}; {REBUILD_NOTE}", f"sent to AI reasoning: {FRENCH}; {RERUN_NOTE}",
         f"'{PAGER}' went to the notebook, because {UNTICKED}, so Genie tries it there with up to 3 rounds"]
-    assert lines(routes, [], True) == [f"sent to Agentic App: {APP_ASK}", f"sent to Notebook: {HOLDOUT}", f"sent to AI reasoning: {FRENCH}"], \
+    assert lines(routes, [], True) == [f"sent to App: {APP_ASK}", f"sent to Notebook: {HOLDOUT}", f"sent to AI reasoning: {FRENCH}"], \
         "a first build builds every part anyway, so no ask is said to rebuild more"
     assert lines(routes, [fallback], False)[-1] == agent_ns["implement_vibe_fallback_line"](fallback), "the step and the warning say it alike"
 
@@ -405,13 +405,13 @@ def test_an_app_ask_on_a_rebuild_rebuilds_only_the_app(agent_ns):
     assert _run(inst, dict(VALID, vibes=APP_ASK, vibe_previous="remove")) in ("ready", "ready_with_warnings"), inst.updates[-1]
     assert _built(calls) == ["app"] and not [call for call in calls if call[0] in ("write", "fill")]
     filling = next(update for update in inst.updates if "change_classes" in update)
-    assert filling["status_message"] == "Genie refreshes the Agentic App"
+    assert filling["status_message"] == "Genie refreshes the App"
     assert not [u for u in inst.updates if "{" in str(u.get("status_message") or "") or str(u.get("status_message") or "").startswith("plan:")]
     plan = next(e for e in inst.emitted if e["step_name"] == "Plan")["result_json"]["plan"]
     assert (plan["refill"], plan["preview"], plan["build"], plan["refresh"], plan["repoint"]) == (False, False, [], ["app"], [])
     step = _vibe_step(inst)
-    assert (step["status"], step["message"], step["result_json"]["lines"]) == ("ended_success", f"sent to Agentic App: {APP_ASK}",
-                                                                               [f"sent to Agentic App: {APP_ASK}"])
+    assert (step["status"], step["message"], step["result_json"]["lines"]) == ("ended_success", f"sent to App: {APP_ASK}",
+                                                                               [f"sent to App: {APP_ASK}"])
 
 
 def test_a_core_and_a_part_ask_rebuild_everything_and_the_vibe_step_logs_one_line_per_route(agent_ns):
@@ -420,7 +420,7 @@ def test_a_core_and_a_part_ask_rebuild_everything_and_the_vibe_step_logs_one_lin
     _llm(inst, {"notebook": COLUMN, "app": COLUMN})
     assert _run(inst, dict(VALID, vibes=COLUMN, vibe_previous="remove")) in ("ready", "ready_with_warnings"), inst.updates[-1]
     assert ("fill", True) in calls and _built(calls) == ["genie_space", "dashboard", "app"]
-    expected = [f"sent to Notebook: {COLUMN}; {REBUILD_NOTE}", f"sent to Agentic App: {COLUMN}"]
+    expected = [f"sent to Notebook: {COLUMN}; {REBUILD_NOTE}", f"sent to App: {COLUMN}"]
     step = _vibe_step(inst)
     assert (step["status"], step["message"], step["result_json"]["lines"]) == ("ended_success", "\n".join(expected), expected)
     logged = [message for _level, message in inst.logger.matching("N01-U01 \u00b7 Vibe: sent to ")]
@@ -475,8 +475,8 @@ def test_the_same_notebook_ask_the_judge_finds_missing_on_the_built_notebook_sti
 
 @pytest.mark.parametrize("plan, said", [
     ({"refill": True, "build": ["genie_space", "dashboard", "app"], "refresh": [], "rollback": {}},
-     "Genie rebuilds the notebook and builds the Genie Agent, Dashboard and Agentic App"),
-    ({"refill": False, "build": [], "refresh": ["dashboard", "app"], "rollback": {"alert": 2}}, "Genie refreshes the Dashboard and Agentic App and rolls back the Alert"),
+     "Genie rebuilds the notebook and builds the Genie Agent, Dashboard and App"),
+    ({"refill": False, "build": [], "refresh": ["dashboard", "app"], "rollback": {"alert": 2}}, "Genie refreshes the Dashboard and App and rolls back the Alert"),
     ({"refill": False, "build": [], "refresh": [], "rollback": {}, "retable": [], "preview": True}, "Genie keeps everything it built"),
 ])
 def test_the_build_status_says_the_plan_in_plain_words_and_never_as_json(agent_ns, plan, said):

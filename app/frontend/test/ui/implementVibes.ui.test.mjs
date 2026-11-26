@@ -75,7 +75,7 @@ test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step h
     assert.equal(await page.getByRole('button', { name: /vibes/i }).count(), 0, 'Delivery has no vibes button');
     assert.equal(await page.getByRole('textbox', { name: /vibes/i }).count(), 0, 'Delivery has no vibes box');
     assert.equal(await page.getByRole('region', { name: 'Vibes' }).count(), 0);
-    assert.equal(await page.getByRole('checkbox', { name: /^Agentic App/ }).count(), 0, 'REQ-514: the App is not a choice');
+    assert.equal(await page.getByRole('checkbox', { name: /^App/ }).count(), 0, 'REQ-514: the App is not a choice');
     assert.deepEqual(await page.locator('ol li').allTextContents(), STEPS_WITH_APP, 'Summary stays last');
     await toVibes(page);
     const panel = page.getByRole('region', { name: 'Vibes' });
@@ -340,7 +340,7 @@ test('each asset drawer holds only its own card, the asks each part was built wi
 
     await openFeatures(page);
     assert.deepEqual(await featuresHeld(page, 'Dashboard'), [['held', 'Dashboard: \u201cMake the trend weekly\u201d']]);
-    assert.deepEqual(await featuresHeld(page, 'Agentic App'), [['held', 'Agentic App: \u201cDark header\u201d']]); // D-LABEL209
+    assert.deepEqual(await featuresHeld(page, 'App'), [['held', 'App: \u201cDark header\u201d']]); // D-LABEL209
     assert.equal(await page.locator('[data-vibe-features-dialog]').getByRole('list', { name: 'Asks the Genie Agent holds', exact: true }).count(), 0,
       'an output that holds no ask lists none');
     assert.equal(await features(page).getAttribute('data-collected'), '0', 'opening the box collects nothing');

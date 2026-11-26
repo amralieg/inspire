@@ -539,13 +539,13 @@ test('plan lines say what the edit builds, refreshes, deletes and keeps', async 
     'The built notebook is kept as it is',
     'Builds: Genie Agent, Alert',
     'Refreshes: Dashboard',
-    'Deletes: Agentic App',
+    'Deletes: App',
   ]);
   assert.deepEqual(w.planLines({ classes: ['data'], refill: true, build: [], refresh: ['dashboard'], delete: [], keep_unmanaged: ['app'], schedule: true }), [
     'Changes: data',
     'Genie rewrites the notebook and Inspire re-runs the preview',
     'Refreshes: Dashboard',
-    'Leaves in place, no longer managed: Agentic App',
+    'Leaves in place, no longer managed: App',
     'Updates the job schedule',
   ]);
 });
@@ -1220,7 +1220,7 @@ test('the wizard opens on Data with no MVP or notebook choice, Notebook alone is
   assert.deepEqual(w.stepErrors('delivery', notebookOnly), []);
   assert.equal(w.builtSentence(notebookOnly), 'The MVP: the result table and the notebook that fills it.');
   assert.equal(w.builtSentence({ ...notebookOnly, outputs: { ...notebookOnly.outputs, app: true, genie_space: true } }),
-    'The MVP: Genie Agent, Agentic App, the result table and the notebook that fills it.');
+    'The MVP: Genie Agent, App, the result table and the notebook that fills it.');
   assert.deepEqual(w.contextSettings({ widgets: [] }, null), []);
   assert.deepEqual(w.contextSettings(null, null), []);
   const share = [{ name: 'act_now_share', type: 'text', default: '0.05', allowed: '0 to 1' }];
@@ -1356,10 +1356,10 @@ test('the App tab shows the live state, the last deployment and the health check
   const live = { ok: true, app_state: 'RUNNING', app_message: 'App is running', compute_state: 'ACTIVE', deployment_state: 'SUCCEEDED',
     deployment_message: 'App started successfully', deployed_at: '2026-10-25T03:00:00Z' };
   assert.deepEqual(w.appStatusRows(live, { health: 'running', spec_version: 4 }), [
-    ['Agentic App', 'RUNNING: App is running'], ['Compute', 'ACTIVE'], ['Last deployment', 'SUCCEEDED: App started successfully (2026-10-25T03:00:00Z)'],
+    ['App', 'RUNNING: App is running'], ['Compute', 'ACTIVE'], ['Last deployment', 'SUCCEEDED: App started successfully (2026-10-25T03:00:00Z)'],
     ['Health check', 'running: it answers behind workspace sign-in'], ['Built on', 'v4']]);
   assert.deepEqual(w.appStatusRows({ ok: true }, { health: 'unverified: HTTP 502' }), [
-    ['Agentic App', 'unknown'], ['Compute', 'unknown'], ['Last deployment', 'none'], ['Health check', 'unverified: HTTP 502']]);
+    ['App', 'unknown'], ['Compute', 'unknown'], ['Last deployment', 'none'], ['Health check', 'unverified: HTTP 502']]);
   assert.deepEqual(w.appStatusRows({ ok: false, error: 'the App no longer exists' }, {}), [['Live status', 'the App no longer exists']]);
   assert.deepEqual(w.appStatusRows(null, null), []);
 });
@@ -1841,12 +1841,12 @@ test('a removed output other use cases share is taken out of, not deleted, in th
     'Deletes: Dashboard',
     TAKE_OUT,
   ]);
-  assert.deepEqual(w.planLines(summary).slice(-1), ['Deletes: Agentic App, Dashboard'], 'without a sharing check the plan reads as before');
-  assert.deepEqual(w.planLines({ ...summary, delete: ['app'] }, { shared: { ...SHARED, app: null } }).slice(-1), ['Deletes: Agentic App'],
+  assert.deepEqual(w.planLines(summary).slice(-1), ['Deletes: App, Dashboard'], 'without a sharing check the plan reads as before');
+  assert.deepEqual(w.planLines({ ...summary, delete: ['app'] }, { shared: { ...SHARED, app: null } }).slice(-1), ['Deletes: App'],
     'an App the check found no other use case in is deleted');
   assert.deepEqual(w.planLines({ ...summary, delete: ['app'] }, { shared: SHARED }).filter((l) => l.startsWith('Deletes')), [],
     'no empty Deletes line when every removed output is shared');
-  assert.deepEqual(w.planLines({ ...summary, delete: [], keep_unmanaged: ['app'] }, { shared: SHARED }).slice(-1), ['Leaves in place, no longer managed: Agentic App'],
+  assert.deepEqual(w.planLines({ ...summary, delete: [], keep_unmanaged: ['app'] }, { shared: SHARED }).slice(-1), ['Leaves in place, no longer managed: App'],
     'an output kept unmanaged is not taken out of anything');
 });
 
@@ -2018,7 +2018,7 @@ test('Summary lists every chosen option with the step that changes it, holds no 
   assert.deepEqual(full.filter((r) => r.step === 'where').map((r) => r.id), ['app', 'app_access', 'app_features', 'app_look'], 'the App rows change on Where it lives (REQ-002)');
   assert.equal(full.find((r) => r.id === 'app_features').value, 'Record decisions');
   assert.equal(full.some((r) => /capacity|settings|vibes/i.test(`${r.id} ${r.label}`)), false, 'no Team capacity, settings or vibes row (must-exclude)');
-  assert.deepEqual(full.find((r) => r.id === 'app'), { id: 'app', step: 'where', label: 'Agentic App', value: 'One App per business domain: churn-desk-2' });
+  assert.deepEqual(full.find((r) => r.id === 'app'), { id: 'app', step: 'where', label: 'App', value: 'One App per business domain: churn-desk-2' });
   assert.equal(w.pickedSummary({ ...withApp, outputs: { ...withApp.outputs, merge: { app: 'finance-desk' } } }).find((r) => r.id === 'app').value, 'Joins finance-desk');
   assert.equal(w.pickedSummary({ ...withApp, outputs: { ...withApp.outputs, app: false } }).some((r) => ['app', 'app_access', 'app_features', 'app_look'].includes(r.id)), false,
     'with Apps unticked Summary shows no App row (must-exclude)');

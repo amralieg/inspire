@@ -66,7 +66,7 @@ test('Lakebase refused to Inspire: Review says Delta because it could not be cre
   try {
     await toStorage(ui.page);
     await storageHasNoChoice(ui.page);
-    assert.match(await reviewLine(ui.page), /^Delta, because Lakebase could not be created: .*PERMISSION_DENIED: Lakebase is not enabled for this user/);
+    assert.match(await reviewLine(ui.page), /^Delta tables \(Lakebase is not set up in this workspace\)$/);
   } finally { await ui.close(); }
 });
 

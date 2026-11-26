@@ -1,4 +1,4 @@
-"""REQ-404: a page of another use case on a shared Agentic App that no longer works at the default filters does not stop this use case's
+"""REQ-404: a page of another use case on a shared App that no longer works at the default filters does not stop this use case's
 publish. The other page is kept as it was and named in a warning. A problem with this use case's own page, or with the App as a whole,
 still refuses the build."""
 import os  # noqa: E402
@@ -46,18 +46,18 @@ def test_a_problem_that_names_this_page_and_another_stays_with_this_build(agent_
 
 
 def test_the_kept_page_warning_names_the_use_case_to_rebuild_and_says_the_page_stays(agent_ns):
-    warn = lambda pages: agent_ns["implement_app_kept_warning"](pages, "Agentic App")
+    warn = lambda pages: agent_ns["implement_app_kept_warning"](pages, "App")
     [text] = warn([OTHER])
-    assert text == ("Agentic App: page 'Sales desk' of use case N01-U07 no longer works at the default filters, so the App keeps it as it was. "
+    assert text == ("App: page 'Sales desk' of use case N01-U07 no longer works at the default filters, so the App keeps it as it was. "
                     "To fix it: build that use case again with Vibe/Add/Remove Features on the Build page or remove the page"), text
     assert warn([]) == []
     [two] = warn([OTHER, OTHER_LONG, OTHER])
-    assert two.startswith("Agentic App: pages 'Sales desk' of use case N01-U07 and 'Stock desk' of use case N01-U09 no longer work at the "
+    assert two.startswith("App: pages 'Sales desk' of use case N01-U07 and 'Stock desk' of use case N01-U09 no longer work at the "
                           "default filters, so the App keeps them as they were."), two
     assert two.count("'Sales desk'") == 1, "a page named twice is listed once"
 
 
 def test_this_builds_own_page_failing_still_refuses_with_the_default_filters_reason(agent_ns):
-    error = agent_ns["implement_app_check_failure"]([OWN_FAIL], "Agentic App")
+    error = agent_ns["implement_app_check_failure"]([OWN_FAIL], "App")
     assert type(error) is RuntimeError
-    assert str(error) == "the Agentic App was run at its default filters and " + agent_ns["inspire_listing"]([OWN_FAIL])
+    assert str(error) == "the App was run at its default filters and " + agent_ns["inspire_listing"]([OWN_FAIL])

@@ -360,7 +360,7 @@ class _Spark:
 
 
 def test_the_run_reader_reads_asset_status_from_the_implement_table_not_the_use_case_table(ns):
-    """Live W1 rc.2-d (11-19 14:27): every Agentic App publish failed with UNRESOLVED_COLUMN asset_status, because the reader
+    """Live W1 rc.2-d (11-19 14:27): every App publish failed with UNRESOLVED_COLUMN asset_status, because the reader
     queried the use-case tracking table, which has no asset_status. The reader must use the implement table, through _implement_select."""
     cls = ns["DatabricksInspire"]
     obj = cls.__new__(cls)

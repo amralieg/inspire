@@ -123,7 +123,7 @@ def _page_file(ns, tmp_path, page, turn):
 def test_a_misfit_goes_back_to_the_builder_while_rounds_are_left(agent_ns, tmp_path):
     with pytest.raises(RuntimeError) as raised:
         _page_file(agent_ns, tmp_path, _network_page(agent_ns), (1, 3))
-    assert "does not fit the Agentic App" in str(raised.value) and "chart moved_by_account sits in the charts section" in str(raised.value)
+    assert "does not fit the App" in str(raised.value) and "chart moved_by_account sits in the charts section" in str(raised.value)
 
 
 @pytest.mark.parametrize("turn,section", [((3, 3), "charts"), (None, "charts"), ((3, 3), "gains_curve")])
@@ -131,7 +131,7 @@ def test_after_the_last_round_the_misfits_are_left_out_and_the_build_goes_on(age
     page, notes = _page_file(agent_ns, tmp_path, _network_page(agent_ns, section), turn)
     assert [c["id"] for c in page["charts"]] == ["graph"]
     left = [n for n in notes if "was left out because no ask for this page names it" in n]
-    assert left == ["Agentic App: chart moved_by_account was left out because no ask for this page names it, and Inspire sets the "
+    assert left == ["App: chart moved_by_account was left out because no ask for this page names it, and Inspire sets the "
                     "network_explorer layout from the use case's kind; ask for it by its type and what it shows to add it in the "
                     "charts section"]
 
@@ -141,7 +141,7 @@ def test_a_misfit_that_is_not_about_the_layout_still_fails_after_the_last_round(
     page["charts"][0]["dataset"] = "nowhere"
     with pytest.raises(RuntimeError) as raised:
         _page_file(agent_ns, tmp_path, page, (3, 3))
-    assert "does not fit the Agentic App" in str(raised.value)
+    assert "does not fit the App" in str(raised.value)
 
 
 def test_the_drop_keeps_every_part_an_ask_names(agent_ns):
@@ -242,7 +242,7 @@ def test_a_held_note_never_fails_the_check_and_reaches_the_build_warnings(agent_
     inst._implement_app_check = noted
     fields = inst._implement_app(context, None)
     assert seen["errors"] == []
-    assert "Agentic App: page n01_u01: the decision list shows every record the data holds" in fields["_warnings"]
+    assert "App: page n01_u01: the decision list shows every record the data holds" in fields["_warnings"]
 
 
 VOCABULARY_SOURCES = {"main.rides.trips": ["pickup_time", "dropoff_time", "trip_distance", "fare_amount", "pickup_zip", "dropoff_zip"]}
@@ -324,12 +324,12 @@ def test_an_app_the_builder_cannot_manage_stops_before_the_build_naming_the_gran
     locked, calls, emitted = _locked(agent_ns, {"/api/2.0/permissions/apps/churn-desk": denied,
                                                 "/api/2.0/apps/churn-desk": {"creator": "App Owner"}})
     assert set(locked) == {"app"}
-    assert locked["app"] == ("Inspire builds as Build Robot, which can open the Agentic App churn-desk of this use case but cannot change it, "
+    assert locked["app"] == ("Inspire builds as Build Robot, which can open the App churn-desk of this use case but cannot change it, "
                              "so Inspire did not change it: ask App Owner, who created it, or a workspace admin to give Build Robot "
                              "Can manage on it, or delete it so Inspire builds a new one, then build again")
     assert ("GET", "/api/2.0/permissions/dashboards/d1") in calls and ("GET", "/api/2.0/permissions/genie/g1") in calls
     assert not [c for c in calls if "alertsv2" in c[1]], "an output with no asset has nothing to check"
-    assert len(emitted) == 1 and emitted[0][1] == "Agentic App" and emitted[0][3] == "ended_warning"
+    assert len(emitted) == 1 and emitted[0][1] == "App" and emitted[0][3] == "ended_warning"
 
 
 def test_every_output_kind_is_checked_and_only_a_denial_stops_it(agent_ns):

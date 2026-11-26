@@ -199,11 +199,11 @@ test('a merge names an existing App, dashboard or Genie Agent, "" creates a new 
   assert.deepEqual(merged.errors, []);
   assert.deepEqual(merged.spec.outputs.merge, { app: 'churn-desk', dashboard: '01ef2a3b4c5d6e7f', genie_space: '01abc_def-9' });
   assert.equal(merged.spec.outputs.app_name, 'churn-desk', 'joining an App deploys to that App');
-  assert.ok(check({ merge: { app: 'Churn_Desk' } }).errors.includes("outputs.merge.app 'Churn_Desk' must name an existing Inspire Agentic App"));
+  assert.ok(check({ merge: { app: 'Churn_Desk' } }).errors.includes("outputs.merge.app 'Churn_Desk' must name an existing Inspire App"));
   assert.ok(check({ merge: { dashboard: 'a b' } }).errors.includes("outputs.merge.dashboard 'a b' must name an existing Inspire dashboard"));
   assert.ok(check({ merge: { genie_space: 'x'.repeat(65) } }).errors.includes(`outputs.merge.genie_space '${'x'.repeat(65)}' must name an existing Inspire Genie Agent`));
   assert.ok(check({ merge: { alert: 'a1' } }).errors.includes('outputs.merge.alert is not one of dashboard, genie_space, app'));
-  for (const [name, label] of [['app', 'Agentic App'], ['dashboard', 'dashboard'], ['genie_space', 'Genie Agent']]) {
+  for (const [name, label] of [['app', 'App'], ['dashboard', 'dashboard'], ['genie_space', 'Genie Agent']]) {
     for (const value of [7, true, ['d1']]) {
       assert.ok(check({ merge: { [name]: value } }).errors.includes(`outputs.merge.${name} must be text: the ${label} to add to, or "" for a new one`), `${name} ${JSON.stringify(value)}`);
     }
@@ -456,7 +456,7 @@ test('plan and submit refuse a per-user use case joining a service-principal App
     assert.match(refused.data.error, /churn-desk shows everyone the same rows, so a per-user \(sensitive\) use case cannot join it/);
     const notListed = await call(srv.url, '/api/inspire/implement/submit', body({ merge: { app: 'not-ours' } }));
     assert.equal(notListed.status, 400);
-    assert.match(notListed.data.error, /not-ours is not an Agentic App Inspire built that Inspire can open/);
+    assert.match(notListed.data.error, /not-ours is not an App Inspire built that Inspire can open/);
     assert.equal(jobs.length, 0);
     fetches.length = 0;
     const ok = await call(srv.url, '/api/inspire/implement/plan', body({}));

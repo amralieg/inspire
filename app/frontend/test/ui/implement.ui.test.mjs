@@ -92,7 +92,7 @@ test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks
     assert.equal(await page.getByText('(default)', { exact: false }).count(), 0);
     await page.getByRole('heading', { name: 'How will people use this use case?' }).waitFor();
     assert.equal(await page.locator('[data-output="notebook"]').count(), 0, 'REQ-514: the notebook is not a choice');
-    for (const name of [/^Genie Agent/, /^Agentic App/]) assert.equal(await page.getByRole('checkbox', { name }).count(), 0, `REQ-514: ${name} is not a choice`);
+    for (const name of [/^Genie Agent/, /^App/]) assert.equal(await page.getByRole('checkbox', { name }).count(), 0, `REQ-514: ${name} is not a choice`);
     for (const name of [/^Dashboard/, /^Alert/]) assert.equal(await page.getByRole('checkbox', { name }).isChecked(), false, `${name} starts off but stays a choice`);
     assert.equal(await page.locator('[data-choice="outputs"]').evaluate((g) => [...g.querySelectorAll('[data-recommended]')].filter((b) => b.closest('[data-choice]') === g).length),
       0, 'REQ-514: the App is fixed, so no tile is Recommended');
@@ -633,7 +633,7 @@ test('the Build page shows its tiles in a fixed order, no label is clipped besid
     await tile(page, 'app').locator('[data-tile-open="asset"]').waitFor({ timeout: 15000 });
     assert.deepEqual(await tiles.evaluateAll((els) => els.map((t) => t.dataset.assetTile)), TILE_IDS);
     const labels = await tiles.evaluateAll((els) => els.map((t) => t.querySelector('[data-tile-state]').previousElementSibling.textContent));
-    assert.deepEqual(labels, ['Agentic App', 'Dashboard', 'Genie Agent', 'Alerts', 'Notebook', 'Job']);
+    assert.deepEqual(labels, ['App', 'Dashboard', 'Genie Agent', 'Alerts', 'Notebook', 'Job']);
     const states = await tiles.evaluateAll((els) => els.map((t) => t.querySelector('[data-tile-state]')).map((s) => [s.title, s.textContent.trim()]));
     for (const [title, said] of states) assert.ok(said && title === said, `a state cut short on a narrow tile reads in full on hover: ${title} | ${said}`);
     for (const width of [1440, 1280, 1024]) {
@@ -677,7 +677,7 @@ test('the Build page shows its tiles in a fixed order, no label is clipped besid
     await appFacts.getByText('RUNNING: App is running', { exact: true }).waitFor({ timeout: 15000 });
     const appRows = await appFacts.locator('dl > div').evaluateAll((rows) => rows.map((r) => [...r.querySelectorAll('dt, dd')].map((cell) => cell.textContent)));
     assert.deepEqual(appRows.slice(0, 3), [
-      ['Agentic App', 'RUNNING: App is running'],
+      ['App', 'RUNNING: App is running'],
       ['Compute', 'ACTIVE'],
       ['Last deployment', 'SUCCEEDED: App started successfully (2026-10-25T04:10:00Z)'],
     ]);
@@ -1563,7 +1563,7 @@ test('a version saved while the App offered downloads retries its App and opens 
   try {
     await ui.page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await showView(ui.page, 'app');
-    const retry = assetPanel(ui.page, 'app').getByRole('button', { name: 'Retry the Agentic App', exact: true });
+    const retry = assetPanel(ui.page, 'app').getByRole('button', { name: 'Retry the App', exact: true });
     assert.equal(await retry.getAttribute('title'), 'deploy failed');
     await retry.click();
     await until(() => ui.made.jobs.length === 1, 'the App retry implement run');
@@ -1579,9 +1579,9 @@ test('a version saved while the App offered downloads retries its App and opens 
     await never.page.locator('[data-asset-tile="app"] [data-tile-open="reason"]').click({ timeout: 20000 });
     const panel = never.page.locator('[data-asset-panel="app"][data-tile-kind="failed"]');
     await panel.waitFor({ timeout: 20000 });
-    assert.equal(await panel.getByText('The Agentic App failed on v1: deploy failed', { exact: true }).count(), 1, 'an App that was never created says why, once');
+    assert.equal(await panel.getByText('The App failed on v1: deploy failed', { exact: true }).count(), 1, 'an App that was never created says why, once');
     assert.equal(await panel.getByText('It failed', { exact: false }).count(), 0);
-    await panel.getByRole('button', { name: 'Retry the Agentic App', exact: true }).click();
+    await panel.getByRole('button', { name: 'Retry the App', exact: true }).click();
     await until(() => never.made.jobs.length === 1, 'the retry of the App that was never created');
     assert.deepEqual(submittedSpec(never.made).retry_outputs, ['app']);
     assert.deepEqual(never.pageErrors, []);
@@ -1661,7 +1661,7 @@ test('Edit of a use case whose own App no longer exists says so and puts the use
   try {
     await toData(page);
     await toDelivery(page);
-    await page.getByText('The Agentic App this use case had, churn-desk, no longer exists, so Genie can add the use case to one Inspire built or create a new one.').waitFor();
+    await page.getByText('The App this use case had, churn-desk, no longer exists, so Genie can add the use case to one Inspire built or create a new one.').waitFor();
     assert.equal(await page.locator('[data-merge="dashboard"]').count(), 0, 'a dashboard that still exists is updated in place');
     await goToStep(page, 'App placement');
     const place = page.getByRole('region', { name: 'App placement' });
@@ -2338,7 +2338,7 @@ test('each output the version lacks shows faded with its name and Add opens Edit
     assert.equal(await tile(page, 'dashboard').getByRole('button', { name: /^Add the / }).count(), 0, 'the output it has is not offered');
     const offered = {};
     const faded = {};
-    for (const [id, label] of [['app', 'Agentic App'], ['alert', 'Alerts'], ['genie_space', 'Genie Agent']]) {
+    for (const [id, label] of [['app', 'App'], ['alert', 'Alerts'], ['genie_space', 'Genie Agent']]) {
       const off = tile(page, id);
       await off.locator('[data-tile-state]').getByText('Not in this MVP', { exact: true }).waitFor();
       faded[id] = [await off.getAttribute('data-tile-kind'), /border-dashed/.test(await off.getAttribute('class'))];

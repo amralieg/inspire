@@ -36,7 +36,7 @@ test('What to deliver only picks what gets built, Where it lives places the App 
 
     await goToStep(page, 'What to deliver');
     // REQ-514: the App is always built; there is no App checkbox and the App steps stay.
-    assert.equal(await page.getByRole('checkbox', { name: /^Agentic App / }).count(), 0, 'the App is not an option');
+    assert.equal(await page.getByRole('checkbox', { name: /^App / }).count(), 0, 'the App is not an option');
     assert.deepEqual(await stepLabels(page), labels, 'Where it lives and SQL warehouse for the App stay');
 
     await goToStep(page, 'Where it lives');

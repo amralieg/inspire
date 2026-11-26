@@ -109,7 +109,7 @@ test('4: "How we got this number" and the four build flags are in the reader, no
     await reader.getByText(/How we got this number/).first().waitFor({ timeout: 10000 });
     const assets = reader.locator('[data-use-case-assets]').first();
     await assets.waitFor({ timeout: 10000 });
-    assert.match((await assets.innerText()).replace(/\s+/g, ' '), /Agentic App: Yes.*Dashboard: No.*Lakebase: Yes.*Genie Agent: No/);
+    assert.match((await assets.innerText()).replace(/\s+/g, ' '), /App: Yes.*Dashboard: No.*Lakebase: Yes.*Genie Agent: No/);
   } finally { await ui.close(); }
 });
 

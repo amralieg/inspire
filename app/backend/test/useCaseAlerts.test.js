@@ -304,7 +304,7 @@ test('a use case with its own App lists the alerts people set up in that App and
     assert.equal(out.status, 200, JSON.stringify(out.data));
     const body = ws.alerts[out.data.alert.id];
     assert.deepEqual([body.parent_path, body.owner_user_name], [APP_FOLDER, OWNER]);
-    assert.ok(body.custom_description.includes(`Where to look:\nAgentic App: ${APP_URL}/#/n01_u01\n`), body.custom_description);
+    assert.ok(body.custom_description.includes(`Where to look:\nApp: ${APP_URL}/#/n01_u01\n`), body.custom_description);
     const lee = await listed(base, { 'x-forwarded-access-token': 'lee-token', 'x-forwarded-email': LEE });
     assert.equal(lee.data.admin, true, 'the admin of the App may change every alert in it');
     assert.deepEqual(lee.data.alerts.map((a) => a.can_change), [true, true]);

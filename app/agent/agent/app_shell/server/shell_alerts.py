@@ -50,7 +50,7 @@ NAME_LIMIT = 250
 SUMMARY_LIMIT = 250
 RUNBOOK_LIMIT = 4000
 RUNBOOK_PART_LIMIT = 400
-RUNBOOK_LINKS = (("dashboard", "Dashboard"), ("genie", "Genie Agent"), ("app", "Agentic App"))  # the output labels in backend/lib/implementOutputLabels.json
+RUNBOOK_LINKS = (("dashboard", "Dashboard"), ("genie", "Genie Agent"), ("app", "App"))  # the output labels in backend/lib/implementOutputLabels.json
 RUNBOOK_CLEARS = {True: "When it clears: you get one more email when it returns to OK.",
                   False: "When it clears: it sends no email, and you hear from it again only the next time it fires."}
 SENTENCE_END = re.compile(r"[.!?](?=\s|$)")

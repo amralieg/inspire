@@ -59,7 +59,7 @@ test('every card with a count says what it does, a 0 card says why it does nothi
   assert.equal(label('best_of_best').label, 'Show the runs with the 3 Best of Best use cases');
   assert.equal(label('mvps_started').label, 'Show the 3 MVPs started in Build');
   assert.equal(label('mvps_live').label, 'Show the 1 live MVP in Build');
-  assert.equal(label('apps').label, 'Show the 2 Agentic Apps in Build');
+  assert.equal(label('apps').label, 'Show the 2 Apps in Build');
   assert.equal(label('dashboards').label, 'Show the 1 dashboard in Build');
   assert.equal(label('genie_spaces').label, 'Show the 1 Genie Agent in Build');
   assert.deepEqual(label('alerts'), { live: false, label: '', why: 'No MVP has an alert yet.' });
@@ -73,7 +73,7 @@ test('every card with a count says what it does, a 0 card says why it does nothi
     }
   }
   const orphan = { ...PORTFOLIO, sessions: {} };
-  assert.deepEqual(label('apps', orphan), { live: false, label: '', why: 'The run list holds none of the runs these Agentic Apps belong to.' },
+  assert.deepEqual(label('apps', orphan), { live: false, label: '', why: 'The run list holds none of the runs these Apps belong to.' },
     'Apps counted for runs no longer in the list open nothing');
   assert.equal(label('apps', null).live, false, 'no totals yet, nothing to open');
   assert.equal(label('apps', { totals: { apps: 2 } }, []).live, false);
@@ -98,7 +98,7 @@ test('the filter chip says what the list shows, and says so when the run list is
 test('a Build card opens Build on the newest run that holds that kind, filtered to it, and lists every run that holds it', async () => {
   const F = await lib('reviewFigures.js');
   const apps = F.buildFilterOf('apps', SESSIONS, PORTFOLIO);
-  assert.deepEqual(apps, { key: 'apps', asset: 'app', mvp: '', shows: 'use cases with an App', many: 'Agentic Apps', // D-LABEL209: one output label
+  assert.deepEqual(apps, { key: 'apps', asset: 'app', mvp: '', shows: 'use cases with an App', many: 'Apps', // D-LABEL209: one output label
     runs: [{ session_id: '42', name: 'Acme', count: 1 }, { session_id: '41', name: 'Acme', count: 1 }] });
   assert.deepEqual(F.buildFilterOf('mvps_live', SESSIONS, PORTFOLIO), { key: 'mvps_live', asset: '', mvp: 'live', shows: 'use cases with a live MVP',
     many: 'live MVPs', runs: [{ session_id: '42', name: 'Acme', count: 1 }] });

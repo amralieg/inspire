@@ -1474,7 +1474,7 @@ def test_an_app_name_taken_by_someone_else_gets_a_hash_never_an_overwrite(agent_
     assert inst._implement_app_name(recorded, "churn-desk") == renamed, \
         "a recorded App name is not proof: the App under that name must still carry this use case's tag"
     assert recorded["app_renamed"] == context["app_renamed"] == (
-        f"Agentic App: an App named churn-desk exists but is not this use case's App, so Inspire deployed this one as {renamed}; pick another App "
+        f"App: an App named churn-desk exists but is not this use case's App, so Inspire deployed this one as {renamed}; pick another App "
         "name in the wizard to name it yourself")
     assert not [e for e in getattr(inst, "emitted", []) if "ended_warning" in e], "the rename is a warning of the App, never a yellow step"
 
@@ -1976,7 +1976,7 @@ def test_deleting_an_app_deletes_only_this_use_cases_app(agent_ns):
     assert ours.emitted[-1][2:4] == ("deleted churn-desk at the user's request", "ended_success")
     foreign = _delete_app_inspire(agent_ns, {"description": "Finance team tool"})
     refused = foreign._implement_delete_output("app", "churn-desk", (5150, "N01-U01", 3))["note"]
-    assert refused == "Agentic App: churn-desk is no longer this use case's App, so Inspire did not delete it"
+    assert refused == "App: churn-desk is no longer this use case's App, so Inspire did not delete it"
     assert foreign.calls == [("GET", "/api/2.0/apps/churn-desk")], "an App another team now owns under the same name is never deleted"
     assert foreign.updates == [{"app_name": None, "app_url": None}] and foreign.emitted[-1][2:4] == (refused, "ended_warning")
     gone = _delete_app_inspire(agent_ns, None)
@@ -3033,7 +3033,7 @@ def test_sharing_gives_use_on_this_use_cases_app_only(agent_ns):
             assert warnings == [] and patched == ["/api/2.0/permissions/apps/churn-desk"]
             assert calls[-1][2] == {"access_control_list": [{"group_name": "planners", "permission_level": "CAN_USE"}]}
         else:
-            assert warnings == ["Sharing Agentic App: churn-desk is no longer this use case's App, so Inspire did not share it"]
+            assert warnings == ["Sharing App: churn-desk is no longer this use case's App, so Inspire did not share it"]
             assert patched == [], "an App that is no longer this use case's gets no permission change"
 
 
@@ -3323,7 +3323,7 @@ def test_an_app_without_a_genie_agent_gets_no_genie_grant_and_a_failed_grant_is_
     inst, context, _calls, _imported = _deploy_inspire(agent_ns, list(answers))
     inst._implement_grant = lambda *a: (_ for _ in ()).throw(RuntimeError("PERMISSION_DENIED: not a manager"))
     fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, "g1", poll_s=0)
-    assert fields["_warnings"] == ["Agentic App: Ask Genie may fail because the App's service principal could not get CAN RUN on the Genie "
+    assert fields["_warnings"] == ["App: Ask Genie may fail because the App's service principal could not get CAN RUN on the Genie "
                                    "Agent g1: PERMISSION_DENIED: not a manager. Give it CAN RUN on the Genie Agent, or build the App again with Vibe/Add/Remove Features on the Build page"]
     assert fields["app_url"] == "https://churn-desk.example"
 
@@ -3640,7 +3640,7 @@ def test_an_app_that_cannot_be_tagged_deploys_with_a_warning_that_says_why(agent
     inst, context, calls, emitted = _tag_inspire(agent_ns, error=RuntimeError("PERMISSION_DENIED: cannot assign tags on apps"))
     warning = inst._implement_tag_app(context, "churn-desk")
     assert len(calls) == 1, "a permission error is not retried"
-    assert warning == ("Agentic App: the App churn-desk was not tagged, so its usage cannot be traced to this use case: "
+    assert warning == ("App: the App churn-desk was not tagged, so its usage cannot be traced to this use case: "
                        "PERMISSION_DENIED: cannot assign tags on apps. Build the App again with Vibe/Add/Remove Features on the Build page to tag it")
     assert emitted == [], "the App step is not turned yellow; the warning goes to the App's warnings"
 
@@ -5446,7 +5446,7 @@ def test_the_app_is_built_from_genie_page_json_checked_at_its_defaults_then_depl
 def test_an_app_without_a_ready_genie_agent_deploys_with_ask_genie_off_and_a_warning(agent_ns, tmp_path, outputs, asset_status, note):
     inst, context, seen = _app_flow(agent_ns, tmp_path, outputs=outputs, asset_status=asset_status)
     fields = inst._implement_app(context, None)
-    assert fields == {"app_name": "churn-desk", "_warnings": [f"Agentic App: {note}"], "_asset": {"page": "n01_u01"}}, "every App deploy records the page of this use case, its own App as well as a joined one"
+    assert fields == {"app_name": "churn-desk", "_warnings": [f"App: {note}"], "_asset": {"page": "n01_u01"}}, "every App deploy records the page of this use case, its own App as well as a joined one"
     _name, files, reads, space_id = seen["deployed"][0]
     settings = json.loads(files["inspire_app.json"])
     assert settings["genie"] is None and settings["genie_note"] == note and space_id == ""
@@ -5555,7 +5555,7 @@ def test_a_page_the_app_cannot_run_still_goes_back_to_genie(agent_ns, tmp_path):
     with pytest.raises(RuntimeError) as raised:
         inst._implement_app(context, None)
     assert type(raised.value) is RuntimeError, "Genie can fix its own page, so this failure is retried"
-    assert "the Agentic App was run at its default filters and KPI k1 failed: UNRESOLVED_COLUMN" in str(raised.value)
+    assert "the App was run at its default filters and KPI k1 failed: UNRESOLVED_COLUMN" in str(raised.value)
 
 
 @pytest.mark.parametrize("error,text", [
@@ -5656,14 +5656,14 @@ def _reads_salaries(ns):
     (None, True, {"_implement_run_query_check": lambda sql, require_rows=False, limit=20: (_ for _ in ()).throw(
         RuntimeError("TABLE_OR_VIEW_NOT_FOUND"))}, "dataset records failed: TABLE_OR_VIEW_NOT_FOUND"),
     (None, True, {"_implement_app_check": lambda work, files, modules, warehouse: ["page n01_u01: chart:by_category failed: boom"]},
-     "the Agentic App was run at its default filters and page n01_u01: chart:by_category failed: boom"),
+     "the App was run at its default filters and page n01_u01: chart:by_category failed: boom"),
 ])
 def test_a_page_json_that_breaks_a_rule_goes_back_to_genie_and_nothing_deploys(agent_ns, tmp_path, make, write, stubs, needle):
     inst, context, seen = _app_flow(agent_ns, tmp_path, page=make(agent_ns) if make else None, write=write, **stubs)
     assert inst._implement_app(context, None) == {}
     assert len(seen["errors"]) == 1 and needle in seen["errors"][0], seen["errors"]
     if make in (_no_kpis, _two_segments, _reads_salaries):
-        assert seen["errors"][0].startswith("page.json does not fit the Agentic App: ")
+        assert seen["errors"][0].startswith("page.json does not fit the App: ")
     assert seen["deployed"] == []
 
 
@@ -5671,7 +5671,7 @@ def test_the_app_prompt_asks_for_page_json_only_with_the_example_tables_and_user
     inst, context, seen = _app_flow(agent_ns, tmp_path, outputs={"app_purpose": "Let the retention lead see who leaves next"})
     inst._implement_app(context, None)
     prompt = seen["prompt"]
-    assert seen["label"] == "Agentic App" and prompt.startswith("Write the file page.json in your working folder")
+    assert seen["label"] == "App" and prompt.startswith("Write the file page.json in your working folder")
     assert ("What the user asked the App to show or let people do (this wins over every rule below): Let the retention lead see who "
             "leaves next") in prompt
     assert '"title": "Price-loss decision desk"' in prompt, "the example spec is shown in full"

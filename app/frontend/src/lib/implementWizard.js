@@ -232,6 +232,7 @@ export function perUserFastPages(offer) {
   return offer?.state === 'available' && tables.length > 0 && tables.every((t) => t.enforced);
 }
 
+export const NOT_SET_UP_WHY = 'Lakebase is not set up in this workspace';
 export const LAKEBASE_ABSENT = 'Lakebase is not available here';
 export const PER_USER_STORAGE_WHY = 'each person signs in as themselves, so pages read their tables directly';
 export const JOINED_STORAGE_WHY = 'the App it joins keeps its own storage';
@@ -248,9 +249,8 @@ export function appStorageOf(spec, offer) {
   if (!offer) return delta('', true);
   const detail = offer.detail ? `: ${offer.detail}` : '';
   if (offer.state === 'absent') return delta(LAKEBASE_ABSENT + detail);
-  if (offer.state === 'denied') return delta(`Lakebase could not be created${detail || ': Inspire does not have access yet'}`);
-  if (offer.state === 'no_catalog') return delta(offer.detail);
-  if (offer.state !== 'available') return delta(`Inspire could not check Lakebase here${detail}`);
+  // RC7-C-01: one short plain line; the admin detail (principal, catalog, installer advice) stays in offer.detail for the logs, never in user text.
+  if (['denied', 'no_catalog'].includes(offer.state) || offer.state !== 'available') return { ...delta(NOT_SET_UP_WHY), plain: true };
   if (outputs.app_access === 'user' && !perUserFastPages(offer)) {
     const refused = Object.entries(enforceOf(offer)).filter(([, t]) => !t.enforced).map(([name, t]) => `${name} uses Standard pages because ${t.reason}`);
     return delta(refused.length ? `${PER_USER_STORAGE_WHY}; ${refused.join('; ')}` : PER_USER_STORAGE_WHY);
@@ -263,8 +263,9 @@ export function appBackendOf(spec, offer) {
 }
 
 export function appStorageText(spec, offer) {
-  const { backend, why, checking } = appStorageOf(spec, offer);
+  const { backend, why, checking, plain } = appStorageOf(spec, offer);
   if (!backend) return '';
+  if (plain) return `Delta tables (${why})`;
   if (checking) return 'Inspire is still checking whether Lakebase is available here';
   return backend === 'lakebase' ? 'Fast pages (Lakebase)' : `Delta, because ${why}`;
 }
@@ -512,7 +513,7 @@ export function withAppPage(spec, id, on) {
   if (id === 'alerts') return withAppOption(spec, 'alerts', on);
   return APP_SCREENS.includes(id) ? withAppScreen(spec, id, on) : spec;
 }
-// REQ-322 (D-GENIE322): one plain line on the Agentic App card, so the Genie Agent ticked with it has a reason.
+// REQ-322 (D-GENIE322): one plain line on the App card, so the Genie Agent ticked with it has a reason.
 export const APP_GENIE_NOTE = 'Ask answers questions on your data through a Genie Agent, built with it.';
 export const GENIE_FOR_APP_NOTE = "The App's own agent answers Ask. A Genie Agent is optional, and the App's agent can also use it for data.";
 export const APP_NEXT_NOTE = 'You pick where it goes on the next step.';
