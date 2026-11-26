@@ -290,15 +290,17 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
     const kindAt = driver ? ticked.findIndex((d) => d.id === driver.id) + 1 : 0;
     return (
       <>
+        {driver && (
+          <div className="flex flex-wrap items-baseline gap-x-3">
+            <h2 data-kind-title="" className="text-2xl font-bold text-text-primary">{driver.label}</h2>
+            <p data-kind-count="" className="text-[13px] text-text-secondary">{`Kind ${kindAt} of ${ticked.length}`}</p>
+          </div>
+        )}
         {!plan.model && <p role="note" data-fallback-notice="" className="rounded-md border border-warning/40 bg-warning-bg px-3 py-1.5 text-[12px] text-warning-fg">{plan.model_reason ? noModelNotice(plan.model_reason) : FALLBACK_NOTICE}</p>}
         {(page === 'kinds' || last) && reviewLineOf(plan.review) && <p role="note" data-value-review="" title={last ? reviewLineOf(plan.review) : undefined} className={`rounded-md border border-border bg-bg-subtle px-3 py-1 text-[12px] text-text-secondary${last ? ' truncate' : ''}`}>{reviewLineOf(plan.review)}</p>}
         {page === 'kinds' && <StepKinds plan={plan} answers={answers} onToggle={toggleDriver} />}
         {driver && (
           <>
-            <div className="flex flex-wrap items-baseline gap-x-3">
-              <h2 data-kind-title="" className="text-2xl font-bold text-text-primary">{driver.label}</h2>
-              <p data-kind-count="" className="text-[13px] text-text-secondary">{`Kind ${kindAt} of ${ticked.length}`}</p>
-            </div>
             <StepKind driver={driver} answers={answers} yearly={yearly} onInput={setInput} status={preview.status} error={preview.error} />
           </>
         )}
@@ -367,7 +369,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
           )}
         </>
       )}>
-      {/* D23: a fixed frame (header, steps and footer stay put; only this body scrolls) so Next and Save never move under the cursor. */}
+      {/* C23: header, steps and footer stay in view; only this body scrolls, and it is as tall as its page (max and min height, no fixed one) so no void is left. */}
       <ol aria-label="Steps" className="flex gap-1 text-[12px]">
         {STEPS.map((name, k) => (
           <li key={name} aria-current={k === step ? 'step' : undefined} className={`flex flex-1 items-center gap-1.5 ${k === step ? 'font-semibold text-text-primary' : 'text-text-secondary'}`}>
@@ -375,7 +377,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
           </li>
         ))}
       </ol>
-      <div data-wizard-body="" className="h-[min(44rem,calc(100dvh-15rem))] space-y-2 overflow-y-auto overscroll-contain">
+      <div data-wizard-body="" className="max-h-[min(44rem,calc(100dvh-15rem))] min-h-[12rem] space-y-2 overflow-y-auto overscroll-contain pb-1">
         {measure && <div hidden={page !== 'data'}><MeasureSettings measure={measure} /></div>}
         <div key={page} className="tab-panel-enter space-y-2">{body()}</div>
       </div>

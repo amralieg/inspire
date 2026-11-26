@@ -61,7 +61,7 @@ test('D22: money is formatted, an implausible uplift is noted and the slider ran
   } finally { await ui.close(); }
 });
 
-test('D23: the dialog and its buttons stay put at every step, and the counts from your data are whole', async () => {
+test('D23 (C23): the footer stays in view and does not overlap the body at every step, and the counts from your data are whole', async () => {
   const { ui, card, page } = await openCard(mountWizard({ planReply: { plan: FRACTIONAL } }));
   try {
     const dialog = await openWizard(page, card);
@@ -74,7 +74,8 @@ test('D23: the dialog and its buttons stay put at every step, and the counts fro
       const d = await dialog.boundingBox();
       const n = (await nextBtn.count()) ? await nextBtn.boundingBox() : null;
       const pg = await dialog.locator('[data-wizard-page]').first().getAttribute('data-wizard-page');
-      boxes.push({ page: pg, y: d.y, h: d.height, w: d.width, ny: n?.y, nx: n?.x });
+      const b = await dialog.locator('[data-wizard-body]').boundingBox();
+      boxes.push({ page: pg, y: d.y, h: d.height, w: d.width, ny: n?.y, nx: n?.x, nh: n?.height, bottom: b.y + b.height });
       if (pg.startsWith('driver:')) {
         for (const t of await dialog.locator('[data-ask="events_per_year"] [data-from-data]').allInnerTexts()) assert.doesNotMatch(t.replace(/\s+/g, ' '), /\d\.\d+/, `whole count at ${pg}`);
       }
@@ -83,12 +84,15 @@ test('D23: the dialog and its buttons stay put at every step, and the counts fro
     }
     assert.deepEqual(boxes.map((b) => b.page), ['data', 'kinds', 'driver:risk_avoided', 'driver:time_saved', 'driver:revenue_uplift',
       'story:draft', 'terms'], 'walked every step');
+    const vh = page.viewportSize().height;
     for (const b of boxes) {
-      assert.equal(b.y, boxes[0].y, `dialog top at ${b.page}: ${JSON.stringify(boxes)}`);
-      assert.equal(b.h, boxes[0].h, `dialog height at ${b.page}`);
       assert.equal(b.w, boxes[0].w, `dialog width at ${b.page}`);
+      assert.ok(b.y >= 0 && b.y + b.h <= vh, `dialog in view at ${b.page}`);
     }
-    for (const b of boxes.filter((x) => x.ny !== undefined)) { assert.equal(b.ny, boxes[0].ny, `Next top at ${b.page}`); assert.equal(b.nx, boxes[0].nx, `Next left at ${b.page}`); }
+    for (const b of boxes.filter((x) => x.ny !== undefined)) {
+      assert.ok(b.ny >= b.bottom - 1, `footer does not overlap the body at ${b.page}`);
+      assert.ok(b.ny + b.nh <= vh, `Next in view at ${b.page}`);
+    }
   } finally { await ui.close(); }
 });
 
