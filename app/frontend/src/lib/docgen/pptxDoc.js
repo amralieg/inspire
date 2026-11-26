@@ -2,6 +2,7 @@
 import PptxGenJS from 'pptxgenjs';
 import { buildDesignDeck } from './designs/pptxDesign.js';
 import { LB, withLabels } from './docLabels.js';
+import { ucParts, paginate } from './pptxParts.js';
 
 const hex = (c) => String(c).replace('#', '');
 const has = (m, id) => m.blocks.includes(id);
@@ -41,23 +42,25 @@ function buildClassicDeck(pptx, m, theme) {
   sum.addTable([head, ...rows], { x: 0.6, y: 1.5, w: 12.1, fontSize: 14, fontFace: face, border: { type: 'solid', color: muted, pt: 0.5 }, colW: has(m, 'inspire_score') ? [8, 1.6, 2.5] : [9.5, 2.6] });
 
   m.useCases.forEach((u, i) => {
-    const s = slide(u.name);
     const c = hex(theme.accents[i % theme.accents.length]);
-    s.addText(`${has(m, 'inspire_score') && u.score != null ? `${LB(`Score ${u.score.toFixed(1)}`)}  |  ` : ''}${u.value ? u.value.text : LB(NOT_YET)}`, { x: 0.6, y: 1.2, w: 12.1, h: 0.5, fontSize: 18, bold: true, color: c, fontFace: face, align });
-    const parts = [];
-    if (has(m, 'use_case_story')) parts.push({ text: `${LB('Use case')}\n`, options: { bold: true, color: muted, fontSize: 12 } }, { text: `${u.statement || u.solution}\n\n`, options: { color: ink, fontSize: 15 } });
-    if (has(m, 'value_story') && u.value?.story) parts.push({ text: `${LB('Value story')}\n`, options: { bold: true, color: muted, fontSize: 12 } }, { text: `${u.value.story}\n\n`, options: { color: ink, fontSize: 15 } });
-    if (has(m, 'data_used') && u.tables.length) parts.push({ text: `${LB('Data used')}\n`, options: { bold: true, color: muted, fontSize: 12 } }, { text: u.tables.join(', '), options: { color: ink, fontSize: 14 } });
-    if (parts.length) s.addText(parts, { x: 0.6, y: 1.9, w: has(m, 'value_projection') && u.value?.yearly.length ? 6.3 : 12.1, h: 4.9, valign: 'top', fontFace: face, align });
-    if (has(m, 'value_projection') && u.value?.yearly.length) {
-      const y = u.value.yearly;
-      s.addChart(pptx.charts.BAR, [
-        { name: LB('Low'), labels: y.map((r) => LB(`Year ${r.year}`)), values: y.map((r) => r.low) },
-        { name: LB('Likely'), labels: y.map((r) => LB(`Year ${r.year}`)), values: y.map((r) => r.likely) },
-        { name: LB('High'), labels: y.map((r) => LB(`Year ${r.year}`)), values: y.map((r) => r.high) },
-      ], { x: 7.1, y: 2.0, w: 5.6, h: 4.5, barDir: 'col', chartColors: [a1, a0, a2], showLegend: true, legendPos: 'b', legendColor: ink, catAxisLabelColor: ink, valAxisLabelColor: ink});
-      s.addText(LB('Three-year projection'), { x: 7.1, y: 1.5, w: 5.6, h: 0.4, fontSize: 14, bold: true, color: muted, fontFace: face, align });
-    }
+    const proj = has(m, 'value_projection') && u.value?.yearly.length;
+    const width = proj ? 6.3 : 12.1;
+    const pages = paginate(ucParts(m, u), Math.floor(width * 8.5), 14, 14);
+    pages.forEach((page, pi) => {
+      const s = slide(u.name);
+      if (!pi) s.addText(`${has(m, 'inspire_score') && u.score != null ? `${LB(`Score ${u.score.toFixed(1)}`)}  |  ` : ''}${u.value ? u.value.text : LB(NOT_YET)}`, { x: 0.6, y: 1.2, w: 12.1, h: 0.5, fontSize: 18, bold: true, color: c, fontFace: face, align });
+      const parts = page.flatMap((p) => [{ text: `${LB(p.label.replace(' (cont.)', ''))}${p.label.endsWith('(cont.)') ? ' (cont.)' : ''}\n`, options: { bold: true, color: muted, fontSize: 12 } }, { text: `${p.text}\n\n`, options: { color: ink, fontSize: 14 } }]);
+      if (parts.length) s.addText(parts, { x: 0.6, y: 1.9, w: pi ? 12.1 : width, h: 4.9, valign: 'top', fontFace: face, align });
+      if (!pi && proj) {
+        const y = u.value.yearly;
+        s.addChart(pptx.charts.BAR, [
+          { name: LB('Low'), labels: y.map((r) => LB(`Year ${r.year}`)), values: y.map((r) => r.low) },
+          { name: LB('Likely'), labels: y.map((r) => LB(`Year ${r.year}`)), values: y.map((r) => r.likely) },
+          { name: LB('High'), labels: y.map((r) => LB(`Year ${r.year}`)), values: y.map((r) => r.high) },
+        ], { x: 7.1, y: 2.0, w: 5.6, h: 4.5, barDir: 'col', chartColors: [a1, a0, a2], showLegend: true, legendPos: 'b', legendColor: ink, catAxisLabelColor: ink, valAxisLabelColor: ink});
+        s.addText(LB('Three-year projection'), { x: 7.1, y: 1.5, w: 5.6, h: 0.4, fontSize: 14, bold: true, color: muted, fontFace: face, align });
+      }
+    });
   });
 
   const roll = slide('Value roll-up');

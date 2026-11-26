@@ -29,6 +29,21 @@ export const EXCEL_COLUMNS = [
   { id: 'value_story', label: 'Value story' },
   { id: 'projection', label: 'Projection' },
   { id: 'tables', label: 'Tables' },
+  // C23: the detail columns the agent Excel had.
+  { id: 'business_value', label: 'Business value' },
+  { id: 'sponsor', label: 'Sponsor' },
+  { id: 'beneficiary', label: 'Beneficiary' },
+  { id: 'technique', label: 'Technique' },
+  { id: 'design', label: 'Technical design' },
+  { id: 'type', label: 'Type' },
+  { id: 'priority_alignment', label: 'Priority alignment' },
+  { id: 'strategic_alignment', label: 'Strategic alignment' },
+  { id: 'kpis', label: 'KPIs' },
+  { id: 'key_results', label: 'Expected key results' },
+  { id: 'measures', label: 'Measures of success' },
+  { id: 'financial', label: 'Financial benefits' },
+  { id: 'non_financial', label: 'Non-financial benefits' },
+  { id: 'foundations', label: 'Foundations' },
 ];
 
 export function defaultDocOptions(language = 'English') {
@@ -37,7 +52,7 @@ export function defaultDocOptions(language = 'English') {
     layout: 'one',
     languages: [language],
     blocks: ['use_case_story', 'value_story', 'value_projection', 'inspire_score', 'data_used', 'disclaimer'],
-    columns: ['name', 'inspire_score', 'value', 'value_status', 'domain', 'statement'],
+    columns: ['name', 'inspire_score', 'value', 'value_status', 'domain', 'statement', 'use_case_story', 'business_value', 'sponsor', 'beneficiary', 'technique', 'design', 'kpis', 'key_results', 'tables'],
     style: 'original', // REQ-526: the four designs come first; the original is the default
     palette: 'databricks',
     customColor: '',

@@ -23,7 +23,8 @@ const texts = (xml) => [...xml.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((x) => x[1]
 const open = async (id, mode) => JSZip.loadAsync(await buildPptx(doc(), themeOf(id, mode)));
 // The use case slides come after the domain slides (grouped by domain): find one by its title.
 const ucSlide = async (zip, name) => {
-  for (let n = 2 + nDomains; n < EXPECT; n += 1) { const t = texts(await slideXml(zip, n)); if (t.includes(name)) return t.join(' '); }
+  const total = Object.keys(zip.files).filter((f) => /^ppt\/slides\/slide\d+\.xml$/.test(f)).length; // c23: continuation slides follow a use case slide
+  for (let n = 2 + nDomains; n < total; n += 1) { const t = texts(await slideXml(zip, n)); if (t.includes(name)) return t.join(' '); }
   return '';
 };
 const nDomains = new Set(doc().useCases.map((u) => u.domain)).size;
@@ -33,13 +34,14 @@ for (const id of Object.keys(COVER)) for (const mode of ['light', 'dark']) {
   test(`D1 ${id}/${mode}: slide count, cover colour, charts, real text, no picture-only slide`, async () => {
     const zip = await open(id, mode);
     const slides = Object.keys(zip.files).filter((f) => /^ppt\/slides\/slide\d+\.xml$/.test(f));
-    assert.equal(slides.length, EXPECT);
+    assert.ok(slides.length >= EXPECT, 'at least one slide per use case; long text continues on extra slides (c23)');
+    const LAST = slides.length;
     const cover = await slideXml(zip, 1);
     assert.match(cover, new RegExp(`<p:bg>.*?srgbClr val="${COVER[id](DESIGNS[id].themes[mode]).replace('#', '')}"`, 'i'));
     const rels = async (n) => zip.file(`ppt/slides/_rels/slide${n}.xml.rels`).async('string');
     assert.match(await rels(2), /charts\/chart/, 'first domain slide has a native chart');
-    assert.match(await rels(EXPECT), /charts\/chart/, 'portfolio slide has a native chart');
-    for (let n = 1; n <= EXPECT; n += 1) assert.ok(texts(await slideXml(zip, n)).length > 0, `slide ${n} has text runs`);
+    assert.match(await rels(LAST), /charts\/chart/, 'portfolio slide has a native chart');
+    for (let n = 1; n <= LAST; n += 1) assert.ok(texts(await slideXml(zip, n)).length > 0, `slide ${n} has text runs`);
     const u0 = doc().useCases[0];
     const ucText = await ucSlide(zip, u0.name);
     assert.ok(ucText.includes(u0.name), 'use case name');
@@ -65,9 +67,9 @@ test('D3: every text/background pair the deck sets reads at 4.5:1 or more', asyn
 test('D4 must-keep: an old style builds as before (summary, one slide per use case, roll-up)', async () => {
   const zip = await JSZip.loadAsync(await buildPptx(doc(), resolveTheme('executive', 'databricks', '', 'light')));
   const slides = Object.keys(zip.files).filter((f) => /^ppt\/slides\/slide\d+\.xml$/.test(f));
-  assert.equal(slides.length, UCS.length + 3);
+  assert.ok(slides.length >= UCS.length + 3, 'one slide per use case, plus continuation slides (c23)');
   assert.ok(texts(await slideXml(zip, 2)).includes('Summary'));
-  assert.ok(texts(await slideXml(zip, UCS.length + 3)).includes('Value roll-up'));
+  assert.ok(texts(await slideXml(zip, slides.length)).includes('Value roll-up'));
 });
 
 test('D5: empty values and null scores do not break any design', async () => {

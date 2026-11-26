@@ -12,6 +12,7 @@ export const DOC_LABELS = [
   'Use case brief', 'Where data and AI pay back first', 'Prepared for', 'a year, estimated', 'use cases', 'domains', 'Executive summary', 'Summary',
   'Where to start', 'Start here', 'Value by domain', 'Start with these three', 'estimated a year', 'estimated', 'calculated', 'Inspire score', 'What it does',
   'The use case', 'The solution', 'Business value', 'Value story', 'Three-year projection', 'Data used', 'Sponsor', 'Beneficiary', 'Technique',
+  'Technical design', 'Type', 'Priority alignment', 'Strategic alignment', 'KPIs', 'Expected key results', 'Measures of success', 'Financial benefits', 'Non-financial benefits', 'Foundations',
   'Low', 'Likely', 'High', 'Total', 'Other', 'Quality', 'Value verb', 'Statement', 'Solution', 'Use case', 'Score', 'Value',
   NOT_YET, 'Value not calculated yet', 'Projection not calculated yet', 'Calculate value to add the projection', 'Yearly value',
   'Page {0}', 'Year {0}', 'Score {0}', 'score {0}', 'of {0}', '{0} a year', 'Use case {0}', 'FIGURE {0}', 'EXHIBIT {0}', 'Numbers match Figure {0}',
