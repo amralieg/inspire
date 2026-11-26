@@ -39,6 +39,7 @@ import { useFollowEnd } from '../lib/followEnd';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
 import BusyNote from '../components/BusyNote';
 import { withStartDeadline } from '../lib/startDeadline';
+import { aiWording } from '../lib/aiWording';
 
 // Run lifecycle phases
 const PHASE_PENDING = 'PENDING';
@@ -328,10 +329,8 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
       const matchesStatus = statusFilter === 'all' || cat === statusFilter;
       const matchesStage = stageFilter === 'all' || stage === stageFilter;
       const matchesSearch = !searchQuery ||
-        (step.step_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (step.sub_step_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (step.message || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        stage.toLowerCase().includes(searchQuery.toLowerCase());
+        // A person types what they read, so "Databricks AI" finds a step stored under the old name; the stored name still matches too.
+        [step.step_name, step.sub_step_name, step.message, stage].some((t) => [String(t || ''), aiWording(t)].some((x) => x.toLowerCase().includes(searchQuery.toLowerCase())));
 
       if (matchesStatus && matchesStage && matchesSearch) {
         stageMap[stage].push(step);
@@ -516,18 +515,18 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
           <StopRunControl runId={runId} business={session?.business_name} apiFetch={apiFetch} open={stopOpen} onClose={() => setStopOpen(false)} onVerdict={setStopAllowed} />
         )}
         {!showcase && <RunLogPanel inspireDatabase={inspireDatabase} warehouseId={warehouseId} sessionId={session?.session_id || sessionId} apiFetch={apiFetch} open={logOpen} onOpenChange={setLogOpen}
-          fallbackText={(steps || []).map((r) => [r.last_updated, r.stage_name, r.message].filter(Boolean).join('  ')).join('\n')} />}
+          fallbackText={(steps || []).map((r) => [r.last_updated, aiWording(r.stage_name), aiWording(r.message)].filter(Boolean).join('  ')).join('\n')} />}
 
         {/* Latest activity line */}
         {latestStep && isRunning && (
           <div className="mt-3 flex items-center gap-2">
             <Activity size={14} className="text-db-red-fg shrink-0 animate-pulse" />
             <p className="text-caption text-text-secondary font-mono truncate">
-              <span className="text-text-tertiary">{latestStep.stage_name}</span>
+              <span className="text-text-tertiary">{aiWording(latestStep.stage_name)}</span>
               {' → '}
-              <span className="text-text-primary font-medium">{latestStep.step_name}</span>
+              <span className="text-text-primary font-medium">{aiWording(latestStep.step_name)}</span>
               {latestStep.sub_step_name && (
-                <span className="text-text-tertiary">: {latestStep.sub_step_name}</span>
+                <span className="text-text-tertiary">: {aiWording(latestStep.sub_step_name)}</span>
               )}
             </p>
           </div>

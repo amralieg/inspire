@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { ArrowDown } from 'lucide-react';
 import { splitTechnical } from '../../lib/plainText';
+import { aiWording } from '../../lib/aiWording';
 
 // REQ-511 Monitor C: "What Inspire is doing", the latest saved steps as a short feed that follows the newest line.
 const FEED_LINES = 40;
@@ -35,8 +36,8 @@ export default function ActivityFeed({ steps, live }) {
         {lines.length === 0 && <li className="text-sm text-text-secondary">Each step shows here as soon as Inspire saves it.</li>}
         {lines.map((s, i) => (
           <li key={`${s.step_id}-${i}`} className="text-sm">
-            <p className="font-medium text-text-primary break-words">{s.step_name || s.sub_step_name}</p>
-            {s.message && <p className="line-clamp-2 text-xs text-text-secondary break-words">{splitTechnical(s.message).plain}</p>}
+            <p className="font-medium text-text-primary break-words">{aiWording(s.step_name || s.sub_step_name)}</p>
+            {s.message && <p className="line-clamp-2 text-xs text-text-secondary break-words">{aiWording(splitTechnical(s.message).plain)}</p>}
           </li>
         ))}
       </ol>
