@@ -3,6 +3,7 @@
 import { toDesignModel } from './model.js';
 import { contrast, bestInk, DISCLAIMER } from './core.js';
 import { LB } from '../docLabels.js';
+import { paletteOf } from './palette.js';
 import { ucParts, paginate } from '../pptxParts.js';
 
 const NOT_YET = 'not calculated yet';
@@ -13,16 +14,6 @@ const firstFont = (f, fallback = 'Arial') => (S(f).split(',')[0].replace(/['"]/g
 
 // Every text colour set on a background, so the build can prove 4.5:1 (same idea as core.js LOG).
 export const DECK_LOG = [];
-
-// One palette shape for the four designs: where each design keeps its page, card, text and accent tokens.
-function paletteOf(id, th) {
-  switch (id) {
-    case 'original': return { coverBg: th.tealDark, coverInk: th.heroInk, coverMuted: th.heroMuted, coverAccent: th.goldText, page: th.page, card: th.sand, ink: th.ink, body: th.body, muted: th.muted, accent: th.teal, accentText: th.coralText, warm: th.gold, rule: th.line, track: th.barTrack, kicker: th.coralText, rings: true };
-    case 'editorial_ink': return { coverBg: th.paper, coverInk: th.ink, coverMuted: th.grey, coverAccent: th.accentText, page: th.paper, card: th.quad, ink: th.ink, body: th.body, muted: th.grey, accent: th.accent, accentText: th.accentText, warm: th.tones[4], rule: th.rule, track: th.hair, kicker: th.accentText, masthead: true };
-    case 'bold': return { coverBg: th.hero, coverInk: th.heroInk, coverMuted: th.heroMuted, coverAccent: th.heroAccent, page: th.canvas, card: th.card, ink: th.ink, body: th.ink, muted: th.muted, accent: '#2272B4', accentText: th.accentText, warm: th.heroAccent, rule: th.grid, track: th.track, kicker: th.accentText, chips: true };
-    default: return { coverBg: th.page, coverInk: th.ink, coverMuted: th.slate, coverAccent: th.blueText, page: th.page, card: th.panel, ink: th.ink, body: th.ink, muted: th.slate, accent: th.blue, accentText: th.blueText, warm: th.green, rule: th.rule, track: th.pale, kicker: th.blueText, edge: th.navy };
-  }
-}
 
 export function buildDesignDeck(pptx, m, theme) {
   DECK_LOG.length = 0;
@@ -73,7 +64,21 @@ export function buildDesignDeck(pptx, m, theme) {
     text(s, label, { x: x + 0.2, y: y + h - 0.5, w: w - 0.4, h: 0.32, fontSize: 12, bg: P.card, color: P.muted });
   };
   const chartBase = (labelColorBg) => ({ catAxisLabelColor: tc(P.ink, labelColorBg, 'chart axis'), valAxisLabelColor: tc(P.ink, labelColorBg, 'chart axis'), catAxisLabelFontSize: 12, valAxisLabelFontSize: 12, catAxisLabelFontFace: bodyFace, valAxisLabelFontFace: bodyFace, valGridLine: { color: hex(P.rule), size: 0.5 }, catGridLine: { style: 'none' }, showTitle: false });
-  const trunc = (str, n = 30) => (S(str).length > n ? `${S(str).slice(0, n - 1)}...` : S(str));
+  // RC7-B-08: a name is printed in full everywhere (tables wrap, chart labels wrap); nothing is cut with "...".
+  const full = (str) => S(str);
+  // The score breakdown of a use case as percent of each maximum: the native chart of a use case that has no yearly projection.
+  const breakdown = (u) => [['Inspire score', u.score, 10], ['Priority', u.priorityScore, 10], ['Feasibility', u.feasibility, 5], ['Value', u.valueScore, 5]]
+    .filter(([, v]) => Number.isFinite(v)).map(([l, v, max]) => ({ label: LB(l), pct: Math.round((Math.max(0, Math.min(max, v)) / max) * 100) }));
+  // Sponsor, beneficiary and technique are one short line each: they share one block instead of three labelled parts.
+  const SHORT = new Set(['Sponsor', 'Beneficiary', 'Technique']);
+  const packFacts = (parts) => {
+    const facts = parts.filter((p) => SHORT.has(p.label) && p.text.length <= 70 && !p.text.includes('\n'));
+    if (facts.length < 2) return parts;
+    const merged = { label: facts.map((p) => LB(p.label)).join(' / '), text: facts.map((p) => p.text).join(' / ') };
+    const at = parts.indexOf(facts[0]);
+    return parts.filter((p) => !facts.includes(p) || p === facts[0]).map((p, i) => (i === at ? merged : p));
+  };
+  const scoreChart = (s, rows, x, y, w, h, name) => s.addChart(pptx.charts.BAR, [{ name: LB(name), labels: rows.map((r) => r.label), values: rows.map((r) => r.pct) }], { x, y, w, h, barDir: 'bar', catAxisOrientation: 'maxMin', chartColors: [accent], showLegend: false, showValue: true, dataLabelColor: tc(P.ink, P.page, 'chart label'), dataLabelFontSize: 12, dataLabelFormatCode: '0"%"', valAxisMinVal: 0, valAxisMaxVal: 100, valAxisHidden: true, valGridLine: { style: 'none' }, ...chartBase(P.page) });
   const heading = (s, str, y = 0.75, size = 28, w = W - 1.2, x = 0.6) => text(s, str, { x, y, w, h: 0.8, fontSize: size, bold: true, bg: P.page, color: P.ink, font: face });
 
   // ---- cover ----
@@ -113,15 +118,20 @@ export function buildDesignDeck(pptx, m, theme) {
     kpi(s, 0.6, 1.95, 2.9, 1.2, info ? info.text : NOT_YET, 'estimated value a year', { color: P.accentText });
     kpi(s, 3.7, 1.95, 2.0, 1.2, S(d.ucs.length), 'use cases');
     const head = ['Use case', ...(showScore ? ['Score'] : []), 'Value'].map((t) => ({ text: LB(t), options: { bold: true, color: tc(P.ink, P.card, t), fill: { color: hex(P.card) }, fontFace: bodyFace, fontSize: 12 } }));
-    const rows = d.ucs.slice(0, 9).map((u) => [trunc(u.name, 46), ...(showScore ? [Number.isFinite(u.score) ? u.score.toFixed(1) : '-'] : []), u.value ? u.value.text : LB(NOT_YET)].map((t) => ({ text: S(t), options: { color: tc(P.ink, P.page, t), fontFace: bodyFace, fontSize: 12 } })));
+    const rows = d.ucs.slice(0, 9).map((u) => [full(u.name), ...(showScore ? [Number.isFinite(u.score) ? u.score.toFixed(1) : '-'] : []), u.value ? u.value.text : LB(NOT_YET)].map((t) => ({ text: S(t), options: { color: tc(P.ink, P.page, t), fontFace: bodyFace, fontSize: 12 } })));
     s.addTable([head, ...rows], { x: 0.6, y: 3.4, w: 5.1, colW: showScore ? [3.2, 0.7, 1.2] : [3.8, 1.3], border: { type: 'solid', color: hex(P.rule), pt: 0.5 }, fill: { color: hex(P.page) }, rowH: 0.3, autoPage: false });
     const valued = d.ucs.filter((u) => u.value && designUc.has(u.id));
     if (valued.length) {
       text(s, 'Yearly value by use case', { x: 6.1, y: 1.95, w: 6.6, h: 0.35, fontSize: 14, bold: true, bg: P.page, color: P.muted });
       const top = [...valued].sort((a, b) => b.value.amount - a.value.amount).slice(0, 10);
-      s.addChart(pptx.charts.BAR, [{ name: LB('Value'), labels: top.map((u) => trunc(designUc.get(u.id).short || u.name, 28)), values: top.map((u) => u.value.amount) }], { x: 6.1, y: 2.35, w: 6.6, h: 4.6, barDir: 'bar', catAxisOrientation: 'maxMin', chartColors: [accent], showLegend: false, showValue: true, dataLabelColor: tc(P.ink, P.page, 'chart label'), dataLabelFontSize: 12, dataLabelFormatCode: '#,##0', valAxisHidden: true, valGridLine: { style: 'none' }, ...chartBase(P.page), valAxisLabelFormatCode: '#,##0' });
+      s.addChart(pptx.charts.BAR, [{ name: LB('Value'), labels: top.map((u) => full(designUc.get(u.id).short || u.name)), values: top.map((u) => u.value.amount) }], { x: 6.1, y: 2.35, w: 6.6, h: 4.6, barDir: 'bar', catAxisOrientation: 'maxMin', chartColors: [accent], showLegend: false, showValue: true, dataLabelColor: tc(P.ink, P.page, 'chart label'), dataLabelFontSize: 12, dataLabelFormatCode: '#,##0', valAxisHidden: true, valGridLine: { style: 'none' }, ...chartBase(P.page), valAxisLabelFormatCode: '#,##0' });
     } else {
-      text(s, `Value ${NOT_YET}`, { x: 6.1, y: 2.4, w: 6.6, h: 0.5, fontSize: 16, bg: P.page, color: P.muted });
+      const scoredUcs = d.ucs.filter((u) => Number.isFinite(u.score)).slice(0, 10);
+      text(s, `Value ${NOT_YET}`, { x: 6.1, y: 1.95, w: 6.6, h: 0.4, fontSize: 16, bg: P.page, color: P.muted });
+      if (showScore && scoredUcs.length) {
+        text(s, 'Inspire score by use case', { x: 6.1, y: 2.5, w: 6.6, h: 0.35, fontSize: 14, bold: true, bg: P.page, color: P.muted });
+        scoreChart(s, scoredUcs.map((u) => ({ label: full(u.name), pct: Math.round(u.score * 10) })), 6.1, 2.9, 6.6, 4.0, 'Inspire score');
+      }
     }
   });
 
@@ -146,17 +156,20 @@ export function buildDesignDeck(pptx, m, theme) {
       if (showScore && l === 'Inspire score' && Number.isFinite(u.score)) { box(s, x + 0.2, 3.05, cw - 0.4, 0.08, P.track); box(s, x + 0.2, 3.05, (cw - 0.4) * Math.max(0, Math.min(1, u.score / 10)), 0.08, P.accent); }
     });
     const proj = has(m, 'value_projection') && u.value?.yearly?.length;
-    const bodyW = proj ? 7.4 : W - 1.2;
-    // C23: every text part (statement, solution, value, sponsor, beneficiary, technique, KPIs, ...) in full; what does not fit goes on a continuation slide.
-    const pages = paginate(ucParts(m, u), Math.floor(bodyW * 8.5), 10, 10);
-    const draw = (s, page, w) => {
-      const runs = page.flatMap((p) => [{ text: `${LB(p.label.replace(' (cont.)', ''))}${p.label.endsWith('(cont.)') ? ' (cont.)' : ''}\n`, options: { bold: true, color: P.accentText, fontSize: 12, charSpacing: 1 } }, { text: `${p.text}\n\n`, options: { color: P.body, fontSize: 14 } }]);
-      if (runs.length) rich(s, runs, { x: 0.6, y: 3.5, w, h: 3.3, bg: P.page });
-    };
-    draw(s, pages[0], bodyW);
+    const rows = proj ? null : (showScore ? breakdown(u) : []);
+    const hasChart = !!(proj || rows.length);
+    const bodyW = hasChart ? 7.4 : W - 1.2;
+    // C23: every text part (statement, solution, value, sponsor, beneficiary, technique, KPIs, ...) in full. RC7-B-08: the short facts share one block
+    // and the text is 12pt, so a use case takes one slide and, only when its text is long, a second one (never a slide per few lines).
+    const pages = paginate(packFacts(ucParts(m, u)), Math.floor(bodyW * 10), 15, 15);
+    const runsOf = (page) => page.flatMap((p) => [{ text: `${LB(p.label.replace(' (cont.)', ''))}${p.label.endsWith('(cont.)') ? ' (cont.)' : ''}\n`, options: { bold: true, color: P.accentText, fontSize: 12, charSpacing: 1 } }, { text: `${p.text}\n\n`, options: { color: P.body, fontSize: 12 } }]);
+    const draw = (sl, page, w, y, h) => { const runs = runsOf(page); if (runs.length) rich(sl, runs, { x: 0.6, y, w, h, bg: P.page }); };
+    draw(s, pages[0], bodyW, 3.5, 3.3);
     if (proj) {
       const y = u.value.yearly; const lbl = y.map((r) => LB(`Year ${r.year}`));
       s.addChart(pptx.charts.BAR, [{ name: LB('Low'), labels: lbl, values: y.map((r) => r.low) }, { name: LB('Likely'), labels: lbl, values: y.map((r) => r.likely) }, { name: LB('High'), labels: lbl, values: y.map((r) => r.high) }], { x: 8.4, y: 3.5, w: 4.3, h: 3.3, barDir: 'col', chartColors: [hex(P.rule), accent, hex(P.warm)], showLegend: true, legendPos: 'b', legendColor: tc(P.ink, P.page, 'legend'), legendFontSize: 12, ...chartBase(P.page) });
+    } else if (rows.length) {
+      scoreChart(s, rows, 8.4, 3.5, 4.3, 3.3, 'Inspire score');
     }
     if (has(m, 'disclaimer')) text(s, 'Estimated value, not a promised value. Your business value team must validate it.', { x: 0.6, y: 6.95, w: 9, h: 0.3, fontSize: 12, italic: true, bg: P.page, color: P.muted });
 
@@ -164,8 +177,7 @@ export function buildDesignDeck(pptx, m, theme) {
       const c = newSlide(P.page); chrome(c, S(u.domain || 'Other'));
       heading(c, u.name, 0.8, 24, W - 1.2, 1.0);
       box(c, 0.6, 1.85, W - 1.2, 0.04, id === 'consulting' ? P.edge : P.accent);
-      const runs = page.flatMap((p) => [{ text: `${LB(p.label.replace(' (cont.)', ''))}${p.label.endsWith('(cont.)') ? ' (cont.)' : ''}\n`, options: { bold: true, color: P.accentText, fontSize: 12, charSpacing: 1 } }, { text: `${p.text}\n\n`, options: { color: P.body, fontSize: 14 } }]);
-      if (runs.length) rich(c, runs, { x: 0.6, y: 2.1, w: W - 1.2, h: 4.7, bg: P.page });
+      draw(c, page, W - 1.2, 2.1, 4.7);
     });
   });
 
@@ -177,7 +189,7 @@ export function buildDesignDeck(pptx, m, theme) {
   text(p, `${m.total.nWithValue} of ${m.total.n} use cases have a calculated value.`, { x: 0.6, y: 2.7, w: 5.6, h: 0.4, fontSize: 14, bg: P.page, color: P.muted });
   if (dm.domains.length) {
     text(p, 'Yearly value by domain', { x: 0.6, y: 3.3, w: 5.6, h: 0.35, fontSize: 14, bold: true, bg: P.page, color: P.muted });
-    p.addChart(pptx.charts.BAR, [{ name: LB('Value'), labels: dm.domains.slice(0, 8).map((d) => trunc(d.name, 24)), values: dm.domains.slice(0, 8).map((d) => d.value) }], { x: 0.6, y: 3.65, w: 5.8, h: 3.2, barDir: 'bar', catAxisOrientation: 'maxMin', chartColors: [accent], showLegend: false, showValue: true, dataLabelColor: tc(P.ink, P.page, 'chart label'), dataLabelFontSize: 12, dataLabelFormatCode: '#,##0', valAxisHidden: true, valGridLine: { style: 'none' }, ...chartBase(P.page) });
+    p.addChart(pptx.charts.BAR, [{ name: LB('Value'), labels: dm.domains.slice(0, 8).map((d) => full(d.name)), values: dm.domains.slice(0, 8).map((d) => d.value) }], { x: 0.6, y: 3.65, w: 5.8, h: 3.2, barDir: 'bar', catAxisOrientation: 'maxMin', chartColors: [accent], showLegend: false, showValue: true, dataLabelColor: tc(P.ink, P.page, 'chart label'), dataLabelFontSize: 12, dataLabelFormatCode: '#,##0', valAxisHidden: true, valGridLine: { style: 'none' }, ...chartBase(P.page) });
   }
   if (dm.useCases.length) {
     text(p, 'Inspire score against yearly value', { x: 6.9, y: 1.9, w: 5.8, h: 0.35, fontSize: 14, bold: true, bg: P.page, color: P.muted });
@@ -188,7 +200,7 @@ export function buildDesignDeck(pptx, m, theme) {
     const scored = m.useCases.filter((u) => Number.isFinite(u.score));
     if (showScore && scored.length) {
       text(p, 'Inspire score by use case', { x: 6.9, y: 1.9, w: 5.8, h: 0.35, fontSize: 14, bold: true, bg: P.page, color: P.muted });
-      p.addChart(pptx.charts.BAR, [{ name: LB('Inspire score'), labels: scored.slice(0, 12).map((u) => trunc(u.name, 28)), values: scored.slice(0, 12).map((u) => u.score) }], { x: 6.9, y: 2.25, w: 5.8, h: 4.4, barDir: 'bar', catAxisOrientation: 'maxMin', chartColors: [accent], showLegend: false, showValue: true, dataLabelColor: tc(P.ink, P.page, 'chart label'), dataLabelFontSize: 12, valAxisHidden: true, valGridLine: { style: 'none' }, ...chartBase(P.page) });
+      p.addChart(pptx.charts.BAR, [{ name: LB('Inspire score'), labels: scored.slice(0, 12).map((u) => full(u.name)), values: scored.slice(0, 12).map((u) => u.score) }], { x: 6.9, y: 2.25, w: 5.8, h: 4.4, barDir: 'bar', catAxisOrientation: 'maxMin', chartColors: [accent], showLegend: false, showValue: true, dataLabelColor: tc(P.ink, P.page, 'chart label'), dataLabelFontSize: 12, valAxisHidden: true, valGridLine: { style: 'none' }, ...chartBase(P.page) });
     } else text(p, 'Calculate value to add the projection', { x: 6.9, y: 1.9, w: 5.8, h: 0.5, fontSize: 16, bg: P.page, color: P.muted });
   }
   if (has(m, 'disclaimer')) text(p, DISCLAIMER, { x: 0.6, y: 6.95, w: W - 1.2, h: 0.4, fontSize: 12, italic: true, bg: P.page, color: P.muted });
