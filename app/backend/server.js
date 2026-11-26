@@ -53,7 +53,7 @@ const {
   APP_TOKEN, FROM_FORWARDED_TOKEN, FROM_HEADERS, FROM_REQUEST_TOKEN, PERSON_TOKEN, SCIM_ME_PATH, forwardedTokenOf, meResponse, personTokenOf, requestPerson,
 } = require('./lib/requestPerson');
 const {
-  discoverReads, discoverWrites, listCatalogs, listSchemas, listTables, outputPlan, runReadPlan, scopeTables, skippedTablesDetail, ucMetadataParts,
+  APP_READ_PROBES, discoverReads, discoverWrites, listCatalogs, listSchemas, listTables, outputPlan, runReadPlan, scopeTables, skippedTablesDetail, ucMetadataParts,
   writeRefusalBody,
 } = require('./lib/ucReads');
 const { isMetricViewType, metricViewSkipLine, probeTableTypes, tableTypeOfDescribe, tableTypeUnknownLine, TYPE_CHECK_BUSY_REASON, UNUSABLE_REASON } = require('./lib/metricViews');
@@ -1888,7 +1888,9 @@ app.get('/api/catalogs', requireToken, async (req, res) => {
     const granted = await appCatalogGrants(req, { items: allCatalogs, truncated: restCut });
     if (granted) {
       const offered = grantedCatalogList(catalogs, granted);
-      const permission = partialPermission(offered, SP_CLIENT_ID);
+      // SEC-18: `picked` (comma-separated catalog names) narrows the ask to the catalogs the person is asking about.
+      const picked = String(req.query.picked || '').split(',').map((n) => n.trim()).filter(Boolean);
+      const permission = partialPermission(offered, SP_CLIENT_ID, picked.length ? picked : null);
       const browseOnly = unreadableCatalogs.map((c) => inspireStateOf(c, granted));
       return res.json({ catalogs: [...offered, ...browseOnly].sort((a, b) => a.name.localeCompare(b.name)), source, spGrants: true, truncated: truncatedByRest(restCut, byName, countAfterRest),
         ...(permission ? { permissions: [permission] } : {}) });
@@ -2513,8 +2515,9 @@ async function droppedCatalogRefusal(req, params) {
 // when the same check passes. The probe is a LIMIT 0 read with the person's sign-in, on every table of the scope. Nothing is granted: the
 // refusal names a table-level SELECT. The check fails closed: a scope that cannot be probed in full (no warehouse, no App token to list it,
 // more tables than SCOPE_PROBE_CEILING, a listing or a probe that fails for any reason) is a refusal, and only a successful probe counts as readable.
-const SCOPE_PROBE_CEILING = 500;
-const SCOPE_PROBE_BATCH = 8;
+const SCOPE_PROBE_CEILING = 5000;
+const SCOPE_PROBE_CHUNK = 50;
+const SCOPE_PROBE_PARALLEL = 4;
 const UNCHECKED_SCOPE = { status: 403, request: 'person', permissions: [], unreadable: [] };
 // SEC-02 (c23): the check fails closed for a launch as well as for a session. A launch with no sign-in token of the person, a scope that cannot be
 // listed or probed in full, or a probe that fails for any reason other than a plain denial is a refusal with a clear reason. Outside a Databricks
@@ -2556,6 +2559,44 @@ async function lostTablesRefusal(req, lost, { why, message }) {
     ...(hiddenCount ? { unreadable_hidden: hiddenCount } : {}) };
 }
 
+// SEC-02 (c23 sec_wire): every table of the scope is read with the person's token, but in chunks of SCOPE_PROBE_CHUNK per statement (one LIMIT 0
+// branch per table, so the whole chunk is analysed and checked, and none reads a row). A chunk that fails with a denial or a missing table is
+// bisected until the tables that fail are named; a failure that is not a denial (warehouse, timeout) is "not checked" and fails closed.
+function scopeProbeStatement(tables) {
+  // A single table keeps the plain per-table probe; several are joined with UNION ALL (each branch parenthesised for its own LIMIT).
+  if (tables.length === 1) return { sql: `SELECT 1 FROM ${quoteTable(tables[0])} LIMIT 0`, parameters: null };
+  return { sql: tables.map((t) => `(SELECT 1 FROM ${quoteTable(t)} LIMIT 0)`).join(' UNION ALL '), parameters: null };
+}
+
+async function probeScopeTables(req, person, warehouseId, tables) {
+  const lost = [];
+  let notChecked = false;
+  async function probe(chunk) {
+    if (notChecked) return;
+    try {
+      const statement = scopeProbeStatement(chunk);
+      await executeSql(req.dbHost, person, warehouseId, statement.sql, statement.parameters);
+    } catch (err) {
+      const reasons = chunk.map((table) => tableAccessReason(table, err && err.message));
+      if (!reasons.some((why) => why === 'no read access' || why === 'not found')) {
+        notChecked = true;
+      } else if (chunk.length === 1) {
+        lost.push(chunk[0]);
+      } else {
+        const half = Math.ceil(chunk.length / 2);
+        await Promise.all([probe(chunk.slice(0, half)), probe(chunk.slice(half))]);
+      }
+    }
+  }
+  const chunks = [];
+  for (let i = 0; i < tables.length; i += SCOPE_PROBE_CHUNK) chunks.push(tables.slice(i, i + SCOPE_PROBE_CHUNK));
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(SCOPE_PROBE_PARALLEL, chunks.length) }, async () => {
+    while (next < chunks.length && !notChecked) await probe(chunks[next++]);
+  }));
+  return { lost, notChecked };
+}
+
 async function launcherReadRefusal(req, scope, { emptyScopeRefuses = false, launch = false } = {}) {
   const person = forwardedTokenOf(req);
   const { catalogs, schemas, tables: picked } = ucMetadataParts(scope);
@@ -2563,7 +2604,7 @@ async function launcherReadRefusal(req, scope, { emptyScopeRefuses = false, laun
   const unchecked = { ...UNCHECKED_SCOPE, message: launch ? LAUNCH_UNCHECKED_MESSAGE : UNCHECKED_MESSAGE };
   if (!person) return policyEnforced() && entries.length ? { ...unchecked, message: NO_SIGN_IN_MESSAGE } : null;
   if (!entries.length) return emptyScopeRefuses ? unchecked : null;
-  const warehouseId = requestedInspireDb(req).warehouseId;
+  const warehouseId = (await requestedInspireDb(req)).warehouseId;
   const lost = [];
   let notChecked = !warehouseId;
   if (!notChecked) {
@@ -2572,17 +2613,9 @@ async function launcherReadRefusal(req, scope, { emptyScopeRefuses = false, laun
       if (!token) throw new Error('no App token to list the scope');
       const { tables, more } = await scopeTables(dbFetch, req.dbHost, token, entries, SCOPE_PROBE_CEILING);
       if (more) notChecked = true; // an empty listing is nothing to read, not a probe that failed
-      for (let i = 0; i < tables.length; i += SCOPE_PROBE_BATCH) {
-        await Promise.all(tables.slice(i, i + SCOPE_PROBE_BATCH).map(async (table) => {
-          try {
-            const probe = tableProbeStatement(table);
-            await executeSql(req.dbHost, person, warehouseId, probe.sql, probe.parameters);
-          } catch (err) {
-            const why = tableAccessReason(table, err && err.message);
-            if (why === 'no read access' || why === 'not found') lost.push(table); else notChecked = true;
-          }
-        }));
-      }
+      const probed = await probeScopeTables(req, person, warehouseId, tables);
+      lost.push(...probed.lost);
+      if (probed.notChecked) notChecked = true;
     } catch {
       notChecked = true;
     }
@@ -2613,7 +2646,7 @@ async function sessionHiddenFrom(req, sessionId, scope, { tables } = {}) {
   const person = RP.forwardedPerson(req.headers);
   // Fail closed: with no person nothing is shown; with no sign-in token only the person's own launches are (their reads cannot be probed).
   if (!person) return { status: 403, request: 'person', permissions: [], unreadable: [] };
-  const launcher = await readLaunchRecord(req, { kind: 'session', inspireDatabase: requestedInspireDb(req).inspireDatabase, sessionId: String(sessionId) }).catch(() => null);
+  const launcher = await readLaunchRecord(req, { kind: 'session', inspireDatabase: (await requestedInspireDb(req)).inspireDatabase, sessionId: String(sessionId) }).catch(() => null);
   if (launcher && launcher === String(person).trim().toLowerCase()) return null;
   if (!forwardedTokenOf(req)) { // no sign-in token to probe reads with: only the launcher sees it
     // SEC-03 (c23): with no sign-in token the person's own listing cannot be asked, so no table name is shown.
@@ -2645,7 +2678,9 @@ async function visibleSessions(req, warehouseId, parsedDb, sessions) {
 // SEC-02 (F4, REQ-518): the one session check every route and every implement handler calls before it reads anything. The scope is read
 // with the App token (tracking table). Any failure to read it (no App token, no warehouse, bad id, read error) fails closed: the scope is
 // treated as empty, which hides the session from everyone except its launcher. Returns null (may see) or the refusal.
-function requestedInspireDb(req) {
+// SEC-07 (c23 sec_wire): a non-manager's database and warehouse are the App's own, pinned by the same pinTarget the implement routes use.
+async function requestedInspireDb(req) {
+  await implementApi.pinTarget(req);
   const asked = String((req.query && req.query.inspire_database) || (req.body && req.body.inspire_database) || '').trim();
   const warehouse = String((req.query && req.query.warehouse_id) || (req.body && req.body.warehouse_id) || DEFAULT_WAREHOUSE_ID || '').trim();
   return { inspireDatabase: asked || DEFAULT_INSPIRE_DB, warehouseId: warehouse };
@@ -2655,7 +2690,7 @@ async function sessionHidden(req, sessionId, { tables } = {}) {
   const sid = String(sessionId == null ? '' : sessionId).trim();
   let scope = null;
   try {
-    const { inspireDatabase, warehouseId } = requestedInspireDb(req);
+    const { inspireDatabase, warehouseId } = await requestedInspireDb(req);
     const parsed = splitInspireDatabase(inspireDatabase);
     const token = await appOwnToken();
     if (isInt64Id(sid) && parsed && warehouseId && token) {
@@ -2675,7 +2710,7 @@ async function sessionHidden(req, sessionId, { tables } = {}) {
 
 // Cross-session lists: keeps the sessions the person may see. Same inspire database and warehouse as the request.
 async function visibleSessionsOf(req, sessions) {
-  const { inspireDatabase, warehouseId } = requestedInspireDb(req);
+  const { inspireDatabase, warehouseId } = await requestedInspireDb(req);
   const parsed = splitInspireDatabase(inspireDatabase);
   if (!parsed || !warehouseId) return [];
   try {
@@ -2807,9 +2842,17 @@ async function discoverAppAccess(req, scope) {
   const none = { warnings: [], permissions: [] };
   if (!entries.length || !token || !DEFAULT_WAREHOUSE_ID) return none;
   try {
-    const { tables, more } = await scopeTables(dbFetch, req.dbHost, token, entries);
+    // SEC-06 (c23 sec_wire): the launch read check now accepts a scope of up to SCOPE_PROBE_CEILING tables, so the row filter and column mask check
+    // covers all of them too. The first APP_READ_PROBES tables also feed the App's grant offer; the rest are read in slices for their policies only.
+    const { tables: every, more } = await scopeTables(dbFetch, req.dbHost, token, entries, SCOPE_PROBE_CEILING);
+    const tables = every.slice(0, APP_READ_PROBES);
     if (!tables.length) return none;
     const found = await discoverAccess.sourceAccess(req, DEFAULT_WAREHOUSE_ID, tables, 'discover', { wholeCatalogs: catalogs });
+    const policiedRest = [];
+    for (let i = APP_READ_PROBES; i < every.length; i += APP_READ_PROBES) {
+      const slice = await discoverAccess.sourceAccess(req, DEFAULT_WAREHOUSE_ID, every.slice(i, i + APP_READ_PROBES), 'discover', {});
+      policiedRest.push(...(slice.policied || []));
+    }
     const warnings = [];
     const permissions = [];
     // SEC-01 (W1): the App's principal needs the grant, and its owner runs it. Discover never runs a grant with the launcher's sign-in: the
@@ -2817,8 +2860,8 @@ async function discoverAppAccess(req, scope) {
     const read = appReadPermissions(found, SP_CLIENT_ID, { wholeCatalogs: catalogs });
     warnings.push(...read.warnings);
     permissions.push(...read.permissions);
-    if (more) console.log(`Discover: checked the App read access of the first ${tables.length} tables only`);
-    return { warnings, permissions, policied: found.policied || [] };
+    if (more) console.log(`Discover: checked the row filters and column masks of the first ${every.length} tables only`);
+    return { warnings, permissions, policied: [...(found.policied || []), ...policiedRest] };
   } catch (err) {
     console.warn(`discover read check: ${err.message || err}`);
     return { permissions: [], warnings: [`Inspire could not check that the App can read the tables you picked (${String(err.message || err).slice(0, 200)}), so Discover reads them as picked`] };
@@ -3591,6 +3634,7 @@ const implementApi = registerImplementRoutes(app, {
   appId: SP_CLIENT_ID,
   sessionHidden,
   visibleSessions: visibleSessionsOf,
+  isManager,
 });
 
 registerMacroRoutes(app, { requireToken, executeSql, sqlResultToObjects, fetchImpl: fetch, now: () => new Date() });

@@ -17,8 +17,8 @@ test('SEC-02: a launch with no sign-in token of the person (only the proxy email
   assert.equal(got.status, 403, got.text);
 });
 
-test('SEC-02: a scope of more than 500 tables is refused and starts no job', async () => {
-  const tables = Array.from({ length: 501 }, (_, i) => `main.s.t${i}`);
+test('SEC-02: a scope of more than 5000 tables is refused and starts no job', async () => {
+  const tables = Array.from({ length: 5001 }, (_, i) => `main.s.t${i}`);
   const got = await launch({ tables, scope: 'main.s' });
   assert.equal(got.jobs.length, 0, `a job started on a scope too wide to probe: ${got.text}`);
   assert.equal(got.status, 403, got.text);

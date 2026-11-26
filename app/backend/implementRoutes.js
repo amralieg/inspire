@@ -3688,7 +3688,7 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
-  return { loadHistory, measuredYearlyOf };
+  return { loadHistory, measuredYearlyOf, pinTarget };
 }
 
 module.exports = { jsonOf, registerImplementRoutes };
