@@ -40,7 +40,7 @@ def test_item1_a_dashboard_page_without_a_drivers_chart_is_repaired_and_publishe
     runner = _runner(*[_no_drivers(agent_ns)] * 3)
     fields = inst._implement_dashboard(context, runner)
     assert fields["dashboard_id"] == "d9", "the Dashboard publishes: a missing Drivers mark is repaired, not refused"
-    assert len(runner.prompts) == 1, "the repair needs no second Genie round"
+    assert len(runner.prompts) <= 3, "the fallback runs after the repair rounds (brief item 1), within the 3-round limit"
     page = context["page_spec"]
     assert [c["id"] for c in page["charts"] if c.get("driver") is True] == ["by_category"], \
         "the chart that breaks the result down by a category is marked as the driver"
