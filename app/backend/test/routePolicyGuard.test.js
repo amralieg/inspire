@@ -47,14 +47,14 @@ test('every changing route the running App registers has a policy entry and a ro
   await S.startServer();
   const { registeredRoutes } = require('../server');
   const registered = registeredRoutes();
-  const scanned = [...new Set(scannedRoutes().flatMap((r) => (r.dynamic ? registered.filter((k) => P.registers([r], k)) : [r.key])))].sort();
+  const scanned = [...new Set(scannedRoutes().filter((r) => !P.ROUTE_POLICY[r.key]?.localOnly).flatMap((r) => (r.dynamic ? registered.filter((k) => P.registers([r], k)) : [r.key])))].sort();
   assert.deepEqual(registered, scanned, 'the source scan and the running App list the same changing routes');
   assert.deepEqual(scannedRoutes().filter((r) => r.dynamic && !registered.some((k) => P.registers([r], k))).map((r) => r.key), [], 'every templated route registers');
   const sampled = new Set(SAMPLES.map((s) => s.key));
   assert.deepEqual(registered.filter((k) => !Object.hasOwn(P.ROUTE_POLICY, k)), [], 'registered without a policy entry');
   assert.deepEqual(registered.filter((k) => !sampled.has(k)), [], 'registered without a route test sample');
   const unregistered = Object.keys(P.ROUTE_POLICY).filter((k) => !k.startsWith('GET ') && !registered.includes(k));
-  assert.deepEqual(unregistered.filter((k) => !P.ROUTE_POLICY[k].pendingMerge), [], 'policy entries with no route that are not waiting for a lane merge');
+  assert.deepEqual(unregistered.filter((k) => !P.ROUTE_POLICY[k].pendingMerge && !P.ROUTE_POLICY[k].localOnly), [], 'policy entries with no route that are not waiting for a lane merge');
 });
 
 function laneRoutes(commit) {

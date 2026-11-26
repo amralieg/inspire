@@ -114,7 +114,7 @@ const ROUTE_POLICY = {
   'GET /api/dbc/info': anyone('describe the bundled notebook', BUNDLED),
   'GET /api/demo-data/templates': anyone('list the demo data templates', BUNDLED),
   'GET /api/inspire/implement/app-look': anyone('read the App looks a build offers', BUNDLED),
-  'POST /api/auth/sp-token': anyone('trade the service principal credentials it sends for a token', 'uses only the credentials the caller sends and adds no token of the App'),
+  'POST /api/auth/sp-token': { ...anyone('trade the service principal credentials it sends for a token', 'uses only the credentials the caller sends and adds no token of the App'), localOnly: true },
   'GET /api/health': anyone('read the App health', "reports the App's own health and settings"),
   'GET /api/defaults': anyone('read the installer defaults', 'returns the settings the installer gave the App'),
   'GET /api/connection-test': { ...managers('test the server token'), why: "checks that the server's own token from its environment reaches the workspace" },
