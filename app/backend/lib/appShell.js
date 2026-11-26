@@ -31,6 +31,13 @@ function bundledNotebookText() {
   return Buffer.from(require(NOTEBOOK_BUNDLE_FILE), 'base64').toString('utf8');
 }
 
+// The Lakebase catalog the build writes to is named once, in the agent notebook (IMPLEMENT_LAKEBASE_CATALOG); the offer reads it from there.
+function lakebaseCatalogOf(notebookText = bundledNotebookText()) {
+  const hits = [...String(notebookText).matchAll(/IMPLEMENT_LAKEBASE_CATALOG = \\"([A-Za-z0-9_]+)\\"/g)];
+  if (!hits.length) throw new Error(`the bundled agent notebook names no Lakebase catalog; ${UPDATE_HINT}`);
+  return hits[0][1];
+}
+
 function notebookCodeLines(notebookText) {
   let cells;
   try {
@@ -246,6 +253,7 @@ module.exports = {
   ASSET_PINS_CONSTANT,
   APP_SHELL_FILE,
   bundledNotebookText,
+  lakebaseCatalogOf,
   notebookAssetPins,
   notebookBuildStamp,
   bundledBuildStamp,

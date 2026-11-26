@@ -1267,7 +1267,7 @@ export default function ImplementWizard({
   useEffect(() => {
     if (!spec.outputs.app || lakebase !== null) return undefined;
     let cancelled = false;
-    apiFetch(`/api/inspire/implement/lakebase?tables=${encodeURIComponent(sourceTablesParam)}`)
+    apiFetch(`/api/inspire/implement/lakebase?catalog_check=1&tables=${encodeURIComponent(sourceTablesParam)}`)
       .then((data) => { if (!cancelled) setLakebase(data); })
       .catch((e) => { if (!cancelled) setLakebase({ state: 'unknown', detail: e.message }); });
     return () => { cancelled = true; };
