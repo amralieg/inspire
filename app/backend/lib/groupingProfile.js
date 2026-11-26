@@ -272,16 +272,19 @@ function moneyValueSampleSql(table, value, scopes, filter = null) {
 // REQ-432: ONE statement for the Calculate estimate. A sample of the table's first records gives the amount counted per currency and
 // how many records were sampled; the whole table gives the eligible record count and the days its date column covers.
 const YEARLY_SAMPLE_ROWS = 10000;
-function moneyYearlySampleSql(table, value, dateColumn, scopes, filter = null, textDate = false) {
-  if (!RATE_TABLE_PATTERN.test(String(table || '')) || !RATE_COLUMN_PATTERN.test(String(dateColumn || ''))) return null;
+// c25_nodate: with no date column (dateColumn ''), `periodDays` is the span the records cover: the period the person gave or one assumed year.
+function moneyYearlySampleSql(table, value, dateColumn, scopes, filter = null, textDate = false, periodDays = VY.ASSUMED_DAYS) {
+  if (!RATE_TABLE_PATTERN.test(String(table || '')) || (dateColumn && !RATE_COLUMN_PATTERN.test(String(dateColumn)))) return null;
   const parts = valueParts(value, filter);
   if (!parts) return null;
   const { amount, currency, counted, filterColumns } = parts;
   return statement(scopes, (ctx) => {
-    const from = previewFrom(table, ctx, [...columnsIn(amount, currency), ...filterColumns, dateColumn]);
-    return `WITH base AS (SELECT CAST(${amount} AS DOUBLE) AS amt, ${currency} AS currency, ${counted || 'TRUE'} AS counted, ${VY.dateRead(q(dateColumn), textDate)} AS d FROM ${from}), `
+    const from = previewFrom(table, ctx, [...columnsIn(amount, currency), ...filterColumns, ...(dateColumn ? [dateColumn] : [])]);
+    const read = dateColumn ? VY.dateRead(q(dateColumn), textDate) : 'CAST(NULL AS TIMESTAMP)';
+    const spanDays = dateColumn ? 'DATEDIFF(MAX(d), MIN(d)) + 1' : String(Math.max(1, Math.round(Number(periodDays)) || VY.ASSUMED_DAYS));
+    return `WITH base AS (SELECT CAST(${amount} AS DOUBLE) AS amt, ${currency} AS currency, ${counted || 'TRUE'} AS counted, ${read} AS d FROM ${from}), `
       + `smp AS (SELECT amt, currency, counted FROM base LIMIT ${YEARLY_SAMPLE_ROWS}), `
-      + 'span AS (SELECT COUNT(*) AS n, DATEDIFF(MAX(d), MIN(d)) + 1 AS span_days FROM base) '
+      + `span AS (SELECT COUNT(*) AS n, ${spanDays} AS span_days FROM base) `
       + 'SELECT currency, SUM(CASE WHEN counted AND amt IS NOT NULL THEN amt ELSE 0 END) AS stake, (SELECT COUNT(*) FROM smp) AS sampled, '
       + '(SELECT n FROM span) AS eligible, (SELECT span_days FROM span) AS days FROM smp WHERE currency IS NOT NULL GROUP BY currency';
   });

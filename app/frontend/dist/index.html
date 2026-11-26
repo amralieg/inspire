@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <script>
+// Boot guard for the first screen. Shared by the Inspire frontend and the App shell web. It is inlined into index.html
+// by each Vite config (a plugin), so it is never a separate request that a network change can abort.
+//
+// Why it exists: the app loads as one module graph that starts only after the page parses. On macOS Chromium aborts
+// in-flight loads when the network interface changes (net::ERR_NETWORK_CHANGED), even for 127.0.0.1. One aborted module
+// means the app's code never runs, so no code inside the app can report it, and the page stays blank. A chunk that is
+// gone after a deploy fails the same way. This guard covers that window: it reloads the page once, then shows a plain
+// message with a Reload button. A second failure inside the reload window shows the message and does not reload again.
+(function () {
+  var RELOAD_KEY = 'inspire-chunk-reload';
+  var RELOAD_WINDOW_MS = 30000;
+  // A boot is reloaded only when it is dead: the root has not rendered, and no resource has finished for QUIET_MS.
+  // A slow network keeps resources finishing, so it is never reloaded before HARD_CAP_MS.
+  var QUIET_MS = 8000;
+  var HARD_CAP_MS = 90000;
+  var POLL_MS = 1000;
+  var MESSAGE = 'Inspire could not finish loading because the network connection changed. Reload to try again.';
+
+  function lastReload() {
+    try { return Number(sessionStorage.getItem(RELOAD_KEY) || 0); } catch (e) { return 0; }
+  }
+  // True when the page reloads (once per reload window). False when a reload already happened inside the window.
+  function reloadOnce() {
+    if (Date.now() - lastReload() < RELOAD_WINDOW_MS) return false;
+    try { sessionStorage.setItem(RELOAD_KEY, String(Date.now())); } catch (e) { /* storage blocked: still reload once */ }
+    window.location.reload();
+    return true;
+  }
+  function root() { return document.getElementById('root') || document.body; }
+  function notMounted() { return !root().hasChildNodes(); }
+
+  function showMessage() {
+    if (!notMounted()) return;
+    var card = document.createElement('div');
+    card.setAttribute('role', 'alert');
+    card.setAttribute('data-boot-guard', 'network');
+    card.style.cssText = 'max-width:520px;margin:96px auto;padding:24px;border-radius:12px;background:#ffffff;color:#1b1b1b;'
+      + 'font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;text-align:center;';
+    var text = document.createElement('p');
+    text.textContent = MESSAGE;
+    text.style.margin = '0 0 16px';
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Reload';
+    button.style.cssText = 'padding:8px 20px;border:0;border-radius:8px;background:#ff3621;color:#ffffff;font:inherit;cursor:pointer;';
+    button.addEventListener('click', function () { window.location.reload(); });
+    card.appendChild(text);
+    card.appendChild(button);
+    root().appendChild(card);
+  }
+
+  // The app has not mounted and a load failed or stalled: reload once, or show the message when that reload already ran.
+  function fail() {
+    if (!notMounted()) return;
+    if (!reloadOnce()) showMessage();
+  }
+
+  // A module request the browser aborted or refused. The entry script's error event fires with the script as target.
+  window.addEventListener('error', function (event) {
+    if (event.target && event.target.tagName === 'SCRIPT') fail();
+  }, true);
+  // Vite's chunk-load failure. Before mount it recovers like any boot failure. After mount it reloads once, as before.
+  window.addEventListener('vite:preloadError', function (event) {
+    if (notMounted()) { event.preventDefault(); fail(); return; }
+    if (reloadOnce()) event.preventDefault();
+  });
+  // A stalled boot gets the same single reload, then the message. Progress is the count of finished resource loads: module
+  // requests and fetches show up in the resource timing buffer when they finish. The buffer is raised so a long boot does not fill it.
+  if (performance.setResourceTimingBufferSize) performance.setResourceTimingBufferSize(2000);
+  var started = Date.now();
+  var lastProgress = started;
+  var finished = 0;
+  var timer = window.setInterval(function () {
+    if (!notMounted()) { window.clearInterval(timer); return; }
+    var now = Date.now();
+    var count = performance.getEntriesByType('resource').length;
+    if (count !== finished) { finished = count; lastProgress = now; }
+    if (now - lastProgress >= QUIET_MS || now - started >= HARD_CAP_MS) {
+      window.clearInterval(timer);
+      fail();
+    }
+  }, POLL_MS);
+})();
+</script>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg viewBox='0 0 36 36' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M18 2L3 10.5V18L18 26.5L33 18V10.5L18 2Z' fill='%23FF3621'/%3E%3Cpath d='M18 26.5L3 18V25.5L18 34L33 25.5V18L18 26.5Z' fill='%23FF3621' opacity='0.7'/%3E%3Cpath d='M18 2L3 10.5L18 19L33 10.5L18 2Z' fill='%23FF6A52'/%3E%3C/svg%3E" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Databricks Inspire AI</title>
+    <meta name="description" content="Infuse your Data with Databricks Agent Bricks AI capabilities to deliver business value." />
+    <script type="module" crossorigin src="/assets/index-BLmEPzv_.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-Bgm4cq3B.css">
+  </head>
+  <body class="bg-[#09171D]">
+    <div id="root"></div>
+  </body>
+</html>

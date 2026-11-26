@@ -1,4 +1,4 @@
-import { CASE_PLAN_ROUTE, bodyOf, initialAnswers, moneyText } from './valueWizard.js';
+import { CASE_PLAN_ROUTE, bodyOf, initialAnswers, isDeterministicFailure, moneyText } from './valueWizard.js';
 
 // REQ-441: value for many use cases at once, from the defaults. A pure runner (no React, no network): the worker does one use case.
 export const VALUE_BULK_WORKERS = 4;
@@ -38,7 +38,8 @@ export function runBulk({ items, worker, concurrency = VALUE_BULK_WORKERS, onUpd
           (got) => { rows[i] = { id: items[i].id, state: 'done', yearly: got?.yearly || got || null, ...(got?.check ? { check: got.check } : {}), ...(got?.review ? { review: got.review } : {}) }; },
           (err) => {
             // A 422 is deterministic (the use case cannot be estimated from defaults): skipped with the server's reason, no Retry.
-            rows[i] = err?.status === 422 ? { id: items[i].id, state: 'skipped', reason: messageOf(err) } : { id: items[i].id, state: 'failed', message: messageOf(err) };
+            // c25_nodate: any other 4xx cannot be fixed by trying again either: the row is marked final, so it has no Retry.
+            rows[i] = err?.status === 422 ? { id: items[i].id, state: 'skipped', reason: messageOf(err) } : { id: items[i].id, state: 'failed', message: messageOf(err), ...(isDeterministicFailure(err) ? { final: true } : {}) };
           },
         ).then(() => { inFlight -= 1; publish(); pump(); });
       }
@@ -57,6 +58,9 @@ export function runBulk({ items, worker, concurrency = VALUE_BULK_WORKERS, onUpd
     pump();
   });
 }
+
+// c25_nodate: a failed row offers Retry only when trying again can help (a 5xx or a network error), never for a 4xx.
+export const canRetry = (row) => row?.state === 'failed' && row.final !== true;
 
 // REQ-480: the whole-run review the server makes once a run's values are saved. Fire-and-forget from runBulk's afterRun.
 export const RUN_REVIEW_ROUTE = '/api/inspire/value/run-review';

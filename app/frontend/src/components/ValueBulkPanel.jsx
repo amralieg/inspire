@@ -4,7 +4,7 @@ import ModalDialog from './ModalDialog';
 import { PlainMessage } from './TechnicalDetails';
 import { bulkCounts, useValueBulkRun } from '../lib/valueBulkRun';
 import { reviewLineOf, totalText } from '../lib/valueWizard.js';
-import { bulkSummary, preSkipNote, rangeNote } from '../lib/valueBulk.js';
+import { bulkSummary, canRetry, preSkipNote, rangeNote } from '../lib/valueBulk.js';
 
 const btn = 'rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle disabled:opacity-50';
 // A failed or skipped row carries a sentence: it wraps on its own line under the name instead of squeezing it.
@@ -71,7 +71,7 @@ export default function ValueBulkPanel({ onEdit }) {
               {r.state === 'failed' && (
                 <span className="inline-flex items-center gap-2">
                   <PlainMessage as="span" dir="auto" text={`Failed: ${r.message}`} className="text-error-fg" />
-                  <button type="button" onClick={() => retry(r.id)} className={btn}>Retry</button>
+                  {canRetry(r) && <button type="button" onClick={() => retry(r.id)} className={btn}>Retry</button>}
                 </span>
               )}
               {r.state === 'skipped' && <span>Skipped: {r.reason}</span>}
