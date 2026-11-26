@@ -963,6 +963,8 @@ def public_page(page: dict, gaps=frozenset()) -> dict:
                                    if isinstance(a, dict) and str(a.get("answer") or "").strip()]  # REQ-414 part B (b): the cross-domain answers
     out[shell_sql.BLOCKS] = shell_sql.public_blocks(page)
     out[TOUR] = public_tour(page, gaps)
+    focus = page.get("focus_spec")
+    out["focus_spec"] = focus if isinstance(focus, dict) else None  # REQ-542: the agent's validated focus design (REQ-540) for One by one
     return out
 
 
