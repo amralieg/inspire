@@ -20,7 +20,7 @@ const UNDATED = file('d_notes.md', 0);
 const STRATEGY = file('Acme_strategy.pdf', at(24));
 
 // Only the run folder (the business folder under the output path) lists the files; a sub folder is empty (a folder that lists itself would loop the tree walk).
-const backendOf = (files) => (app) => { app.get('/api/workspace/list', (req, res) => res.json({ files: /\/inspire_out\/acme\/?$/.test(String(req.query.path || '')) ? files : [] })); };
+const backendOf = (files) => (app) => { app.post('/api/inspire/docs/save', (req, res) => res.json({ path: `${req.body.folder}/${req.body.name}`, name: req.body.name, size: 1 })); app.get('/api/workspace/list', (req, res) => res.json({ files: /\/inspire_out\/acme\/?$/.test(String(req.query.path || '')) ? files : [] })); };
 const open = (files) => openUi('results', { ...REVIEW_STATE, sessions: SESSIONS, results: REVIEW_RESULTS }, '', { mount: backendOf(files) });
 const rowOf = (page, f) => page.locator(`[data-asset-row="${f.name}"]`).first();
 
