@@ -130,6 +130,7 @@ import {
   appWarehouseOf,
   withAppWarehouse,
   warehouseText,
+  warehouseLabel,
   warehouseOptions,
   warehouseOptionText,
   warehouseStateNote,
@@ -1472,7 +1473,7 @@ export default function ImplementWizard({
   const dataSummary = [
     spec.data.window?.start || spec.data.window?.end ? `Window ${spec.data.window.start || 'open'} to ${spec.data.window.end || 'open'}` : 'No date window',
     spec.data.column_roles && Object.values(spec.data.column_roles).some(Boolean) ? 'Column roles set by you' : "Column roles chosen by Inspire",
-    spec.config.warehouse_id ? `SQL warehouse ${spec.config.warehouse_id}` : 'No SQL warehouse picked',
+    spec.config.warehouse_id ? warehouseLabel(warehouses, spec.config.warehouse_id) : 'No SQL warehouse picked',
   ].join(' · ');
   const chosenDestinations = spec.outputs.alert_destinations || [];
   const checkEntries = checksFor(preflight?.checks, spec.outputs);
@@ -2192,7 +2193,7 @@ export default function ImplementWizard({
           )
         )}
 
-        {foldLine('app_storage', APP_STORAGE_LABEL, `Warehouse: ${appWarehouseOf(spec) || 'not picked yet'}`)}
+        {foldLine('app_storage', APP_STORAGE_LABEL, warehouseLabel(warehouses, appWarehouseOf(spec)) || 'not picked yet')}
         {shows('app_storage') && isOpenSection('app_storage') && (
           <AppStorageStep
             spec={spec}
@@ -2648,7 +2649,7 @@ function InsideInspireCard({ spec, on, lakebase, warehouses, warehousesError, on
       {on && (
         <div className="ps-7 space-y-1">
           {missing && <p data-inside-warehouse-missing="" className="text-xs text-error-fg">{INSIDE_WAREHOUSE_PROBLEM}</p>}
-          <Advanced open={warehouseOpen || missing} onToggle={onWarehouseToggle} what={INSIDE_WAREHOUSE_TOGGLE} summary={`SQL warehouse: ${appWarehouseOf(spec) || 'not picked'}`}>
+          <Advanced open={warehouseOpen || missing} onToggle={onWarehouseToggle} what={INSIDE_WAREHOUSE_TOGGLE} summary={warehouseLabel(warehouses, appWarehouseOf(spec)) || 'SQL warehouse not picked'}>
             <AppWarehouseField spec={spec} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry} check={warehouseCheck}
               label={INSIDE_WAREHOUSE_LABEL} onWarehouse={onWarehouse} />
           </Advanced>
@@ -3182,7 +3183,7 @@ function AppStorageStep({ spec, lakebase, warehouses, warehousesError, onWarehou
             Each viewer reads with {warehouseText(warehouses, appWarehouseOf(spec))}, picked on Where it lives.
           </p>
         ) : (
-          <SettingRow label="SQL warehouse" value={appWarehouseOf(spec) || 'not picked'} changeLabel="App SQL warehouse" defaultOpen={warehouseCheck?.ok === false}>
+          <SettingRow label="SQL warehouse" value={warehouseLabel(warehouses, appWarehouseOf(spec)) || 'not picked'} changeLabel="App SQL warehouse" defaultOpen={warehouseCheck?.ok === false}>
             <AppWarehouseField spec={spec} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry} check={warehouseCheck}
               onWarehouse={onWarehouse} />
           </SettingRow>

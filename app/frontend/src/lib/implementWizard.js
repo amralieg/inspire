@@ -2298,6 +2298,14 @@ export function warehouseText(warehouses, id) {
   return found.state ? `${found.name || id} (${found.state})` : found.name || id;
 }
 
+// RC7-C-04: a person sees the warehouse's name; the bare id is shown only as "SQL warehouse <id>" when the list does not know the name.
+export function warehouseLabel(warehouses, id) {
+  const picked = String(id || '').trim();
+  if (!picked) return '';
+  const name = String((warehouses || []).find((w) => w.id === picked)?.name || '').trim();
+  return name || `SQL warehouse ${picked}`;
+}
+
 export function warehouseOptions(warehouses, ids) {
   const listed = warehouses || [];
   const missing = [...new Set((ids || []).map((id) => String(id || '').trim()))]

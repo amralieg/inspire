@@ -100,7 +100,7 @@ function WarehouseSelector({ settings, update }) {
             </>
           )}
           {!selected && settings.warehouseId && (
-            <span className="text-xs text-text-tertiary font-mono">{settings.warehouseId}</span>
+            <span className="text-xs text-text-tertiary font-mono">SQL warehouse {settings.warehouseId}</span>
           )}
           {!selected && !settings.warehouseId && (
             <span className="text-xs text-text-tertiary">No warehouse selected</span>
