@@ -2220,7 +2220,7 @@ export default function ImplementWizard({
           )
         )}
 
-        {foldLine('app_storage', APP_STORAGE_LABEL, `Warehouse: ${spec.outputs.app_warehouse_id || spec.config.warehouse_id || 'not picked yet'}`)}
+        {foldLine('app_storage', APP_STORAGE_LABEL, `Warehouse: ${appWarehouseOf(spec) || 'not picked yet'}`)}
         {shows('app_storage') && isOpenSection('app_storage') && (
           <AppStorageStep
             spec={spec}
@@ -2676,7 +2676,7 @@ function InsideInspireCard({ spec, on, lakebase, warehouses, warehousesError, on
       {on && (
         <div className="ps-7 space-y-1">
           {missing && <p data-inside-warehouse-missing="" className="text-xs text-error-fg">{INSIDE_WAREHOUSE_PROBLEM}</p>}
-          <Advanced open={warehouseOpen || missing} onToggle={onWarehouseToggle} what={INSIDE_WAREHOUSE_TOGGLE} summary={`SQL warehouse: ${spec.outputs.app_warehouse_id || 'not picked'}`}>
+          <Advanced open={warehouseOpen || missing} onToggle={onWarehouseToggle} what={INSIDE_WAREHOUSE_TOGGLE} summary={`SQL warehouse: ${appWarehouseOf(spec) || 'not picked'}`}>
             <AppWarehouseField spec={spec} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry} check={warehouseCheck}
               label={INSIDE_WAREHOUSE_LABEL} onWarehouse={onWarehouse} />
           </Advanced>
@@ -3210,7 +3210,7 @@ function AppStorageStep({ spec, lakebase, warehouses, warehousesError, onWarehou
             Each viewer reads with {warehouseText(warehouses, appWarehouseOf(spec))}, picked on Where it lives.
           </p>
         ) : (
-          <SettingRow label="SQL warehouse" value={spec.outputs.app_warehouse_id || 'not picked'} changeLabel="App SQL warehouse" defaultOpen={warehouseCheck?.ok === false}>
+          <SettingRow label="SQL warehouse" value={appWarehouseOf(spec) || 'not picked'} changeLabel="App SQL warehouse" defaultOpen={warehouseCheck?.ok === false}>
             <AppWarehouseField spec={spec} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry} check={warehouseCheck}
               onWarehouse={onWarehouse} />
           </SettingRow>
