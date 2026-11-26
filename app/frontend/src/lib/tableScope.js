@@ -200,11 +200,11 @@ export const accessNeedText = (need) => (need.length === 2 ? ACCESS_NEED_TEXT.bo
 export const MAX_ACCESS_OBJECTS = 50;
 
 // RC7-B-06: with Show everything off the picker lists what the person can use: a row needing access (the person's or Inspire's) waits for
-// Show everything. A row already picked stays listed, so a pick never vanishes from its own list. `keyOf` names a row as the picks do.
+// Show everything. A partly readable row (`partial`) is usable, so it stays listed with its missing grant. A row already picked stays listed, so a pick never vanishes from its own list. `keyOf` names a row as the picks do.
 export function usableRows(rows, showEverything = false, picked = [], keyOf = (row) => row.full_name || row.name) {
   const list = Array.isArray(rows) ? rows : [];
   if (showEverything) return list;
-  return list.filter((row) => accessNeedOf(row).length === 0 || picked.includes(keyOf(row)));
+  return list.filter((row) => accessNeedOf(row).length === 0 || row?.partial || picked.includes(keyOf(row)));
 }
 
 export function filteredTablesOf(scopes, pickedTables = []) {
