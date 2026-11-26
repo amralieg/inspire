@@ -8,9 +8,9 @@ import { openReader } from './reviewRows.mjs';
 
 test.after(closeBrowser);
 
-const LONG_PATH = 'Grow revenue through a loyal customer base > Increase repeat purchases across every store format and channel > Personalised retention offers';
+const LONG_PATH = 'Grow revenue through a loyal customer base > Increase repeat purchases across every store format and channel > Personalised retention offers that reach every loyalty member before the seasonal promotions stop working for the stores';
 const results = { ...REVIEW_RESULTS, domains: REVIEW_RESULTS.domains.map((d) => ({ ...d, use_cases: d.use_cases.map((u) => (
-  { ...u, Name: 'Decompose Daily Revenue Drivers', use_case: 'Decompose Daily Revenue Drivers', 'Strategy Path': LONG_PATH, meets_quality_bar: 'Y' })) })) };
+  { ...u, Name: 'Decompose Daily Revenue Drivers', use_case: 'Decompose Daily Revenue Drivers', strategy_alignment: [{ id: 'G1', path: LONG_PATH, evidence: 'It keeps loyal members buying.' }], 'Strategy Alignment': [{ id: 'G1', path: LONG_PATH, evidence: 'It keeps loyal members buying.' }], 'Strategy Path': LONG_PATH, meets_quality_bar: 'Y' })) })) };
 const DEFAULTS = { envSkipsSetupWizard: true, isDatabricksApp: true, databricksHost: 'https://workspace.example.com', warehouseId: 'wh1',
   inspireDatabase: 'main.inspire', notebookPath: '/Shared/inspire_ai' };
 const mount = (app) => app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
@@ -37,7 +37,7 @@ for (const width of [1280, 1440, 1920]) {
         const col = title.closest('div.min-w-0');
         const chips = [...panel.querySelectorAll('[data-strategy-chip],[data-kind-chip],[data-technique-chip]')].map((c) => {
           const b = c.getBoundingClientRect();
-          return { cut: c.scrollWidth > c.clientWidth + 1, outside: b.right > p.r + 0.5 || b.left < p.l - 0.5, kind: c.getAttributeName ? c.getAttributeNames().find((n) => n.startsWith('data-')) : '' };
+          return { cut: c.scrollWidth > c.clientWidth + 1, outside: b.right > p.r + 0.5 || b.left < p.l - 0.5, kind: c.getAttributeNames().find((n) => n.startsWith('data-')) };
         });
         return { panelW: p.w, gap, colW: r(col).w, titleW: t.w, chips };
       });

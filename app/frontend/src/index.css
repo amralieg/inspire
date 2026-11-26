@@ -777,3 +777,9 @@ textarea::placeholder {
 @media (prefers-reduced-motion: reduce) {
   [data-value-calculating="on"] { animation: none; box-shadow: 0 0 0 3px rgba(255, 54, 33, 0.45); }
 }
+
+/* RC7-B-01: in the side panel (reader) the title column keeps the full panel width; the score and value boxes sit under it.
+   Strategy chips wrap there instead of being cut. */
+[data-review-reader] [data-card-head] { flex-direction: column; align-items: stretch; }
+[data-review-reader] [data-card-boxes] { padding-bottom: 0; }
+[data-review-reader] [data-strategy-chip] { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
