@@ -1825,6 +1825,29 @@ export default function ResultsPage({
                     )}
                   </button>
 
+                  {/* Type filter */}
+                  {types.length > 0 && (
+                    <select
+                      aria-label="Type"
+                      value={filterType}
+                      onChange={(e) => setFilterType(e.target.value)}
+                      className="px-2 py-1.5 text-caption border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
+                    >
+                      <option value="all">All Types</option>
+                      {types.map((t) => (
+                        <option dir="auto" key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {/* REQ-510 L5: the six advanced filters sit behind one More filters button. */}
+                  <button type="button" aria-expanded={moreFiltersOpen} aria-controls="review-more-filters" onClick={() => setMoreFiltersOpen((o) => !o)}
+                    className="inline-flex items-center gap-1 px-2 py-1.5 text-caption font-medium border border-border rounded-lg bg-bg text-text-secondary hover:border-border-strong transition-smooth">
+                    <Filter size={14} />More filters
+                  </button>
+                  {moreFiltersOpen && (
+                  <div id="review-more-filters" className="contents">
+                  {/* REQ-510 L5, REQ-538: Best of Best and the priority pills fold under More filters to keep the Review header at 24 controls. */}
                   {starredCount > 0 && (
                     <button
                       type="button"
@@ -1867,28 +1890,6 @@ export default function ResultsPage({
                     </div>
                   )}
 
-                  {/* Type filter */}
-                  {types.length > 0 && (
-                    <select
-                      aria-label="Type"
-                      value={filterType}
-                      onChange={(e) => setFilterType(e.target.value)}
-                      className="px-2 py-1.5 text-caption border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
-                    >
-                      <option value="all">All Types</option>
-                      {types.map((t) => (
-                        <option dir="auto" key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
-                  )}
-
-                  {/* REQ-510 L5: the six advanced filters sit behind one More filters button. */}
-                  <button type="button" aria-expanded={moreFiltersOpen} aria-controls="review-more-filters" onClick={() => setMoreFiltersOpen((o) => !o)}
-                    className="inline-flex items-center gap-1 px-2 py-1.5 text-caption font-medium border border-border rounded-lg bg-bg text-text-secondary hover:border-border-strong transition-smooth">
-                    <Filter size={14} />More filters
-                  </button>
-                  {moreFiltersOpen && (
-                  <div id="review-more-filters" className="contents">
                   {/* Technique filter */}
                   {techniques.length > 0 && (
                     <select
