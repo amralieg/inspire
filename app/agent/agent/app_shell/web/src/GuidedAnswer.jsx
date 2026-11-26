@@ -16,7 +16,7 @@ function Bars({ step, max }) {
   );
 }
 
-function StepBody({ step, genie, onStart, context }) {
+export function StepBody({ step, genie, onStart, context }) {
   if (step.id === 'look') return <Bars step={step} max={Math.max(...step.bars.map((b) => b.value), 0)} />;
   if (step.id === 'means') {
     const x = step.kind ? explainerFor(step.kind) : null;

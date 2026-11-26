@@ -1,0 +1,34 @@
+/* REQ-542: the One-by-One wizard and the mode toggle. Motion is off under prefers-reduced-motion (shell.css resets every transition and animation). */
+.focus-mode{display:inline-flex;gap:0;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin:0 0 12px}
+.focus-mode button{border:0;background:transparent;color:inherit;font:inherit;font-size:13px;padding:6px 14px;cursor:pointer}
+.focus-mode button[aria-pressed="true"]{background:var(--btn-bg);color:var(--btn-fg);font-weight:600}
+.focus{display:flex;flex-direction:column;gap:14px;max-width:760px;margin:0 auto;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.focus-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.focus-count{font-size:13px;color:var(--muted)}
+.focus-dots{display:flex;gap:6px;list-style:none;margin:0;padding:0}
+.focus-dots li{width:10px;height:10px;border-radius:50%;border:1px solid var(--line);transition:background .2s}
+.focus-dots li.is-on{background:var(--btn-bg);border-color:var(--btn-bg)}
+.focus-item{display:flex;flex-direction:column;gap:10px;position:relative;animation:focus-in .35s ease-out}
+.focus-name{margin:0;font-size:18px}
+.focus-q{margin:0;font-size:16px}
+.focus-line{margin:0;font-size:13px;color:var(--muted)}
+.focus-terms{display:flex;gap:8px;flex-wrap:wrap}
+.focus-compare,.focus-ask{display:flex;flex-direction:column;gap:8px}
+.focus-seg{display:inline-flex;gap:6px;flex-wrap:wrap}
+.focus-seg button[aria-pressed="true"]{background:var(--btn-bg);color:var(--btn-fg)}
+.focus-note{margin:0;font-size:12px;color:var(--muted)}
+.focus-problem{margin:0;color:var(--danger);font-size:13px}
+.focus-choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px}
+.focus-choice{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:start}
+.focus-choice span{font-size:12px;color:var(--muted)}
+.focus-note-form{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.focus-note-form label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+.focus-answer{padding:10px;border:1px solid var(--line);border-radius:8px}
+.focus-check{width:44px;height:44px;position:absolute;inset-inline-end:8px;top:8px;fill:none;stroke:var(--ok,#2a7d4f);stroke-width:3;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:30;animation:focus-check .4s ease-out}
+.focus-nav{display:flex;gap:8px;flex-wrap:wrap}
+.focus-summary{max-width:480px;margin:0 auto;padding:16px;border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;gap:10px}
+.focus-summary ul{margin:0;padding:0;list-style:none;display:grid;gap:4px}
+.focus-stack{display:flex;flex-direction:column;gap:14px}
+.focus-stack .focus-step{display:flex;flex-direction:column;gap:8px}
+@keyframes focus-in{from{opacity:0;transform:translateX(32px)}}
+@keyframes focus-check{from{stroke-dashoffset:30}}
