@@ -27,7 +27,7 @@ export function DocsRunProvider({ children }) {
     const token = L.token;
     L.ctl = new AbortController();
     const { plan, sessionId } = args;
-    setRun({ sessionId: String(sessionId ?? ''), plan, names, pages, files: Object.fromEntries(plan.map((f) => [f.name, { state: 'waiting' }])), running: true, stopping: false, open: true });
+    setRun({ sessionId: String(sessionId ?? ''), folder: args.folder, plan, names, pages, files: Object.fromEntries(plan.map((f) => [f.name, { state: 'waiting' }])), running: true, stopping: false, open: true });
     (async () => {
       let saved = [];
       try {

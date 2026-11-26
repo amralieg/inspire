@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ChevronRight, Download, ExternalLink, Eye, EyeOff, FileText, FolderOpen, Loader2, Sparkles, XCircle } from 'lucide-react';
 import FilePreview from '../../components/FilePreview';
 import { PlainMessage } from '../../components/TechnicalDetails';
@@ -6,6 +6,7 @@ import { artifactTreeFiles, fileActions, fileDateText, fileExtension, fileSizeTe
 import { displayCleanText, findUcForNotebookFilename, hasShippedGenieCode } from '../../lib/useCaseFields';
 import { nextStepOf } from '../../lib/runOutcome';
 import { qualityBarCountText } from '../../lib/qualityBarWording';
+import { isViewable } from '../../lib/docView';
 import { workspaceWebUiHashPath } from '../../lib/workspaceLinks';
 
 const NEW_DOCS_EVENT = 'inspire:new-docs';
@@ -45,9 +46,23 @@ const NewTag = ({ path }) => (
 
 /** The Assets view of Results: everything the run generated (the run's outcome strip, its files and folders, the document actions, Quick access). Moved from ResultsPage unchanged. */
 export default function ResultsAssets({
-  allUseCases, apiFetch, apiPostJson, artifactTree, artifactsExpanded, artifactsLoading, artifactsRootFiles, databricksHost, downloadFile, expandedFolders, generationPath, genieQuickAccessExpanded, inspireDb, isProgressive, lastArtifactsLoadKeyRef, loadArtifacts, loadFolder, noneMeetsBar, openFileInTab, previewData, previewFile, previewFrom, previewLoading, qualityBarCounts, reviewBarStages, runOutcome, selectedSession, selectedSessionId, setArtifactsExpanded, setGenieQuickAccessExpanded, settings, settingsNotebookPath, showcase, toggleFolder, togglePreview,
+  allUseCases, apiFetch, apiPostJson, artifactTree, artifactsExpanded, artifactsLoading, artifactsRootFiles, databricksHost, assetFocus, downloadFile, expandedFolders, generationPath, genieQuickAccessExpanded, inspireDb, isProgressive, lastArtifactsLoadKeyRef, loadArtifacts, loadFolder, noneMeetsBar, openFileInTab, previewData, previewFile, previewFrom, previewLoading, qualityBarCounts, reviewBarStages, runOutcome, selectedSession, selectedSessionId, setArtifactsExpanded, setGenieQuickAccessExpanded, settings, settingsNotebookPath, showcase, toggleFolder, togglePreview, viewFile, goToAsset,
 }) {
   const newDocs = useNewDocs(selectedSessionId, generationPath, loadArtifacts, loadFolder);
+  // C25 (REQ-559): Go to asset marks the file and brings its row into view.
+  const focusRef = useRef(null);
+  useEffect(() => { focusRef.current?.scrollIntoView?.({ block: 'center' }); }, [assetFocus, artifactsRootFiles, artifactTree]);
+  const focusAttrs = (path) => (assetFocus && assetFocus === path ? { 'data-asset-focus': path, ref: focusRef } : {});
+  const assetActions = (f, cls) => (
+    <>
+      {isViewable(f) && viewFile && (
+        <button type="button" className={cls} aria-label={`View ${f.name}`} onClick={(e) => { e.stopPropagation(); viewFile(f.path, f.name); }}><Eye size={14} /> View</button>
+      )}
+      {goToAsset && (
+        <button type="button" className={cls} aria-label={`Go to asset ${f.name}`} onClick={(e) => { e.stopPropagation(); goToAsset(f.path); }}><FolderOpen size={14} /> Go to asset</button>
+      )}
+    </>
+  );
   return (
     <>
             {/* ═══ Execution Summary Banner ═══ */}
@@ -133,7 +148,8 @@ export default function ResultsAssets({
                     return (
                       <div key={f.path} data-asset-row={f.name}>
                         <div
-                          className={`flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-bg-subtle transition-smooth ${isDir ? 'cursor-pointer' : ''}`}
+                          {...focusAttrs(f.path)}
+                          className={`flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-bg-subtle transition-smooth ${isDir ? 'cursor-pointer' : ''} ${assetFocus === f.path ? 'ring-2 ring-info-fg bg-bg-subtle' : ''}`}
                           onClick={isDir ? () => toggleFolder(f.path) : undefined}
                         >
                           {isDir ? (
@@ -167,6 +183,7 @@ export default function ResultsAssets({
                                     {previewFile === f.path && previewFrom === 'files' ? <><Eye size={14} /> Hide</> : <><Eye size={14} /> Preview</>}
                                   </button>
                                 )}
+                                {assetActions(f, 'text-caption text-info-fg hover:underline font-medium flex items-center gap-0.5')}
                                 {actions.open && (
                                   <button
                                     type="button"
@@ -340,7 +357,7 @@ export default function ResultsAssets({
                       const style = EXT_STYLES[ext] || EXT_STYLES.xlsx;
                       const isActive = previewFile === f.path && previewFrom === 'quick';
                       return (
-                        <div key={f.path} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-caption border transition-colors shrink-0 ${isActive ? 'border-db-red/30 bg-db-red-50' : 'border-border bg-bg-subtle/50 hover:bg-bg-subtle'}`}>
+                        <div key={f.path} {...focusAttrs(f.path)} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-caption border transition-colors shrink-0 ${assetFocus === f.path ? 'ring-2 ring-info-fg ' : ''}${isActive ? 'border-db-red/30 bg-db-red-50' : 'border-border bg-bg-subtle/50 hover:bg-bg-subtle'}`}>
                           <span className={`text-caption font-bold uppercase px-1.5 py-0.5 rounded ${style.bg} ${style.text}`}>{ext}</span>
                           <span className="text-text-primary font-medium truncate max-w-[200px]">{f.name}</span>
                           {newDocs.has(f.path) && <NewTag path={f.path} />}
@@ -350,6 +367,7 @@ export default function ResultsAssets({
                                 {isActive ? <><EyeOff size={14} /> Hide</> : <><Eye size={14} /> Preview</>}
                               </button>
                             )}
+                            {assetActions(f, 'text-caption text-info-fg font-medium flex items-center gap-0.5 hover:underline')}
                             {fileActions(f).open && (
                               <button type="button" aria-label={`Open ${f.name}`} className="text-caption text-success-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => openFileInTab(f.path, f.name)}>
                                 <ExternalLink size={14} /> Open
