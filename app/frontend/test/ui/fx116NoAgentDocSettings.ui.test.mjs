@@ -71,7 +71,7 @@ test('Assets has no rebuild-documents actions, and an old run PDF and workbook s
   const files = ['Acme-dbx_inspire.pdf', 'Acme-dbx_inspire.xlsx'].map((name) => ({ name, path: `${GEN}/acme/${name}`, is_directory: false, file_size: 5000 }));
   const sessions = REVIEW_SESSIONS.map((s, i) => (i === 0 ? { ...s, generation_path: GEN } : s));
   const ui = await openUi('results', { ...REVIEW_STATE, sessions, results: REVIEW_RESULTS }, '', {
-    mount: (app) => app.get('/api/workspace/list', (_req, res) => res.json({ files })),
+    mount: (app) => { app.post('/api/inspire/docs/save', (req, res) => res.json({ path: `${req.body.folder}/${req.body.name}`, name: req.body.name, size: 1 })); app.get('/api/workspace/list', (_req, res) => res.json({ files })); },
   });
   const { page } = ui;
   try {
