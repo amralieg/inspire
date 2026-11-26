@@ -1,5 +1,5 @@
 // Trend vs normal band: a line moving through its usual range, points outside the range stand out. Roles: time, value, low?, high?, key?.
-import { useMotion } from '../motion.js';
+import { useMotion } from './motion.js';
 import { Count, Empty, Frame, Text, clip, describe, extent, f, fmt, isFocus, markProps, scale, roleSets, tidy } from './common.jsx';
 
 const ROLES = roleSets('trend_band');

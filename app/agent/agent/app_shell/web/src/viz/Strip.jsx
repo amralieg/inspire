@@ -1,5 +1,5 @@
 // Strip: every item as a dot on one number line, the focus item picked out against the population. Roles: value, label?, key?.
-import { useMotion } from '../motion.js';
+import { useMotion } from './motion.js';
 import { Count, Empty, Frame, Text, clip, describe, extent, fmt, isFocus, markProps, scale, roleSets, tidy } from './common.jsx';
 
 const ROLES = roleSets('strip');

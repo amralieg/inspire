@@ -1,5 +1,5 @@
 // Before and after: for each item a muted bar for before and a strong bar for after, with the change. Roles: label, before, after, key?.
-import { useMotion } from '../motion.js';
+import { useMotion } from './motion.js';
 import { Count, Empty, Frame, Text, clip, describe, f, fit, fmt, isFocus, markProps, scale, roleSets, tidy } from './common.jsx';
 
 const ROLES = roleSets('before_after');

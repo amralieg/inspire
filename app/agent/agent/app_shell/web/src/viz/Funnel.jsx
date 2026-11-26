@@ -1,5 +1,5 @@
 // Funnel: each step of a path with how many get through, so the drop-off shows. Roles: stage, value, key?.
-import { useMotion } from '../motion.js';
+import { useMotion } from './motion.js';
 import { Count, Empty, Frame, Text, clip, describe, f, fit, fmt, isFocus, markProps, roleSets, tidy } from './common.jsx';
 
 const ROLES = roleSets('funnel');

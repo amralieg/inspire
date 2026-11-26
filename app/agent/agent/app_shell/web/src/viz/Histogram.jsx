@@ -1,5 +1,5 @@
 // Histogram: how the values spread, with a marker where the focus item sits. Roles: value, key?.
-import { useMotion } from '../motion.js';
+import { useMotion } from './motion.js';
 import { Count, Empty, Frame, Text, describe, extent, f, fmt, isFocus, markProps, scale, roleSets, tidy } from './common.jsx';
 
 const ROLES = roleSets('histogram');

@@ -18,4 +18,4 @@ export const BLOCKS = {
   bridge: Bridge, strip: Strip, histogram: Histogram, trend_band: TrendBand, ranked_bars: RankedBars, small_multiples: SmallMultiples,
   share_shift: ShareShift, before_after: BeforeAfter, funnel: Funnel, network: Network, map_pin: MapPin, gauge: Gauge, timeline: Timeline, cohort_cards: CohortCards,
 };
-export { MOTIONS, MOTION_LEVELS } from '../motion.js';
+export { MOTIONS, MOTION_LEVELS } from './motion.js';

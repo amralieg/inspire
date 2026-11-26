@@ -1,5 +1,5 @@
 // Small multiples: the same measure over x drawn once per group, so peers can be compared at a glance. Roles: label (the group), value, x?, key?.
-import { useMotion } from '../motion.js';
+import { useMotion } from './motion.js';
 import { Empty, Frame, Text, clip, describe, extent, f, fit, fmt, isFocus, markProps, scale, roleSets, tidy } from './common.jsx';
 
 const GROUPS = 6;

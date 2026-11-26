@@ -9,9 +9,10 @@ import { GenieMark } from './icons.jsx';
 import { actionValues, decideChoices, FOCUS_MODE, NOTE_FIELDS, queueOf, stepsOf, summaryOf } from './focus.js';
 import { useMyView } from './MyView.jsx';
 import { motionOf } from './onboarding.js';
-import { prefersReduced } from './motion.js';
+import { prefersReduced } from './viz/motion.js';
 import { actError, recordKeyOf } from './records.js';
 import TermChip from './TermChip.jsx';
+import { PlainNote } from './ui.jsx';
 import { BLOCKS } from './viz/index.js';
 import Strip from './viz/Strip.jsx';
 import TrendBand from './viz/TrendBand.jsx';
@@ -132,7 +133,7 @@ function AskHere({ app, page, step, row, name, kind }) {
       <h4><GenieMark size={13} />Ask Genie about this</h4>
       <div className="g-sugg">{step.ask.map((q) => <button key={q} type="button" className="sugg" disabled={!!state?.busy} onClick={() => run(q)}>{q}</button>)}</div>
       {state?.busy && <p className="focus-note" role="status">Genie is working on it.</p>}
-      {state?.error && <p className="focus-note" role="alert">{state.error}</p>}
+      {state?.error && <PlainNote text={state.error} className="focus-note" role="alert" />}
       {state?.answer && (
         <div className="focus-answer" data-focus-answer>
           {state.answer.text && <p>{state.answer.text}</p>}

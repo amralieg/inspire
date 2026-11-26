@@ -158,7 +158,9 @@ function roundOf(payload) {
   return payload.failure ? round + 1 : round;
 }
 
-const isPhase = (row, payload, phase) => stepPhase(row, payload).toLowerCase() === phase.toLowerCase();
+// A step name is an identifier (REQ-529): runs from before it was one spelled it with a space, so both spellings read as the same step.
+const phaseKey = (name) => String(name).trim().toLowerCase().replace(/\s+/g, '_');
+const isPhase = (row, payload, phase) => phaseKey(stepPhase(row, payload)) === phaseKey(phase);
 const isMap = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const outputList = (value) => (Array.isArray(value) ? [...new Set(value.map(String).filter((id) => Object.hasOwn(OUTPUT_LABEL, id)))] : []);
 const versionMap = (value, read) => Object.fromEntries(Object.entries(isMap(value) ? value : {})
@@ -253,7 +255,7 @@ function legacyStages(latest) {
 }
 
 function plannedStages(plan, latest, seen) {
-  const was = (id) => seen.has(id.toLowerCase());
+  const was = (id) => seen.has(phaseKey(id));
   const head = [...(vibesOf(latest) || was(VIBE_PHASE) ? [VIBE_STAGE] : []), STAGE.Plan];
   if (plan.pending) return head;
   const acts = planActions(plan);
@@ -282,7 +284,7 @@ function stageList(steps, latest, since) {
   if (!plan) return [...head, ...legacyStages(latest)];
   const seen = new Set(stepEvents(steps)
     .filter(({ payload, at }) => sameVersion(payload, latest) && !(since !== null && at !== null && at < since))
-    .map(({ row, payload }) => stepPhase(row, payload).toLowerCase()));
+    .map(({ row, payload }) => phaseKey(stepPhase(row, payload))));
   return [...head, ...plannedStages(plan, latest, seen)];
 }
 
@@ -294,8 +296,8 @@ export function mvpStages(steps, latest, { now = Date.now(), stalled = null } = 
   const repair = mvpRepairOf(steps, latest);
   const since = repair && repair.step === WHOLE_BUILD ? repair.at : null;
   const stages = stageList(steps, latest, since).map((stage) => ({ ...stage, state: 'waiting', started: null, ended: null, round: null, rounds: null, message: '' }));
-  const indexOf = (phase) => stages.findIndex((s) => s.id.toLowerCase() === phase.toLowerCase()
-    || (s.phases || []).some((p) => p.toLowerCase() === phase.toLowerCase()));
+  const indexOf = (phase) => stages.findIndex((s) => phaseKey(s.id) === phaseKey(phase)
+    || (s.phases || []).some((p) => phaseKey(p) === phaseKey(phase)));
   const rank = { running: 0, done: 1, warning: 2, error: 3 };
   const seenAt = new Map();
   let lastAt = null;

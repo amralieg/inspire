@@ -1,5 +1,5 @@
 // Share shift: how the mix moved, one stacked bar before and one after with ribbons between. Roles: label, value (the share now), before? (the share before; without it the mix is drawn unchanged), key?.
-import { useMotion } from '../motion.js';
+import { useMotion } from './motion.js';
 import { Empty, Frame, Text, clip, color, describe, f, fit, fmt, isFocus, markProps, roleSets, tidy } from './common.jsx';
 
 const ROLES = roleSets('share_shift');

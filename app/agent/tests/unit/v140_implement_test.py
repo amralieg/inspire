@@ -3777,9 +3777,9 @@ def test_a_failed_genie_code_install_ends_its_step_with_the_reason(fresh_ns, tmp
     inst._implement_emit = lambda uc, step, message, status, *a, **k: emitted.append((step, message, status, k.get("step_id"))) or "s1"
     with pytest.raises(RuntimeError, match="manifest.json is missing"):
         inst._implement_runner("N01-U01")
-    assert emitted == [("Genie Code", "checking which AI model Databricks AI can call and installing the Databricks AI CLI and the "
+    assert emitted == [(fresh_ns["IMPLEMENT_AI_STEP_ID"], "checking which AI model Databricks AI can call and installing the Databricks AI CLI and the "
                                       "Databricks CLI", "started", None),
-                       ("Genie Code", f"Databricks AI could not be installed: {INSTALL_ERROR.format(version=fresh_ns['__AGENT_VERSION__'])}",
+                       (fresh_ns["IMPLEMENT_AI_STEP_ID"], f"Databricks AI could not be installed: {INSTALL_ERROR.format(version=fresh_ns['__AGENT_VERSION__'])}",
                         "ended_error", "s1")], \
         "a failed install ends its step, so the Build page never shows it still running"
 

@@ -1,5 +1,5 @@
 // Network neighbourhood: the focus item in the middle with what it connects to around it. Roles: source, target, value? (link weight), key?.
-import { useMotion } from '../motion.js';
+import { useMotion } from './motion.js';
 import { Empty, Frame, Text, clip, describe, f, fmt, isFocus, markProps, scale, roleSets, tidy } from './common.jsx';
 
 const NODES = 12;
