@@ -620,7 +620,7 @@ export function firstRunChoices(profile, values, everything = '') {
       groups: grouped ? inGroups : null,
     },
     {
-      id: 'recent', scope: 'recent', label: timeColumn ? `The last ${days ?? SCOPE_DEFAULTS[SCOPE_DAYS]} days of ${timeName}` : 'A recent period', available: Boolean(timeColumn),
+      id: 'recent', scope: 'recent', label: timeColumn ? `The last ${counted(days ?? Number(SCOPE_DEFAULTS[SCOPE_DAYS]), 'day')} of ${timeName}` : 'A recent period', available: Boolean(timeColumn),
       records: recent && days != null && Number(recent.days) === days ? finite(recent.records) ?? finite(fr.recent) : days == null ? null : finite(fr.recent),
       exact: Boolean(recent && days != null && Number(recent.days) === days),
     },

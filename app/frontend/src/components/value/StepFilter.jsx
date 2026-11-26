@@ -41,6 +41,14 @@ export default function StepFilter({ facts, scope, onScope, post }) {
 
   const filters = scope?.filters || [];
   const unmatched = reply?.unmatched || [];
+  // RC6-B-03: All data keeps every row, so there is nothing to describe: no examples, no box, a plain optional note.
+  if (scope?.choice === 'all') {
+    return (
+      <div data-wizard-page="filter" className="space-y-3">
+        <p data-filter-optional="" className="text-sm text-text-secondary">This step is optional. You chose All data, so there is nothing to filter. Press Next to go on, or go back to pick My own filter.</p>
+      </div>
+    );
+  }
   return (
     <div data-wizard-page="filter" className="space-y-3">
       <div className="flex flex-wrap gap-1.5" aria-label="Examples">

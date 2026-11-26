@@ -112,7 +112,7 @@ export function RunValuePanel({ run, useCases, nameOf, onRow }) {
           <Bar parts={split(run.totals || [])} label={`${STATUS_LABELS.calculated}s vs ${STATUS_LABELS.estimated.toLowerCase()}s`} />
           <Bar parts={byVerb} label="By kind of value" />
           <CountNotes run={run} />
-          <p className="mt-2 text-caption text-text-secondary">{`${run.n} use cases · ${statusCounts(run.n_calculated, run.n_estimated)} · ${run.n_none} not worked out yet`}</p>
+          <p className="mt-2 text-caption text-text-secondary">{`${pluralOf(run.n, 'use case')} · ${statusCounts(run.n_calculated, run.n_estimated)} · ${run.n_none} not worked out yet`}</p>
         </div>
       </div>
       <table className="mt-3 w-full text-[12px]">
