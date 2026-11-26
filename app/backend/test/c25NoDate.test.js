@@ -32,8 +32,8 @@ for (const [name, columns, days] of [['no date column', NO_DATE, null], ['a text
     const made = appWith(SAMPLE(days), columns);
     const got = await call(made, '/api/inspire/value/estimate', { ...BODY, answers: ANSWERS });
     assert.equal(got.status, 200, JSON.stringify(got.data));
-    // 1000 over 100 sampled, scaled to 10000 records, over 365 assumed days = 1,000,000 a year.
-    assert.equal(Math.round(got.data.yearly.entries[0].amount), 1000000);
+    // 1000 over 100 sampled, scaled to 10000 records, over 365 assumed days = 100,000 a year.
+    assert.equal(Math.round(got.data.yearly.entries[0].amount), 100000);
     assert.equal(got.data.yearly.period_days, 365);
     assert.equal(got.data.yearly.period_assumed, true);
   });
@@ -42,7 +42,7 @@ for (const [name, columns, days] of [['no date column', NO_DATE, null], ['a text
     const made = appWith(SAMPLE(days), columns);
     const got = await call(made, '/api/inspire/value/estimate', { ...BODY, answers: ANSWERS, period_days: 730 });
     assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.equal(Math.round(got.data.yearly.entries[0].amount), 500000);
+    assert.equal(Math.round(got.data.yearly.entries[0].amount), 50000);
     assert.equal(got.data.yearly.period_days, 730);
     assert.equal(got.data.yearly.period_assumed, false);
   });
