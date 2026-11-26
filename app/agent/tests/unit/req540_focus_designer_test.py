@@ -84,7 +84,7 @@ def _flow(ns, tmp_path, designs, judges=(GOOD,), page=None):
         reply = queue[min(done, len(queue)) - 1]
         if isinstance(reply, Exception):
             raise reply
-        return reply
+        return {"questions": ["a plain question"], "focus_spec": reply} if prompt_name == "implement_app_focus" else reply
 
     inst._implement_llm_object = llm
     return inst, context, seen, asked, page or _page()
