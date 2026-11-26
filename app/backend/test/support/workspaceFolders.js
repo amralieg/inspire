@@ -73,7 +73,7 @@ function folderAnswer(model, { method, pathname, searchParams, body, token }, wr
     const at = searchParams.get('path');
     const inside = (c) => parentOf(c) === at;
     return [200, { objects: [...[...model.created, ...model.leftovers].filter(inside).map((path) => ({ path, object_type: 'DIRECTORY' })),
-      ...model.leftoverFiles.filter(inside).map((path) => ({ path, object_type: 'FILE' }))] }];
+      ...model.leftoverFiles.filter(inside).map((path) => ({ path, object_type: 'FILE', ...(model.modifiedAt && model.modifiedAt[path] ? { modified_at: model.modifiedAt[path] } : {}) }))] }];
   }
   if (fsDirectory) {
     const p = fsPathOf(pathname);
@@ -84,7 +84,7 @@ function folderAnswer(model, { method, pathname, searchParams, body, token }, wr
     if (method === 'HEAD') return [200, {}];
     const inside = (c) => parentOf(c) === p;
     return [200, { contents: [...[...model.created, ...model.leftovers].filter(inside).map((path) => ({ path, is_directory: true })),
-      ...model.leftoverFiles.filter(inside).map((path) => ({ path, is_directory: false }))] }];
+      ...model.leftoverFiles.filter(inside).map((path) => ({ path, is_directory: false, ...(model.modifiedAt && model.modifiedAt[path] ? { last_modified: model.modifiedAt[path] } : {}) }))] }];
   }
   return null;
 }
