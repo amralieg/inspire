@@ -240,6 +240,8 @@ function yearlyOf(plan, answers) {
   const a = DEF.attribution;
   const attribution = answers && answers.attribution_pct !== undefined && answers.attribution_pct !== null && answers.attribution_pct !== '' ? Number(answers.attribution_pct) : a.default;
   if (!Number.isFinite(attribution) || attribution < a.min || attribution > a.max) errors.attribution_pct = `"${a.label}" must be a number between ${a.min} and ${a.max}.`;
+  // C24 (P247): "tune values from the data Inspire processed" (default on). Off: a data ask is priced once from its generic estimate, not from the counted records.
+  const tuned = !(answers && answers.tune_from_data === false);
   const parts = [];
   for (const d of drivers) {
     const mine = given[d.id] && typeof given[d.id] === 'object' ? given[d.id] : {};
@@ -248,19 +250,19 @@ function yearlyOf(plan, answers) {
     const fixed = {};
     const shown = [];
     for (const ask of d.asks) {
-      if (ask.source === 'data') continue;
-      const raw = typed[ask.id] !== undefined && typed[ask.id] !== null && typed[ask.id] !== '' ? typed[ask.id] : ask.default;
+      if (ask.source === 'data' && tuned) continue;
+      const raw = typed[ask.id] !== undefined && typed[ask.id] !== null && typed[ask.id] !== '' ? typed[ask.id] : (ask.source === 'data' ? DEFAULTS[ask.id] : ask.default);
       const n = typeof raw === 'number' ? raw : Number(raw);
       if (!Number.isFinite(n) || n < 0) errors[d.id] = `${d.label}: "${ask.label}" must be a number of 0 or more.`;
       else if (ask.kind === 'pct' && n > 100) errors[d.id] = `${d.label}: "${ask.label}" must be between 0 and 100.`;
       fixed[ask.id] = n;
     }
     if (errors[d.id]) continue;
-    const dataAsks = dataAsksOf(d);
+    const dataAsks = tuned ? dataAsksOf(d) : [];
     const amount = round2(VDC.amountOverGroups(d.id, fixed, dataAsks, groups));
     parts.push({ id: d.id, label: d.label, verb: d.verb || VERBS[d.id], amount, per_group: dataAsks.length > 0,
-      inputs: d.asks.map((ask) => ({ id: ask.id, label: ask.label, kind: ask.kind, source: ask.source,
-        value: ask.source === 'data' ? round2(VDC.dataFigure(ask, groups, ((plan.metrics || []).find((m) => m.id === ask.metric) || {}).agg)) : fixed[ask.id] })) });
+      inputs: d.asks.map((ask) => ({ id: ask.id, label: ask.label, kind: ask.kind, source: tuned ? ask.source : 'estimate',
+        value: ask.source === 'data' && tuned ? round2(VDC.dataFigure(ask, groups, ((plan.metrics || []).find((m) => m.id === ask.metric) || {}).agg)) : fixed[ask.id] })) });
   }
   // FX-97: market and customer factors move the revenue part only (after the credit share); a plan with no revenue kind on ignores them.
   const revenue = parts.filter(isRevenuePart).reduce((s, p) => s + p.amount, 0);
@@ -283,7 +285,7 @@ function yearlyOf(plan, answers) {
     total: { unit: currency, amount: total },
     parts,
     groups: { grouping_label: grouping ? grouping.label : '', covered: groups.length, of: allGroups.length },
-    case_noun: plan.case_noun || 'record', attribution_pct: attribution,
+    case_noun: plan.case_noun || 'record', attribution_pct: attribution, tuned_from_data: tuned,
   };
   return { yearly: { ...yearly, check: VP.checkOf(yearly) } };
 }

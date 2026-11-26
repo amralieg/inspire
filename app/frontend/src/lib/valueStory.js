@@ -28,7 +28,7 @@ function dataLine(scope, noun) {
 }
 
 // The headline and the 5 lines, the same every time for the same numbers. text is what a document can quote.
-export function storyOf({ useCase, noun, currency, scope, drivers = [], projection, economics = {} } = {}) {
+export function storyOf({ useCase, noun, currency, scope, drivers = [], projection, economics = {}, tuned = false } = {}) {
   const money = (n) => moneyText(currency, n);
   const years = projection?.years || [];
   const full = years.length ? years[years.length - 1].likely : null;
@@ -48,7 +48,7 @@ export function storyOf({ useCase, noun, currency, scope, drivers = [], projecti
     : 'No cost has been entered, so the value above is gross.';
   const lines = [
     { label: 'Today', text: `${name} is not in place yet, so its value is not captured.` },
-    { label: 'Data', text: dataLine(scope, noun) },
+    { label: 'Data', text: `${dataLine(scope, noun)}${tuned && scope && Number.isFinite(Number(scope.rows_after)) ? ' Tuned from data.' : ''}` },
     { label: 'Change', text: labels.length ? `It changes ${labels.join(', ')}.` : 'No value driver is turned on yet.' },
     { label: 'Return', text: ret },
     { label: 'Ask', text: ask },

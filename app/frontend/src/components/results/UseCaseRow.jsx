@@ -3,6 +3,7 @@ import { Archive, ArchiveRestore, FileText, Heart, Sparkles, Star, ArrowRight, L
 import MoreMenu from '../ui/MoreMenu';
 import InspireScoreBadge from '../InspireScoreBadge';
 import ValueBox from '../ValueBox';
+import RoiBox from '../value/RoiBox';
 import QualityBarChip from '../QualityBarChip';
 import { UseCaseNameTitle, UseCaseRenameButton } from '../UseCaseNameEditor';
 import { useUseCaseRename, NAME_TEXT_CLASS } from '../../lib/useCaseRename';
@@ -13,7 +14,7 @@ import { cardTitlesOfUseCase, fieldOf, inspireScoreFromUc } from '../../lib/useC
 // REQ-511 / REQ-512 / REQ-516 (wireframe A7): the Review list row, a compact old card. One grid shared with the header in ResultsPage (ROW_GRID), so the columns line up:
 // tick | # | favourite | card (name, badges, statement, chips, domain) | Build MVP over Generate docs (two header columns) | score box | value box | archive.
 // Clicking the row (outside its buttons) opens the reader.
-export const ROW_GRID = 'grid grid-cols-[22px_30px_22px_minmax(0,1fr)_124px_132px_136px_136px_28px] items-center gap-3 max-md:grid-cols-[repeat(12,minmax(0,1fr))] max-md:gap-x-2 max-md:gap-y-2';
+export const ROW_GRID = 'grid grid-cols-[22px_30px_22px_minmax(0,1fr)_124px_132px_136px_268px_28px] items-center gap-3 max-md:grid-cols-[repeat(12,minmax(0,1fr))] max-md:gap-x-2 max-md:gap-y-2';
 // Below 768px the row stacks: tick, favourite, # and archive on top, then the whole card, Build MVP beside Generate docs, and the score beside the value box.
 
 const BTN = 'inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border px-2 text-xs font-semibold whitespace-nowrap transition-smooth disabled:opacity-60';
@@ -129,7 +130,7 @@ export default function UseCaseRow({
         </div>
       </div>
       <div className="flex justify-center max-md:col-span-6 max-md:justify-start max-md:pb-3"><InspireScoreBadge row score={inspireScoreFromUc(uc)} /></div>
-      <div className="flex justify-center max-md:col-span-6 max-md:justify-end max-md:pb-3"><ValueBox inset yearly={yearly} summary={valueSummary} canCalculate={canCalculate} onCalculate={calculate} onEdit={onEdit} /></div>
+      <div className="flex justify-start gap-3 max-md:col-span-6 max-md:justify-end max-md:pb-3"><div className="flex w-[136px] shrink-0 justify-center"><ValueBox inset yearly={yearly} summary={valueSummary} canCalculate={canCalculate} onCalculate={calculate} onEdit={onEdit} /></div><RoiBox inset yearly={yearly} /></div>
       <div className="flex justify-end max-md:col-start-12 max-md:row-start-1">
         {typeof onToggleArchive === 'function' && (
           <button type="button" data-row-archive={isArchived ? 'archived' : 'active'} onClick={(e) => { e.stopPropagation(); onToggleArchive(); }}

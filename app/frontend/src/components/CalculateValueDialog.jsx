@@ -8,6 +8,7 @@ import StepFactors from './valueWizard/StepFactors.jsx';
 import StepSave from './valueWizard/StepSave.jsx';
 import { StepKind, StepKinds } from './valueWizard/Steps.jsx';
 import StepScope from './value/StepScope.jsx';
+import TuneFromDataOption from './value/TuneFromDataOption.jsx';
 import StepFilter from './value/StepFilter.jsx';
 import StepMacro from './value/StepMacro.jsx';
 import StepEconomics from './value/StepEconomics.jsx';
@@ -269,6 +270,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
             <StepScope key={p} page={p} facts={facts} scope={scope} useCase={{ noun }} post={post}
               onScope={(s) => { setError(''); setScope(s); }} onFacts={(f) => { setFactsState({ status: 'ready', facts: f, error: '' }); setScope(null); }} />
           ))}
+          <TuneFromDataOption onChange={(on) => edit((a) => ({ ...a, tune_from_data: on }))} />
           {scope?.choice === 'filter' && <StepFilter facts={facts} scope={scope} post={post} onScope={(s) => setScope(s)} />}
           {counted && <p data-scope-count="" className="rounded-md border border-border bg-bg-subtle px-3 py-2 text-sm font-semibold text-text-primary">{`After the filter: ${Number(scope.rows_after).toLocaleString('en-US')} of ${Number(scope.rows_before ?? facts.rows).toLocaleString('en-US')} ${noun}s`}</p>}
           {errorBox}
@@ -285,7 +287,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
     }
     if (!ready) return <BusyNote data-wizard-loading="" className="flex flex-col items-center py-8 text-center text-sm text-text-secondary" text="Reading your data to plan the value." />;
     const ticked = driversOn(plan, answers);
-    const story = storyOf({ useCase: nameOfUseCase(uc), noun: STORY_NOUN, currency: answers.currency, scope: answers.scope, drivers: ticked, projection: yearly?.projection, economics: answers.economics });
+    const story = storyOf({ useCase: nameOfUseCase(uc), noun: STORY_NOUN, currency: answers.currency, scope: answers.scope, drivers: ticked, projection: yearly?.projection, economics: answers.economics, tuned: yearly?.tuned_from_data === true });
     const params = paramsOf(plan, answers, yearly);
     const kindAt = driver ? ticked.findIndex((d) => d.id === driver.id) + 1 : 0;
     return (
