@@ -355,6 +355,7 @@ SORTS = ("value_desc", "value_asc", "x_asc")
 FILTER_TYPES = ("date_range", "multi_select")
 SEGMENT_FILTERS_MIN = 3
 DRIVER = "driver"
+NO_DRIVERS = "the page has no Drivers chart"
 DRIVERS_MIN = 1
 DRIVERS_TITLE = "Drivers"
 CONCENTRATION_CHARTS = ("pareto",)
@@ -1623,7 +1624,7 @@ def quality_problems(page: dict, event_date: bool = False, many_datasets=()) -> 
     if page_layout(page) != DEFAULT_LAYOUT:
         return problems + contract_problems(page)
     if len(driver_charts(page)) < DRIVERS_MIN:
-        problems.append(f"the page has no Drivers chart: set \"{DRIVER}\": true on at least {DRIVERS_MIN} chart that shows what "
+        problems.append(f"{NO_DRIVERS}: set \"{DRIVER}\": true on at least {DRIVERS_MIN} chart that shows what "
                         "drives the result, such as the categories where the listed records concentrate, grouped by a "
                         "categorical column many records share")
     return problems
@@ -1637,6 +1638,9 @@ def _category_x(chart: dict) -> str:
     x = chart.get("x") if isinstance(chart.get("x"), dict) else {}
     column = str(x.get("column") or "")
     return column if chart.get("type") != "scatter" and x.get("kind") == "category" and IDENT.match(column) else ""
+
+
+category_x = _category_x
 
 
 def _x_source(sql: str, column: str) -> str:
