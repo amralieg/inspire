@@ -333,7 +333,7 @@ test('the Run tab page turns its Alerts view on and saves through the same rules
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hosted-alerts-'));
   const up = await shellLike();
   const hosted = H.createHostedRun({
-    spawn: () => fakePageChild(up.port), pickPython: async () => '/opt/venv/bin/python3', tmpRoot: tmp, env: { PATH: '/usr/bin' },
+    spawn: () => fakePageChild(up.port), pickPython: async () => '/opt/venv/bin/python3', shellFiles: { 'app.py': 'app' }, tmpRoot: tmp, env: { PATH: '/usr/bin' },
     checkHealth: async () => true, pause: async () => {},
     files: () => ({
       async list(folder) { return folder === record.source ? [{ path: `${record.source}/app.py`, object_type: 'FILE' }] : []; },

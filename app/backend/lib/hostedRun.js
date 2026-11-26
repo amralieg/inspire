@@ -9,6 +9,10 @@ const { IMPLEMENT_APP_HOSTED_ID_RE: HOSTED_ID_RE } = require('./inspireImplement
 const { forwardedTokenOf } = require('./requestPerson');
 const { apiRefusalText, logApiBody } = require('./apiRefusal');
 const { parseExactJson } = require('./exactJson');
+const crypto = require('crypto');
+const { appShellFiles, appShellPayload, bundledAppShellText } = require('./appShell');
+// SEC-01: a synced page folder is the bundled App shell plus these data files, and nothing else. Data files are never run.
+const HOSTED_DATA_FILE_RE = /^(inspire_app\.json|pages\/[^/]+\.json)$/;
 const HOSTED_MAX_CHILDREN = 3;
 const HOSTED_IDLE_MS = 15 * 60 * 1000;
 const HOSTED_HEALTH_MS = 60 * 1000;
@@ -94,6 +98,20 @@ function childEnv(parentEnv, { python, home, warehouseId, cwd }) {
     DATABRICKS_WAREHOUSE_ID: String(warehouseId || ''),
   };
   return Object.fromEntries(HOSTED_CHILD_ENV.map((name) => [name, env[name]]));
+}
+
+function sha256(body) {
+  return crypto.createHash('sha256').update(body).digest('hex');
+}
+
+function listFiles(root, rel = '') {
+  const out = [];
+  for (const item of fs.readdirSync(path.join(root, rel), { withFileTypes: true })) {
+    const next = rel ? `${rel}/${item.name}` : item.name;
+    if (item.isDirectory()) out.push(...listFiles(root, next));
+    else out.push(next);
+  }
+  return out;
 }
 
 function pageOrigin(req) {
@@ -278,7 +296,9 @@ function createHostedRun(options = {}) {
     retryMs = HOSTED_RETRY_MS,
     killGraceMs = HOSTED_KILL_GRACE_MS,
     decisionMs = HOSTED_DECISION_TIMEOUT_MS,
+    shellFiles = null,
   } = options;
+  let shellHashes = null;
   const listed = new Map();
   const runs = new Map();
   let reader = null;
@@ -303,7 +323,7 @@ function createHostedRun(options = {}) {
     decisions = fn;
   }
 
-  // SEC-02 (F4/F6): a page belongs to the session that built it. fn(req, sessionId) answers the refusal when the person may not see it.
+  // SEC-02 (F4/F6): a page belongs to the session that built it. fn(req, sessionId, { tables }) answers the refusal when the person may not see it.
   function useSessionCheck(fn) {
     sessionCheck = fn;
   }
@@ -424,6 +444,33 @@ function createHostedRun(options = {}) {
       }
     }
     if (!fs.existsSync(path.join(stage, 'app.py'))) throw new Error(`the page folder ${record.source} has no app.py`);
+    verifyShell(record, stage);
+  }
+
+  // SEC-01 (fail closed): Inspire starts Python from the synced folder, so every file must be the bundled App shell byte for byte, or a data file.
+  function bundledShellHashes() {
+    if (!shellHashes) {
+      const bundled = shellFiles || appShellFiles(appShellPayload(bundledAppShellText()));
+      shellHashes = new Map(Object.entries(bundled).map(([rel, body]) => [rel, sha256(Buffer.isBuffer(body) ? body : Buffer.from(String(body)))]));
+    }
+    return shellHashes;
+  }
+
+  function verifyShell(record, stage) {
+    const expected = bundledShellHashes();
+    const found = new Set(listFiles(stage));
+    const problems = [];
+    for (const [rel, hash] of expected) {
+      if (!found.has(rel)) problems.push(`${rel} is missing`);
+      else if (sha256(fs.readFileSync(path.join(stage, rel))) !== hash) problems.push(`${rel} is not the App shell file Inspire wrote`);
+    }
+    for (const rel of found) {
+      if (!expected.has(rel) && !HOSTED_DATA_FILE_RE.test(rel)) problems.push(`${rel} is not part of the App shell`);
+    }
+    if (problems.length) {
+      throw Object.assign(new Error(`Inspire will not run the page folder ${record.source} because it is not the App shell Inspire wrote: ${problems.slice(0, 5).join('; ')}. `
+        + 'Build the page again to publish a fresh copy'), { statusCode: 409 });
+    }
   }
 
   function dropOtherVersions(record) {
@@ -433,6 +480,15 @@ function createHostedRun(options = {}) {
       if (name === `v${record.version}` || name === `v${record.version}.synced` || name === 'home') continue;
       fs.rmSync(path.join(root, name), { recursive: true, force: true });
     }
+  }
+
+  async function pageSources(record, ws) {
+    const dir = await syncSource(record, ws);
+    const settings = parseExactJson(fs.readFileSync(path.join(dir, 'inspire_app.json'), 'utf8'));
+    const listedTables = settings && settings.sources;
+    if (listedTables == null) return [];
+    if (!Array.isArray(listedTables) || !listedTables.every((t) => typeof t === 'string' && t.trim())) throw new Error('the page lists its tables in a form Inspire cannot read');
+    return listedTables.map((t) => t.trim());
   }
 
   async function pageRuntime(record, ws) {
@@ -711,8 +767,16 @@ function createHostedRun(options = {}) {
     if (!entry && before) return plain(res, 404, HOSTED_GONE);
     if (!entry) return plain(res, 404, `Inspire has no page ${id} Inside Inspire; open it from the Run tab`);
     if (sessionCheck) {
+      // SEC-08: the gate covers the tables this page reads (its verified `sources` setting), which the session scope may no longer name.
+      let tables;
+      try {
+        if (!files) throw new Error('Inspire cannot read the page files');
+        tables = await pageSources(entry.record, files(req.dbHost, req.dbToken));
+      } catch (err) {
+        return plain(res, 503, `Inspire could not tell which tables this page reads, so it does not show it: ${err.message}`);
+      }
       let hidden;
-      try { hidden = entry.session_id ? await sessionCheck(req, entry.session_id) : { status: 403 }; } catch { hidden = { status: 403 }; }
+      try { hidden = entry.session_id ? await sessionCheck(req, entry.session_id, { tables }) : { status: 403 }; } catch { hidden = { status: 403 }; }
       if (hidden) return plain(res, 403, 'you cannot open this page: you did not launch its session and you cannot read every table it covers');
     }
     const step = alerts ? HOSTED_ALERT_ROUTES[`${req.method} ${rest.split('?')[0]}`] : null;
