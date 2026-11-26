@@ -127,8 +127,17 @@ function PageHeader({ summary, loading, query, onQuery }) {
   );
 }
 
-function SummaryBanner({ summary }) {
+function SummaryBanner({ summary, loading = false }) {
   const { building } = summary;
+  // RC7-C-06: until the first build-status answer is in, the page does not know whether an MVP exists, so it never says "No MVP started yet".
+  if (loading) {
+    return (
+      <section aria-label="Build summary" className={PANEL_CLASS}>
+        {/* busy-ok: the spinner is the loading state itself, shown until the first build-status read returns */}
+        <p className="px-5 py-4 flex items-center gap-2 text-[12px] text-text-secondary"><Loader2 size={14} className="animate-spin" aria-hidden /> Loading the build...</p>
+      </section>
+    );
+  }
   let mark = { icon: Sparkles, tone: 'idle' };
   let title = 'No MVP started yet';
   let line = 'Pick any use case in the list to start its MVP.';
@@ -392,6 +401,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
   // REQ-323: a build submitted before this page mounted (the wizard hands over to it) still shows as queued.
   const [rail, setRail] = useState(() => ({ ...NO_RAIL, latest: withPendingBuilds([]) }));
   const [railError, setRailError] = useState('');
+  const [railLoaded, setRailLoaded] = useState(false);
   const [query, setQuery] = useState('');
   const [assetFilters, setAssetFilters] = useState(() => (filter ? assetFiltersFrom(filter.asset) : loadAssetFilters()));
   useEffect(() => { saveAssetFilters(assetFilters); }, [assetFilters]);
@@ -455,6 +465,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
     const latest = withPendingBuilds(data.latest || []);
     setRail({ latest, notebook_run: run, notebook_run_error: data.notebook_run_error || '' });
     setRailError('');
+    setRailLoaded(true);
   }, [apiFetch, qBase]);
 
   useEffect(() => {
@@ -472,7 +483,8 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
   }, [fetchUseCases, listVersion]);
 
   useEffect(() => {
-    const tick = () => loadRail().catch((e) => setRailError(e.message));
+    // A failed first read also ends the loading state: the error box says what happened.
+    const tick = () => loadRail().catch((e) => { setRailError(e.message); setRailLoaded(true); });
     tick();
     const id = setInterval(tick, 10000);
     return () => clearInterval(id);
@@ -564,11 +576,23 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
     loadRail().catch((e) => setRailError(e.message));
   };
   const [progressDock, setProgressDock] = useState(null);
+  const pageLoading = listLoading || !railLoaded;
+  // RC7-C-05: the progress panel is fixed to the right edge, so the page keeps clear of it by the panel's own width (it reflows, nothing is covered).
+  const [dockWidth, setDockWidth] = useState(0);
+  useEffect(() => {
+    if (!progressDock) return undefined;
+    const read = () => setDockWidth(Math.round(progressDock.getBoundingClientRect().width));
+    read();
+    const watch = new ResizeObserver(read);
+    watch.observe(progressDock);
+    return () => watch.disconnect();
+  }, [progressDock]);
 
   return (
-    <div className={`${FRAME} py-6 space-y-4 md:flex md:flex-col md:[&>:not(:last-child)]:shrink-0 md:max-h-[calc(100dvh-3.5rem-1px)] md:has-[[data-progress-open=true]]:h-[calc(100dvh-3.5rem-1px)]`} data-implement-page="">
+    <div className={`${FRAME} py-6 space-y-4 md:flex md:flex-col md:[&>:not(:last-child)]:shrink-0 md:max-h-[calc(100dvh-3.5rem-1px)] md:has-[[data-progress-open=true]]:h-[calc(100dvh-3.5rem-1px)]`} data-implement-page=""
+      style={dockWidth ? { paddingInlineEnd: `calc(1.5rem + ${dockWidth}px)` } : undefined}>
       <PageHeader summary={summary} loading={listLoading} query={query} onQuery={setQuery} />
-      {!listLoading && !listError && <SummaryBanner summary={summary} />}
+      {!listError && <SummaryBanner summary={summary} loading={pageLoading} />}
       {filter && <BuildFilterStrip filter={filter} sessionId={sessionId} onPickRun={onPickRun} onClear={clearFilter} />}
       {listError && !signedOut && <PlainMessage text={listError} className={ERROR_BOX} onRetry={() => setListVersion((n) => n + 1)} copy />}
       {buildNotes.length > 0 && (
@@ -589,21 +613,21 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
       <div className="flex flex-col md:flex-row gap-4 md:gap-2 md:flex-1 md:min-h-0">
         <div data-implement-rail="" style={{ '--rail-w': `${railPx}px` }}
           className="w-full md:w-(--rail-w) shrink-0 flex flex-col gap-3 max-h-[50dvh] overflow-y-auto md:max-h-none md:min-h-0">
-          {!listLoading && <AssetFilters counts={assetCounts} assets={assetFilters} onToggle={toggleAsset} />}
-          <Rail groups={groups} listLoading={listLoading} query={query} assets={assetFilters} mvp={mvpFilter}
+          {!pageLoading && <AssetFilters counts={assetCounts} assets={assetFilters} onToggle={toggleAsset} />}
+          <Rail groups={groups} listLoading={pageLoading} query={query} assets={assetFilters} mvp={mvpFilter}
             assetLabels={assetCounts.filter((entry) => assetFilters.includes(entry.id)).map((entry) => entry.label)}
             shownId={shownId} progress={progress} estimates={estimates} valued={valued} onSelect={select} />
         </div>
         <PaneResizer width={railPx} onWidth={(width) => setRailPx(paneWidth(RAIL_WIDTH, width))} limits={RAIL_WIDTH} label="Resize the use case list" data-rail-resizer="" className="self-stretch" />
         <section ref={paneRef} aria-label="Use case" className="relative flex-1 min-w-0 space-y-4 md:self-stretch md:min-h-0 md:overflow-y-auto">
-          {selected && (
+          {selected && !pageLoading && (
             <BuildNextStep showcase={readOnly} apiFetch={apiFetch} apiPostJson={apiPostJson} inspireDatabase={settings.inspireDatabase} warehouseId={settings.warehouseId} sessionId={sessionId} refreshKey={refreshKey}
               notebookPath={settings.notebookPath} focusId={selected.id} live={IMPLEMENT_DONE_STATUSES.includes(String(selected.latest?.status || ''))}
               caseOf={(id) => allItems.find((item) => item.id === id)?.uc}
               onBuilt={readOnly ? undefined : onImplemented} onQueued={readOnly ? undefined : buildQueued} onBuildCustom={readOnly ? undefined : (uc) => setWizard({ uc, focus: null, live: false })}
               onMeasure={readOnly ? undefined : openMeasure} onOpen={readOnly ? undefined : select} />
           )}
-          {selected ? (
+          {selected && !pageLoading ? (
             <UseCaseDetail
               key={selected.id}
               item={selected}
@@ -628,7 +652,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
               readOnly={readOnly}
             />
           ) : (
-            !listLoading && !listError && <p className={`${PANEL_CLASS} p-6 text-[12px] text-text-secondary`}>This session has no use cases yet.</p>
+            !pageLoading && !listError && <p className={`${PANEL_CLASS} p-6 text-[12px] text-text-secondary`}>This session has no use cases yet.</p>
           )}
         </section>
       <div ref={setProgressDock} data-progress-dock="" className="hidden empty:hidden md:flex md:fixed md:top-14 md:end-0 md:z-30 md:h-[calc(100dvh-3.5rem)]" />
@@ -1986,8 +2010,9 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
               <Sparkles size={14} /> {START_MVP_LABEL}
             </Button>
           )}
+          {/* RC7-C-05: right-aligned so its menu (anchored to the button's right edge) stays inside a narrow pane when the button wraps to a new line. */}
           {item.uc && (
-            <MoreMenu items={[{ label: 'Use case details', onSelect: () => setDetailsOpen(true) }]} />
+            <div className="ms-auto"><MoreMenu items={[{ label: 'Use case details', onSelect: () => setDetailsOpen(true) }]} /></div>
           )}
         </div>
         {item.uc && (valuedLine(valueTotal)
