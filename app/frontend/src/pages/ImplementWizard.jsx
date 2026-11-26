@@ -99,7 +99,6 @@ import {
   lostTablesText,
   missingSourcePick,
   SOURCE_REFUSED_REASON,
-  SOURCE_BUILT_IN_REFUSED_REASON,
   ACCESS_CHECKING,
   accessCheckingText, buildNowDefaultsText, dataCheckingText,
   ACCESS_UNKNOWN,
@@ -301,8 +300,6 @@ import CatalogPicker from '../components/CatalogPicker';
 import { PROFILE_WAITING, noMainTableText, useScopeProfiles } from '../lib/groupingProfile';
 import { fieldOf } from '../lib/useCaseFields.js';
 import { chosenScopeParam, chosenTableScopes, normalizeTableScope, rowFilterText, scopeEntryOf, tableScopeSummary, wholeTableScopes, withoutTableRow } from '../lib/tableScope';
-import SamplesCopyOffer from '../components/SamplesCopyOffer';
-import { samplesTarget, validCopyTarget } from '../lib/samplesCopy';
 import MvpValuePanel from '../components/MvpValuePanel';
 import { DRAFT_BACK_NOTE, DRAFT_START_OVER, clearWizardDraft, readBuildChoice, readWizardDraft, writeBuildChoice, draftStampOf, wizardDraftKey, writeWizardDraft } from '../lib/wizardDraft';
 import {
@@ -526,9 +523,6 @@ export default function ImplementWizard({
   const [plan, setPlan] = useState(null);
   const [planError, setPlanError] = useState('');
   const [appUnreadable, setAppUnreadable] = useState(null);
-  const [copyTarget, setCopyTarget] = useState('');
-  const [copying, setCopying] = useState(false);
-  const [copyError, setCopyError] = useState('');
   const [appGrant, setAppGrant] = useState(null);
   const [granting, setGranting] = useState(false);
   const [grantRound, setGrantRound] = useState(0);
@@ -907,9 +901,7 @@ export default function ImplementWizard({
   const ownErrors = stepErrors(stepId, spec, extras, mode);
   const resultAuto = advanced.results || Boolean(placeNote) || outputCheck?.write?.ok === false;
   const errorBlock = stepId !== 'data' ? null : dataFilterProblems(spec).length ? 'filters' : resultTableProblems(spec.config.result_table).length ? 'results' : null;
-  const builtInRefused = stepId === 'data' && Boolean(appUnreadable?.builtin?.length);
-  const copyTo = samplesTarget(inspireDatabase, copyTarget);
-  const dataFolded = dataChoice ?? errorBlock ?? (builtInRefused ? 'sources' : null) ?? (resultAuto ? 'results' : null);
+  const dataFolded = dataChoice ?? errorBlock ?? (resultAuto ? 'results' : null);
   const resultsShown = dataFolded === 'results';
   const sourcesShown = dataFolded === null || dataFolded === 'sources' || dataFolded === 'closed';
   const filtersShown = dataFolded === null || dataFolded === 'filters' || dataFolded === 'closed';
@@ -1532,7 +1524,6 @@ export default function ImplementWizard({
   const appReadsBlocked = appReadsOthers;
   const sourceRefused = accessVerdict === 'refused';
   const sourceAccessRefused = sourceRefused && !preflight?.checks?.sources?.missing;
-  const refusedFooterText = appUnreadable?.builtin?.length ? SOURCE_BUILT_IN_REFUSED_REASON : SOURCE_REFUSED_REASON;
   const storagePending = storageChecking(spec, lakebase);
   const implementBlocked = busy || checksBusy || storagePending || !placeSettled || dataMinimumBlocks(readCounted) || schemaJob?.state === 'running' || schemaJob?.state === 'failed' || rebuildNeedsChoice(plan, rebuildAsIs) || sourceRefused
     || (!ownErrors.length && (!preflight || !checkEntries.every(([, c]) => c.ok) || (lastStep && (!plan || Boolean(planError)))))
@@ -1578,20 +1569,6 @@ export default function ImplementWizard({
   // "Change in Advanced": switch to Advanced, keep every choice, and open the step the row belongs to.
   const changeInAdvanced = (row) => { chooseBuild(BUILD_ADVANCED); changeStep(row.step, row.part); };
   const nextIsSummary = backToSummary && nextStepAfter(steps, stepId, { backToSummary, visited }) === SUMMARY_STEP.id;
-
-  const copySamples = async () => {
-    setCopying(true);
-    setCopyError('');
-    try {
-      const data = await apiPostJson('/api/inspire/samples/copy', { entries: appUnreadable.builtin, destination: copyTo });
-      for (const { source, copy } of data.copies || []) pickTable(source, copy);
-      if ((data.failed || []).length) setCopyError(data.failed.map((f) => `Could not copy ${f.source}: ${f.reason}`).join('. '));
-    } catch (e) {
-      setCopyError(e.message);
-    } finally {
-      setCopying(false);
-    }
-  };
 
   const pickTable = (original, value) => {
     const refused = duplicateSourceNotice(sourceTables, original, spec.data.tables[original] || original, value);
@@ -1665,12 +1642,7 @@ export default function ImplementWizard({
           </section>
         )}
 
-        {(appUnreadable || appGrant) && <AppReadAccess offer={appUnreadable?.builtin?.length ? null : appUnreadable} result={appGrant} busy={granting} onGrant={grantAppRead} />}
-
-        {appUnreadable?.builtin?.length > 0 && (
-          <SamplesCopyOffer names={appUnreadable.builtin.join(', ')} target={copyTo} onTarget={setCopyTarget} canCopy={validCopyTarget(copyTo)}
-            copying={copying} error={copyError} onCopy={copySamples} copyLabel="Copy it now" />
-        )}
+        {(appUnreadable || appGrant) && <AppReadAccess offer={appUnreadable} result={appGrant} busy={granting} onGrant={grantAppRead} />}
 
         {!(stepId === 'data' && mode === 'mvp' && sourcesFold) && foldLine('data', 'Source table', primaryChosen || 'not picked yet')}
         {stepId === 'data' && mode === 'mvp' && !isOpenSection('data') && <>{sourcesFold}{filtersFold}</>}
@@ -2519,7 +2491,7 @@ export default function ImplementWizard({
               </p>
             )}
             {mode === 'mvp' && stepId !== 'how' && !lastStep && sourceAccessRefused && (
-              <p data-source-refused="" className="text-xs text-warning-fg">{refusedFooterText}</p>
+              <p data-source-refused="" className="text-xs text-warning-fg">{SOURCE_REFUSED_REASON}</p>
             )}
             {mode === 'mvp' && !standard && stepIndex > 1 && !lastStep && !sourceAccessRefused && defaultsLine && (
               <p data-build-defaults="" className="text-xs text-text-secondary">{defaultsLine}</p>
@@ -2547,7 +2519,7 @@ export default function ImplementWizard({
                 {busy ? 'Starting…' : 'Generate notebook'}
               </Button>
             ) : sourceAccessRefused ? (
-              <p data-source-refused="" className="text-xs text-warning-fg">{refusedFooterText}</p>
+              <p data-source-refused="" className="text-xs text-warning-fg">{SOURCE_REFUSED_REASON}</p>
             ) : (
               <Button
                 type="button"

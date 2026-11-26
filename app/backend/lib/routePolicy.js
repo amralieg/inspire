@@ -141,7 +141,6 @@ const ROUTE_POLICY = {
   'POST /api/inspire/implement/swaps': personReads('look up table swaps', ['sql', 'catalog.tables:read']),
   'POST /api/inspire/implement/readiness': personReads('check data readiness', ['sql', 'catalog.tables:read']),
   'POST /api/inspire/implement/group-counts': personReads('count the rows of each group in scope', ['sql']),
-  'POST /api/inspire/samples/copy': reads('copy samples tables into a schema the App creates'),
   // A grant on a build's source tables changes what the App's principal can read, so it needs the build's owner (or the session's
   // launcher before the first build) or an App manager. UC still enforces the person's own GRANT rights on each object.
   'POST /api/inspire/implement/grant-access': { ...yours('grant read access with your own sign-in', ['sql']), rule: 'owners',
@@ -151,8 +150,8 @@ const ROUTE_POLICY = {
   'POST /api/inspire/implement/app-reads': { ...reads('check the read access an App Inspire built has'),
     ruleWhen: (req) => (requestAction(req) === 'grant' ? { rule: 'owners', action: 'grant read access to the App its build made', target: useCaseTarget,
       permissionRequired: true, why: GATED } : null) },
-  // REQ-418 (D-SL-10B): the App's service principal creates the schema; the requester is recorded in Inspire's own records.
-  'POST /api/inspire/implement/create-schema': reads('create a catalog or schema the App owns for the use case'),
+  // SEC-04: a catalog or schema a person names is created with that person's own sign-in, never the App's; the person's own right decides.
+  'POST /api/inspire/implement/create-schema': yours('create a catalog or schema with your own sign-in', ['sql']),
   'GET /api/inspire/implement/serving-endpoints': reads('list serving endpoints'),
   'POST /api/run/check': reads('check the grants a run needs before it starts'),
   'POST /api/run': anyone('launch a run', 'launches the run as the App, which owns the job and its tracking tables'),
@@ -174,7 +173,7 @@ const ROUTE_POLICY = {
   'POST /api/inspire/value/scope': personReads('count the records of a use case table and the range of its dates, before any value is worked out', ['sql'], { appDatabase: true }),
   'POST /api/inspire/value/filter': personReads('turn a plain-English description of the records to keep into a checked filter and count the records it keeps', ['sql'], { appDatabase: true }),
   'GET /api/inspire/macro/sources': anyone('list the public economic data sources', 'lists the fixed set of sources Inspire can read; fetches nothing'),
-  'GET /api/inspire/macro/series': tracked('read a public economic series, from the 7-day cache in the Inspire database or fetched from an allowed host, with its citation and optional factor',
+  'POST /api/inspire/macro/series': tracked('read a public economic series, from the 7-day cache in the Inspire database or fetched from an allowed host, with its citation and optional factor',
     'fetches from a fixed host allowlist and caches in the Inspire database with the signed-in person\'s token'),
   'POST /api/inspire/value/run-review': tracked('have the model review the value of a whole run, so its total is realistic next to the size of the business',
     'calls a chat model and saves the review as one row of the Calculate value answers'),
@@ -183,8 +182,8 @@ const ROUTE_POLICY = {
   'GET /api/inspire/value/answers': personReads('read the saved Calculate value answers of a session, with the stale check over its source tables', ['sql'], { appDatabase: true }),
   'PUT /api/inspire/value/answers': personReads('save the Calculate value answers of one use case as a new version, with its estimate', ['sql'], { appDatabase: true }),
   'GET /api/inspire/value/answers/history': tracked('read the saved versions of the Calculate value answers of one use case'),
-  'POST /api/inspire/value/answers/undo': tracked('go back to the previous version of the Calculate value answers of one use case',
-    'writes the answers table with the App\'s service principal'),
+  // SEC-12: undo rewrites another version of the saved answers, so it takes the same owner-or-manager rule as the use case's other writes.
+  'POST /api/inspire/value/answers/undo': owners('go back to the previous version of the Calculate value answers of one use case', { appDatabase: true }),
   'GET /api/inspire/sessions': tracked('list sessions'),
   'GET /api/inspire/profiles': tracked('list the business profiles'),
   'GET /api/inspire/profiles/:profileId': tracked('read a business profile'),

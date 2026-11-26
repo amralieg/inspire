@@ -8,7 +8,7 @@ test.after(closeBrowser);
 const SAMPLE = 'samples.bakehouse.sales_transactions';
 const STORED = "The App's service principal cannot read the access policies of samples.bakehouse.sales_transactions, so Inspire cannot tell whether the results keep them";
 
-test('a stale stored refusal never drives the build card: the live verdict says copy the table, and no grant button is offered', async () => {
+test('a stale stored refusal never drives the build card: the live verdict says the App cannot read the samples catalog (no copy), and no grant button is offered', async () => {
   const ui = await openUi('implement', {
     ...STUDIO_STATE,
     me: { userName: OWNER, displayName: 'Owner' },
@@ -26,11 +26,12 @@ test('a stale stored refusal never drives the build card: the live verdict says 
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await expandBuild(page);
     const banner = page.getByRole('region', { name: 'Build failed', exact: true });
-    await banner.getByText('built-in sample catalog that Databricks owns', { exact: false }).waitFor({ timeout: 15000 });
+    await banner.getByText('built-in samples catalog', { exact: false }).waitFor({ timeout: 15000 });
     assert.equal(await banner.getByRole('button', { name: 'Let Inspire read these tables', exact: true }).count(), 0, 'no grant button when can_grant is false');
     assert.equal(await page.getByRole('button', { name: 'Let Inspire read these tables', exact: true }).count(), 0);
     assert.doesNotMatch(await banner.innerText(), /cannot read the access policies of samples/, 'the stored refusal is history under Details, not the main sentence');
-    assert.match(await banner.innerText(), /built-in sample catalog that Databricks owns/);
+    assert.match(await banner.innerText(), /built-in samples catalog/);
+    assert.doesNotMatch(await banner.innerText(), /copy the table|CREATE TABLE/i);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

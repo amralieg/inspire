@@ -760,8 +760,8 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
-  async function useCaseSchemaRows(req, warehouseId, catalog, schemas) {
-    const person = req.dbToken;
+  async function useCaseSchemaRows(req, warehouseId, catalog, schemas, readToken = req.dbToken) {
+    const person = readToken;
     if (!person) return { rows: null, unchecked: '' };
     try {
       return { rows: await sqlRows(req.dbHost, person, warehouseId, I.useCaseSchemaStatement(catalog, schemas)), unchecked: '' };
@@ -1502,7 +1502,7 @@ function registerImplementRoutes(app, deps) {
   app.post('/api/inspire/implement/create-schema', requireToken, async (req, res) => {
     try {
       const warehouseId = warehouseOf(req);
-      const token = req.dbToken;
+      const token = P.forwardedTokenOf(req);
       if (!token) throw I.badRequest(I.IMPLEMENT_GRANT_NO_SIGN_IN, 401);
       const catalog = String((req.body && req.body.catalog) ?? '').trim();
       const schema = String((req.body && req.body.schema) ?? '').trim();
@@ -1511,7 +1511,7 @@ function registerImplementRoutes(app, deps) {
       const tags = schema && req.body && req.body.tags && typeof req.body.tags === 'object' ? req.body.tags : null;
       let found = {};
       if (tags) {
-        const { rows } = await useCaseSchemaRows(req, warehouseId, catalog, [schema]);
+        const { rows } = await useCaseSchemaRows(req, warehouseId, catalog, [schema], await appTokenOf(req));
         found = I.useCaseSchemaFacts(rows).schemas[schema.toLowerCase()] || {};
         const who = { inspireDatabase: dbOf(req, splitInspireDatabase).inspire_database, useCaseId: String(tags.inspire_use_case_id ?? '').trim() };
         const held = I.useCaseSchemaOwner(found, { ...who, sessionId: String(tags.inspire_session_id ?? '').trim() });
@@ -1524,7 +1524,8 @@ function registerImplementRoutes(app, deps) {
       if (!tags) return res.json({ catalog, schema });
       const warnings = [];
       const permissions = [];
-      // REQ-418 (ruling 3): the App creates the schema; the signed-in person is recorded as its requester in Inspire's own control log.
+      // SEC-04: the person's own sign-in creates, tags and grants the schema (the route policy is `yours`), so the App never acts on a
+      // place a person names. The control log is the App's own tracking table, so it is written with the App's token.
       const sid = String(tags.inspire_session_id ?? '').trim();
       const useCaseId = String(tags.inspire_use_case_id ?? '').trim();
       // Recorded only when the App creates the schema now; an existing schema was created by an earlier run, and the log says so.
@@ -1533,10 +1534,11 @@ function registerImplementRoutes(app, deps) {
         const { catalog: inspireCatalog, schema: inspireSchema } = dbOf(req, splitInspireDatabase);
         const logTable = C.controlLogTableName(inspireCatalog, inspireSchema);
         try {
-          await executeSql(req.dbHost, token, warehouseId, C.controlLogCreateSql(logTable));
+          const appSql = await appTokenOf(req);
+          await executeSql(req.dbHost, appSql, warehouseId, C.controlLogCreateSql(logTable));
           const row = C.controlLogInsert(logTable, { sessionId: sid, useCaseId, asset: 'schema', assetId: `${catalog}.${schema}`, action: 'create',
-            result: 'done', message: `Schema ${catalog}.${schema} created by the App, requested by ${requester || 'no signed-in person'}`, actedBy: requester });
-          await executeSql(req.dbHost, token, warehouseId, row.sql, row.parameters);
+            result: 'done', message: `Schema ${catalog}.${schema} created by ${requester || 'a signed-in person'}`, actedBy: requester });
+          await executeSql(req.dbHost, appSql, warehouseId, row.sql, row.parameters);
         } catch (err) {
           warnings.push(`Inspire could not record who requested ${catalog}.${schema}: ${String((err && err.message) || err).slice(0, 200)}`);
         }

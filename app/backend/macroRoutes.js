@@ -1,4 +1,4 @@
-// REQ-507 L3: GET /api/inspire/macro/sources and /api/inspire/macro/series. A series is read from the 7-day cache in the Inspire database
+// REQ-507 L3: GET /api/inspire/macro/sources and POST /api/inspire/macro/series. A series is read from the 7-day cache in the Inspire database
 // (__inspire_macro_series) first; only a missing or stale one is fetched from an allowlisted host and written back.
 const MS = require('./lib/macroSources');
 const { factorFromSeries } = require('./lib/macroFactor');
@@ -35,8 +35,9 @@ function registerMacroRoutes(app, { requireToken, executeSql, sqlResultToObjects
     res.json({ sources: MS.SOURCES, cache_days: MS.CACHE_DAYS });
   });
 
-  app.get('/api/inspire/macro/series', requireToken, async (req, res) => {
-    const q = req.query || {};
+  // SEC-17: a series read can fill the cache table, so it is a POST (the cross-site guard covers every non-GET method).
+  app.post('/api/inspire/macro/series', requireToken, async (req, res) => {
+    const q = { ...(req.query || {}), ...(req.body && typeof req.body === 'object' ? req.body : {}) };
     const bad = (message) => res.status(400).json({ error: message });
     try {
       const ask = { source: String(q.source || ''), indicator: String(q.indicator || ''), country: String(q.country || '') };

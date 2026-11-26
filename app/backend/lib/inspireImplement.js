@@ -2362,7 +2362,7 @@ function primaryKeysStatement(name) {
 }
 
 // Similar tables are searched in every catalog the person can see, not only the source's own catalog: a copy of a
-// built-in sample (CREATE TABLE ... AS SELECT into a catalog the person owns) lives elsewhere. system.information_schema
+// built-in sample the person made themselves in a catalog they own lives elsewhere. system.information_schema
 // lists only objects the caller can see, and the candidates are then read with the person's token before they are offered.
 const COLUMNS_ALL = 'system.information_schema.columns';
 const SOURCE_COLUMNS = 'table_catalog = lower(:c) AND table_schema = lower(:s) AND table_name = lower(:t)';
@@ -2664,8 +2664,8 @@ function sourceTables(spec, involved) {
   return uniqueTables(sourcePicks(spec, involved).map((p) => p.chosen));
 }
 
-// A swapped-out original is checked too, except a built-in sample: nobody can grant the App read on it, so checking it
-// would block the build for good, even though the build never reads it once a copy or another table is picked.
+// A swapped-out original is checked too, except a built-in sample: the build no longer reads it once another table is picked,
+// so a missing samples read must not block the build.
 function checkedSourceTables(spec, involved) {
   const picks = sourcePicks(spec, involved);
   const swappedOut = picks.filter((p) => p.chosen.toLowerCase() !== p.original.toLowerCase() && !builtInSampleTable(p.original));
@@ -3377,101 +3377,11 @@ function builtInSampleTable(name) {
 function builtInSampleMessage(tables) {
   const one = tables.length === 1;
   const subject = one ? tables[0] : `${tables.length} source tables`;
-  const verb = one ? 'is in' : 'are in';
-  return `${subject} ${verb} a built-in sample catalog that Databricks owns, so nobody can grant the App access to ${one ? 'it' : 'them'}: `
-    + `copy ${one ? 'the table' : 'each table'} into a catalog you own with CREATE TABLE ... AS SELECT, and use the ${one ? 'copy' : 'copies'}`;
+  const verb = one ? 'is' : 'are';
+  return `${subject} ${verb} in the built-in samples catalog and the App cannot read ${one ? 'it' : 'them'} right now: `
+    + 'ask a workspace admin to let the App read the samples catalog';
 }
 
-
-function isBuiltInSampleEntry(name) {
-  return BUILT_IN_SAMPLE_CATALOGS.includes(plainTable(name).split('.')[0]);
-}
-
-// A samples.* pick (catalog, schema or table) runs only with the descriptions choice; a copy removes it from the pick.
-const SAMPLES_CHOICE_TEXT = 'Copy the samples tables into a schema you own, or use descriptions only, before Start. A run that reads samples.* needs one of the two';
-
-function samplePicksIn(uc) {
-  return String(uc || '').split(',').map((p) => p.trim()).filter((p) => p && isBuiltInSampleEntry(p));
-}
-
-function samplesNeedChoice(params, choice) {
-  return samplePicksIn((params || {})['01_uc_metadata']).length > 0 && choice !== 'descriptions';
-}
-
-// The samples choice a run recorded. A samples entry in its pick can only have come from the descriptions choice, because a
-// copy replaces the samples entry with the copy, so a re-run of that run repeats the choice Start made.
-function samplesChoiceOfRun(params) {
-  return samplePicksIn((params || {})['01_uc_metadata']).length > 0 ? 'descriptions' : '';
-}
-
-function schemaParts(name) {
-  const parts = plainTable(name).split('.');
-  if (parts.length !== 2 || parts.some((p) => !p || p.includes('`'))) throw badRequest(`'${str(name)}' must be catalog.schema`);
-  return { catalog: parts[0], schema: parts[1] };
-}
-
-function sampleCopyDestination(name) {
-  const to = schemaParts(name);
-  if (BUILT_IN_SAMPLE_CATALOGS.includes(to.catalog)) throw badRequest(`${to.catalog} is a built-in sample catalog that Databricks owns, so copy into a schema you own`);
-  return to;
-}
-
-// A copy's table name is the source schema and the table joined by a double underscore: samples.bakehouse.sales_franchises
-// lands as bakehouse__sales_franchises. One helper names both the statement and the returned copy, so the two cannot drift.
-function sampleCopyTable(source) {
-  const from = tableParts(source);
-  return `${from.schema}__${from.table}`;
-}
-
-function sampleCopyName(source, destination) {
-  return `${destination.catalog}.${destination.schema}.${sampleCopyTable(source)}`;
-}
-
-// A table name as a quoted three-part reference, e.g. `samples`.`bakehouse`.`sales`.
-function sampleTableRef(name) {
-  const t = tableParts(name);
-  return `\`${t.catalog}\`.\`${t.schema}\`.\`${t.table}\``;
-}
-
-// A copy's table name is <schema>__<table>. The name is unambiguous only when the schema has no double underscore and does not end in an
-// underscore: then the first "__" always marks the end of the schema, so no two (schema, table) pairs share a name, in any request. A
-// source whose schema breaks that rule is refused with the reason, before any copy runs. Returns '' when the source can be copied.
-function sampleCopyRefusal(source) {
-  const { schema } = tableParts(source);
-  if (schema.includes('__') || schema.endsWith('_')) {
-    return `${source} cannot be copied: its schema name has a double underscore or ends in an underscore, so its copy name would not be unambiguous.`;
-  }
-  return '';
-}
-
-function sampleCopyStatement(source, destination) {
-  return `CREATE TABLE \`${destination.catalog}\`.\`${destination.schema}\`.\`${sampleCopyTable(source)}\` AS SELECT * FROM ${sampleTableRef(source)}`;
-}
-
-// Why a copy failed: 'exists' (the copy's name is already a table), 'no_schema' (the destination schema or catalog is missing), or '' (anything else).
-function sampleCopyFailureKind(text) {
-  const t = String(text || '');
-  if (/TABLE_OR_VIEW_ALREADY_EXISTS|already exists/i.test(t)) return 'exists';
-  if (/SCHEMA_NOT_FOUND|CATALOG_NOT_FOUND|NO_SUCH_CATALOG_EXCEPTION|schema.*does not exist/i.test(t)) return 'no_schema';
-  return '';
-}
-
-function schemaCreateStatement(destination) {
-  return `CREATE SCHEMA IF NOT EXISTS \`${destination.catalog}\`.\`${destination.schema}\``;
-}
-
-// The plain message for a destination schema that is missing and that the person cannot create. The statement is the one to copy.
-function sampleSchemaMessage(destination, statement, reason) {
-  const schema = `${destination.catalog}.${destination.schema}`;
-  return `${schema} does not exist, and your sign-in cannot create it (${String(reason || '').trim()}). `
-    + `Ask someone who can create schemas in ${destination.catalog} to run: ${statement}, then copy again`;
-}
-
-// The plain message for a copy name that is already another table. Inspire never overwrites it.
-function sampleCopyTakenMessage(copy, source) {
-  return `${copy} already holds a different table (its columns do not match ${source}), so Inspire will not overwrite it. `
-    + 'Rename or remove it, then copy again';
-}
 
 function abacUnreadableSentence(label, { app = false } = {}) {
   const name = str(label).trim();
@@ -4311,21 +4221,6 @@ module.exports = {
   IMPLEMENT_SOURCE_NEEDS,
   builtInSampleTable,
   builtInSampleMessage,
-  isBuiltInSampleEntry,
-  schemaParts,
-  sampleCopyDestination,
-  sampleCopyName,
-  sampleCopyTable,
-  sampleCopyRefusal,
-  sampleCopyStatement,
-  sampleCopyFailureKind,
-  samplesNeedChoice,
-  samplesChoiceOfRun,
-  SAMPLES_CHOICE_TEXT,
-  sampleTableRef,
-  schemaCreateStatement,
-  sampleSchemaMessage,
-  sampleCopyTakenMessage,
   abacUnreadableSentence,
   ownerLabel,
   IMPLEMENT_TRAVERSE_PRIVILEGES,
