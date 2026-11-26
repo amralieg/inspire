@@ -264,15 +264,12 @@ export async function openUi(open, overrides = {}, query = '', { mount, init, bu
     watchdog.unref();
     opened.push(async () => { clearInterval(watchdog); });
     await page.addInitScript((key) => {
-      // SEC-09: the hosted page frame is sandboxed without allow-same-origin, where storage throws; the harness seeds only the Inspire document.
-      try { sessionStorage.length; } catch { return; }
       if (sessionStorage.getItem('inspire.ui_fresh_page')) return;
       sessionStorage.setItem('inspire.ui_fresh_page', '1');
       localStorage.removeItem(key);
     }, ASSET_FILTER_STORAGE);
     if (build) {
       await page.addInitScript(([key, value]) => {
-        try { sessionStorage.length; } catch { return; }
         if (sessionStorage.getItem('inspire.ui_build_seed')) return;
         sessionStorage.setItem('inspire.ui_build_seed', '1');
         localStorage.setItem(key, value);

@@ -619,12 +619,6 @@ function createHostedRun(options = {}) {
 
   function guard(res, req, id) {
     res.setHeader('Content-Security-Policy', hostedCsp(pageOrigin(req), id));
-    // SEC-09: the Run tab sandboxes the page frame without allow-same-origin, so the page's own requests carry the opaque origin `null`.
-    if (String((req.headers || {}).origin || '') === 'null') {
-      res.setHeader('Access-Control-Allow-Origin', 'null');
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
-      res.setHeader('Vary', 'Origin');
-    }
     res.setHeader('X-Content-Type-Options', 'nosniff');
   }
 
