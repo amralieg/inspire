@@ -4,6 +4,7 @@ import DatabricksLogo from './DatabricksLogo';
 import { PlainMessage } from './TechnicalDetails';
 import { normalizeDatabricksHost } from '../lib/normalizeDatabricksHost';
 import { responseError } from '../lib/apiClient';
+import TuneFromDataOption from './value/TuneFromDataOption';
 
 const HOST_FIELD = { key: 'databricksHost', label: 'Databricks Host URL', icon: Globe, type: 'text', placeholder: 'https://adb-xxx.xx.azuredatabricks.net' };
 const DB_FIELD = { key: 'inspireDatabase', label: 'Inspire Database', icon: Database, type: 'text', placeholder: 'catalog._inspire' };
@@ -269,6 +270,9 @@ export default function SettingsPanel({ settings, update, onClose }) {
 
           {/* Warehouse selector with live status */}
           <WarehouseSelector settings={settings} update={update} />
+
+          {/* C24: value settings */}
+          <TuneFromDataOption onChange={(on) => update('tuneFromData', on)} />
 
           {/* Debug info */}
           <div className="mt-6 p-3 bg-bg rounded-md border border-border">

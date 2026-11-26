@@ -1,6 +1,7 @@
 import { ATTRIBUTION } from './valueDrivers.js';
 import { DEFAULT_CURRENCY } from './moneyDefaults.js';
 import { valueChips } from './valueLedger.js';
+import { readTuneFromData } from './tuneFromData.js';
 
 // REQ-436: state, slider ranges and request helpers of the Calculate value wizard. No value formula lives here (D1): every amount is the
 // server's reply to POST /api/inspire/value/preview; this file only shapes what is sent and what is shown.
@@ -117,7 +118,8 @@ export const carryAnswers = (plan, previous) => {
 // The plan as sent: each driver's on flag follows the answers, so the server and the page agree on what is counted.
 export const bodyOf = (plan, answers, calculated = false) => ({
   plan: { ...plan, drivers: plan.drivers.map((d) => ({ ...d, on: Boolean(answers.drivers[d.id]?.on) })) },
-  answers: { ...answers, calculated },
+  // C24 (P247): "tune values from the data" is on unless it is off, so only the off choice is sent (an absent flag means on).
+  answers: { ...answers, calculated, ...((answers.tune_from_data ?? readTuneFromData()) === false ? { tune_from_data: false } : {}) },
 });
 // The answers have a stable key, so the same numbers never send a second preview.
 // The story and the confidence move no amount, so they are not part of the key (typing an owner must not ask the server again).
