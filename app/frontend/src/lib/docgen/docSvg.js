@@ -1,6 +1,7 @@
 // FX-113 (REQ-503): the SVG infographic and brief pages. Every text is XML-escaped; every content block is wrapped in <g data-block="id">.
 import { moneyText } from '../valueWizard.js';
 import { designOf, toDesignModel } from './designs/model.js';
+import { scoreInfographic } from './designs/scoreInfographic.js';
 import { resetLog, rtlSvg } from './designs/core.js';
 import { LB, withLabels } from './docLabels.js';
 import { extraParts, partLines } from './docModel.js';
@@ -138,12 +139,14 @@ function card(m, theme, u, i, x, y, w) {
 }
 
 // REQ-526: a design theme draws through its design (A4 infographic, brief page 1). With no use case that has a value and a score there is
-// nothing for the charts, so the plain renderer below takes over. Old styles never come here.
-function designed(m, theme) {
+// nothing for the value charts: the infographic then draws the design's own score infographic (RC7-B-08), the brief takes the plain renderer below.
+// Old styles never come here.
+function designed(m, theme, { empty = false } = {}) {
   const design = theme.design && theme.tokens ? designOf(theme.design) : null;
   if (!design) return null;
   const dm = toDesignModel(m);
-  return dm.useCases.length ? { design, dm } : null;
+  if (dm.useCases.length) return { design, dm };
+  return empty && dm.pageUseCases.length ? { design, dm, noValue: true } : null;
 }
 const rtlRoot = (m, svg) => (m.rtl ? svg.replace(/^<svg /, '<svg direction="rtl" ') : svg);
 
@@ -152,7 +155,8 @@ const designRtl = (m, svg) => (m.rtl ? rtlSvg(svg) : svg);
 
 export const infographicSvg = (m, theme) => withLabels(m.labels, () => infographicSvgOf(m, theme));
 function infographicSvgOf(m, theme) {
-  const d = designed(m, theme);
+  const d = designed(m, theme, { empty: true });
+  if (d?.noValue) { resetLog(); return designRtl(m, scoreInfographic(d.dm, theme.tokens, { W: 794 }, { id: theme.design, fonts: d.design.fonts })); }
   if (d) { resetLog(); return designRtl(m, d.design.infographic(d.dm, theme.tokens, { W: 794, H: 1123 })); }
   const W = 1200; const gap = 24; const cw = (W - 96 - gap) / 2;
   let y = 150; let body = '';
