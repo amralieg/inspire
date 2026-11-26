@@ -101,7 +101,10 @@ test('Summary is the last step, lists every pick with a Change link that jumps t
     const rows = await summary(page).locator('[data-picked-row]').evaluateAll((items) => items.map((r) => r.dataset.pickedRow));
     for (const id of ['outputs', 'data', 'first_run', 'result', 'kpi', 'holdout', 'schedule', 'app', 'app_access', 'app_features', 'app_look']) assert.ok(rows.includes(id), id);
     for (const id of ['capacity', 'settings', 'vibes']) assert.equal(rows.includes(id), false, `${id} is not a Summary row (must-exclude)`);
-    assert.equal(await summary(page).locator('[data-picked-change]').count(), rows.length, 'every row has a Change link');
+    // REQ-528: Inspire picks the App storage, so its row is read only and has no Change link; every other row has one.
+    const choices = rows.filter((id) => id !== 'app_storage');
+    assert.equal(await summary(page).locator('[data-picked-change]').count(), choices.length, 'every row a person chose has a Change link');
+    assert.equal(await summary(page).locator('[data-picked-row="app_storage"] [data-picked-change]').count(), 0, 'the storage Inspire picked offers no Change (must-exclude)');
     assert.match(await summary(page).locator('[data-picked-row="outputs"] [data-picked-value]').innerText(), /^The MVP: /);
     assert.match(await summary(page).locator('[data-picked-row="schedule"] [data-picked-value]').innerText(), /^Daily, runs every day at /);
     const result = await summary(page).locator('[data-picked-row="result"] [data-picked-value]').innerText();
