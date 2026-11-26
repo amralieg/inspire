@@ -1,4 +1,5 @@
 import { PAGE_SIZES } from './records.js';
+import { cleanHelp, cleanMotion, cleanWorkMode } from './onboarding.js';
 
 export const MY_KEY = 'inspire-app-my';
 export const EVERYTHING = 'everything';
@@ -60,6 +61,10 @@ export function cleanPrefs(raw) {
     dock: DOCKS.includes(p.dock) ? p.dock : '',
     last: shortText(p.last) ? p.last : '',
     welcomed: cleanWelcomed(p.welcomed),
+    // REQ-543: the three Make it yours answers are kept only once given, so a person who was never asked has the same prefs as before
+    ...(cleanWorkMode(p.workMode) ? { workMode: p.workMode } : {}),
+    ...(cleanHelp(p.help) ? { help: p.help } : {}),
+    ...(cleanMotion(p.motion) ? { motion: p.motion } : {}),
   };
 }
 

@@ -5,6 +5,7 @@ import { TOUR_WAIT_MS, fillTourText, holeOf, pickTourLanguage, placeTour, tourSe
 import { parseHash } from './links.js';
 import './styles/tour.css';
 
+export const TOUR_MAX_STOPS = 5;
 const FOCUSABLE = 'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
 
 const viewport = () => ({ width: window.innerWidth, height: window.innerHeight });
@@ -22,7 +23,7 @@ function inView(rect, view) {
 
 export default function Tour({ tour, help = null, facts, queue, section, onSection, onEnd }) {
   const language = useMemo(() => pickTourLanguage(tour?.languages, navigator.languages || [navigator.language]), [tour]);
-  const steps = useMemo(() => (help ? help.steps : (language?.steps || []).map((s) => ({ ...s, text: fillTourText(s.text, facts) }))).filter((s) => s.title),
+  const steps = useMemo(() => (help ? help.steps : (language?.steps || []).map((s) => ({ ...s, text: fillTourText(s.text, facts) }))).filter((s) => s.title).slice(0, help ? Infinity : TOUR_MAX_STOPS),
     [help, language, facts]);
   const [at, setAt] = useState(0);
   const [way, setWay] = useState(1);
