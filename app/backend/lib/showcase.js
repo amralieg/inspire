@@ -35,6 +35,11 @@ const SHOWCASE_BUILTIN = {
   // REQ-527 (RC6-A-04): the value chip's counter and board; the demo counts no saved value, so the chip shows the unset state.
   'GET /api/value/counter': { status: 200, body: { shown: false } },
   'GET /api/value/leaders': { status: 200, body: { shown: false } },
+  // REQ-527 (RC6-A-04): reads a click on a demo page can make that no recording holds; the demo keeps no change history, no similar lines and no ticket actions.
+  'GET /api/records/batches': { status: 200, body: { batches: [] } },
+  'GET /api/records/similar': { status: 200, body: { count: 0 } },
+  'GET /api/records/population': { status: 200, body: { text: '' } },
+  'GET /api/agent/briefing': { status: 200, body: { actions: [] } },
   'GET /api/plans': { status: 200, body: { can_decide: false, can_approve: false, why: SHOWCASE_PLAN_WHY, approve_why: SHOWCASE_PLAN_WHY, contract: 'plan',
     states: ['Draft', 'In review', 'Approved', 'Published'], missing: '', constraints: [], constraints_error: '',
     versions: [{ plan_id: 'demo', number: 1, label: 'Version 1', status: 'Draft', editable: true, overrides: [], changed_by: '' }] } },
@@ -183,11 +188,29 @@ function gatedApp(app, answers) {
   };
 }
 
+// REQ-527 (RC6-A-04): the shell asks the same list with view keys the recording never held (the To-do's open-status column filter,
+// added after the demos were recorded). The demo answers with the recorded list of the same page and the same filters: the view keys
+// narrow a list the demo already shows in full, and a different page or filter set is still a miss.
+const SHOWCASE_LIST = 'POST /api/records';
+function recordedList(answers, body) {
+  if (!isObject(body) || typeof body.page !== 'string') return undefined;
+  const want = canonicalJson(body.filters || {});
+  const asked = Number(body.limit) || 0;
+  const same = Object.keys(answers).filter((k) => k.startsWith(`${SHOWCASE_LIST} {`) && answers[k].status === 200)
+    .map((k) => ({ k, sent: parseExactJson(k.slice(SHOWCASE_LIST.length + 1)) }))
+    .filter(({ sent }) => isObject(sent) && sent.page === body.page && canonicalJson(sent.filters || {}) === want);
+  // the smallest recorded list that holds the rows asked for, else the largest one
+  const rank = ({ sent }) => { const n = Number(sent.limit) || 0; return n >= asked ? n - asked : Infinity; };
+  same.sort((a, b) => (rank(a) - rank(b)) || ((Number(b.sent.limit) || 0) - (Number(a.sent.limit) || 0)));
+  return same.length ? answers[same[0].k] : undefined;
+}
+
 function replay(res, answers, method, pathname, query, body) {
   const key = showcaseKey(method, pathname, query, body);
   const recorded = answers[key];
   const builtin = SHOWCASE_BUILTIN[`${String(method).toUpperCase()} ${pathname}`];
-  const found = builtin && (!recorded || recorded.status === 404) ? builtin : recorded;
+  const listed = !recorded && `${String(method).toUpperCase()} ${pathname}` === SHOWCASE_LIST ? recordedList(answers, body) : undefined;
+  const found = builtin && (!recorded || recorded.status === 404) ? builtin : recorded || listed;
   const answer = found && key === 'GET /api/app' && isObject(found.body) ? { ...found, body: gatedApp(found.body, answers) } : found;
   res.set('Cache-Control', 'no-store');
   if (answer && answer.text) return res.status(answer.status).set('X-Content-Type-Options', 'nosniff').type('text/plain; charset=utf-8').send(answer.body);
