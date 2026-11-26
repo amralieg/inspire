@@ -46,7 +46,7 @@ test('(1) a finished run with no strategy PDF listed: exactly one save, a strate
     assert.equal(be.calls.saves.length, 1, 'one save call');
     const [save] = be.calls.saves;
     assert.match(save.name, /strategy.*\.pdf$/i);
-    assert.equal(save.folder, GENERATED, 'saved into the run Assets folder');
+    assert.equal(save.folder, ROOT, 'saved at the run root, next to the other docs');
     assert.equal(Buffer.from(save.content_base64, 'base64').subarray(0, 4).toString(), '%PDF');
     assert.ok(!save.use_case_ids || save.use_case_ids.length === 0, 'it does not mark use cases as documented');
     // The PDF pages are pictures, so the words are checked on the pages the module draws for the same run.
