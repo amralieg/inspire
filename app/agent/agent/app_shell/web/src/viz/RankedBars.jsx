@@ -1,12 +1,14 @@
 // Ranked bars: items from largest to smallest with the focus item highlighted. Roles: label, value, key?.
 import { useMotion } from '../motion.js';
-import { Count, Empty, Frame, Text, clip, describe, extent, f, fmt, isFocus, markProps, scale, tidy } from './common.jsx';
+import { Count, Empty, Frame, Text, clip, describe, extent, f, fmt, isFocus, markProps, scale, roleSets, tidy } from './common.jsx';
 
 const SHOWN = 10;
 
+const ROLES = roleSets('ranked_bars');
+
 export default function RankedBars({ rows, bind, focus, motion, motionLevel, compare, format, currency }) {
   const m = useMotion(motion, motionLevel);
-  const all = tidy(rows, bind, { need: ['value'], text: ['label'] }).sort((a, b) => b.v.value - a.v.value);
+  const all = tidy(rows, bind, ROLES).sort((a, b) => b.v.value - a.v.value);
   if (!all.length) return <Empty id="ranked_bars" />;
   const mine = all.findIndex((it) => isFocus(focus, it.key));
   const items = all.slice(0, SHOWN);

@@ -1,12 +1,14 @@
 // Network neighbourhood: the focus item in the middle with what it connects to around it. Roles: source, target, value? (link weight), key?.
 import { useMotion } from '../motion.js';
-import { Empty, Frame, Text, clip, describe, f, fmt, isFocus, markProps, scale, tidy } from './common.jsx';
+import { Empty, Frame, Text, clip, describe, f, fmt, isFocus, markProps, scale, roleSets, tidy } from './common.jsx';
 
 const NODES = 12;
 
+const ROLES = roleSets('network');
+
 export default function Network({ rows, bind, focus, motion, motionLevel, compare, format, currency }) {
   const m = useMotion(motion, motionLevel);
-  const edges = tidy(rows, bind, { bound: ['value'], text: ['source', 'target'] }).filter((e) => e.t.source !== '' || e.t.target !== '');
+  const edges = tidy(rows, bind, ROLES).filter((e) => e.t.source !== '' || e.t.target !== '');
   if (!edges.length) return <Empty id="network" />;
   const degree = new Map();
   edges.forEach((e) => [e.t.source, e.t.target].forEach((n) => degree.set(n, (degree.get(n) || 0) + 1)));

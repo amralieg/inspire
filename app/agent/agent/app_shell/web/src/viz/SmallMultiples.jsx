@@ -1,12 +1,14 @@
-// Small multiples: the same measure over x drawn once per group, so peers can be compared at a glance. Roles: label (the group), x, value, key?.
+// Small multiples: the same measure over x drawn once per group, so peers can be compared at a glance. Roles: label (the group), value, x?, key?.
 import { useMotion } from '../motion.js';
-import { Empty, Frame, Text, clip, describe, extent, f, fit, fmt, isFocus, markProps, scale, tidy } from './common.jsx';
+import { Empty, Frame, Text, clip, describe, extent, f, fit, fmt, isFocus, markProps, scale, roleSets, tidy } from './common.jsx';
 
 const GROUPS = 6;
 
+const ROLES = roleSets('small_multiples');
+
 export default function SmallMultiples({ rows, bind, focus, motion, motionLevel, compare, format, currency }) {
   const m = useMotion(motion, motionLevel);
-  const items = tidy(rows, bind, { need: ['value'], text: ['label', 'x'] });
+  const items = tidy(rows, bind, ROLES);
   if (!items.length) return <Empty id="small_multiples" />;
   const groups = [];
   items.forEach((it) => {

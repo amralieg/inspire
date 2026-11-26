@@ -1,10 +1,12 @@
 // Bridge: a start stepping up and down through each part of the change to the end total. Roles: label, value (the step), key?.
 import { useMotion } from '../motion.js';
-import { Count, Empty, Frame, Text, clip, describe, extent, f, fit, fmt, isFocus, markProps, scale, tidy } from './common.jsx';
+import { Count, Empty, Frame, Text, clip, describe, extent, f, fit, fmt, isFocus, markProps, scale, roleSets, tidy } from './common.jsx';
+
+const ROLES = roleSets('bridge');
 
 export default function Bridge({ rows, bind, focus, motion, motionLevel, compare, format, currency }) {
   const m = useMotion(motion, motionLevel);
-  const items = tidy(rows, bind, { need: ['value'], text: ['label'] });
+  const items = tidy(rows, bind, ROLES);
   if (!items.length) return <Empty id="bridge" />;
   let level = 0;
   const steps = items.map((it) => { const from = level; level += it.v.value; return { it, from, to: level }; });

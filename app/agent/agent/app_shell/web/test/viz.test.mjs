@@ -18,27 +18,27 @@ const FX = {
   histogram: { rows: [{ id: 'r1', v: 5 }, { id: 'r2', v: 9 }, { id: 'r3', v: 14 }, { id: 'r4', v: 15 }, { id: 'r5', v: 22 }, { id: 'r6', v: 41 }],
     bind: { key: 'id', value: 'v' }, focus: 'r4', nums: ['5', '9', '14', '15', '22', '41'], bad: ['v'] },
   trend_band: { rows: [{ m: '2026-01', v: 10, lo: 8, hi: 12 }, { m: '2026-02', v: 11, lo: 8, hi: 13 }, { m: '2026-03', v: 19, lo: 9, hi: 14 }, { m: '2026-04', v: 12, lo: 9, hi: 15 }],
-    bind: { x: 'm', value: 'v', low: 'lo', high: 'hi' }, focus: '2026-03', nums: ['10', '11', '19', '12', '8', '13', '9', '14', '15'], bad: ['v', 'lo', 'hi'] },
+    bind: { time: 'm', value: 'v', low: 'lo', high: 'hi' }, focus: '2026-03', nums: ['10', '11', '19', '12', '8', '13', '9', '14', '15'], bad: ['v', 'lo', 'hi'] },
   ranked_bars: { rows: [{ item: 'Oak', n: 120 }, { item: 'Pine', n: 85 }, { item: 'Elm', n: 40 }, { item: 'Ash', n: 3200 }],
     bind: { label: 'item', value: 'n' }, focus: 'Elm', nums: ['120', '85', '40', '3.2K'], bad: ['n'] },
   small_multiples: { rows: [{ grp: 'North', m: 'Jan', v: 10 }, { grp: 'North', m: 'Feb', v: 14 }, { grp: 'South', m: 'Jan', v: 7 }, { grp: 'South', m: 'Feb', v: 5 }],
     bind: { label: 'grp', x: 'm', value: 'v' }, focus: 'South', nums: ['10', '14', '7', '5'], bad: ['v'] },
   share_shift: { rows: [{ seg: 'Retail', before: 50, after: 40 }, { seg: 'Online', before: 30, after: 45 }, { seg: 'Other', before: 20, after: 15 }],
-    bind: { label: 'seg', before: 'before', after: 'after' }, focus: 'Online', nums: ['50', '40', '30', '45', '20', '15'], bad: ['before', 'after'] },
+    bind: { label: 'seg', before: 'before', value: 'after' }, focus: 'Online', nums: ['50', '40', '30', '45', '20', '15'], bad: ['before', 'after'] },
   before_after: { rows: [{ k: 'Cost', was: 90, now: 60 }, { k: 'Time', was: 14, now: 9 }],
     bind: { label: 'k', before: 'was', after: 'now' }, focus: 'Time', nums: ['90', '60', '14', '9'], bad: ['was', 'now'] },
   funnel: { rows: [{ stage: 'Seen', n: 1000 }, { stage: 'Opened', n: 640 }, { stage: 'Acted', n: 210 }, { stage: 'Done', n: 95 }],
-    bind: { label: 'stage', value: 'n' }, focus: 'Acted', nums: ['1K', '640', '210', '95'], bad: ['n'] },
+    bind: { stage: 'stage', value: 'n' }, focus: 'Acted', nums: ['1K', '640', '210', '95'], bad: ['n'] },
   network: { rows: [{ a: 'Hub', b: 'North', w: 5 }, { a: 'Hub', b: 'South', w: 8 }, { a: 'North', b: 'East', w: 2 }],
     bind: { source: 'a', target: 'b', value: 'w' }, focus: 'North', nums: ['5', '8', '2'], bad: ['w'] },
   map_pin: { rows: [{ place: 'Port A', lon: 55.3, lat: 25.2, v: 7 }, { place: 'Port B', lon: 54.4, lat: 24.5, v: 11 }, { place: 'Port C', lon: 56.1, lat: 25.6, v: 3 }],
-    bind: { label: 'place', x: 'lon', y: 'lat', value: 'v' }, focus: 'Port B', nums: ['55.3', '25.2', '7', '54.4', '24.5', '11', '56.1', '25.6', '3'], bad: ['lon', 'lat', 'v'] },
+    bind: { region: 'place', label: 'place', x: 'lon', y: 'lat', value: 'v' }, focus: 'Port B', nums: ['55.3', '25.2', '7', '54.4', '24.5', '11', '56.1', '25.6', '3'], bad: ['lon', 'lat', 'v'] },
   gauge: { rows: [{ name: 'Load', now: 72, limit: 80 }],
     bind: { label: 'name', value: 'now', threshold: 'limit' }, focus: 'Load', nums: ['72', '80'], bad: ['now', 'limit'] },
   timeline: { rows: [{ when: '2026-01-05', what: 'Opened', amt: 5 }, { when: '2026-02-10', what: 'Flagged', amt: 9 }, { when: '2026-03-20', what: 'Resolved', amt: 3 }],
-    bind: { label: 'what', x: 'when', value: 'amt' }, focus: 'Flagged', nums: ['5', '9', '3'], bad: ['amt'] },
+    bind: { label: 'what', time: 'when', value: 'amt' }, focus: 'Flagged', nums: ['5', '9', '3'], bad: ['amt'] },
   cohort_cards: { rows: [{ grp: 'Mine', v: 18, n: 4 }, { grp: 'Peers', v: 25, n: 31 }, { grp: 'All', v: 22, n: 120 }],
-    bind: { label: 'grp', value: 'v', count: 'n' }, focus: 'Mine', nums: ['18', '25', '22', '4', '31', '120'], bad: ['v', 'n'] },
+    bind: { group: 'grp', value: 'v', count: 'n' }, focus: 'Mine', nums: ['18', '25', '22', '4', '31', '120'], bad: ['v', 'n'] },
 };
 
 const ENTRY = `
@@ -187,7 +187,7 @@ test('calm still animates, with the calm marker', async () => {
 for (const [width, height] of [[1280, 800], [640, 400]]) {
   test(`${width}x${height}: no block overflows its box sideways, even with long labels`, async () => {
     const long = (id) => FX[id].rows.map((r, i) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k,
-      ['label', 'source', 'target'].some((role) => FX[id].bind[role] === k) && typeof v === 'string' ? `${v} with an unusually long descriptive name number ${i}` : v])));
+      ['label', 'stage', 'group', 'region', 'source', 'target'].some((role) => FX[id].bind[role] === k) && typeof v === 'string' ? `${v} with an unusually long descriptive name number ${i}` : v])));
     const { page, context } = await open(BLOCK_IDS.map((id) => item(id, { rows: long(id), focus: undefined })), { width, height });
     try {
       for (const id of BLOCK_IDS) {

@@ -1,10 +1,12 @@
-// Share shift: how the mix moved, one stacked bar before and one after with ribbons between. Roles: label, before, after, key?.
+// Share shift: how the mix moved, one stacked bar before and one after with ribbons between. Roles: label, value (the share now), before? (the share before; without it the mix is drawn unchanged), key?.
 import { useMotion } from '../motion.js';
-import { Empty, Frame, Text, clip, color, describe, f, fit, fmt, isFocus, markProps, tidy } from './common.jsx';
+import { Empty, Frame, Text, clip, color, describe, f, fit, fmt, isFocus, markProps, roleSets, tidy } from './common.jsx';
+
+const ROLES = roleSets('share_shift');
 
 export default function ShareShift({ rows, bind, focus, motion, motionLevel, compare, format, currency }) {
   const m = useMotion(motion, motionLevel);
-  const items = tidy(rows, bind, { need: ['before', 'after'], text: ['label'] }).map((it) => ({ ...it, b: Math.max(0, it.v.before), a: Math.max(0, it.v.after) }));
+  const items = tidy(rows, bind, ROLES).map((it) => ({ ...it, a: Math.max(0, it.v.value), b: Math.max(0, it.v.before ?? it.v.value) }));
   const sumB = items.reduce((s, it) => s + it.b, 0);
   const sumA = items.reduce((s, it) => s + it.a, 0);
   if (!items.length || sumB <= 0 || sumA <= 0) return <Empty id="share_shift" />;
@@ -14,7 +16,7 @@ export default function ShareShift({ rows, bind, focus, motion, motionLevel, com
     cb += it.b; ca += it.a; return s;
   });
   const mine = items.find((it) => isFocus(focus, it.key));
-  const label = describe('Share shift from before to after', items.map((it) => `${it.t.label || it.key} ${fmt(it.v.before, format, currency)} before, ${fmt(it.v.after, format, currency)} after`), mine && (mine.t.label || mine.key));
+  const label = describe('Share shift from before to after', items.map((it) => `${it.t.label || it.key} ${it.v.before != null ? `${fmt(it.v.before, format, currency)} before, ` : ''}${fmt(it.v.value, format, currency)} after`), mine && (mine.t.label || mine.key));
   return (
     <Frame id="share_shift" label={label} h={112 + items.length * 18} m={m} motion={motion} compare={compare}>
       <Text x="20" y="14" cls="vz-muted">Before</Text>
@@ -37,7 +39,7 @@ export default function ShareShift({ rows, bind, focus, motion, motionLevel, com
         <g key={`l${s.it.i}`}>
           <rect x="20" y={f(116 + i * 18 - 8)} width="9" height="9" fill={color(i)} />
           <Text x="36" y={116 + i * 18} full={s.it.t.label || s.it.key} cls={isFocus(focus, s.it.key) ? 'vz-strong' : ''}>{clip(s.it.t.label || s.it.key, fit(240))}</Text>
-          <Text x="460" y={116 + i * 18} anchor="end" cls="vz-v">{fmt(s.it.v.before, format, currency)} to {fmt(s.it.v.after, format, currency)}</Text>
+          <Text x="460" y={116 + i * 18} anchor="end" cls="vz-v">{s.it.v.before != null && <>{fmt(s.it.v.before, format, currency)} to </>}{fmt(s.it.v.value, format, currency)}</Text>
         </g>
       ))}
     </Frame>

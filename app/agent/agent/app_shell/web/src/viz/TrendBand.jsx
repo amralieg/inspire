@@ -1,10 +1,12 @@
-// Trend vs normal band: a line moving through its usual range, points outside the range stand out. Roles: x, value, low?, high?, key?.
+// Trend vs normal band: a line moving through its usual range, points outside the range stand out. Roles: time, value, low?, high?, key?.
 import { useMotion } from '../motion.js';
-import { Count, Empty, Frame, Text, clip, describe, extent, f, fmt, isFocus, markProps, scale, tidy } from './common.jsx';
+import { Count, Empty, Frame, Text, clip, describe, extent, f, fmt, isFocus, markProps, scale, roleSets, tidy } from './common.jsx';
+
+const ROLES = roleSets('trend_band');
 
 export default function TrendBand({ rows, bind, focus, motion, motionLevel, compare, format, currency }) {
   const m = useMotion(motion, motionLevel);
-  const items = tidy(rows, bind, { need: ['value'], bound: ['low', 'high'], text: ['x'] });
+  const items = tidy(rows, bind, ROLES);
   if (!items.length) return <Empty id="trend_band" />;
   const vals = items.map((it) => it.v.value);
   const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
@@ -16,8 +18,8 @@ export default function TrendBand({ rows, bind, focus, motion, motionLevel, comp
   const path = items.map((it, i) => `${i ? 'L' : 'M'}${x(i)} ${y(it.v.value)}`).join(' ');
   const area = `${band.map((b, i) => `${i ? 'L' : 'M'}${x(i)} ${y(b[1])}`).join(' ')} ${band.map((b, i) => `L${x(band.length - 1 - i)} ${y(band[band.length - 1 - i][0])}`).join(' ')} Z`;
   const mine = items.find((it) => isFocus(focus, it.key));
-  const label = describe('Trend against its normal band', items.map((it, i) => `${it.t.x || it.key} ${fmt(it.v.value, format, currency)} (normal ${fmt(band[i][0], format, currency)} to ${fmt(band[i][1], format, currency)})`),
-    mine && (mine.t.x || mine.key));
+  const label = describe('Trend against its normal band', items.map((it, i) => `${it.t.time || it.key} ${fmt(it.v.value, format, currency)} (normal ${fmt(band[i][0], format, currency)} to ${fmt(band[i][1], format, currency)})`),
+    mine && (mine.t.time || mine.key));
   return (
     <Frame id="trend_band" label={label} h={175} m={m} motion={motion} compare={compare}>
       <path className="vz-band" d={area} />
@@ -28,8 +30,8 @@ export default function TrendBand({ rows, bind, focus, motion, motionLevel, comp
         return <circle key={it.i} {...markProps(i + 1, on)} className={`vz-mark vz-dot${out ? ' vz-out' : ''}${on ? ' vz-focus' : ''}`} cx={x(i)} cy={y(it.v.value)} r={on ? 7 : 4} />;
       })}
       {mine && <Text x={Math.min(Math.max(x(items.indexOf(mine)), 40), 440)} y={f(y(mine.v.value) - 12)} anchor="middle" cls="vz-v"><Count value={mine.v.value} m={m} motion={motion} format={format} currency={currency} /></Text>}
-      <Text x="36" y="160" full={items[0].t.x}>{clip(items[0].t.x || items[0].key, 14)}</Text>
-      <Text x="444" y="160" anchor="end" full={items[items.length - 1].t.x}>{clip(items[items.length - 1].t.x || items[items.length - 1].key, 14)}</Text>
+      <Text x="36" y="160" full={items[0].t.time}>{clip(items[0].t.time || items[0].key, 14)}</Text>
+      <Text x="444" y="160" anchor="end" full={items[items.length - 1].t.time}>{clip(items[items.length - 1].t.time || items[items.length - 1].key, 14)}</Text>
     </Frame>
   );
 }

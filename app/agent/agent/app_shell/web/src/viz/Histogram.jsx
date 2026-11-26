@@ -1,10 +1,12 @@
 // Histogram: how the values spread, with a marker where the focus item sits. Roles: value, key?.
 import { useMotion } from '../motion.js';
-import { Count, Empty, Frame, Text, describe, extent, f, fmt, isFocus, markProps, scale, tidy } from './common.jsx';
+import { Count, Empty, Frame, Text, describe, extent, f, fmt, isFocus, markProps, scale, roleSets, tidy } from './common.jsx';
+
+const ROLES = roleSets('histogram');
 
 export default function Histogram({ rows, bind, focus, motion, motionLevel, compare, format, currency }) {
   const m = useMotion(motion, motionLevel);
-  const items = tidy(rows, bind, { need: ['value'] });
+  const items = tidy(rows, bind, ROLES);
   if (!items.length) return <Empty id="histogram" />;
   const values = items.map((it) => it.v.value);
   const [lo, hi] = extent(values);

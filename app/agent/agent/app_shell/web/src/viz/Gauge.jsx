@@ -1,14 +1,16 @@
-// Gauge vs threshold: one value on a dial with the limit marked. Roles: label, value, threshold, key?. Draws the focus row, else the first.
+// Gauge vs threshold: one value on a dial with the limit marked. Roles: value, threshold, label?, key?. Draws the focus row, else the first.
 import { useMotion } from '../motion.js';
-import { Count, Empty, Frame, Text, clip, describe, f, fmt, isFocus, markProps, tidy } from './common.jsx';
+import { Count, Empty, Frame, Text, clip, describe, f, fmt, isFocus, markProps, roleSets, tidy } from './common.jsx';
 
 const CX = 240; const CY = 120; const R = 90;
 const at = (frac, r = R) => { const a = Math.PI * (1 - Math.min(1, Math.max(0, frac))); return [f(CX + Math.cos(a) * r), f(CY - Math.sin(a) * r)]; };
 const arc = (a, b) => { const [x1, y1] = at(a); const [x2, y2] = at(b); return `M${x1} ${y1} A${R} ${R} 0 0 1 ${x2} ${y2}`; };
 
+const ROLES = roleSets('gauge');
+
 export default function Gauge({ rows, bind, focus, motion, motionLevel, compare, format, currency }) {
   const m = useMotion(motion, motionLevel);
-  const items = tidy(rows, bind, { need: ['value', 'threshold'], text: ['label'] });
+  const items = tidy(rows, bind, ROLES);
   if (!items.length) return <Empty id="gauge" />;
   const it = items.find((x) => isFocus(focus, x.key)) ?? items[0];
   const { value, threshold } = it.v;

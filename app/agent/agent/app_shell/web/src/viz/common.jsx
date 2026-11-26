@@ -2,7 +2,22 @@
 import { formatValue } from '../format.js';
 import { SERIES_TOKENS } from '../tokens.js';
 import { useCountUp } from '../motion.js';
+import SCHEMA from '../../../focus_spec.schema.json' with { type: 'json' };
 import '../styles/viz.css';
+
+// The column roles a block reads come from the focus spec schema (x-rules), the same lists the validators use. Returns the arguments
+// tidy takes: need = required number roles, bound = optional number roles, text = every other role except key (read as text).
+export function roleSets(id) {
+  const rules = SCHEMA['x-rules'];
+  const all = { ...(rules.block_optional_roles?.[id] || {}), ...rules.block_roles[id] };
+  const names = (pick) => Object.keys(all).filter(pick);
+  const required = (r) => Object.prototype.hasOwnProperty.call(rules.block_roles[id], r);
+  return {
+    need: names((r) => required(r) && all[r] === 'number'),
+    bound: names((r) => !required(r) && all[r] === 'number'),
+    text: names((r) => all[r] !== 'number' && r !== 'key'),
+  };
+}
 
 export const W = 480;
 export const PAD = 12;
@@ -25,9 +40,9 @@ export function scale(lo, hi, a, b) {
 }
 export const extent = (values) => (values.length ? [Math.min(...values), Math.max(...values)] : [0, 0]);
 
-// need: roles that must be numbers. bound: roles that must be numbers only when the bind names a column. text: roles read as text.
+// roleSets(id) gives the lists. need: roles that must be numbers. bound: roles that must be numbers only when the bind names a column. text: roles read as text.
 export function tidy(rows, bind = {}, { need = [], bound = [], text = [] } = {}) {
-  const keyCol = bind.key ?? bind.label ?? bind.x ?? bind.source;
+  const keyCol = bind.key ?? bind.label ?? bind.stage ?? bind.group ?? bind.region ?? bind.time ?? bind.x ?? bind.source;
   const out = [];
   (Array.isArray(rows) ? rows : []).forEach((row, i) => {
     if (!row || typeof row !== 'object') return;

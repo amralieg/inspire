@@ -1,18 +1,20 @@
-// Timeline to event: dated steps along one line, spaced by time. Roles: label, x (date or number), value?, key?.
+// Timeline to event: dated steps along one line, spaced by time. Roles: label, time (a date), value?, key?.
 import { useMotion } from '../motion.js';
 import { asDate, dayLabel } from '../format.js';
-import { Count, Empty, Frame, Text, clip, describe, f, fmt, isFocus, markProps, scale, tidy } from './common.jsx';
+import { Count, Empty, Frame, Text, clip, describe, f, fmt, isFocus, markProps, scale, roleSets, tidy } from './common.jsx';
+
+const ROLES = roleSets('timeline');
 
 export default function Timeline({ rows, bind, focus, motion, motionLevel, compare, format, currency }) {
   const m = useMotion(motion, motionLevel);
-  let items = tidy(rows, bind, { bound: ['value'], text: ['label', 'x'] }).slice(0, 10);
+  let items = tidy(rows, bind, ROLES).slice(0, 10);
   if (!items.length) return <Empty id="timeline" />;
-  const times = items.map((it) => asDate(it.t.x)?.getTime());
+  const times = items.map((it) => asDate(it.t.time)?.getTime());
   const dated = times.every((t) => Number.isFinite(t));
   if (dated) items = items.map((it, i) => ({ ...it, at: times[i] })).sort((a, b) => a.at - b.at);
   else items = items.map((it, i) => ({ ...it, at: i }));
   const x = scale(items[0].at, items[items.length - 1].at, 50, 430);
-  const when = (it) => (dated ? dayLabel(it.t.x) : it.t.x);
+  const when = (it) => (dated ? dayLabel(it.t.time) : it.t.time);
   const mine = items.find((it) => isFocus(focus, it.key));
   const label = describe('Timeline', items.map((it) => `${it.t.label || it.key} on ${when(it)}${it.v.value != null ? `, ${fmt(it.v.value, format, currency)}` : ''}`), mine && (mine.t.label || mine.key));
   return (

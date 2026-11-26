@@ -1,10 +1,12 @@
-// Strip: every item as a dot on one number line, the focus item picked out against the population. Roles: label, value, key?.
+// Strip: every item as a dot on one number line, the focus item picked out against the population. Roles: value, label?, key?.
 import { useMotion } from '../motion.js';
-import { Count, Empty, Frame, Text, clip, describe, extent, fmt, isFocus, markProps, scale, tidy } from './common.jsx';
+import { Count, Empty, Frame, Text, clip, describe, extent, fmt, isFocus, markProps, scale, roleSets, tidy } from './common.jsx';
+
+const ROLES = roleSets('strip');
 
 export default function Strip({ rows, bind, focus, motion, motionLevel, compare, format, currency }) {
   const m = useMotion(motion, motionLevel);
-  const items = tidy(rows, bind, { need: ['value'], text: ['label'] });
+  const items = tidy(rows, bind, ROLES);
   if (!items.length) return <Empty id="strip" />;
   const [lo, hi] = extent(items.map((it) => it.v.value));
   const x = scale(lo, hi, 30, 450);

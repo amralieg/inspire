@@ -52,6 +52,22 @@
       "timeline": {"time": "date", "label": "string"},
       "cohort_cards": {"group": "string", "value": "number"}
     },
-    "notes": "default_actions is the App's record action set (shell_agent.OFFER_ACTIONS, AgentParts.jsx OFFER_BUTTONS); a test keeps it equal. columns passed to a validator map column name to number, string or date."
+    "block_optional_roles": {
+      "bridge": {"key": "string"},
+      "strip": {"label": "string", "key": "string"},
+      "histogram": {"key": "string"},
+      "trend_band": {"low": "number", "high": "number", "key": "string"},
+      "ranked_bars": {"key": "string"},
+      "small_multiples": {"x": "string", "key": "string"},
+      "share_shift": {"before": "number", "key": "string"},
+      "before_after": {"key": "string"},
+      "funnel": {"key": "string"},
+      "network": {"value": "number", "key": "string"},
+      "map_pin": {"x": "number", "y": "number", "label": "string", "key": "string"},
+      "gauge": {"label": "string", "key": "string"},
+      "timeline": {"value": "number", "key": "string"},
+      "cohort_cards": {"count": "number", "key": "string"}
+    },
+    "notes": "default_actions is the App's record action set (shell_agent.OFFER_ACTIONS, AgentParts.jsx OFFER_BUTTONS); a test keeps it equal. block_optional_roles are columns a block may also read (type-checked when bound, never required); a role in neither list is unknown_role. columns passed to a validator map column name to number, string or date."
   }
 }

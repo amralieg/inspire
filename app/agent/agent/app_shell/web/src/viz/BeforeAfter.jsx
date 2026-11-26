@@ -1,10 +1,12 @@
 // Before and after: for each item a muted bar for before and a strong bar for after, with the change. Roles: label, before, after, key?.
 import { useMotion } from '../motion.js';
-import { Count, Empty, Frame, Text, clip, describe, f, fit, fmt, isFocus, markProps, scale, tidy } from './common.jsx';
+import { Count, Empty, Frame, Text, clip, describe, f, fit, fmt, isFocus, markProps, scale, roleSets, tidy } from './common.jsx';
+
+const ROLES = roleSets('before_after');
 
 export default function BeforeAfter({ rows, bind, focus, motion, motionLevel, compare, format, currency }) {
   const m = useMotion(motion, motionLevel);
-  const items = tidy(rows, bind, { need: ['before', 'after'], text: ['label'] }).slice(0, 8);
+  const items = tidy(rows, bind, ROLES).slice(0, 8);
   if (!items.length) return <Empty id="before_after" />;
   const mine = items.find((it) => isFocus(focus, it.key));
   const label = describe('Before and after', items.map((it) => `${it.t.label || it.key} ${fmt(it.v.before, format, currency)} before, ${fmt(it.v.after, format, currency)} after`), mine && (mine.t.label || mine.key));
