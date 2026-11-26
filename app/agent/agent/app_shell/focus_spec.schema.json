@@ -52,6 +52,34 @@
       "timeline": {"time": "date", "label": "string"},
       "cohort_cards": {"group": "string", "value": "number"}
     },
+    "block_use_when": {
+      "bridge": "the total moved and the user needs to see which parts added or took away",
+      "strip": "one number matters and the user needs to see where this record sits among the others",
+      "histogram": "the user needs to see how all records spread and whether this one is unusual",
+      "trend_band": "the value changes over time and the user needs the usual range around it",
+      "ranked_bars": "the user needs to compare a few named parts and see which is biggest",
+      "small_multiples": "the same measure is compared across several groups side by side",
+      "share_shift": "the mix between parts changed and the user needs to see who gained or lost share",
+      "before_after": "a change happened and the user needs the value before it and after it",
+      "funnel": "records drop out stage by stage and the user needs to see where they are lost",
+      "network": "records are linked to each other and the links explain the case",
+      "map_pin": "where a record sits matters, by region or place",
+      "gauge": "one value is judged against a limit and the user needs to see how close it is",
+      "timeline": "the order of events over time explains the case",
+      "cohort_cards": "the record belongs to a group and the user needs to see how the group compares"
+    },
+    "motion_use_when": {
+      "build": "the parts add up to a whole, one after another",
+      "count_up": "a single number is the point and its size should land",
+      "morph": "one shape turns into another to show a change",
+      "pulse": "one part must stand out from the rest",
+      "slide": "the user moves along an order or a time line",
+      "fill": "a share or a progress amount is filled in",
+      "trace": "a line or a path is followed from start to end",
+      "split_merge": "one whole divides into parts, or parts join into one",
+      "zoom": "the user goes from the whole to one detail",
+      "reveal": "the answer or the choice appears once the user has seen the evidence"
+    },
     "notes": "default_actions is the App's record action set (shell_agent.OFFER_ACTIONS, AgentParts.jsx OFFER_BUTTONS); a test keeps it equal. columns passed to a validator map column name to number, string or date."
   }
 }
