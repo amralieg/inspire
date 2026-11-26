@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, goToStep, onStep, openAdvanced, openFolded, openRow, openUi, profileAt } from './uiSupport.mjs';
+import { APP_STORAGE_LABEL } from '../../src/lib/implementWizard.js';
 import { GROUPING_PROFILE } from './implementFixtures.js';
 
 test.after(closeBrowser);
@@ -250,12 +251,12 @@ test('the stepper, its numbers and its Step count agree: one step bar, unique la
   }
 });
 
-test('the Page storage step shows the SQL warehouse as one line with its own Change link, and the picker opens only from it (must-exclude: a block-wide Change line)', async () => {
+test('the SQL warehouse for the App step shows the SQL warehouse as one line with its own Change link, and the picker opens only from it (must-exclude: a block-wide Change line)', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
-    await goToStep(page, 'Page storage');
-    await openFolded(page, 'Page storage');
+    await goToStep(page, APP_STORAGE_LABEL);
+    await openFolded(page, APP_STORAGE_LABEL);
     const row = page.locator('[data-setting="SQL warehouse"]');
     await row.waitFor();
     assert.equal(await page.locator('[data-app-warehouse="pick"]').count(), 0, 'the warehouse picker waits behind its Change link');

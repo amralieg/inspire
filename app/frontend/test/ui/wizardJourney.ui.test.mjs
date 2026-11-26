@@ -45,7 +45,7 @@ async function summaryHasNoCapacity(page) {
   assert.equal(await page.getByText(/team capacity/i).count(), 0);
 }
 
-test('with the App picked the wizard reads Data, Data groups, First run, Results, What to deliver, Where it lives, Who uses the App, Page storage, App look, Run it, Review and build, one decision a screen', async () => {
+test('with the App picked the wizard reads Data, Data groups, First run, Results, What to deliver, Where it lives, Who uses the App, SQL warehouse for the App, App look, Run it, Review and build, one decision a screen', async () => {
   const ui = await openUi('wizard', { ...ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } }, '', { init: profileAt([], GROUPING_PROFILE) });
   const { page, made } = ui;
   try {

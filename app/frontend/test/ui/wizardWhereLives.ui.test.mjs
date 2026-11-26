@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { POLICIED_SOURCE, closeBrowser, goToStep, openFolded, openUi, shot } from './uiSupport.mjs';
+import { APP_STORAGE_LABEL } from '../../src/lib/implementWizard.js';
 
 test.after(closeBrowser);
 
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
 const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\. /, '').trim());
-const storage = (page) => page.getByRole('region', { name: 'Page storage' });
+const storage = (page) => page.getByRole('region', { name: APP_STORAGE_LABEL });
 
 test('What to deliver only picks what gets built, Where it lives places the App on its own step, and the storage step offers no choice', async () => {
   const ui = await openUi('wizard', { ...ME, policies: POLICIED_SOURCE });
@@ -36,14 +37,14 @@ test('What to deliver only picks what gets built, Where it lives places the App 
     await goToStep(page, 'What to deliver');
     // REQ-514: the App is always built; there is no App checkbox and the App steps stay.
     assert.equal(await page.getByRole('checkbox', { name: /^Agentic App / }).count(), 0, 'the App is not an option');
-    assert.deepEqual(await stepLabels(page), labels, 'Where it lives and Page storage stay');
+    assert.deepEqual(await stepLabels(page), labels, 'Where it lives and SQL warehouse for the App stay');
 
     await goToStep(page, 'Where it lives');
     await openFolded(page, 'Who sees which rows');
     // REQ-418: the access choice shows for a policied source; the per-user guide is about the per-user choice, so that is picked here.
     await page.getByRole('region', { name: 'App access' }).getByRole('radio', { name: /^Sensitive data/ }).check();
     assert.equal(await storage(page).count(), 0, 'the storage choice stays folded under its Change line until opened (must-exclude)');
-    await openFolded(page, 'Page storage');
+    await openFolded(page, APP_STORAGE_LABEL);
     const group = storage(page);
     await group.getByRole('status').waitFor({ state: 'detached' });
     assert.equal(await group.getByRole('radio').count(), 0, 'Inspire decides Lakebase or Delta; the step offers no choice (REQ-528)');
