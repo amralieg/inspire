@@ -3280,7 +3280,7 @@ export function unreliableHold(latest) {
   return reason && String(held.spec_version ?? '') === String(latest?.spec_version ?? '') ? reason : '';
 }
 
-const NEWER_VERSION_WORD = { held: 'held', unmet: 'held', failed: 'failed' };
+const NEWER_VERSION_WORD = { held: 'held', failed: 'failed' };
 const SHORT_REASON = 80;
 
 export function shortReason(text) {
@@ -3296,6 +3296,11 @@ export function implementState(latest, notebook = null) {
   const live = Number(latest?.live_version);
   if (s && live > 0 && live !== Number(latest.spec_version)) {
     const newest = implementState({ ...latest, live_version: null }, notebook);
+    // RC6-D-01: a newer version built with unmet vibe asks is published, not held; the note says what the Build progress says.
+    if (newest.group === 'unmet') {
+      const asks = openVibeAsks(latest).length;
+      return { ...newest, live, note: `v${latest.spec_version} is published with ${asks} unmet ${asks === 1 ? 'ask' : 'asks'}` };
+    }
     if (!NEWER_VERSION_WORD[newest.group]) return { ...newest, live };
     const word = newest.label === 'MVP stopped' ? 'stopped' : NEWER_VERSION_WORD[newest.group];
     const reason = shortReason(statusReason(latest, latest.stalled));

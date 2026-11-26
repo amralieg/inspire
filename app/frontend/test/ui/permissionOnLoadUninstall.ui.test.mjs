@@ -85,8 +85,8 @@ test('the per-use-case card button reads Uninstall this use case, and the confir
     await page.getByRole('button', { name: 'Uninstall this use case', exact: true }).waitFor({ timeout: 15000 });
     assert.equal(await page.getByRole('button', { name: 'Uninstall all', exact: true }).count(), 0, 'the session-sounding label is gone');
     await page.getByRole('button', { name: 'Uninstall this use case', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: 'Uninstall everything N01-U01 built' });
-    await dialog.getByRole('button', { name: 'Uninstall N01-U01', exact: true }).waitFor({ timeout: 15000 });
+    const dialog = page.getByRole('dialog', { name: 'Uninstall everything Predict churn built' });
+    await dialog.getByRole('button', { name: 'Uninstall Predict churn', exact: true }).waitFor({ timeout: 15000 });
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
