@@ -1457,6 +1457,7 @@ app.get('/api/workspace/list', rejectUnsafeQueryPath, requireToken, async (req, 
           name: f.name || f.path.split('/').pop(),
           is_directory: f.is_directory || false,
           file_size: f.file_size || 0,
+          modified_at: f.last_modified || 0,
         }));
         return res.json({ files: contents, resolved_path: wsPath });
       }
@@ -1476,6 +1477,7 @@ app.get('/api/workspace/list', rejectUnsafeQueryPath, requireToken, async (req, 
         is_directory: o.object_type === 'DIRECTORY',
         object_type: o.object_type,
         file_size: o.size || 0,
+        modified_at: o.modified_at || 0,
       }));
       return res.json({ files, resolved_path: wsPath });
     }

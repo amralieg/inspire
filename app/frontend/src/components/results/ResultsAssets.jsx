@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ChevronRight, Download, ExternalLink, Eye, EyeOff, FileText, FolderOpen, Loader2, Sparkles, XCircle } from 'lucide-react';
 import FilePreview from '../../components/FilePreview';
 import { PlainMessage } from '../../components/TechnicalDetails';
-import { artifactTreeFiles, fileActions, fileExtension, fileSizeText, quickAccessFiles } from '../../lib/artifactFiles';
+import { artifactTreeFiles, fileActions, fileDateText, fileExtension, fileSizeText, fileTypeText, filesNewestFirst, hasStrategyDocument, quickAccessFiles } from '../../lib/artifactFiles';
 import { displayCleanText, findUcForNotebookFilename, hasShippedGenieCode } from '../../lib/useCaseFields';
 import { nextStepOf } from '../../lib/runOutcome';
 import { qualityBarCountText } from '../../lib/qualityBarWording';
@@ -126,12 +126,12 @@ export default function ResultsAssets({
               // Recursive file tree renderer
               const renderFileTree = (files, depth = 0) => (
                 <div className={depth > 0 ? 'ms-4 border-s border-border/50 ps-2' : ''}>
-                  {files.map((f) => {
+                  {filesNewestFirst(files).map((f) => {
                     const isDir = f.is_directory;
                     const isOpen = expandedFolders[f.path];
                     const folderData = artifactTree[f.path];
                     return (
-                      <div key={f.path}>
+                      <div key={f.path} data-asset-row={f.name}>
                         <div
                           className={`flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-bg-subtle transition-smooth ${isDir ? 'cursor-pointer' : ''}`}
                           onClick={isDir ? () => toggleFolder(f.path) : undefined}
@@ -149,6 +149,8 @@ export default function ResultsAssets({
                           )}
                           <span className="text-xs text-text-primary font-mono truncate flex-1">{f.name}</span>
                           {!isDir && newDocs.has(f.path) && <NewTag path={f.path} />}
+                          {!isDir && <span data-asset-type className="text-caption text-text-secondary shrink-0">{fileTypeText(f)}</span>}
+                          {!isDir && fileDateText(f) && <span data-asset-date className="text-caption text-text-tertiary shrink-0">{fileDateText(f)}</span>}
                           {fileSizeText(f.file_size) && (
                             <span className="text-caption text-text-tertiary">{fileSizeText(f.file_size)}</span>
                           )}
@@ -298,6 +300,11 @@ export default function ResultsAssets({
                         <div className="max-h-80 overflow-y-auto">
                           {renderFileTree(artifactsRootFiles)}
                         </div>
+                      )}
+                      {!artifactsLoading && artifactsRootFiles && artifactsRootFiles.length > 0 && !hasStrategyDocument(artifactTreeFiles(artifactsRootFiles, artifactTree)) && (
+                        <p data-testid="strategy-document-note" className="mt-2 text-caption text-text-secondary">
+                          No strategy document is listed here. A run no longer writes one by itself: tick the use cases on the Use cases tab and choose Generate docs to make a PDF.
+                        </p>
                       )}
                     </div>
                   )}
