@@ -18,7 +18,10 @@ function answer(call) {
     return [401, { detail: 'Invalid access token' }];
   }
   if (call.path === '/api/2.0/sql/statements' && call.method === 'POST') {
-    return String(call.body && call.body.statement).startsWith('SELECT business_name') ? done(['business_name'], [['Acme']]) : done();
+    const statement = String(call.body && call.body.statement);
+    // SEC-13 (c23): feedback first checks the session is the person's own, so the launch ledger names the person as its launcher.
+    if (statement.startsWith('SELECT launched_by')) return done(['launched_by'], [[PERSON]]);
+    return statement.startsWith('SELECT business_name') ? done(['business_name'], [['Acme']]) : done();
   }
   return null;
 }
@@ -71,7 +74,7 @@ test('on a Databricks App with no forwarded person, /api/me says only the servic
 });
 
 test('feedback records the person the forwarded headers name, also when only the preferred user name is forwarded', async () => {
-  await withInspire(APP_ENV, async (url, workspace) => {
+  await withInspire({ ...APP_ENV, INSPIRE_WAREHOUSE_ID: 'wh1' }, async (url, workspace) => {
     const resp = await fetch(`${url}/api/inspire/feedback`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-forwarded-preferred-username': PERSON },

@@ -30,6 +30,9 @@ function folderOf(rec, extra = []) {
   };
 }
 
+// SEC-01: Inspire runs only the bundled shell; these tests stand a small fake shell in for it, with the content fakeFiles reads back.
+const FAKE_SHELL = { 'app.py': 'content of app.py', 'static/index.html': 'content of index.html' };
+
 function fakeFiles(folders, reads) {
   return {
     async list(folder) {
@@ -91,6 +94,7 @@ async function setup({ folders = {}, health = async () => true, max, idleMs, hea
       return child;
     },
     pickPython: async () => '/opt/venv/bin/python3',
+    shellFiles: FAKE_SHELL,
     files: () => fakeFiles(folders, reads),
     tmpRoot: tmp,
     env: PARENT_ENV,

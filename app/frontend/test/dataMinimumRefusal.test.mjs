@@ -2,7 +2,7 @@
 // Build stayed enabled; the built-in sample refusal footer said "Grant access first" and pointed to a hand copy.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dataMinimumBlocks, dataMinimumRefusalText, tooFewRowsText, SOURCE_BUILT_IN_REFUSED_REASON, SOURCE_REFUSED_REASON } from '../src/lib/implementWizard.js';
+import { dataMinimumBlocks, dataMinimumRefusalText, tooFewRowsText, SOURCE_REFUSED_REASON } from '../src/lib/implementWizard.js';
 
 const forecast17 = { row_count: 3333, period_count: 17, minimum_rows: 60, skipped: false };
 
@@ -30,8 +30,6 @@ test('a kind that counts rows blocks only when its rows are below the minimum, a
   assert.equal(dataMinimumBlocks({ row_count: 0, period_count: 0, minimum_rows: 60 }), false, 'an empty source is no data yet, not a refusal');
 });
 
-test('a built-in sample refusal names the copy on the build step, not a grant', () => {
-  assert.match(SOURCE_BUILT_IN_REFUSED_REASON, /Copy the samples tables/);
-  assert.doesNotMatch(SOURCE_BUILT_IN_REFUSED_REASON, /Grant access/);
-  assert.match(SOURCE_REFUSED_REASON, /Grant access first/, 'other refusals keep the grant wording');
+test('the source refusal keeps the grant wording (the built-in samples copy wording is gone, D-c23-01)', () => {
+  assert.match(SOURCE_REFUSED_REASON, /Grant access first/);
 });

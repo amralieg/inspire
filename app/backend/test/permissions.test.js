@@ -73,18 +73,6 @@ test('the App read grant offered as a permission carries the grants its plan lac
   assert.equal(permission.principal, 'inspire-app');
 });
 
-test('a sample copy the person cannot read asks for USE CATALOG, USE SCHEMA and SELECT on the source schema, for the person', () => {
-  const p = PM.sampleCopyPermission([{ source: 'samples.nyctaxi.trips', reason: 'no SELECT' }], 'pat@example.com');
-  assert.deepEqual(p.statements, [
-    'GRANT USE CATALOG ON CATALOG `samples` TO `pat@example.com`',
-    'GRANT USE SCHEMA ON SCHEMA `samples`.`nyctaxi` TO `pat@example.com`',
-    'GRANT SELECT ON TABLE `samples`.`nyctaxi`.`trips` TO `pat@example.com`',
-  ]);
-  assert.equal(p.principal, 'pat@example.com');
-  assert.match(p.why, /Copying samples\.nyctaxi\.trips reads them as the App/);
-  assert.equal(PM.sampleCopyPermission([], 'pat@example.com'), null);
-});
-
 test('the create-schema builder grant is shown with USE CATALOG first, so the schema grant works', () => {
   const grant = 'GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`s` TO `builder-sp`';
   const p = PM.builderPermission('main', grant, 'builder-sp');

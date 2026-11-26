@@ -328,7 +328,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
                 {hasMacro && (
                   <details data-assumption="macro" open={macroOpen} onToggle={(e) => setMacroOpen(e.currentTarget.open)} className={fold}>
                     <summary className={foldTitle}>Public market data</summary>
-                    <div className="mt-2"><StepMacro plan={plan} onPlan={setPlan} get={get} inspireDatabase={inspireDatabase} warehouseId={warehouseId} page={macroPage} onPage={onMacroPage} /></div>
+                    <div className="mt-2"><StepMacro plan={plan} onPlan={setPlan} get={get} post={post} inspireDatabase={inspireDatabase} warehouseId={warehouseId} page={macroPage} onPage={onMacroPage} /></div>
                   </details>
                 )}
               </div>

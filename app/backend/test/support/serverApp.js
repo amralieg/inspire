@@ -397,6 +397,8 @@ let started = null;
 function startServer() {
   if (started) return started;
   Object.assign(process.env, ENV);
+  // SEC-15 (c23): a test file that sets SERVER_APP_LOCAL_DEV runs the server as local development, where the sp-token helper exists.
+  if (process.env.SERVER_APP_LOCAL_DEV === '1') { process.env.NODE_ENV = 'development'; delete process.env.DATABRICKS_APP_NAME; }
   global.fetch = stubFetch;
   for (const level of ['log', 'info', 'warn', 'error']) console[level] = (...args) => { state.logs.push(args.map(String).join(' ')); };
   const { app } = require('../../server');

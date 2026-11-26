@@ -101,11 +101,11 @@ test('Uninstall this use case names what goes and what stays, asks for the use c
   try {
     assert.match(await page.getByRole('button', { name: 'Uninstall this use case', exact: true }).getAttribute('class'), /text-error-fg/, 'Uninstall this use case is red again, as in rc.3');
     await page.getByRole('button', { name: 'Uninstall this use case', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: 'Uninstall everything N01-U01 built' });
-    assert.match(await dialog.getByRole('button', { name: 'Uninstall N01-U01', exact: true }).getAttribute('class'), /bg-error-solid/, 'the confirm step stays red (must-keep)');
+    const dialog = page.getByRole('dialog', { name: 'Uninstall everything Predict churn built' });
+    assert.match(await dialog.getByRole('button', { name: 'Uninstall Predict churn', exact: true }).getAttribute('class'), /bg-error-solid/, 'the confirm step stays red (must-keep)');
     await dialog.getByText(/^Inspire deletes the MVP notebook, its job, the build jobs of every version, the dashboard, the Genie Agent, the App, the alert/).waitFor();
     await dialog.getByText(/^The result tables, the history and any notebook Discover wrote for this use case stay\./).waitFor();
-    const confirm = dialog.getByRole('button', { name: 'Uninstall N01-U01', exact: true });
+    const confirm = dialog.getByRole('button', { name: 'Uninstall Predict churn', exact: true });
     assert.equal(await confirm.isDisabled(), true);
     for (const dark of [false, true]) {
       await setDark(page, dark);

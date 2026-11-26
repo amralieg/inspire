@@ -3,6 +3,7 @@ import { moneyText } from '../valueWizard.js';
 import { designOf, toDesignModel } from './designs/model.js';
 import { resetLog, rtlSvg } from './designs/core.js';
 import { LB, withLabels } from './docLabels.js';
+import { extraParts, partLines } from './docModel.js';
 
 const NS = 'xmlns="http://www.w3.org/2000/svg"';
 export const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -103,7 +104,7 @@ function valueBars(m, theme, x, y, w) {
   let s = txt(m, 'Value per use case', x, y + 22, { size: 18, weight: 700, fill: theme.ink, w });
   m.useCases.forEach((u, i) => {
     const ry = y + 44 + i * 40; const bw = u.value ? Math.max(8, (u.value.amount / max) * (w - 330)) : 0;
-    s += txt(m, u.name, x, ry + 16, { size: 13, fill: theme.ink, w: 200, max: 30, lines: 1 });
+    s += txt(m, u.name, x, ry + 16, { size: 13, fill: theme.ink, w: 200, max: 26, lines: 1 });
     if (u.value) {
       s += mark(theme, x + 210, ry, bw, 22, theme.accents[i % theme.accents.length], i);
       s += txt(m, u.value.text, x + 218 + bw, ry + 16, { size: 13, weight: 700, fill: theme.ink, w: 100 });
@@ -154,7 +155,7 @@ function infographicSvgOf(m, theme) {
   const d = designed(m, theme);
   if (d) { resetLog(); return designRtl(m, d.design.infographic(d.dm, theme.tokens, { W: 794, H: 1123 })); }
   const W = 1200; const gap = 24; const cw = (W - 96 - gap) / 2;
-  let y = 120; let body = '';
+  let y = 150; let body = '';
   const hd = header(m, theme, W, 50, `${m.total.n} use cases | ${m.total.nWithValue} with a calculated value`);
   body += hd.svg; y += hd.extra;
   const k = [['Use cases', String(m.total.n)], ['Total value', m.total.nWithValue ? m.total.text : NOT_YET], ['Calculated', `${m.total.nWithValue} of ${m.total.n}`]];
@@ -182,7 +183,7 @@ function briefPagesSvgOf(m, theme) {
   if (d) {
     resetLog();
     // Page 1 and every use case page are the design's own (use case pages carry data-design); a use case with no value says "not calculated yet".
-    const pages = d.dm.pageUseCases.map((u, i) => d.design.briefUseCasePage(d.dm, theme.tokens, u, i));
+    const pages = d.dm.pageUseCases.flatMap((u, i) => d.design.briefUseCasePage(d.dm, theme.tokens, u, i));
     return [designRtl(m, d.design.briefPage1(d.dm, theme.tokens)), ...pages.map((p) => rtlRoot(m, p))];
   }
   const W = 794; const H = 1123;
@@ -196,15 +197,41 @@ function briefPagesSvgOf(m, theme) {
   return pages;
 }
 
+// C23: one page per use case with every field in full (the infographic card above is the short summary). The page grows in height with the text.
 function briefUseCasePages(m, theme) {
-  const W = 794; const H = 1123; const pages = [];
-  const wrapPage = (id, body) => `<svg ${NS} viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="${esc(theme.font)}"${m.rtl ? ' direction="rtl"' : ''}>${defs(theme, id)}${backdrop(theme, W, H, id)}${body}</svg>`;
-  m.useCases.forEach((u, i) => {
+  const W = 794; const X = 40; const IW = W - 2 * X; const MAX = Math.floor(IW / 7.2); const LH = 18;
+  return m.useCases.map((u, i) => {
     const sub = { ...m, useCases: [u], total: { ...m.total, n: 1 } };
-    const c = card(sub, theme, u, i, 40, 90, W - 80).replace(/<!--h:\d+-->/, '');
-    const body = txt(m, m.businessName, 40, 70, { size: 14, fill: theme.muted, w: W - 80 }) + c;
-    const proj = has(m, 'value_projection') && u.value && u.value.yearly.length ? projection({ ...sub, total: { ...m.total, currency: u.value.currency } }, theme, 40, 700, W - 80, 260).svg : '';
-    pages.push(wrapPage(`P${i}`, body + proj));
+    let y = 70; let body = txt(m, m.businessName, X, y, { size: 14, fill: theme.muted, w: IW });
+    const c = theme.accents[i % theme.accents.length];
+    y += 40;
+    const title = wrap(LB(u.name), Math.floor(IW / 9.5));
+    body += txt(m, u.name, X, y, { size: 22, weight: 700, fill: theme.ink, w: IW, max: Math.floor(IW / 9.5), lines: 99, lh: 28 });
+    y += 28 * title.length + 4;
+    const tail = [];
+    if (has(m, 'inspire_score') && u.score != null) tail.push(`Score ${u.score.toFixed(1)}`);
+    tail.push(u.value ? u.value.text : NOT_YET);
+    body += txt(m, tail.map((t) => LB(t)).join('  |  '), X, y, { size: 15, weight: 700, fill: c, w: IW });
+    y += 30;
+    const part = (id, label, lines) => {
+      const rows = lines.flatMap((l) => wrap(LB(l), MAX));
+      if (!has(m, id) || !rows.length) return;
+      const tx = m.rtl ? X + IW : X;
+      const spans = rows.map((r, k) => `<tspan x="${tx}" dy="${k ? LH : 0}">${esc(r)}</tspan>`).join('');
+      body += `<g data-block="${id}">${txt(m, label, X, y, { size: 12, weight: 700, fill: theme.muted, w: IW })}<text x="${tx}" y="${y + 20}" font-size="13" fill="${theme.ink}" text-anchor="${m.rtl ? 'end' : 'start'}">${spans}</text></g>`;
+      y += 20 + LH * rows.length + 14;
+    };
+    part('use_case_story', 'The use case', [u.statement]);
+    part('use_case_story', 'The solution', [u.solution]);
+    part('use_case_story', 'Business value', [u.businessValue]);
+    [['Sponsor', u.sponsor], ['Beneficiary', u.beneficiary], ['Technique', u.technique]].forEach(([l, v]) => part('use_case_story', l, v ? [v] : []));
+    extraParts(u).forEach(([l, items]) => part('use_case_story', l, partLines(items)));
+    part('value_story', 'Value story', u.value?.story ? [u.value.story] : []);
+    part('data_used', 'Data used', u.tables.length ? [u.tables.join(', ')] : []);
+    if (has(m, 'value_projection') && u.value && u.value.yearly.length) {
+      body += projection({ ...sub, total: { ...m.total, currency: u.value.currency } }, theme, X, y, IW, 260).svg; y += 280;
+    }
+    const H = Math.max(1123, y + 30);
+    return `<svg ${NS} viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="${esc(theme.font)}"${m.rtl ? ' direction="rtl"' : ''}>${defs(theme, `P${i}`)}${backdrop(theme, W, H, `P${i}`)}${body}</svg>`;
   });
-  return pages;
 }

@@ -8,7 +8,7 @@ import { SERIES_ROUTE, SOURCES_ROUTE, blockedLine, citationLine, orderSources, s
 const NEXT_AFTER = 'story:draft';
 const btn = 'rounded-md border border-border px-3 py-1.5 text-[13px] font-semibold text-text-primary';
 
-export default function StepMacro({ plan, onPlan, get, inspireDatabase, warehouseId, page, onPage }) {
+export default function StepMacro({ plan, onPlan, get, post, inspireDatabase, warehouseId, page, onPage }) {
   const factors = plan?.economic_factors || [];
   const [targetId, setTargetId] = useState(factors[0]?.id);
   const target = factors.find((f) => f.id === targetId) || factors[0];
@@ -34,7 +34,7 @@ export default function StepMacro({ plan, onPlan, get, inspireDatabase, warehous
     if (!target) return;
     setBusy(true); setError(''); setSaved('');
     try {
-      const r = await get(SERIES_ROUTE, { ...seriesQuery({ source, indicator, country, inspire_database: inspireDatabase, warehouse_id: warehouseId }),
+      const r = await post(SERIES_ROUTE, { ...seriesQuery({ source, indicator, country, inspire_database: inspireDatabase, warehouse_id: warehouseId }),
         factor_id: target.id, factor_label: target.label, elasticity: String(e) });
       setReply(r);
       if (!blockedLine(r) && r?.series) onPage('macro:factor');

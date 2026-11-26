@@ -17,7 +17,7 @@ test('data routes read with the App, and only who-did-what routes keep the perso
   for (const key of ['GET /api/workspace/list', 'GET /api/catalogs', 'GET /api/catalogs/:catalog/schemas', 'GET /api/tables/:catalog/:schema', 'GET /api/inspire/implement/values']) {
     assert.equal(P.identityFor(key), 'person', key);
   }
-  for (const key of ['POST /api/run/check', 'POST /api/output-folder/check', 'POST /api/inspire/samples/copy']) {
+  for (const key of ['POST /api/run/check', 'POST /api/output-folder/check']) {
     assert.equal(P.identityFor(key), 'app', key);
   }
   assert.equal(P.identityFor('GET /api/health'), 'app');
@@ -25,8 +25,8 @@ test('data routes read with the App, and only who-did-what routes keep the perso
   for (const key of ['POST /api/access-request', 'POST /api/access-request/check', 'POST /api/inspire/implement/grant-access']) {
     assert.equal(P.identityFor(key), 'person', key);
   }
-  // Ruling 3 (REQ-418): create-schema runs as the App; the signed-in person is recorded as the requester in Inspire's own records.
-  assert.equal(P.identityFor('POST /api/inspire/implement/create-schema'), 'app');
+  // SEC-04 (c23): create-schema runs with the person's own sign-in (was: the App), so the App never acts on a place a person names.
+  assert.equal(P.identityFor('POST /api/inspire/implement/create-schema'), 'person');
   assert.equal(P.identityFor('GET /api/not-declared'), 'person');
   assert.equal(P.identityFor(undefined), 'person');
 });
@@ -78,7 +78,7 @@ test('only the own-folder check writes with the person (the App writes the outpu
   assert.deepEqual(writers, ['POST /api/output-folder/check'], 'the one person route that shares the person\'s own folder with the App');
   assert.deepEqual(P.ROUTE_POLICY['POST /api/output-folder/check'].scopes, P.OUTPUT_WRITE_SCOPES);
   // SEC-02: every read of data or metadata the caller names is a person route too (the who-did-what actions stay).
-  assert.deepEqual(personRoutes().map(([key]) => key).sort(), ["GET /api/catalogs", "GET /api/catalogs/:catalog/schemas", "GET /api/inspire/implement/columns", "GET /api/inspire/implement/principals", "GET /api/inspire/implement/table-lookup", "GET /api/inspire/implement/values", "GET /api/inspire/value/answers", "GET /api/tables/:catalog/:schema", "GET /api/workspace/export", "GET /api/workspace/list", "GET /api/workspace/status", "POST /api/access-request", "POST /api/access-request/check", "POST /api/data-management/columns", "POST /api/grouping/profile", "POST /api/inspire/implement/grant-access", "POST /api/inspire/implement/group-counts", "POST /api/inspire/implement/readiness", "POST /api/inspire/implement/swaps", "POST /api/inspire/value/case-plan", "POST /api/inspire/value/estimate", "POST /api/inspire/value/filter", "POST /api/inspire/value/scope", "POST /api/money/currency-rates", "POST /api/money/rate-sample", "POST /api/money/value-preview", "POST /api/relationships", "PUT /api/inspire/value/answers"]);
+  assert.deepEqual(personRoutes().map(([key]) => key).sort(), ["GET /api/catalogs", "GET /api/catalogs/:catalog/schemas", "GET /api/inspire/implement/columns", "GET /api/inspire/implement/principals", "GET /api/inspire/implement/table-lookup", "GET /api/inspire/implement/values", "GET /api/inspire/value/answers", "GET /api/tables/:catalog/:schema", "GET /api/workspace/export", "GET /api/workspace/list", "GET /api/workspace/status", "POST /api/access-request", "POST /api/access-request/check", "POST /api/data-management/columns", "POST /api/grouping/profile", "POST /api/inspire/implement/create-schema", "POST /api/inspire/implement/grant-access", "POST /api/inspire/implement/group-counts", "POST /api/inspire/implement/readiness", "POST /api/inspire/implement/swaps", "POST /api/inspire/value/case-plan", "POST /api/inspire/value/estimate", "POST /api/inspire/value/filter", "POST /api/inspire/value/scope", "POST /api/money/currency-rates", "POST /api/money/rate-sample", "POST /api/money/value-preview", "POST /api/relationships", "PUT /api/inspire/value/answers"]);
 });
 
 test('a path inside a recorded output folder matches only on a path boundary, after the path is made canonical', () => {

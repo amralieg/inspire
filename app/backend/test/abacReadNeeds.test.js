@@ -4,7 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const I = require('../lib/inspireImplement');
-const { appReadPermissions, readStatements, sampleCopyPermission } = require('../lib/permissions');
+const { appReadPermissions, readStatements } = require('../lib/permissions');
 
 const SP = 'sp-app-id';
 const ROW = (level, privilege, principal = SP, mine = 'false') => ({ level, privilege, principal, mine, me: 'owner@example.com' });
@@ -70,5 +70,4 @@ test('a person read keeps its three grants: the App-only READ METADATA is not ad
     'GRANT USE CATALOG ON CATALOG `main` TO `bob@example.com`',
     'GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `bob@example.com`',
     'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `bob@example.com`']);
-  assert.ok(sampleCopyPermission([{ source: 'main.s.orders' }], 'bob@example.com').statements.every((g) => !g.includes('READ METADATA')));
 });

@@ -3,6 +3,7 @@
 import { toDesignModel } from './model.js';
 import { contrast, bestInk, DISCLAIMER } from './core.js';
 import { LB } from '../docLabels.js';
+import { ucParts, paginate } from '../pptxParts.js';
 
 const NOT_YET = 'not calculated yet';
 const hex = (c) => String(c).replace('#', '').toUpperCase();
@@ -125,7 +126,6 @@ export function buildDesignDeck(pptx, m, theme) {
   });
 
   // ---- one slide per use case ----
-  const pairs = (u) => [['Sponsor', u.sponsor], ['Beneficiary', u.beneficiary], ['Technique', u.technique], ...(has(m, 'data_used') && u.tables.length ? [['Data used', u.tables.join(', ')]] : [])].filter(([, v]) => S(v).trim());
   const ucList = domainOrder.flatMap((d) => d.ucs);
   ucList.forEach((u, i) => {
     const s = newSlide(P.page);
@@ -145,22 +145,28 @@ export function buildDesignDeck(pptx, m, theme) {
       kpi(s, x, 2.05, cw, 1.2, v, l, { size: 22, color: k === 0 ? P.accentText : P.ink });
       if (showScore && l === 'Inspire score' && Number.isFinite(u.score)) { box(s, x + 0.2, 3.05, cw - 0.4, 0.08, P.track); box(s, x + 0.2, 3.05, (cw - 0.4) * Math.max(0, Math.min(1, u.score / 10)), 0.08, P.accent); }
     });
-    const side = pairs(u); const proj = has(m, 'value_projection') && u.value?.yearly?.length;
-    const bodyW = side.length || proj ? 7.4 : W - 1.2;
-    const runs = [];
-    const part = (label, body) => { if (S(body).trim()) runs.push({ text: `${LB(label)}\n`, options: { bold: true, color: P.accentText, fontSize: 12, charSpacing: 1 } }, { text: `${body}\n\n`, options: { color: P.body, fontSize: 14 } }); };
-    if (has(m, 'use_case_story')) { part('STATEMENT', u.statement); part('SOLUTION', u.solution); part('BUSINESS VALUE', u.businessValue); }
-    if (has(m, 'value_story') && u.value?.story) part('VALUE STORY', u.value.story);
-    if (runs.length) rich(s, runs, { x: 0.6, y: 3.5, w: bodyW, h: 3.2, bg: P.page });
-    if (side.length) {
-      box(s, 8.4, 3.5, 4.3, proj ? 1.9 : 3.2, P.card, { round: !P.masthead });
-      rich(s, side.flatMap(([k, v]) => [{ text: `${LB(k)}\n`, options: { bold: true, color: P.accentText, fontSize: 12 } }, { text: `${trunc(v, 90)}\n\n`, options: { color: P.ink, fontSize: 12 } }]), { x: 8.6, y: 3.6, w: 3.9, h: proj ? 1.7 : 3.0, bg: P.card });
-    }
+    const proj = has(m, 'value_projection') && u.value?.yearly?.length;
+    const bodyW = proj ? 7.4 : W - 1.2;
+    // C23: every text part (statement, solution, value, sponsor, beneficiary, technique, KPIs, ...) in full; what does not fit goes on a continuation slide.
+    const pages = paginate(ucParts(m, u), Math.floor(bodyW * 8.5), 10, 10);
+    const draw = (s, page, w) => {
+      const runs = page.flatMap((p) => [{ text: `${LB(p.label.replace(' (cont.)', ''))}${p.label.endsWith('(cont.)') ? ' (cont.)' : ''}\n`, options: { bold: true, color: P.accentText, fontSize: 12, charSpacing: 1 } }, { text: `${p.text}\n\n`, options: { color: P.body, fontSize: 14 } }]);
+      if (runs.length) rich(s, runs, { x: 0.6, y: 3.5, w, h: 3.3, bg: P.page });
+    };
+    draw(s, pages[0], bodyW);
     if (proj) {
       const y = u.value.yearly; const lbl = y.map((r) => LB(`Year ${r.year}`));
-      s.addChart(pptx.charts.BAR, [{ name: LB('Low'), labels: lbl, values: y.map((r) => r.low) }, { name: LB('Likely'), labels: lbl, values: y.map((r) => r.likely) }, { name: LB('High'), labels: lbl, values: y.map((r) => r.high) }], { x: 8.4, y: side.length ? 5.45 : 3.5, w: 4.3, h: side.length ? 1.6 : 3.3, barDir: 'col', chartColors: [hex(P.rule), accent, hex(P.warm)], showLegend: true, legendPos: 'b', legendColor: tc(P.ink, P.page, 'legend'), legendFontSize: 12, ...chartBase(P.page) });
+      s.addChart(pptx.charts.BAR, [{ name: LB('Low'), labels: lbl, values: y.map((r) => r.low) }, { name: LB('Likely'), labels: lbl, values: y.map((r) => r.likely) }, { name: LB('High'), labels: lbl, values: y.map((r) => r.high) }], { x: 8.4, y: 3.5, w: 4.3, h: 3.3, barDir: 'col', chartColors: [hex(P.rule), accent, hex(P.warm)], showLegend: true, legendPos: 'b', legendColor: tc(P.ink, P.page, 'legend'), legendFontSize: 12, ...chartBase(P.page) });
     }
     if (has(m, 'disclaimer')) text(s, 'Estimated value, not a promised value. Your business value team must validate it.', { x: 0.6, y: 6.95, w: 9, h: 0.3, fontSize: 12, italic: true, bg: P.page, color: P.muted });
+
+    pages.slice(1).forEach((page) => {
+      const c = newSlide(P.page); chrome(c, S(u.domain || 'Other'));
+      heading(c, u.name, 0.8, 24, W - 1.2, 1.0);
+      box(c, 0.6, 1.85, W - 1.2, 0.04, id === 'consulting' ? P.edge : P.accent);
+      const runs = page.flatMap((p) => [{ text: `${LB(p.label.replace(' (cont.)', ''))}${p.label.endsWith('(cont.)') ? ' (cont.)' : ''}\n`, options: { bold: true, color: P.accentText, fontSize: 12, charSpacing: 1 } }, { text: `${p.text}\n\n`, options: { color: P.body, fontSize: 14 } }]);
+      if (runs.length) rich(c, runs, { x: 0.6, y: 2.1, w: W - 1.2, h: 4.7, bg: P.page });
+    });
   });
 
   // ---- portfolio ----

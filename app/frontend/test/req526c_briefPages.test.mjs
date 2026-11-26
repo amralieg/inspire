@@ -70,15 +70,15 @@ for (const id of IDS) for (const mode of MODES) {
     const long = 'The business wants a single view of every order across all stores and channels so that planners can react the same day. '.repeat(26).slice(0, 3000);
     const ucs = UCS.map((u, i) => (i < 3 ? { ...u, Statement: long, Solution: long, 'Business Value': long } : u));
     const pages = briefPagesSvg(model({ ucs }), th);
-    assert.equal(pages.length, 1 + UCS.length);
+    assert.ok(pages.length > 1 + UCS.length, 'one page per use case, plus continuation pages: the text is no longer cut (c23)');
     const bad = LOG.filter((e) => contrast(e.fill, e.bg) < 4.5 || e.size < 12).map((e) => `${e.ctx} ${e.fill}/${e.bg} ${e.size}`);
     assert.deepEqual(bad, []);
     pages.slice(1).forEach((p, i) => { assert.match(p, /data-design=/, `page ${i + 2}`); assert.deepEqual(outside(p), [], `page ${i + 2}`); });
-    assert.match(pages[1], /…/, 'the long text is shortened with an ellipsis');
+    assert.ok(pages.slice(1).join('').includes(long.slice(0, 200).replace(/\s+/g, ' ').slice(0, 40)), 'the long text is continued, not cut (c23)');
   });
 
   test(`C4: ${id} ${mode} an unvalued use case says "not calculated yet" and shows no projection`, () => {
-    const p = briefPagesSvg(model(), resolveTheme(id, 'databricks', '', mode))[1 + 25];
+    const p = briefPagesSvg(model(), resolveTheme(id, 'databricks', '', mode)).slice(1).find((x) => /not calculated yet/.test(x));
     assert.match(p, /data-design=/); assert.match(p, /not calculated yet/);
     assert.doesNotMatch(p, /data-block="value_projection"/);
   });

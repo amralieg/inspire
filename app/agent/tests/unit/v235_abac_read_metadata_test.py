@@ -157,9 +157,10 @@ def test_a_denied_source_is_refused_in_the_preflight_before_any_preview_or_publi
     assert record["tables"] == [SOURCE] and record["check"] is True
 
 
-def test_a_samples_catalog_denial_says_it_is_built_in_and_to_copy_the_table(agent_ns):
+def test_a_samples_catalog_denial_says_it_is_built_in_and_to_ask_an_admin_no_copy(agent_ns):
     sample = "samples.bakehouse.sales_transactions"
     text = agent_ns["implement_abac_denied_sentence"]({"table": sample, "principal": APP, "statement": "", "owner": "System user"})
-    assert "built-in sample catalog that Databricks owns" in text and "CREATE TABLE ... AS SELECT" in text
+    assert "built-in samples catalog" in text and "ask a workspace admin" in text
+    assert "CREATE TABLE" not in text and "copy" not in text.lower()
     assert sample not in text, "the sentence names no table id"
     assert "`" not in text and "GRANT" not in text

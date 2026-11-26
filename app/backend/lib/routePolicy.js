@@ -53,6 +53,14 @@ function useCaseTarget(req) {
   return { inspireDatabase: field(req, 'inspire_database'), sessionId: field(req, 'session_id'), useCaseIds: named ? [named] : [] };
 }
 
+// SEC (c23 sec_wire): a route that writes for a whole run (the run review) or for a file that may cover the whole run (a saved document). The use
+// cases it names (body use_case_ids) are owner-checked like any other use case; a request naming none is the run's, owned by whoever launched it.
+function wholeRunTarget(req) {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const ids = Array.isArray(body.use_case_ids) ? body.use_case_ids.map(str).filter(Boolean) : [];
+  return { inspireDatabase: field(req, 'inspire_database'), sessionId: field(req, 'session_id'), useCaseIds: ids };
+}
+
 function genieTarget(req) {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const ids = Array.isArray(body.use_case_ids) ? body.use_case_ids.map(str).filter(Boolean) : [];
@@ -114,10 +122,10 @@ const ROUTE_POLICY = {
   'GET /api/dbc/info': anyone('describe the bundled notebook', BUNDLED),
   'GET /api/demo-data/templates': anyone('list the demo data templates', BUNDLED),
   'GET /api/inspire/implement/app-look': anyone('read the App looks a build offers', BUNDLED),
-  'POST /api/auth/sp-token': anyone('trade the service principal credentials it sends for a token', 'uses only the credentials the caller sends and adds no token of the App'),
+  'POST /api/auth/sp-token': { ...anyone('trade the service principal credentials it sends for a token', 'uses only the credentials the caller sends and adds no token of the App'), localOnly: true },
   'GET /api/health': anyone('read the App health', "reports the App's own health and settings"),
   'GET /api/defaults': anyone('read the installer defaults', 'returns the settings the installer gave the App'),
-  'GET /api/connection-test': anyone('test the server token', "checks that the server's own token from its environment reaches the workspace"),
+  'GET /api/connection-test': { ...managers('test the server token'), why: "checks that the server's own token from its environment reaches the workspace" },
   'GET /api/me': anyone('read who is signed in', "names the person the proxy forwards and the App's own principal"),
   'POST /api/setup/verify': { ...managers('check the setup'), why: 'checks what the App itself reaches for its own setup: its sign-in, its warehouse and its Inspire database' },
   'GET /api/notebook': anyone('find the agent notebook', "checks the agent notebook at the App's own fixed path, which every run uses"),
@@ -141,7 +149,6 @@ const ROUTE_POLICY = {
   'POST /api/inspire/implement/swaps': personReads('look up table swaps', ['sql', 'catalog.tables:read']),
   'POST /api/inspire/implement/readiness': personReads('check data readiness', ['sql', 'catalog.tables:read']),
   'POST /api/inspire/implement/group-counts': personReads('count the rows of each group in scope', ['sql']),
-  'POST /api/inspire/samples/copy': reads('copy samples tables into a schema the App creates'),
   // A grant on a build's source tables changes what the App's principal can read, so it needs the build's owner (or the session's
   // launcher before the first build) or an App manager. UC still enforces the person's own GRANT rights on each object.
   'POST /api/inspire/implement/grant-access': { ...yours('grant read access with your own sign-in', ['sql']), rule: 'owners',
@@ -151,8 +158,8 @@ const ROUTE_POLICY = {
   'POST /api/inspire/implement/app-reads': { ...reads('check the read access an App Inspire built has'),
     ruleWhen: (req) => (requestAction(req) === 'grant' ? { rule: 'owners', action: 'grant read access to the App its build made', target: useCaseTarget,
       permissionRequired: true, why: GATED } : null) },
-  // REQ-418 (D-SL-10B): the App's service principal creates the schema; the requester is recorded in Inspire's own records.
-  'POST /api/inspire/implement/create-schema': reads('create a catalog or schema the App owns for the use case'),
+  // SEC-04: a catalog or schema a person names is created with that person's own sign-in, never the App's; the person's own right decides.
+  'POST /api/inspire/implement/create-schema': yours('create a catalog or schema with your own sign-in', ['sql']),
   'GET /api/inspire/implement/serving-endpoints': reads('list serving endpoints'),
   'POST /api/run/check': reads('check the grants a run needs before it starts'),
   'POST /api/run': anyone('launch a run', 'launches the run as the App, which owns the job and its tracking tables'),
@@ -174,17 +181,19 @@ const ROUTE_POLICY = {
   'POST /api/inspire/value/scope': personReads('count the records of a use case table and the range of its dates, before any value is worked out', ['sql'], { appDatabase: true }),
   'POST /api/inspire/value/filter': personReads('turn a plain-English description of the records to keep into a checked filter and count the records it keeps', ['sql'], { appDatabase: true }),
   'GET /api/inspire/macro/sources': anyone('list the public economic data sources', 'lists the fixed set of sources Inspire can read; fetches nothing'),
-  'GET /api/inspire/macro/series': tracked('read a public economic series, from the 7-day cache in the Inspire database or fetched from an allowed host, with its citation and optional factor',
+  'POST /api/inspire/macro/series': tracked('read a public economic series, from the 7-day cache in the Inspire database or fetched from an allowed host, with its citation and optional factor',
     'fetches from a fixed host allowlist and caches in the Inspire database with the signed-in person\'s token'),
-  'POST /api/inspire/value/run-review': tracked('have the model review the value of a whole run, so its total is realistic next to the size of the business',
-    'calls a chat model and saves the review as one row of the Calculate value answers'),
+  'POST /api/inspire/value/run-review': owners('have the model review the value of a whole run and save the review as one row of its Calculate value answers',
+    { target: wholeRunTarget, runWide: true, appDatabase: true }),
   'POST /api/inspire/value/preview': tracked('work out the value per year of a case plan and typed answers, with no data read',
     'reads nothing: pure arithmetic on the plan and answers it is sent'),
   'GET /api/inspire/value/answers': personReads('read the saved Calculate value answers of a session, with the stale check over its source tables', ['sql'], { appDatabase: true }),
-  'PUT /api/inspire/value/answers': personReads('save the Calculate value answers of one use case as a new version, with its estimate', ['sql'], { appDatabase: true }),
+  'PUT /api/inspire/value/answers': owners('save the Calculate value answers of one use case as a new version, with its estimate', { launcherOwnsUnbuilt: true, appDatabase: true,
+    // SEC-02: the estimate reads the source table the caller names, so it runs as the signed-in person; only the owner rule is added.
+    identity: 'person', scopes: ['sql'] }),
   'GET /api/inspire/value/answers/history': tracked('read the saved versions of the Calculate value answers of one use case'),
-  'POST /api/inspire/value/answers/undo': tracked('go back to the previous version of the Calculate value answers of one use case',
-    'writes the answers table with the App\'s service principal'),
+  // SEC-12: undo rewrites another version of the saved answers, so it takes the same owner-or-manager rule as the use case's other writes.
+  'POST /api/inspire/value/answers/undo': owners('go back to the previous version of the Calculate value answers of one use case', { appDatabase: true }),
   'GET /api/inspire/sessions': tracked('list sessions'),
   'GET /api/inspire/profiles': tracked('list the business profiles'),
   'GET /api/inspire/profiles/:profileId': tracked('read a business profile'),
@@ -197,7 +206,7 @@ const ROUTE_POLICY = {
   'GET /api/inspire/feedback': tracked('read feedback'),
   'POST /api/inspire/ack': tracked('acknowledge a step'),
   'POST /api/inspire/feedback': tracked('send feedback'),
-  'POST /api/inspire/docs/save': tracked("save a document the Generate docs wizard made into the run's Assets folder"),
+  'POST /api/inspire/docs/save': owners("save a document the Generate docs wizard made into the run's Assets folder", { target: wholeRunTarget, runWide: true, launcherOwnsUnbuilt: true }),
   'POST /api/inspire/docs/translate': tracked('translate the selected use case texts for a document language'),
   'POST /api/inspire/sync-genie-flags': managers('change the Genie flags of use cases'),
   'POST /api/inspire/usecase-name': managers('rename a use case'),
@@ -406,9 +415,21 @@ function createRoutePolicy(deps) {
       label: `session ${target.sessionId}` }));
   }
 
+  // A run-wide write is the launcher's: with no use case named, the owner is the person who launched the session (an unreadable record throws).
+  async function runLauncherVerdict(req, person, target, appDb) {
+    if (!appDb || !splitInspireDatabase(appDb) || norm(target.inspireDatabase) !== appDb) {
+      return { owner: false, unbuilt: false, why: `Inspire reads who launched a run only from its own database ${appDb || '(not set)'}` };
+    }
+    if (!isInt64Id(target.sessionId)) return { owner: false, unbuilt: false, why: 'the request names no valid session' };
+    const launcher = await sessionLauncher(req, target);
+    return { owner: Boolean(launcher) && launcher === person, unbuilt: false, name: '',
+      why: launcher ? `session ${target.sessionId} was launched by ${launcher}` : `Inspire has no record of who launched session ${target.sessionId}` };
+  }
+
   async function ownersVerdict(req, person, target, entry = {}) {
     const appDb = norm(deps.appDatabase());
     const ids = target.useCaseIds;
+    if (!ids.length && entry.runWide) return runLauncherVerdict(req, person, target, appDb);
     if (!ids.length || !ids.every((id) => USE_CASE_ID_RE.test(id))) return { owner: false, unbuilt: false, why: 'the request names no valid use case' };
     if (!appDb || !splitInspireDatabase(appDb) || norm(target.inspireDatabase) !== appDb) {
       return { owner: false, unbuilt: false, why: `Inspire reads use case owners only from its own database ${appDb || '(not set)'}` };

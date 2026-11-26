@@ -8,7 +8,7 @@ const SP_TOKEN = 'sp-token';
 const PERSON = 'person-token';
 const PERSON_EMAIL = ['pat.lee', 'example.com'].join('@');
 const SP_ID = 'inspire-client';
-const APP_ENV = { NODE_ENV: 'production', DATABRICKS_CLIENT_ID: SP_ID, DATABRICKS_CLIENT_SECRET: 'inspire-secret' };
+const APP_ENV = { NODE_ENV: 'production', DATABRICKS_CLIENT_ID: SP_ID, DATABRICKS_CLIENT_SECRET: 'inspire-secret', INSPIRE_WAREHOUSE_ID: 'wh' };
 // The person sees four catalogs. The App's principal reads `main`, holds only USE CATALOG on `half`, and sees nothing of `hr` or `dropped`.
 const PERSON_SEES = ['main', 'half', 'hr', 'dropped'];
 const SP_SEES = ['main', 'half'];
@@ -29,6 +29,8 @@ function answer(call) {
   const one = /^\/api\/2\.1\/unity-catalog\/tables\/(.+)$/.exec(url.pathname);
   if (one) return [200, { full_name: decodeURIComponent(one[1]) }];
   if (url.pathname === '/api/2.1/unity-catalog/tables') return [200, { tables: [{ name: 'orders', full_name: 'main.s.orders' }] }];
+  // SEC-02 (c23): the launch checks the person's read with a LIMIT 0 on the warehouse, so the fake workspace answers it.
+  if (url.pathname === '/api/2.0/sql/statements') return [200, { status: { state: 'SUCCEEDED' }, manifest: { schema: { columns: [] } }, result: { data_array: [] } }];
   if (url.pathname === '/api/2.0/workspace/get-status' && url.searchParams.get('path') === '/Shared/inspire/dbx_inspire_ai_agent') {
     return [200, { object_type: 'NOTEBOOK', path: url.searchParams.get('path') }];
   }

@@ -15,7 +15,6 @@ const SOURCES = ['server.js', 'implementRoutes.js'];
 const CALLER_INPUT = /req\.(query|body\??|params)\.(table|tables|path|rate_table|column|catalog|schema)\b|q\(req, '(table|path|column|catalog|schema)'\)|req\.body\?\.\w*table|const \{ catalog(, schema)? \} = req\.params/;
 // Frozen: the App reads these as itself because it creates or checks its own objects. Adding to this list needs a spec change.
 const APP_READS = new Set([
-  'POST /api/inspire/implement/create-schema', // the App creates its own schema
   'GET /api/inspire/implement/output-check', // the Build's output table, which the App writes
 ]);
 

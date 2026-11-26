@@ -28,6 +28,8 @@ const QUALITY_ORDER = ['Ultra High', 'Very High', 'High', 'Medium', 'Low'];
 const mapUseCase = (u) => ({
   id: u.id, name: u.name, short: u.short || u.name, domain: u.domain || 'Other', subdomain: u.subdomain, statement: u.statement, solution: u.solution,
   businessValue: u.businessValue, beneficiary: u.beneficiary, sponsor: u.sponsor, technique: u.technique, quality: u.quality, score: Number.isFinite(u.score) ? u.score : null,
+  design: u.design, type: u.type, priorityAlignment: u.priorityAlignment, strategicAlignment: u.strategicAlignment, kpis: u.kpis || [], keyResults: u.keyResults || [],
+  measures: u.measures || [], financial: u.financial || [], nonFinancial: u.nonFinancial || [], foundations: u.foundations || [],
   priorityScore: u.priorityScore, feasibility: u.feasibility, valueScore: u.valueScore, verb: u.value?.verb || '', tables: u.tables,
   value: u.value ? { amount: u.value.amount, currency: u.value.currency, text: u.value.text, yearText: `${u.value.text} a year`, status: u.value.status, story: u.value.story || '', yearly: u.value.yearly || [] } : null,
 });

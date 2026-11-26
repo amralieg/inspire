@@ -1,6 +1,7 @@
 // REQ-526 part C: the brief use case page, one A4 page (794 x 1123) per use case, laid out once for all four designs.
 // The engine owns the flow (what is shown, how long text is cut so the page never overflows, the projection chart, the data chips, the fact row);
 // each style passes a skin that draws its own frame, head, value tile, labels, boxes, chips and chart marks in its own visual language.
+import { extraParts, partLines } from '../docModel.js';
 import { T, t, rect, line, circle, svgDoc, has, wrap, textW, money, rtlMirror } from './core.js';
 
 export const PW = 794;
@@ -23,19 +24,21 @@ export function projectionYears(u) {
 
 // S (skin): P, footH, bg, boxBg, font, kind, ink, body, muted, labelH, gap, pad, factsH, chipH, chipPad,
 //   frame(pageNo), head(), tile(y), label(text, x, y, w), box(x, y, w, h), chipSvg(text, x, y, w), chart { colors, bar, ink, muted, grid, radius, bg }, chartH, defs.
+// C23: returns the pages of one use case (an array of svg strings). Every text is printed in full; what does not fit under the footer
+// moves to a continuation page (the head repeats, the value tile does not), so nothing is cut with "...".
 export function ucPage(m, u, idx, S) {
   const P = S.P; const CW = PW - 2 * P; const bottom = PH - S.footH;
   const pad = S.box ? S.pad : 0; const tw = CW - 2 * pad; const textBg = S.box ? S.boxBg : S.bg;
   const kind = S.kind || 'sans';
-  let body = S.frame(idx + 2);
-  const head = S.head(); body += head.svg;
-  let y = head.h + S.gap;
-  const tile = S.tile(y); body += tile.svg; y += tile.h + S.gap;
 
   // What is shown: nothing without data, nothing for a block that is off.
-  const secs = [];
-  if (has(m, 'use_case_story')) [['The use case', u.statement], ['The solution', u.solution], ['Business value', u.businessValue]].forEach(([label, text]) => text && secs.push({ id: 'use_case_story', label, text: softBreak(text), cap: 6 }));
-  if (has(m, 'value_story') && u.value?.story) secs.push({ id: 'value_story', label: 'Value story', text: softBreak(u.value.story), cap: 5 });
+  const story = [];
+  if (has(m, 'use_case_story')) {
+    [['The use case', u.statement], ['The solution', u.solution], ['Business value', u.businessValue]].forEach(([label, text]) => text && story.push({ id: 'use_case_story', label, text: softBreak(text) }));
+  }
+  if (has(m, 'value_story') && u.value?.story) story.push({ id: 'value_story', label: 'Value story', text: softBreak(u.value.story) });
+  // The extra detail fields come after the chart, data and facts (below), so a page that was complete before still is.
+  const extra = has(m, 'use_case_story') ? extraParts(u).map(([label, items]) => ({ id: 'use_case_story', label, text: softBreak(partLines(items).join('  ')) })) : [];
   const years = has(m, 'value_projection') ? projectionYears(u) : [];
   const tables = has(m, 'data_used') ? (u.tables || []) : [];
   const facts = [['Sponsor', u.sponsor], ['Beneficiary', u.beneficiary], ['Technique', u.technique]].filter((f) => f[1]);
@@ -58,39 +61,54 @@ export function ucPage(m, u, idx, S) {
     chipRows.push(...rows);
   }
   const boxH = (inner) => inner + 2 * pad;
-  const dataH = chipRows.length ? boxH(S.labelH + chipRows.length * (S.chipH + 8)) + S.gap : 0;
-  const chartTotal = years.length ? boxH(S.labelH + S.chartH) + S.gap : 0;
-  const factsTotal = facts.length ? S.factsH + S.gap : 0;
+  const textH = (s) => boxH(S.labelH + wrap(s.text, tw, BODY, kind, 400, 99).length * LH + 4);
+  // The things to place, in order. A text section is as tall as all its lines.
+  const items = [
+    ...story.map((s) => ({ type: 'text', s, h: textH(s) })),
+    ...(years.length ? [{ type: 'chart', h: boxH(S.labelH + S.chartH) }] : []),
+    ...(chipRows.length ? [{ type: 'chips', h: boxH(S.labelH + chipRows.length * (S.chipH + 8)) }] : []),
+    ...(facts.length ? [{ type: 'facts', h: S.factsH }] : []),
+    ...extra.map((s) => ({ type: 'text', s, h: textH(s) })),
+  ];
 
-  // Fit: shorten the longest text a line at a time until everything above the footer fits.
-  const textH = (s, cap) => boxH(S.labelH + Math.min(cap, wrap(s.text, tw, BODY, kind, 400, 99).length) * LH + 4) + S.gap;
-  const avail = bottom - y - dataH - chartTotal - factsTotal;
-  const total = () => secs.reduce((a, s) => a + textH(s, s.cap), 0);
-  while (total() > avail && secs.some((s) => s.cap > 1)) { const top = secs.reduce((a, s) => (s.cap > a.cap ? s : a), secs[0]); top.cap -= 1; }
-
-  secs.forEach((s) => {
-    const lines = Math.min(s.cap, wrap(s.text, tw, BODY, kind, 400, 99).length); const h = textH(s, s.cap) - S.gap; let inner = '';
-    if (S.box) inner += S.box(P, y, CW, h);
-    inner += S.label(s.label, P + pad, y + pad, tw);
-    inner += T(P + pad, y + pad + S.labelH + 12, s.text, { size: BODY, fill: S.body, bg: textBg, font: S.bodyFont || S.font, kind, maxW: tw, lines, lh: LH, ctx: `uc ${s.id}` }).svg;
-    body += g(s.id, inner); y += h + S.gap;
-  });
-
-  if (years.length) {
-    const h = boxH(S.labelH + S.chartH); let inner = (S.box ? S.box(P, y, CW, h) : '') + S.label('Three-year projection', P + pad, y + pad, tw);
-    inner += chart(u, years, P + pad, y + pad + S.labelH, tw, S.chartH, S);
-    body += g('value_projection', inner); y += h + S.gap;
+  const draw = (first) => {
+    let body = S.frame(idx + 2);
+    const head = S.head(); body += head.svg;
+    let y = head.h + S.gap;
+    if (first) { const tile = S.tile(y); body += tile.svg; y += tile.h + S.gap; }
+    return { body, y };
+  };
+  const pages = []; let rest = [...items]; let first = true;
+  while (first || rest.length) {
+    let { body, y } = draw(first);
+    let placed = 0;
+    for (const it of rest) {
+      // An item that fits goes here; one taller than a whole page is placed alone and cut by the page edge rule (never happens for a real use case).
+      if (y + it.h > bottom && placed > 0) break;
+      if (it.type === 'text') {
+        const s = it.s; const lines = wrap(s.text, tw, BODY, kind, 400, 99).length; let inner = '';
+        if (S.box) inner += S.box(P, y, CW, it.h);
+        inner += S.label(s.label, P + pad, y + pad, tw);
+        inner += T(P + pad, y + pad + S.labelH + 12, s.text, { size: BODY, fill: S.body, bg: textBg, font: S.bodyFont || S.font, kind, maxW: tw, lines, lh: LH, ctx: `uc ${s.id}` }).svg;
+        body += g(s.id, inner);
+      } else if (it.type === 'chart') {
+        let inner = (S.box ? S.box(P, y, CW, it.h) : '') + S.label('Three-year projection', P + pad, y + pad, tw);
+        inner += chart(u, years, P + pad, y + pad + S.labelH, tw, S.chartH, S);
+        body += g('value_projection', inner);
+      } else if (it.type === 'chips') {
+        let inner = (S.box ? S.box(P, y, CW, it.h) : '') + S.label('Data used', P + pad, y + pad, tw);
+        chipRows.forEach((row, r) => row.forEach((c) => { inner += S.chipSvg(c.label, P + pad + c.x, y + pad + S.labelH + r * (S.chipH + 8), c.w); }));
+        body += g('data_used', inner);
+      } else body += S.facts(facts, P, y, CW);
+      y += it.h + S.gap; placed += 1;
+    }
+    rest = rest.slice(placed); first = false;
+    // Right to left: the page is mirrored as a whole, and each text is flipped back about its own anchor so the words read normally (core.js rtlMirror).
+    if (m.rtl) body = rtlMirror(body, PW);
+    pages.push(svgDoc(PW, PH, `<g data-design="${S.id}" data-page="usecase">${body}</g>`, S.font, typeof S.defs === 'function' ? S.defs() : S.defs || ''));
+    if (pages.length >= 12) break;
   }
-  if (chipRows.length) {
-    const h = boxH(S.labelH + chipRows.length * (S.chipH + 8)); let inner = (S.box ? S.box(P, y, CW, h) : '') + S.label('Data used', P + pad, y + pad, tw);
-    chipRows.forEach((row, r) => row.forEach((c) => { inner += S.chipSvg(c.label, P + pad + c.x, y + pad + S.labelH + r * (S.chipH + 8), c.w); }));
-    body += g('data_used', inner); y += h + S.gap;
-  }
-  if (facts.length) body += S.facts(facts, P, y, CW);
-  // Right to left: the page is mirrored as a whole, and each text is flipped back about its own anchor so the words read normally.
-  // Right to left: the page is mirrored as a whole (core.js rtlMirror).
-  if (m.rtl) body = rtlMirror(body, PW);
-  return svgDoc(PW, PH, `<g data-design="${S.id}" data-page="usecase">${body}</g>`, S.font, typeof S.defs === 'function' ? S.defs() : S.defs || '');
+  return pages;
 }
 
 // The three-year projection: low, likely and high per year, drawn as the style's own marks (bars or lollipops).

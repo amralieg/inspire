@@ -38,7 +38,7 @@ for (const sample of SAMPLES.filter((s) => !['any', 'delegated'].includes(s.rule
 
 for (const sample of SAMPLES.filter((s) => s.rule === 'owners')) {
   test(`${label(sample)}: an owner of the use case passes the check`, async () => {
-    S.reset({ managers: [BOSS], history: [{ ...someoneElsesBuild[0], created_by: 'Owner@Example.com' }] });
+    S.reset({ managers: [BOSS], history: [{ ...someoneElsesBuild[0], created_by: 'Owner@Example.com' }], sessionLaunchers: { 1001: 'owner@example.com' } });
     const got = await S.request(sample.method, sample.path, { person: 'owner@example.com', body: sample.body });
     assert.equal(refusedByPolicy(got), false, `${label(sample)} refused the owner: ${got.text.slice(0, 300)}`);
   });

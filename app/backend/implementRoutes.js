@@ -169,6 +169,7 @@ function registerImplementRoutes(app, deps) {
     hostedRun = null,
     buildStamp = bundledBuildStamp,
     runDefaults = () => ({}),
+    isManager = async () => false,
     appToken = async () => '',
     appId = '',
     genieCodeCheck = GC.createGenieCodeCheck(),
@@ -202,8 +203,30 @@ function registerImplementRoutes(app, deps) {
   const visibleIds = async (req, ids) => new Set((await visibleOf(req, [...new Set(ids.map(String))].filter(Boolean).map((id) => ({ session_id: id }))))
     .map((s) => String(s.session_id)));
   const sessionRefusedText = 'You cannot open this session: you did not launch it and you cannot read every table it covers. Ask for access to the tables below.';
+  // SEC-07 (c23): the database and warehouse a route reads or writes with the App's identity are the App's own (runDefaults) unless the caller is an
+  // App manager. What a non-manager named in the query or body is replaced, so every route below (tracking reads, answers, docs, runs) shares one
+  // target. A deps without isManager, or a check that throws, pins everyone (fail closed).
+  async function pinTarget(req) {
+    let manager = false;
+    try {
+      manager = Boolean(await isManager(req));
+    } catch {
+      manager = false;
+    }
+    if (manager) return;
+    const defaults = runDefaults() || {};
+    const pinned = { inspire_database: String(defaults.inspireDatabase || ''), warehouse_id: String(defaults.warehouseId || '') };
+    // Express 5 builds req.query on every read, so the pinned copy is set as an own property.
+    Object.defineProperty(req, 'query', { value: { ...(req.query || {}), ...pinned }, writable: true, configurable: true, enumerable: true });
+    if (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) Object.assign(req.body, pinned);
+  }
   const requireToken = (req, res, next) => requireIdentity(req, res, async (err) => {
     if (err) return next(err);
+    try {
+      await pinTarget(req);
+    } catch (pinErr) {
+      return next(pinErr);
+    }
     const sid = int64Id(q(req, 'session_id'));
     if (!sid) return next();
     const hidden = await sessionRefusal(req, sid);
@@ -760,8 +783,8 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
-  async function useCaseSchemaRows(req, warehouseId, catalog, schemas) {
-    const person = req.dbToken;
+  async function useCaseSchemaRows(req, warehouseId, catalog, schemas, readToken = req.dbToken) {
+    const person = readToken;
     if (!person) return { rows: null, unchecked: '' };
     try {
       return { rows: await sqlRows(req.dbHost, person, warehouseId, I.useCaseSchemaStatement(catalog, schemas)), unchecked: '' };
@@ -1502,7 +1525,7 @@ function registerImplementRoutes(app, deps) {
   app.post('/api/inspire/implement/create-schema', requireToken, async (req, res) => {
     try {
       const warehouseId = warehouseOf(req);
-      const token = req.dbToken;
+      const token = P.forwardedTokenOf(req);
       if (!token) throw I.badRequest(I.IMPLEMENT_GRANT_NO_SIGN_IN, 401);
       const catalog = String((req.body && req.body.catalog) ?? '').trim();
       const schema = String((req.body && req.body.schema) ?? '').trim();
@@ -1511,7 +1534,7 @@ function registerImplementRoutes(app, deps) {
       const tags = schema && req.body && req.body.tags && typeof req.body.tags === 'object' ? req.body.tags : null;
       let found = {};
       if (tags) {
-        const { rows } = await useCaseSchemaRows(req, warehouseId, catalog, [schema]);
+        const { rows } = await useCaseSchemaRows(req, warehouseId, catalog, [schema], await appTokenOf(req));
         found = I.useCaseSchemaFacts(rows).schemas[schema.toLowerCase()] || {};
         const who = { inspireDatabase: dbOf(req, splitInspireDatabase).inspire_database, useCaseId: String(tags.inspire_use_case_id ?? '').trim() };
         const held = I.useCaseSchemaOwner(found, { ...who, sessionId: String(tags.inspire_session_id ?? '').trim() });
@@ -1524,7 +1547,8 @@ function registerImplementRoutes(app, deps) {
       if (!tags) return res.json({ catalog, schema });
       const warnings = [];
       const permissions = [];
-      // REQ-418 (ruling 3): the App creates the schema; the signed-in person is recorded as its requester in Inspire's own control log.
+      // SEC-04: the person's own sign-in creates, tags and grants the schema (the route policy is `yours`), so the App never acts on a
+      // place a person names. The control log is the App's own tracking table, so it is written with the App's token.
       const sid = String(tags.inspire_session_id ?? '').trim();
       const useCaseId = String(tags.inspire_use_case_id ?? '').trim();
       // Recorded only when the App creates the schema now; an existing schema was created by an earlier run, and the log says so.
@@ -1533,10 +1557,11 @@ function registerImplementRoutes(app, deps) {
         const { catalog: inspireCatalog, schema: inspireSchema } = dbOf(req, splitInspireDatabase);
         const logTable = C.controlLogTableName(inspireCatalog, inspireSchema);
         try {
-          await executeSql(req.dbHost, token, warehouseId, C.controlLogCreateSql(logTable));
+          const appSql = await appTokenOf(req);
+          await executeSql(req.dbHost, appSql, warehouseId, C.controlLogCreateSql(logTable));
           const row = C.controlLogInsert(logTable, { sessionId: sid, useCaseId, asset: 'schema', assetId: `${catalog}.${schema}`, action: 'create',
-            result: 'done', message: `Schema ${catalog}.${schema} created by the App, requested by ${requester || 'no signed-in person'}`, actedBy: requester });
-          await executeSql(req.dbHost, token, warehouseId, row.sql, row.parameters);
+            result: 'done', message: `Schema ${catalog}.${schema} created by ${requester || 'a signed-in person'}`, actedBy: requester });
+          await executeSql(req.dbHost, appSql, warehouseId, row.sql, row.parameters);
         } catch (err) {
           warnings.push(`Inspire could not record who requested ${catalog}.${schema}: ${String((err && err.message) || err).slice(0, 200)}`);
         }
@@ -2114,6 +2139,11 @@ function registerImplementRoutes(app, deps) {
     try {
       const warehouseId = warehouseOf(req);
       const { catalog, schema } = dbOf(req, splitInspireDatabase);
+      // SEC-01 (c23): hosted pages come only from the default Inspire database. A record planted in any other database is neither read nor registered.
+      const home = splitInspireDatabase(String((runDefaults() || {}).inspireDatabase || ''));
+      if (!home || home.catalog.toLowerCase() !== catalog.toLowerCase() || home.schema.toLowerCase() !== schema.toLowerCase()) {
+        return res.json({ pages: [], user_authorization: Boolean(P.forwardedTokenOf(req)) });
+      }
       const [listed, person] = await Promise.all([loadRunPages(req, warehouseId, catalog, schema), personOf(req)]);
       // SEC-02 (F6b): only the pages of the sessions the person may see are listed or remembered as listed.
       const seen = await visibleIds(req, listed.map((p) => int64Id(p.session_id)).filter(Boolean));
@@ -2446,13 +2476,14 @@ function registerImplementRoutes(app, deps) {
 
   // Request for Access (REQ-311): the Permission Required dialog checks whether a destination is set, then sends the request as the person.
   // Both routes read the signed-in person's token only; the request names no principal, so it is always the requester's own.
+  const scopeOf = (raw) => (Array.isArray(raw) ? raw.map((x) => String(x || '').trim()).filter(Boolean) : undefined);
   const accessRequestCall = (req, token) => (path, opts) => jsonOf(dbFetch, req.dbHost, token, path, opts);
   app.post('/api/access-request/check', requireToken, async (req, res) => {
     const token = P.personTokenOf(req);
     if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
     try {
       const who = RP.forwardedPerson(req.headers || {});
-      return res.json(await AR.checkAccessRequest({ call: accessRequestCall(req, token), who, statements: req.body?.statements, host: req.dbHost }));
+      return res.json(await AR.checkAccessRequest({ call: accessRequestCall(req, token), who, statements: req.body?.statements, host: req.dbHost, scope: scopeOf(req.body?.scope) }));
     } catch (err) {
       return sendError(res, err);
     }
@@ -2468,7 +2499,7 @@ function registerImplementRoutes(app, deps) {
         if (checked.error) return res.status(400).json({ error: checked.error });
         return res.json(await AR.sendObjectRequest({ call: accessRequestCall(req, token), who, objects: checked.objects, app: appId }));
       }
-      return res.json(await AR.sendAccessRequest({ call: accessRequestCall(req, token), who, statements: req.body?.statements, host: req.dbHost }));
+      return res.json(await AR.sendAccessRequest({ call: accessRequestCall(req, token), who, statements: req.body?.statements, host: req.dbHost, scope: scopeOf(req.body?.scope) }));
     } catch (err) {
       return sendError(res, err);
     }
@@ -3657,7 +3688,7 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
-  return { loadHistory, measuredYearlyOf };
+  return { loadHistory, measuredYearlyOf, pinTarget };
 }
 
 module.exports = { jsonOf, registerImplementRoutes };

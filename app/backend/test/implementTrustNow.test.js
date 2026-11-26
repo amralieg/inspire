@@ -115,7 +115,7 @@ test('an MVP built on an older release says so on its Build page and in the App 
   assert.equal(fresh.data.latest.older_build, '');
   const registry = [row(RC3), row(STAMPED, { use_case_id: 'N01-U02', app_name: 'other-app', spec_json: { ...SPEC, use_case_id: 'N01-U02', use_case_name: 'Score leads' } })]
     .map((r) => ({ ...r, spec_json: JSON.stringify(r.spec_json), asset_status: JSON.stringify(r.asset_status) }));
-  const pages = await call({ registry, useCaseScope: [] }, '/api/run/pages?inspire_database=main.inspire&warehouse_id=wh1');
+  const pages = await call({ runDefaults: { inspireDatabase: 'main.inspire', warehouseId: 'wh1' }, registry, useCaseScope: [] }, '/api/run/pages?inspire_database=main.inspire&warehouse_id=wh1');
   assert.equal(pages.status, 200, JSON.stringify(pages.data));
   const byUc = Object.fromEntries(pages.data.pages.map((p) => [p.use_case_id, p.older_build]));
   assert.deepEqual(byUc, { 'N01-U01': note, 'N01-U02': '' });
