@@ -7,6 +7,7 @@ import Button from '../ui/Button';
 import { PlainMessage } from '../TechnicalDetails';
 import { stepCategory } from '../../lib/monitorState';
 import { splitTechnical } from '../../lib/plainText';
+import { aiWording } from '../../lib/aiWording';
 import { nameOfUseCase } from '../../lib/useCaseFields';
 
 // REQ-511: "Every step" replaces the inline Detailed Steps log. The same stage list, search, status filter and step rows, in a dialog.
@@ -122,7 +123,7 @@ export default function EveryStepDialog({
                     <span className={`text-caption font-semibold block truncate ${
                       active ? 'text-db-red-fg' : 'text-text-primary'
                     }`}>
-                      {name}
+                      {aiWording(name)}
                     </span>
                     <div className="flex items-center gap-2 mt-1">
                       <div className="flex-1 h-1 bg-bg rounded-full overflow-hidden">
@@ -226,7 +227,7 @@ export default function EveryStepDialog({
               )}
               {stageFilter !== 'all' && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-caption font-medium border border-db-red/20">
-                  {stageFilter}
+                  {aiWording(stageFilter)}
                   <button onClick={() => setStageFilter('all')} aria-label="Remove stage filter" className="hover:text-db-red-fg">&times;</button>
                 </span>
               )}
@@ -267,7 +268,7 @@ export default function EveryStepDialog({
                     ) : (
                       <div className="w-5 h-5 rounded-full bg-bg-subtle flex items-center justify-center"><Clock size={14} className="text-text-tertiary" /></div>
                     )}
-                    <h3 className="text-xs font-bold text-text-primary flex-1">{stageName}</h3>
+                    <h3 className="text-xs font-bold text-text-primary flex-1">{aiWording(stageName)}</h3>
                     <div className="flex items-center gap-2">
                       {errorCount > 0 && (
                         <span className="text-caption font-medium px-1.5 py-0.5 rounded bg-error-bg text-error-fg">
@@ -370,11 +371,11 @@ function StepRow({ step, live, searchQuery }) {
         {style.icon}
         <div className="flex-1 min-w-0">
           <div className="text-sm text-text-primary font-medium truncate">
-            {highlightMatch(step.step_name || step.sub_step_name || 'Step', searchQuery)}
+            {highlightMatch(aiWording(step.step_name || step.sub_step_name || 'Step'), searchQuery)}
           </div>
           {step.message && !expanded && (
             <p className="text-caption text-text-tertiary mt-0.5 truncate">
-              {highlightMatch(said.plain, searchQuery)}
+              {highlightMatch(aiWording(said.plain), searchQuery)}
             </p>
           )}
         </div>
@@ -393,10 +394,10 @@ function StepRow({ step, live, searchQuery }) {
         <div className="px-4 pb-3 ps-11 space-y-1.5">
           {step.sub_step_name && (
             <p className="text-xs text-text-secondary">
-              <span className="text-text-tertiary">Sub-step:</span> {step.sub_step_name}
+              <span className="text-text-tertiary">Sub-step:</span> {aiWording(step.sub_step_name)}
             </p>
           )}
-          <PlainMessage text={step.message} className="text-xs text-text-secondary bg-bg-subtle rounded-lg p-2.5 leading-relaxed" />
+          <PlainMessage text={aiWording(step.message)} className="text-xs text-text-secondary bg-bg-subtle rounded-lg p-2.5 leading-relaxed" />
           {step.result_json && Object.keys(step.result_json).length > 0 && (
             <ResultJsonDisplay resultJson={step.result_json} />
           )}
@@ -416,7 +417,7 @@ function ResultJsonDisplay({ resultJson }) {
     return (
       <div className="text-xs bg-error-bg/50 rounded-lg p-2.5 border border-error/10">
         <span className="text-error-fg font-semibold">Error:</span>{' '}
-        <PlainMessage as="span" text={rj.error} className="text-text-secondary" />
+        <PlainMessage as="span" text={aiWording(rj.error)} className="text-text-secondary" />
       </div>
     );
   }

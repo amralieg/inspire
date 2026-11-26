@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import ModalDialog from '../ModalDialog';
 import { formatDuration } from '../../lib/formatWhen';
+import { aiWording } from '../../lib/aiWording';
 
 // REQ-511 Monitor C (F186): how long each stage took, from the first and last time its steps were saved.
 export function stageDurationsOf(steps) {
@@ -24,7 +25,7 @@ export default function StageDurationsDialog({ steps, elapsed, onClose }) {
         <ul role="list" className="divide-y divide-border text-sm">
           {rows.map((r) => (
             <li key={r.name} className="flex items-center justify-between gap-3 py-2">
-              <span className="min-w-0 break-words text-text-primary">{r.name}</span>
+              <span className="min-w-0 break-words text-text-primary">{aiWording(r.name)}</span>
               <span className="shrink-0 tabular-nums text-text-secondary">{r.ms > 0 ? formatDuration(r.ms) : 'under a second'}</span>
             </li>
           ))}
