@@ -1,7 +1,7 @@
 // Option A "Original": the agent's own document system (teal + sand + gold, Fraunces display over Inter body, coral eyebrows, gold rule,
 // rings art on a teal gradient cover), rendered as a graphic-led infographic. Fixes: coral and gold text darkened or lightened to 4.5:1,
 // no 8.6pt micro text, real charts (bars, donut, quadrant) instead of chips only, value and score on every card.
-import { t, T, rect, line, circle, icon, svgDoc, textW, runW, money, VERB_ICON, DISCLAIMER, wrap, has, verbColors, iconName } from '../core.js';
+import { t, T, rect, line, circle, icon, svgDoc, textW, runW, money, VERB_ICON, DISCLAIMER, wrap, nLines, has, verbColors, iconName } from '../core.js';
 import { ucPage, factCols, NOT_YET } from '../ucPage.js';
 import { hbars, donut, legend, quadrant, meter } from '../charts.js';
 
@@ -224,13 +224,14 @@ function briefPage1(m, th) {
   if (rows >= 2) {
     const y0 = text ? ly : 470;
     s += eyebrow(P, y0 + (text ? 0 : 0), 'Where to start', th, th.page) + rect(P, y0 + 10, 54, 3, th.gold, { rx: 2 });
+    let sink = 0;
     m.ranked.slice(0, rows).forEach((u, i) => {
-      const ry = y0 + 24 + i * 32;
-      s += T(P, ry + 16, u.name, { size: 13, weight: 700, fill: th.ink, bg: th.page, font: BODY, maxW: 250, lines: 1, ctx: 'start name' }).svg;
+      const ex = (nLines(u.name, 250, 13, 'sans', 700) - 1) * 16; const ry = y0 + 24 + i * 32 + sink; sink += ex;
+      s += T(P, ry + 16, u.name, { size: 13, weight: 700, fill: th.ink, bg: th.page, font: BODY, maxW: 250, lh: 16, ctx: 'start name' }).svg;
       s += t(P + 262, ry + 16, u.domain, { size: 12, fill: th.muted, bg: th.page, font: BODY, maxW: 78, lines: 1, ctx: 'start domain' });
       s += t(P + 420 - (has(m, 'inspire_score') ? 40 : 0), ry + 16, u.value.text, { size: 13, weight: 700, fill: th.teal, bg: th.page, anchor: 'end', font: BODY, ctx: 'start value' });
       if (has(m, 'inspire_score')) s += t(P + 420, ry + 16, u.score.toFixed(1), { size: 13, fill: th.ink, bg: th.page, anchor: 'end', font: BODY, ctx: 'start score' });
-      s += line(P, ry + 24, P + 420, ry + 24, th.line);
+      s += line(P, ry + 24 + ex, P + 420, ry + 24 + ex, th.line);
     });
   }
   const rx = 500; const rw = W - P - rx;

@@ -1,6 +1,6 @@
 // Option C "Bold": a data-visual poster. Navy hero, one vivid colour per domain carried through every chart, heavy geometric sans,
 // rounded cards on a cool grey canvas, icons in filled circles, bubble scatter (bubble = value), big donut, colourful treemap.
-import { t, T, rect, line, circle, icon, svgDoc, money, VERB_ICON, DISCLAIMER, bestInk, runW, arc, has, verbColors, iconName } from '../core.js';
+import { t, T, nLines, rect, line, circle, icon, svgDoc, money, VERB_ICON, DISCLAIMER, bestInk, runW, arc, has, verbColors, iconName } from '../core.js';
 import { ucPage, factCols, NOT_YET } from '../ucPage.js';
 import { donut, quadrant, treemapChart } from '../charts.js';
 
@@ -143,12 +143,13 @@ function deckDomain(m, th, d, idx) {
   s += card(540, 50, 733, 650, th);
   s += H2(570, 100, 'Use cases in this domain', th, th.card, 24) + SUB(1243, 100, 'value a year · score', th, th.card, { anchor: 'end', size: 16 });
   const max = Math.max(...ucs.map((u) => u.value.amount));
+  let drop = 0;
   ucs.slice(0, 7).forEach((u, i) => {
-    const y = 150 + i * 76;
-    s += T(570, y + 6, u.short, { size: 17, weight: 700, fill: th.ink, bg: th.card, font: BODY, maxW: 660, lines: 1, ctx: 'row' }).svg;
-    s += rect(570, y + 20, 520, 18, th.track, { rx: 9 }) + rect(570, y + 20, Math.max(18, (u.value.amount / max) * 520), 18, c, { rx: 9 });
-    s += t(1180, y + 36, u.value.text, { size: 18, weight: 800, fill: th.ink, bg: th.card, anchor: 'end', font: BODY, ctx: 'row v' });
-    s += rect(1192, y + 18, 54, 24, th.track, { rx: 12 }) + t(1219, y + 36, u.score.toFixed(1), { size: 16, weight: 800, fill: th.ink, bg: th.track, anchor: 'middle', font: BODY, ctx: 'row s' });
+    const ex = (nLines(u.short, 660, 17, 'sans', 700) - 1) * 21; const y = 150 + i * 76 + drop; drop += ex;
+    s += T(570, y + 6, u.short, { size: 17, weight: 700, fill: th.ink, bg: th.card, font: BODY, maxW: 660, lh: 21, ctx: 'row' }).svg;
+    s += rect(570, y + 20 + ex, 520, 18, th.track, { rx: 9 }) + rect(570, y + 20 + ex, Math.max(18, (u.value.amount / max) * 520), 18, c, { rx: 9 });
+    s += t(1180, y + 36 + ex, u.value.text, { size: 18, weight: 800, fill: th.ink, bg: th.card, anchor: 'end', font: BODY, ctx: 'row v' });
+    s += rect(1192, y + 18 + ex, 54, 24, th.track, { rx: 12 }) + t(1219, y + 36 + ex, u.score.toFixed(1), { size: 16, weight: 800, fill: th.ink, bg: th.track, anchor: 'middle', font: BODY, ctx: 'row s' });
   });
   return svgDoc(SW, SH, s, BODY, '<clipPath id="cPanel"><rect x="0" y="0" width="500" height="750"/></clipPath>');
 }
@@ -202,9 +203,10 @@ function briefPage1(m, th) {
   const rows = Math.min(7, m.ranked.length, Math.floor((444 - ly - 24) / 26));
   if (rows >= 2) {
     s += H2(P + 20, ly, 'Where to start', th, th.card, 18);
+    let sink = 0;
     m.ranked.slice(0, rows).forEach((u, i) => {
-      const ry = ly + 24 + i * 26;
-      s += T(P + 20, ry, u.name, { size: 13, weight: 700, fill: th.ink, bg: th.card, font: BODY, maxW: 340, lines: 1, ctx: 'start name' }).svg;
+      const ry = ly + 24 + i * 26 + sink; sink += (nLines(u.name, 340, 13, 'sans', 700) - 1) * 16;
+      s += T(P + 20, ry, u.name, { size: 13, weight: 700, fill: th.ink, bg: th.card, font: BODY, maxW: 340, lh: 16, ctx: 'start name' }).svg;
       s += t(P + 380, ry, u.domain, { size: 13, fill: th.muted, bg: th.card, font: BODY, maxW: 130, lines: 1, ctx: 'start domain' });
       s += t(P + CW - 20 - (has(m, 'inspire_score') ? 44 : 0), ry, u.value.text, { size: 13, weight: 800, fill: th.ink, bg: th.card, anchor: 'end', font: BODY, ctx: 'start value' });
       if (has(m, 'inspire_score')) s += t(P + CW - 20, ry, u.score.toFixed(1), { size: 13, weight: 800, fill: th.muted, bg: th.card, anchor: 'end', font: BODY, ctx: 'start score' });

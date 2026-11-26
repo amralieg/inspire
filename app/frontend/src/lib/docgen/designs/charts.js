@@ -124,7 +124,7 @@ export function waterfall(items, b, o) {
     s += rect(x, y1, bw, y0 - y1, o.fill(i, it));
     if (i < items.length - 1) s += line(x + bw, y1, x + slot, y1, o.grid, 1, { dash: '3 3' });
     s += t(x + bw / 2, y1 - 5, it.text, { size: fs, weight: 700, fill: o.ink, bg: o.bg, anchor: 'middle', font: o.font, ctx: 'wf value' });
-    const lab = wrap(it.name, slot - 2, fs, 'sans', 400, 2);
+    const lab = wrap(it.name, slot - 2, fs, 'sans', 400);
     lab.forEach((l, j) => { s += t(x + bw / 2, base + fs + 4 + j * (fs + 2), l, { size: fs, fill: o.muted, bg: o.bg, anchor: 'middle', font: o.font, ctx: 'wf label' }); });
     acc += it.value;
   });

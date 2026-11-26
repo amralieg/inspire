@@ -12,14 +12,14 @@ const has = (m, id) => m.blocks.includes(id);
 const NOT_YET = 'not calculated yet';
 const NO_PROJECTION = 'Calculate value to add the projection';
 
-function wrap(text, max, maxLines = 99) {
+// Text is never cut: a longer text wraps onto more lines and the caller grows the block.
+function wrap(text, max) {
   const words = String(text ?? '').split(/\s+/).filter(Boolean);
   const lines = []; let cur = '';
   for (const w of words) {
     if ((cur + ' ' + w).trim().length > max && cur) { lines.push(cur); cur = w; } else cur = (cur + ' ' + w).trim();
   }
   if (cur) lines.push(cur);
-  if (lines.length > maxLines) { lines.length = maxLines; lines[maxLines - 1] = `${lines[maxLines - 1].slice(0, Math.max(0, max - 1))}…`; }
   return lines;
 }
 
@@ -28,7 +28,7 @@ function txt(m, t, x, y, { size = 14, weight = 400, fill, w = 0, anchor, max, li
   const ax = anchor || (m.rtl ? 'end' : 'start');
   const px = m.rtl && !anchor ? x + w : x;
   const tt = LB(String(t ?? ''));
-  const parts = max ? wrap(tt, max, lines) : [tt];
+  const parts = max ? wrap(tt, max) : [tt];
   const step = lh || size * 1.35;
   const spans = parts.map((p, i) => `<tspan x="${px}" dy="${i ? step : 0}">${esc(p)}</tspan>`).join('');
   return `<text x="${px}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${fill}" text-anchor="${ax}">${spans}</text>`;
@@ -100,12 +100,14 @@ function projection(m, theme, x, y, w, h) {
   return { h: h + 20, svg: `${s}</g>` };
 }
 
+const barRowH = (u) => Math.max(40, wrap(LB(u.name), 26).length * 18 + 8);
 function valueBars(m, theme, x, y, w) {
   const max = Math.max(...m.useCases.map((u) => u.value?.amount || 0), 1);
   let s = txt(m, 'Value per use case', x, y + 22, { size: 18, weight: 700, fill: theme.ink, w });
+  let drop = 0;
   m.useCases.forEach((u, i) => {
-    const ry = y + 44 + i * 40; const bw = u.value ? Math.max(8, (u.value.amount / max) * (w - 330)) : 0;
-    s += txt(m, u.name, x, ry + 16, { size: 13, fill: theme.ink, w: 200, max: 26, lines: 1 });
+    const ry = y + 44 + drop; drop += barRowH(u); const bw = u.value ? Math.max(8, (u.value.amount / max) * (w - 330)) : 0;
+    s += txt(m, u.name, x, ry + 16, { size: 13, fill: theme.ink, w: 200, max: 26, lh: 18 });
     if (u.value) {
       s += mark(theme, x + 210, ry, bw, 22, theme.accents[i % theme.accents.length], i);
       s += txt(m, u.value.text, x + 218 + bw, ry + 16, { size: 13, weight: 700, fill: theme.ink, w: 100 });
@@ -120,7 +122,8 @@ function card(m, theme, u, i, x, y, w) {
   const edge = theme.shape === 'round' || theme.shape === 'arch' ? 18 : theme.shape === 'line' ? 0 : 6;
   const c = theme.accents[i % theme.accents.length];
   let ty = y + 66; let s = `<g data-uc="${esc(u.id)}"><rect x="${x}" y="${y}" width="${w}" height="CARD_H" rx="${edge}" fill="${theme.surface}" stroke="${c}" stroke-opacity="0.45"/>${icon(theme, m.rtl ? x + w - 52 : x + 16, y + 14, i)}`;
-  s += txt(m, u.name, x + 62, y + 36, { size: 17, weight: 700, fill: theme.ink, w: w - 124, max: Math.floor((w - 124) / 9), lines: 2 });
+  s += txt(m, u.name, x + 62, y + 36, { size: 17, weight: 700, fill: theme.ink, w: w - 124, max: Math.floor((w - 124) / 9) });
+  ty += Math.max(0, wrap(LB(u.name), Math.floor((w - 124) / 9)).length - 2) * 23;
   const tail = [];
   if (has(m, 'inspire_score') && u.score != null) tail.push(`Score ${u.score.toFixed(1)}`);
   if (u.value) tail.push(u.value.text); else tail.push(NOT_YET);
@@ -129,7 +132,7 @@ function card(m, theme, u, i, x, y, w) {
   const block = (id, label, text, lines = 3) => {
     if (!has(m, id) || !text) return '';
     const out = `<g data-block="${id}">${txt(m, label, x + 20, ty, { size: 12, weight: 700, fill: theme.muted, w: w - 40 })}${txt(m, text, x + 20, ty + 18, { size: 13, fill: theme.ink, w: w - 40, max: Math.floor((w - 40) / 7.2), lines, lh: 18 })}</g>`;
-    ty += 24 + 18 * Math.min(lines, wrap(text, Math.floor((w - 40) / 7.2)).length);
+    ty += 24 + 18 * wrap(text, Math.floor((w - 40) / 7.2)).length;
     return out;
   };
   s += block('use_case_story', 'USE CASE', u.statement || u.solution);
@@ -167,7 +170,7 @@ function infographicSvgOf(m, theme) {
   k.forEach(([l, v], i) => { body += kpi(m, theme, 48 + i * (kw + gap), y, kw, l, v, i); });
   y += 92 + 36;
   if (has(m, 'value_projection')) { const pj = projection(m, theme, 48, y, W - 96, 280); body += pj.svg; y += pj.h; }
-  body += valueBars(m, theme, 48, y, W - 96); y += 44 + m.useCases.length * 40 + 24;
+  body += valueBars(m, theme, 48, y, W - 96); y += 44 + m.useCases.reduce((a, u) => a + barRowH(u), 0) + 24;
   // Cards in two columns; each row is as tall as its taller card.
   for (let i = 0; i < m.useCases.length; i += 2) {
     const pair = m.useCases.slice(i, i + 2).map((u, j) => card(m, theme, u, i + j, 48 + j * (cw + gap), y, cw));

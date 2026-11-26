@@ -1,6 +1,6 @@
 // Option D "Consulting": a board-pack exhibit page. White, navy and one blue, action titles that state the conclusion, numbered exhibits,
 // a waterfall that builds the total, a labelled 2x2, a prioritisation funnel, a ranked table with spark bars and Harvey balls, a source line.
-import { t, T, rect, line, icon, svgDoc, money, DISCLAIMER, bestInk, wrap, has, iconName, VERB_ICON } from '../core.js';
+import { t, T, rect, line, icon, svgDoc, money, DISCLAIMER, bestInk, wrap, nLines, has, iconName, VERB_ICON } from '../core.js';
 import { ucPage, factCols, NOT_YET } from '../ucPage.js';
 import { quadrant, waterfall, funnel, harvey, hbars } from '../charts.js';
 
@@ -72,12 +72,15 @@ function infographic(m, th, { W, H }) {
     s += t(x, y + 15, h, { size: 12, weight: 700, fill: th.slate, bg: th.panel, anchor: a, font: BODY, ctx: 'th' });
   });
   y += 22;
-  const footer = 92; const rowH = 27; const rows = Math.max(3, Math.floor((H - y - footer) / rowH));
-  const vmax = m.ranked[0].value.amount;
-  m.ranked.slice(0, rows).forEach((u, i) => {
-    const yy = y + i * rowH; const cy = yy + rowH / 2 + 4; const dname = m.domains.find((q) => q.name === u.domain).icon;
+  const footer = 92; const rowMin = 27; const vmax = m.ranked[0].value.amount;
+  const rh = (u) => Math.max(rowMin, nLines(u.short, 262, 12) * 14 + 13);
+  const shown = []; let room = H - y - footer;
+  for (const u of m.ranked) { const h = rh(u); if (shown.length >= 3 && h > room) break; shown.push({ u, h }); room -= h; }
+  let used = 0;
+  shown.forEach(({ u, h: rowH }, i) => {
+    const yy = y + used; used += rowH; const cy = yy + 14 + 4 - (rowMin - 27) / 2; const dname = m.domains.find((q) => q.name === u.domain).icon;
     s += t(cols.rank + 4, cy, String(i + 1), { size: 12, weight: 700, fill: th.ink, bg: th.page, font: BODY, ctx: 'td' });
-    s += T(cols.name, cy, u.short, { size: 12, fill: th.ink, bg: th.page, font: BODY, maxW: 262, lines: 1, ctx: 'td' }).svg;
+    s += T(cols.name, cy, u.short, { size: 12, fill: th.ink, bg: th.page, font: BODY, maxW: 262, lh: 14, ctx: 'td' }).svg;
     s += icon(dname, cols.dom, cy - 10, 13, th.slate, 1.8) + t(cols.dom + 18, cy, u.domain, { size: 12, fill: th.ink, bg: th.page, font: BODY, maxW: 92, lines: 1, ctx: 'td' });
     s += t(cols.val + 48, cy, u.value.text, { size: 12, weight: 700, fill: th.ink, bg: th.page, anchor: 'end', font: BODY, ctx: 'td' });
     s += rect(cols.bar, cy - 8, 96, 8, th.panel) + rect(cols.bar, cy - 8, (u.value.amount / vmax) * 96, 8, isDf(u) ? th.blue : th.barAlt);
@@ -85,7 +88,7 @@ function infographic(m, th, { W, H }) {
     if (m.verbs.length) s += t(cols.verb, cy, cap(u.verb), { size: 12, fill: th.slate, bg: th.page, anchor: 'end', font: BODY, ctx: 'td' });
     s += line(P, yy + rowH, W - P, yy + rowH, th.rule, 0.6);
   });
-  y += rows * rowH + 16;
+  y += used + 16;
   s += T(P, y, `How to read: dashed lines mark the median score (${m.median.score.toFixed(1)}) and median value (${money(m.median.value)}). Blue = do first. Harvey ball = score out of 10.`, { size: 12, fill: th.ink, bg: th.page, font: BODY, maxW: CW, lines: 2, lh: 15, ctx: 'how' }).svg;
   s += T(P, y + 34, `Source: Databricks Inspire AI analysis of the ${m.businessName} catalog.${has(m, 'disclaimer') ? ` ${DISCLAIMER}` : ''}`, { size: 12, fill: th.slate, bg: th.page, font: BODY, maxW: CW, lines: 3, lh: 15, ctx: 'source' }).svg;
   return svgDoc(W, H, s, BODY);
@@ -134,14 +137,14 @@ function deckDomain(m, th, d, idx) {
   [['Use case', SP + 12, 'start'], ['Value a year', SP + 520, 'end'], ['Score', SP + 600, 'middle'], ['Do first', SP + 700, 'middle']].forEach(([h, x, a]) => { s += t(x, y + 22, h, { size: 16, weight: 700, fill: th.slate, bg: th.panel, anchor: a, font: BODY, ctx: 'th' }); });
   y += 32; const max = ucs[0].value.amount;
   ucs.slice(0, 7).forEach((u) => {
-    const cy = y + 30;
-    s += T(SP + 12, cy - 6, u.short, { size: 16, fill: th.ink, bg: th.page, font: BODY, maxW: 360, lines: 1, ctx: 'td' }).svg;
-    s += rect(SP + 12, cy + 4, (u.value.amount / max) * 330, 6, isDf(u) ? th.blue : th.barAlt);
+    const cy = y + 30; const ex = (nLines(u.short, 360, 16) - 1) * 19;
+    s += T(SP + 12, cy - 6, u.short, { size: 16, fill: th.ink, bg: th.page, font: BODY, maxW: 360, lh: 19, ctx: 'td' }).svg;
+    s += rect(SP + 12, cy + 4 + ex, (u.value.amount / max) * 330, 6, isDf(u) ? th.blue : th.barAlt);
     s += t(SP + 520, cy, u.value.text, { size: 16, weight: 700, fill: th.ink, bg: th.page, anchor: 'end', font: BODY, ctx: 'td' });
     s += harvey(SP + 586, cy - 5, 9, u.score, th.navy, th.page) + t(SP + 602, cy, u.score.toFixed(1), { size: 16, fill: th.ink, bg: th.page, font: BODY, ctx: 'td' });
     s += t(SP + 700, cy, isDf(u) ? 'Yes' : 'No', { size: 16, weight: isDf(u) ? 700 : 400, fill: isDf(u) ? th.blueText : th.slate, bg: th.page, anchor: 'middle', font: BODY, ctx: 'td' });
-    s += line(SP, y + 48, SP + 760, y + 48, th.rule, 1);
-    y += 48;
+    s += line(SP, y + 48 + ex, SP + 760, y + 48 + ex, th.rule, 1);
+    y += 48 + ex;
   });
   const rx = SP + 800; const rw = SW - SP - rx;
   s += t(rx, y0, 'EXHIBIT 2', { size: 16, weight: 700, fill: th.blueText, bg: th.page, font: BODY, ctx: 'exh' }) + t(rx + 100, y0, 'Share of all value', { size: 18, weight: 700, fill: th.ink, bg: th.page, font: BODY, ctx: 'exh t' });
@@ -200,12 +203,12 @@ function briefPage1(m, th) {
   [['Use case', P + 10, 'start'], ['Domain', P + 420, 'start'], ['Value a year', P + 600, 'end'], ['Score', W - P - 10, 'end']].filter((c) => c[0] !== 'Score' || has(m, 'inspire_score')).forEach(([h, x, a]) => { s += t(x, y + 16, h, { size: 12, weight: 700, fill: th.slate, bg: th.panel, anchor: a, font: BODY, ctx: 'th' }); });
   y += 24;
   m.ranked.slice(0, 7).forEach((u) => {
-    const cy = y + 22;
-    s += T(P + 10, cy, u.name, { size: 13, fill: th.ink, bg: th.page, font: BODY, maxW: 400, lines: 1, ctx: 'td' }).svg;
+    const cy = y + 22; const ex = (nLines(u.name, 400, 13) - 1) * 16;
+    s += T(P + 10, cy, u.name, { size: 13, fill: th.ink, bg: th.page, font: BODY, maxW: 400, lh: 16, ctx: 'td' }).svg;
     s += t(P + 420, cy, u.domain, { size: 13, fill: th.ink, bg: th.page, font: BODY, ctx: 'td' });
     s += t(P + 600, cy, u.value.text, { size: 13, weight: 700, fill: th.ink, bg: th.page, anchor: 'end', font: BODY, ctx: 'td' });
     if (has(m, 'inspire_score')) s += harvey(W - P - 50, cy - 4, 7, u.score, th.navy, th.page) + t(W - P - 10, cy, u.score.toFixed(1), { size: 13, fill: th.ink, bg: th.page, anchor: 'end', font: BODY, ctx: 'td' });
-    s += line(P, y + 34, W - P, y + 34, th.rule, 0.6); y += 34;
+    s += line(P, y + 34 + ex, W - P, y + 34 + ex, th.rule, 0.6); y += 34 + ex;
   });
   s += T(P, 1010, `Source: Databricks Inspire AI analysis of the ${m.businessName} catalog.${has(m, 'disclaimer') ? ` ${DISCLAIMER}` : ''}`, { size: 12, fill: th.slate, bg: th.page, font: BODY, maxW: CW, lines: 4, lh: 15, ctx: 'source' }).svg;
   s += line(P, 1076, W - P, 1076, th.rule, 1) + t(W - P, 1096, '1', { size: 12, fill: th.slate, bg: th.page, anchor: 'end', font: BODY, ctx: 'page' });

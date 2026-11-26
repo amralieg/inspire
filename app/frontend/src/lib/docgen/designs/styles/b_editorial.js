@@ -1,6 +1,6 @@
 // Option B "Editorial": an executive magazine page. Paper, ink, one lava-red accent, hairline rules, a headline that states the number,
 // a tonal treemap where only the leading domain carries colour, a thin-ring donut, a hollow-dot quadrant, numbered list instead of boxes.
-import { wrap, textW, t, T, rect, line, circle, icon, svgDoc, runW, money, VERB_ICON, DISCLAIMER, bestInk, contrast, has, verbColors, iconName } from '../core.js';
+import { wrap, nLines, textW, t, T, rect, line, circle, icon, svgDoc, runW, money, VERB_ICON, DISCLAIMER, bestInk, contrast, has, verbColors, iconName } from '../core.js';
 import { ucPage, factCols, NOT_YET } from '../ucPage.js';
 import { donut, quadrant, treemapChart, meter } from '../charts.js';
 
@@ -119,9 +119,10 @@ function deckDomain(m, th, d, idx) {
   const x0 = 660; const w = 603; const max = Math.max(...ucs.map((u) => u.value.amount));
   s += t(x0, 150, 'Each use case, by yearly value', { size: 20, weight: 700, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', ctx: 'fig' });
   s += rect(x0, 166, w, 1, th.rule);
+  let drop = 0;
   ucs.slice(0, 7).forEach((u, i) => {
-    const y = 214 + i * 66; const bw = (u.value.amount / max) * (w - 150);
-    s += t(x0, y - 8, u.short, { size: 17, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', maxW: w - 10, lines: 1, ctx: 'row' });
+    const ex = (nLines(u.short, w - 10, 17, 'serif') - 1) * 21; const y = 214 + i * 66 + drop + ex; drop += ex; const bw = (u.value.amount / max) * (w - 150);
+    s += t(x0, y - 8 - ex, u.short, { size: 17, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', maxW: w - 10, lh: 21, ctx: 'row' });
     s += line(x0, y + 12, x0 + bw, y + 12, th.ink, 2) + circle(x0 + bw, y + 12, 7, i === 0 ? th.accent : th.ink);
     s += t(x0 + bw + 16, y + 18, `${u.value.text} · score ${u.score.toFixed(1)}`, { size: 16, weight: 700, fill: th.ink, bg: th.paper, font: BODY, ctx: 'row v' });
   });
@@ -176,11 +177,6 @@ function briefPage1(m, th) {
     };
     const pick = [16, 15, 14, 13].map(lay).find((r) => r.per * r.lh <= 270) || lay(13);
     const { all } = pick; FS = pick.size; LH = pick.lh;
-    const maxLines = 3 * Math.floor(284 / LH);
-    if (all.length > maxLines) {
-      all.length = maxLines; let last = all[maxLines - 1].l; while (last.length > 1 && textW(`${last}…`, FS, 'serif') > cw) last = last.slice(0, -1);
-      all[maxLines - 1] = { l: `${last.replace(/[\s,.;:]+$/, '')}…`, x: 0 };
-    }
     perCol = Math.max(4, Math.ceil(all.length / 3));
     for (let c = 0; c < 3; c += 1) {
       const x = P + c * (cw + 20);
@@ -192,13 +188,14 @@ function briefPage1(m, th) {
   const ly = text ? TOP + perCol * LH + 14 : 270; const rows = Math.min(9, m.ranked.length, Math.floor((BOTTOM - ly - 34) / 30));
   if (rows >= 2) {
     s += kicker(P, ly + 14, 'Where to start', th) + line(P, ly + 22, P + CW, ly + 22, th.rule, 1);
+    let sink = 0;
     m.ranked.slice(0, rows).forEach((u, i) => {
-      const ry = ly + 34 + i * 30;
-      s += t(P, ry + 18, u.name, { size: 14, weight: 700, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', maxW: 400, lines: 1, ctx: 'start name' });
+      const ex = (nLines(u.name, 400, 14, 'serif', 700) - 1) * 17; const ry = ly + 34 + i * 30 + sink; sink += ex;
+      s += t(P, ry + 18, u.name, { size: 14, weight: 700, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', maxW: 400, lh: 17, ctx: 'start name' });
       s += t(P + 420, ry + 18, u.domain, { size: 12, fill: th.grey, bg: th.paper, caps: true, ls: 1.2, font: BODY, maxW: 130, lines: 1, ctx: 'start domain' });
       s += t(P + CW - (has(m, 'inspire_score') ? 50 : 0), ry + 18, u.value.text, { size: 14, weight: 700, fill: th.accentText, bg: th.paper, anchor: 'end', font: SERIF, kind: 'serif', ctx: 'start value' });
       if (has(m, 'inspire_score')) s += t(P + CW, ry + 18, u.score.toFixed(1), { size: 14, fill: th.ink, bg: th.paper, anchor: 'end', font: SERIF, kind: 'serif', ctx: 'start score' });
-      s += line(P, ry + 26, P + CW, ry + 26, th.hair, 1);
+      s += line(P, ry + 26 + ex, P + CW, ry + 26 + ex, th.hair, 1);
     });
   }
   // figure
