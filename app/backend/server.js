@@ -2804,6 +2804,14 @@ async function checkLaunchReads(req, params) {
   })());
 }
 
+const PROFILE_LINK_WAIT_MS = 3000;
+// The value of `work` if it settles within `ms`, else `late` (the work goes on; `work` must handle its own failures).
+function answeredWithin(work, ms, late) {
+  let timer;
+  const wait = new Promise((resolve) => { timer = setTimeout(() => resolve(late), ms); });
+  return Promise.race([work, wait]).finally(() => clearTimeout(timer));
+}
+
 async function launchDiscover(req, res, { params, notebook_path, cluster_id, profileId = '' }) {
   try {
     const refused = LC.launchParamsProblem(params) || await launchSessionProblem(req, params);
@@ -2821,7 +2829,9 @@ async function launchDiscover(req, res, { params, notebook_path, cluster_id, pro
       writeCheck: (writes) => outputWriteVerdict(req, writes),
       asker: req,
     });
-    const profileWarning = profileId ? await linkProfileToRun(req, { profileId, sessionId: params['14_session_id'], inspireDatabase: params['02_inspire_database'] }) : '';
+    // The run exists, so the answer never waits long on the profile link: past PROFILE_LINK_WAIT_MS the run id goes back and the link finishes on its own.
+    const profileWarning = profileId ? await answeredWithin(linkProfileToRun(req, { profileId, sessionId: params['14_session_id'], inspireDatabase: params['02_inspire_database'] }),
+      PROFILE_LINK_WAIT_MS, 'Inspire started the run and is still linking it to its business profile') : '';
     const warnings = [...reads.warnings, ...access.warnings, ...(out.warnings || []), ...(profileWarning ? [profileWarning] : [])];
     const details = [...(reads.skipped.length ? [skippedTablesDetail(reads.skipped)] : []), ...(out.warning_details || [])];
     res.json({ ...out, ...(warnings.length ? { warnings } : {}), ...(access.permissions.length ? { permissions: access.permissions } : {}), ...(details.length ? { warning_details: details } : {}), ...(reads.skipped.length ? { skipped_tables: reads.skipped } : {}) });
@@ -2904,6 +2914,11 @@ async function taskErrorOf(req, taskRunId) {
   }
 }
 
+const startedByOf = (launch) => {
+  const who = String((launch && launch.launched_by) || '').trim().toLowerCase();
+  return who && who !== String(LAUNCHER_UNKNOWN).toLowerCase() ? who : '';
+};
+
 app.get('/api/run/:runId', requireToken, async (req, res) => {
   try {
     // SEC-02 (F6 class, REQ-518): the run state and its tasks' error text belong to the run's session, so the same check as the output runs first.
@@ -2940,6 +2955,8 @@ app.get('/api/run/:runId', requireToken, async (req, res) => {
       run_page_url: data.run_page_url,
       run_name: data.run_name,
       tasks,
+      // Every run is the App's service principal (REQ-418), so the person who started it is read from the launch record.
+      ...(startedByOf(req.runLaunch) ? { started_by: startedByOf(req.runLaunch) } : {}),
       ...(viewerNoteOf(req.params.runId) ? { viewer_note: viewerNoteOf(req.params.runId) } : {}),
     });
   } catch (err) {
@@ -2962,6 +2979,7 @@ async function launchOfRun(req, runId) {
 async function refuseHiddenRun(req, res, runId) {
   let launch = null;
   try { launch = await launchOfRun(req, runId); } catch { launch = null; }
+  req.runLaunch = launch;
   const person = String(RP.forwardedPerson(req.headers) || '').trim().toLowerCase();
   if (launch && person && String(launch.launched_by || '').trim().toLowerCase() === person) return false;
   if (launch && isInt64Id(String(launch.session_id || ''))) return refuseHiddenSession(req, res, launch.session_id);

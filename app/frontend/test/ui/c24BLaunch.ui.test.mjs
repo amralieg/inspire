@@ -63,8 +63,8 @@ test('B-07: three schemas picked read as "3 schemas" in the basket and the foote
 
 test('B-07: a schema picked then unpicked while its tables load leaves no spinner on the Tables panel (must-fail)', async () => {
   const mount = (app) => {
+    app.get('/api/tables/:catalog/:schema', () => { /* the listing never answers; the first route that matches wins */ });
     catalogsWorld()(app);
-    app.get('/api/tables/:catalog/:schema', () => { /* the listing never answers */ });
   };
   const ui = await openUi('launch', {}, '', { mount });
   const { page } = ui;
@@ -74,7 +74,7 @@ test('B-07: a schema picked then unpicked while its tables load leaves no spinne
     await page.locator('button[title="a"]').click();
     await page.locator('[data-tables-loading]').waitFor({ timeout: 15000 });
     await page.locator('button[title="a"]').click();
-    await idle(page);
+    await page.waitForTimeout(1000); // idle() would wait for the listing that never answers
     assert.equal(await page.locator('[data-tables-loading]').count(), 0, 'with no schema picked nothing is loading');
   } finally {
     await ui.close();

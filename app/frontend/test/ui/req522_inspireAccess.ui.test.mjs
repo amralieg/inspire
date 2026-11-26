@@ -65,19 +65,27 @@ const requestBox = (page, name) => page.getByRole('checkbox', { name: `Request a
 const need = (page, name) => page.locator(`[data-access-need="${name}"]`);
 const line = (page, name, who) => page.locator(`[data-access-request-object="${name}"][data-access-request-for="${who}"]`);
 
+// RC7-B-06: a catalog Inspire cannot read is listed only once Show everything is ticked.
+const tickShowEverything = async (page) => {
+  await page.getByRole('checkbox', { name: SHOW, exact: true }).check();
+  await page.locator('button[title="ops"]').waitFor({ timeout: 15000 });
+};
+
 async function open(w) {
   const ui = await openUi('launch', STATE, '', { mount: w.mount });
   await ui.page.getByPlaceholder(BUSINESS).fill('Acme');
   return ui;
 }
 
-test('REQ-522: by default a catalog you can read but Inspire cannot says "Inspire needs access" and has a request box; pickable and unknown rows do not', async () => {
+test('REQ-522: a catalog you can read but Inspire cannot is hidden by default; with Show everything it says "Inspire needs access" and has a request box; pickable and unknown rows do not', async () => {
   const w = world();
   const ui = await open(w);
   const { page } = ui;
   try {
     await page.locator('button[title="main"]').waitFor({ timeout: 15000 });
     await idle(page);
+    assert.equal(await page.locator('button[title="ops"]').count() + await page.locator('button[title="hr"]').count(), 0, 'by default neither a catalog Inspire cannot read nor one you cannot read is listed');
+    await tickShowEverything(page);
     assert.equal(await need(page, 'ops').count(), 1, 'REQ-522: Not implemented: a catalog Inspire cannot read carries no "Inspire needs access" marker');
     assert.equal((await need(page, 'ops').innerText()).trim(), 'Inspire needs access');
     assert.equal(await requestBox(page, 'ops').count(), 1, 'the person can ask for Inspire');
@@ -85,7 +93,6 @@ test('REQ-522: by default a catalog you can read but Inspire cannot says "Inspir
       assert.equal(await need(page, name).count(), 0, `${name}: no marker (pickable, or not checked)`);
       assert.equal(await requestBox(page, name).count(), 0, `${name}: no request box`);
     }
-    assert.equal(await page.locator('button[title="hr"]').count() + await requestBox(page, 'hr').count(), 0, 'what you cannot read stays hidden by default');
   } finally {
     await ui.close();
   }
@@ -131,6 +138,7 @@ test('REQ-522: a catalog or table Inspire cannot read is never a run source; the
   try {
     await page.locator('button[title="main"]').waitFor({ timeout: 15000 });
     await idle(page);
+    await tickShowEverything(page);
     assert.equal(await need(page, 'ops').count(), 1, 'REQ-522: Not implemented: no "Inspire needs access" marker on ops');
     await page.locator('button[title="ops"]').click();
     await page.locator('button[title="granted"]').waitFor({ timeout: 15000 });
@@ -157,6 +165,7 @@ test('REQ-522: an Inspire request that could not be sent shows its reason and th
   try {
     await page.locator('button[title="main"]').waitFor({ timeout: 15000 });
     await idle(page);
+    await tickShowEverything(page);
     assert.equal(await requestBox(page, 'ops').count(), 1, 'REQ-522: Not implemented: no request box for a catalog Inspire cannot read');
     await requestBox(page, 'ops').check();
     await page.getByRole('button', { name: REQUEST, exact: true }).click();

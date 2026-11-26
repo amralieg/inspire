@@ -436,6 +436,7 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
                 }`} text={statusDetail} {...(isFailed ? { 'data-testid': 'monitor-failure-reason' } : {})} />
               )}
               <TechnicalDetails items={statusDetails} className="mt-1" />
+              {runInfo?.started_by && <p data-started-by="" className="mt-0.5 text-xs text-text-tertiary">Started by {runInfo.started_by}</p>}
               {heroState === 'offline' && <p className="mt-1 text-xs text-warning-fg" data-offline-note="">Databricks is not answering right now. Inspire keeps the use cases it already has on screen.</p>}
               {pollProblem && (
                 <div role="status" data-poll-problem={pollProblem.stop ? 'stopped' : 'checking'} className="mt-1 text-xs text-warning-fg">
