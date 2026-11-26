@@ -270,14 +270,16 @@ function SetupHarness({ blank }) {
   );
 }
 
+// ?showcase=<id> opens Review as a demo session (settings.showcase set), as the App does for See Demo.
 function ResultsHarness() {
+  const showcase = new URLSearchParams(window.location.search).get('showcase') || '';
   const [opened, setOpened] = useState('');
   return (
     <ValueBulkRunProvider>
       <DocsRunProvider>
       <div className={RESULTS_FRAME}>
         <ResultsPage
-          settings={SETTINGS}
+          settings={showcase ? { ...SETTINGS, showcase } : SETTINGS}
           update={() => {}}
           sessionId={HARNESS_SESSION_ID}
           onOpenImplement={(sid, id) => setOpened(`${sid}:${id}`)}
