@@ -44,7 +44,9 @@ async function wrapFetch() {
       S.state.calls.push({ method: 'POST', path: u.pathname, token, statement: sql, category: 'action' });
       return answer(failed("[INSUFFICIENT_PERMISSIONS] User does not have SELECT on Table 'main.s.orders'."));
     }
-    if (asReader && /^\/api\/2\.1\/unity-catalog\/(tables|permissions|effective-permissions)\/(table\/)?main\.s\.orders/.test(u.pathname)) {
+    // SEC-03 (c23): the reader can list (BROWSE) main.s.orders, so its name may be shown; the table's data stays unreadable.
+    if (asReader && /^\/api\/2\.1\/unity-catalog\/tables\/main\.s\.orders/.test(u.pathname)) return answer({ full_name: 'main.s.orders' });
+    if (asReader && /^\/api\/2\.1\/unity-catalog\/(permissions|effective-permissions)\/(table\/)?main\.s\.orders/.test(u.pathname)) {
       return answer({ error_code: 'PERMISSION_DENIED', message: "User does not have SELECT on Table 'main.s.orders'." }, 403);
     }
     if (u.pathname === '/api/2.0/sql/statements' && /__inspire_session/.test(sql) && /\btables_str\b/.test(sql) && !/business_rank/.test(sql)) {

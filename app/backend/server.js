@@ -2520,6 +2520,7 @@ const UNCHECKED_SCOPE = { status: 403, request: 'person', permissions: [], unrea
 // listed or probed in full, or a probe that fails for any reason other than a plain denial is a refusal with a clear reason. Outside a Databricks
 // App (local development, no proxy) there is no person token to probe with, so the check is skipped there only.
 const UNCHECKED_MESSAGE = 'Inspire could not check that you can read every table of this scope, so it is not shown. Try again, or ask the person who launched it.';
+const NO_SIGN_IN_MESSAGE = 'Inspire cannot check what you can read because your sign-in did not reach it. Sign in to the workspace and open Inspire through its Apps URL, so it can check your read access.';
 const LAUNCH_UNCHECKED_MESSAGE = 'Inspire could not check that you can read every table of this scope, so the run did not start. Try again, or take some tables off your selection.';
 
 // SEC-03 (c23): the App lists a scope with its own token, so a table name from that list is shown to a person only when the person's own token can
@@ -2560,7 +2561,7 @@ async function launcherReadRefusal(req, scope, { emptyScopeRefuses = false, laun
   const { catalogs, schemas, tables: picked } = ucMetadataParts(scope);
   const entries = [...picked, ...schemas, ...catalogs];
   const unchecked = { ...UNCHECKED_SCOPE, message: launch ? LAUNCH_UNCHECKED_MESSAGE : UNCHECKED_MESSAGE };
-  if (!person) return policyEnforced() && entries.length ? unchecked : null;
+  if (!person) return policyEnforced() && entries.length ? { ...unchecked, message: NO_SIGN_IN_MESSAGE } : null;
   if (!entries.length) return emptyScopeRefuses ? unchecked : null;
   const warehouseId = requestedInspireDb(req).warehouseId;
   const lost = [];
