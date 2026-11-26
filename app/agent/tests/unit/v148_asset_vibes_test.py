@@ -578,7 +578,7 @@ def test_the_notebook_and_its_parts_are_checked_against_what_the_run_and_genie_w
     assert warnings == ["Value at stake formula vibe not done: Count only the weeks left: the latest run wrote no value at stake "
                         "formula on any record"]
     assert queries[0] == ("SELECT `record_key`, `priority_tier`, `ai_explanation`, `ai_confidence_reason`, `ai_next_action`, "
-                          "`ai_expected_result`, `ai_other_option`, `ai_evidence` FROM `main`.`inspire`.`churn_out` WHERE use_case_id = "
+                          "`ai_expected_result`, `ai_other_option`, `ai_headline`, `ai_what`, `ai_why`, `ai_do`, `ai_evidence` FROM `main`.`inspire`.`churn_out` WHERE use_case_id = "
                           ":uc AND is_current AND change_source <> 'delete' AND ai_explanation IS NOT NULL ORDER BY CASE priority_tier "
                           "WHEN 'Act now' THEN 0 ELSE 1 END, `rank` LIMIT 5")
     assert "`value_at_stake_formula` FROM `main`.`inspire`.`churn_out`" in queries[1] and "ORDER BY value_at_stake DESC" in queries[1]
