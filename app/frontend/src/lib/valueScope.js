@@ -31,7 +31,8 @@ const dated = (facts) => Boolean(facts?.date_column && facts.first && facts.last
 export function factsLine(facts, noun = 'record') {
   const count = plural(facts?.rows ?? 0, noun);
   if (!dated(facts)) return `${count}, no date column found`;
-  return `${count}, ${dateText(facts.first)} to ${dateText(facts.last)}, dated by ${facts.date_column}`;
+  const [first, last] = [dateText(facts.first), dateText(facts.last)];
+  return `${count}, ${first === last ? `on ${first}` : `${first} to ${last}`}, dated by ${facts.date_column}`;
 }
 
 export function scopeChoices(facts) {

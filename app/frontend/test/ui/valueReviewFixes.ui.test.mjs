@@ -59,7 +59,7 @@ test('S3 (REQ-472 c): a card whose saved value carries a review shows the review
     const reader = await openReader(page, card);
     const line = reader.locator('[data-value-review]');
     await line.waitFor({ timeout: 15000 });
-    assert.equal(await flat(line), 'Reviewed by m1: fits the business size');
+    assert.equal(await flat(line), 'Reviewed by Databricks AI: fits the business size');
     await closeReader(page);
     const list = page.getByRole('region', { name: 'Use case list' });
     const other = await openReader(page, list.locator('[data-use-case-row]').filter({ hasText: 'Score upsell' }));

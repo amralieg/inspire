@@ -116,6 +116,7 @@ function reviewMessages({ useCase, businessName, anchor, amount, drivers }) {
     'You review the yearly value a plan gives one use case. Answer with one JSON object and nothing else:',
     '{"approved": true or false, "amount": number, "reason": "one line"}',
     'approved is true when the amount is a plausible yearly value for this use case and this business; otherwise give the amount you would approve in the run\'s currency.',
+    'amount is always a value per year, never a weekly, monthly or per-record figure: convert to a year before you answer.',
   ].join('\n');
   const lines = useCaseLines(useCase, businessName);
   if (anchor) lines.push(`Anchor: low ${anchor.low}, high ${anchor.high}, likely ${anchor.typical} per year${anchor.reason ? ` (${anchor.reason})` : ''}`);

@@ -147,10 +147,12 @@ function filterSql(f, b) {
 // RC6-B-08: a date kept as text (textDate) is read through the safe parse, so a row whose value does not parse is not dated.
 function whereOf(f, b, dateColumn, scope = null, textDate = false) {
   const base = filterSql(f, b);
-  const dated = `${VY.dateRead(quote(dateColumn), textDate)} IS NOT NULL`;
+  // RC7-B-03: a table with no date column has no dated rows to require: every row counts, over the period the plan states.
+  const dated = dateColumn ? `${VY.dateRead(quote(dateColumn), textDate)} IS NOT NULL` : '';
   const chosen = VS.scopeClauses(scope);
   b.parameters.push(...chosen.parameters);
-  const all = [...chosen.where, dated].join(' AND ');
+  const all = [...chosen.where, dated].filter(Boolean).join(' AND ');
+  if (!all) return base;
   return base ? `${base} AND ${all}` : ` WHERE ${all}`;
 }
 
@@ -316,6 +318,7 @@ function currentCountSql(GP, scopes, plan) {
     const f = plan.case_filter;
     const from = GP.previewFrom(plan.table, ctx, [plan.date_column, f && f.column, ...VS.scopeColumns(plan.scope)].filter(Boolean));
     const where = whereOf(f, b, plan.date_column, plan.scope, plan.date_text === true);
+    if (!plan.date_column) return `SELECT COUNT(*) AS records, ${Math.max(1, Math.round(Number(plan.period_days)) || VY.ASSUMED_DAYS)} AS days FROM ${from}${where}`;
     const d = VY.dateRead(quote(plan.date_column), plan.date_text === true);
     return `SELECT COUNT(*) AS records, DATEDIFF(MAX(${d}), MIN(${d})) + 1 AS days FROM ${from}${where}`;
   }, b.parameters);

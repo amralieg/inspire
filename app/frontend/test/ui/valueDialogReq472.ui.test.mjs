@@ -92,8 +92,8 @@ test('D4: the old questions are gone from the dialog and from the Build wizard M
   } finally { await wiz.close(); }
 });
 
-test('D5: a plan review shows "Reviewed by <model>: <reason>" or "Not approved by a model review" on the Kinds page and the Save page', async () => {
-  for (const [review, expected] of [[{ approved: true, model: 'm1', reason: 'fits' }, /Reviewed by m1: fits/], [{ approved: false, model: 'm1', reason: 'too high' }, /Not approved by a model review: too high\. Saved as an estimate\./]]) {
+test('D5: a plan review shows "Reviewed by Databricks AI: <reason>" or "Not approved by a model review" on the Kinds page and the Save page', async () => {
+  for (const [review, expected] of [[{ approved: true, model: 'm1', reason: 'fits' }, /Reviewed by Databricks AI: fits/], [{ approved: false, model: 'm1', reason: 'too high' }, /Not approved by a model review: too high\. Saved as an estimate\./]]) {
     const { ui, card, page } = await openCard(mountWizard({ planReply: { plan: { ...PLAN, review } } }));
     try {
       const dialog = await open(page, card);

@@ -34,12 +34,10 @@ async function plan(columns) {
   }
 }
 
-test('case-plan on a table with no date column is a 422 that names the table and the columns it checked', async () => {
+// RC7-B-03: a table with no date column is no longer a 422; the plan assumes one year (see c24BVal.test.js).
+test('case-plan on a table with no date column is not a "no date column" dead end', async () => {
   const got = await plan([col('amount', 'DOUBLE', 1), col('region', 'STRING', 2)]);
-  assert.equal(got.status, 422);
-  assert.match(got.error, /main\.s\.sales/);
-  assert.match(got.error, /amount/);
-  assert.match(got.error, /region/);
+  assert.doesNotMatch(got.error, /no date column/i, got.error);
 });
 
 test('case-plan on a table dated by a STRING dateTime does not skip for "no date column"', async () => {

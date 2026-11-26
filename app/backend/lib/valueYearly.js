@@ -2,6 +2,8 @@
 // path (GET /api/inspire/value/yearly) and the Calculate path (POST /api/inspire/value/estimate) use.
 const PERIOD = 'Per Year';
 const DAYS_IN_YEAR = 365;
+// RC7-B-03: the period assumed for a table with no date column: one year, said so in the plan (period_assumed).
+const ASSUMED_DAYS = DAYS_IN_YEAR;
 
 const numberOf = (v) => (v === null || v === undefined || v === '' || typeof v === 'boolean' ? NaN : Number(v));
 
@@ -72,4 +74,4 @@ function noDateReason(table, columns, doing) {
   return `${table || 'The table'} has no date column to ${doing} to a year (columns checked: ${names.length ? names.join(', ') : 'none'}), so Inspire cannot work out a value per year.`;
 }
 
-module.exports = { PERIOD, extrapolate, valueVerb, yearlyOf, dateColumnOf, dateColumnsOf, isTextDate, dateRead, noDateReason };
+module.exports = { PERIOD, ASSUMED_DAYS, extrapolate, valueVerb, yearlyOf, dateColumnOf, dateColumnsOf, isTextDate, dateRead, noDateReason };

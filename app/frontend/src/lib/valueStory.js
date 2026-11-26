@@ -21,7 +21,8 @@ function dataLine(scope, noun) {
   const word = noun || 'record';
   const first = dayText(scope.first || scope.window?.start);
   const last = dayText(scope.last || scope.window?.end);
-  const span = first && last ? `, from ${first} to ${last}` : '';
+  // RC7-B-04: one day is "on 3 Jun 2024", never "from 3 Jun 2024 to 3 Jun 2024".
+  const span = first && last ? (first === last ? ` on ${first}` : `, from ${first} to ${last}`) : '';
   const total = Number(scope.rows_before);
   const of = Number.isFinite(total) && total !== Number(scope.rows_after) ? ` of ${total.toLocaleString('en-US')}` : '';
   return `Inspire read ${Number(scope.rows_after).toLocaleString('en-US')}${of} ${word}s${span}.`;
