@@ -250,6 +250,8 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
   let statusDetail = '';
   let statusDetails = [];
   if (noRunOpen) { statusLabel = 'No run open'; statusDetail = MONITOR_NO_RUN_OPEN; }
+  // busy-ok: before the first poll returns the run is pending, so StatusIcon spins
+  else if (!loaded && !session && !runInfo) { statusLabel = 'Loading'; statusDetail = 'Loading the run...'; }
   else if (isPending && sessionOnly) { statusLabel = 'Waiting'; statusDetail = MONITOR_NO_PROGRESS; }
   else if (isPending) { statusLabel = 'Starting'; statusDetail = 'Databricks is starting the run...'; }
   else if (isRunning) { statusLabel = 'Running'; statusDetail = isStaleSession || !session ? 'Inspire is getting ready...' : `${Math.round(percent)}% complete`; }

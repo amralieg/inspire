@@ -147,7 +147,7 @@ test('D17: select 3 cards in one run, switch to another run: nothing is selected
     await heading(page).getByRole('button', { name: 'Change run' }).click();
     const runs = page.getByRole('group', { name: 'Runs' });
     await runs.locator('[data-run="41"]').click();
-    await heading(page).getByText(/Updated Oct 29/).waitFor();
+    await heading(page).getByText(/Completed Oct 29/).waitFor();
     await cards(page).first().waitFor();
     assert.equal(await page.locator('input[type="checkbox"]:checked').count(), 0, 'no card is ticked');
     assert.equal(await page.getByRole('button', { name: /^Calculate value for/ }).count(), 0, 'no bulk action is offered');

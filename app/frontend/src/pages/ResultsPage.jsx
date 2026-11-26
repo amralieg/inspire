@@ -177,6 +177,13 @@ export default function ResultsPage({
 
   const [sessions, setSessions] = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
+  // "Connecting" is said only when the first runs read has taken over 10 s; before that it is plain loading.
+  const [sessionsSlow, setSessionsSlow] = useState(false);
+  useEffect(() => {
+    if (!sessionsLoading) { setSessionsSlow(false); return undefined; }
+    const t = setTimeout(() => setSessionsSlow(true), 10000);
+    return () => clearTimeout(t);
+  }, [sessionsLoading]);
   const [sessionsError, setSessionsError] = useState('');
   const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState(null);
@@ -1297,7 +1304,7 @@ export default function ResultsPage({
             </h2>
             <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-text-secondary">
               <span data-run-business="">{runBusiness(selectedSession) || displayCleanText(results.business_name) || 'No business name'}</span>
-              {runDate(selectedSession) && <span>· Updated {formatSessionDate(runDate(selectedSession))}</span>}
+              {runDate(selectedSession) && <span>· {selectedSession?.completed_on ? 'Completed' : 'Started'} {formatSessionDate(runDate(selectedSession))}</span>}
               <LatestRunBadge session={selectedSession} latest={String(selectedSessionId) === latestId} />
             </p>
           </div>
@@ -1354,7 +1361,7 @@ export default function ResultsPage({
                 ))}
               </div>
               <BusyNote className="flex flex-col items-center text-sm font-medium text-text-primary" text="Fetching your Inspire runs" />
-              <p className="text-xs text-text-tertiary mt-1.5">Connecting to your workspace...</p>
+              <p className="text-xs text-text-tertiary mt-1.5">{sessionsSlow ? 'Connecting to your workspace...' : 'Loading your runs...'}</p>
             </div>
           )}
 

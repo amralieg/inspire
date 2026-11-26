@@ -95,7 +95,7 @@ test('Review heads the open run with its catalog, business and date, shows each 
     assert.equal(await head.getByRole('heading', { level: 2 }).innerText(), 'Acme Use Cases Catalog', 'a run with no catalog title reads Use Cases');
     assert.equal(await head.locator('[data-run-business]').innerText(), 'Acme');
     assert.match(await head.innerText(), /^This run\n/i);
-    assert.match(await head.innerText(), /Updated Oct 31, 2026/);
+    assert.match(await head.innerText(), /Completed Oct 31, 2026/);
     assert.equal(await head.locator('[data-latest-run]').innerText(), LATEST_RUN_LABEL);
     assert.equal(await head.getByRole('button', { name: 'Change run' }).count(), 1, 'Change run sits with the run it changes');
 
