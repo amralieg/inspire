@@ -117,7 +117,7 @@ const ROUTE_POLICY = {
   'POST /api/auth/sp-token': anyone('trade the service principal credentials it sends for a token', 'uses only the credentials the caller sends and adds no token of the App'),
   'GET /api/health': anyone('read the App health', "reports the App's own health and settings"),
   'GET /api/defaults': anyone('read the installer defaults', 'returns the settings the installer gave the App'),
-  'GET /api/connection-test': anyone('test the server token', "checks that the server's own token from its environment reaches the workspace"),
+  'GET /api/connection-test': { ...managers('test the server token'), why: "checks that the server's own token from its environment reaches the workspace" },
   'GET /api/me': anyone('read who is signed in', "names the person the proxy forwards and the App's own principal"),
   'POST /api/setup/verify': { ...managers('check the setup'), why: 'checks what the App itself reaches for its own setup: its sign-in, its warehouse and its Inspire database' },
   'GET /api/notebook': anyone('find the agent notebook', "checks the agent notebook at the App's own fixed path, which every run uses"),

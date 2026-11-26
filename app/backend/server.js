@@ -119,6 +119,29 @@ app.get('/run/:id', hostedRun.redirect);
 app.use(showcaseWriteGuard);
 app.use(express.json({ limit: '50mb', reviver: keepLongInteger }));
 
+// SEC-07 (c23): the Inspire database (tracking tables) is the App's own. A request that names another one (query, body or launch params) gets the
+// default instead, unless the caller manages the App. This runs before every route and its policy gate, so no route reads a caller's choice.
+app.use('/api', async (req, res, next) => {
+  try {
+    if (!policyEnforced() || !String(DEFAULT_INSPIRE_DB || '').trim()) return next();
+    const own = String(DEFAULT_INSPIRE_DB).trim();
+    const asked = (v) => typeof v === 'string' && v.trim() !== '' && v.trim() !== own;
+    const body = req.body && typeof req.body === 'object' ? req.body : null;
+    const params = body && body.params && typeof body.params === 'object' ? body.params : null;
+    const named = asked(req.query && req.query.inspire_database) || (body && asked(body.inspire_database)) || (params && asked(params['02_inspire_database']));
+    if (!named || await isManager(req)) return next();
+    if (asked(req.query.inspire_database)) {
+      const query = { ...req.query, inspire_database: own };
+      Object.defineProperty(req, 'query', { value: query, writable: true, configurable: true, enumerable: true });
+    }
+    if (body && asked(body.inspire_database)) body.inspire_database = own;
+    if (params && asked(params['02_inspire_database'])) params['02_inspire_database'] = own;
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ═══════════════════════════════════════════════════
 //  Environment Configuration (generic — no defaults)
 // ═══════════════════════════════════════════════════
@@ -589,6 +612,11 @@ async function requireToken(req, res, next) {
     console.error(`🔒 requireToken error: ${err.message}`);
     next(err);
   }
+}
+
+// SEC-14 (c23): inside a Databricks App these routes need the App's token like every other route; local development has no host or token to ask for.
+function appRequiresToken(req, res, next) {
+  return policyEnforced() ? requireToken(req, res, next) : next();
 }
 
 const executeSql = createExecuteSql(dbFetch);
@@ -1332,6 +1360,8 @@ async function ensureNotebookPublished(host, token, force = false) {
 //  Service Principal OAuth2 Token
 // ═══════════════════════════════════════════════════
 
+// SEC-15 (c23): a local-development helper. A Databricks App (policy enforced) does not register it at all.
+if (!policyEnforced()) {
 app.post('/api/auth/sp-token', async (req, res) => {
   try {
     const { client_id, client_secret, tenant_id, databricks_host } = req.body;
@@ -1359,7 +1389,7 @@ app.post('/api/auth/sp-token', async (req, res) => {
 
     if (!resp.ok) {
       const errText = await resp.text();
-      console.error(`SP token failed (${resp.status}): ${errText.substring(0, 200)}`);
+      console.error(`SP token failed (${resp.status})`); // SEC-15 (c23): never the error body, it can echo the caller's credentials
       return res.status(resp.status).json({ error: apiRefusalText('get a sign-in token', resp.status, errText) });
     }
 
@@ -1370,6 +1400,7 @@ app.post('/api/auth/sp-token', async (req, res) => {
     PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
+}
 
 // ═══════════════════════════════════════════════════
 //  Workspace File Operations (list & download artifacts)
@@ -1516,7 +1547,9 @@ app.get('/api/workspace/export', rejectUnsafeQueryPath, requireToken, async (req
 //  Basic endpoints
 // ═══════════════════════════════════════════════════
 
+// SEC-14 (c23): inside a Databricks App the platform probe has no sign-in, so a request with no signed-in person gets a bare ok and no settings.
 app.get('/api/health', async (req, res) => {
+  if (policyEnforced() && !RP.forwardedPerson(req.headers)) return res.json({ ok: true, status: 'ok' });
   const managerCheckNow = await currentManagerCheck(req).catch((err) => ({ check: `Inspire could not check who manages its ${IMPLEMENT_OUTPUT_LABELS.app}: ${err.message}`, manager: null }));
   const hasBundledNotebook = fs.existsSync(BUNDLED_NOTEBOOK_PATH);
   const host = resolveHost(req);
@@ -1562,7 +1595,7 @@ app.get('/api/health', async (req, res) => {
 });
 
 /** Quick workspace reachability check (runs as the App's own identity: the static token or the service principal). */
-app.get('/api/connection-test', async (req, res) => {
+app.get('/api/connection-test', appRequiresToken, async (req, res) => {
   let host = String(DATABRICKS_HOST || '').replace(/\/+$/, '');
   if (host && !host.startsWith('http')) host = `https://${host}`;
   const token = await appOwnToken();
@@ -1601,8 +1634,10 @@ app.get('/api/connection-test', async (req, res) => {
 });
 
 // Pre-configured defaults (injected by the installer notebook via app.yaml env vars)
-app.get('/api/defaults', (req, res) => {
+app.get('/api/defaults', appRequiresToken, async (req, res) => {
   const host = resolveHost(req);
+  // SEC-14 (c23): the installer's data catalogs go to App managers only.
+  const manager = await isManager(req);
   // In Databricks Apps, DATABRICKS_HOST may be just the hostname — normalize
   let fullHost = host;
   if (fullHost && !fullHost.startsWith('http')) fullHost = `https://${fullHost}`;
@@ -1614,7 +1649,7 @@ app.get('/api/defaults', (req, res) => {
     databricksHost: fullHost || '',
     warehouseId: DEFAULT_WAREHOUSE_ID,
     inspireDatabase: DEFAULT_INSPIRE_DB,
-    installerDataCatalogs: INSTALLER_DATA_CATALOGS,
+    ...(manager ? { installerDataCatalogs: INSTALLER_DATA_CATALOGS } : {}),
     notebookPath: DEFAULT_NOTEBOOK_PATH,
     isDatabricksApp:
       !!DATABRICKS_HOST && platformAuth && process.env.NODE_ENV === 'production',
@@ -3469,6 +3504,8 @@ app.post('/api/inspire/ack', requireToken, async (req, res) => {
     if (!parsedDb) {
       return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     }
+    // SEC-10 (c23): only a person who may see the session acknowledges it; the database is the App's own (the SEC-07 middleware).
+    if (await refuseHiddenSession(req, res, session_id)) return;
     const { catalog, schema } = parsedDb;
     const table = `\`${catalog}\`.\`${schema}\`.\`__inspire_session\``;
     const sql = `UPDATE ${table} SET processing_status = 'done' WHERE session_id = ${session_id} AND processing_status = 'ready'`;
@@ -3496,6 +3533,8 @@ app.post('/api/inspire/feedback', requireToken, async (req, res) => {
       return res.status(400).json({ error: 'inspire_database (catalog.schema) and warehouse_id required.' });
     }
     const values = validateFeedbackBody(req.body);
+    // SEC-13 (c23): the visibility check comes first, so a hidden session and one that does not exist answer the same 403 and nothing is written.
+    if (await refuseHiddenSession(req, res, values.sessionId)) return;
     const lookup = sessionBusinessStatement(tables.session, values.sessionId);
     const sessionRows = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouse_id, lookup.sql, lookup.parameters));
     if (!sessionRows.length) return res.status(404).json({ error: `Session ${values.sessionId} not found.` });
@@ -3806,6 +3845,14 @@ app.post('/api/inspire/profiles', requireToken, async (req, res) => {
   try {
     await ensureProfileTables(req.dbHost, req.dbToken, names);
     const [existing] = await launchSql(req.dbHost, BP.findByNameStatement(names.profiles, saved.name), req.dbToken);
+    // SEC-11 (c23): a profile feeds later runs' prompts, so only the person who last updated it, or an App manager, replaces it.
+    if (existing && saved.overwrite) {
+      const [current] = await launchSql(req.dbHost, BP.getStatement(names.profiles, String(existing.profile_id)), req.dbToken);
+      const owner = String((current && current.updated_by) || '').trim().toLowerCase();
+      if (!(owner && by && owner === String(by).trim().toLowerCase()) && !(await isManager(req))) {
+        return res.status(403).json({ error: `The business profile "${saved.name}" was last updated by someone else. Only that person or an App manager can replace it; save yours under another name.` });
+      }
+    }
     if (existing && !saved.overwrite) {
       return res.status(409).json({ error: `A business profile named "${saved.name}" already exists. Save it again to replace it.`, exists: true, profile_id: String(existing.profile_id) });
     }
