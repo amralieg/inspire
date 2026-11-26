@@ -45,7 +45,7 @@ const ENTRY = `
 import { createElement as h } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BLOCKS } from ${JSON.stringify(join(SRC, 'viz', 'index.js'))};
-import { MOTIONS } from ${JSON.stringify(join(SRC, 'motion.js'))};
+import { MOTIONS } from ${JSON.stringify(join(SRC, 'viz', 'motion.js'))};
 const fix = (v) => (v === '__NaN__' ? NaN : v === '__Inf__' ? Infinity : v);
 const p = window.props;
 window.__ids = { blocks: Object.keys(BLOCKS), motions: Object.keys(MOTIONS) };
@@ -78,7 +78,7 @@ test('exactly the 14 block ids and the 10 motion ids are exported', async () => 
 });
 
 test('motionState gives the static end state for Off and reduced motion', async () => {
-  const { motionState, MOTIONS } = await import('../src/motion.js');
+  const { motionState, MOTIONS } = await import('../src/viz/motion.js');
   assert.deepEqual(Object.keys(MOTIONS), MOTION_IDS);
   for (const id of MOTION_IDS) {
     assert.equal(motionState(id, 'off', false).run, false, `${id} off`);

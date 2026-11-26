@@ -1,5 +1,5 @@
 // Bridge: a start stepping up and down through each part of the change to the end total. Roles: label, value (the step), key?.
-import { useMotion } from '../motion.js';
+import { useMotion } from './motion.js';
 import { Count, Empty, Frame, Text, clip, describe, extent, f, fit, fmt, isFocus, markProps, scale, roleSets, tidy } from './common.jsx';
 
 const ROLES = roleSets('bridge');

@@ -233,13 +233,18 @@ def test_the_consistency_check_rejects_each_broken_registry_must_reject(breaks, 
     assert any(expected in problem for problem in registry_problems(doc)), registry_problems(doc)
 
 
+# Reviewed: these two files are per-kind CONTENT tables (one default focus spec / one explainer per technique kind, REQ-534, REQ-539),
+# keyed by the kind id; they hold the content for a kind, not the list of kinds (explainers.test.mjs checks its keys against kinds.json).
+PER_KIND_CONTENT = {"app/agent/agent/app_shell/focus_defaults.json", "app/agent/agent/app_shell/web/src/explainers.js"}
+
+
 def test_no_file_but_kinds_json_holds_a_copy_of_the_kind_list():
     doc = _registry()
     ids = _distinctive_ids(doc)
     assert len(ids) >= 30
     holders = []
     for relative in _repo_files():
-        if relative == "app/agent/agent/app_shell/kinds.json":
+        if relative == "app/agent/agent/app_shell/kinds.json" or relative in PER_KIND_CONTENT:
             continue
         try:
             with open(os.path.join(REPO, relative), encoding="utf-8") as handle:

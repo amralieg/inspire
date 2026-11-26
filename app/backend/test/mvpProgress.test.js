@@ -689,3 +689,13 @@ test('the Build progress panel is linked from the address, one use case at a tim
   assert.equal(progressLink('N 1&x', true, 'https://h.example/'), '/?progress=N+1%26x');
   assert.equal(progressLinked('N 1&x', '?progress=N+1%26x'), true, 'an id with spaces or & round-trips');
 });
+
+test('a step written under the old space-separated name and one under the identifier both show the Databricks AI start stage (REQ-529)', async () => {
+  const { mvpStages } = await lib('mvpProgress.js');
+  const steps = (name) => [row('Plan', 'ended_success', '10:01:00'), row(name, 'started', '10:01:02'), row(name, 'ended_success', '10:01:30')];
+  for (const name of ['genie_code', ['Genie', 'Code'].join(' ')]) {
+    const stage = mvpStages(steps(name), latestOf('filling'), { now: at('10:30:00') }).find((s) => s.label === 'Start Databricks AI');
+    assert.ok(stage, `${name}: the stage is listed`);
+    assert.equal(stage.state, 'done', `${name}: the stage is done`);
+  }
+});

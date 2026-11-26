@@ -1,5 +1,5 @@
 // Timeline to event: dated steps along one line, spaced by time. Roles: label, time (a date), value?, key?.
-import { useMotion } from '../motion.js';
+import { useMotion } from './motion.js';
 import { asDate, dayLabel } from '../format.js';
 import { Count, Empty, Frame, Text, clip, describe, f, fmt, isFocus, markProps, scale, roleSets, tidy } from './common.jsx';
 

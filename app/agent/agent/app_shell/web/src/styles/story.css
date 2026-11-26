@@ -1,7 +1,7 @@
 .story { display: grid; gap: 8px; }
 .st-head { display: flex; align-items: center; gap: 8px; font-size: 22px; margin: 0; }
 .st-money { font-size: 13px; font-weight: 600; color: var(--muted, #64748b); }
-.st-arrow { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; }
+.st-arrow { width: 0; height: 0; border-inline-start: 7px solid transparent; border-inline-end: 7px solid transparent; }
 .st-arrow.st-up { border-bottom: 11px solid var(--good, #15803d); }
 .st-arrow.st-down { border-top: 11px solid var(--bad, #b91c1c); }
 .st-svg { display: block; width: 100%; height: auto; max-width: 420px; }

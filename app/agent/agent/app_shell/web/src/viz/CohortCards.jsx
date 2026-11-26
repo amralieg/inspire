@@ -1,5 +1,5 @@
 // Cohort compare cards: one card per group with its headline value and size; each shows the gap to the focus group. Roles: group, value, count?, key?.
-import { useMotion } from '../motion.js';
+import { useMotion } from './motion.js';
 import { Count, Empty, Frame, Text, clip, describe, f, fit, fmt, isFocus, markProps, roleSets, tidy } from './common.jsx';
 
 const ROLES = roleSets('cohort_cards');

@@ -97,7 +97,7 @@ export function validateFocusSpec(spec, columns, actions) {
       const visual = step.visual;
       if (!isObj(visual)) { bad(`${p}.visual`, 'required', 'must be an object'); return; }
       const bind = isObj(visual.bind) ? visual.bind : {};
-      if (!has(ROLES, visual.block)) bad(`${p}.visual.block`, 'unknown_block', `block ${visual.block} is not one of the blocks`);
+      if (!BLOCKS.includes(visual.block) || !has(ROLES, visual.block)) bad(`${p}.visual.block`, 'unknown_block', `block ${visual.block} is not one of the blocks`);
       else {
         const required = ROLES[visual.block];
         const roles = { ...(OPTIONAL_ROLES[visual.block] || {}), ...required };

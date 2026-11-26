@@ -38,6 +38,7 @@ def _inspire(ns, gateway, monkeypatch):
     inst = make_inspire(ns, spark=FakeSpark(), session_id=5150, inspire_database="main.inspire")
     inst.w_client = types.SimpleNamespace(api_client=gateway)
     inst.emitted = []
+    inst.ai_step = ns["IMPLEMENT_AI_STEP_ID"]
     inst._emit_pipeline_status = lambda **kw: inst.emitted.append(kw) or len(inst.emitted)
     context = types.SimpleNamespace(apiUrl=lambda: types.SimpleNamespace(get=lambda: "https://ws.example"),
                                     apiToken=lambda: types.SimpleNamespace(get=lambda: "tok"))
@@ -48,7 +49,7 @@ def _inspire(ns, gateway, monkeypatch):
 
 
 def _genie_steps(inst):
-    return [(e["status"], e["message"]) for e in inst.emitted if e["step_name"] == "Genie Code" and e["status"] != "started"]
+    return [(e["status"], e["message"]) for e in inst.emitted if e["step_name"] == inst.ai_step and e["status"] != "started"]
 
 
 def test_a_gateway_without_the_first_model_builds_with_the_next_served_model_and_says_so(agent_ns, monkeypatch):

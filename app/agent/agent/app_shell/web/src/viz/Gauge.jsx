@@ -1,5 +1,5 @@
 // Gauge vs threshold: one value on a dial with the limit marked. Roles: value, threshold, label?, key?. Draws the focus row, else the first.
-import { useMotion } from '../motion.js';
+import { useMotion } from './motion.js';
 import { Count, Empty, Frame, Text, clip, describe, f, fmt, isFocus, markProps, roleSets, tidy } from './common.jsx';
 
 const CX = 240; const CY = 120; const R = 90;

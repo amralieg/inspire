@@ -184,7 +184,7 @@ OVERVIEW_COLUMNS = (("k", "STRING"), ("label", "STRING"), ("why", "STRING"), ("o
                     ("day", "DATE"), ("fx", "STRING"), ("missing", "TIMESTAMP"))
 ACTION_SORTS = {"action_owner": "_inspire_owner", "action_status": "_inspire_status"}
 AI_COLUMNS = ("ai_explanation", "ai_confidence_reason", "ai_facts_hash", "ai_facts", "confidence_level", "ai_next_action",
-              "ai_expected_result", "ai_other_option", "ai_evidence", "ai_check")
+              "ai_expected_result", "ai_other_option", "ai_evidence", "ai_check", "ai_headline", "ai_what", "ai_why", "ai_do")
 VALUE_FORMULA = "value_at_stake_formula"
 VALUE_PLACEHOLDER = re.compile(r"\{([^{}:]*)(?::([^{}]*))?\}")
 VALUE_KINDS = ("money", "number", "percent")

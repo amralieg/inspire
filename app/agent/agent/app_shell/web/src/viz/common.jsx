@@ -1,7 +1,7 @@
 // REQ-541: helpers shared by the 14 visual blocks. Rows are tidied first, so a bad value never reaches an SVG attribute.
 import { formatValue } from '../format.js';
 import { SERIES_TOKENS } from '../tokens.js';
-import { useCountUp } from '../motion.js';
+import { useCountUp } from './motion.js';
 import SCHEMA from '../../../focus_spec.schema.json' with { type: 'json' };
 import '../styles/viz.css';
 

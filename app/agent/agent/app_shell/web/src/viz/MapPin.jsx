@@ -1,6 +1,6 @@
 // Map pin: where the focus item sits among the others by region (plain frame, no base map). Roles: region, value, x? (longitude), y? (latitude), label?, key?.
 // With x and y bound the pins sit at their coordinates; without them they are ranked by value in a grid.
-import { useMotion } from '../motion.js';
+import { useMotion } from './motion.js';
 import { Count, Empty, Frame, Text, clip, describe, extent, f, fmt, isFocus, markProps, roleSets, scale, tidy } from './common.jsx';
 
 const ROLES = roleSets('map_pin');

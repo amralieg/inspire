@@ -200,7 +200,7 @@ def test_the_run_refuses_share_tiers_that_do_not_follow_the_rank_rule(agent_ns):
     problems = agent_ns["inspire_run_problems"](profile, value)
     assert ("2 rows have a priority_tier that does not follow the share rule: with 10 rows that pass the decision test, ranked 1 to 10 "
             "first, a row whose data_quality_flag is 'ok' is 'Act now' at rank 2 or better, 'Review' at rank 5 or better, and every other "
-            "row is 'Monitor'") in problems
+            "row is 'Monitor' (when every passing row is flagged, no more than the larger of 3 rows and 20% of the passing rows are 'Act now')") in problems
     flagged = _ranked(4, (0, 2), flags={0: "stale", 1: "stale", 2: "stale"})
     profile = _sqlite(agent_ns["inspire_run_profile_sql"]("c.s.stage", list(flagged[0]), dict(SHARED, passed=4)), flagged)
     assert any("only 1 row has a data_quality_flag of 'ok'" in p for p in agent_ns["inspire_run_problems"](profile, dict(SHARED, passed=4)))
