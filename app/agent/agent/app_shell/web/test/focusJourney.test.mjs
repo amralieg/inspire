@@ -49,7 +49,7 @@ async function openFocus({ spec = ALLOCATION, routes = {}, reduced = false, noSp
     watch: async (page) => { await prefsFirst(MY, PERSON, PREFS)(page); if (reduced) await STILL(page); } });
   return { ...opened, calls: wired.calls };
 }
-const wizard = (page) => page.locator('[data-focus]');
+const wizard = (page) => page.locator('section[data-focus]');
 const stepBox = (page) => page.locator('[data-focus-step]');
 const button = (page, name) => page.getByRole('button', { name, exact: true });
 const at = (page, text) => page.waitForFunction((t) => document.querySelector('[data-focus-count]')?.textContent.trim() === t, text);
@@ -103,7 +103,7 @@ test('(c) a decide choice calls the action route once with the right action and 
 });
 
 test('(d) a 409 from the action route shows its plain message, stays on the item and does not advance', async () => {
-  const { page, context } = await openFocus({ routes: { 'records/act': ({ route, json }) => { actBody(route); return json(409, { message: 'Someone else changed this record. Reload to see it.', code: 'stale' }); } } });
+  const { page, context } = await openFocus({ routes: { 'records/act': ({ route, json }) => { actBody(route); return json(409, { error: 'Someone else changed this record. Reload to see it.' }); } } });
   await at(page, 'Item 1 of 3');
   await button(page, 'Next').click();
   await button(page, 'Next').click();
@@ -169,7 +169,7 @@ test('(g) Switch to All records keeps the item open in the drawer with the same 
   const stack = page.locator('[data-focus-stack]');
   await stack.waitFor();
   assert.equal(await button(page, 'All records').getAttribute('aria-pressed'), 'true');
-  assert.ok((await page.locator('[role="dialog"]').innerText()).includes(label(1)), 'the drawer is the second item');
+  assert.ok((await page.locator('dialog.drawer').innerText()).includes(label(1)), 'the drawer is the second item');
   for (const step of ALLOCATION.steps) assert.equal(await stack.getByText(step.question, { exact: true }).count(), 1, step.question);
   assert.equal(await stack.locator('[data-focus-step]').count(), 3);
   await button(page, 'One by one').click();
