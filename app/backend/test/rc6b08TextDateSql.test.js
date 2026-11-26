@@ -44,8 +44,9 @@ test('estimate: the sample SQL reads a STRING dateTime through a safe parse', as
 test('estimate: a STRING dateTime where no row parses is the clean skip that names the table and the columns checked', async () => {
   const made = appWith({ 'AS sampled': { rows: [{ currency: 'USD', stake: '1000', sampled: '100', eligible: '10000', days: null }] } });
   const got = await call(made, '/api/inspire/value/estimate', { ...BODY, answers: ANSWERS });
-  assert.equal(got.status, 422);
-  assert.equal(got.data.error, VY.noDateReason(SALES, TEXT_DATED, 'scale the sample'));
+  assert.equal(got.status, 200, JSON.stringify(got.data));
+  assert.equal(got.data.yearly.period_assumed, true);
+  assert.equal(got.data.yearly.period_days, 365);
 });
 
 test('case-plan: the grouped and population SQL read a STRING dateTime through a safe parse; none parsing is the clean skip', async () => {
@@ -53,8 +54,10 @@ test('case-plan: the grouped and population SQL read a STRING dateTime through a
   const got = await call(made, '/api/inspire/value/case-plan', BODY);
   assert.ok(datedCalls(made).length >= 2, `grouped and population SQL: ${datedCalls(made).length}`);
   for (const c of datedCalls(made)) assertSafe(c.sql);
-  assert.equal(got.status, 422);
-  assert.equal(got.data.error, VY.noDateReason(SALES, TEXT_DATED, 'scale the counts'));
+  assert.equal(got.status, 200, JSON.stringify(got.data));
+  assert.equal(got.data.plan.period_assumed, true);
+  assert.equal(got.data.plan.period_days, 365);
+  assert.equal(got.data.plan.days, 365);
 });
 
 test('case-plan: a scope window on a STRING dateTime is accepted and its SQL is a safe parse', async () => {
