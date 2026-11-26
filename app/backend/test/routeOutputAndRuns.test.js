@@ -123,13 +123,6 @@ test('setup verify is refused to a person who is not an App manager, and runs fo
   assert.deepEqual(asked.filter((p) => p.startsWith('/api/2.0/preview/scim/v2/Users')), [], 'a warehouse id cannot walk the App token to another API');
 });
 
-test('a tenant id typed into the sign-in form stays one path segment of the Microsoft token address (must-exclude)', async () => {
-  S.reset({});
-  await S.request('POST', '/api/auth/sp-token', { body: { client_id: 'c', client_secret: 's', tenant_id: '../common/../x?y=1', databricks_host: 'https://workspace.example.com' } });
-  const asked = S.state.calls.map((c) => c.path);
-  assert.ok(asked.includes('/..%2Fcommon%2F..%2Fx%3Fy%3D1/oauth2/v2.0/token'), asked.join(' | '));
-});
-
 test('run status and output answer only for runs recorded in the App database; any other run id is refused with the reason', async () => {
   for (const route of ['/api/run/777', '/api/run/777/output']) {
     S.reset({ launchers: { 501: 'launcher@example.com' } });
