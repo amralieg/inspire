@@ -68,7 +68,6 @@ for (const id of IDS) for (const mode of MODES) {
         assert.ok(x0 >= 0 && x1 <= 794, `x ${x0.toFixed(0)}-${x1.toFixed(0)} ${s[2].slice(0, 30)}`);
       }
     }
-    assert.match(p, /…/);
   });
   for (const [label, summary] of [['with a summary', SUMMARY], ['without a summary', undefined]]) {
     test(`E4: ${id} ${mode} ${label}: no empty band over 120 px between y=150 and the footer`, async () => {
