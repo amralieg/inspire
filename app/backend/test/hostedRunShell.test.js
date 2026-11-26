@@ -152,7 +152,9 @@ test('a decision on a real page Inside Inspire reaches the page\'s own shell, wh
     assert.deepEqual([...new Set(sql.map((c) => JSON.parse(c.body).warehouse_id))], ['wh2']);
     assert.ok(!sql.some((c) => /MERGE INTO/.test(JSON.parse(c.body).statement)), 'nothing is written for a record the viewer cannot read');
     const stale = await act(before.id);
-    assert.deepEqual([stale.status, JSON.parse(stale.text).error], [409, `this page was built before Inspire recorded decisions inside Inspire; ${H.HOSTED_DECISION_REBUILD}`]);
+    // SEC-01: an older shell is no longer the bundled one, so Inspire refuses the folder (409) before it can ask the shell anything.
+    assert.equal(stale.status, 409, stale.text);
+    assert.match(JSON.parse(stale.text).error, /^Inspire will not run the page folder .*shell_core\.py is not the App shell file Inspire wrote\. Build the page again/);
     assert.equal(hosted.runs.size, 0, 'no page process started to record a decision');
   } finally {
     await new Promise((resolve) => server.close(resolve));
