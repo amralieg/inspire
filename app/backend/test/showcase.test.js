@@ -302,6 +302,7 @@ test('the write guard refuses every change before any parser and lets reads, Gen
   const demo = { [S.SHOWCASE_HEADER]: 'taxi' };
   assert.deepEqual(run('POST', '/api/inspire/feedback', demo), [403, S.SHOWCASE_READ_ONLY]);
   assert.deepEqual(run('PUT', '/api/page', demo), [403, S.SHOWCASE_READ_ONLY]);
+  assert.deepEqual(run('POST', '/api/inspire/usecase-name', demo), [403, S.SHOWCASE_READ_ONLY], 'a demo rename is refused by the server too (RC7-A-01)');
   assert.deepEqual(run('POST', '/showcase/taxi/mvp/N01-U01/api/alerts/save'), [403, S.SHOWCASE_READ_ONLY]);
   for (const [method, path, headers] of [['GET', '/api/inspire/results', demo], ['POST', '/api/inspire/implement/readiness', demo],
     ['POST', '/showcase/taxi/mvp/N01-U01/api/page'], ['POST', '/showcase/taxi/mvp/N01-U01/api/genie/ask'], ['POST', '/api/inspire/feedback'],

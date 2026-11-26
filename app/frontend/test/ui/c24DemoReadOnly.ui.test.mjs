@@ -82,3 +82,13 @@ test('non-demo session: archive still moves the row to Archived (must-exclude)',
     assert.equal(await page.locator('[data-demo-note]').count(), 0);
   } finally { await ui.close(); }
 });
+
+test('demo session: the favorite star is refused with the demo message and stores nothing', async () => {
+  const { ui } = await open('&showcase=acme');
+  const { page } = ui;
+  try {
+    await cardOf(page, 'N01-U01').getByRole('button', { name: /favorites/ }).first().click();
+    await page.locator('[data-demo-note]').filter({ hasText: REASON }).first().waitFor();
+    assert.equal(await page.evaluate(() => localStorage.getItem('inspire_favorites_fp')), null);
+  } finally { await ui.close(); }
+});

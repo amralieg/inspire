@@ -118,6 +118,8 @@ import { MVP_FILTERS, START_MVP_LABEL, implementState, mvpFilterMatches, noteboo
 import { buildUseCaseList } from '../lib/useCaseList';
 import { cardAssetLinks, liveAppRenameStale, renameRestyleSpec, trackBuildSubmit } from '../lib/implementControl';
 import UiPageHeader from '../components/ui/PageHeader';
+import DemoNote from '../components/DemoNote';
+import { readOnlyReason } from '../lib/showcase';
 import { ARCHIVE_VIEWS, archiveKeyOf, inArchiveView, loadArchiveMap, toggledArchive } from '../lib/useCaseArchive';
 import QualityGateDrops from '../components/QualityGateDrops';
 import { makeApiFetch, makeApiPostJson, makeApiPutJson, requestHeaders, responseError } from '../lib/apiClient';
@@ -225,9 +227,11 @@ export default function ResultsPage({
 
   // Favorites — browser localStorage, keyed by content fingerprint (works across sessions)
   const [favorites, setFavorites] = useState(loadFavoritesMap);
+  const [demoRefusal, setDemoRefusal] = useState('');
   const toggleFavorite = useCallback((uc) => {
     const id = favoriteKeyOf(uc);
     if (!id) return;
+    if (showcase) { setDemoRefusal(readOnlyReason(true)); return; }
     setFavorites((prev) => {
       const next = { ...prev, [id]: !prev[id] };
       if (!next[id]) delete next[id];
@@ -236,13 +240,18 @@ export default function ResultsPage({
       } catch { /* quota / private mode */ }
       return next;
     });
-  }, []);
+  }, [showcase]);
 
   // Archive: browser localStorage, keyed by run and use case id; archived use cases leave the Active list
   const [archiveView, setArchiveView] = useState('active');
   const [archived, setArchived] = useState(loadArchiveMap);
   // Archiving or unarchiving moves the card to the other view, so the open key is cleared (a stale key made the next row click close instead of open)
-  const toggleArchive = useCallback((key) => { setArchived((prev) => toggledArchive(prev, key)); setExpandedUseCase(null); }, []);
+  // A demo session is read-only (RC7-A-01): archive is refused with the demo wording before it changes state or storage.
+  const toggleArchive = useCallback((key) => {
+    if (showcase) { setDemoRefusal(readOnlyReason(true)); return; }
+    setArchived((prev) => toggledArchive(prev, key));
+    setExpandedUseCase(null);
+  }, [showcase]);
 
   const [feedbackState, setFeedbackState] = useState({ available: null, latest: [], message: '' });
   const [feedbackRefresh, setFeedbackRefresh] = useState(0);
@@ -1230,7 +1239,7 @@ export default function ResultsPage({
       index: idx,
       isFavorite: !!(favKey && favorites[favKey]),
       onToggleFavorite: () => toggleFavorite(uc),
-      onRename: inspireDb && warehouseId && selectedSessionId ? (name) => renameUseCase(uc, name) : undefined,
+      onRename: inspireDb && warehouseId && selectedSessionId ? (name) => (showcase ? Promise.reject(new Error(readOnlyReason(true))) : renameUseCase(uc, name)) : undefined,
       liveAppStale: liveAppRenameStale(implementLatestById[tid], nameOfUseCase(uc)) && cardAssetLinks(implementLatestById[tid]).some((l) => l.id === 'app'),
       onUpdateLiveApp: inspireDb && warehouseId && selectedSessionId ? () => updateLiveApp(uc) : undefined,
       v130: uc._v130,
@@ -2148,6 +2157,8 @@ export default function ResultsPage({
                   onClear={() => setBulkPicked(new Set())}
                   onSelectAll={(on) => setBulkPicked(on ? new Set(filteredUseCases.map((uc) => trackingIdOf(uc)).filter(Boolean)) : new Set())} />
               )}
+
+              {demoRefusal && <DemoNote text={demoRefusal} className="mb-2" />}
 
               {/* Use case cards — only this region scrolls; sidebar + filter bar stay visible */}
               <div
