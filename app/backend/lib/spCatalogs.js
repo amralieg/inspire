@@ -125,9 +125,11 @@ async function pickableRows(rows, { readable, personToken, spToken, cap = PICKER
   return rows.map((row) => ({ ...row, inspire_readable: null, ...(byName.get(row.full_name) || {}) }));
 }
 
-// The permission entry for the partial catalogs, one dialog payload.
-function partialPermission(catalogs, principal) {
-  const statements = catalogs.flatMap((c) => (c.partial ? c.partial.missing : []));
+// The permission entry for the partial catalogs, one dialog payload. SEC-18 (c23): `picked` names the catalogs the person is asking about; the ask
+// carries only the grants those catalogs miss, never the ~150 catalogs the person merely sees. Without `picked` it carries every partial catalog's.
+function partialPermission(catalogs, principal, picked = null) {
+  const only = Array.isArray(picked) ? new Set(picked.map((n) => key(n))) : null;
+  const statements = catalogs.filter((c) => !only || only.has(key(c.name))).flatMap((c) => (c.partial ? c.partial.missing : []));
   return permissionRequired({ statements, principal, exact: true,
     why: 'The App can see these catalogs but cannot read all of what Inspire needs in them yet.' });
 }

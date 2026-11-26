@@ -356,6 +356,8 @@ function makeApp(overrides = {}, { mount } = {}) {
     visibleSessions: async (_req, sessions) => sessions.filter((s) => !(state.hiddenSessions && state.hiddenSessions.includes(String(s.session_id)))),
     useCaseAlerts: state.useCaseAlerts,
     runDefaults: () => state.runDefaults || {},
+    // c23 SEC-07: the harness person is an App manager (so a caller-chosen database and warehouse are kept) unless a test sets state.manager = false.
+    ...(state.noIsManager ? {} : { isManager: async () => state.manager !== false }),
     appFetch: async (url, opts = {}) => {
       appCalls.push({ url, method: String(opts.method || 'GET').toUpperCase(), headers: opts.headers || {}, body: opts.body ? JSON.parse(opts.body) : null });
       const routed = `${String(opts.method || 'GET').toUpperCase()} ${new URL(url).pathname}`;
