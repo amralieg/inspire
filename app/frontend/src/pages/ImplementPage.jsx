@@ -1234,6 +1234,8 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
     : <BusyNote inline text="Loading…" />;
 
   const builtOn = builtVersion(history);
+  // RC6-D-05: the uninstall row is the newest version; the version it uninstalled is the newest built one before it.
+  const builtBefore = uninstalled ? ([...history].sort((a, b) => (b?.spec_version || 0) - (a?.spec_version || 0)).find((r) => IMPLEMENT_DONE_STATUSES.includes(String(r?.status)))?.spec_version ?? null) : null;
   const nextSpec = built && latest ? rebuildSpec(latest, vibes) : null;
   const choices = builtOn != null && String(nextSpec?.vibes ?? '').trim()
     ? vibePreviousChoices(liveVersionForVibes(history), (latest?.spec_version ?? 0) + 1, Boolean(nextSpec.outputs?.alert)) : [];
@@ -1955,6 +1957,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
               {row?.domain && <span className="whitespace-nowrap"><bdi>{row.domain}</bdi>{row.subdomain && <> › <bdi>{row.subdomain}</bdi></>}</span>}
               {latest?.spec_version != null && <span className="whitespace-nowrap font-mono">· v{latest.spec_version}</span>}
               <ImplementStatusBadge state={item.state} />
+              {uninstalled && builtBefore != null && <span data-uninstalled-version="" className="whitespace-nowrap font-mono">v{builtBefore} uninstalled</span>}
             </div>
           </div>
           {row && <InspireScoreBadge score={row.inspire} />}
@@ -2011,7 +2014,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
       )}
       {!built && notebook && <NotebookPanel notebook={notebook} />}
       {uninstalling && (
-        <ConfirmDialog title={`Uninstall everything ${useCaseId} built`} confirmLabel={`Uninstall ${useCaseId}`} useCaseId={useCaseId} busy={submitBusy}
+        <ConfirmDialog title={`Uninstall everything ${item.name} built`} confirmLabel={`Uninstall ${item.name}`} useCaseId={useCaseId} busy={submitBusy}
           onCancel={() => setUninstalling(false)} onConfirm={uninstallAll}>
           <p>
             Inspire deletes the MVP notebook, its job, the build jobs of every version, the dashboard, the Genie Agent, the App, the alert, the App&apos;s Lakebase copy and every version kept live, in a new version of this MVP. A build job that is still running stays until its run ends, and Inspire says so.
