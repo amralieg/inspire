@@ -76,7 +76,7 @@ for (const id of NEW_IDS) for (const mode of ['light', 'dark']) {
     assert.deepEqual(bad, []);
     resetLog();
     const pages = briefPagesSvg(model(), th);
-    assert.equal(pages.length, 1 + UCS.length);
+    assert.ok(pages.length >= 1 + UCS.length, 'one page per use case, plus continuation pages for the extra detail fields (c23)');
     assert.ok(/acme bakes/i.test(pages[0]) && pages[0].includes('width="794"'));
     const bad1 = LOG.filter((e) => contrast(e.fill, e.bg) < 4.5 || e.size < 12).map((e) => `${e.ctx} ${e.fill}/${e.bg} ${e.size}`);
     assert.deepEqual(bad1, []);
@@ -104,10 +104,10 @@ test('D7: a model without verbs, with an unknown verb, or with no value at all n
     assert.match(infographicSvg(model({ values: mkValues(false) }), th), /^<svg /);
     const odd = Object.fromEntries(Object.entries(mkValues()).map(([k, v]) => [k, { ...v, verb: 'SOMETHING NEW' }]));
     assert.match(infographicSvg(model({ values: odd }), th), /^<svg /);
-    assert.equal(briefPagesSvg(model({ values: mkValues(false) }), th).length, 1 + UCS.length);
+    assert.ok(briefPagesSvg(model({ values: mkValues(false) }), th).length >= 1 + UCS.length, 'one page per use case, plus continuation pages (c23)');
     const none = infographicSvg(model({ values: {} }), th);
     assert.match(none, /not calculated yet/, 'no value anywhere falls back to the plain renderer');
-    assert.equal(briefPagesSvg(model({ values: {} }), th).length, 1 + UCS.length);
+    assert.ok(briefPagesSvg(model({ values: {} }), th).length >= 1 + UCS.length, 'one page per use case, plus continuation pages (c23)');
   }
 });
 
