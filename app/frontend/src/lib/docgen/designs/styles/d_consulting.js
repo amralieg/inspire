@@ -1,6 +1,6 @@
 // Option D "Consulting": a board-pack exhibit page. White, navy and one blue, action titles that state the conclusion, numbered exhibits,
 // a waterfall that builds the total, a labelled 2x2, a prioritisation funnel, a ranked table with spark bars and Harvey balls, a source line.
-import { t, T, rect, line, icon, svgDoc, money, DISCLAIMER, bestInk, wrap, nLines, fitSummary, has, iconName, VERB_ICON } from '../core.js';
+import { t, T, rect, line, icon, svgDoc, money, DISCLAIMER, bestInk, wrap, nLines, fitSummary, fitRows, has, iconName, VERB_ICON } from '../core.js';
 import { ucPage, factCols, NOT_YET } from '../ucPage.js';
 import { quadrant, waterfall, funnel, harvey, hbars } from '../charts.js';
 
@@ -23,7 +23,7 @@ const exhibit = (x, y, n, title, th, w, bg = th.page, size = 13) => {
 
 function infographic(m, th, { W, H }) {
   const P = 36; const CW = W - 2 * P; const small = H < 1100; const df = m.useCases.filter(doFirst(m)); const dfv = df.reduce((a, u) => a + u.value.amount, 0);
-  let s = rect(0, 0, W, H, th.page) + topline(W, P, th, `Use case portfolio review · ${m.businessName}`);
+  let s = topline(W, P, th, `Use case portfolio review · ${m.businessName}`);
   const at = T(P, 74, `${df.length} use cases above the median score and value hold ${money(dfv)} of the ${m.total.text} yearly estimate. Start there.`, { size: small ? 21 : 23, weight: 700, fill: th.ink, bg: th.page, font: BODY, maxW: CW, lines: 2, lh: small ? 26 : 29, ctx: 'action title' });
   s += at.svg;
   let y = 74 + at.h + 4;
@@ -73,14 +73,16 @@ function infographic(m, th, { W, H }) {
   });
   y += 22;
   const footer = 92; const rowMin = 27; const vmax = m.ranked[0].value.amount;
-  const rh = (u) => Math.max(rowMin, nLines(u.short, 262, 12) * 14 + 13);
-  const shown = []; let room = H - y - footer;
-  for (const u of m.ranked) { const h = rh(u); if (shown.length >= 3 && h > room) break; shown.push({ u, h }); room -= h; }
-  let used = 0;
+  // The use case cell holds the name and, under it, the description in full; the row grows to fit both.
+  const nameN = (u) => nLines(u.short, 262, 12); const descN = (u) => (u.statement ? nLines(u.statement, 262, 12) : 0);
+  const rh = (u) => Math.max(rowMin, (nameN(u) + descN(u)) * 14 + 13);
+  const fit = fitRows(m.ranked, 1, rh, H - y - footer);
+  const shown = fit.rows.map((r) => ({ u: r.items[0], h: r.h })); const used = fit.used;
   shown.forEach(({ u, h: rowH }, i) => {
-    const yy = y + used; used += rowH; const cy = yy + 14 + 4 - (rowMin - 27) / 2; const dname = m.domains.find((q) => q.name === u.domain).icon;
+    const yy = y + fit.rows[i].y; const cy = yy + 14 + 4 - (rowMin - 27) / 2; const dname = m.domains.find((q) => q.name === u.domain).icon;
     s += t(cols.rank + 4, cy, String(i + 1), { size: 12, weight: 700, fill: th.ink, bg: th.page, font: BODY, ctx: 'td' });
     s += T(cols.name, cy, u.short, { size: 12, fill: th.ink, bg: th.page, font: BODY, maxW: 262, lh: 14, ctx: 'td' }).svg;
+    if (u.statement) s += T(cols.name, cy + nameN(u) * 14, u.statement, { size: 12, fill: th.slate, bg: th.page, font: BODY, maxW: 262, lh: 14, ctx: 'td desc' }).svg;
     s += icon(dname, cols.dom, cy - 10, 13, th.slate, 1.8) + t(cols.dom + 18, cy, u.domain, { size: 12, fill: th.ink, bg: th.page, font: BODY, maxW: 92, lines: 1, ctx: 'td' });
     s += t(cols.val + 48, cy, u.value.text, { size: 12, weight: 700, fill: th.ink, bg: th.page, anchor: 'end', font: BODY, ctx: 'td' });
     s += rect(cols.bar, cy - 8, 96, 8, th.panel) + rect(cols.bar, cy - 8, (u.value.amount / vmax) * 96, 8, isDf(u) ? th.blue : th.barAlt);
@@ -88,10 +90,11 @@ function infographic(m, th, { W, H }) {
     if (m.verbs.length) s += t(cols.verb, cy, cap(u.verb), { size: 12, fill: th.slate, bg: th.page, anchor: 'end', font: BODY, ctx: 'td' });
     s += line(P, yy + rowH, W - P, yy + rowH, th.rule, 0.6);
   });
+  const PH = Math.max(H, y + used + footer);
   y += used + 16;
   s += T(P, y, `How to read: dashed lines mark the median score (${m.median.score.toFixed(1)}) and median value (${money(m.median.value)}). Blue = do first. Harvey ball = score out of 10.`, { size: 12, fill: th.ink, bg: th.page, font: BODY, maxW: CW, lines: 2, lh: 15, ctx: 'how' }).svg;
   s += T(P, y + 34, `Source: Databricks Inspire AI analysis of the ${m.businessName} catalog.${has(m, 'disclaimer') ? ` ${DISCLAIMER}` : ''}`, { size: 12, fill: th.slate, bg: th.page, font: BODY, maxW: CW, lines: 3, lh: 15, ctx: 'source' }).svg;
-  return svgDoc(W, H, s, BODY);
+  return svgDoc(W, PH, rect(0, 0, W, PH, th.page) + s, BODY);
 }
 
 const SW = 1333; const SH = 750; const SP = 60;

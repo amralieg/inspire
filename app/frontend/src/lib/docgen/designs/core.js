@@ -75,6 +75,18 @@ export function wrap(text, maxW, size, kind = 'sans', weight = 400) {
 // How many lines T() will draw for this text, so a row or card can grow before it is drawn.
 export const nLines = (text, maxW, size, kind = 'sans', weight = 400) => Math.max(1, wrap(LB(String(text ?? '')), maxW, size, kind, weight).length);
 
+// The top use cases of a design infographic: rows of `per` items, each row as tall as its tallest item (heightOf), plus gap; as many rows as fit
+// the room, and always the top `min` use cases, for which the caller grows the page. A description is never cut to make a row fit.
+export function fitRows(items, per, heightOf, room, gap = 0, min = 3) {
+  const rows = []; let used = 0; let n = 0;
+  for (let i = 0; i < items.length; i += per) {
+    const row = items.slice(i, i + per); const h = Math.max(...row.map(heightOf));
+    if (n >= min && used + h + gap > room) break;
+    rows.push({ items: row, start: i, y: used, h }); used += h + gap; n += row.length;
+  }
+  return { rows, used };
+}
+
 // T(x, y, text, opts): opts = { size, weight, fill, bg (the colour behind the text, required for the contrast log), font, kind, anchor,
 // maxW, lines, lh, ls (letter-spacing), caps, italic, ctx (label for the log) }.
 export function T(x, y, text, o = {}) {

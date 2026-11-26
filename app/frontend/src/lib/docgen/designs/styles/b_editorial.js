@@ -1,6 +1,6 @@
 // Option B "Editorial": an executive magazine page. Paper, ink, one lava-red accent, hairline rules, a headline that states the number,
 // a tonal treemap where only the leading domain carries colour, a thin-ring donut, a hollow-dot quadrant, numbered list instead of boxes.
-import { wrap, nLines, SPILL, textW, t, T, rect, line, circle, icon, svgDoc, runW, money, VERB_ICON, DISCLAIMER, bestInk, contrast, has, verbColors, iconName } from '../core.js';
+import { wrap, nLines, fitRows, SPILL, textW, t, T, rect, line, circle, icon, svgDoc, runW, money, VERB_ICON, DISCLAIMER, bestInk, contrast, has, verbColors, iconName } from '../core.js';
 import { ucPage, factCols, NOT_YET } from '../ucPage.js';
 import { donut, quadrant, treemapChart, meter } from '../charts.js';
 
@@ -24,7 +24,7 @@ const kicker = (x, y, s, th, o = {}) => t(x, y, s, { size: 12, weight: 700, fill
 
 function infographic(m, th, { W, H }) {
   const P = 44; const CW = W - 2 * P; const small = H < 1100;
-  let s = rect(0, 0, W, H, th.paper);
+  let s = '';
   s += masthead(W, P, 30, th, 'Databricks Inspire AI · Value review', `${m.businessName} · Nov 2026`);
   const d3 = m.domains.slice(0, 3); const share = Math.round((d3.reduce((a, d) => a + d.value, 0) / m.total.amount) * 100);
   // headline: the number is the story
@@ -73,23 +73,28 @@ function infographic(m, th, { W, H }) {
   s += t(W - P, y + 26, 'Numbers match Figure 2', { size: 12, fill: th.grey, bg: th.paper, anchor: 'end', font: BODY, ctx: 'list note' });
   y += 40;
   const footer = 92; const rowH = 62; const colW = (CW - 28) / 2;
-  const rows = Math.max(1, Math.floor((H - y - footer) / rowH));
-  m.ranked.slice(0, rows * 2).forEach((u, i) => {
-    const col = i % 2; const row = Math.floor(i / 2); const x = P + col * (colW + 28); const yy = y + row * rowH;
+  // The name wraps in full, the meta line moves under it, and the description follows in full at the row's width; the row grows to fit.
+  const metaY = (u) => 51 + Math.max(0, nLines(u.short, colW - 110, 14, 'serif', 700) - 2) * 17;
+  const itemH = (u) => (u.statement ? Math.max(rowH, metaY(u) + 18 + (nLines(u.statement, colW - 34, 12) - 1) * 15 + 12) : Math.max(rowH, metaY(u) + 11));
+  const fit = fitRows(m.ranked, 2, itemH, H - y - footer);
+  fit.rows.forEach((r) => r.items.forEach((u, col) => {
+    const i = r.start + col; const x = P + col * (colW + 28); const yy = y + r.y; const my = yy + metaY(u);
     s += t(x, yy + 36, String(i + 1), { size: 34, weight: 700, fill: th.accentText, bg: th.paper, font: DISPLAY, kind: 'serif', ctx: 'list num' });
     s += t(x + 34, yy + 18, u.short, { size: 14, weight: 700, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', maxW: colW - 110, lines: 2, lh: 17, ctx: 'list title' });
-    s += icon(u.domain && m.domains.find((d) => d.name === u.domain).icon, x + 34, yy + 40, 13, th.grey, 1.6);
-    s += t(x + 52, yy + 51, [u.domain, cap(u.verb)].filter(Boolean).join(' · '), { size: 12, fill: th.grey, bg: th.paper, font: BODY, ctx: 'list meta' });
+    s += icon(u.domain && m.domains.find((d) => d.name === u.domain).icon, x + 34, my - 11, 13, th.grey, 1.6);
+    s += t(x + 52, my, [u.domain, cap(u.verb)].filter(Boolean).join(' · '), { size: 12, fill: th.grey, bg: th.paper, font: BODY, ctx: 'list meta' });
+    if (u.statement) s += t(x + 34, my + 18, u.statement, { size: 12, fill: th.body, bg: th.paper, font: BODY, maxW: colW - 34, lh: 15, ctx: 'list desc' });
     s += t(x + colW, yy + 22, u.value.text, { size: 18, weight: 700, fill: th.ink, bg: th.paper, anchor: 'end', font: DISPLAY, kind: 'serif', ctx: 'list value' });
     s += t(x + colW, yy + 38, 'a year', { size: 12, fill: th.grey, bg: th.paper, anchor: 'end', font: BODY, ctx: 'list unit' });
     if (has(m, 'inspire_score')) s += t(x + colW, yy + 53, `score ${u.score.toFixed(1)}`, { size: 12, weight: 700, fill: th.body, bg: th.paper, anchor: 'end', font: BODY, ctx: 'list score' });
-    s += line(x, yy + rowH - 4, x + colW, yy + rowH - 4, th.hair, 1);
-  });
-  y += rows * rowH + 6;
+    s += line(x, yy + r.h - 4, x + colW, yy + r.h - 4, th.hair, 1);
+  }));
+  const PH = Math.max(H, y + fit.used + footer);
+  y += fit.used + 6;
   s += t(P, y + 14, 'How to read.', { size: 12, weight: 700, fill: th.ink, bg: th.paper, font: BODY, ctx: 'how' });
   s += T(P + 82, y + 14, 'Tile area = yearly value. Filled red dots sit above the median score and the median value (dashed lines). Score = Inspire score out of 10.', { size: 12, fill: th.body, bg: th.paper, maxW: CW - 82, lines: 2, lh: 15, font: BODY, ctx: 'how' }).svg;
   if (has(m, 'disclaimer')) s += T(P, y + 48, DISCLAIMER, { size: 12, fill: th.grey, bg: th.paper, italic: true, maxW: CW, lines: 3, lh: 15, font: SERIF, kind: 'serif', ctx: 'disc' }).svg;
-  return svgDoc(W, H, s, BODY);
+  return svgDoc(W, PH, rect(0, 0, W, PH, th.paper) + s, BODY);
 }
 
 const SW = 1333; const SH = 750;

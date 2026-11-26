@@ -1,7 +1,7 @@
 // Option A "Original": the agent's own document system (teal + sand + gold, Fraunces display over Inter body, coral eyebrows, gold rule,
 // rings art on a teal gradient cover), rendered as a graphic-led infographic. Fixes: coral and gold text darkened or lightened to 4.5:1,
 // no 8.6pt micro text, real charts (bars, donut, quadrant) instead of chips only, value and score on every card.
-import { t, T, rect, line, circle, icon, svgDoc, textW, runW, money, VERB_ICON, DISCLAIMER, wrap, nLines, fitSummary, has, verbColors, iconName } from '../core.js';
+import { t, T, rect, line, circle, icon, svgDoc, textW, runW, money, VERB_ICON, DISCLAIMER, wrap, nLines, fitSummary, fitRows, has, verbColors, iconName } from '../core.js';
 import { ucPage, factCols, NOT_YET } from '../ucPage.js';
 import { hbars, donut, legend, quadrant, meter } from '../charts.js';
 
@@ -36,7 +36,11 @@ function wordmark(x, y, size, on, th, light = true) {
 const eyebrow = (x, y, s, th, bg, o = {}) => t(x, y, s, { size: 12, weight: 700, fill: o.fill || th.coralText, bg, caps: true, ls: 1.6, font: BODY, ctx: 'eyebrow', ...o });
 const head = (x, y, s, th, bg, size = 17) => t(x, y, s, { size, weight: 700, fill: th.ink, bg, font: DISPLAY, kind: 'serif', ctx: 'heading' });
 
-function ucCard(u, i, x, y, w, h, th, m) {
+// The infographic card prints the use case description in full under the title; the card grows to fit it (brief page 1 cards stay title only).
+const titleLines = (u, w) => nLines(u.short, w - 24, 14, 'serif', 700);
+const descY = (u, w) => 62 + (titleLines(u, w) - 1) * 17 + 19;
+const ucCardH = (u, w) => (u.statement ? Math.max(112, descY(u, w) + (nLines(u.statement, w - 24, 12) - 1) * 15 + 40) : 112);
+function ucCard(u, i, x, y, w, h, th, m, desc = false) {
   const elite = i === 0;
   let s = rect(x, y, w, h, th.card, { rx: 12, stroke: th.line });
   s += rect(x + 12, y + 12, 30, 30, elite ? th.gold : th.teal, { rx: 8 });
@@ -45,6 +49,7 @@ function ucCard(u, i, x, y, w, h, th, m) {
   s += t(x + 52, y + 23, u.domain, { size: 12, weight: 700, fill: th.coralText, bg: th.card, caps: true, ls: 1, maxW: w - 90, lines: 1, font: BODY, ctx: 'card kicker' });
   s += t(x + 52, y + 39, u.verb, { size: 12, fill: th.muted, bg: th.card, caps: true, ls: 0.6, font: BODY, ctx: 'card verb' });
   s += t(x + 12, y + 62, u.short, { size: 14, weight: 700, fill: th.ink, bg: th.card, maxW: w - 24, lines: 2, lh: 17, font: DISPLAY, kind: 'serif', ctx: 'card title' });
+  if (desc && u.statement) s += t(x + 12, y + descY(u, w), u.statement, { size: 12, fill: th.body, bg: th.card, maxW: w - 24, lh: 15, font: BODY, ctx: 'card desc' });
   s += line(x + 12, y + h - 30, x + w - 12, y + h - 30, th.line, 1);
   s += t(x + 12, y + h - 11, u.value.yearText, { size: 14, weight: 700, fill: th.mode === 'dark' ? th.tealMid : th.teal, bg: th.card, font: BODY, ctx: 'card value' });
   if (has(m, 'inspire_score')) s += t(x + w - 12, y + h - 11, `Score ${u.score.toFixed(1)}`, { size: 12, weight: 700, fill: th.body, bg: th.card, anchor: 'end', font: BODY, ctx: 'card score' });
@@ -54,7 +59,7 @@ function ucCard(u, i, x, y, w, h, th, m) {
 function infographic(m, th, { W, H }) {
   const P = 36; const CW = W - 2 * P; const small = H < 1100;
   const h0 = small ? 238 : 262;
-  let s = rect(0, 0, W, H, th.page);
+  let s = '';
   // hero band
   s += rect(0, 0, W, h0, 'url(#aHero)') + rings(W - 330, -40, 0.62, th.gold);
   s += wordmark(P, 42, 12, '#0B4642', th);
@@ -107,16 +112,17 @@ function infographic(m, th, { W, H }) {
   s += rect(P, y + 12, 54, 3, th.gold, { rx: 2 });
   y += 26;
   const footer = 92; const ch = 112; const gap = 12;
-  const rows = Math.max(1, Math.floor((H - y - footer + gap) / (ch + gap)));
   const cw = (CW - 2 * gap) / 3;
-  m.ranked.slice(0, rows * 3).forEach((u, i) => { s += ucCard(u, i, P + (i % 3) * (cw + gap), y + Math.floor(i / 3) * (ch + gap), cw, ch, th, m); });
-  y += rows * (ch + gap) + 2;
+  const fit = fitRows(m.ranked, 3, (u) => Math.max(ch, ucCardH(u, cw)), H - y - footer + gap, gap);
+  fit.rows.forEach((r) => r.items.forEach((u, j) => { s += ucCard(u, r.start + j, P + j * (cw + gap), y + r.y, cw, r.h, th, m, true); }));
+  const PH = Math.max(H, y + fit.used - gap + footer);
+  y += fit.used + 2;
   // how to read + disclaimer
   s += rect(P, y, CW, 1, th.line);
   s += t(P, y + 20, 'How to read', { size: 12, weight: 700, fill: th.ink, bg: th.page, font: BODY, ctx: 'legend head' });
   s += t(P + 84, y + 20, 'Bar = yearly value per domain. Dot size = yearly value. Dashed lines = median score and value. Score = Inspire score out of 10.', { size: 12, fill: th.body, bg: th.page, maxW: CW - 84, lines: 2, lh: 15, font: BODY, ctx: 'legend' });
   if (has(m, 'disclaimer')) s += T(P, y + 52, DISCLAIMER, { size: 12, fill: th.muted, bg: th.page, maxW: CW, lines: 3, lh: 15, italic: true, font: BODY, ctx: 'disclaimer' }).svg;
-  return svgDoc(W, H, s, BODY, defs(th));
+  return svgDoc(W, PH, rect(0, 0, W, PH, th.page) + s, BODY, defs(th));
 }
 
 // ---------- deck (1333 x 750 = 13.33 x 7.5 in at 100 px per inch, pptxgenjs LAYOUT_WIDE) ----------
