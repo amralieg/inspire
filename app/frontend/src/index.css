@@ -141,18 +141,18 @@
 /* ═══ Dark theme ═══ */
 .dark {
   --t-scrim: hwb(0 0% 100% / 0.6);
-  --t-surface: #262628;
-  --t-bg: #1c1c1e;
-  --t-bg-subtle: #2c2c2f;
-  --t-panel: #212123;
+  --t-surface: #1a1724;
+  --t-bg: #0f0c19;
+  --t-bg-subtle: #25232e;
+  --t-panel: #13101d;
 
-  --t-border: #3a3a3d;
+  --t-border: #27292b;
   --t-border-subtle: rgba(255, 255, 255, 0.04);
   --t-border-strong: rgba(255, 255, 255, 0.15);
 
-  --t-text-primary: #F0F0F3;
-  --t-text-secondary: #A0A0AB;
-  --t-text-tertiary: #9A9AA5;
+  --t-text-primary: #f5f5f4;
+  --t-text-secondary: #908f95;
+  --t-text-tertiary: #939297;
   --t-text-disabled: #3F3F46;
 
   --t-success-bg: rgba(34, 197, 94, 0.16);
