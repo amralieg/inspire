@@ -88,7 +88,7 @@ export default function PermissionDialog({ found: given, reason = '', title = 'P
         {otherRequestLinks(offer?.links).length > 0 && (
           <div data-request-links="">
             <p>Also request access on:</p>
-            {otherRequestLinks(offer.links).map((link) => <a key={link.url} href={link.url} target="_blank" rel="noopener noreferrer">{link.full_name}</a>)}
+            <ul>{otherRequestLinks(offer.links).map((link) => <li key={link.url}><a href={link.url} target="_blank" rel="noopener noreferrer">{link.full_name}</a></li>)}</ul>
           </div>
         )}
         <details className="perm-dialog-advanced" data-permission-advanced="" open={advancedOpen} onToggle={(e) => setAdvancedState(e.currentTarget.open)}>

@@ -58,6 +58,15 @@ export function copyText(permissions) {
   return (permissions || []).flatMap((p) => (p?.statements || []).map((s) => (String(s).endsWith(';') ? s : `${s};`))).join('\n');
 }
 
+// RC6-B-10: the missing grant of one catalog is its own statements only, never the statements of the other partial catalogs.
+// The shared why and principal of the list stay; a list without those statements for the catalog is returned as it was.
+export function grantOfCatalog(permissions, catalog) {
+  const own = new Set(catalog?.partial?.missing || []);
+  if (!own.size) return permissions;
+  const keep = (permissions || []).map((p) => ({ ...p, statements: (p?.statements || []).filter((s) => own.has(s)) })).filter((p) => p.statements.length);
+  return keep.length ? keep : permissions;
+}
+
 // One host shows the dialog. A host mounted later takes over, so two mounted hosts never stack two dialogs for one raise.
 let activeHost = null;
 export function subscribePermissions(fn) {
