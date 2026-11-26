@@ -2,11 +2,13 @@
 import { moneyText } from '../valueWizard.js';
 import { designOf, toDesignModel } from './designs/model.js';
 import { resetLog, rtlSvg } from './designs/core.js';
+import { LB, withLabels } from './docLabels.js';
 
 const NS = 'xmlns="http://www.w3.org/2000/svg"';
 export const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 const has = (m, id) => m.blocks.includes(id);
 const NOT_YET = 'not calculated yet';
+const NO_PROJECTION = 'Calculate value to add the projection';
 
 function wrap(text, max, maxLines = 99) {
   const words = String(text ?? '').split(/\s+/).filter(Boolean);
@@ -23,7 +25,8 @@ function wrap(text, max, maxLines = 99) {
 function txt(m, t, x, y, { size = 14, weight = 400, fill, w = 0, anchor, max, lines = 1, lh } = {}) {
   const ax = anchor || (m.rtl ? 'end' : 'start');
   const px = m.rtl && !anchor ? x + w : x;
-  const parts = max ? wrap(t, max, lines) : [String(t ?? '')];
+  const tt = LB(String(t ?? ''));
+  const parts = max ? wrap(tt, max, lines) : [tt];
   const step = lh || size * 1.35;
   const spans = parts.map((p, i) => `<tspan x="${px}" dy="${i ? step : 0}">${esc(p)}</tspan>`).join('');
   return `<text x="${px}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${fill}" text-anchor="${ax}">${spans}</text>`;
@@ -57,7 +60,13 @@ function backdrop(theme, W, H, id) {
   return s;
 }
 
-const header = (m, theme, W, y0, sub) => `${txt(m, m.businessName || 'Inspire', 48, y0 + 44, { size: 36, weight: 700, fill: theme.ink, w: W - 96 })}${txt(m, sub, 48, y0 + 72, { size: 15, fill: theme.muted, w: W - 96 })}`;
+// RC6-B-12: a long business name wraps to at most two lines and the sub-title sits below the last line, so the two never overlap. Returns the svg and its height.
+function header(m, theme, W, y0, sub) {
+  const lines = wrap(m.businessName || 'Inspire', Math.floor((W - 96) / (36 * 0.56)), 2);
+  const title = lines.map((l, i) => txt(m, l, 48, y0 + 44 + i * 44, { size: 36, weight: 700, fill: theme.ink, w: W - 96 })).join('');
+  const dy = (lines.length - 1) * 44;
+  return { svg: `${title}${txt(m, sub, 48, y0 + 72 + dy, { size: 15, fill: theme.muted, w: W - 96 })}`, extra: dy };
+}
 
 function kpi(m, theme, x, y, w, label, value, i) {
   const c = theme.accents[i % theme.accents.length];
@@ -73,8 +82,9 @@ function projection(m, theme, x, y, w, h) {
   const low = sum('low'); const likely = sum('likely'); const high = sum('high');
   const max = Math.max(...high, ...likely, 1);
   const cur = m.total.currency;
+  // RC6-B-12: with no yearly value there is no empty block, only one plain line.
+  if (!Math.max(...likely)) return { h: 40, svg: `<g data-block="value_projection">${txt(m, NO_PROJECTION, x, y + 22, { size: 14, fill: theme.muted, w })}</g>` };
   let s = `<g data-block="value_projection">${txt(m, 'Three-year projection', x, y + 22, { size: 18, weight: 700, fill: theme.ink, w })}`;
-  if (!Math.max(...likely)) return `${s}${txt(m, `Projection ${NOT_YET}`, x, y + 60, { size: 14, fill: theme.muted, w })}</g>`;
   const base = y + h - 30; const ch = h - 90; const colW = (w - 40) / 3;
   years.forEach((yr, i) => {
     const bx = x + 20 + i * colW; const bw = colW - 40;
@@ -85,7 +95,7 @@ function projection(m, theme, x, y, w, h) {
     s += txt(m, `Year ${yr}`, bx, base + 20, { size: 13, fill: theme.muted, w: bw });
     s += txt(m, moneyText(cur, likely[i]), bx, base - (likely[i] / max) * ch - 8, { size: 13, weight: 700, fill: theme.ink, w: bw });
   });
-  return `${s}</g>`;
+  return { h: h + 20, svg: `${s}</g>` };
 }
 
 function valueBars(m, theme, x, y, w) {
@@ -112,7 +122,7 @@ function card(m, theme, u, i, x, y, w) {
   const tail = [];
   if (has(m, 'inspire_score') && u.score != null) tail.push(`Score ${u.score.toFixed(1)}`);
   if (u.value) tail.push(u.value.text); else tail.push(NOT_YET);
-  s += txt(m, tail.join('  |  '), x + 20, ty + 4, { size: 14, weight: 700, fill: c, w: w - 40 });
+  s += txt(m, tail.map((t) => LB(t)).join('  |  '), x + 20, ty + 4, { size: 14, weight: 700, fill: c, w: w - 40 });
   ty += 26;
   const block = (id, label, text, lines = 3) => {
     if (!has(m, id) || !text) return '';
@@ -139,17 +149,19 @@ const rtlRoot = (m, svg) => (m.rtl ? svg.replace(/^<svg /, '<svg direction="rtl"
 // A design infographic or page 1: mirrored as a whole when right to left (use case pages mirror themselves in ucPage).
 const designRtl = (m, svg) => (m.rtl ? rtlSvg(svg) : svg);
 
-export function infographicSvg(m, theme) {
+export const infographicSvg = (m, theme) => withLabels(m.labels, () => infographicSvgOf(m, theme));
+function infographicSvgOf(m, theme) {
   const d = designed(m, theme);
   if (d) { resetLog(); return designRtl(m, d.design.infographic(d.dm, theme.tokens, { W: 794, H: 1123 })); }
   const W = 1200; const gap = 24; const cw = (W - 96 - gap) / 2;
   let y = 120; let body = '';
-  body += header(m, theme, W, 50, `${m.total.n} use cases | ${m.total.nWithValue} with a calculated value`);
+  const hd = header(m, theme, W, 50, `${m.total.n} use cases | ${m.total.nWithValue} with a calculated value`);
+  body += hd.svg; y += hd.extra;
   const k = [['Use cases', String(m.total.n)], ['Total value', m.total.nWithValue ? m.total.text : NOT_YET], ['Calculated', `${m.total.nWithValue} of ${m.total.n}`]];
   const kw = (W - 96 - 2 * gap) / 3;
   k.forEach(([l, v], i) => { body += kpi(m, theme, 48 + i * (kw + gap), y, kw, l, v, i); });
   y += 92 + 36;
-  if (has(m, 'value_projection')) { body += projection(m, theme, 48, y, W - 96, 280); y += 300; }
+  if (has(m, 'value_projection')) { const pj = projection(m, theme, 48, y, W - 96, 280); body += pj.svg; y += pj.h; }
   body += valueBars(m, theme, 48, y, W - 96); y += 44 + m.useCases.length * 40 + 24;
   // Cards in two columns; each row is as tall as its taller card.
   for (let i = 0; i < m.useCases.length; i += 2) {
@@ -164,7 +176,8 @@ export function infographicSvg(m, theme) {
   return `<svg ${NS} viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="${esc(theme.font)}"${m.rtl ? ' direction="rtl"' : ''}>${defs(theme, 'I')}${backdrop(theme, W, H, 'I')}${body}</svg>`;
 }
 
-export function briefPagesSvg(m, theme) {
+export const briefPagesSvg = (m, theme) => withLabels(m.labels, () => briefPagesSvgOf(m, theme));
+function briefPagesSvgOf(m, theme) {
   const d = designed(m, theme);
   if (d) {
     resetLog();
@@ -176,7 +189,7 @@ export function briefPagesSvg(m, theme) {
   const wrapPage = (id, body) => `<svg ${NS} viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="${esc(theme.font)}"${m.rtl ? ' direction="rtl"' : ''}>${defs(theme, id)}${backdrop(theme, W, H, id)}${body}</svg>`;
   const cover = txt(m, m.businessName || 'Inspire', 60, 420, { size: 44, weight: 700, fill: theme.ink, w: W - 120, max: 24, lines: 3, lh: 54 })
     + txt(m, 'Use case brief', 60, 520, { size: 22, fill: theme.accents[0], w: W - 120 })
-    + txt(m, `${m.total.n} use cases | ${m.total.nWithValue ? m.total.text : NOT_YET}`, 60, 560, { size: 16, fill: theme.muted, w: W - 120 })
+    + txt(m, `${LB(`${m.total.n} use cases`)} | ${m.total.nWithValue ? m.total.text : LB(NOT_YET)}`, 60, 560, { size: 16, fill: theme.muted, w: W - 120 })
     + mark(theme, 60, 600, 260, 22, theme.accents[0], 0) + mark(theme, 60, 634, 180, 22, theme.accents[1], 1) + mark(theme, 60, 668, 110, 22, theme.accents[2], 2);
   const pages = [wrapPage('C', cover)];
   pages.push(...briefUseCasePages(m, theme));
@@ -190,7 +203,7 @@ function briefUseCasePages(m, theme) {
     const sub = { ...m, useCases: [u], total: { ...m.total, n: 1 } };
     const c = card(sub, theme, u, i, 40, 90, W - 80).replace(/<!--h:\d+-->/, '');
     const body = txt(m, m.businessName, 40, 70, { size: 14, fill: theme.muted, w: W - 80 }) + c;
-    const proj = has(m, 'value_projection') && u.value && u.value.yearly.length ? projection({ ...sub, total: { ...m.total, currency: u.value.currency } }, theme, 40, 700, W - 80, 260) : '';
+    const proj = has(m, 'value_projection') && u.value && u.value.yearly.length ? projection({ ...sub, total: { ...m.total, currency: u.value.currency } }, theme, 40, 700, W - 80, 260).svg : '';
     pages.push(wrapPage(`P${i}`, body + proj));
   });
   return pages;
