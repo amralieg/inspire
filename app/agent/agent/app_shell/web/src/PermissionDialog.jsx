@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { copyText as grantText } from '../../../../../frontend/src/lib/permissionBus.js';
-import { accessRequestResultText, offerShown, otherRequestLinks, requestFormLink, requestFormText } from '../../../../../frontend/src/lib/accessRequestText.js';
+import { accessRequestResultText, groupRequestLinks, linksOfRun, offerShown, otherRequestLinks, requestFormLink, requestFormText } from '../../../../../frontend/src/lib/accessRequestText.js';
 import { accessRequestCheck, accessRequestSend } from './api.js';
 import { copyText } from './Draft.jsx';
 import { AccessActions } from './ui.jsx';
@@ -36,7 +36,7 @@ export default function PermissionDialog({ found: given, reason = '', title = 'P
     let live = true;
     const pending = accessRequestCheck().catch(() => ({ offered: false, links: [] }));
     checkRef.current = pending;
-    pending.then((got) => { if (live) setOffer(got); });
+    pending.then((got) => { if (live) setOffer({ ...got, links: linksOfRun(got?.links, statements) }); });
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per grant list: the key stands for the statements
   }, [key]);
@@ -61,7 +61,7 @@ export default function PermissionDialog({ found: given, reason = '', title = 'P
       if (tab) tab.close();
       setResult(accessRequestResultText(sent));
     } else {
-      const first = requestFormLink(sent?.links?.length ? sent.links : (got.links || []));
+      const first = requestFormLink(linksOfRun(sent?.links?.length ? sent.links : (got.links || []), statements));
       let opened = false;
       if (first && tab) {
         try { tab.location = first.url; opened = true; } catch { opened = false; }
@@ -88,7 +88,22 @@ export default function PermissionDialog({ found: given, reason = '', title = 'P
         {otherRequestLinks(offer?.links).length > 0 && (
           <div data-request-links="">
             <p>Also request access on:</p>
-            <ul>{otherRequestLinks(offer.links).map((link) => <li key={link.url}><a href={link.url} target="_blank" rel="noopener noreferrer">{link.full_name}</a></li>)}</ul>
+            <div data-request-box="" style={{ maxHeight: '16rem', overflowY: 'auto', border: '1px solid currentColor', borderRadius: 6, padding: 8 }}>
+              <ul>
+                {groupRequestLinks(otherRequestLinks(offer.links)).map((group) => (
+                  <li key={group.parent} data-request-row="" className="mono">
+                    {group.items.length === 1 ? (
+                      <a href={group.items[0].url} target="_blank" rel="noopener noreferrer">{group.items[0].full_name}</a>
+                    ) : (
+                      <details>
+                        <summary>{group.label}</summary>
+                        <ul>{group.items.map((link) => <li key={link.url}><a href={link.url} target="_blank" rel="noopener noreferrer">{link.full_name}</a></li>)}</ul>
+                      </details>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         )}
         <details className="perm-dialog-advanced" data-permission-advanced="" open={advancedOpen} onToggle={(e) => setAdvancedState(e.currentTarget.open)}>
