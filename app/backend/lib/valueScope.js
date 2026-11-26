@@ -3,6 +3,7 @@
 // never writes SQL: a reply that carries SQL text, an unknown key, a DDL/DML statement, a comment or an unknown operator is rejected, and an
 // unknown column is reported as unmatched with close column names. The echo shown to the person is built from the structure, never the model text.
 const I = require('./inspireImplement');
+const VY = require('./valueYearly');
 const { parseExactJson } = require('./exactJson');
 const { replyContent } = require('./appFeedback');
 
@@ -16,7 +17,6 @@ const MAX_FILTERS = 12;
 const MAX_VALUES = 100;
 const MAX_VALUE_LENGTH = 200;
 const MAX_LAST_N = 1000;
-const DATE_TYPE = /^(date|timestamp)/i;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const COLUMN_SHAPE = /^[A-Za-z0-9_][A-Za-z0-9_ .-]{0,127}$/;
 // SQL text inside a value or a name: a statement break, a comment, or a DDL/DML statement (the keyword followed by what it acts on).
@@ -120,8 +120,9 @@ function checkWindow(w, columns) {
   const column = typeof w.column === 'string' ? w.column.trim() : '';
   if (!column || !COLUMN_SHAPE.test(column) || SQL_TEXT.test(column)) return fail('The window names a column in a form that is not a column name.');
   const known = findColumn(columns, column);
-  if (!known || !DATE_TYPE.test(String(known.data_type))) {
-    return { ok: true, window: null, unmatched: [{ phrase: `last ${n} ${unit}${n === 1 ? '' : 's'} of ${column}`, column, close: closeNames(column, (columns || []).filter((c) => DATE_TYPE.test(String(c.data_type)))) }] };
+  const dates = VY.dateColumnsOf(columns);
+  if (!known || !dates.includes(known)) {
+    return { ok: true, window: null, unmatched: [{ phrase: `last ${n} ${unit}${n === 1 ? '' : 's'} of ${column}`, column, close: closeNames(column, dates) }] };
   }
   return { ok: true, window: { column: nameOf(known), last_n: n, unit }, unmatched: [] };
 }
@@ -157,7 +158,7 @@ function checkScope(scope, columns) {
   if (w !== undefined && w !== null) {
     if (typeof w !== 'object' || Array.isArray(w)) return fail('The scope window must be an object.');
     const known = findColumn(columns, typeof w.column === 'string' ? w.column : '');
-    if (!known || !DATE_TYPE.test(String(known.data_type))) return fail('The scope window must name a date column of the table.');
+    if (!known || !VY.dateColumnsOf(columns).includes(known)) return fail('The scope window must name a date column of the table.');
     const day = (v) => (v === undefined || v === null || v === '' ? null : (DAY.test(String(v)) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) ? String(v) : false));
     const [start, end] = [day(w.start), day(w.end)];
     if (start === false || end === false || (!start && !end)) return fail('The scope window dates must be days written YYYY-MM-DD.');
@@ -205,7 +206,8 @@ function scopeClauses(scope) {
   });
   const w = scope && scope.window;
   if (w && w.column && (w.start || w.end)) {
-    const col = `CAST(${I.quoteColumn(w.column)} AS DATE)`;
+    // RC6-B-08: TRY_CAST, so a date kept as text whose value does not parse leaves the row out instead of failing the statement.
+    const col = `TRY_CAST(${I.quoteColumn(w.column)} AS DATE)`;
     if (w.start) { where.push(`${col} >= CAST(:wstart AS DATE)`); parameters.push({ name: 'wstart', value: String(w.start), type: 'STRING' }); }
     if (w.end) { where.push(`${col} <= CAST(:wend AS DATE)`); parameters.push({ name: 'wend', value: String(w.end), type: 'STRING' }); }
   }
@@ -223,15 +225,16 @@ function scopeCountSql(GP, scopes, table, scope) {
   }, parameters);
 }
 
-// The records found: rows, dated rows and the range of the chosen date column and of every date column. `dates` are the date/timestamp columns.
+// The records found: rows, dated rows and the range of the chosen date column and of every date column. `dates` are the date columns (VY.dateColumnsOf); a text one is read through the safe parse.
 function factsSql(GP, scopes, table, dates, dateColumn) {
   const names = (dates || []).map(nameOf);
   return GP.statement(scopes, (ctx) => {
     const from = GP.previewFrom(table, ctx, names);
-    const chosen = dateColumn && names.includes(dateColumn) ? I.quoteColumn(dateColumn) : null;
+    const read = (n) => VY.dateRead(I.quoteColumn(n), VY.isTextDate(dates, n));
+    const chosen = dateColumn && names.includes(dateColumn) ? read(dateColumn) : null;
     const parts = ['COUNT(*) AS rows_total',
       chosen ? `COUNT(${chosen}) AS dated_rows, MIN(${chosen}) AS first_day, MAX(${chosen}) AS last_day` : '0 AS dated_rows, NULL AS first_day, NULL AS last_day',
-      ...names.map((n, i) => `MIN(${I.quoteColumn(n)}) AS c${i}_first, MAX(${I.quoteColumn(n)}) AS c${i}_last`)];
+      ...names.map((n, i) => `MIN(${read(n)}) AS c${i}_first, MAX(${read(n)}) AS c${i}_last`)];
     return `SELECT ${parts.join(', ')} FROM ${from}`;
   });
 }
