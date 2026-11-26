@@ -191,6 +191,13 @@ REVIEWED = {
         ('_run_implement_mode', 'missing'),
     },
     'name': {
+        # REQ-537/540 focus spec: names Inspire itself ships or defines, never a platform or model message.
+        # file names from IMPLEMENT_FOCUS_DATA_FILES, an Inspire constant list
+        ('_implement_focus_tools', "', '.join(missing)"),
+        # a placeholder name from the shipped focus defaults vocabulary
+        ('pick', 'placeholder'),
+        # a column type word from the shipped focus defaults vocabulary
+        ('pick', 'want'),
         # REQ-518 (SEC-01 S4, 5ff80186c line): the Unity Catalog table name a row filter or column mask holds back, named in the refusal.
         ('_read', 'held[0]'),
         # REQ-204/REQ-197: the Table Scope view name Inspire computed, named in the refusal to rewrite a view that is not one.
@@ -471,10 +478,6 @@ HALF_REVIEWED = {
     ("online", "state"): "the copy's state code, a different field from the message it hides",
     ("_implement_app_deployment", "state"): "the deployment's state code, a different field from the message it hides",
     ("_implement_app_health", "state or 'not reported'"): "the App's state code, a different field from the message it hides",
-    # REQ-537/540 focus spec: names Inspire itself ships or defines, never a platform or model message.
-    ("_implement_focus_tools", "', '.join(missing)"): "file names from IMPLEMENT_FOCUS_DATA_FILES, an Inspire constant list",
-    ("pick", "placeholder"): "a placeholder name from the shipped focus defaults vocabulary, never a model or platform text",
-    ("pick", "want"): "a column type word from the shipped focus defaults vocabulary, never a model or platform text",
 }
 
 
