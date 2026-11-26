@@ -76,9 +76,11 @@ test('W3: the save page has the total above a row of five tiles, unticking a til
     const total = dialog.locator('[data-save-total]');
     const tiles = dialog.locator('[data-tile]');
     assert.equal(await tiles.count(), 5);
-    const t = await total.boundingBox();
-    const boxes = [];
-    for (let i = 0; i < 5; i += 1) boxes.push(await tiles.nth(i).boundingBox());
+    // One frame for every box: read one by one, a box moving with the page transition lands on another frame and the row looks broken.
+    const { t, boxes } = await dialog.evaluate((d) => {
+      const r = (el) => { const b = el.getBoundingClientRect(); return { y: b.y, height: b.height }; };
+      return { t: r(d.querySelector('[data-save-total]')), boxes: [...d.querySelectorAll('[data-tile]')].map(r) };
+    });
     assert.ok(t.y + t.height <= boxes[0].y + 1, 'total is above the grid');
     assert.ok(boxes.every((b) => Math.abs(b.y - boxes[0].y) <= 1), 'five tiles in one row');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
