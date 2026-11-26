@@ -9,10 +9,11 @@ const POLICY = RP.ROUTE_POLICY;
 
 // 4. The three routes that write with the App's identity take the owner-or-manager rule.
 for (const key of ['PUT /api/inspire/value/answers', 'POST /api/inspire/value/run-review', 'POST /api/inspire/docs/save']) {
-  test(`item 4: ${key} is an owners route (it writes as the App)`, () => {
+  test(`item 4: ${key} is an owners route`, () => {
     assert.ok(POLICY[key], `${key} has a policy entry`);
     assert.equal(POLICY[key].rule, 'owners');
-    assert.equal(POLICY[key].identity, 'app');
+    // SEC-02: the answers save reads the source table the caller names for its estimate, so it stays a person route.
+    assert.equal(POLICY[key].identity, key === 'PUT /api/inspire/value/answers' ? 'person' : 'app');
   });
 }
 

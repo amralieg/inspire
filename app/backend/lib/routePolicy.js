@@ -188,7 +188,9 @@ const ROUTE_POLICY = {
   'POST /api/inspire/value/preview': tracked('work out the value per year of a case plan and typed answers, with no data read',
     'reads nothing: pure arithmetic on the plan and answers it is sent'),
   'GET /api/inspire/value/answers': personReads('read the saved Calculate value answers of a session, with the stale check over its source tables', ['sql'], { appDatabase: true }),
-  'PUT /api/inspire/value/answers': owners('save the Calculate value answers of one use case as a new version, with its estimate', { launcherOwnsUnbuilt: true, appDatabase: true }),
+  'PUT /api/inspire/value/answers': owners('save the Calculate value answers of one use case as a new version, with its estimate', { launcherOwnsUnbuilt: true, appDatabase: true,
+    // SEC-02: the estimate reads the source table the caller names, so it runs as the signed-in person; only the owner rule is added.
+    identity: 'person', scopes: ['sql'] }),
   'GET /api/inspire/value/answers/history': tracked('read the saved versions of the Calculate value answers of one use case'),
   // SEC-12: undo rewrites another version of the saved answers, so it takes the same owner-or-manager rule as the use case's other writes.
   'POST /api/inspire/value/answers/undo': owners('go back to the previous version of the Calculate value answers of one use case', { appDatabase: true }),
