@@ -42,6 +42,7 @@ import { SectionHelp } from './SectionHelp.jsx';
 import { approvalValues, isAwaitingApproval } from './records.js';
 import { moneyKindOf, moneyLabel } from './impact.js';
 import RecordStory from './RecordStory.jsx';
+import { FocusStack } from './Focus.jsx';
 import { queueOf, storyOf } from './story.js';
 import { ClusterBar, useChoices } from './KindParts.jsx';
 
@@ -299,7 +300,7 @@ function AskAbout({ meta, onAsk, busy }) {
 }
 
 function Drawer({ queue = null, meta, row: given, onClose, history, canModify, tracker, owners, app, pageId, nonce, aliases, onEdit, onDelete, acts, onExplain, genieBusy, model,
-  work, tomorrow, today, focusOwner, closedReadOnly, clusterRows = [], onActed }) {
+  work, tomorrow, today, focusOwner, closedReadOnly, clusterRows = [], onActed, spec = null }) {
   const ref = useDialog(!!given, onClose);
   const log = useHistory(pageId, history && given ? recordRef(meta, given) : null, nonce);
   const person = app.user?.email || '';
@@ -446,7 +447,7 @@ function Drawer({ queue = null, meta, row: given, onClose, history, canModify, t
               <div className="done" role="status">{doneText(current, shownUnit(unit, recordCurrency(meta, current, row), kind), kind, choices)}{closedBy && <small className="done-by" data-closed-by>{closedBy}</small>}
                 {readOnly && <small className="done-by" data-read-only>{undoBatch ? READ_ONLY : theirs ? READ_ONLY_THEIRS : READ_ONLY_KEPT}</small>}</div>
             )}
-            {story ? <RecordStory story={story} view={view} kind={storyKind} money={population?.money || null} queue={queue}
+            {spec ? <FocusStack spec={spec} rows={clusterRows} row={row} kind={storyKind} /> : story ? <RecordStory story={story} view={view} kind={storyKind} money={population?.money || null} queue={queue}
               primary={open3 && !work && resolveWay ? { label: resolveText(current?.value_at_stake ?? row.value_at_stake, shownUnit(unit, recordCurrency(meta, current, row), kind), kind),
                 onSave: finish(resolveWay.c), write: closeWrite(resolveWay.c), attrs: { 'data-act': QUICK_CLOSE.done[1], 'data-choice': resolveWay.c.id, 'data-key': 'd' } } : null} /> : saving && (
               <section className="sec" aria-label={saveLabel}>
@@ -584,7 +585,7 @@ function emptyState({ search, mine, changed, fresh, windowed, narrowedAny, range
 
 export default function Records({ meta, app, pageId, filters, ai, onFilter, history = false, onChanged, nonce = 0, ready = true, onExplain, genieBusy, openKey,
   columnMeta, columnValues, onColumn, onClearColumns, onClearFilters, seeChanged = 0, onShowRuns, similarBy, keepsActions, onList, onOpen, section, sort: lookSort, onSort: onLookSort,
-  tab, focus: only, onTab, raise, runChecked = null }) {
+  tab, focus: only, onTab, raise, runChecked = null, focusSpec = null }) {
   const { prefs, update } = useMyView();
   const [query, setQuery] = useState('');
   const search = useDebounced(query.trim(), 300);
@@ -1160,7 +1161,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       <Drawer queue={queueOf(data?.status_counts)} meta={meta} row={shown} onClose={work ? stopWork : close} history={history} canModify={canModify} tracker={tracker} owners={owners} app={app} pageId={pageId} onActed={acted} clusterRows={data?.rows || []}
         nonce={drawerNonce} aliases={aliases} onEdit={edit} onDelete={setDoomed} acts={acts} onExplain={onExplain} genieBusy={genieBusy} model={data?.money}
         work={work && !work.ended && shown ? { text: workText, next: workNext } : null} tomorrow={tomorrow} today={today} focusOwner={ownerFocus}
-        closedReadOnly={everything} />
+        closedReadOnly={everything} spec={focusSpec} />
       {form && <RecordForm mode={form.mode} target={form.target} meta={meta} pageId={pageId} rows={rows} onClose={() => setForm(null)} onSaved={saved} />}
       {doomed && <DeleteDialog target={recordRef(meta, doomed)} label={recordName(doomed, meta) || 'this record'} pageId={pageId} onClose={() => setDoomed(null)} onSaved={saved} />}
       {acts.similar && <SimilarDialog similar={acts.similar} meta={meta} pageId={pageId} model={data?.money} choices={choices} onClose={acts.closeSimilar} onApply={acts.applySimilar} />}

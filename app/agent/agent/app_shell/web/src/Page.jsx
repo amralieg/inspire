@@ -34,6 +34,7 @@ import ModeView from './ModeView.jsx';
 import { pageMode, sectionTitle } from './modes.js';
 import { contractOf, styleOfPage } from './kinds.js';
 import { tourFacts } from './tourStart.js';
+import { FOCUS_MODE, modeOf, stepsOf } from './focus.js';
 import { KPI_TARGET, MEASURES, kpiGap, kpiGapText, promisedView, valueLine } from './impact.js';
 
 const FeedbackSettings = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackSettings })));
@@ -41,6 +42,7 @@ const PromisedDelivered = lazy(() => import('./Performance.jsx').then((m) => ({ 
 const WaitingForAccess = lazy(() => import('./WaitingForAccess.jsx'));
 const WorkPage = lazy(() => import('./WorkPage.jsx'));
 const Records = lazy(() => import('./Records.jsx'));
+const Focus = lazy(() => import('./Focus.jsx'));
 const MoneyRule = lazy(() => import('./MoneyRule.jsx').then((m) => ({ default: m.MoneyRule })));
 const Runs = lazy(() => import('./Runs.jsx'));
 import { VALUE_DISCLAIMER, showsMoney } from './valueDisclaimer.js';
@@ -154,6 +156,22 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     window.history.replaceState(window.history.state, '', sectionHash(page.id, 'work', query));
   }, [tabbed, tab, tabNow, shown, page.id]);
   const [opened, setOpened] = useState(() => parseHash(window.location.hash).rec || '');
+  // REQ-542: One by one is offered only when the page carries a focus spec. The default follows the saved work mode and the queue size.
+  const { prefs: mine } = useMyView();
+  const focusSpec = page.focus_spec && stepsOf(page.focus_spec).length ? page.focus_spec : null;
+  const [worked, setWorked] = useState('');
+  const [queued, setQueued] = useState(null);
+  const [place, setPlace] = useState(null);
+  const [openRow, setOpenRow] = useState('');
+  useEffect(() => { if (focusSpec && !worked && queued != null) setWorked(modeOf(mine, queued)); }, [queued]);
+  const workMode = focusSpec ? worked || modeOf(mine, queued ?? 0) : 'all';
+  const switchTo = (to, key = null) => { setWorked(to); setOpenRow(to === 'all' && key ? String(key) : ''); };
+  useEffect(() => {
+    const back = (e) => { if (e.detail?.mode === 'one') setWorked('one'); };
+    window.addEventListener(FOCUS_MODE, back);
+    return () => window.removeEventListener(FOCUS_MODE, back);
+  }, []);
+  const start = opened && opened !== place?.key ? { key: opened, step: 0 } : place;
   const [seeChanged, setSeeChanged] = useState(() => (parseHash(window.location.hash).changed ? 1 : 0));
   const runsOn = sections.includes('runs');
   const go = (to, { tab: nextTab = '', state: next = state, sort, focus: only = '' } = {}) => {
@@ -338,7 +356,19 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       {shown === 'work' && mode.queue && (
         <Suspense fallback={<Waiting />}>        <WorkPage meta={meta} state={state} onState={onState} onRetryMeta={onRetryMeta} pageId={page.id} reasons={reasonFilters(entry, summary)} plan={plan} tab={tabNow} choices={choices}
           counts={queue?.data?.status_counts} onTab={(id) => go('work', { tab: id, focus: focused })} focus={focused} onClearFocus={() => go('work', { tab: tabNow })}>
-          {records({ ready: ready && (!listed || live.done), tab: tabNow || undefined, focus: focused || undefined, section: 'records', onTab: (id) => go('work', { tab: id }) })}
+          {focusSpec && !(workMode === 'all' && opened) && (
+            <div className="focus-mode" data-focus-mode role="group" aria-label="Work mode">
+              <button type="button" aria-pressed={workMode === 'one'} onClick={() => switchTo('one')}>One by one</button>
+              <button type="button" aria-pressed={workMode === 'all'} onClick={() => switchTo('all', opened)}>All records</button>
+            </div>
+          )}
+          {workMode === 'one' ? (
+            <Suspense fallback={<Skeleton height={160} />}>
+              <Focus app={app} page={page} spec={focusSpec} filters={filters} prefs={mine} start={start} onCount={setQueued} onPlace={setPlace}
+                onSwitch={(key) => switchTo('all', key)} onChanged={() => setNonce((n) => n + 1)} />
+            </Suspense>
+          ) : records({ ready: ready && (!listed || live.done), tab: tabNow || undefined, focus: focused || undefined, section: 'records', onTab: (id) => go('work', { tab: id }),
+            focusSpec, ...(openRow ? { openKey: openRow } : {}) })}
         </WorkPage></Suspense>
       )}
       {shown === 'runs' && (
