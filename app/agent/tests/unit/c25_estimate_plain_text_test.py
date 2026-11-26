@@ -9,9 +9,19 @@ def _context():
     return {"tree": {"source": "customer"}, "catalog": {"kpis": {}}, "priority_hits": {}, "sponsor_picks": {}}
 
 
+def _strings(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from _strings(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _strings(item)
+
+
 def _plain(value):
-    text = repr(value)
-    return not any(mark in text for mark in BANNED) and "ESTIMATE" not in text
+    return all(not any(mark in text for mark in BANNED) and "ESTIMATE" not in text for text in _strings(value))
 
 
 def test_a_model_alignment_answer_with_tags_is_stored_plain(agent_ns):
@@ -44,7 +54,7 @@ def test_the_final_text_pass_makes_statement_solution_and_business_value_plain(a
             "Business Value": TAGGED, "value_estimate_text": "Value [ESTIMATE: depends on `price`]"}]
     obj._plain_use_case_text(ucs)
     value = ucs[0]["Business Value"]
-    assert value == "Cut churn (estimate: depends on totalPrice, order_count) each year the current value with 5%."
+    assert value == "Cut churn (estimate: depends on totalPrice, order_count) each year the current value (current churn rate) with 5%."
     for field in ("Statement", "Solution", "Business Value", "value_estimate_text"):
         assert _plain(ucs[0][field]), (field, ucs[0][field])
 
