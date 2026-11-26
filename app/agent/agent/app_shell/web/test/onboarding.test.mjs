@@ -6,7 +6,7 @@ import { PERSON, appInfo, goRail, openApp, prefsFirst, serveDist } from './harne
 // REQ-543: "Make it yours", three first-start questions, and the help level that gates the tour's auto-open.
 const MY = 'inspire-app-my';
 const STILL = (p) => p.emulateMedia({ reducedMotion: 'reduce' });
-const DEFAULTS = { workMode: 'auto', help: 'visuals', motion: 'calm' };
+const DEFAULTS = { workMode: 'auto', help: 'guide', motion: 'calm' };
 const STEP = (anchor, title, text) => ({ anchor, title, text });
 const SEVEN = [STEP('decision', 'One', 'The first stop.'), STEP('todo', 'Two', 'The second stop.'), STEP('kpis', 'Three', 'The third stop.'),
   STEP('records', 'Four', 'The fourth stop.'), STEP('top_record', 'Five', 'The fifth stop.'), STEP('genie', 'Six', 'The sixth stop.'), STEP('decision', 'Seven', 'The seventh stop.')];

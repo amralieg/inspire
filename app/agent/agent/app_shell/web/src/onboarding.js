@@ -4,7 +4,7 @@ export const ONE_BY_ONE_MAX = 20;
 export const WORK_MODES = [['one', 'One by one'], ['all', 'All at once'], ['auto', 'Depends on how many']];
 export const HELP_LEVELS = [['guide', 'Show me around'], ['visuals', 'Just the visuals'], ['expert', "I'm an expert"]];
 export const MOTIONS = [['lively', 'Lively'], ['calm', 'Calm'], ['off', 'Off']];
-export const ONBOARD_DEFAULTS = { workMode: 'auto', help: 'visuals', motion: 'calm' };
+export const ONBOARD_DEFAULTS = { workMode: 'auto', help: 'guide', motion: 'calm' };
 
 export const QUESTIONS = [
   { id: 'work', key: 'workMode', title: 'How do you like to work?', options: WORK_MODES,
