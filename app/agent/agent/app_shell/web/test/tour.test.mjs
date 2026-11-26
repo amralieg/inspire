@@ -181,14 +181,14 @@ test('the tour walks every step it can show, skips a missing anchor, fills live 
   }, hash: '?tour=1' });
   const steps = await walk(page);
   const startedAt = await page.evaluate(() => window.__tourStart);
-  assert.deepEqual(steps.map((s) => s.anchor), ['decision', 'todo', 'kpis', 'records', 'top_record', 'genie'], 'alerts is off in this App, so the tour writes no alerts step and the template fills the place with the first unused stop, What to do now');
+  assert.deepEqual(steps.map((s) => s.anchor), ['decision', 'todo', 'kpis', 'records', 'top_record'], 'alerts is off in this App, so the template fills its place with What to do now; REQ-543 caps the tour at 5 stops, so genie is cut');
   assert.equal(steps[0].text, 'This desk ranks discounts by the margin they lose.', 'the open count had not loaded on the dashboard, so its sentence is dropped');
   assert.match(steps[2].text, /^The first tile is the margin lost to discounts, \S+ in this window\.$/);
   assert.ok(!steps.some((s) => /[{}]/.test(s.text)));
   assert.equal(steps[3].text, `Each discount here needs a keep or stop decision. ${ROWS.length} wait for you now.`);
   assert.equal(steps[4].text, `Start with ${ROWS[0].entity_label}, it loses the most margin.`);
   assert.match(steps[3].hash, /work/, 'the list lives on the work section of a queue page');
-  assert.deepEqual(steps.map((s) => s.count), ['1 / 6', '2 / 6', '3 / 6', '4 / 6', '5 / 6', '6 / 6']);
+  assert.deepEqual(steps.map((s) => s.count), ['1 / 5', '2 / 5', '3 / 5', '4 / 5', '5 / 5']);
   await page.waitForFunction((h) => location.hash === h, startedAt);
   assert.deepEqual(seen.errors, []);
   await context.close();

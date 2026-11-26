@@ -19,8 +19,10 @@ export function markTourSeen(key) {
   try { localStorage.setItem(key, '1'); } catch { /* private mode shows the tour again next visit */ }
 }
 
-export function tourDue(key, asked = tourAsked(), automated = !!navigator.webdriver) {
+// REQ-543: Just the visuals and I'm an expert keep the tour from opening by itself; asking for it (?tour=1, Take the tour) works at every level.
+export function tourDue(key, asked = tourAsked(), automated = !!navigator.webdriver, autoOpen = true) {
   if (asked === '1') return true;
+  if (!autoOpen) return false;
   if (automated && asked !== 'auto') return false;
   return !tourSeen(key);
 }

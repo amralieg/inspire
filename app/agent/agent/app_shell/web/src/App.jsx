@@ -26,6 +26,8 @@ import { windowParams } from './prefs.js';
 import { DEFAULT_VIEW, visiblePages } from './hub.js';
 import logo from './databricks-logo.png?inline';
 import { markTourSeen, tourDue, tourKey } from './tourStart.js';
+import Onboarding from './Onboarding.jsx';
+import { helpAllowsTour, onboardDue } from './onboarding.js';
 import { HelpContext } from './SectionHelp.jsx';
 import { styleOfPage } from './kinds.js';
 import './styles/mission.css';
@@ -175,12 +177,13 @@ function Shell({ app, onRefreshSiblings }) {
     if (page && !admin && prefs.last !== page.id) update((p) => ({ ...p, last: page.id }));
   }, [page?.id, admin]);
   const person = app.user?.email || app.user?.name || '';
+  const onboarding = onboardDue(prefs);
   const tourAt = page && !admin && page.tour ? tourKey(person, page.id, page.tour.version) : '';
   useEffect(() => {
-    if (!tourAt || touring || !tourDue(tourAt)) return;
+    if (!tourAt || touring || onboarding || !tourDue(tourAt, undefined, undefined, helpAllowsTour(prefs))) return;
     markTourSeen(tourAt);
     setTouring(page.id);
-  }, [tourAt]);
+  }, [tourAt, onboarding]);
   const takeTour = useCallback(() => { if (tourAt) { markTourSeen(tourAt); setHelping(null); setTouring(page.id); } }, [tourAt, page?.id]);
   const startHelp = useCallback((help) => { setTouring(''); setHelping(help); }, []);
   const keepFacts = useCallback((id, facts) => setTourFacts((x) => (JSON.stringify(x[id]) === JSON.stringify(facts) ? x : { ...x, [id]: facts })), []);
@@ -306,6 +309,7 @@ function Shell({ app, onRefreshSiblings }) {
             {genieFull && !aside && <div className="genie-full" data-genie-full=""><GeniePanel {...genieProps} onClose={showScreen} /></div>}
           </main>
         </div>
+        <Onboarding />
         {page && (helping || touring === page.id) && page.tour && (
           <Suspense fallback={null}>
             <Tour key={`${page.id}:${page.tour.version}:${helping ? 'help' : 'tour'}`} tour={page.tour} help={helping} facts={tourFacts[page.id]} queue={isQueue(page)}

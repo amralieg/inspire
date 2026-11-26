@@ -6,6 +6,7 @@ import { Failure, useToast, PlainNote, useRetry } from './ui.jsx';
 import { SaveButton, runWrite, useWrite } from './saving.jsx';
 import { groupsOf, historyLines, inputText, ownerSettings, savedText, settingProblem, storedText, valueText } from './settings.js';
 import { MyViewGroup } from './MyView.jsx';
+import { MakeItYoursGroup } from './Onboarding.jsx';
 import { SectionHelp } from './SectionHelp.jsx';
 
 const NOTE_CHARS = 300;
@@ -149,6 +150,7 @@ export default function SettingsPanel({ pageId, data, error = '', onData, onChan
         {onClose && <button type="button" className="btn" onClick={onClose} aria-label="Close the settings"><Icon name="x" size={14} /></button>}
       </div>
       <MyViewGroup />
+      <MakeItYoursGroup />
       {error && <PlainNote text={error} prefix="The settings of this use case could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={retry} />}
       {children}
       {owned && targetRows.length > 0 && <SettingsGroupTable title={null} list={targetRows} pageId={pageId} last={last} editing={editing} setEditing={setEditing} saved={saved} />}
