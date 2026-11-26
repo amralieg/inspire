@@ -1,6 +1,6 @@
 // Option B "Editorial": an executive magazine page. Paper, ink, one lava-red accent, hairline rules, a headline that states the number,
 // a tonal treemap where only the leading domain carries colour, a thin-ring donut, a hollow-dot quadrant, numbered list instead of boxes.
-import { wrap, nLines, textW, t, T, rect, line, circle, icon, svgDoc, runW, money, VERB_ICON, DISCLAIMER, bestInk, contrast, has, verbColors, iconName } from '../core.js';
+import { wrap, nLines, SPILL, textW, t, T, rect, line, circle, icon, svgDoc, runW, money, VERB_ICON, DISCLAIMER, bestInk, contrast, has, verbColors, iconName } from '../core.js';
 import { ucPage, factCols, NOT_YET } from '../ucPage.js';
 import { donut, quadrant, treemapChart, meter } from '../charts.js';
 
@@ -177,6 +177,8 @@ function briefPage1(m, th) {
     };
     const pick = [16, 15, 14, 13].map(lay).find((r) => r.per * r.lh <= 270) || lay(13);
     const { all } = pick; FS = pick.size; LH = pick.lh;
+    const maxLines = 3 * Math.floor(284 / LH);
+    if (all.length > maxLines) { SPILL.push(all.slice(maxLines).map((r) => r.l).join(' ')); all.length = maxLines; }
     perCol = Math.max(4, Math.ceil(all.length / 3));
     for (let c = 0; c < 3; c += 1) {
       const x = P + c * (cw + 20);

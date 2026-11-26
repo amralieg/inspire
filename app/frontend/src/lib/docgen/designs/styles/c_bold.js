@@ -1,6 +1,6 @@
 // Option C "Bold": a data-visual poster. Navy hero, one vivid colour per domain carried through every chart, heavy geometric sans,
 // rounded cards on a cool grey canvas, icons in filled circles, bubble scatter (bubble = value), big donut, colourful treemap.
-import { t, T, nLines, rect, line, circle, icon, svgDoc, money, VERB_ICON, DISCLAIMER, bestInk, runW, arc, has, verbColors, iconName } from '../core.js';
+import { t, T, nLines, fitSummary, rect, line, circle, icon, svgDoc, money, VERB_ICON, DISCLAIMER, bestInk, runW, arc, has, verbColors, iconName } from '../core.js';
 import { ucPage, factCols, NOT_YET } from '../ucPage.js';
 import { donut, quadrant, treemapChart } from '../charts.js';
 
@@ -198,7 +198,7 @@ function briefPage1(m, th) {
   let ly = 226;
   if (text) {
     s += H2(P + 20, 226, 'Summary', th, th.card, 18);
-    const r = T(P + 20, 254, text, { size: 13, fill: th.ink, bg: th.card, font: BODY, maxW: CW - 40, lines: 10, lh: 18.5, ctx: 'summary' }); s += r.svg; ly = 254 + (r.lines - 1) * 18.5 + 30;
+    const r = T(P + 20, 254, fitSummary(text, CW - 40, 13, 'sans', 400, 10), { size: 13, fill: th.ink, bg: th.card, font: BODY, maxW: CW - 40, lh: 18.5, ctx: 'summary' }); s += r.svg; ly = 254 + (r.lines - 1) * 18.5 + 30;
   }
   const rows = Math.min(7, m.ranked.length, Math.floor((444 - ly - 24) / 26));
   if (rows >= 2) {

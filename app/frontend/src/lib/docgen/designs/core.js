@@ -46,7 +46,14 @@ export function mix(a, b, t) {
 
 // Every text drawn through T() logs (fill, background, size) so the build can prove contrast >= 4.5:1 and size >= 12px (9pt at A4 print size).
 export const LOG = [];
-export function resetLog() { LOG.length = 0; }
+export const SPILL = [];
+export function resetLog() { LOG.length = 0; SPILL.length = 0; }
+// The executive summary on brief page 1: the first maxLines lines that fit the slot stay; the rest is kept in SPILL and printed in full on the continuation page(s) that follow page 1 (never cut, never "...").
+export function fitSummary(text, maxW, size, kind, weight, maxLines) {
+  const lines = wrap(LB(String(text ?? '')), maxW, size, kind, weight);
+  if (lines.length <= maxLines) return text;
+  SPILL.push(lines.slice(maxLines).join(' ')); return lines.slice(0, maxLines).join(' ');
+}
 
 // Width estimate per character (em) for wrapping; conservative so text never overflows its box.
 const EM = { sans: 0.56, serif: 0.54, cond: 0.5 };

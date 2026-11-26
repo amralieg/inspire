@@ -1,7 +1,7 @@
 // Option A "Original": the agent's own document system (teal + sand + gold, Fraunces display over Inter body, coral eyebrows, gold rule,
 // rings art on a teal gradient cover), rendered as a graphic-led infographic. Fixes: coral and gold text darkened or lightened to 4.5:1,
 // no 8.6pt micro text, real charts (bars, donut, quadrant) instead of chips only, value and score on every card.
-import { t, T, rect, line, circle, icon, svgDoc, textW, runW, money, VERB_ICON, DISCLAIMER, wrap, nLines, has, verbColors, iconName } from '../core.js';
+import { t, T, rect, line, circle, icon, svgDoc, textW, runW, money, VERB_ICON, DISCLAIMER, wrap, nLines, fitSummary, has, verbColors, iconName } from '../core.js';
 import { ucPage, factCols, NOT_YET } from '../ucPage.js';
 import { hbars, donut, legend, quadrant, meter } from '../charts.js';
 
@@ -218,7 +218,7 @@ function briefPage1(m, th) {
   let ly = 456;
   if (text) {
     s += eyebrow(P, 470, 'Executive summary', th, th.page) + rect(P, 480, 54, 3, th.gold, { rx: 2 });
-    const r = T(P, 506, text, { size: 13, fill: th.body, bg: th.page, maxW: 420, lines: 13, lh: LH, font: BODY, ctx: 'exec' }); s += r.svg; ly = 506 + (r.lines - 1) * LH + 26;
+    const r = T(P, 506, fitSummary(text, 420, 13, 'sans', 400, 13), { size: 13, fill: th.body, bg: th.page, maxW: 420, lh: LH, font: BODY, ctx: 'exec' }); s += r.svg; ly = 506 + (r.lines - 1) * LH + 26;
   }
   const rows = Math.min(8, m.ranked.length, Math.floor((BOTTOM - ly - 40) / 32));
   if (rows >= 2) {

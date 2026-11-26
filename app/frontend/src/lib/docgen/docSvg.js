@@ -2,7 +2,8 @@
 import { moneyText } from '../valueWizard.js';
 import { designOf, toDesignModel } from './designs/model.js';
 import { scoreInfographic } from './designs/scoreInfographic.js';
-import { resetLog, rtlSvg } from './designs/core.js';
+import { resetLog, rtlSvg, SPILL, wrap as designWrap, T, rect, svgDoc } from './designs/core.js';
+import { paletteOf } from './designs/palette.js';
 import { LB, withLabels } from './docLabels.js';
 import { extraParts, partLines } from './docModel.js';
 
@@ -184,6 +185,19 @@ function infographicSvgOf(m, theme) {
   return `<svg ${NS} viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="${esc(theme.font)}"${m.rtl ? ' direction="rtl"' : ''}>${defs(theme, 'I')}${backdrop(theme, W, H, 'I')}${body}</svg>`;
 }
 
+// The part of the executive summary that did not fit page 1 (kept in SPILL by the design) continues in full on one or more pages in the design's own palette.
+function summaryPages(d, theme) {
+  const text = SPILL.join(' '); if (!text) return [];
+  const P = 48; const W = 794; const H = 1123; const size = 14; const lh = 21; const per = Math.floor((H - 2 * 110) / lh);
+  const th = paletteOf(theme.design, theme.tokens); const body = d.design.fonts.body;
+  const lines = designWrap(LB(text), W - 2 * P, size, 'sans', 400); const out = [];
+  for (let i = 0; i < lines.length; i += per) {
+    const head = T(P, 80, LB('Executive summary (continued)'), { size: 20, weight: 700, fill: th.ink, bg: th.page, font: body, ctx: 'summary head' }).svg;
+    out.push(svgDoc(W, H, rect(0, 0, W, H, th.page) + head + T(P, 130, lines.slice(i, i + per).join(' '), { size, fill: th.body, bg: th.page, font: body, maxW: W - 2 * P, lh, ctx: 'summary cont' }).svg, body));
+  }
+  return out;
+}
+
 export const briefPagesSvg = (m, theme) => withLabels(m.labels, () => briefPagesSvgOf(m, theme));
 function briefPagesSvgOf(m, theme) {
   const d = designed(m, theme);
@@ -191,7 +205,8 @@ function briefPagesSvgOf(m, theme) {
     resetLog();
     // Page 1 and every use case page are the design's own (use case pages carry data-design); a use case with no value says "not calculated yet".
     const pages = d.dm.pageUseCases.flatMap((u, i) => d.design.briefUseCasePage(d.dm, theme.tokens, u, i));
-    return [designRtl(m, d.design.briefPage1(d.dm, theme.tokens)), ...pages.map((p) => rtlRoot(m, p))];
+    const page1 = designRtl(m, d.design.briefPage1(d.dm, theme.tokens));
+    return [page1, ...summaryPages(d, theme).map((p) => rtlRoot(m, p)), ...pages.map((p) => rtlRoot(m, p))];
   }
   const W = 794; const H = 1123;
   const wrapPage = (id, body) => `<svg ${NS} viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="${esc(theme.font)}"${m.rtl ? ' direction="rtl"' : ''}>${defs(theme, id)}${backdrop(theme, W, H, id)}${body}</svg>`;

@@ -14,7 +14,7 @@ const raw = JSON.parse(fs.readFileSync(new URL('../../agent/demos/bakehouse/docs
 const word = (p, n) => Array.from({ length: n }, (_, i) => `${p}${String(i + 1).padStart(3, '0')}`);
 const NAME = word('nm', 13).join(' ').padEnd(90, 'x').slice(0, 90); // 90 characters, no ellipsis in it
 const DESC = word('ds', 100).join(' ').slice(0, 700).replace(/\s\S*$/, ''); // about 700 characters
-const UCS = raw.domains.flatMap((d) => d.use_cases.map((u) => ({ ...u, domain: d.domain_name }))).slice(0, 3).map((u, i) => (i === 0 ? { ...u, 'Use Case Name': NAME, Name: NAME, Statement: DESC, Solution: DESC, 'Business Value': DESC } : u));
+const UCS = raw.domains.flatMap((d) => d.use_cases.map((u) => ({ ...u, domain: d.domain_name }))).slice(0, 3).map((u, i) => (i === 0 ? { ...u, 'Use Case Name': NAME, Name: NAME, usecase: NAME, Statement: DESC, Solution: DESC, 'Business Value': DESC } : u));
 const IDS = ['original', 'editorial_ink', 'bold', 'consulting'];
 const YEARLY = [1, 2, 3].map((year) => ({ year, low: 1000 * year, likely: 2000 * year, high: 3000 * year }));
 const VALUES = Object.fromEntries(UCS.map((u, i) => [u.No, { amount: 90000 + i * 40000, currency: 'USD', status: 'estimated', verb: 'GROW REVENUE', story: 'It pays back.', yearly: YEARLY, factors: [] }]));
