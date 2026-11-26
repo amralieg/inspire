@@ -92,3 +92,22 @@ test('demo session: the favorite star is refused with the demo message and store
     assert.equal(await page.evaluate(() => localStorage.getItem('inspire_favorites_fp')), null);
   } finally { await ui.close(); }
 });
+
+test('demo session: Generate docs is refused with the demo message and opens no dialog', async () => {
+  const { ui } = await open('&showcase=acme');
+  const { page } = ui;
+  try {
+    await cardOf(page, 'N01-U02').getByRole('button', { name: 'Generate docs' }).click();
+    await page.locator('[data-demo-note]').filter({ hasText: REASON }).first().waitFor();
+    assert.equal(await page.getByRole('dialog').count(), 0, 'no dialog opens');
+  } finally { await ui.close(); }
+});
+
+test('demo session: no Calculate, Edit value or bulk calculate control is offered (must-exclude)', async () => {
+  const { ui } = await open('&showcase=acme');
+  const { page } = ui;
+  try {
+    assert.equal(await page.locator('[data-value-calculate], [data-value-edit]').count(), 0);
+    assert.equal(await page.getByRole('button', { name: /^Calculate/ }).count(), 0);
+  } finally { await ui.close(); }
+});
