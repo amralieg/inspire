@@ -283,19 +283,28 @@ function controlLogOwnerFix(rows, logTable) {
 }
 
 // RC6-C-04: the build writes Lakebase tables into one catalog. Read-only probe: does it exist for the build identity, and if not, may that identity
-// create it (CREATE CATALOG on the metastore)? `get(path)` answers { ok, status, data }; `held(metastoreId)` answers the privileges as a Set, or null.
-async function lakebaseCatalogProbe({ name, who, get, held }) {
+// create it? `who` is the identity, `groups` its groups (SCIM Me `groups`, direct only); `get(path)` answers { ok, status, data }; `held(metastoreId)`
+// answers the privileges listed for `who` on the metastore as a Set, or null. canCreate null means Unity Catalog did not say (never guessed as no).
+async function lakebaseCatalogProbe({ name, who, groups = [], get, held }) {
   const probe = { name, who, exists: null, canCreate: null };
   const found = await get(`${UC}/catalogs/${encodeURIComponent(name)}`);
   if (found.ok) return { ...probe, exists: true };
   if (found.status === 403) return { ...probe, exists: 'hidden' };
   if (found.status !== 404) return { ...probe, detail: errorOf(found) };
   probe.exists = false;
+  if (!who) return { ...probe, detail: 'the identity the build runs as could not be read' };
   const meta = await get(`${UC}/current-metastore-assignment`);
   const id = str(dataOf(meta).metastore_id);
-  const privileges = id && who ? await held(id) : null;
-  if (privileges) probe.canCreate = privileges.has('ALL_PRIVILEGES') || privileges.has('CREATE_CATALOG');
-  return probe;
+  if (!id) return { ...probe, detail: meta.ok ? 'the workspace names no metastore' : errorOf(meta) };
+  const privileges = await held(id);
+  if (privileges && (privileges.has('ALL_PRIVILEGES') || privileges.has('CREATE_CATALOG'))) return { ...probe, canCreate: true };
+  // RC6-C-04b: effective permissions list grants only. The metastore owner, or a member of the owning group, may create catalogs without one.
+  const store = await get(`${UC}/metastores/${encodeURIComponent(id)}`);
+  const owner = store.ok ? str(dataOf(store).owner).toLowerCase() : '';
+  if (owner && [who, ...groups].some((g) => str(g).toLowerCase() === owner)) return { ...probe, canCreate: true };
+  if (!privileges) return { ...probe, detail: 'Unity Catalog did not list its privileges on the metastore' };
+  if (!owner) return { ...probe, detail: `Unity Catalog did not say who owns the metastore${store.ok ? '' : ` (${errorOf(store)})`}` };
+  return { ...probe, canCreate: false };
 }
 
 function lakebaseCatalogOffer(catalog) {
@@ -304,6 +313,8 @@ function lakebaseCatalogOffer(catalog) {
   if (exists === true || (exists === false && canCreate === true)) return { state: 'available', detail: '' };
   if (exists === 'hidden') return { state: 'no_catalog', detail: `${who || 'the build'} has no USE CATALOG on the catalog ${name}; run the Inspire installer again as an owner of it, which grants it ALL PRIVILEGES on it` };
   if (exists === false && canCreate === false) return { state: 'no_catalog', detail: `the catalog ${name} does not exist and ${who} has no CREATE CATALOG on the metastore; ${installer}` };
+  const why = catalog.detail ? ` (${catalog.detail})` : '';
+  if (exists === false) return { state: 'unknown', detail: `the catalog ${name} does not exist and Inspire could not tell whether ${who || 'the build'} has CREATE CATALOG on the metastore${why}; if it does not, ${installer}` };
   return { state: 'unknown', detail: `Inspire could not check the catalog ${name}${catalog.detail ? `: ${catalog.detail}` : ''}` };
 }
 

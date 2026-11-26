@@ -36,7 +36,8 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
       me = {};
     }
     const id = String(me.applicationId || me.userName || '').trim();
-    return { name: String(me.displayName || '').trim() || id, id };
+    const groups = (Array.isArray(me.groups) ? me.groups : []).map((g) => String((g && (g.display || g.value)) || '').trim()).filter(Boolean);
+    return { name: String(me.displayName || '').trim() || id, id, groups };
   }
 
   const accessRowsOf = (req, token, warehouseId, table) => Promise.resolve()
