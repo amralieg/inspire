@@ -113,7 +113,7 @@ const routePolicy = RP.createRoutePolicy({
 });
 const routePolicyRoutes = RP.enforceRoutePolicy(app, routePolicy);
 const hostedRun = createHostedRun({ files: workspaceFiles((...args) => dbFetch(...args)) });
-hostedRun.useSessionCheck((req, sessionId) => sessionHidden(req, sessionId));
+hostedRun.useSessionCheck((req, sessionId, opts) => sessionHidden(req, sessionId, opts));
 app.all('/run/:id/{*rest}', hostedRun.viewerGate, (req, res, next) => requireToken(req, res, next), hostedRun.proxy);
 app.get('/run/:id', hostedRun.redirect);
 app.use(showcaseWriteGuard);
@@ -2481,23 +2481,61 @@ async function droppedCatalogRefusal(req, params) {
 const SCOPE_PROBE_CEILING = 500;
 const SCOPE_PROBE_BATCH = 8;
 const UNCHECKED_SCOPE = { status: 403, request: 'person', permissions: [], unreadable: [] };
-// A launch (failClosed false) only stops on a table the person is known to have lost: the launcher always sees their own session, so a check
-// that could not run does not stop the run (it hides the session from everyone else, sessionHiddenFrom).
-async function launcherReadRefusal(req, scope, { emptyScopeRefuses = false, failClosed = true } = {}) {
+// SEC-02 (c23): the check fails closed for a launch as well as for a session. A launch with no sign-in token of the person, a scope that cannot be
+// listed or probed in full, or a probe that fails for any reason other than a plain denial is a refusal with a clear reason. Outside a Databricks
+// App (local development, no proxy) there is no person token to probe with, so the check is skipped there only.
+const UNCHECKED_MESSAGE = 'Inspire could not check that you can read every table of this scope, so it is not shown. Try again, or ask the person who launched it.';
+const LAUNCH_UNCHECKED_MESSAGE = 'Inspire could not check that you can read every table of this scope, so the run did not start. Try again, or take some tables off your selection.';
+
+// SEC-03 (c23): the App lists a scope with its own token, so a table name from that list is shown to a person only when the person's own token can
+// get that table (list it). The rest is a count. A name the person's token cannot get is never in a message, a GRANT or an `unreadable` list.
+const NAME_CHECK_CEILING = 50;
+async function listableNames(req, names) {
+  const person = forwardedTokenOf(req);
+  if (!person || !names.length) return [];
+  const checked = names.slice(0, NAME_CHECK_CEILING);
+  const seen = await Promise.all(checked.map(async (name) => {
+    try {
+      const resp = await dbFetch(req.dbHost, person, `/api/2.1/unity-catalog/tables/${encodeURIComponent(name)}`);
+      return resp.ok;
+    } catch {
+      return false;
+    }
+  }));
+  return checked.filter((_n, i) => seen[i]);
+}
+
+function countText(n) {
+  return `${n} table${n === 1 ? '' : 's'}`;
+}
+
+// The refusal for tables the person cannot read: names the ones the person can list, counts the others. `lead(subject, list)` words the sentence.
+async function lostTablesRefusal(req, lost, { why, message }) {
+  const email = RP.forwardedPerson(req.headers);
+  const all = [...lost].sort();
+  const shown = await listableNames(req, all);
+  const hiddenCount = all.length - shown.length;
+  const permission = shown.length ? permissionRequired({ statements: readStatementsFor(shown, email || 'you'), principal: email || 'you', why: why(shown) }) : null;
+  return { status: 403, request: 'person', permissions: permission ? [permission] : [], message: message(shown, hiddenCount), unreadable: shown,
+    ...(hiddenCount ? { unreadable_hidden: hiddenCount } : {}) };
+}
+
+async function launcherReadRefusal(req, scope, { emptyScopeRefuses = false, launch = false } = {}) {
   const person = forwardedTokenOf(req);
   const { catalogs, schemas, tables: picked } = ucMetadataParts(scope);
   const entries = [...picked, ...schemas, ...catalogs];
-  if (!person) return null;
-  if (!entries.length) return emptyScopeRefuses ? UNCHECKED_SCOPE : null;
+  const unchecked = { ...UNCHECKED_SCOPE, message: launch ? LAUNCH_UNCHECKED_MESSAGE : UNCHECKED_MESSAGE };
+  if (!person) return policyEnforced() && entries.length ? unchecked : null;
+  if (!entries.length) return emptyScopeRefuses ? unchecked : null;
   const warehouseId = requestedInspireDb(req).warehouseId;
   const lost = [];
-  let unchecked = !warehouseId;
-  if (!unchecked) {
+  let notChecked = !warehouseId;
+  if (!notChecked) {
     try {
       const token = await appOwnToken();
       if (!token) throw new Error('no App token to list the scope');
       const { tables, more } = await scopeTables(dbFetch, req.dbHost, token, entries, SCOPE_PROBE_CEILING);
-      if (more || !tables.length) unchecked = true;
+      if (more || !tables.length) notChecked = true;
       for (let i = 0; i < tables.length; i += SCOPE_PROBE_BATCH) {
         await Promise.all(tables.slice(i, i + SCOPE_PROBE_BATCH).map(async (table) => {
           try {
@@ -2505,24 +2543,21 @@ async function launcherReadRefusal(req, scope, { emptyScopeRefuses = false, fail
             await executeSql(req.dbHost, person, warehouseId, probe.sql, probe.parameters);
           } catch (err) {
             const why = tableAccessReason(table, err && err.message);
-            if (why === 'no read access' || why === 'not found') lost.push(table); else unchecked = true;
+            if (why === 'no read access' || why === 'not found') lost.push(table); else notChecked = true;
           }
         }));
       }
     } catch {
-      unchecked = true;
+      notChecked = true;
     }
   }
-  if (!lost.length && !unchecked) return null;
-  if (!lost.length && !failClosed) return null;
-  if (!lost.length) return { ...UNCHECKED_SCOPE, message: 'Inspire could not check that you can read every table of this scope, so it is not shown. Try again, or ask the person who launched it.' };
-  const email = RP.forwardedPerson(req.headers);
-  const names = lost.sort();
-  const permission = permissionRequired({ statements: readStatementsFor(names, email || 'you'), principal: email || 'you',
-    why: `Discover starts only while you can read ${names.join(', ')}, and you can no longer read ${names.length === 1 ? 'it' : 'them'}.` });
-  return { status: 403, request: 'person', permissions: permission ? [permission] : [],
-    message: `You can no longer read ${names.join(', ')}, so the run did not start. Ask for access to ${names.length === 1 ? 'it' : 'them'}, or take ${names.length === 1 ? 'it' : 'them'} off your selection.`,
-    unreadable: names };
+  if (!lost.length && !notChecked) return null;
+  if (!lost.length) return unchecked;
+  return lostTablesRefusal(req, lost, {
+    why: (names) => `Discover starts only while you can read ${names.join(', ')}, and you can no longer read ${names.length === 1 ? 'it' : 'them'}.`,
+    message: (names, hidden) => (names.length
+      ? `You can no longer read ${names.join(', ')}${hidden ? ` and ${countText(hidden)} more of this scope` : ''}, so the run did not start. Ask for access to ${names.length === 1 && !hidden ? 'it' : 'them'}, or take ${names.length === 1 && !hidden ? 'it' : 'them'} off your selection.`
+      : `You can no longer read ${countText(hidden)} of this scope, so the run did not start. Take the tables you cannot read off your selection, or ask whoever owns them for access.`) });
 }
 
 // SEC-01 (W7): a session is shown only to its launcher (launchLedger launched_by) or to a person who can read every table in its scope with their
@@ -2532,19 +2567,23 @@ function sessionScopeText(scope) {
   return [scope && scope.catalogs, scope && scope.schemas_str, scope && scope.tables_str].map((v) => String(v || '').trim()).filter(Boolean).join(',');
 }
 
-async function sessionHiddenFrom(req, sessionId, scope) {
+// SEC-08 (c23): `tables` are the tables a hosted page really reads; when there are any they are checked in place of the session scope.
+function scopeTextOf(scope, tables) {
+  const named = (Array.isArray(tables) ? tables : []).map((t) => String(t || '').trim()).filter(Boolean);
+  return named.length ? named.join(',') : sessionScopeText(scope);
+}
+
+async function sessionHiddenFrom(req, sessionId, scope, { tables } = {}) {
   const person = RP.forwardedPerson(req.headers);
   // Fail closed: with no person nothing is shown; with no sign-in token only the person's own launches are (their reads cannot be probed).
   if (!person) return { status: 403, request: 'person', permissions: [], unreadable: [] };
   const launcher = await readLaunchRecord(req, { kind: 'session', inspireDatabase: requestedInspireDb(req).inspireDatabase, sessionId: String(sessionId) }).catch(() => null);
   if (launcher && launcher === String(person).trim().toLowerCase()) return null;
   if (!forwardedTokenOf(req)) { // no sign-in token to probe reads with: only the launcher sees it
-    const names = ucMetadataParts(sessionScopeText(scope)).tables.sort();
-    const permission = names.length ? permissionRequired({ statements: readStatementsFor(names, person), principal: person,
-      why: 'You can open this session only when you can read the tables it covers.' }) : null;
-    return { status: 403, request: 'person', permissions: permission ? [permission] : [], unreadable: names };
+    // SEC-03 (c23): with no sign-in token the person's own listing cannot be asked, so no table name is shown.
+    return { status: 403, request: 'person', permissions: [], unreadable: [] };
   }
-  return launcherReadRefusal(req, sessionScopeText(scope), { emptyScopeRefuses: true });
+  return launcherReadRefusal(req, scopeTextOf(scope, tables), { emptyScopeRefuses: true });
 }
 
 async function visibleSessions(req, warehouseId, parsedDb, sessions) {
@@ -2576,7 +2615,7 @@ function requestedInspireDb(req) {
   return { inspireDatabase: asked || DEFAULT_INSPIRE_DB, warehouseId: warehouse };
 }
 
-async function sessionHidden(req, sessionId) {
+async function sessionHidden(req, sessionId, { tables } = {}) {
   const sid = String(sessionId == null ? '' : sessionId).trim();
   let scope = null;
   try {
@@ -2592,7 +2631,7 @@ async function sessionHidden(req, sessionId) {
     scope = null;
   }
   try {
-    return await sessionHiddenFrom(req, sid, scope || {});
+    return await sessionHiddenFrom(req, sid, scope || {}, { tables });
   } catch {
     return { status: 403, request: 'person', permissions: [], unreadable: [] };
   }
@@ -2655,15 +2694,24 @@ function refusalExtra(refusal) {
   return { unreadable: refusal.unreadable, ...(refusal.request ? { request: refusal.request } : {}), ...(refusal.permissions ? { permissions: refusal.permissions } : {}) };
 }
 
+async function policiedRefusal(req, policied) {
+  const shown = await listableNames(req, policied);
+  const hidden = policied.length - shown.length;
+  const which = shown.length ? `${shown.join(', ')}${hidden ? ` and ${countText(hidden)} more` : ''}` : countText(hidden);
+  return { status: 403, request: 'person', permissions: [], unreadable: shown, ...(hidden ? { unreadable_hidden: hidden } : {}),
+    message: `Discover reads as the App, and ${which} of this scope ${policied.length === 1 ? 'has' : 'have'} a row filter or a column mask that the App's read does not apply to you, `
+      + 'so the run did not start. Take them off your selection.' };
+}
+
 async function checkLaunchReads(req, params) {
   return raceLaunchCheck((async () => {
     const dropped = await droppedCatalogRefusal(req, params);
     if (dropped) return { reads: { refusal: dropped, skipped: [], warnings: [] }, access: { permissions: [], warnings: [] }, model: [] };
     const reads = await runReadPlan(dbFetch, req, discoverReads(params));
     if (!reads.refusal) {
-      const lost = await launcherReadRefusal(req, reads.scope || params['01_uc_metadata'], { failClosed: false }).catch((err) => {
+      const lost = await launcherReadRefusal(req, reads.scope || params['01_uc_metadata'], { launch: true }).catch((err) => {
         console.warn(`launcher read check: ${err.message || err}`);
-        return null;
+        return { ...UNCHECKED_SCOPE, message: LAUNCH_UNCHECKED_MESSAGE };
       });
       if (lost) return { reads: { ...reads, refusal: lost }, access: { permissions: [], warnings: [] }, model: [] };
     }
@@ -2675,6 +2723,11 @@ async function checkLaunchReads(req, params) {
       if (writes) return { reads: { ...reads, refusal: writes }, access: { permissions: [], warnings: [] }, model: [] };
     }
     const access = reads.refusal ? { permissions: [], warnings: [] } : await discoverAppAccess(req, reads.scope || params['01_uc_metadata']);
+    // SEC-06 (c23): Discover reads as the App, which a person's row filter or column mask does not bind. Such a table stops the launch.
+    if (access.policied && access.policied.length) {
+      const refusal = await policiedRefusal(req, access.policied);
+      return { reads: { ...reads, refusal }, access: { permissions: [], warnings: [] }, model: [] };
+    }
     const model = await discoverModelAccess(req);
     return { reads, access, model };
   })());
@@ -2729,7 +2782,7 @@ async function discoverAppAccess(req, scope) {
     warnings.push(...read.warnings);
     permissions.push(...read.permissions);
     if (more) console.log(`Discover: checked the App read access of the first ${tables.length} tables only`);
-    return { warnings, permissions };
+    return { warnings, permissions, policied: found.policied || [] };
   } catch (err) {
     console.warn(`discover read check: ${err.message || err}`);
     return { permissions: [], warnings: [`Inspire could not check that the App can read the tables you picked (${String(err.message || err).slice(0, 200)}), so Discover reads them as picked`] };
@@ -4028,7 +4081,7 @@ if (fs.existsSync(STATIC_DIR)) {
 // Pre-warm SP token BEFORE listening so the first request already has a valid token.
 const PORT = process.env.PORT || 8080;
 
-module.exports = { app, registeredRoutes: routePolicyRoutes.registered, getToken, tokenFor, appOwnToken, appWriteTokenOf };
+module.exports = { app, registeredRoutes: routePolicyRoutes.registered, getToken, tokenFor, appOwnToken, appWriteTokenOf, sessionHidden };
 
 if (require.main === module) (async () => {
   redactCrashes();
