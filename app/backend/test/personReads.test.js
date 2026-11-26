@@ -7,7 +7,7 @@ const { INSPIRE_ENVIRONMENT_VERSION } = require('../lib/inspireJobParams');
 const SP_TOKEN = 'sp-token';
 const PERSON = 'person-token';
 const PERSON_EMAIL = ['pat.lee', 'example.com'].join('@');
-const APP_ENV = { NODE_ENV: 'production', DATABRICKS_CLIENT_ID: 'inspire-client', DATABRICKS_CLIENT_SECRET: 'inspire-secret' };
+const APP_ENV = { NODE_ENV: 'production', DATABRICKS_CLIENT_ID: 'inspire-client', DATABRICKS_CLIENT_SECRET: 'inspire-secret', INSPIRE_WAREHOUSE_ID: 'wh' };
 const { RUN_NO_APP_TOKEN } = require('../lib/ucReads');
 const cannotRead = (names) => `The App can't read ${names}. Pick tables and files the App can read, or ask your data owner for access`; // file paths
 const tableCannotRead = () => "The App can't read this source table. Pick tables the App can read, or ask your data owner for access";
@@ -70,6 +70,8 @@ function answer(call, broken = {}) {
     if ((sees.files || []).includes(asked)) return [200, { object_type: 'FILE', path: asked }];
     return null;
   }
+  // SEC-02 (c23): a launch checks the person's own read with a LIMIT 0 on the warehouse; these tests are about what the App can read, so the person reads every table.
+  if (url.pathname === '/api/2.0/sql/statements' && /LIMIT 0/.test(String(call.body && call.body.statement))) return [200, { status: { state: 'SUCCEEDED' }, manifest: { schema: { columns: [] } }, result: { data_array: [] } }];
   if (url.pathname === '/api/2.0/sql/statements' && /^SHOW CATALOGS/.test(String(call.body && call.body.statement))) return done('catalog', sees.catalogs);
   if (url.pathname === '/api/2.0/sql/statements' && /^SHOW SCHEMAS IN `([^`]+)`/.test(String(call.body && call.body.statement))) {
     return done('databaseName', sees.schemas[/^SHOW SCHEMAS IN `([^`]+)`/.exec(call.body.statement)[1]] || []);
@@ -231,11 +233,13 @@ test('a strategy or use case file the App cannot read refuses the run, and one t
   });
 });
 
-test('with no forwarded person token the run still starts as the App, and a check the workspace cannot answer still starts the run and says what was not checked', async () => {
+// SEC-02 (c23, D-c23-02): with no forwarded person token the person's read cannot be checked, so the run is refused and says to sign in; it never starts as the App.
+test('with no forwarded person token the run is refused and says to sign in, and a check of the App the workspace cannot answer still starts the run and says what was not checked', async () => {
   await withInspire(async (url, workspace) => {
     const none = await launch(url, { '01_uc_metadata': 'main.s.orders' }, {});
-    assert.equal(none.status, 200, JSON.stringify(none.data));
-    assert.deepEqual(launched(workspace).map((c) => [c.path, c.token]), [['/api/2.1/jobs/create', SP_TOKEN], ['/api/2.1/jobs/run-now', SP_TOKEN]]);
+    assert.equal(none.status, 403, JSON.stringify(none.data));
+    assert.match(none.data.error, /Sign in to the workspace and open Inspire through its Apps URL/);
+    assert.deepEqual(launched(workspace), [], 'no job is created');
   });
   await withInspire(async (url, workspace) => {
     const down = await launch(url, { '01_uc_metadata': 'main.s.orders' });
@@ -275,10 +279,11 @@ test('a picker list Unity Catalog cuts says it was cut, unless the warehouse lis
   await withInspire(async (url, workspace) => {
     const tables = await get(url, '/api/tables/main/s');
     assert.equal(tables.data.truncated, true);
+    // SEC-02 (c23): a scope too big to list in full cannot have the person's read checked, so the run is refused, never sent as typed.
     const cut = await launch(url, { '01_uc_metadata': 'main.s' });
-    assert.equal(cut.status, 200, JSON.stringify(cut.data));
-    assert.deepEqual(cut.data.warnings, ['Inspire could not check that the App can read main.s (main.s holds more tables than the 200 Inspire can list), so the run reads it as picked.']);
-    assert.equal(scopeOf(workspace), 'main.s', 'an unchecked schema is sent as typed, never cut down to the tables that were listed');
+    assert.equal(cut.status, 403, JSON.stringify(cut.data));
+    assert.match(cut.data.error, /could not check that you can read every table of this scope, so the run did not start/);
+    assert.deepEqual(launched(workspace), [], 'no job is created');
   }, { '/api/2.1/unity-catalog/tables': endless('tables', 'orders') });
   await withInspire(async (url) => {
     const whole = await get(url, '/api/catalogs');
