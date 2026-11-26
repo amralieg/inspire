@@ -45,9 +45,9 @@ export const textsToTranslate = (useCases, values, summary = []) => {
   return texts;
 };
 
-export function modelFor({ businessName, useCases, values, options, language, ids, translated, summary }) {
+export function modelFor({ businessName, useCases, values, options, language, ids, translated, summary, foundations }) {
   const picked = useCases.filter((uc) => ids.includes(trackingIdOf(uc)));
-  const m = buildDocModel({ businessName, useCases: picked, values, options: { ...options, languages: [language] }, summary });
+  const m = buildDocModel({ businessName, useCases: picked, values, options: { ...options, languages: [language] }, summary, foundations });
   if (!translated) return m;
   m.labels = labelsFrom(translated);
   // REQ-526 part E: the executive summary is translated with the other texts, one entry per paragraph.
@@ -74,6 +74,7 @@ async function makeFile(file, m, theme, options) {
     const { pdfFromImages } = await import('./docgen/pdfDoc.js');
     return pdfFromImages(pages);
   }
+  if (file.kind === 'docx') { const { buildDocx } = await import('./docgen/docxDoc.js'); return buildDocx(m, theme); }
   if (file.kind === 'pptx') { const { buildPptx } = await import('./docgen/pptxDoc.js'); return buildPptx(m, theme); }
   const { buildXlsx } = await import('./docgen/xlsxDoc.js');
   return toBytes(await buildXlsx(m, orderedColumns(options.columns), theme));
@@ -81,7 +82,7 @@ async function makeFile(file, m, theme, options) {
 
 // onFile(name, state, message): state is working, done, failed or stopped. Returns the saved paths.
 // REQ-525: once `signal` is aborted no new file starts (the one being made finishes) and each file not started ends as stopped.
-export async function generateDocs({ plan, options, useCases, values, businessName, summary = [], folder, post, inspireDatabase, warehouseId, sessionId, onFile, signal = null }) {
+export async function generateDocs({ plan, options, useCases, values, businessName, summary = [], foundations = [], folder, post, inspireDatabase, warehouseId, sessionId, onFile, signal = null }) {
   const theme = resolveTheme(options.style, options.palette, options.customColor, options.theme);
   const where = { inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId) };
   const saved = [];
@@ -103,7 +104,7 @@ export async function generateDocs({ plan, options, useCases, values, businessNa
       if (signal?.aborted) { onFile(file.name, 'stopped'); continue; }
       onFile(file.name, 'working');
       try {
-        const m = modelFor({ businessName, useCases, values, options, language, ids: file.useCaseIds, translated, summary });
+        const m = modelFor({ businessName, useCases, values, options, language, ids: file.useCaseIds, translated, summary, foundations });
         m.sessionId = String(sessionId ?? '');
         m.appUrl = typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}`.replace(/\/+$/, '') : '';
         const bytes = await toBytes(await makeFile(file, m, theme, options));

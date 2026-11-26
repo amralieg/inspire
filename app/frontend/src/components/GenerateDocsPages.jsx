@@ -10,6 +10,7 @@ const KIND_INFO = {
   pptx: { label: 'PowerPoint', hint: 'A deck: cover, summary, a slide per use case', Icon: Presentation },
   pdf: { label: 'PDF brief', hint: 'A cover and a page per use case', Icon: FileText },
   xlsx: { label: 'Excel', hint: 'One sheet, a row per use case', Icon: FileSpreadsheet },
+  docx: { label: 'Word', hint: 'The brief as a Word file you can edit', Icon: FileText },
 };
 
 const toggle = (list, id) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
@@ -74,7 +75,7 @@ export function LayoutPage({ options, set, eachApplies, count }) {
             <span><span className="block text-sm font-bold text-text-primary">{label}</span><span className="block text-xs text-text-secondary">{hint}</span></span>
           </label>
         ))}
-        {!eachApplies && <p className="text-xs text-text-secondary">This applies to PowerPoint and the PDF brief. The infographic and Excel are always one file.</p>}
+        {!eachApplies && <p className="text-xs text-text-secondary">This applies to PowerPoint, the PDF brief and Word. The infographic and Excel are always one file.</p>}
       </fieldset>
       <div className="space-y-2">
         <p className="flex items-center gap-2 text-sm font-bold text-text-primary"><Globe size={14} aria-hidden /> Languages</p>
@@ -131,7 +132,7 @@ export function StylePage({ options, set, svg, thumbs = {} }) {
               <button key={t.id} type="button" role="radio" aria-checked={(options.theme || 'light') === t.id} data-doc-theme={t.id} onClick={() => set({ theme: t.id })} className={`${card((options.theme || 'light') === t.id)} px-4 py-1.5 text-sm font-semibold text-text-primary`}>{t.label}</button>
             ))}
           </div>
-          <p className="mt-1 text-xs text-text-secondary">Applies to PDF and PowerPoint files. Excel sheets stay light.</p>
+          <p className="mt-1 text-xs text-text-secondary">Applies to PDF and PowerPoint files; Word is always white. Excel sheets stay light.</p>
         </div>
         <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Style">
           {DOC_STYLES.map((s) => (
