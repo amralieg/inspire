@@ -2538,7 +2538,7 @@ function registerImplementRoutes(app, deps) {
     await refuseMetricView(req, warehouseId, table);
     const columns = GP.scopedColumns(await I.readPickedTable(table, () => sqlRows(req.dbHost, req.dbToken, warehouseId, I.columnsStatement(table))), scopes, table);
     const dateColumn = VY.dateColumnOf(columns);
-    if (!dateColumn) throw I.badRequest('The table has no date column to scale the sample to a year, so Inspire cannot estimate a value per year.', 422);
+    if (!dateColumn) throw I.badRequest(VY.noDateReason(table, columns, 'scale the sample'), 422);
     const made = GP.moneyYearlySampleSql(table, money.value, dateColumn, scopes, answers.lost_filter ?? null);
     if (!made) throw I.badRequest('Name the value: a fixed amount, one column, or an equation over the table columns, with one currency.');
     const found = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters, { rowLimit: 100, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }));
@@ -2717,7 +2717,7 @@ function registerImplementRoutes(app, deps) {
       await refuseMetricView(req, warehouseId, table);
       const columns = GP.scopedColumns(await I.readPickedTable(table, () => sqlRows(req.dbHost, req.dbToken, warehouseId, I.columnsStatement(table))), scopes, table);
       const dateColumn = VY.dateColumnOf(columns);
-      if (!dateColumn) throw I.badRequest('The table has no date column to scale the counts to a year, so Inspire cannot plan a value per year.', 422);
+      if (!dateColumn) throw I.badRequest(VY.noDateReason(table, columns, 'scale the counts'), 422);
       const useCase = await planUseCaseOf(req, warehouseId, useCaseId);
       // REQ-507: the scope the person chose (checked again here). Its population is counted before the anchor, so the anchor sees the records.
       let chosen = null;
@@ -2792,7 +2792,7 @@ function registerImplementRoutes(app, deps) {
     const scopes = await launchScopesOf(req, warehouseId, req.body?.table_scope);
     await refuseMetricView(req, warehouseId, table);
     const columns = GP.scopedColumns(await I.readPickedTable(table, () => sqlRows(req.dbHost, req.dbToken, warehouseId, I.columnsStatement(table))), scopes, table);
-    const dates = columns.filter((c) => /^(date|timestamp)/i.test(String(c.data_type || '')));
+    const dates = VY.dateColumnsOf(columns);
     const asked = String(req.body?.date_column ?? '').trim();
     if (asked && !dates.some((c) => c.column_name === asked)) throw I.badRequest(`"${asked.slice(0, 80)}" is not a date column of ${table}.`);
     const dateColumn = asked || VY.dateColumnOf(columns) || null;

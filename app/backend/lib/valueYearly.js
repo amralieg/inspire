@@ -43,11 +43,28 @@ function yearlyOf({ entries, sampled, eligible, days, kpi = null, rule }) {
   };
 }
 
-// The date column that says how many days the data covers: the first DATE or TIMESTAMP column, one named like a date first.
-function dateColumnOf(columns) {
-  const dated = (columns || []).filter((c) => /^(date|timestamp)/i.test(String(c.data_type || '')));
-  const named = dated.find((c) => /date|time|_at$|created/i.test(String(c.column_name)));
-  return String((named || dated[0] || {}).column_name || '');
+// The date columns of a table, the one detector for the single-case dialog and the bulk run: DATE and TIMESTAMP columns first, then a STRING
+// column named like a date (a date kept as text).
+const NAMED_DATE = /date|time|_at$|created/i;
+function dateColumnsOf(columns) {
+  const all = columns || [];
+  const typed = all.filter((c) => /^(date|timestamp)/i.test(String(c.data_type || '')));
+  const text = all.filter((c) => /^string/i.test(String(c.data_type || '')) && /date|timestamp|_at$/i.test(String(c.column_name)));
+  return [...typed, ...text];
 }
 
-module.exports = { PERIOD, extrapolate, valueVerb, yearlyOf, dateColumnOf };
+// The column that says how many days the data covers: the first one named like a date, else the first.
+function dateColumnOf(columns) {
+  const typed = dateColumnsOf(columns).filter((c) => !/^string/i.test(String(c.data_type || '')));
+  const text = dateColumnsOf(columns).filter((c) => /^string/i.test(String(c.data_type || '')));
+  const named = typed.find((c) => NAMED_DATE.test(String(c.column_name)));
+  return String((named || typed[0] || text[0] || {}).column_name || '');
+}
+
+// The reason a table is skipped for a year-scaled value: its name and the columns that were checked.
+function noDateReason(table, columns, doing) {
+  const names = (columns || []).map((c) => String(c.column_name)).slice(0, 12);
+  return `${table || 'The table'} has no date column to ${doing} to a year (columns checked: ${names.length ? names.join(', ') : 'none'}), so Inspire cannot work out a value per year.`;
+}
+
+module.exports = { PERIOD, extrapolate, valueVerb, yearlyOf, dateColumnOf, dateColumnsOf, noDateReason };
