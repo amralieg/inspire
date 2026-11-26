@@ -11,7 +11,10 @@ export const SKIP_NO_TABLE = 'no table to count';
 export const VALUE_LOW = 100000;
 export const VALUE_HIGH = 100000000;
 export const outsideValueRange = (amount) => Number.isFinite(Number(amount)) && (Number(amount) < VALUE_LOW || Number(amount) > VALUE_HIGH);
-export const rangeNote = (unit, amount) => `Check this value: ${moneyText(unit, amount) || amount} is outside the usual 100K-100M range`;
+// RC7-B-15: the note claims "outside" only for a value that is outside; a value inside the range that the AI review did not approve says that.
+export const rangeNote = (unit, amount) => (outsideValueRange(amount) || !Number.isFinite(Number(amount))
+  ? `Check this value: ${moneyText(unit, amount) || amount} is outside the usual 100K-100M range`
+  : `Check this value: ${moneyText(unit, amount)} a year was not approved by the AI review`);
 
 const messageOf = (err) => String(err?.message || err || 'The value could not be calculated.');
 

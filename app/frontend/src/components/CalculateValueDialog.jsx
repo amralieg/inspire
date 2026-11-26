@@ -21,7 +21,7 @@ import { outsideValueRange, rangeNote } from '../lib/valueBulk.js';
 import { DEFAULT_CURRENCY } from '../lib/moneyDefaults.js';
 import { FILTER_ROUTE, SCOPE_ROUTE, filterBodyOfChoice, scopeChoices, scopeOfChoice } from '../lib/valueScope.js';
 import { paramsOf, storyAnswers, storyOf } from '../lib/valueStory.js';
-import { CASE_PLAN_ROUTE, FALLBACK_NOTICE, noModelNotice, bodyOf, carryAnswers, driversOn, factorsOf, initialAnswers, reviewLineOf, showsFactors } from '../lib/valueWizard.js';
+import { CASE_PLAN_ROUTE, FALLBACK_NOTICE, PERIOD_ASSUMED_NOTICE, isDeterministicFailure, noModelNotice, bodyOf, carryAnswers, driversOn, factorsOf, initialAnswers, reviewLineOf, showsFactors } from '../lib/valueWizard.js';
 
 const messageOf = (err) => String(err?.message || err || 'The value could not be saved.');
 const STEPS = ['Data', 'Kinds', 'Each kind', 'Value story', 'Terms and accept'];
@@ -95,7 +95,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
           return { ...next, scope: ask.scope };
         });
       })
-      .catch((err) => { if (live) setPlanState({ status: 'error', plan: null, error: messageOf(err) }); });
+      .catch((err) => { if (live) setPlanState({ status: 'error', plan: null, error: messageOf(err), final: isDeterministicFailure(err) }); });
     return () => { live = false; };
   }, [ask]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -281,7 +281,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
       return (
         <div className="space-y-3 py-6 text-center">
           <PlainMessage text={planState.error} role="alert" dir="auto" className="rounded-md border border-error/30 bg-error-bg px-3 py-2 text-[12px] text-error-fg" />
-          <button type="button" className={btn} onClick={() => setAsk((a) => ({ ...a, id: a.id + 1 }))}>{VALUE_LABELS.retry}</button>
+          {!planState.final && <button type="button" className={btn} onClick={() => setAsk((a) => ({ ...a, id: a.id + 1 }))}>{VALUE_LABELS.retry}</button>}
         </div>
       );
     }
@@ -299,6 +299,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
           </div>
         )}
         {!plan.model && <p role="note" data-fallback-notice="" className="rounded-md border border-warning/40 bg-warning-bg px-3 py-1.5 text-[12px] text-warning-fg">{plan.model_reason ? noModelNotice(plan.model_reason) : FALLBACK_NOTICE}</p>}
+        {plan.period_assumed && <p role="note" data-period-assumed="" className="rounded-md border border-warning/40 bg-warning-bg px-3 py-1.5 text-[12px] text-warning-fg">{PERIOD_ASSUMED_NOTICE}</p>}
         {(page === 'kinds' || last) && reviewLineOf(plan.review) && <p role="note" data-value-review="" title={last ? reviewLineOf(plan.review) : undefined} className={`rounded-md border border-border bg-bg-subtle px-3 py-1 text-[12px] text-text-secondary${last ? ' truncate' : ''}`}>{reviewLineOf(plan.review)}</p>}
         {page === 'kinds' && <StepKinds plan={plan} answers={answers} onToggle={toggleDriver} />}
         {driver && (

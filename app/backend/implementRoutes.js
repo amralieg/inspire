@@ -2718,7 +2718,7 @@ function registerImplementRoutes(app, deps) {
     const asked = await askChatModel(req, VR.reviewMessages({ useCase, businessName: useCase.business_name, anchor, amount, drivers: VR.onDriversOf(plan) }), FB.JSON_ANSWER_MAX_TOKENS);
     if (!asked.got) return { failed: asked.reason };
     const got = VR.reviewFrom(asked.got.data);
-    return got ? { ...got, model: asked.endpoint } : { failed: `The model ${asked.endpoint} gave no usable review.` };
+    return got ? { ...got, model: asked.endpoint } : { failed: 'The AI reviewer gave no usable review.' };
   }
 
   // FX-34 (D5): the use case the plan is for (name, statement, business value). Unreadable: the id alone, so the plan is still its own.
@@ -2750,7 +2750,8 @@ function registerImplementRoutes(app, deps) {
         const ceiling = anchor ? anchor.high : VALUE_RANGE.high;
         return { plan, review: made(current <= ceiling, { model: got.model, reason: got.reason, amount: got.amount, tuned }) };
       }
-      const next = got.amount > 0 ? VCP.scaleToTarget(plan, got.amount) : null;
+      // RC7-B-15: a reviewer figure outside the yearly range is a figure for another period or unit (a week, a record), never the plan's yearly value.
+      const next = got.amount > 0 && !outsideRange(got.amount, rangeOf(anchor)) ? VCP.scaleToTarget(plan, got.amount) : null;
       if (!next) break;
       plan = next;
       tuned = true;
@@ -2770,9 +2771,11 @@ function registerImplementRoutes(app, deps) {
       await refuseMetricView(req, warehouseId, table);
       const columns = GP.scopedColumns(await I.readPickedTable(table, () => sqlRows(req.dbHost, req.dbToken, warehouseId, I.columnsStatement(table))), scopes, table);
       const dateColumn = VY.dateColumnOf(columns);
-      if (!dateColumn) throw I.badRequest(VY.noDateReason(table, columns, 'scale the counts'), 422);
-      const textDate = VY.isTextDate(columns, dateColumn);
-      const dated = { date_column: dateColumn, ...(textDate ? { date_text: true } : {}) };
+      // RC7-B-03: no date column is no dead end: the period the person gave (period_days) or one assumed year scales the counts, and the plan says which.
+      const given = Math.round(Number(req.body?.period_days));
+      const period = dateColumn ? null : { days: given > 0 && given <= 36500 ? given : VY.ASSUMED_DAYS, assumed: !(given > 0 && given <= 36500) };
+      const textDate = dateColumn ? VY.isTextDate(columns, dateColumn) : false;
+      const dated = dateColumn ? { date_column: dateColumn, ...(textDate ? { date_text: true } : {}) } : { date_column: '', period_days: period.days, period_assumed: period.assumed };
       const useCase = await planUseCaseOf(req, warehouseId, useCaseId);
       // REQ-507: the scope the person chose (checked again here). Its population is counted before the anchor, so the anchor sees the records.
       let chosen = null;
@@ -2805,6 +2808,7 @@ function registerImplementRoutes(app, deps) {
           const countSql = VCP.currentCountSql(GP, scopes, { ...plan, table, ...dated });
           population = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, countSql.sql, countSql.parameters, { rowLimit: 1, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }))[0] || {};
         }
+        if (period) population = { ...population, days: period.days };
         // RC6-B-08: a date kept as text where no value parses: the count answers with no days. The clean skip that names the table and the columns checked.
         if (textDate && population.records !== undefined && !(Number(population.days) > 0)) throw I.badRequest(VY.noDateReason(table, columns, 'scale the counts'), 422);
         read = { key: readKey, counted: VCP.groupsFrom(rows, plan, population) };
@@ -2987,7 +2991,7 @@ function registerImplementRoutes(app, deps) {
     }
     const counted = new Map();
     const countOf = (plan) => {
-      const key = JSON.stringify([plan.table, plan.date_column, plan.case_filter, plan.scope || null]);
+      const key = JSON.stringify([plan.table, plan.date_column, plan.period_days || null, plan.case_filter, plan.scope || null]);
       if (!counted.has(key)) {
         counted.set(key, (async () => {
           try {

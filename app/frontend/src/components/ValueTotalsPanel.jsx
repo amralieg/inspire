@@ -75,9 +75,10 @@ const TEAL = 'color-mix(in srgb, color-mix(in srgb, var(--color-info) 50%, var(-
 // FX-34 (W16 D8): the bar shows every share of the total: calculated, estimated and, when there is one, measured.
 // RC6-B-07: `shown` is the provisional sum per currency when some provisional value is not counted (shared or outside the range): the
 // legend names that sum instead of a bare $0; the bar still draws what the total counts.
-const split = (totals, shown = {}) => totals.flatMap((t) => {
+const split = (totals, shown = {}, shownCalculated = {}) => totals.flatMap((t) => {
   const tag = totals.length > 1 ? ` ${t.currency}` : '';
-  const part = (name, f, color) => ({ name: `${name}${tag}`, value: Number(t[f]) || 0, text: moneyText(t.currency, f === 'estimated' && shown[t.currency] != null ? shown[t.currency] : Number(t[f]) || 0), color });
+  const named = (f) => (f === 'estimated' ? shown : f === 'calculated' ? shownCalculated : {})[t.currency];
+  const part = (name, f, color) => ({ name: `${name}${tag}`, value: Number(t[f]) || 0, text: moneyText(t.currency, named(f) != null ? named(f) : Number(t[f]) || 0), color });
   return [part(STATUS_LABELS.calculated, 'calculated', GREEN), part(STATUS_LABELS.estimated, 'estimated', AMBER), ...(Number(t.measured) > 0 ? [part('Measured', 'measured', TEAL)] : [])];
 });
 
@@ -100,19 +101,26 @@ function CountNotes({ run }) {
 }
 
 // RC6-B-07: the provisional values the total leaves out, each with its plain reason, and their sum per currency.
+// RC7-B-14: every amount a use case adds less than it is worth (counted once, outside the range, scaled by the run review) is left out of the
+// total, so the split names the raw sums and one line names the left-out sum: Reviewed + Provisional - left out = the header total.
 export function provisionalOf(useCases, nameOf) {
-  const sums = {};
+  const sums = { estimated: {}, calculated: {} };
+  const leftOut = {};
   const notes = [];
-  let left = false;
   for (const [id, u] of Object.entries(useCases || {})) {
-    if (!u || u.status !== 'estimated' || !Number.isFinite(Number(u.amount))) continue;
-    sums[u.currency] = (sums[u.currency] || 0) + Number(u.amount);
-    if (u.counted !== false) continue;
-    left = true;
-    const why = u.overlap && u.overlap.counted === false ? `counted once under ${nameOf?.(u.overlap.with) || u.overlap.with}` : 'outside $100K to $100M, not counted';
+    if (!u || !['estimated', 'calculated'].includes(u.status) || !Number.isFinite(Number(u.amount))) continue;
+    sums[u.status][u.currency] = (sums[u.status][u.currency] || 0) + Number(u.amount);
+    const kept = u.counted === false ? 0 : Number.isFinite(Number(u.counted_amount)) ? Number(u.counted_amount) : Number(u.amount);
+    const lost = Math.round((Number(u.amount) - kept) * 100) / 100;
+    if (!(lost > 0)) continue;
+    leftOut[u.currency] = (leftOut[u.currency] || 0) + lost;
+    if (u.status !== 'estimated') continue;
+    const why = u.overlap && u.overlap.counted === false ? `counted once under ${nameOf?.(u.overlap.with) || u.overlap.with}`
+      : u.counted === false ? 'outside $100K to $100M, not counted' : `${moneyText(u.currency, kept)} counted`;
     notes.push(`${moneyText(u.currency, u.amount)} ${nameOf?.(id) || id}: ${why}`);
   }
-  return { shown: left ? sums : {}, notes };
+  const left = Object.keys(leftOut).length > 0;
+  return { shown: left ? sums.estimated : {}, shownCalculated: left ? sums.calculated : {}, notes, leftOut };
 }
 
 // One run: run = C6 run block, useCases = C6 use_cases, nameOf(id), onRow(id).
@@ -128,7 +136,8 @@ export function RunValuePanel({ run, useCases, nameOf, onRow }) {
         <TotalBox label="BUSINESS VALUE" totals={run.totals || []} sub={statusCounts(run.n_calculated, run.n_estimated)} />
         <div className="min-w-0 flex-1">
           <RunValueKinds value={run} className="text-[12px] text-text-secondary" />
-          <Bar parts={split(run.totals || [], provisional.shown)} label={`${STATUS_LABELS.calculated}s vs ${STATUS_LABELS.estimated.toLowerCase()}s`} />
+          <Bar parts={split(run.totals || [], provisional.shown, provisional.shownCalculated)} label={`${STATUS_LABELS.calculated}s vs ${STATUS_LABELS.estimated.toLowerCase()}s`} />
+          {Object.keys(provisional.leftOut).length > 0 && <p data-left-out="" className="mt-0.5 text-caption text-text-secondary">{Object.entries(provisional.leftOut).map(([c, n]) => `${moneyText(c, n)} left out of the total`).join(' · ')}</p>}
           {provisional.notes.length > 0 && <p data-provisional-note="" className="mt-0.5 text-caption text-text-secondary">{provisional.notes.join(' · ')}</p>}
           <Bar parts={byVerb} label="By kind of value" />
           <CountNotes run={run} />

@@ -10,6 +10,8 @@ export const PREVIEW_ROUTE = '/api/inspire/value/preview';
 export const PREVIEW_DEBOUNCE_MS = 150;
 export const FALLBACK_NOTICE = 'Inspire could not read the data for this; the numbers are estimates you can change';
 // REQ-448: with no AI model the plan starts with every value driver off, so nothing is invented; the reason comes from the server.
+// RC7-B-03: a table with no date column is read as one year of data, said plainly, so the value is shown as an estimate.
+export const PERIOD_ASSUMED_NOTICE = 'This table has no date column, so Inspire assumed its records cover one year. Treat the value as an estimate.';
 export const noModelNotice = (reason) => `No AI model planned this value${reason ? ` (${reason})` : ''}, so every value driver starts off. Turn on the ones that apply and set their numbers.`;
 export const DRIVER_ICONS = { risk_avoided: '🛡️', time_saved: '⏱️', revenue_uplift: '📈', cost_cut: '🧾', productivity: '👥' };
 
@@ -140,10 +142,13 @@ export const figureText = (kind, value, currency) => {
 };
 export const recordsOf = (plan, answers) => (plan.groups || []).filter((g) => !answers.excluded_groups.includes(g.g)).reduce((s, g) => s + Number(g.records_per_year || 0), 0);
 
+// RC7-B-03: a 4xx answer is the same on every try (the server said no to this request), so the dialog offers no Retry for it.
+export const isDeterministicFailure = (err) => Number(err?.status) >= 400 && Number(err?.status) < 500;
+
 // REQ-472 (FX-62): the one line that says whether a model reviewed the plan's value. No review (an older server) says nothing.
 export const reviewLineOf = (review) => {
   if (!review || typeof review !== 'object') return '';
-  return review.approved ? `Reviewed by ${review.model}: ${review.reason}` : `Not approved by a model review: ${review.reason}. Saved as an estimate.`;
+  return review.approved ? `Reviewed by Databricks AI: ${review.reason}` : `Not approved by a model review: ${review.reason}. Saved as an estimate.`;
 };
 // REQ-474: the AI's likely value of the use case, one line.
 export const likelyLineOf = (likely) => (likely && Number.isFinite(Number(likely.amount)) ? `Likely value (AI): ${moneyText(likely.currency, likely.amount)}${likely.reason ? `, ${likely.reason}` : ''}` : '');
