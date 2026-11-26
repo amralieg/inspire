@@ -11,6 +11,7 @@ export const STEP_KINDS = RULES.step_kinds;
 export const DEFAULT_ACTIONS = RULES.default_actions;
 const CAPS = RULES.caps;
 const ROLES = RULES.block_roles;
+const OPTIONAL_ROLES = RULES.block_optional_roles || {};
 
 const words = (s) => String(s).trim().split(/\s+/).filter(Boolean).length;
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -98,8 +99,9 @@ export function validateFocusSpec(spec, columns, actions) {
       const bind = isObj(visual.bind) ? visual.bind : {};
       if (!has(ROLES, visual.block)) bad(`${p}.visual.block`, 'unknown_block', `block ${visual.block} is not one of the blocks`);
       else {
-        const roles = ROLES[visual.block];
-        for (const role of Object.keys(roles)) {
+        const required = ROLES[visual.block];
+        const roles = { ...(OPTIONAL_ROLES[visual.block] || {}), ...required };
+        for (const role of Object.keys(required)) {
           if (!has(bind, role)) bad(`${p}.visual.bind.${role}`, 'missing_role', `block ${visual.block} needs a column for ${role}`);
         }
         for (const [role, column] of Object.entries(bind)) {

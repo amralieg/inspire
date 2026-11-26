@@ -21,6 +21,7 @@ STEP_KINDS = tuple(RULES["step_kinds"])
 DEFAULT_ACTIONS = tuple(RULES["default_actions"])
 CAPS = RULES["caps"]
 BLOCK_ROLES = RULES["block_roles"]
+BLOCK_OPTIONAL_ROLES = RULES.get("block_optional_roles", {})
 
 
 def _words(text) -> int:
@@ -135,8 +136,9 @@ def validate(spec, columns, actions=None) -> dict:
             if block not in BLOCK_ROLES:
                 bad(f"{p}.visual.block", "unknown_block", f"block {block} is not one of the blocks")
             else:
-                roles = BLOCK_ROLES[block]
-                for role, want in roles.items():
+                required = BLOCK_ROLES[block]
+                roles = {**BLOCK_OPTIONAL_ROLES.get(block, {}), **required}
+                for role in required:
                     if role not in bind:
                         bad(f"{p}.visual.bind.{role}", "missing_role", f"block {block} needs a column for {role}")
                 for role, column in bind.items():
