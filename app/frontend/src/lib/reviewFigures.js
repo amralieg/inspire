@@ -171,7 +171,8 @@ export function isLatestRun(session) {
 }
 
 export function runDate(session) {
-  return session?.last_updated || session?.completed_on || session?.create_at || '';
+  // The run's own date, the one Start shows: completion, else start. last_updated moves with every answers save, so it is the last resort.
+  return session?.completed_on || session?.create_at || session?.last_updated || '';
 }
 
 const runTime = (session) => { const t = Date.parse(runDate(session)); return Number.isFinite(t) ? t : -Infinity; };
