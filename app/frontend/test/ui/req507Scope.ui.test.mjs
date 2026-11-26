@@ -11,13 +11,11 @@ test.after(closeBrowser);
 
 async function toChoice(dialog) {
   await dialog.locator('[data-wizard-page="scope:facts"]').waitFor({ timeout: 15000 });
-  await dialog.getByRole('button', { name: 'Next', exact: true }).click();
   await dialog.locator('[data-wizard-page="scope:choice"]').waitFor();
 }
 async function toFilter(dialog) {
   await toChoice(dialog);
   await dialog.locator('[data-scope-choice="filter"]').click();
-  await dialog.getByRole('button', { name: 'Next', exact: true }).click();
   await dialog.locator('[data-wizard-page="filter"]').waitFor();
 }
 
@@ -47,7 +45,7 @@ test('R507-S2: three cards, Last 12 months recommended for 7 years of data; pick
     assert.match(await textOf(dialog.locator('[data-scope-choice="last_12"]')), /1 Oct 2025 to 30 Sep 2026/);
     await dialog.locator('[data-scope-choice="last_12"]').click();
     await dialog.getByRole('button', { name: 'Next', exact: true }).click();
-    await dialog.locator('[data-wizard-page="filter"]').waitFor();
+    await dialog.locator('[data-wizard-page="kinds"]').waitFor();
     const posted = calls.filter((c) => c.route === 'filter');
     assert.equal(posted.length, 1);
     assert.deepEqual(posted[0].body.window, { column: 'created_at', last_n: 12, unit: 'month' });

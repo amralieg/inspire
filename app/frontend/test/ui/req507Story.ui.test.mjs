@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser } from './uiSupport.mjs';
-import { openCard, openWizard } from './valueWizardSupport.mjs';
+import { openCard, openFolds, openWizard } from './valueWizardSupport.mjs';
 import { goTo507, mountReq507, textOf } from './req507Support.mjs';
 
 test.after(closeBrowser);
@@ -62,7 +62,7 @@ test('R507-E3: Accept and save needs the terms; the PUT carries the story with i
   const { ui, card, page } = await openCard(mountReq507({ puts }));
   try {
     const dialog = await openWizard(page, card);
-    await goTo507(dialog, 'story:approve');
+    await goTo507(dialog, 'terms');
     const approve = dialog.getByRole('button', { name: 'Accept and save' });
     assert.equal(await approve.isDisabled(), true, 'the terms come first');
     const include = dialog.getByLabel('Include this story in generated docs');
@@ -83,9 +83,10 @@ test('R507-E4: a parameter changed after the approval clears it', async () => {
   const { ui, card, page } = await openCard(mountReq507());
   try {
     const dialog = await openWizard(page, card);
-    await goTo507(dialog, 'story:approve');
+    await goTo507(dialog, 'terms');
     await dialog.getByLabel('I have read and accept these terms').check();
     await dialog.getByRole('button', { name: 'Back', exact: true }).click();
+    await openFolds(dialog, 'story:params'); // REQ-544: the numbers sit in a fold on the Value story page
     await dialog.locator('[data-wizard-page="story:params"]').waitFor();
     const value = dialog.locator('[data-param="reduction_pct"]').getByRole('spinbutton');
     await value.fill('35');

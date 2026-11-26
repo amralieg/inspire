@@ -71,7 +71,7 @@ test('W3: the save page has the total above a row of five tiles, unticking a til
   try {
     await page.setViewportSize({ width: 1280, height: 800 });
     const dialog = await openWizard(page, card);
-    await goTo(dialog, 'story:approve');
+    await goTo(dialog, 'terms');
     await saveFrom(dialog);
     const total = dialog.locator('[data-save-total]');
     const tiles = dialog.locator('[data-tile]');
@@ -100,15 +100,15 @@ test('W3: the save page has the total above a row of five tiles, unticking a til
   } finally { await ui.close(); }
 });
 
-test('W4: Approve story and save sends PUT shape 2 with calculated true and the box label changes from estimated to calculated', async () => {
+test('W4: Accept and save sends PUT shape 2 with calculated true and the box label changes from estimated to calculated', async () => {
   const puts = [];
   const { ui, card, page } = await openCard(mountWizard({ puts }));
   try {
     const dialog = await openWizard(page, card);
-    await goTo(dialog, 'story:approve');
+    await goTo(dialog, 'terms');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     assert.equal(puts.length, 0, 'nothing is written before the approval');
-    assert.equal(await dialog.getByRole('button', { name: 'Approve story and save' }).isDisabled(), true, 'the terms are not accepted yet');
+    assert.equal(await dialog.getByRole('button', { name: 'Accept and save' }).isDisabled(), true, 'the terms are not accepted yet');
     await saveFrom(dialog);
     assert.match(await text(dialog.locator('[data-save-total]')), /Reviewed calculation/);
     await dialog.getByRole('button', { name: 'Close', exact: true }).last().click();
@@ -151,7 +151,7 @@ test('W6: the Data, Kinds and Save steps fit a 1280x800 window with no scroll', 
     await page.setViewportSize({ width: 1280, height: 800 });
     const dialog = await openWizard(page, card);
     for (const step of ['scope:facts', 'kinds', 'save']) {
-      if (step === 'save') { await goTo(dialog, 'story:approve'); await saveFrom(dialog); } else await goTo(dialog, step);
+      if (step === 'save') { await goTo(dialog, 'terms'); await saveFrom(dialog); } else await goTo(dialog, step);
       await dialog.locator('[data-preview-state="ready"], [data-wizard-page="scope:facts"], [data-wizard-page="kinds"]').first().waitFor({ timeout: 15000 });
       const fit = await page.evaluate(() => {
         const dlg = document.querySelector('[role=dialog]');

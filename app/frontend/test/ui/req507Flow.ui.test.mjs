@@ -81,7 +81,7 @@ test('R507-F4: without economic factors the Public market data fold is absent, a
     await dialog.getByRole('radiogroup', { name: 'How confident are you in this value?' }).getByRole('radio', { name: 'High' }).check();
     await goTo507(dialog, 'story:draft');
     assert.equal(await dialog.locator('[data-wizard-page="macro:offer"]').count(), 0);
-    await goTo507(dialog, 'story:approve');
+    await goTo507(dialog, 'terms');
     await dialog.getByLabel('I have read and accept these terms').check();
     await dialog.getByRole('button', { name: 'Accept and save' }).click();
     await dialog.locator('[data-wizard-page="save"]').waitFor({ timeout: 15000 });

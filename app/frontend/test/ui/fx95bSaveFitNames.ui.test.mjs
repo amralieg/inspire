@@ -1,5 +1,5 @@
 // REQ-496b / REQ-497 (FX-95b), REQ-507: the approval and Save steps fit a 1280x800 window with no scroll, and a value's status reads "Provisional estimate" (saved from a plan the
-// model review did not approve) or "Reviewed calculation" (saved with "Approve story and save"), never "(estimated)" / "(calculated)".
+// model review did not approve) or "Reviewed calculation" (saved with "Accept and save"), never "(estimated)" / "(calculated)".
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser } from './uiSupport.mjs';
@@ -19,7 +19,7 @@ const mountSaving = (opts = {}) => (app) => {
   mountWizard(opts)(app);
 };
 
-test('N1: the approval step and the Save step have no vertical scroll in the dialog body at 1280x800, with the tick, Approve story and save, and Close in view', async () => {
+test('N1: the approval step and the Save step have no vertical scroll in the dialog body at 1280x800, with the tick, Accept and save, and Close in view', async () => {
   const { ui, card, page } = await openCard(mountWizard({}));
   try {
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -32,11 +32,11 @@ test('N1: the approval step and the Save step have no vertical scroll in the dia
       const button = (name) => [...dlg.querySelectorAll('button')].find((b) => b.textContent.trim() === name);
       const tick = [...dlg.querySelectorAll('input[type=checkbox]')].find((c) => /accept these terms/.test(c.closest('label')?.textContent || ''));
       return { inner: Boolean(scroller), bodyOver: body.scrollHeight > body.clientHeight + 1, bottom: dlg.getBoundingClientRect().bottom <= 800, terms: inView(tick),
-        approve: inView(button('Approve story and save')), close: inView(button('Close')) };
+        approve: inView(button('Accept and save')), close: inView(button('Close')) };
     });
-    await goTo(dialog, 'story:approve');
+    await goTo(dialog, 'terms');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
-    assert.deepEqual(await measure(), { inner: false, bodyOver: false, bottom: true, terms: true, approve: true, close: false }, 'story:approve');
+    assert.deepEqual(await measure(), { inner: false, bodyOver: false, bottom: true, terms: true, approve: true, close: false }, 'terms');
     await saveFrom(dialog);
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     const saved = await measure();
@@ -53,7 +53,7 @@ test('N2: a value saved from a plan the model review did not approve reads Provi
   const { ui, card, page } = await openCard(mountSaving({ planReply: { plan: unapproved } }));
   try {
     const dialog = await openWizard(page, card);
-    await goTo(dialog, 'story:approve');
+    await goTo(dialog, 'terms');
     await saveFrom(dialog);
     await dialog.locator('[data-save-total]').filter({ hasText: /\$/ }).waitFor({ timeout: 15000 });
     const total = norm(await dialog.locator('[data-save-total]').innerText());
@@ -70,12 +70,12 @@ test('N2: a value saved from a plan the model review did not approve reads Provi
   } finally { await ui.close(); }
 });
 
-test('N3: a value saved with Approve story and save reads Reviewed calculation on the card and never (calculated)', async () => {
+test('N3: a value saved with Accept and save reads Reviewed calculation on the card and never (calculated)', async () => {
   const puts = [];
   const { ui, card, page } = await openCard(mountSaving({ puts }));
   try {
     const dialog = await openWizard(page, card);
-    await goTo(dialog, 'story:approve');
+    await goTo(dialog, 'terms');
     await dialog.locator('[data-preview-state="ready"]').waitFor({ timeout: 15000 });
     await saveFrom(dialog);
     assert.equal(puts[0].answers.calculated, true);
@@ -87,7 +87,7 @@ test('N3: a value saved with Approve story and save reads Reviewed calculation o
     assert.doesNotMatch(norm(await card.innerText()), OLD);
     await card.getByRole('button', { name: 'Edit value' }).click();
     const again = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
-    await goTo(again, 'story:approve');
+    await goTo(again, 'terms');
     await saveFrom(again);
     await again.locator('[data-save-total]').filter({ hasText: /\$/ }).waitFor({ timeout: 15000 });
     const total = norm(await again.locator('[data-save-total]').innerText());

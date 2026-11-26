@@ -38,9 +38,9 @@ export default function StepStory({ page, story, polish, params, currency, onVal
     return (
       <div data-wizard-page="story:draft" className="space-y-2">
         <h3 data-story-headline="" className="text-lg font-extrabold text-text-primary">{story.headline}</h3>
-        <ul className="space-y-1">
+        <ul className="grid grid-cols-2 gap-1">
           {story.lines.map((l) => (
-            <li key={l.label} data-story-line={l.label} className="rounded-lg border border-border px-3 py-1.5 text-[13px] text-text-primary">
+            <li key={l.label} data-story-line={l.label} className="rounded-lg border border-border px-3 py-0.5 text-[12px] leading-tight text-text-primary">
               <span className="font-semibold">{l.label}</span>: {l.text}
             </li>
           ))}
@@ -52,7 +52,7 @@ export default function StepStory({ page, story, polish, params, currency, onVal
   return (
     <div data-wizard-page="story:params" className="space-y-2">
       <p className="text-[13px] text-text-secondary">Every number behind the story, where it came from and who owns it. Changing a value clears the approval.</p>
-      <ul className="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-1">{params.map((p) => <ParamRow key={p.id} p={p} currency={currency} onValue={onValue} onOwner={onOwner} />)}</ul>
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-1">{params.map((p) => <ParamRow key={p.id} p={p} currency={currency} onValue={onValue} onOwner={onOwner} />)}</ul>
     </div>
   );
 }

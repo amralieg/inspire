@@ -1,7 +1,7 @@
 // REQ-496 item 6 (Amr, 11-23 00:59: "accept tic box, the button ... 'Tic accept to proceed'"): on the last value step, while the terms are not
 // ticked, the save button says what to do: a visible "Tick ... accept ... to proceed" line in the button or tied to it by aria-describedby.
-// Once ticked, that line goes and the button saves. The button keeps "Approve story and save" in its name (req507Story R507-E3/E4).
-// Fail-pre (0289c7e85): StepStory.jsx:88-89 is a disabled "Approve story and save" with no words on why it is disabled.
+// Once ticked, that line goes and the button saves. The button keeps "Accept and save" in its name (req507Story R507-E3/E4).
+// Fail-pre (0289c7e85): StepStory.jsx:88-89 is a disabled "Accept and save" with no words on why it is disabled.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser } from './uiSupport.mjs';
@@ -24,13 +24,13 @@ test('T1: unticked, the save button says "Tick accept to proceed"; ticked, the l
   const { ui, card, page } = await openCard(mountReq507());
   try {
     const dialog = await openWizard(page, card);
-    await goTo507(dialog, 'story:approve');
-    const approve = dialog.getByRole('button', { name: /Approve story and save/ });
+    await goTo507(dialog, 'terms');
+    const approve = dialog.getByRole('button', { name: /Accept and save/ });
     assert.equal(await approve.isDisabled(), true, 'the terms come first');
     const before = await buttonWords(approve);
     assert.match(before, HINT, `the disabled button tells the person to tick accept to proceed, it says: "${before}"`);
     await dialog.getByLabel('I have read and accept these terms').check();
-    await page.waitForFunction(() => ![...document.querySelectorAll('button')].some((b) => /Approve story and save/.test(b.textContent) && b.disabled), null, { timeout: 5000 });
+    await page.waitForFunction(() => ![...document.querySelectorAll('button')].some((b) => /Accept and save/.test(b.textContent) && b.disabled), null, { timeout: 5000 });
     assert.equal(await approve.isDisabled(), false, 'ticked: the button saves');
     const after = await buttonWords(approve);
     assert.doesNotMatch(after, HINT, `ticked: the tick line is gone, the button says: "${after}"`);

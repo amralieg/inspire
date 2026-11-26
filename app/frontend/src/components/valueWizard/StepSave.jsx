@@ -38,12 +38,10 @@ export default function StepSave({ plan, answers, yearly, calculated, saved = fa
       <div data-accept-terms="" className="rounded-lg border-2 border-warning bg-warning-bg px-3 py-1">
         <div className="flex flex-wrap items-center justify-between gap-x-4">
           <TermsHeading />
-          {!saved && (
-            <label className="flex cursor-pointer items-center gap-2 text-[13px] font-semibold text-text-primary">
-              <input type="checkbox" data-value-accept="" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} className="h-4 w-4" />
-              I have read and accept these terms
-            </label>
-          )}
+          <label className="flex cursor-pointer items-center gap-2 text-[13px] font-semibold text-text-primary">
+            <input type="checkbox" data-value-accept="" checked={saved || accepted} disabled={saved} onChange={(e) => setAccepted(e.target.checked)} className="h-4 w-4" />
+            I have read and accept these terms
+          </label>
         </div>
         <p data-value-disclaimer="" role="note" className="text-[12px] leading-snug text-text-primary">{VALUE_DISCLAIMER}</p>
       </div>

@@ -276,7 +276,10 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
         {page === 'story' && (
           <>
             <StepStory page="draft" story={story} polish={null} params={params} currency={answers.currency} />
-            <StepStory page="params" story={story} polish={null} params={params} currency={answers.currency} onValue={setParam} onOwner={setOwner} />
+            <details data-story-numbers="" className={fold}>
+              <summary className={foldTitle}>{`Every number behind the story (${params.length})`}</summary>
+              <div className="mt-2"><StepStory page="params" story={story} polish={null} params={params} currency={answers.currency} onValue={setParam} onOwner={setOwner} /></div>
+            </details>
             <details data-assumptions="" className={fold}>
               <summary className={foldTitle}>Assumptions</summary>
               <div className="mt-2 space-y-2">
@@ -320,7 +323,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
 
   const step = mainStepOf(page);
   return (
-    <ModalDialog titleId="calculate-value-title" title={dialogTitleFor(nameOfUseCase(uc))} onClose={onClose} widthClass="max-w-4xl"
+    <ModalDialog titleId="calculate-value-title" title={dialogTitleFor(nameOfUseCase(uc))} onClose={onClose} closeLabel={done ? 'Dismiss' : 'Close'} widthClass="max-w-4xl"
       footer={(
         <>
           <span data-preview-state={preview.status} className="me-auto min-h-[34px] truncate text-[12px] leading-[34px] text-text-secondary">{footerBusy ? <BusyNote inline text="Calculating..." size={14} /> : footerNote}</span>

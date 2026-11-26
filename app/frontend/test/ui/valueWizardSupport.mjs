@@ -138,10 +138,16 @@ export async function goTo(dialog, page) {
       return;
     }
     if (!(await dialog.locator('[data-wizard-page]').count())) { if (await dialog.locator('[role="alert"]').count()) return; continue; }
+    const prev = await dialog.locator('[data-wizard-page]').first().getAttribute('data-wizard-page');
     await next(dialog).catch(async (e) => {
       const at = await dialog.locator('[data-wizard-page]').evaluateAll((n) => n.map((x) => x.getAttribute('data-wizard-page')));
       throw new Error(`goTo ${page}: no Next button on page ${JSON.stringify(at)}: ${e.message.split('\n')[0]}`);
     });
+    // REQ-544: the Data page stays on screen while the case plan loads, so wait for the page to change (or a plan error) before the next click.
+    await dialog.page().waitForFunction((p) => {
+      const el = document.querySelector('[role=dialog] [data-wizard-page]');
+      return document.querySelector('[role=dialog] [role=alert]') || (el && el.getAttribute('data-wizard-page') !== p);
+    }, prev, { timeout: 15000 }).catch(() => {});
   }
   throw new Error(`wizard never reached ${page}`);
 }

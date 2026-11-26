@@ -73,9 +73,9 @@ test('R507-M3: the elasticity slider asks the server again; the factor is saved 
     for (let i = 0; i < 50 && !calls.some((c) => c.route === 'macro-series' && c.query.elasticity === '0.5'); i += 1) await new Promise((r) => setTimeout(r, 100));
     assert.ok(calls.some((c) => c.route === 'macro-series' && c.query.elasticity === '0.5'), 'the server computes the scaled factor');
     await dialog.getByRole('button', { name: 'Use this for Consumer demand' }).click();
-    await goTo507(dialog, 'story:approve', { macro: 'public' });
+    await goTo507(dialog, 'terms', { macro: 'public' });
     await dialog.getByLabel('I have read and accept these terms').check();
-    await dialog.getByRole('button', { name: 'Approve story and save' }).click();
+    await dialog.getByRole('button', { name: 'Accept and save' }).click();
     for (let i = 0; i < 50 && !puts.length; i += 1) await new Promise((r) => setTimeout(r, 100));
     const factor = puts[0].answers.plan.economic_factors.find((f) => f.id === 'consumer_demand');
     assert.deepEqual(factor.source, { name: 'World Bank', indicator: 'NE.CON.PRVT.KD.ZG', country: 'USA', fetched_at: SERIES.fetched_at, url: SERIES.citation.url });

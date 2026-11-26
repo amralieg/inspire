@@ -31,7 +31,7 @@ const saveWith = async (review) => {
   const { ui, card, page } = await openCard(mountWizard({ puts, planReply: { plan: { ...PLAN, review } } }));
   try {
     const dialog = await openWizard(page, card);
-    await goTo(dialog, 'save'); // REQ-507: the approval on story:approve is the one PUT
+    await goTo(dialog, 'save'); // REQ-507: the approval on terms is the one PUT
     for (let i = 0; i < 100 && !puts.length; i += 1) await page.waitForTimeout(100);
     assert.equal(puts.length, 1, 'one save');
     assert.deepEqual(ui.pageErrors, []);

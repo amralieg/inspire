@@ -56,9 +56,9 @@ test('B8: a server 400 shows its one line in the box and keeps the typed numbers
     const dialog = await openDialog(page);
     await goTo(dialog, 'driver:time_saved');
     await dialog.locator('[data-ask="cost_per_hour"] input[type=number]').fill('321');
-    await goTo(dialog, 'story:approve');
+    await goTo(dialog, 'terms');
     await dialog.getByLabel('I have read and accept these terms').check();
-    await dialog.getByRole('button', { name: 'Approve story and save' }).click();
+    await dialog.getByRole('button', { name: 'Accept and save' }).click();
     const alert = dialog.getByRole('alert');
     await alert.waitFor({ timeout: 15000 });
     assert.match(await alert.innerText(), /AED but the answer currency is USD/);
