@@ -41,7 +41,7 @@ import StrategyEditor from '../components/StrategyEditor';
 import { parseStrategicContext, splitPriorities, validateStrategicContextText, withPriorities } from '../lib/strategyContext';
 import UcPermissionErrorHelp from '../components/UcPermissionErrorHelp';
 import DataManagement from '../components/DataManagement';
-import { groupLabelOf } from '../lib/implementWizard';
+import { groupLabelOf, warehouseLabel } from '../lib/implementWizard';
 import RequestAccessBar from '../components/RequestAccessBar';
 import { leftOutLine, typeCheckBusyOf, unusableReasonOf } from '../lib/tableUsability';
 import TypeCheckBusyTryAgain from '../components/TypeCheckBusyTryAgain';
@@ -334,6 +334,17 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     [token, databricksHost]
   );
   const outputCheck = useOutputFolderCheck(apiFetch, params['11_generation_path']);
+
+  // RC7-C-04: the footer names the SQL warehouse; until the list answers (or when it fails) the label falls back to "SQL warehouse <id>".
+  const [warehouses, setWarehouses] = useState([]);
+  useEffect(() => {
+    if (!warehouseId) return undefined;
+    let cancelled = false;
+    apiFetch('/api/warehouses')
+      .then((data) => { if (!cancelled) setWarehouses(data.warehouses || []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [warehouseId, apiFetch]);
 
   // Sync inspire database from settings
   useEffect(() => {
@@ -2123,7 +2134,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
         <p data-admin-footer="" className="text-xs text-text-tertiary mt-3 text-center">
           Notebook: <span className="font-mono text-text-secondary">{notebookPath || 'not set'}</span>
-          {warehouseId && <> &middot; Warehouse: <span className="font-mono text-text-secondary">{warehouseId.slice(0, 12)}...</span></>}
+          {warehouseId && <> &middot; Warehouse: <span className="text-text-secondary">{warehouseLabel(warehouses, warehouseId)}</span></>}
         </p>
       </div>
     </div>
