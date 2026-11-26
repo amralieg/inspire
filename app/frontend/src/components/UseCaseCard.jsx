@@ -117,7 +117,7 @@ function UseCaseCardBody({
           className="flex-1 flex items-center gap-3 px-3 py-4 text-start hover:bg-bg-subtle transition-smooth cursor-pointer"
         >
           <div className="flex-1 min-w-0">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div data-card-head="" className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                   <UseCaseNameTitle text={titlePlain} rename={rename} />
@@ -146,7 +146,7 @@ function UseCaseCardBody({
                   <ValueBadge atStake={useCaseValue.at_stake} saved={useCaseValue.saved} measured={useCaseValue.measured} className="mt-2" compact />
                 )}
               </div>
-              <div className="flex shrink-0 flex-wrap items-start gap-3 pb-3">
+              <div data-card-boxes="" className="flex shrink-0 flex-wrap items-start gap-3 pb-3">
                 <InspireScoreBadge score={inspireScoreNum} />
                 <CardValueLine yearly={yearly} summary={valueSummary} canCalculate={canCalculate} onCalculate={onCalculate} onEdit={onEdit} calculating={calculating} />
               </div>
