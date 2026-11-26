@@ -68,7 +68,7 @@ for (const id of NEW_IDS) for (const mode of ['light', 'dark']) {
     const th = resolveTheme(id, 'databricks', '', mode);
     resetLog();
     const svg = infographicSvg(model(), th);
-    assert.match(svg, /^<svg /); assert.match(svg, /width="794"/); assert.match(svg, /height="1123"/);
+    assert.match(svg, /^<svg /); assert.match(svg, /width="794"/); assert.ok(Number(/^<svg [^>]*?height="(\d+)"/.exec(svg)[1]) >= 1123, 'page height at least 1123');
     assert.ok((svg.match(/<circle /g) || []).length >= 20, 'one point per valued use case');
     assert.ok((svg.match(/<(path|rect) /g) || []).length > 40, 'bars, arcs, tiles');
     assert.ok(svg.includes(`>${moneyText('USD', sum)}<`), 'the App money text of the real total');

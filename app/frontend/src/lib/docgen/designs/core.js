@@ -46,7 +46,14 @@ export function mix(a, b, t) {
 
 // Every text drawn through T() logs (fill, background, size) so the build can prove contrast >= 4.5:1 and size >= 12px (9pt at A4 print size).
 export const LOG = [];
-export function resetLog() { LOG.length = 0; }
+export const SPILL = [];
+export function resetLog() { LOG.length = 0; SPILL.length = 0; }
+// The executive summary on brief page 1: the first maxLines lines that fit the slot stay; the rest is kept in SPILL and printed in full on the continuation page(s) that follow page 1 (never cut, never "...").
+export function fitSummary(text, maxW, size, kind, weight, maxLines) {
+  const lines = wrap(LB(String(text ?? '')), maxW, size, kind, weight);
+  if (lines.length <= maxLines) return text;
+  SPILL.push(lines.slice(maxLines).join(' ')); return lines.slice(0, maxLines).join(' ');
+}
 
 // Width estimate per character (em) for wrapping; conservative so text never overflows its box.
 const EM = { sans: 0.56, serif: 0.54, cond: 0.5 };
@@ -54,7 +61,8 @@ export const textW = (s, size, kind = 'sans', weight = 400) => String(s).length 
 // Tighter estimate for placing a run right after another one (not for wrapping).
 export const runW = (s, size, weight = 400, ls = 0, caps = false) => String(s).length * (size * (caps ? 0.62 : 0.5) * (weight >= 700 ? 1.05 : 1) + ls);
 
-export function wrap(text, maxW, size, kind = 'sans', weight = 400, maxLines = 99) {
+// Text is never cut: maxLines is the layout's expected height, a longer text wraps onto more lines and the caller grows the block (T returns lines and h).
+export function wrap(text, maxW, size, kind = 'sans', weight = 400) {
   const words = String(text ?? '').split(/\s+/).filter(Boolean);
   const lines = []; let cur = '';
   for (const w of words) {
@@ -62,13 +70,21 @@ export function wrap(text, maxW, size, kind = 'sans', weight = 400, maxLines = 9
     if (cur && textW(next, size, kind, weight) > maxW) { lines.push(cur); cur = w; } else cur = next;
   }
   if (cur) lines.push(cur);
-  if (lines.length > maxLines) {
-    lines.length = maxLines;
-    let last = lines[maxLines - 1];
-    while (last.length > 1 && textW(`${last}…`, size, kind, weight) > maxW) last = last.slice(0, -1);
-    lines[maxLines - 1] = `${last.replace(/[\s,.;:]+$/, '')}…`;
-  }
   return lines;
+}
+// How many lines T() will draw for this text, so a row or card can grow before it is drawn.
+export const nLines = (text, maxW, size, kind = 'sans', weight = 400) => Math.max(1, wrap(LB(String(text ?? '')), maxW, size, kind, weight).length);
+
+// The top use cases of a design infographic: rows of `per` items, each row as tall as its tallest item (heightOf), plus gap; as many rows as fit
+// the room, and always the top `min` use cases, for which the caller grows the page. A description is never cut to make a row fit.
+export function fitRows(items, per, heightOf, room, gap = 0, min = 3) {
+  const rows = []; let used = 0; let n = 0;
+  for (let i = 0; i < items.length; i += per) {
+    const row = items.slice(i, i + per); const h = Math.max(...row.map(heightOf));
+    if (n >= min && used + h + gap > room) break;
+    rows.push({ items: row, start: i, y: used, h }); used += h + gap; n += row.length;
+  }
+  return { rows, used };
 }
 
 // T(x, y, text, opts): opts = { size, weight, fill, bg (the colour behind the text, required for the contrast log), font, kind, anchor,
@@ -76,7 +92,7 @@ export function wrap(text, maxW, size, kind = 'sans', weight = 400, maxLines = 9
 export function T(x, y, text, o = {}) {
   const size = o.size || 14; const weight = o.weight || 400; const kind = o.kind || 'sans';
   let s = LB(String(text ?? '')); if (o.caps) s = s.toUpperCase();
-  const parts = o.maxW ? wrap(s, o.maxW, size * (o.caps ? 1.08 : 1), kind, weight, o.lines || 99) : [s];
+  const parts = o.maxW ? wrap(s, o.maxW, size * (o.caps ? 1.08 : 1), kind, weight) : [s];
   const lh = o.lh || size * 1.3;
   if (o.bg) LOG.push({ fill: o.fill, bg: o.bg, size, weight, text: s.slice(0, 40), ctx: o.ctx || '' });
   const spans = parts.map((p, i) => `<tspan x="${x}" dy="${i ? lh : 0}">${esc(p)}</tspan>`).join('');

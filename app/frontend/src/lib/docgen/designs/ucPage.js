@@ -12,7 +12,8 @@ const BODY = 13; const LH = 18;
 const g = (block, svg) => `<g data-block="${block}">${svg}</g>`;
 // A word with no break that is wider than the box is cut, so one long table path cannot run off the page.
 const softBreak = (s, n = 60) => String(s ?? '').replace(new RegExp(`\\S{${n},}`, 'g'), (w) => w.match(new RegExp(`.{1,${n - 10}}`, 'g')).join(' '));
-const clip = (s, maxW, size) => { let x = String(s); while (x.length > 1 && textW(x, size) > maxW) x = `${x.slice(0, -2)}…`.replace(/……$/, '…'); return x; };
+// A table name wider than the box is split into pieces that each fit, never cut.
+const pieces = (s, maxW, size) => { const n = Math.max(8, Math.floor(maxW / textW('x', size))); return String(s).match(new RegExp(`.{1,${n}}`, 'g')) || ['']; };
 
 // The yearly rows that carry a number, years 1 to 3 (never filled in when missing).
 export function projectionYears(u) {
@@ -43,20 +44,14 @@ export function ucPage(m, u, idx, S) {
   const tables = has(m, 'data_used') ? (u.tables || []) : [];
   const facts = [['Sponsor', u.sponsor], ['Beneficiary', u.beneficiary], ['Technique', u.technique]].filter((f) => f[1]);
 
-  // Data chips in rows (at most 3); chips that do not fit are replaced by one "+N more" chip at the end of the last row.
+  // Data chips in rows; every table is shown, the box grows with the rows.
   const chipRows = [];
   if (tables.length) {
-    const chips = tables.map((name) => { const label = clip(name, tw - 2 * S.chipPad, 12); return { label, w: S.chipW(label) }; });
-    let rows = [[]]; let rx = 0; let shown = 0;
+    const chips = tables.flatMap((name) => pieces(name, tw - 2 * S.chipPad, 12)).map((label) => ({ label, w: S.chipW(label) }));
+    const rows = [[]]; let rx = 0;
     for (const c of chips) {
-      if (rx && rx + c.w > tw) { if (rows.length === 3) break; rows.push([]); rx = 0; }
-      rows[rows.length - 1].push({ ...c, x: rx }); rx += c.w + 8; shown += 1;
-    }
-    if (shown < chips.length) {
-      const last = rows[rows.length - 1]; let n = chips.length - shown; const place = () => { const l = `+${n} more`; return { label: l, w: S.chipW(l) }; };
-      let more = place();
-      while (last.length > 1 && last[last.length - 1].x + last[last.length - 1].w + 8 + more.w > tw) { last.pop(); n += 1; more = place(); }
-      const prev = last[last.length - 1]; last.push({ ...more, x: prev.x + prev.w + 8 });
+      if (rx && rx + c.w > tw) { rows.push([]); rx = 0; }
+      rows[rows.length - 1].push({ ...c, x: rx }); rx += c.w + 8;
     }
     chipRows.push(...rows);
   }

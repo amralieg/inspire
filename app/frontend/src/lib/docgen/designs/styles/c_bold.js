@@ -1,6 +1,6 @@
 // Option C "Bold": a data-visual poster. Navy hero, one vivid colour per domain carried through every chart, heavy geometric sans,
 // rounded cards on a cool grey canvas, icons in filled circles, bubble scatter (bubble = value), big donut, colourful treemap.
-import { t, T, rect, line, circle, icon, svgDoc, money, VERB_ICON, DISCLAIMER, bestInk, runW, arc, has, verbColors, iconName } from '../core.js';
+import { t, T, nLines, fitSummary, fitRows, rect, line, circle, icon, svgDoc, money, VERB_ICON, DISCLAIMER, bestInk, runW, arc, has, verbColors, iconName } from '../core.js';
 import { ucPage, factCols, NOT_YET } from '../ucPage.js';
 import { donut, quadrant, treemapChart } from '../charts.js';
 
@@ -27,7 +27,7 @@ function segMeter(x, y, score, max, c, track, n = 10, w = 7, gap = 2, h = 8) {
 
 function infographic(m, th, { W, H }) {
   const P = 28; const CW = W - 2 * P; const small = H < 1100; const cm = colorMap(m);
-  let s = rect(0, 0, W, H, th.canvas);
+  let s = '';
   // hero
   const hh = small ? 214 : 232;
   s += rect(0, 0, W, hh, th.hero);
@@ -80,24 +80,30 @@ function infographic(m, th, { W, H }) {
   s += H2(P + 4, y + 18, 'Top use cases by value', th, th.canvas, 17) + SUB(W - P, y + 18, 'Numbers match the chart', th, th.canvas, { anchor: 'end' });
   y += 30;
   const footer = 84; const rowH = 74; const colW = (CW - 12) / 2;
-  const rows = Math.max(1, Math.floor((H - y - footer) / (rowH + 10)));
-  m.ranked.slice(0, rows * 2).forEach((u, i) => {
-    const x = P + (i % 2) * (colW + 12); const yy = y + Math.floor(i / 2) * (rowH + 10); const c = cm[u.domain];
-    s += card(x, yy, colW, rowH, th) + rect(x, yy + 12, 5, rowH - 24, c, { rx: 2.5 });
+  // The name wraps in full, the meta line moves under it, and the description follows in full across the card; the card grows to fit.
+  const metaY = (u) => 62 + Math.max(0, nLines(u.short, colW - 160, 13, 'sans', 700) - 2) * 16;
+  const itemH = (u) => (u.statement ? Math.max(rowH, metaY(u) + 18 + (nLines(u.statement, colW - 76, 12) - 1) * 15 + 14) : Math.max(rowH, metaY(u) + 12));
+  const fit = fitRows(m.ranked, 2, itemH, H - y - footer, 10);
+  fit.rows.forEach((r) => r.items.forEach((u, col) => {
+    const i = r.start + col; const h = r.h;
+    const x = P + col * (colW + 12); const yy = y + r.y; const c = cm[u.domain]; const my = yy + metaY(u);
+    s += card(x, yy, colW, h, th) + rect(x, yy + 12, 5, h - 24, c, { rx: 2.5 });
     const d = m.domains.find((q) => q.name === u.domain);
     s += chip(x + 34, yy + 30, 17, c, d.icon, 18);
     s += t(x + 34, yy + 62, `#${i + 1}`, { size: 12, weight: 800, fill: th.ink, bg: th.card, anchor: 'middle', font: BODY, ctx: 'rank' });
     s += T(x + 62, yy + 26, u.short, { size: 13, weight: 700, fill: th.ink, bg: th.card, font: BODY, maxW: colW - 160, lines: 2, lh: 16, ctx: 'uc title' }).svg;
-    s += t(x + 62, yy + 62, [u.domain, cap(u.verb)].filter(Boolean).join(' · '), { size: 12, fill: th.muted, bg: th.card, font: BODY, ctx: 'uc meta' });
+    s += t(x + 62, my, [u.domain, cap(u.verb)].filter(Boolean).join(' · '), { size: 12, fill: th.muted, bg: th.card, font: BODY, ctx: 'uc meta' });
+    if (u.statement) s += t(x + 62, my + 18, u.statement, { size: 12, fill: th.ink, bg: th.card, font: BODY, maxW: colW - 76, lh: 15, ctx: 'uc desc' });
     s += t(x + colW - 14, yy + 32, u.value.text, { size: 22, weight: 800, fill: th.ink, bg: th.card, anchor: 'end', font: BODY, ctx: 'uc value' });
     if (has(m, 'inspire_score')) s += segMeter(x + colW - 14 - 88, yy + 44, u.score, 10, c, th.track);
     if (has(m, 'inspire_score')) s += t(x + colW - 14, yy + 66, `score ${u.score.toFixed(1)}`, { size: 12, weight: 700, fill: th.muted, bg: th.card, anchor: 'end', font: BODY, ctx: 'uc score' });
-  });
-  y += rows * (rowH + 10) + 2;
+  }));
+  const PH = Math.max(H, y + fit.used + footer);
+  y += fit.used + 2;
   s += t(P + 4, y + 14, 'How to read', { size: 12, weight: 800, fill: th.ink, bg: th.canvas, font: BODY, ctx: 'how' });
   s += T(P + 88, y + 14, 'One color per domain in every chart. Tile area and bubble size = yearly value. The shaded corner sits above the median score and value. Score is out of 10.', { size: 12, fill: th.ink, bg: th.canvas, maxW: CW - 92, lines: 2, lh: 15, font: BODY, ctx: 'how' }).svg;
   if (has(m, 'disclaimer')) s += T(P + 4, y + 50, DISCLAIMER, { size: 12, fill: th.muted, bg: th.canvas, maxW: CW - 8, lines: 3, lh: 15, font: BODY, ctx: 'disc' }).svg;
-  return svgDoc(W, H, s, BODY, `<clipPath id="cHero"><rect x="0" y="0" width="${W}" height="${hh}"/></clipPath>`);
+  return svgDoc(W, PH, rect(0, 0, W, PH, th.canvas) + s, BODY, `<clipPath id="cHero"><rect x="0" y="0" width="${W}" height="${hh}"/></clipPath>`);
 }
 
 const SW = 1333; const SH = 750;
@@ -143,12 +149,13 @@ function deckDomain(m, th, d, idx) {
   s += card(540, 50, 733, 650, th);
   s += H2(570, 100, 'Use cases in this domain', th, th.card, 24) + SUB(1243, 100, 'value a year · score', th, th.card, { anchor: 'end', size: 16 });
   const max = Math.max(...ucs.map((u) => u.value.amount));
+  let drop = 0;
   ucs.slice(0, 7).forEach((u, i) => {
-    const y = 150 + i * 76;
-    s += T(570, y + 6, u.short, { size: 17, weight: 700, fill: th.ink, bg: th.card, font: BODY, maxW: 660, lines: 1, ctx: 'row' }).svg;
-    s += rect(570, y + 20, 520, 18, th.track, { rx: 9 }) + rect(570, y + 20, Math.max(18, (u.value.amount / max) * 520), 18, c, { rx: 9 });
-    s += t(1180, y + 36, u.value.text, { size: 18, weight: 800, fill: th.ink, bg: th.card, anchor: 'end', font: BODY, ctx: 'row v' });
-    s += rect(1192, y + 18, 54, 24, th.track, { rx: 12 }) + t(1219, y + 36, u.score.toFixed(1), { size: 16, weight: 800, fill: th.ink, bg: th.track, anchor: 'middle', font: BODY, ctx: 'row s' });
+    const ex = (nLines(u.short, 660, 17, 'sans', 700) - 1) * 21; const y = 150 + i * 76 + drop; drop += ex;
+    s += T(570, y + 6, u.short, { size: 17, weight: 700, fill: th.ink, bg: th.card, font: BODY, maxW: 660, lh: 21, ctx: 'row' }).svg;
+    s += rect(570, y + 20 + ex, 520, 18, th.track, { rx: 9 }) + rect(570, y + 20 + ex, Math.max(18, (u.value.amount / max) * 520), 18, c, { rx: 9 });
+    s += t(1180, y + 36 + ex, u.value.text, { size: 18, weight: 800, fill: th.ink, bg: th.card, anchor: 'end', font: BODY, ctx: 'row v' });
+    s += rect(1192, y + 18 + ex, 54, 24, th.track, { rx: 12 }) + t(1219, y + 36 + ex, u.score.toFixed(1), { size: 16, weight: 800, fill: th.ink, bg: th.track, anchor: 'middle', font: BODY, ctx: 'row s' });
   });
   return svgDoc(SW, SH, s, BODY, '<clipPath id="cPanel"><rect x="0" y="0" width="500" height="750"/></clipPath>');
 }
@@ -197,14 +204,15 @@ function briefPage1(m, th) {
   let ly = 226;
   if (text) {
     s += H2(P + 20, 226, 'Summary', th, th.card, 18);
-    const r = T(P + 20, 254, text, { size: 13, fill: th.ink, bg: th.card, font: BODY, maxW: CW - 40, lines: 10, lh: 18.5, ctx: 'summary' }); s += r.svg; ly = 254 + (r.lines - 1) * 18.5 + 30;
+    const r = T(P + 20, 254, fitSummary(text, CW - 40, 13, 'sans', 400, 10), { size: 13, fill: th.ink, bg: th.card, font: BODY, maxW: CW - 40, lh: 18.5, ctx: 'summary' }); s += r.svg; ly = 254 + (r.lines - 1) * 18.5 + 30;
   }
   const rows = Math.min(7, m.ranked.length, Math.floor((444 - ly - 24) / 26));
   if (rows >= 2) {
     s += H2(P + 20, ly, 'Where to start', th, th.card, 18);
+    let sink = 0;
     m.ranked.slice(0, rows).forEach((u, i) => {
-      const ry = ly + 24 + i * 26;
-      s += T(P + 20, ry, u.name, { size: 13, weight: 700, fill: th.ink, bg: th.card, font: BODY, maxW: 340, lines: 1, ctx: 'start name' }).svg;
+      const ry = ly + 24 + i * 26 + sink; sink += (nLines(u.name, 340, 13, 'sans', 700) - 1) * 16;
+      s += T(P + 20, ry, u.name, { size: 13, weight: 700, fill: th.ink, bg: th.card, font: BODY, maxW: 340, lh: 16, ctx: 'start name' }).svg;
       s += t(P + 380, ry, u.domain, { size: 13, fill: th.muted, bg: th.card, font: BODY, maxW: 130, lines: 1, ctx: 'start domain' });
       s += t(P + CW - 20 - (has(m, 'inspire_score') ? 44 : 0), ry, u.value.text, { size: 13, weight: 800, fill: th.ink, bg: th.card, anchor: 'end', font: BODY, ctx: 'start value' });
       if (has(m, 'inspire_score')) s += t(P + CW - 20, ry, u.score.toFixed(1), { size: 13, weight: 800, fill: th.muted, bg: th.card, anchor: 'end', font: BODY, ctx: 'start score' });

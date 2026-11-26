@@ -1,6 +1,6 @@
 // Option B "Editorial": an executive magazine page. Paper, ink, one lava-red accent, hairline rules, a headline that states the number,
 // a tonal treemap where only the leading domain carries colour, a thin-ring donut, a hollow-dot quadrant, numbered list instead of boxes.
-import { wrap, textW, t, T, rect, line, circle, icon, svgDoc, runW, money, VERB_ICON, DISCLAIMER, bestInk, contrast, has, verbColors, iconName } from '../core.js';
+import { wrap, nLines, fitRows, SPILL, textW, t, T, rect, line, circle, icon, svgDoc, runW, money, VERB_ICON, DISCLAIMER, bestInk, contrast, has, verbColors, iconName } from '../core.js';
 import { ucPage, factCols, NOT_YET } from '../ucPage.js';
 import { donut, quadrant, treemapChart, meter } from '../charts.js';
 
@@ -24,7 +24,7 @@ const kicker = (x, y, s, th, o = {}) => t(x, y, s, { size: 12, weight: 700, fill
 
 function infographic(m, th, { W, H }) {
   const P = 44; const CW = W - 2 * P; const small = H < 1100;
-  let s = rect(0, 0, W, H, th.paper);
+  let s = '';
   s += masthead(W, P, 30, th, 'Databricks Inspire AI · Value review', `${m.businessName} · Nov 2026`);
   const d3 = m.domains.slice(0, 3); const share = Math.round((d3.reduce((a, d) => a + d.value, 0) / m.total.amount) * 100);
   // headline: the number is the story
@@ -73,23 +73,28 @@ function infographic(m, th, { W, H }) {
   s += t(W - P, y + 26, 'Numbers match Figure 2', { size: 12, fill: th.grey, bg: th.paper, anchor: 'end', font: BODY, ctx: 'list note' });
   y += 40;
   const footer = 92; const rowH = 62; const colW = (CW - 28) / 2;
-  const rows = Math.max(1, Math.floor((H - y - footer) / rowH));
-  m.ranked.slice(0, rows * 2).forEach((u, i) => {
-    const col = i % 2; const row = Math.floor(i / 2); const x = P + col * (colW + 28); const yy = y + row * rowH;
+  // The name wraps in full, the meta line moves under it, and the description follows in full at the row's width; the row grows to fit.
+  const metaY = (u) => 51 + Math.max(0, nLines(u.short, colW - 110, 14, 'serif', 700) - 2) * 17;
+  const itemH = (u) => (u.statement ? Math.max(rowH, metaY(u) + 18 + (nLines(u.statement, colW - 34, 12) - 1) * 15 + 12) : Math.max(rowH, metaY(u) + 11));
+  const fit = fitRows(m.ranked, 2, itemH, H - y - footer);
+  fit.rows.forEach((r) => r.items.forEach((u, col) => {
+    const i = r.start + col; const x = P + col * (colW + 28); const yy = y + r.y; const my = yy + metaY(u);
     s += t(x, yy + 36, String(i + 1), { size: 34, weight: 700, fill: th.accentText, bg: th.paper, font: DISPLAY, kind: 'serif', ctx: 'list num' });
     s += t(x + 34, yy + 18, u.short, { size: 14, weight: 700, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', maxW: colW - 110, lines: 2, lh: 17, ctx: 'list title' });
-    s += icon(u.domain && m.domains.find((d) => d.name === u.domain).icon, x + 34, yy + 40, 13, th.grey, 1.6);
-    s += t(x + 52, yy + 51, [u.domain, cap(u.verb)].filter(Boolean).join(' · '), { size: 12, fill: th.grey, bg: th.paper, font: BODY, ctx: 'list meta' });
+    s += icon(u.domain && m.domains.find((d) => d.name === u.domain).icon, x + 34, my - 11, 13, th.grey, 1.6);
+    s += t(x + 52, my, [u.domain, cap(u.verb)].filter(Boolean).join(' · '), { size: 12, fill: th.grey, bg: th.paper, font: BODY, ctx: 'list meta' });
+    if (u.statement) s += t(x + 34, my + 18, u.statement, { size: 12, fill: th.body, bg: th.paper, font: BODY, maxW: colW - 34, lh: 15, ctx: 'list desc' });
     s += t(x + colW, yy + 22, u.value.text, { size: 18, weight: 700, fill: th.ink, bg: th.paper, anchor: 'end', font: DISPLAY, kind: 'serif', ctx: 'list value' });
     s += t(x + colW, yy + 38, 'a year', { size: 12, fill: th.grey, bg: th.paper, anchor: 'end', font: BODY, ctx: 'list unit' });
     if (has(m, 'inspire_score')) s += t(x + colW, yy + 53, `score ${u.score.toFixed(1)}`, { size: 12, weight: 700, fill: th.body, bg: th.paper, anchor: 'end', font: BODY, ctx: 'list score' });
-    s += line(x, yy + rowH - 4, x + colW, yy + rowH - 4, th.hair, 1);
-  });
-  y += rows * rowH + 6;
+    s += line(x, yy + r.h - 4, x + colW, yy + r.h - 4, th.hair, 1);
+  }));
+  const PH = Math.max(H, y + fit.used + footer);
+  y += fit.used + 6;
   s += t(P, y + 14, 'How to read.', { size: 12, weight: 700, fill: th.ink, bg: th.paper, font: BODY, ctx: 'how' });
   s += T(P + 82, y + 14, 'Tile area = yearly value. Filled red dots sit above the median score and the median value (dashed lines). Score = Inspire score out of 10.', { size: 12, fill: th.body, bg: th.paper, maxW: CW - 82, lines: 2, lh: 15, font: BODY, ctx: 'how' }).svg;
   if (has(m, 'disclaimer')) s += T(P, y + 48, DISCLAIMER, { size: 12, fill: th.grey, bg: th.paper, italic: true, maxW: CW, lines: 3, lh: 15, font: SERIF, kind: 'serif', ctx: 'disc' }).svg;
-  return svgDoc(W, H, s, BODY);
+  return svgDoc(W, PH, rect(0, 0, W, PH, th.paper) + s, BODY);
 }
 
 const SW = 1333; const SH = 750;
@@ -119,9 +124,10 @@ function deckDomain(m, th, d, idx) {
   const x0 = 660; const w = 603; const max = Math.max(...ucs.map((u) => u.value.amount));
   s += t(x0, 150, 'Each use case, by yearly value', { size: 20, weight: 700, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', ctx: 'fig' });
   s += rect(x0, 166, w, 1, th.rule);
+  let drop = 0;
   ucs.slice(0, 7).forEach((u, i) => {
-    const y = 214 + i * 66; const bw = (u.value.amount / max) * (w - 150);
-    s += t(x0, y - 8, u.short, { size: 17, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', maxW: w - 10, lines: 1, ctx: 'row' });
+    const ex = (nLines(u.short, w - 10, 17, 'serif') - 1) * 21; const y = 214 + i * 66 + drop + ex; drop += ex; const bw = (u.value.amount / max) * (w - 150);
+    s += t(x0, y - 8 - ex, u.short, { size: 17, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', maxW: w - 10, lh: 21, ctx: 'row' });
     s += line(x0, y + 12, x0 + bw, y + 12, th.ink, 2) + circle(x0 + bw, y + 12, 7, i === 0 ? th.accent : th.ink);
     s += t(x0 + bw + 16, y + 18, `${u.value.text} · score ${u.score.toFixed(1)}`, { size: 16, weight: 700, fill: th.ink, bg: th.paper, font: BODY, ctx: 'row v' });
   });
@@ -177,10 +183,7 @@ function briefPage1(m, th) {
     const pick = [16, 15, 14, 13].map(lay).find((r) => r.per * r.lh <= 270) || lay(13);
     const { all } = pick; FS = pick.size; LH = pick.lh;
     const maxLines = 3 * Math.floor(284 / LH);
-    if (all.length > maxLines) {
-      all.length = maxLines; let last = all[maxLines - 1].l; while (last.length > 1 && textW(`${last}…`, FS, 'serif') > cw) last = last.slice(0, -1);
-      all[maxLines - 1] = { l: `${last.replace(/[\s,.;:]+$/, '')}…`, x: 0 };
-    }
+    if (all.length > maxLines) { SPILL.push(all.slice(maxLines).map((r) => r.l).join(' ')); all.length = maxLines; }
     perCol = Math.max(4, Math.ceil(all.length / 3));
     for (let c = 0; c < 3; c += 1) {
       const x = P + c * (cw + 20);
@@ -192,13 +195,14 @@ function briefPage1(m, th) {
   const ly = text ? TOP + perCol * LH + 14 : 270; const rows = Math.min(9, m.ranked.length, Math.floor((BOTTOM - ly - 34) / 30));
   if (rows >= 2) {
     s += kicker(P, ly + 14, 'Where to start', th) + line(P, ly + 22, P + CW, ly + 22, th.rule, 1);
+    let sink = 0;
     m.ranked.slice(0, rows).forEach((u, i) => {
-      const ry = ly + 34 + i * 30;
-      s += t(P, ry + 18, u.name, { size: 14, weight: 700, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', maxW: 400, lines: 1, ctx: 'start name' });
+      const ex = (nLines(u.name, 400, 14, 'serif', 700) - 1) * 17; const ry = ly + 34 + i * 30 + sink; sink += ex;
+      s += t(P, ry + 18, u.name, { size: 14, weight: 700, fill: th.ink, bg: th.paper, font: SERIF, kind: 'serif', maxW: 400, lh: 17, ctx: 'start name' });
       s += t(P + 420, ry + 18, u.domain, { size: 12, fill: th.grey, bg: th.paper, caps: true, ls: 1.2, font: BODY, maxW: 130, lines: 1, ctx: 'start domain' });
       s += t(P + CW - (has(m, 'inspire_score') ? 50 : 0), ry + 18, u.value.text, { size: 14, weight: 700, fill: th.accentText, bg: th.paper, anchor: 'end', font: SERIF, kind: 'serif', ctx: 'start value' });
       if (has(m, 'inspire_score')) s += t(P + CW, ry + 18, u.score.toFixed(1), { size: 14, fill: th.ink, bg: th.paper, anchor: 'end', font: SERIF, kind: 'serif', ctx: 'start score' });
-      s += line(P, ry + 26, P + CW, ry + 26, th.hair, 1);
+      s += line(P, ry + 26 + ex, P + CW, ry + 26 + ex, th.hair, 1);
     });
   }
   // figure

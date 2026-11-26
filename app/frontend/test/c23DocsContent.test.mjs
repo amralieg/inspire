@@ -118,7 +118,7 @@ test('C23 no calculated value: no empty projection block, the subtitle is clear 
     const el = [...svg.matchAll(/<text\b[^>]*>(.*?)<\/text>/gs)].find((t) => un(t[0]).includes(nm.slice(0, 12)) && /font-size="13"/.test(t[0]));
     assert.ok(el, `row ${nm}`);
     const x = Number(/<tspan x="([\d.]+)"/.exec(el[0])[1]);
-    const shown = [...el[0].matchAll(/<tspan\b[^>]*>(.*?)<\/tspan>/gs)].map((t) => un(t[1])).join('');
+    const shown = [...el[0].matchAll(/<tspan\b[^>]*>(.*?)<\/tspan>/gs)].map((t) => un(t[1])).reduce((a, b) => (b.length > a.length ? b : a), '');
     const notYet = [...svg.matchAll(/<text x="([\d.]+)"[^>]*>(?:<tspan[^>]*>)?not calculated yet/g)].map((t) => Number(t[1]));
     const near = notYet.filter((nx) => nx > x);
     assert.ok(near.length > 0 && near.every((nx) => x + shown.length * 13 * 0.6 <= nx), `name "${shown}" runs into the not calculated text`);
