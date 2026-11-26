@@ -73,9 +73,11 @@ export function TotalBox({ label, totals, sub }) {
 
 const TEAL = 'color-mix(in srgb, color-mix(in srgb, var(--color-info) 50%, var(--color-success)) 75%, black)';
 // FX-34 (W16 D8): the bar shows every share of the total: calculated, estimated and, when there is one, measured.
-const split = (totals) => totals.flatMap((t) => {
+// RC6-B-07: `shown` is the provisional sum per currency when some provisional value is not counted (shared or outside the range): the
+// legend names that sum instead of a bare $0; the bar still draws what the total counts.
+const split = (totals, shown = {}) => totals.flatMap((t) => {
   const tag = totals.length > 1 ? ` ${t.currency}` : '';
-  const part = (name, f, color) => ({ name: `${name}${tag}`, value: Number(t[f]) || 0, text: moneyText(t.currency, Number(t[f]) || 0), color });
+  const part = (name, f, color) => ({ name: `${name}${tag}`, value: Number(t[f]) || 0, text: moneyText(t.currency, f === 'estimated' && shown[t.currency] != null ? shown[t.currency] : Number(t[f]) || 0), color });
   return [part(STATUS_LABELS.calculated, 'calculated', GREEN), part(STATUS_LABELS.estimated, 'estimated', AMBER), ...(Number(t.measured) > 0 ? [part('Measured', 'measured', TEAL)] : [])];
 });
 
@@ -97,9 +99,26 @@ function CountNotes({ run }) {
   );
 }
 
+// RC6-B-07: the provisional values the total leaves out, each with its plain reason, and their sum per currency.
+export function provisionalOf(useCases, nameOf) {
+  const sums = {};
+  const notes = [];
+  let left = false;
+  for (const [id, u] of Object.entries(useCases || {})) {
+    if (!u || u.status !== 'estimated' || !Number.isFinite(Number(u.amount))) continue;
+    sums[u.currency] = (sums[u.currency] || 0) + Number(u.amount);
+    if (u.counted !== false) continue;
+    left = true;
+    const why = u.overlap && u.overlap.counted === false ? `counted once under ${nameOf?.(u.overlap.with) || u.overlap.with}` : 'outside $100K to $100M, not counted';
+    notes.push(`${moneyText(u.currency, u.amount)} ${nameOf?.(id) || id}: ${why}`);
+  }
+  return { shown: left ? sums : {}, notes };
+}
+
 // One run: run = C6 run block, useCases = C6 use_cases, nameOf(id), onRow(id).
 export function RunValuePanel({ run, useCases, nameOf, onRow }) {
   const rows = Object.entries(useCases || {});
+  const provisional = provisionalOf(useCases, nameOf);
   const byVerb = (run.by_verb || []).map((v, k) => ({ name: v.verb, value: Number(v.amount) || 0, text: moneyText(v.currency, v.amount), color: PALETTE[k % PALETTE.length] }));
   return (
     <section aria-label="Business value this run's use cases could realize" data-value-run-panel="" className="mb-4 rounded-xl border border-border bg-surface p-4">
@@ -109,7 +128,8 @@ export function RunValuePanel({ run, useCases, nameOf, onRow }) {
         <TotalBox label="BUSINESS VALUE" totals={run.totals || []} sub={statusCounts(run.n_calculated, run.n_estimated)} />
         <div className="min-w-0 flex-1">
           <RunValueKinds value={run} className="text-[12px] text-text-secondary" />
-          <Bar parts={split(run.totals || [])} label={`${STATUS_LABELS.calculated}s vs ${STATUS_LABELS.estimated.toLowerCase()}s`} />
+          <Bar parts={split(run.totals || [], provisional.shown)} label={`${STATUS_LABELS.calculated}s vs ${STATUS_LABELS.estimated.toLowerCase()}s`} />
+          {provisional.notes.length > 0 && <p data-provisional-note="" className="mt-0.5 text-caption text-text-secondary">{provisional.notes.join(' · ')}</p>}
           <Bar parts={byVerb} label="By kind of value" />
           <CountNotes run={run} />
           <p className="mt-2 text-caption text-text-secondary">{`${run.n} use cases · ${statusCounts(run.n_calculated, run.n_estimated)} · ${run.n_none} not worked out yet`}</p>
