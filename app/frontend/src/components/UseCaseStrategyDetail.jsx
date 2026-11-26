@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { plural } from '../lib/plural.js';
 import {
   bestOfBestLabel,
   dataSignalLine,
@@ -220,7 +221,7 @@ export function UseCaseStrategyDetail({ info, knownPriorities, foundationsById, 
             {evidenceTables.map(([table, t]) => (
               <li key={table}>
                 <span className="font-mono">{table}</span>
-                {t?.rows != null && `: ${Number(t.rows).toLocaleString('en-US')} rows${t.sampled ? ' (sampled)' : ''}`}
+                {t?.rows != null && `: ${plural(Number(t.rows), 'row')}${t.sampled ? ' (sampled)' : ''}`}
                 {Object.entries(t?.date_ranges || {}).map(([column, range]) => (
                   <span key={column} className="block ps-3 text-caption text-text-tertiary">
                     {column}: {range.min} to {range.max}

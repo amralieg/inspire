@@ -580,7 +580,7 @@ export default function DataFilters({ scope, scopes, tables, listing, onScopes, 
     const job = jobs.find((j) => j.table === table);
     if (!job) return '';
     const c = counts[table];
-    return !c || c.key !== job.key ? 'counting rows' : c.error ? 'rows could not be counted' : `${c.rows.toLocaleString()} rows match`;
+    return !c || c.key !== job.key ? 'counting rows' : c.error ? 'rows could not be counted' : `${plural(c.rows, 'row')} match`;
   };
   const nothingPicked = !scope.entries.length;
   // Filters in use lists the row filters and row groups saved on the tables (REQ-377): the block exists only once one exists.

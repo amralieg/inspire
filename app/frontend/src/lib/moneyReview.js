@@ -1,5 +1,6 @@
 import { liveImpact, stakeAmount } from './targetKpi.js';
 import { formatDay } from './formatWhen.js';
+import { plural } from './plural.js';
 
 const lower = (text) => (/^[A-Z][a-z]/.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text);
 
@@ -58,14 +59,14 @@ export function tiersText(run, impact = liveImpact(run)) {
 export function previewSampleText(run) {
   const n = Number(run?.preview_sample_entities);
   if (run?.preview_sample_entities == null || !Number.isFinite(n) || n <= 0) return '';
-  const sample = `a preview sample of ${n.toLocaleString('en-US')} records; the next full run trains on every record.`;
+  const sample = `a preview sample of ${plural(n, 'record')}; the next full run trains on every record.`;
   return run.accepted == null ? `The last run trained on ${sample}` : `This use case\u2019s acceptance check ran on ${sample}`;
 }
 
 export function lastRunText(run, impact = liveImpact(run)) {
   if (!run || run.records == null) return '';
   const stake = run.value_at_stake != null ? `, with ${stakeAmount(run.value_at_stake, impact)} at stake on them` : '';
-  return `The last run flagged ${run.act_now_records || 0} Act now and ${run.review_records || 0} Review of ${run.records} rows${stake}.`;
+  return `The last run flagged ${run.act_now_records || 0} Act now and ${run.review_records || 0} Review of ${plural(Number(run.records), 'row')}${stake}.`;
 }
 
 export function historyLines(history, currency) {

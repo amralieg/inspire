@@ -2,6 +2,7 @@ import { Check, FileSpreadsheet, FileText, Globe, Image as ImageIcon, Plus, Pres
 import { CONTENT_BLOCKS, EXCEL_COLUMNS } from '../lib/docgen/docOptions.js';
 import { DOC_PALETTES, DOC_STYLES, DOC_THEMES, resolveTheme } from '../lib/docgen/docStyles.js';
 import { DOCUMENT_LANGUAGE_CHOICES } from '../constants/documentLanguages.js';
+import { plural } from '../lib/plural.js';
 
 // REQ-503: the wizard's pages. Each is one short screen; the dialog shows one at a time.
 const KIND_INFO = {
@@ -67,7 +68,7 @@ export function LayoutPage({ options, set, eachApplies, count }) {
     <div className="space-y-5">
       <fieldset className="space-y-2">
         <legend className="text-sm font-bold text-text-primary">How many files</legend>
-        {[['one', 'One file for all selected', `All ${count} use cases together`], ['each', 'One file for each use case', `${count} files for each document type`]].map(([v, label, hint]) => (
+        {[['one', 'One file for all selected', `All ${plural(count, 'use case')} together`], ['each', 'One file for each use case', `${plural(count, 'file')} for each document type`]].map(([v, label, hint]) => (
           <label key={v} className={`${card(options.layout === v)} flex cursor-pointer items-start gap-3`}>
             <input type="radio" name="docs-layout" value={v} checked={options.layout === v} onChange={() => set({ layout: v })} className="mt-1" />
             <span><span className="block text-sm font-bold text-text-primary">{label}</span><span className="block text-xs text-text-secondary">{hint}</span></span>
