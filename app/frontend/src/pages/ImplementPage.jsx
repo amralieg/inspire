@@ -601,7 +601,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
               notebookPath={settings.notebookPath} focusId={selected.id} live={IMPLEMENT_DONE_STATUSES.includes(String(selected.latest?.status || ''))}
               caseOf={(id) => allItems.find((item) => item.id === id)?.uc}
               onBuilt={readOnly ? undefined : onImplemented} onQueued={readOnly ? undefined : buildQueued} onBuildCustom={readOnly ? undefined : (uc) => setWizard({ uc, focus: null, live: false })}
-              onMeasure={readOnly ? undefined : openMeasure} />
+              onMeasure={readOnly ? undefined : openMeasure} onOpen={readOnly ? undefined : select} />
           )}
           {selected ? (
             <UseCaseDetail

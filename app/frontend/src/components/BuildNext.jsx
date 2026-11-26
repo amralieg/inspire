@@ -122,11 +122,22 @@ export function BuildNextPanel({ apiFetch, inspireDatabase, warehouseId, session
   );
 }
 
-export function BuildNextStep({ apiFetch, apiPostJson, inspireDatabase, warehouseId, sessionId, notebookPath = '', focusId, live, caseOf, onBuilt, onBuildCustom, onQueued = null, onMeasure = null, showcase = false, refreshKey = 0 }) {
+export function BuildNextStep({ apiFetch, apiPostJson, inspireDatabase, warehouseId, sessionId, notebookPath = '', focusId, live, caseOf, onBuilt, onBuildCustom, onQueued = null, onMeasure = null, onOpen = null, showcase = false, refreshKey = 0 }) {
   const { rows, liveSpecs, error } = useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, showcase, null, refreshKey);
   const next = useMemo(() => (rows && live ? nextSharingTables(rows, focusId) : []), [rows, live, focusId]);
+  // C24 (REQ-078): a built use case nudges to the next highest-value unbuilt one, picked by the one ranking (buildNextOf).
+  const another = useMemo(() => (rows && live ? buildNextOf(rows) : null), [rows, live]);
   const [builds, setBuilds] = useState({});
-  if (!live || error || !next.length) return null;
+  if (!live || error) return null;
+  const nudge = onOpen && another?.unbuilt > 0 && another.next[0] ? (
+    <section aria-label="Build another" data-build-another="" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 shadow-sm">
+      <p className="text-sm text-text-primary">{`Build another: ${another.unbuilt} more use case${another.unbuilt === 1 ? '' : 's'} in this run ${another.unbuilt === 1 ? 'is' : 'are'} ready to build`}</p>
+      <button type="button" data-build-another-open={another.next[0].id} onClick={() => onOpen(another.next[0].id)} className={BUILD_CUSTOM_BUTTON}>
+        {`Open ${another.next[0].name || another.next[0].id}`} <ArrowRight size={14} aria-hidden />
+      </button>
+    </section>
+  ) : null;
+  if (!next.length) return nudge;
   const canBuild = Boolean(onBuilt && onBuildCustom);
   const canBuildNow = Boolean(liveSpecs[focusId]);
   const patch = (id, change) => setBuilds((prev) => ({ ...prev, [id]: { ...prev[id], ...change } }));
@@ -187,6 +198,8 @@ export function BuildNextStep({ apiFetch, apiPostJson, inspireDatabase, warehous
   };
 
   return (
+    <>
+    {nudge}
     <section aria-label="Next use cases on the same data" data-build-next-step="" className="space-y-3 rounded-xl border border-border bg-surface p-4 shadow-sm">
       <div>
         <h2 className="text-sm font-semibold text-text-primary">Build next on the same data</h2>
@@ -230,6 +243,7 @@ export function BuildNextStep({ apiFetch, apiPostJson, inspireDatabase, warehous
         })}
       </ul>
     </section>
+    </>
   );
 }
 

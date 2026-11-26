@@ -1,8 +1,9 @@
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon, Loader2 } from 'lucide-react';
 import DatabricksLogo from './DatabricksLogo';
 import { useTheme } from '../ThemeContext';
 import { APP_TABS, tabTitle } from '../lib/tabs';
 import { FRAME } from '../lib/layout';
+import { aiLabel, useAiStatus } from '../lib/aiStatus';
 
 const START_PAGES = ['launch', 'generate-data'];
 const NAV = APP_TABS.map((tab, i) => ({ ...tab, step: i + 1 }));
@@ -19,6 +20,8 @@ export default function Header({
   releaseTag = '',
 }) {
   const { theme, toggle } = useTheme();
+  const ai = useAiStatus();
+  const aiState = aiLabel(ai);
   const enabled = {
     choose: true,
     monitor: canMonitor,
@@ -86,6 +89,12 @@ export default function Header({
 
           {/* Theme toggle */}
           <div className="flex shrink-0 items-center gap-1">
+            <span data-ai-status={aiState} role="status"
+              title={aiState === 'unavailable' ? `The last AI call failed: ${ai.error}` : aiState === 'working' ? 'An AI call is running' : 'AI calls from this App are going through'}
+              className={`hidden sm:inline-flex items-center gap-1.5 whitespace-nowrap text-caption font-medium ${aiState === 'unavailable' ? 'text-error-fg' : 'text-text-secondary'}`}>
+              {aiState === 'working' && <Loader2 size={12} className="animate-spin" aria-hidden />}
+              {`AI: ${aiState}`}
+            </span>
             <button
               onClick={toggle}
               className="p-2 rounded-md text-text-secondary hover:text-db-red-fg hover:bg-db-red-50 transition-smooth"
