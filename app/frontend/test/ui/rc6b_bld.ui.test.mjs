@@ -1,8 +1,11 @@
 // RC6-C-01 (REQ-528) and RC6-C-03 (REQ-514): the Build wizard never says "Page storage", shows the picked warehouse the same way everywhere,
-// keeps the read-only "App storage" row on Review, and calls the App "App" when nothing agentic is picked.
+// keeps the read-only "App storage" row on Review, and names the App with the one shared output label (D-c22-08).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, onStep, openUi, toSummary } from './uiSupport.mjs';
+import { readFileSync } from 'node:fs';
+
+const OUTPUT_LABELS = JSON.parse(readFileSync(new URL('../../../backend/lib/implementOutputLabels.json', import.meta.url), 'utf8'));
 
 test.after(closeBrowser);
 
@@ -52,7 +55,8 @@ test('RC6B-2: Review keeps the read-only App storage row', async () => {
   } finally { await ui.close(); }
 });
 
-test('RC6B-3: Review calls the App "App", never "Agentic App", and What it builds lists App', async () => {
+// D-c22-08 (reverts D-c22-01): the App keeps the one shared output label on every surface (D-LABEL209); a rename is Amr's call.
+test('RC6B-3: Review names the App with the one shared output label, the same in What it builds and the App row', async () => {
   const ui = await openUi('wizard', ME, '', { build: null });
   const { page, pageErrors } = ui;
   try {
@@ -60,9 +64,9 @@ test('RC6B-3: Review calls the App "App", never "Agentic App", and What it build
     await toSummary(page);
     const built = page.locator('[data-picked-row="outputs"] [data-picked-value]');
     await built.waitFor();
-    const review = (await bodyText(page)).replace(/\s+/g, ' ');
-    assert.doesNotMatch(review, /Agentic App/);
-    assert.match(await built.innerText(), /^The MVP: [^.]*\bApp\b/);
+    const label = OUTPUT_LABELS.app;
+    assert.ok((await built.innerText()).startsWith('The MVP: ') && (await built.innerText()).includes(label));
+    assert.equal((await page.locator('[data-picked-row="app"] dt').first().innerText()).trim(), label);
     assert.deepEqual(pageErrors, []);
   } finally { await ui.close(); }
 });
