@@ -32,6 +32,9 @@ const SHOWCASE_NO_REVIEW = 'The demo keeps no forecast review cycles, so there a
 const SHOWCASE_NO_ACCURACY = 'The demo keeps no overrides or past actuals, so it cannot measure the forecast.';
 const SHOWCASE_BUILTIN = {
   'GET /api/agent/status': { status: 200, body: { mode: 'genie', note: '' } },
+  // REQ-527 (RC6-A-04): the value chip's counter and board; the demo counts no saved value, so the chip shows the unset state.
+  'GET /api/value/counter': { status: 200, body: { shown: false } },
+  'GET /api/value/leaders': { status: 200, body: { shown: false } },
   'GET /api/plans': { status: 200, body: { can_decide: false, can_approve: false, why: SHOWCASE_PLAN_WHY, approve_why: SHOWCASE_PLAN_WHY, contract: 'plan',
     states: ['Draft', 'In review', 'Approved', 'Published'], missing: '', constraints: [], constraints_error: '',
     versions: [{ plan_id: 'demo', number: 1, label: 'Version 1', status: 'Draft', editable: true, overrides: [], changed_by: '' }] } },
