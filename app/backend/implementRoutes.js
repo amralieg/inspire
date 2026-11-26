@@ -169,6 +169,7 @@ function registerImplementRoutes(app, deps) {
     hostedRun = null,
     buildStamp = bundledBuildStamp,
     runDefaults = () => ({}),
+    isManager = async () => false,
     appToken = async () => '',
     appId = '',
     genieCodeCheck = GC.createGenieCodeCheck(),
@@ -202,8 +203,30 @@ function registerImplementRoutes(app, deps) {
   const visibleIds = async (req, ids) => new Set((await visibleOf(req, [...new Set(ids.map(String))].filter(Boolean).map((id) => ({ session_id: id }))))
     .map((s) => String(s.session_id)));
   const sessionRefusedText = 'You cannot open this session: you did not launch it and you cannot read every table it covers. Ask for access to the tables below.';
+  // SEC-07 (c23): the database and warehouse a route reads or writes with the App's identity are the App's own (runDefaults) unless the caller is an
+  // App manager. What a non-manager named in the query or body is replaced, so every route below (tracking reads, answers, docs, runs) shares one
+  // target. A deps without isManager, or a check that throws, pins everyone (fail closed).
+  async function pinTarget(req) {
+    let manager = false;
+    try {
+      manager = Boolean(await isManager(req));
+    } catch {
+      manager = false;
+    }
+    if (manager) return;
+    const defaults = runDefaults() || {};
+    const pinned = { inspire_database: String(defaults.inspireDatabase || ''), warehouse_id: String(defaults.warehouseId || '') };
+    // Express 5 builds req.query on every read, so the pinned copy is set as an own property.
+    Object.defineProperty(req, 'query', { value: { ...(req.query || {}), ...pinned }, writable: true, configurable: true, enumerable: true });
+    if (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) Object.assign(req.body, pinned);
+  }
   const requireToken = (req, res, next) => requireIdentity(req, res, async (err) => {
     if (err) return next(err);
+    try {
+      await pinTarget(req);
+    } catch (pinErr) {
+      return next(pinErr);
+    }
     const sid = int64Id(q(req, 'session_id'));
     if (!sid) return next();
     const hidden = await sessionRefusal(req, sid);
@@ -2116,6 +2139,11 @@ function registerImplementRoutes(app, deps) {
     try {
       const warehouseId = warehouseOf(req);
       const { catalog, schema } = dbOf(req, splitInspireDatabase);
+      // SEC-01 (c23): hosted pages come only from the default Inspire database. A record planted in any other database is neither read nor registered.
+      const home = splitInspireDatabase(String((runDefaults() || {}).inspireDatabase || ''));
+      if (!home || home.catalog.toLowerCase() !== catalog.toLowerCase() || home.schema.toLowerCase() !== schema.toLowerCase()) {
+        return res.json({ pages: [], user_authorization: Boolean(P.forwardedTokenOf(req)) });
+      }
       const [listed, person] = await Promise.all([loadRunPages(req, warehouseId, catalog, schema), personOf(req)]);
       // SEC-02 (F6b): only the pages of the sessions the person may see are listed or remembered as listed.
       const seen = await visibleIds(req, listed.map((p) => int64Id(p.session_id)).filter(Boolean));
