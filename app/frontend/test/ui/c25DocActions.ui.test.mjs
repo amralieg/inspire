@@ -42,7 +42,7 @@ function backend(files) {
     app.post('/api/inspire/docs/translate', (req, res) => res.json({ language: req.body.language, texts: req.body.texts }));
     app.get('/api/workspace/list', (req, res) => {
       const saved = state.saves.map((s) => ({ name: s.name, path: `${s.folder}/${s.name}`, is_directory: false, file_size: 1000 }));
-      res.json({ files: [...files, ...(String(req.query.path) === GENERATED || !state.saves.length ? saved : [])] });
+      res.json({ files: [...files, ...saved] });
     });
     app.get('/api/workspace/export', (req, res) => {
       state.exports.push(String(req.query.path));
