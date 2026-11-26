@@ -92,7 +92,7 @@ const NO_JOB = { label: 'No job yet', tone: 'idle' };
 const CHECKING = { label: 'Checking', tone: 'idle' };
 const ERROR_BOX = 'text-xs text-error-fg bg-error-bg border border-error/20 rounded-lg px-3 py-2';
 const NOTE_BOX = 'text-xs text-info-fg bg-info-bg border border-info/20 rounded-lg px-3 py-2';
-// Header actions (REQ-545): one left-aligned row under the name that wraps when it does not fit; More is last.
+// Header actions (REQ-545): one row at the reading edge under the name that wraps when it does not fit; More is last.
 const HEADER_ACTIONS = 'flex w-full flex-wrap items-center justify-start gap-1.5';
 const OUTLINE_BUTTON = 'inline-flex h-8 items-center justify-center gap-1.5 px-3 rounded-lg whitespace-nowrap text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
 const LINK = 'text-sm font-semibold text-db-red-fg inline-flex items-center gap-1 hover:underline';
