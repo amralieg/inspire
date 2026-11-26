@@ -7,7 +7,8 @@ test.after(() => S.stopServer());
 
 test('/api/connection-test reaches the workspace with the service principal token when no DATABRICKS_TOKEN is set', async () => {
   S.reset();
-  const got = await S.request('GET', '/api/connection-test');
+  S.state.managers = ['boss@example.com'];
+  const got = await S.request('GET', '/api/connection-test', { person: 'boss@example.com' });
   assert.equal(got.status, 200, got.text);
   assert.equal(got.data.ok, true, got.text);
   const call = S.state.calls.find((c) => c.path === '/api/2.0/sql/warehouses');

@@ -46,8 +46,9 @@ test('a name that is already taken answers 409 and changes nothing, and overwrit
   assert.equal(JSON.parse(S.state.profiles[0].spec_json).params['00_business_name'], 'Other');
 });
 
-test('any App user may replace a listed profile: the replacement keeps the id and names the person who updated it last (must-keep)', async () => {
+test('a manager may replace a profile somebody else saved (SEC-11; other people are refused, see c23Sec_11): the replacement keeps the id and names the person who updated it last (must-keep)', async () => {
   S.reset();
+  S.state.managers = ['colleague@example.com'];
   const first = await save({ name: 'Acme', spec: SETTINGS }, 'amr@example.com');
   const replaced = await save({ name: 'ACME', spec: { ...SETTINGS, params: { '00_business_name': 'Other' } }, overwrite: true }, 'colleague@example.com');
   assert.equal(replaced.status, 200, replaced.text);

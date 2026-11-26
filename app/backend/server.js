@@ -2570,7 +2570,7 @@ async function launcherReadRefusal(req, scope, { emptyScopeRefuses = false, laun
       const token = await appOwnToken();
       if (!token) throw new Error('no App token to list the scope');
       const { tables, more } = await scopeTables(dbFetch, req.dbHost, token, entries, SCOPE_PROBE_CEILING);
-      if (more || !tables.length) notChecked = true;
+      if (more) notChecked = true; // an empty listing is nothing to read, not a probe that failed
       for (let i = 0; i < tables.length; i += SCOPE_PROBE_BATCH) {
         await Promise.all(tables.slice(i, i + SCOPE_PROBE_BATCH).map(async (table) => {
           try {
