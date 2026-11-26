@@ -2,7 +2,7 @@
 // the Story data line noun, Calculate now on every step, and the Save profile name.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, idle, openUi, until } from './uiSupport.mjs';
+import { closeBrowser, idle, openUi, until, waitForLaunchReady } from './uiSupport.mjs';
 import { PLAN, openCard, openWizard } from './valueWizardSupport.mjs';
 import { FACTS, goTo507, mountReq507, textOf } from './req507Support.mjs';
 
@@ -100,13 +100,14 @@ test('RC6-B-06: the Save profile dialog has a Profile name input prefilled with 
     await page.locator('button[title="s"]').click();
     await page.locator('button[title="orders"]').click();
     await idle(page);
+    await waitForLaunchReady(page);
     await page.getByRole('button', { name: 'Get Started' }).click();
     const input = page.getByLabel('Profile name');
     await input.waitFor({ timeout: 10000 });
     assert.equal(await input.inputValue(), 'Draft Corp');
     await input.fill('walk-rc6');
     await page.locator('[data-launch-save-run]').click();
-    await until(() => made.state.profileSaves.length === 1, 'the profile was saved');
+    await until(() => (made.state.profileSaves || []).length === 1, 'the profile was saved');
     assert.equal(made.state.profileSaves[0].name, 'walk-rc6');
     assert.equal(made.state.profileSaves[0].business_name, 'Draft Corp');
     assert.deepEqual(ui.pageErrors.filter((e) => !/status of (403|404)/.test(e)), []);
