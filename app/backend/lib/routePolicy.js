@@ -53,6 +53,14 @@ function useCaseTarget(req) {
   return { inspireDatabase: field(req, 'inspire_database'), sessionId: field(req, 'session_id'), useCaseIds: named ? [named] : [] };
 }
 
+// SEC (c23 sec_wire): a route that writes for a whole run (the run review) or for a file that may cover the whole run (a saved document). The use
+// cases it names (body use_case_ids) are owner-checked like any other use case; a request naming none is the run's, owned by whoever launched it.
+function wholeRunTarget(req) {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const ids = Array.isArray(body.use_case_ids) ? body.use_case_ids.map(str).filter(Boolean) : [];
+  return { inspireDatabase: field(req, 'inspire_database'), sessionId: field(req, 'session_id'), useCaseIds: ids };
+}
+
 function genieTarget(req) {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const ids = Array.isArray(body.use_case_ids) ? body.use_case_ids.map(str).filter(Boolean) : [];
@@ -175,12 +183,12 @@ const ROUTE_POLICY = {
   'GET /api/inspire/macro/sources': anyone('list the public economic data sources', 'lists the fixed set of sources Inspire can read; fetches nothing'),
   'POST /api/inspire/macro/series': tracked('read a public economic series, from the 7-day cache in the Inspire database or fetched from an allowed host, with its citation and optional factor',
     'fetches from a fixed host allowlist and caches in the Inspire database with the signed-in person\'s token'),
-  'POST /api/inspire/value/run-review': tracked('have the model review the value of a whole run, so its total is realistic next to the size of the business',
-    'calls a chat model and saves the review as one row of the Calculate value answers'),
+  'POST /api/inspire/value/run-review': owners('have the model review the value of a whole run and save the review as one row of its Calculate value answers',
+    { target: wholeRunTarget, runWide: true, appDatabase: true }),
   'POST /api/inspire/value/preview': tracked('work out the value per year of a case plan and typed answers, with no data read',
     'reads nothing: pure arithmetic on the plan and answers it is sent'),
   'GET /api/inspire/value/answers': personReads('read the saved Calculate value answers of a session, with the stale check over its source tables', ['sql'], { appDatabase: true }),
-  'PUT /api/inspire/value/answers': personReads('save the Calculate value answers of one use case as a new version, with its estimate', ['sql'], { appDatabase: true }),
+  'PUT /api/inspire/value/answers': owners('save the Calculate value answers of one use case as a new version, with its estimate', { launcherOwnsUnbuilt: true, appDatabase: true }),
   'GET /api/inspire/value/answers/history': tracked('read the saved versions of the Calculate value answers of one use case'),
   // SEC-12: undo rewrites another version of the saved answers, so it takes the same owner-or-manager rule as the use case's other writes.
   'POST /api/inspire/value/answers/undo': owners('go back to the previous version of the Calculate value answers of one use case', { appDatabase: true }),
@@ -196,7 +204,7 @@ const ROUTE_POLICY = {
   'GET /api/inspire/feedback': tracked('read feedback'),
   'POST /api/inspire/ack': tracked('acknowledge a step'),
   'POST /api/inspire/feedback': tracked('send feedback'),
-  'POST /api/inspire/docs/save': tracked("save a document the Generate docs wizard made into the run's Assets folder"),
+  'POST /api/inspire/docs/save': owners("save a document the Generate docs wizard made into the run's Assets folder", { target: wholeRunTarget, runWide: true, launcherOwnsUnbuilt: true }),
   'POST /api/inspire/docs/translate': tracked('translate the selected use case texts for a document language'),
   'POST /api/inspire/sync-genie-flags': managers('change the Genie flags of use cases'),
   'POST /api/inspire/usecase-name': managers('rename a use case'),
@@ -405,9 +413,21 @@ function createRoutePolicy(deps) {
       label: `session ${target.sessionId}` }));
   }
 
+  // A run-wide write is the launcher's: with no use case named, the owner is the person who launched the session (an unreadable record throws).
+  async function runLauncherVerdict(req, person, target, appDb) {
+    if (!appDb || !splitInspireDatabase(appDb) || norm(target.inspireDatabase) !== appDb) {
+      return { owner: false, unbuilt: false, why: `Inspire reads who launched a run only from its own database ${appDb || '(not set)'}` };
+    }
+    if (!isInt64Id(target.sessionId)) return { owner: false, unbuilt: false, why: 'the request names no valid session' };
+    const launcher = await sessionLauncher(req, target);
+    return { owner: Boolean(launcher) && launcher === person, unbuilt: false, name: '',
+      why: launcher ? `session ${target.sessionId} was launched by ${launcher}` : `Inspire has no record of who launched session ${target.sessionId}` };
+  }
+
   async function ownersVerdict(req, person, target, entry = {}) {
     const appDb = norm(deps.appDatabase());
     const ids = target.useCaseIds;
+    if (!ids.length && entry.runWide) return runLauncherVerdict(req, person, target, appDb);
     if (!ids.length || !ids.every((id) => USE_CASE_ID_RE.test(id))) return { owner: false, unbuilt: false, why: 'the request names no valid use case' };
     if (!appDb || !splitInspireDatabase(appDb) || norm(target.inspireDatabase) !== appDb) {
       return { owner: false, unbuilt: false, why: `Inspire reads use case owners only from its own database ${appDb || '(not set)'}` };

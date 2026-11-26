@@ -291,6 +291,30 @@ test('a picker list Unity Catalog cuts says it was cut, unless the warehouse lis
   });
 });
 
+test('a scope of more than 200 tables is checked in full: all readable launches, one denied table is refused and named (SEC-02, no cut scope)', async () => {
+  const names = Array.from({ length: 250 }, (_, i) => `t${String(i).padStart(3, '0')}`);
+  const listing = (call) => {
+    const url = new URL(`http://x${call.path}`);
+    if (url.searchParams.get('schema_name') !== 's') return [403, { error_code: 'PERMISSION_DENIED' }];
+    return [200, { tables: names.map((name) => ({ name, full_name: `main.s.${name}` })) }];
+  };
+  await withInspire(async (url, workspace) => {
+    const big = await launch(url, { '01_uc_metadata': 'main.s' });
+    assert.equal(big.status, 200, JSON.stringify(big.data));
+    assert.equal(launched(workspace).length > 0, true, 'the job was created');
+  }, { '/api/2.1/unity-catalog/tables': listing });
+  const denied = (call) => (/LIMIT 0/.test(String(call.body && call.body.statement)) && call.token === PERSON && /main\.s\.t100/.test(String(call.body.statement).replace(/`/g, ''))
+    ? [400, { status: { state: 'FAILED', error: { message: "[INSUFFICIENT_PERMISSIONS] User does not have SELECT on Table 'main.s.t100'." } } }] : null);
+  await withInspire(async (url, workspace) => {
+    const one = await launch(url, { '01_uc_metadata': 'main.s' });
+    assert.equal(one.status, 403, JSON.stringify(one.data));
+    assert.match(one.data.error, /main\.s\.t100/);
+    assert.deepEqual(launched(workspace), [], 'no job is created');
+  }, { '/api/2.1/unity-catalog/tables': (call) => (denied(call) || listing(call)), '/api/2.0/sql/statements': (call) => (denied(call)
+      || (/LIMIT 0/.test(String(call.body && call.body.statement)) ? [200, { status: { state: 'SUCCEEDED' }, manifest: { schema: { columns: [] } }, result: { data_array: [] } }] : null)),
+  '/api/2.1/unity-catalog/tables/main.s.t100': [200, { full_name: 'main.s.t100' }] });
+});
+
 test('a whole catalog list reads in pages of 1,000, skips the warehouse when Unity Catalog answered in full, and hides the internal __ catalogs (must-exclude)', async () => {
   const many = Array.from({ length: 2500 }, (_, i) => ({ name: `c${String(i).padStart(4, '0')}` }));
   const paged = (call) => {

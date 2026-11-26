@@ -18,7 +18,7 @@ const DATA_READ_ROUTES = [
   'POST /api/inspire/implement/readiness', 'POST /api/inspire/implement/group-counts',
   'POST /api/money/currency-rates', 'POST /api/money/value-preview', 'POST /api/money/rate-sample',
   'POST /api/inspire/value/estimate', 'POST /api/inspire/value/case-plan', 'POST /api/inspire/value/scope', 'POST /api/inspire/value/filter',
-  'PUT /api/inspire/value/answers', 'POST /api/grouping/profile', 'GET /api/inspire/implement/principals',
+  'POST /api/grouping/profile', 'GET /api/inspire/implement/principals',
 ];
 
 test('AT1: the policy declares every data-read route as person identity, with the scopes it needs', () => {

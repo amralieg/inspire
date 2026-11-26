@@ -16,6 +16,7 @@ const CALLER_INPUT = /req\.(query|body\??|params)\.(table|tables|path|rate_table
 // Frozen: the App reads these as itself because it creates or checks its own objects. Adding to this list needs a spec change.
 const APP_READS = new Set([
   'GET /api/inspire/implement/output-check', // the Build's output table, which the App writes
+  'PUT /api/inspire/value/answers', // c23 sec_wire: writes the App's own answers table as the App, so it is an owners route, not a person read
 ]);
 
 function routes(file) {
