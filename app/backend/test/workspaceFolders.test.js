@@ -38,6 +38,8 @@ function launchAnswer(call) {
   if (call.path === '/oidc/v1/token') return [200, { access_token: 'sp-token', expires_in: 3600 }];
   if (call.path.startsWith('/api/2.0/preview/scim/v2/Me')) return [200, { userName: EMAIL }];
   if (/^\/api\/2\.1\/unity-catalog\/tables\//.test(url.pathname)) return [200, { full_name: 'main.s.orders' }];
+  // SEC-02 (c23): the launch checks the person's read with a LIMIT 0 on the warehouse, so the fake workspace answers it.
+  if (url.pathname === '/api/2.0/sql/statements') return [200, { status: { state: 'SUCCEEDED' }, manifest: { schema: { columns: [] } }, result: { data_array: [] } }];
   if (url.pathname === '/api/2.0/workspace/get-status' && url.searchParams.get('path') === NOTEBOOK) return [200, { object_type: 'NOTEBOOK', path: NOTEBOOK }];
   if (url.pathname === '/api/2.1/jobs/create') return [200, { job_id: 7 }];
   if (url.pathname === '/api/2.1/jobs/run-now') return [200, { run_id: 99 }];
@@ -49,7 +51,7 @@ async function launchOn(folders) {
   let inspire = null;
   try {
     inspire = await startInspire({ DATABRICKS_HOST: workspace.url, NOTEBOOK_PATH: NOTEBOOK, NODE_ENV: 'production',
-      DATABRICKS_CLIENT_ID: 'inspire-client', DATABRICKS_CLIENT_SECRET: 'inspire-secret' });
+      DATABRICKS_CLIENT_ID: 'inspire-client', DATABRICKS_CLIENT_SECRET: 'inspire-secret', INSPIRE_WAREHOUSE_ID: 'wh' });
     const resp = await fetch(`${inspire.url}/api/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-forwarded-access-token': PERSON, 'x-forwarded-email': EMAIL },

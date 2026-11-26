@@ -18,6 +18,8 @@ const RECORDINGS = spawnSync('git', ['ls-files', '--', 'backend/showcase'], { cw
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'inspire_offline_'));
 const NO_INTERNET = {
   HTTP_PROXY: 'http://127.0.0.1:9', HTTPS_PROXY: 'http://127.0.0.1:9', http_proxy: 'http://127.0.0.1:9', https_proxy: 'http://127.0.0.1:9',
+  // SEC-14 (c23): /api/defaults needs the App's own token; a static one is enough for this walk (nothing calls the workspace).
+  DATABRICKS_HOST: 'https://workspace.invalid', DATABRICKS_TOKEN: 'static-token',
   npm_config_offline: 'true', npm_config_cache: path.join(work, 'empty-npm-cache'),
 };
 after(() => fs.rmSync(work, { recursive: true, force: true }));
@@ -41,8 +43,10 @@ function extracted(name) {
   return dir;
 }
 
-async function read(url, route) {
-  const resp = await fetch(`${url}${route}`);
+// SEC-14 (c23): /api/health and /api/defaults give their full answer only to a signed-in person, so the walk reads them as one.
+const SIGNED_IN = { 'x-forwarded-access-token': 'person-token', 'x-forwarded-email': ['pat', 'example.com'].join('@') };
+async function read(url, route, headers = {}) {
+  const resp = await fetch(`${url}${route}`, { headers });
   return { status: resp.status, type: resp.headers.get('content-type') || '', body: Buffer.from(await resp.arrayBuffer()) };
 }
 
@@ -95,13 +99,13 @@ test('start.sh runs the bundle with no node_modules and no internet, and every f
   assert.equal(fs.existsSync(path.join(dir, 'node_modules')) || fs.existsSync(path.join(dir, 'backend', 'node_modules')), false);
   const app = await startInspire(NO_INTERNET, { command: ['bash', 'start.sh'], cwd: dir });
   try {
-    const health = await read(app.url, '/api/health');
+    const health = await read(app.url, '/api/health', SIGNED_IN);
     assert.equal(health.status, 200);
     assert.equal(JSON.parse(health.body).hasBundledDbc, true, 'the agent notebook resolves from the bundle');
     const home = await read(app.url, '/');
     assert.equal(home.status, 200);
     assert.equal(home.body.toString('utf8'), fs.readFileSync(path.join(dir, 'frontend', 'dist', 'index.html'), 'utf8'));
-    assert.equal(JSON.parse((await read(app.url, '/api/defaults')).body).frontendBuild.ok, true);
+    assert.equal(JSON.parse((await read(app.url, '/api/defaults', SIGNED_IN)).body).frontendBuild.ok, true);
     const docs = await read(app.url, '/api-docs');
     assert.equal(docs.status, 200);
     assert.match(docs.body.toString('utf8'), /<script src="\/api-docs\/swagger-ui-bundle\.js"><\/script>/);
@@ -129,7 +133,7 @@ test('the bundle writes the agent notebook from notebook_bundle.js on disk when 
   fs.rmSync(path.join(dir, 'dbx_inspire_ai_agent.ipynb'));
   const app = await startInspire(NO_INTERNET, { command: ['bash', 'start.sh'], cwd: dir });
   try {
-    assert.equal(JSON.parse((await read(app.url, '/api/health')).body).hasBundledDbc, true);
+    assert.equal(JSON.parse((await read(app.url, '/api/health', SIGNED_IN)).body).hasBundledDbc, true);
     assert.ok(fs.readFileSync(path.join(dir, 'backend', 'dbx_inspire_ai_agent.ipynb')).equals(original));
   } finally {
     await app.stop();
