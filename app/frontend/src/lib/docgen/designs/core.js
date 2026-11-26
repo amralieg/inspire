@@ -1,6 +1,7 @@
 // REQ-526 (ported from the design study): shared helpers every style uses (escape, text with a contrast log, money format, icons, chart geometry).
 // Pure ES module, no dependency. Ports to app/frontend/src/lib/docgen/docSvg.js as is (icons come from lucide-react's __iconNode).
 import { ICONS } from './icons.js';
+import { LB } from '../docLabels.js';
 import disclaimer from '../../../../../backend/lib/valueDisclaimer.json' with { type: 'json' };
 
 export { ICONS };
@@ -74,7 +75,7 @@ export function wrap(text, maxW, size, kind = 'sans', weight = 400, maxLines = 9
 // maxW, lines, lh, ls (letter-spacing), caps, italic, ctx (label for the log) }.
 export function T(x, y, text, o = {}) {
   const size = o.size || 14; const weight = o.weight || 400; const kind = o.kind || 'sans';
-  let s = String(text ?? ''); if (o.caps) s = s.toUpperCase();
+  let s = LB(String(text ?? '')); if (o.caps) s = s.toUpperCase();
   const parts = o.maxW ? wrap(s, o.maxW, size * (o.caps ? 1.08 : 1), kind, weight, o.lines || 99) : [s];
   const lh = o.lh || size * 1.3;
   if (o.bg) LOG.push({ fill: o.fill, bg: o.bg, size, weight, text: s.slice(0, 40), ctx: o.ctx || '' });
@@ -129,7 +130,9 @@ export function icon(name, x, y, s, c, sw = 2) {
 }
 // Right to left: mirror a page body as a whole about its width W; each text is flipped back about its own anchor so words read normally,
 // and each icon() group is flipped back inside its own 24-unit box so arrows keep their direction. Defs stay outside the transform.
-export const rtlMirror = (inner, W) => `<g transform="translate(${W} 0) scale(-1 1)">${inner.replace(/<text ([^>]*?)x="([\d.-]+)"/g, (_, a, x) => `<text transform="translate(${2 * Number(x)} 0) scale(-1 1)" ${a}x="${x}"`)
+// RC6-B-11: a start-anchored text becomes end-anchored (and the reverse) so the mirrored words begin at the mirrored margin and run towards the page, never off it.
+const flipAnchor = (a) => (/text-anchor="end"/.test(a) ? a.replace('text-anchor="end"', 'text-anchor="start"') : /text-anchor="start"/.test(a) ? a.replace('text-anchor="start"', 'text-anchor="end"') : /text-anchor="middle"/.test(a) ? a : `${a} text-anchor="end"`);
+export const rtlMirror = (inner, W) => `<g transform="translate(${W} 0) scale(-1 1)">${inner.replace(/<text ([^>]*?)x="([\d.-]+)"([^>]*)>/g, (_, a, x, rest) => `<text transform="translate(${2 * Number(x)} 0) scale(-1 1)" ${flipAnchor(`${a}x="${x}"${rest}`)}>`)
   .replace(/<g transform="translate\(([-\d.]+) ([-\d.]+)\) scale\(([-\d.]+)\)" fill="none"/g, (_, x, y, k) => `<g transform="translate(${Number(x) + 24 * Number(k)} ${y}) scale(${-Number(k)} ${k})" fill="none"`)}</g>`;
 // The same for a finished design svg (svgDoc output): the body after </defs> is mirrored, the root keeps direction rtl.
 export const rtlSvg = (svg) => {
