@@ -53,7 +53,6 @@ import { PlainMessage } from '../components/TechnicalDetails';
 import LatestRunBadge from '../components/LatestRunBadge';
 import { runBusiness } from '../lib/reviewFigures';
 import OutputFolderCheck from '../components/OutputFolderCheck';
-import SamplesCopyOffer from '../components/SamplesCopyOffer';
 import DiscoveryPromise from '../components/DiscoveryPromise';
 import { useOutputFolderCheck } from '../lib/outputFolderCheck';
 import { DRAFT_BACK_NOTE, DRAFT_START_OVER, START_DRAFT_STAMP, START_DRAFT_STEP, clearWizardDraft, readWizardDraft, startDraftKey, writeWizardDraft } from '../lib/wizardDraft';
@@ -66,7 +65,6 @@ import { placeholderWords } from '../lib/placeholderWords';
 import { inspireScoreFromUc, nameOfUseCase } from '../lib/useCaseFields';
 import { counted } from '../lib/plural';
 import { catalogListNote, droppedCatalogNames, pickedScope, scopeSummary, typedCatalog, wholeCatalogsWithoutPicks } from '../lib/catalogList';
-import { SAMPLE_CATALOG, applySampleCopies, isSampleEntry, samplesTarget, scopesAfterSampleCopies, validCopyTarget } from '../lib/samplesCopy';
 import { DISCOVERY_AI_ENHANCED, DISCOVERY_MODE_TEXT, DISCOVERY_BADGE, DISCOVERY_PRIVACY, DISCOVERY_RECOMMENDED, DISCOVERY_STANDARD, discoveryTypeOf } from '../lib/discoveryType';
 import { WIZARD } from '../lib/layout';
 import { raisePermissions, grantOfCatalog } from '../lib/permissionBus';
@@ -275,11 +273,6 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const [dataFilterProblems, setDataFilterProblems] = useState([]);
   const [loadingTables, setLoadingTables] = useState(false);
   const [tableSearch, setTableSearch] = useState('');
-  const [samplesChoice, setSamplesChoice] = useState({ key: '', choice: '' });
-  const [samplesDestination, setSamplesDestination] = useState('');
-  const [samplesCopying, setSamplesCopying] = useState(false);
-  const [samplesError, setSamplesError] = useState('');
-  const [samplesCopied, setSamplesCopied] = useState('');
 
   // ── Launch state ──
   const [launching, setLaunching] = useState(false);
@@ -658,7 +651,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
   // Auto-populate inspire database when first catalog is selected
   useEffect(() => {
-    if (selectedCatalogs.length === 1 && selectedCatalogs[0] !== SAMPLE_CATALOG && !params['02_inspire_database']) {
+    if (selectedCatalogs.length === 1 && selectedCatalogs[0] !== 'samples' && !params['02_inspire_database']) {
       const autoVal = `${selectedCatalogs[0]}._inspire`;
       setParams((p) => ({ ...p, '02_inspire_database': autoVal }));
       update('inspireDatabase', autoVal);
@@ -909,7 +902,6 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             notebook_path: notebookPath,
             params: finalParams,
             warehouse_id: warehouseId,
-            samples_choice: sampleEntries.length ? samplesChoice.choice : undefined,
             profile_id: profileId || undefined,
           }),
         }), { label: 'The launch' });
@@ -951,33 +943,6 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     if (loadedProfile && sameSettings(draftForm, loadedProfile.spec)) return launchNow(loadedProfile.profile_id);
     setSaveError('');
     return setSaveAsk({ name: String(params['00_business_name'] || '').trim(), confirmReplace: false });
-  };
-
-  const copySamples = async () => {
-    setSamplesCopying(true);
-    setSamplesError('');
-    try {
-      const data = await apiFetch('/api/inspire/samples/copy', {
-        method: 'POST',
-        body: JSON.stringify({ entries: sampleEntries, destination: copyTarget }),
-      });
-      const copies = data.copies || [];
-      const failed = data.failed || [];
-      if (Array.isArray(data.permissions) && data.permissions.length) raisePermissions(data.permissions);
-      const picks = applySampleCopies({ catalogs: selectedCatalogs, schemas: selectedSchemas, tables: selectedTables }, { destination: data.destination, copies, failed });
-      setSelectedCatalogs(picks.catalogs);
-      setWholeCatalogs((p) => wholeCatalogsWithoutPicks(p.filter((c) => picks.catalogs.includes(c)), picks.schemas, picks.tables));
-      setSelectedSchemas(picks.schemas);
-      setSelectedTables(picks.tables);
-      setTableScopes(scopesAfterSampleCopies(tableScopes, copies));
-      setSamplesChoice({ key: '', choice: '' });
-      setSamplesCopied(copies.length ? `Copied ${copies.length} ${copies.length === 1 ? 'table' : 'tables'} into ${data.destination}. The run reads your copies.` : '');
-      if (failed.length) setSamplesError(failed.map((f) => `Could not copy ${f.source}: ${f.reason}`).join('. '));
-    } catch (err) {
-      setSamplesError(parseApiErrorMessage(err.message));
-    } finally {
-      setSamplesCopying(false);
-    }
   };
 
   // Derived
@@ -1032,18 +997,13 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
   // Validation state
   const effectiveDb = params['02_inspire_database'] || inspireDatabase;
-  const sampleEntries = scope.entries.filter(isSampleEntry);
-  const sampleKey = sampleEntries.join(',');
-  const samplesDecided = sampleEntries.length > 0 && samplesChoice.key === sampleKey && samplesChoice.choice !== '';
-  const copyTarget = samplesTarget(effectiveDb, samplesDestination);
   const bestOfBestText = String(params['16_best_of_best_count'] ?? '').trim();
   const bestOfBestInvalid = bestOfBestText !== '' && (!/^\d{1,3}$/.test(bestOfBestText) || Number(bestOfBestText) > 100);
   const launchBlock = !params['00_business_name'] ? 'Enter a Business Name to get started.'
     : !effectiveDb ? 'Set the Inspire Database in Advanced Settings to get started.'
       : !params['01_uc_metadata'] ? 'Pick at least one catalog, schema or table under Unity Catalog Metadata to get started.'
-        : sampleEntries.length > 0 && !samplesDecided ? 'Copy the samples tables into a schema you own, or use descriptions only, above Get Started.'
-          : strategyProblems.length ? `Fix the strategy first, in Advanced Settings under Strategy (optional): ${strategyProblems[0]}`
-            : dataFilterProblems.length ? `Fix the data filters first, in Advanced Settings under Data Management (optional): ${dataFilterProblems[0]}`
+        : strategyProblems.length ? `Fix the strategy first, in Advanced Settings under Strategy (optional): ${strategyProblems[0]}`
+          : dataFilterProblems.length ? `Fix the data filters first, in Advanced Settings under Data Management (optional): ${dataFilterProblems[0]}`
           : bestOfBestInvalid ? 'Best of Best stars takes a whole number from 0 to 100. Fix it in Advanced Settings.' : '';
   const canLaunch = !launchBlock;
   const liveRunNote = useMemo(() => {
@@ -2090,22 +2050,6 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           </div>
         )}
 
-        {sampleEntries.length > 0 && (
-          <SamplesCopyOffer
-            names={sampleEntries.join(', ')}
-            target={copyTarget}
-            onTarget={setSamplesDestination}
-            canCopy={validCopyTarget(copyTarget)}
-            copying={samplesCopying}
-            choice={samplesChoice.key === sampleKey ? samplesChoice.choice : ''}
-            error={samplesError}
-            onCopy={copySamples}
-            onDescriptions={() => setSamplesChoice({ key: sampleKey, choice: 'descriptions' })}
-          />
-        )}
-        {samplesCopied && sampleEntries.length === 0 && (
-          <p data-samples-copied="" role="status" className="mb-4 rounded-lg border border-success/30 bg-success-bg px-3 py-2 text-xs text-success-fg">{samplesCopied}</p>
-        )}
         {liveRunNote && (
           <p role="note" data-testid="launch-live-run" className="mb-4 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-xs text-warning-fg">
             <AlertTriangle size={14} className="shrink-0 mt-0.5" aria-hidden="true" />

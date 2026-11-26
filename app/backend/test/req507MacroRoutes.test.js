@@ -50,6 +50,17 @@ function appWith({ cacheRows = [], fetchReply = WB_REPLY } = {}) {
   });
   return { app, sqlCalls, fetches };
 }
+// SEC-17: the series read is a POST (it can fill the cache table); the test keeps the query string for brevity.
+async function postSeries(made, route) {
+  const srv = await listen(made.app);
+  try {
+    const resp = await fetch(`${srv.url}${route}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+    return { status: resp.status, data: await resp.json().catch(() => ({})) };
+  } finally {
+    await srv.close();
+  }
+}
+
 async function get(made, route) {
   const srv = await listen(made.app);
   try {
@@ -80,7 +91,7 @@ test('L3 routes: GET /macro/sources lists Marketplace first, then the open APIs,
 
 test('L3 routes: a missing cache entry is fetched once, written to __inspire_macro_series with bound values, and returned with a citation', async () => {
   const made = appWith();
-  const got = await get(made, `/api/inspire/macro/series?${QUERY}`);
+  const got = await postSeries(made, `/api/inspire/macro/series?${QUERY}`);
   assert.equal(got.status, 200, JSON.stringify(got.data));
   assert.equal(made.fetches.length, 1);
   assert.equal(new URL(made.fetches[0].url).host, 'api.worldbank.org');
@@ -95,31 +106,31 @@ test('L3 routes: a missing cache entry is fetched once, written to __inspire_mac
 
 test('L3 routes: a cache entry under 7 days old is served with no fetch; an older one is fetched again', async () => {
   const fresh = appWith({ cacheRows: cached('2026-11-20T10:00:00Z') });
-  const hit = await get(fresh, `/api/inspire/macro/series?${QUERY}`);
+  const hit = await postSeries(fresh, `/api/inspire/macro/series?${QUERY}`);
   assert.equal(hit.status, 200, JSON.stringify(hit.data));
   assert.equal(fresh.fetches.length, 0, 'fresh cache: no fetch');
   assert.equal(hit.data.cached, true);
   assert.deepEqual(hit.data.series.points.map((p) => p.value), [2.7, 3.2, 4.1]);
   assert.equal(hit.data.series.fetched_at, '2026-11-20T10:00:00Z');
   const stale = appWith({ cacheRows: cached('2026-11-10T10:00:00Z') });
-  const miss = await get(stale, `/api/inspire/macro/series?${QUERY}`);
+  const miss = await postSeries(stale, `/api/inspire/macro/series?${QUERY}`);
   assert.equal(miss.status, 200);
   assert.equal(stale.fetches.length, 1, 'stale cache: fetched again');
   const forced = appWith({ cacheRows: cached('2026-11-20T10:00:00Z') });
-  await get(forced, `/api/inspire/macro/series?${QUERY}&refresh=1`);
+  await postSeries(forced, `/api/inspire/macro/series?${QUERY}&refresh=1`);
   assert.equal(forced.fetches.length, 1, 'refresh=1 fetches');
 });
 
 test('L3 routes: with factor_id the reply carries the factor from macroFactor (the maths stays on the server); elasticity scales it', async () => {
-  const one = await get(appWith(), `/api/inspire/macro/series?${QUERY}&factor_id=consumer_demand&factor_label=Consumer%20demand`);
+  const one = await postSeries(appWith(), `/api/inspire/macro/series?${QUERY}&factor_id=consumer_demand&factor_label=Consumer%20demand`);
   assert.equal(one.status, 200, JSON.stringify(one.data));
   assert.equal(one.data.factor.id, 'consumer_demand');
   assert.equal(one.data.factor.elasticity, 1);
   assert.equal(one.data.factor.source.indicator, 'NE.CON.PRVT.KD.ZG');
-  const half = await get(appWith(), `/api/inspire/macro/series?${QUERY}&factor_id=consumer_demand&factor_label=Consumer%20demand&elasticity=0.5`);
+  const half = await postSeries(appWith(), `/api/inspire/macro/series?${QUERY}&factor_id=consumer_demand&factor_label=Consumer%20demand&elasticity=0.5`);
   assert.equal(half.data.factor.elasticity, 0.5);
   assert.equal(half.data.factor.likely_pct, Math.round(one.data.factor.likely_pct * 0.5 * 100) / 100);
-  const bad = await get(appWith(), `/api/inspire/macro/series?${QUERY}&factor_id=consumer_demand&elasticity=9`);
+  const bad = await postSeries(appWith(), `/api/inspire/macro/series?${QUERY}&factor_id=consumer_demand&elasticity=9`);
   assert.equal(bad.status, 400, 'elasticity is between 0 and 3');
 });
 
@@ -130,7 +141,7 @@ test('L3 routes security: an unknown source, a URL-shaped indicator or a bad Ins
     'source=worldbank&indicator=NE.CON.PRVT.KD.ZG&country=USA&inspire_database=main.inspire%60%3B%20DROP%20TABLE%20x&warehouse_id=wh1',
   ]) {
     const made = appWith();
-    const got = await get(made, `/api/inspire/macro/series?${q}`);
+    const got = await postSeries(made, `/api/inspire/macro/series?${q}`);
     assert.equal(got.status, 400, `${q}: ${JSON.stringify(got.data)}`);
     assert.equal(made.fetches.length, 0);
     assert.equal(made.sqlCalls.length, 0);
@@ -139,7 +150,7 @@ test('L3 routes security: an unknown source, a URL-shaped indicator or a bad Ins
 
 test('L3 routes: a blocked host is a 200 with blocked true and the plain message, so the wizard can offer Marketplace or a manual value', async () => {
   const made = appWith({ fetchReply: Object.assign(new TypeError('fetch failed'), { cause: { code: 'ENOTFOUND' } }) });
-  const got = await get(made, `/api/inspire/macro/series?${QUERY}`);
+  const got = await postSeries(made, `/api/inspire/macro/series?${QUERY}`);
   assert.equal(got.status, 200, JSON.stringify(got.data));
   assert.equal(got.data.series.blocked, true);
   assert.match(got.data.series.message, /Your workspace blocks api\.worldbank\.org/);

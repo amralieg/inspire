@@ -72,16 +72,10 @@ function appReadPermissions(found, appId, { wholeCatalogs = [] } = {}) {
   return { warnings, permissions };
 }
 
-function sampleCopyPermission(failed, principal) {
-  const sources = (failed || []).map((f) => f.source);
-  return permissionRequired({ statements: readStatementsFor(sources, principal), principal,
-    why: `Copying ${sources.join(', ')} reads them as the App, and the App cannot read ${sources.length === 1 ? 'it' : 'them'} yet.` });
-}
-
 function builderPermission(catalog, builderGrant, builder) {
   return permissionRequired({ statements: [...readStatements(catalog, builder), builderGrant], principal: builder,
     why: `The identity Inspire builds as cannot write to this schema yet. Your data owner grants it:` });
 }
 
-module.exports = { folderPermission, permissionRequired, readStatements, readStatementsFor, appReadStatements, appReadPermissions, sampleCopyPermission,
+module.exports = { folderPermission, permissionRequired, readStatements, readStatementsFor, appReadStatements, appReadPermissions,
   builderPermission };

@@ -1171,7 +1171,7 @@ test('the tables a rebuild checks are its source tables plus the use case\'s own
   assert.deepEqual(I.checkedSourceTables(null, null), []);
 });
 
-test('a built-in sample swapped for a copy is not checked, because nobody can grant the App read on it; a swapped-out table the App can read still is', () => {
+test('a built-in sample swapped for another table is not checked (the swapped-in table is the one the build reads); a swapped-out table the App can read still is', () => {
   const spec = { data: { tables: { 'samples.nyctaxi.trips': 'inspire_kinds_rc7.walk_rc7e.nyctaxi_trips', 'main.s.orders': 'main.s.orders_v2' } } };
   assert.deepEqual(I.checkedSourceTables(spec, ['samples.nyctaxi.trips', 'main.s.orders']),
     ['inspire_kinds_rc7.walk_rc7e.nyctaxi_trips', 'main.s.orders_v2', 'main.s.orders']);

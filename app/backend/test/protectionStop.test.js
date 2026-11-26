@@ -71,10 +71,10 @@ test('an older version, a run that did not fail or a cleared record shows no pro
   assert.deepEqual(w.protectionChoices(null), []);
 });
 
-test('the build card renders from the live source verdict: a stale stored refusal shows under Details, a grant button only when can_grant is true, and the copy-the-table sentence for a built-in sample (must fail before)', async () => {
+test('the build card renders from the live source verdict: a stale stored refusal shows under Details, a grant button only when can_grant is true, and the ask-an-admin sentence for a built-in sample (must fail before)', async () => {
   const w = await load();
   const stored = { state: 'failed', spec_version: 3, reason: "The App's service principal cannot read the access policies of samples.bakehouse.sales_transactions", sql: [], check: true, details: 'raw', tables: ['samples.bakehouse.sales_transactions'] };
-  const sample = 'samples.bakehouse.sales_transactions is in a built-in sample catalog that Databricks owns, so nobody can grant the App on it: copy the table into a catalog you own with CREATE TABLE ... AS SELECT, and use the copy';
+  const sample = 'samples.bakehouse.sales_transactions is in the built-in samples catalog and the App cannot read it right now: ask a workspace admin to let the App read the samples catalog';
   const liveSample = w.liveSourceNow({ app_unreadable: { tables: [sample.split(' ')[0]], app: { name: 'app', id: 'app-sp' }, grants: [], can_grant: false, builtin: [sample.split(' ')[0]], text: sample } });
   const protection = w.liveProtection(liveSample, w.protectionStopOf(latest(stored)));
   assert.equal(protection.reason, sample, 'the live sentence is the one shown');

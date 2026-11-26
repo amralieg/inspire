@@ -281,7 +281,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
         {driver && <StepKind driver={driver} answers={answers} yearly={yearly} onInput={setInput} status={preview.status} error={preview.error} />}
         {page.startsWith('economics:') && <StepEconomics page={page.slice(10)} answers={answers} currency={answers.currency} projection={yearly?.projection}
           onEconomics={setEconomics} onCredit={setCredit} onConfidence={setConfidence} />}
-        {hasMacro && <StepMacro plan={plan} onPlan={setPlan} get={get} inspireDatabase={inspireDatabase} warehouseId={warehouseId} page={page} onPage={go} />}
+        {hasMacro && <StepMacro plan={plan} onPlan={setPlan} get={get} post={post} inspireDatabase={inspireDatabase} warehouseId={warehouseId} page={page} onPage={go} />}
         {page === 'factors' && <StepFactors plan={plan} answers={answers} yearly={yearly} onFactor={setFactor} status={preview.status} error={preview.error} />}
         {page.startsWith('story:') && <StepStory page={page.slice(6)} story={story} polish={null} params={params} currency={answers.currency} terms={terms} onTerms={setTerms}
           onValue={setParam} onOwner={setOwner} saved={answers.story} onApprove={approve} />}

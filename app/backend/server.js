@@ -65,12 +65,12 @@ const { loadSessionList, loadSessionOverviews, sessionListCap, SESSION_LIST_CAP 
 const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../frontend/src/lib/liveUseCases.js');
 const { isInspireOwnName, isInspireOwnSchema } = require('../frontend/src/lib/inspireOwnObjects.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
-const { appReadPermissions, sampleCopyPermission, permissionRequired, readStatementsFor } = require('./lib/permissions');
+const { appReadPermissions, permissionRequired, readStatementsFor } = require('./lib/permissions');
 const { spGrantedCatalogs, grantedCatalogList, inspireStateOf, schemaInspireStates, PICKER_PROBE_CAP, partialPermission, droppedCatalogs, pickableRows, heldWrites } = require('./lib/spCatalogs');
 const { planModelAccess, selfCheckRecord, MODEL_CHECK_ROUTE } = require('./lib/modelAccess');
 const PM_ERROR = require('./lib/permissionError');
 const { apiRefusalText, logApiBody } = require('./lib/apiRefusal');
-const { tableProbeStatement, tableAccessReason, samplesChoiceOfRun, isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyFailureKind, samplesNeedChoice, SAMPLES_CHOICE_TEXT, sampleCopyName, sampleCopyRefusal, sampleCopyStatement, sampleCopyTakenMessage, sampleSchemaMessage, sampleTableRef, schemaCreateStatement, describedColumnNames, implementTableName, parseImplementRow, builtTableScopeOf, builtFramingOf, builtTextOf, latestBuiltRowsSql, resultTableNameError, quoteTable } = require('./lib/inspireImplement');
+const { tableProbeStatement, tableAccessReason, isReadDenied, liveLogPath, implementTableName, parseImplementRow, builtTableScopeOf, builtFramingOf, builtTextOf, latestBuiltRowsSql, resultTableNameError, quoteTable } = require('./lib/inspireImplement');
 const { keepLongInteger, parseExactJson } = require('./lib/exactJson');
 const { int64Id, isInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const { dataFiltersOf, scopesOfSessions } = require('./lib/dataFilters');
@@ -2356,7 +2356,6 @@ app.post('/api/run/check', requireToken, async (req, res) => {
 app.post('/api/run', requireToken, async (req, res) => {
   const { cluster_id, notebook_path } = req.body;
   const params = (req.body.params && typeof req.body.params === 'object') ? { ...req.body.params } : {};
-  if (samplesNeedChoice(params, req.body.samples_choice)) return res.status(409).json({ error: SAMPLES_CHOICE_TEXT });
   const profileId = String(req.body.profile_id || '').trim();
   if (profileId && !BP.isProfileId(profileId)) return res.status(400).json({ error: 'profile_id must be a profile id Inspire gave out' });
   return launchDiscover(req, res, { params, notebook_path, cluster_id, profileId });
@@ -2406,9 +2405,6 @@ app.post('/api/run/:runId/again', requireToken, async (req, res) => {
     if (!response.ok) return await refuseRunAgain(req, res, response);
     const again = LC.runAgainOf(parseExactJson(await response.text()), req.params.runId, sessionId);
     if (again.problem) return res.status(409).json({ error: `${again.problem}.` });
-    // The re-run repeats the run's own inputs, so it carries the choice that run recorded: no 409 from Monitor.
-    const samplesChoice = req.body.samples_choice || samplesChoiceOfRun(again.params);
-    if (samplesNeedChoice(again.params, samplesChoice)) return res.status(409).json({ error: SAMPLES_CHOICE_TEXT });
     return launchDiscover(req, res, again);
   } catch (err) {
     const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
@@ -2740,62 +2736,6 @@ async function discoverAppAccess(req, scope) {
   }
 }
 
-// A copy that already sits at the copy name is reused only when it has the source's columns (names compared, via the same DESCRIBE reader the build uses).
-async function sameCopyColumns(req, person, source, copy) {
-  const columnsOf = async (name) => describedColumnNames(sqlResultToObjects(await executeSql(req.dbHost, person, DEFAULT_WAREHOUSE_ID, `DESCRIBE TABLE ${sampleTableRef(name)}`)));
-  try {
-    const [want, have] = await Promise.all([columnsOf(source), columnsOf(copy)]);
-    return want.size > 0 && want.size === have.size && [...want].every((name) => have.has(name));
-  } catch {
-    return false;
-  }
-}
-
-app.post('/api/inspire/samples/copy', requireToken, async (req, res) => {
-  const token = req.dbToken;
-  if (!token) return res.status(401).json({ error: SAMPLE_COPY_NO_SIGN_IN });
-  try {
-    const body = req.body || {};
-    const destination = sampleCopyDestination(body.destination);
-    if (!DEFAULT_WAREHOUSE_ID) throw Object.assign(new Error('Inspire has no SQL warehouse, so it cannot copy the tables'), { statusCode: 503 });
-    const picked = (Array.isArray(body.entries) ? body.entries : []).map(String).filter(isBuiltInSampleEntry);
-    if (!picked.length) throw Object.assign(new Error('Pick samples tables to copy'), { statusCode: 400 });
-    const { tables, more } = await scopeTables(dbFetch, req.dbHost, token, picked);
-    if (more) throw Object.assign(new Error(`The samples you picked hold more tables than one copy can take (${tables.length} read). Pick fewer tables or schemas`), { statusCode: 409 });
-    const refused = tables.map(sampleCopyRefusal).find(Boolean);
-    if (refused) throw Object.assign(new Error(refused), { statusCode: 409 });
-    const copies = [];
-    const failed = [];
-    let schemaTried = false;
-    for (const source of tables) {
-      const copy = sampleCopyName(source, destination);
-      const sql = sampleCopyStatement(source, destination);
-      let outcome = await discoverAccess.runPersonGrants(req, token, DEFAULT_WAREHOUSE_ID, [sql]);
-      if (!outcome.ran.length && !schemaTried && sampleCopyFailureKind(outcome.failed[0]) === 'no_schema') {
-        schemaTried = true;
-        const schema = schemaCreateStatement(destination);
-        const made = await discoverAccess.runPersonGrants(req, token, DEFAULT_WAREHOUSE_ID, [schema]);
-        if (!made.ran.length) {
-          const why = String(made.failed[0] || '').slice(schema.length + 2);
-          throw Object.assign(new Error(sampleSchemaMessage(destination, schema, why)), { statusCode: 409 });
-        }
-        outcome = await discoverAccess.runPersonGrants(req, token, DEFAULT_WAREHOUSE_ID, [sql]);
-      }
-      if (outcome.ran.length) { copies.push({ source, copy }); continue; }
-      if (sampleCopyFailureKind(outcome.failed[0]) === 'exists') {
-        if (await sameCopyColumns(req, token, source, copy)) copies.push({ source, copy, reused: true });
-        else failed.push({ source, reason: sampleCopyTakenMessage(copy, source) });
-        continue;
-      }
-      failed.push({ source, reason: String(outcome.failed[0] || '').slice(sql.length + 2) });
-    }
-    const permission = sampleCopyPermission(failed, RP.forwardedPerson(req.headers));
-    res.json({ destination: `${destination.catalog}.${destination.schema}`, copies, failed, ...(permission ? { permissions: [permission] } : {}) });
-  } catch (err) {
-    const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
-    PM_ERROR.sendFailure(res, code, err.message);
-  }
-});
 // The token the App's write check runs with: the App's service principal, the identity that writes the output (REQ-418).
 async function appWriteTokenOf() {
   return (await appOwnToken()) || '';

@@ -3081,7 +3081,6 @@ export function protectionChoices(stop) {
 export const APP_READ_ACTION = 'Let Inspire read these tables';
 
 export const SOURCE_REFUSED_REASON = 'The App cannot read its sources yet, so the build cannot start. Grant access first, then build.';
-export const SOURCE_BUILT_IN_REFUSED_REASON = 'The App cannot read its sources yet, so the build cannot start. Copy the samples tables above into a schema you own, then build.';
 
 export const ACCESS_CHECKING = 'Checking access';
 export const ACCESS_UNKNOWN = 'Could not check access';

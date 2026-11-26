@@ -83,7 +83,7 @@ test('preflight refuses a primary source the App cannot SELECT, the same refusal
   assert.ok(got.data.checks.sources.permission.statements.some((g) => g.includes('`main`.`s`')), JSON.stringify(got.data.checks.sources.permission));
 });
 
-test('a built-in sample the App cannot read gets one plain sentence with the copy instruction and no grant (REQ-038, must fail before the fix)', async () => {
+test('a built-in sample the App cannot read gets one plain sentence with no grant and no copy instruction (REQ-038, D-c23-01)', async () => {
   const SAMPLE = 'samples.bakehouse.sales_transactions';
   const denied = `[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have SELECT on Table '${SAMPLE}'.`;
   const got = await preflight({
@@ -99,7 +99,7 @@ test('a built-in sample the App cannot read gets one plain sentence with the cop
   assert.ok(offer, 'the preflight names the sample as unreadable');
   assert.equal(offer.can_grant, false, 'no grant button for a sample Databricks owns');
   assert.deepEqual(offer.grants, []);
-  assert.match(offer.text, /^samples\.bakehouse\.sales_transactions is in a built-in sample catalog that Databricks owns, so nobody can grant the App access to it: copy the table into a catalog you own with CREATE TABLE \.\.\. AS SELECT, and use the copy$/);
+  assert.equal(offer.text, 'samples.bakehouse.sales_transactions is in the built-in samples catalog and the App cannot read it right now: ask a workspace admin to let the App read the samples catalog');
   assert.doesNotMatch(offer.text, /GRANT|PERMISSION_DENIED|READ METADATA/);
 });
 

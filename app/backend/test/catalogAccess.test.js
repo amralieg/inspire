@@ -355,7 +355,7 @@ test('a new catalog or schema for the result table is made with the person sign-
 });
 
 // REQ-418 (ruling 3): the App creates the use case's schema, and the signed-in person is recorded as the requester in Inspire's control log.
-test('create-schema for a use case records the signed-in person as the requester in the control log, as the App (ruling 3, REQ-418)', async () => {
+test('create-schema for a use case records the signed-in person as the requester in the control log, written with the App token (SEC-04)', async () => {
   const tags = { inspire_session_id: '42', inspire_use_case_id: 'N01-U01' };
   await withApp({ forwardedToken: PERSON_TOKEN, forwardedEmail: 'requester@example.com' }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body: { catalog: 'main', schema: 'churn_out', tags } });
@@ -379,13 +379,13 @@ test('create-schema with no use case context creates the schema and records noth
   });
 });
 
-test('create-schema runs one CREATE as the App service principal (REQ-418), refuses a bad name, and passes the workspace refusal back', async () => {
+test('create-schema runs one CREATE with the person own sign-in (SEC-04), refuses a bad name, and passes the workspace refusal back', async () => {
   await withApp({ forwardedToken: PERSON_TOKEN }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body: { catalog: 'main', schema: 'churn_out' } });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.deepEqual(got.data, { catalog: 'main', schema: 'churn_out' });
     const made1 = made.sqlCalls.filter((c) => /^CREATE /.test(c.sql));
-    assert.deepEqual(made1.map((c) => [c.sql, c.token]), [['CREATE SCHEMA IF NOT EXISTS `main`.`churn_out`', APP_TOKEN]]);
+    assert.deepEqual(made1.map((c) => [c.sql, c.token]), [['CREATE SCHEMA IF NOT EXISTS `main`.`churn_out`', PERSON_TOKEN]]);
     const cat = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body: { catalog: 'team_lake' } });
     assert.equal(cat.status, 200);
     assert.equal(made.sqlCalls.at(-1).sql, 'CREATE CATALOG IF NOT EXISTS `team_lake`');
@@ -394,11 +394,11 @@ test('create-schema runs one CREATE as the App service principal (REQ-418), refu
     assert.match(bad.data.error, /schema name can only use letters, digits, _ and -/);
     assert.equal(made.sqlCalls.some((c) => /DROP/.test(c.sql)), false, 'a bad name runs nothing (must-exclude)');
   });
-  // REQ-418: the App creates the schema with its own token, so a missing person sign-in never blocks it; the person is the requester.
+  // SEC-04: with no person sign-in the App never creates the place for them: the route refuses and runs nothing.
   await withApp({ forwardedToken: '', tokenKind: 'app' }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body: { catalog: 'main', schema: 'churn_out' } });
-    assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.deepEqual(made.sqlCalls.filter((c) => /^CREATE /.test(c.sql)).map((c) => c.token), [APP_TOKEN]);
+    assert.equal(got.status, 401, JSON.stringify(got.data));
+    assert.deepEqual(made.sqlCalls.filter((c) => /^CREATE /.test(c.sql)), []);
   });
   await withApp({ forwardedToken: PERSON_TOKEN, sqlErrors: { 'CREATE SCHEMA': '[PERMISSION_DENIED] User does not have CREATE SCHEMA on Catalog main' } }, async (url) => {
     const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body: { catalog: 'main', schema: 'churn_out' } });
@@ -434,7 +434,7 @@ test('the preflight context offers the App read grants when only the policy read
   });
 });
 
-test('a built-in sample catalog the App cannot read is named as not shareable and offers no grant (copy the table instead)', async () => {
+test('a built-in sample catalog the App cannot read is named as not shareable and offers no grant and no copy (D-c23-01)', async () => {
   const grants = [];
   const { live, overrides } = split(PERSON_OWNS, { onGrant: (sql, token) => grants.push([sql, token]) });
   live.appReads = true;
@@ -444,8 +444,8 @@ test('a built-in sample catalog the App cannot read is named as not shareable an
     const got = await call(url, `/api/inspire/implement/grant-access?${Q}&kind=source_tables`, { method: 'POST',
       body: { tables: ['samples.bakehouse.sales_transactions'] } });
     assert.equal(got.status, 403, JSON.stringify(got.data));
-    assert.match(got.data.error, /built-in sample catalog that Databricks owns/);
-    assert.match(got.data.error, /CREATE TABLE \.\.\. AS SELECT/);
+    assert.match(got.data.error, /built-in samples catalog and the App cannot read it/);
+    assert.doesNotMatch(got.data.error, /CREATE TABLE|copy/i);
     assert.deepEqual(grants, [], 'nothing is granted on a system catalog');
   });
 });

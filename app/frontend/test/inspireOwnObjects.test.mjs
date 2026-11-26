@@ -41,7 +41,7 @@ const REAL_OWN = [
   'main._inspire._inspire_ai_0a1b2c3d4e5f',
 ];
 
-// The person's own data, including the sample copies the App makes (copy route /api/inspire/samples/copy) and plain tables in the Inspire schema.
+// The person's own data, including plain tables in the Inspire schema.
 const PERSON = [
   'inspire_kinds_rc7._inspire.sales_transactions',
   'inspire_kinds_rc7._inspire.sales_customers',

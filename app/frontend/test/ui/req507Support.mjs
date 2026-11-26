@@ -52,10 +52,11 @@ export function mountReq507({ calls = [], facts = FACTS, filterReply = FILTER_OK
       calls.push({ route: 'macro-sources' });
       res.json({ sources });
     });
-    app.get('/api/inspire/macro/series', (req, res) => {
-      calls.push({ route: 'macro-series', query: req.query });
-      const e = Number(req.query.elasticity ?? 1);
-      const factor = req.query.factor_id && !series.blocked ? { id: req.query.factor_id, label: req.query.factor_label || req.query.factor_id, why: 'From public data',
+    app.post('/api/inspire/macro/series', (req, res) => {
+      const q = req.body || {};
+      calls.push({ route: 'macro-series', query: q });
+      const e = Number(q.elasticity ?? 1);
+      const factor = q.factor_id && !series.blocked ? { id: q.factor_id, label: q.factor_label || q.factor_id, why: 'From public data',
         likely_pct: 3.25 * e, min_pct: 1.9 * e, max_pct: 9.1 * e, elasticity: e,
         source: { name: series.citation.name, indicator: series.indicator, country: series.country, fetched_at: series.fetched_at, url: series.citation.url } } : undefined;
       res.json({ series, cached: false, ...(factor ? { factor } : {}) });
