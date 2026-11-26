@@ -19,6 +19,7 @@ const mount = (app) => {
 async function open() {
   const ui = await openUi('launch', {}, '', { mount });
   await ui.page.getByPlaceholder(BUSINESS).fill('Acme');
+  await ui.page.getByRole('checkbox', { name: 'Show everything', exact: true }).check(); // RC7-B-06: a catalog Inspire cannot read is listed only then
   await ui.page.locator('button[title="ops"]').waitFor({ timeout: 15000 });
   await idle(ui.page);
   return ui;

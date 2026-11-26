@@ -47,7 +47,7 @@ import { leftOutLine, typeCheckBusyOf, unusableReasonOf } from '../lib/tableUsab
 import TypeCheckBusyTryAgain from '../components/TypeCheckBusyTryAgain';
 import ModalDialog from '../components/ModalDialog';
 import { sameSettings } from '../lib/businessProfiles';
-import { scopesFromObject, launchTableScopeText, filterValuesOf, labelAvailable, pickedTableNames, tableBrowseQuery, accessNeedOf, accessNeedText, INSPIRE_NEED_TITLE, MAX_ACCESS_OBJECTS, tableScopeOf, tableScopeSummary } from '../lib/tableScope';
+import { scopesFromObject, launchTableScopeText, filterValuesOf, labelAvailable, pickedTableNames, tableBrowseQuery, accessNeedOf, accessNeedText, INSPIRE_NEED_TITLE, MAX_ACCESS_OBJECTS, tableScopeOf, tableScopeSummary, usableRows } from '../lib/tableScope';
 import { launchRelationshipsText, restoredRelationshipList } from '../lib/tableRelationships';
 import { PlainMessage } from '../components/TechnicalDetails';
 import LatestRunBadge from '../components/LatestRunBadge';
@@ -499,7 +499,11 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   useEffect(() => {
     if (dataFilterLabel.on && !labelAvailable(tableScopes, scopeTables)) setDataFilterLabel((l) => ({ ...l, on: false }));
   }, [dataFilterLabel.on, tableScopes, scopeTables]);
-  const scopeText = scopeSummary(scope);
+  // RC7-B-07: the basket and the footer count what the person picked; `scope` is what the run reads (a schema Inspire cannot read yet is left out of it).
+  const pickedAll = useMemo(() => pickedScope(selectedCatalogs, selectedSchemas, selectedTables, wholeCatalogs.filter((c) => !inspireBlocked.has(c))),
+    [selectedCatalogs, selectedSchemas, selectedTables, wholeCatalogs, inspireBlocked]);
+  const scopeText = scopeSummary(pickedAll);
+  const leftOutCount = pickedAll.schemas.length - scope.schemas.length;
 
   useEffect(() => {
     setParams((p) => ({
@@ -583,8 +587,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   // Load schemas when catalogs selected
   useEffect(() => {
     setSchemasReadError('');
-    if (selectedCatalogs.length === 0) { setSchemas([]); return; }
-    if (!canUseUcApi) { setSchemas([]); return; }
+    if (selectedCatalogs.length === 0) { setSchemas([]); setLoadingSchemas(false); return; }
+    if (!canUseUcApi) { setSchemas([]); setLoadingSchemas(false); return; }
     let cancelled = false;
     setLoadingSchemas(true);
     const failed = [];
@@ -609,8 +613,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   useEffect(() => {
     setTablesReadError('');
     setTablesLeftOut([]);
-    if (selectedSchemas.length === 0) { setTables([]); return; }
-    if (!canUseUcApi) { setTables([]); return; }
+    // A listing the effect left behind (a pick removed while it loaded) never reports back, so the flag is cleared here, not by its finally.
+    if (selectedSchemas.length === 0) { setTables([]); setLoadingTables(false); return; }
+    if (!canUseUcApi) { setTables([]); setLoadingTables(false); return; }
     const load = { cancelled: false };
     tablesLoad.current = load;
     setLoadingTables(true);
@@ -947,12 +952,12 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
   // Derived
   const typedCatalogItem = typedCatalog(catalogs, catalogsCut, catalogSearch);
-  const shownCatalogs = catalogs;
+  const shownCatalogs = usableRows(catalogs, showEverything, selectedCatalogs, (c) => c.name);
   const filteredCatalogs = [
     ...shownCatalogs.filter((c) => !catalogSearch || c.name.toLowerCase().includes(catalogSearch.toLowerCase())),
     ...(typedCatalogItem ? [typedCatalogItem] : []),
   ];
-  const filteredSchemas = schemas.filter(
+  const filteredSchemas = usableRows(schemas, showEverything, selectedSchemas).filter(
     (s) => !schemaSearch || s.full_name.toLowerCase().includes(schemaSearch.toLowerCase())
   );
   const filteredTables = tables.filter(
@@ -1394,10 +1399,10 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 {pickerReadGuidance && <UcPermissionErrorHelp guidance={pickerReadGuidance} />}
                 {catalogsWhy && <PlainMessage text={catalogsWhy} role="note" data-uc-why="" className="mb-3 text-xs text-text-secondary" />}
                 {/* Selected Metadata Basket — always visible */}
-                {scope.entries.length === 0 && (
+                {pickedAll.entries.length === 0 && (
                   <p data-scope-empty="" className="mb-3 text-xs text-text-tertiary">Nothing picked yet</p>
                 )}
-                {scope.entries.length > 0 && (
+                {pickedAll.entries.length > 0 && (
                   <div className="mb-3 rounded-lg border border-db-red/20 bg-db-red-50/50 p-3">
                     <div className="flex items-center gap-2 mb-2">
                       <ShoppingCart size={14} className="text-db-red-fg" />
@@ -1406,6 +1411,11 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         {scopeText}
                       </span>
                     </div>
+                    {leftOutCount > 0 && (
+                      <p data-scope-unread="" className="mb-2 text-xs text-warning-fg">
+                        {leftOutCount} of these need Inspire access and are left out of the run until Inspire can read them.
+                      </p>
+                    )}
                     <div className="max-h-32 overflow-y-auto flex flex-wrap gap-1">
                       {selectedTables.map((t, i) => (
                         <span key={`${i}-${t}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-xs font-medium border border-db-red/20">
@@ -1453,7 +1463,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     <ChevronDown size={14} />
                   </div>
                   {pickerExpanded ? 'Hide catalog browser' : 'Browse catalogs'}
-                  {!pickerExpanded && scope.entries.length > 0 && (
+                  {!pickerExpanded && pickedAll.entries.length > 0 && (
                     <span className="text-xs text-db-red-fg font-medium ms-1">
                       ({scopeText} selected)
                     </span>
@@ -1526,7 +1536,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                                 ? 'Loading...'
                                 : catalogBrowseError || catalogsWhy
                                   ? 'Inspire could not list the catalogs. The message above says why.'
-                                  : !showEverything && catalogs.length === 0 && !grantsListed
+                                  : !showEverything && shownCatalogs.length === 0 && (catalogs.length > 0 || !grantsListed)
                                     ? 'You can read no catalog yet. Tick Show everything to ask for access.'
                                   : grantsListed && catalogs.length === 0
                                     ? 'Inspire can read no catalog yet. Ask whoever installed Inspire to run the installer again with the catalogs you need.'
@@ -1570,7 +1580,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                       <div className="flex items-center gap-1.5 mb-2">
                         <span className="text-xs font-semibold text-text-secondary">Tables</span>
                         <span className="text-xs text-text-tertiary">primary selection</span>
-                        {loadingTables && <Loader2 size={14} className="animate-spin text-text-tertiary" />}
+                        {loadingTables && <Loader2 data-tables-loading="" size={14} className="animate-spin text-text-tertiary" />}
                       </div>
                       {pickableTables.length > 0 && (
                         <button
@@ -2024,8 +2034,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             <Chip icon={<Building2 size={14} />}>{params['00_business_name']}</Chip>
             <Chip icon={<Database size={14} />}>{params['02_inspire_database']}</Chip>
             {scope.tables.length > 0 && <Chip icon={<Table2 size={14} />}>{counted(scope.tables.length, 'table')}</Chip>}
-            {scope.schemas.length > 0 && <Chip icon={<Layers size={14} />}>{counted(scope.schemas.length, 'schema')}</Chip>}
-            {scope.catalogs.length > 0 && <Chip icon={<Database size={14} />}>{counted(scope.catalogs.length, 'catalog')}</Chip>}
+            {pickedAll.schemas.length > 0 && <Chip icon={<Layers size={14} />}>{counted(pickedAll.schemas.length, 'schema')}</Chip>}
+            {pickedAll.catalogs.length > 0 && <Chip icon={<Database size={14} />}>{counted(pickedAll.catalogs.length, 'catalog')}</Chip>}
             <Chip icon={<Sliders size={14} />}>{params['05_use_cases_quality']}</Chip>
             <Chip icon={params['03_discovery_type'] === DISCOVERY_AI_ENHANCED ? <Sparkles size={14} /> : <Lock size={14} />}>
               {params['03_discovery_type'] || DISCOVERY_RECOMMENDED}
