@@ -73,7 +73,8 @@ test('R544: the dialog walks Data, Kinds, one page per kind, Value story, Terms 
     await accept.click();
     await dialog.locator('[data-history-row]').first().waitFor({ timeout: 15000 });
     assert.equal(puts.length, 1);
-    assert.equal(await dialog.getByRole('button', { name: 'Close' }).count(), 1);
+    assert.equal(await dialog.getByRole('button', { name: 'Close', exact: true }).last().isVisible(), true, 'the footer shows Close after the save');
+    assert.equal(await dialog.getByRole('button', { name: 'Accept and save' }).count(), 0);
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
 });

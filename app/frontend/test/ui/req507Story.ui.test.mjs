@@ -24,8 +24,10 @@ test('R507-E1: the ramp defaults to 40/80/100; costs show net, payback and ROI f
     assert.equal(await dialog.locator('[data-projection-year]').count(), 3);
     await goTo507(dialog, 'economics:cost');
     assert.match(await textOf(dialog.locator('[data-wizard-body]')), /gross/i, 'with no cost the value is labelled gross');
-    await dialog.getByRole('spinbutton', { name: 'Build cost (one-off)' }).fill('20000');
-    await dialog.getByRole('spinbutton', { name: 'Run cost per year' }).fill('1000');
+    // The story table lists the cost too (REQ-544), so the Ramp and cost editor is picked by its section.
+    const costSection = dialog.locator('[data-wizard-page="economics:cost"]');
+    await costSection.getByRole('spinbutton', { name: 'Build cost (one-off)' }).fill('20000');
+    await costSection.getByRole('spinbutton', { name: 'Run cost per year' }).fill('1000');
     await waitFor(() => calls.some((c) => c.route === 'preview' && c.body.answers.economics?.build_cost === 20000 && c.body.answers.economics?.run_cost_per_year === 1000));
     const sent = calls.filter((c) => c.route === 'preview').at(-1).body.answers.economics;
     assert.deepEqual(sent.ramp_pct, [40, 80, 100]);
@@ -55,13 +57,13 @@ test('R507-E2: the story draft is a headline and 5 labelled lines; the parameter
   } finally { await ui.close(); }
 });
 
-test('R507-E3: Approve story and save needs the terms; the PUT carries the story with include_in_docs and no browser-stamped who or when', async () => {
+test('R507-E3: Accept and save needs the terms; the PUT carries the story with include_in_docs and no browser-stamped who or when', async () => {
   const puts = [];
   const { ui, card, page } = await openCard(mountReq507({ puts }));
   try {
     const dialog = await openWizard(page, card);
     await goTo507(dialog, 'story:approve');
-    const approve = dialog.getByRole('button', { name: 'Approve story and save' });
+    const approve = dialog.getByRole('button', { name: 'Accept and save' });
     assert.equal(await approve.isDisabled(), true, 'the terms come first');
     const include = dialog.getByLabel('Include this story in generated docs');
     assert.equal(await include.isChecked(), true);
@@ -88,9 +90,9 @@ test('R507-E4: a parameter changed after the approval clears it', async () => {
     const value = dialog.locator('[data-param="reduction_pct"]').getByRole('spinbutton');
     await value.fill('35');
     await dialog.getByRole('button', { name: 'Next', exact: true }).click();
-    await dialog.locator('[data-wizard-page="story:approve"]').waitFor();
+    await dialog.locator('[data-wizard-page="terms"]').waitFor();
     assert.equal(await dialog.getByLabel('I have read and accept these terms').isChecked(), false, 'a changed parameter clears the approval');
-    assert.equal(await dialog.getByRole('button', { name: 'Approve story and save' }).isDisabled(), true);
+    assert.equal(await dialog.getByRole('button', { name: 'Accept and save' }).isDisabled(), true);
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
 });

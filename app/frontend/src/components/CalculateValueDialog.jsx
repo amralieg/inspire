@@ -19,23 +19,21 @@ import { VALUE_LABELS, dialogTitleFor } from '../lib/valueLabels';
 import { outsideValueRange, rangeNote } from '../lib/valueBulk.js';
 import { DEFAULT_CURRENCY } from '../lib/moneyDefaults.js';
 import { FILTER_ROUTE, SCOPE_ROUTE, filterBodyOfChoice, scopeChoices, scopeOfChoice } from '../lib/valueScope.js';
-import { paramsOf, storyOf } from '../lib/valueStory.js';
+import { paramsOf, storyAnswers, storyOf } from '../lib/valueStory.js';
 import { CASE_PLAN_ROUTE, FALLBACK_NOTICE, noModelNotice, bodyOf, carryAnswers, driversOn, factorsOf, initialAnswers, reviewLineOf, showsFactors } from '../lib/valueWizard.js';
 
 const messageOf = (err) => String(err?.message || err || 'The value could not be saved.');
-const STEPS = ['Data', 'Filter', 'Kinds', 'Each value', 'Ramp and cost', 'Market data', 'Story', 'Save'];
+const STEPS = ['Data', 'Kinds', 'Each kind', 'Value story', 'Terms and accept'];
 const btn = 'rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle disabled:opacity-50';
 const primary = 'rounded-md bg-primary-solid hover:bg-primary-solid-hover px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50';
-const SCOPE_PAGES = ['scope:facts', 'scope:choice', 'filter'];
 const withoutChoice = ({ choice, ...rest }) => rest; // eslint-disable-line no-unused-vars
 // A reopened value keeps the scope it was saved with; which card it was is read back from its structure.
 const scopeFromSaved = (s) => (s ? { ...s, choice: s.filters?.length ? 'filter' : s.window ? 'last_12' : 'all' } : null);
-const mainStepOf = (page) => (page.startsWith('scope:') ? 0 : page === 'filter' ? 1 : page === 'kinds' ? 2 : page.startsWith('driver:') ? 3 : page.startsWith('economics:') ? 4
-  : page.startsWith('macro:') || page === 'factors' ? 5 : page.startsWith('story:') ? 6 : 7);
+const mainStepOf = (page) => (page === 'data' ? 0 : page === 'kinds' ? 1 : page.startsWith('driver:') ? 2 : page === 'story' ? 3 : 4);
 
-// REQ-507 L7: the Calculate value wizard in 8 steps (Data, Filter, Kinds, Each value, Ramp and cost, Market data, Story, Save). It opens on the
-// records found (POST value/scope) and shows no money; the case plan is asked once, when the Filter step is left, with the chosen scope; every
-// amount on screen is the server's reply to POST preview; "Approve story and save" is the one PUT. `values` saves, reads history and undoes.
+// REQ-544: the Calculate value wizard in 5 steps (Data, Kinds, Each kind, Value story, Terms and accept). It opens on the records found
+// (POST value/scope) and shows no money; the case plan is asked once, when the Data step is left, with the chosen scope; every amount on
+// screen is the server's reply to POST preview; "Accept and save" is the one PUT. `values` saves, reads history and undoes.
 export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch, inspireDatabase, warehouseId, sessionId, saved = null, version = null, values, measure = null, onClose }) {
   const useCaseId = trackingIdOf(uc);
   const base = { inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId), use_case_id: useCaseId, table };
@@ -45,11 +43,13 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
   const [planState, setPlanState] = useState({ status: 'idle', plan: null, error: '' });
   const [ask, setAsk] = useState(null);
   const [answers, setAnswers] = useState(null);
-  const [page, setPage] = useState('scope:facts');
+  const [page, setPage] = useState('data');
   const [trail, setTrail] = useState([]);
-  const pageRef = useRef('scope:facts');
+  const pageRef = useRef('data');
   const [savedKey, setSavedKey] = useState('');
-  const [terms, setTerms] = useState(null);
+  const [done, setDone] = useState(false);
+  const [macroPage, setMacroPage] = useState('macro:offer');
+  const [macroOpen, setMacroOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [history, setHistory] = useState([]);
@@ -75,7 +75,7 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
     return () => { live = false; };
   }, [factsTry]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // The case plan is asked when the Filter step is left, once per scope.
+  // The case plan is asked when the Data step is left, once per scope.
   useEffect(() => {
     if (!ask) return undefined;
     let live = true;
@@ -103,18 +103,21 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
 
   const ready = Boolean(plan && answers);
   const hasMacro = ready && (plan.economic_factors || []).length > 0;
-  const pages = useMemo(() => [...SCOPE_PAGES, 'kinds',
-    ...(ready ? [...driversOn(plan, answers).map((d) => `driver:${d.id}`), 'economics:ramp', 'economics:cost',
-      ...(hasMacro ? ['macro:offer', 'macro:series', 'macro:factor'] : []), ...(showsFactors(plan, answers) ? ['factors'] : []),
-      'story:draft', 'story:params', 'story:approve', 'save'] : [])], [plan, answers, ready, hasMacro]);
-  const afterMacro = pages[pages.indexOf('story:draft') - (pages.includes('factors') ? 1 : 0)];
+  const pages = useMemo(() => ['data', 'kinds', ...(ready ? [...driversOn(plan, answers).map((d) => `driver:${d.id}`), 'story', 'terms'] : [])], [plan, answers, ready]);
+  // The recommended scope card starts picked, so Next works from the Data step; the person can pick another.
+  useEffect(() => {
+    if (!facts || scope) return;
+    const pick = scopeChoices(facts).find((c) => c.recommended) || { id: 'all', label: 'All data' };
+    setScope({ ...(scopeOfChoice(pick.id, facts) || { phrase: pick.label, filters: [], window: null }), choice: pick.id });
+  }, [facts, scope]);
 
   const trailRef = useRef([]);
-  const go = (p) => { setError(''); trailRef.current = [...trailRef.current, pageRef.current]; setTrail(trailRef.current); pageRef.current = p; setPage(p); };
+  const go = (p) => { setError(''); setDone(false); trailRef.current = [...trailRef.current, pageRef.current]; setTrail(trailRef.current); pageRef.current = p; setPage(p); };
   const back = () => {
     setError('');
     const p = trailRef.current[trailRef.current.length - 1];
     if (!p) return;
+    setDone(false);
     trailRef.current = trailRef.current.slice(0, -1); setTrail(trailRef.current); pageRef.current = p; setPage(p);
   };
   const calculated = Boolean(answers) && savedKey === JSON.stringify([answers.scope, answers.drivers, answers.economics, answers.attribution_pct]);
@@ -143,8 +146,8 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
   };
   const setOwner = (id, text) => edit((a) => ({ ...a, story: { ...a.story, owners: { ...a.story?.owners, [id]: text } } }));
 
-  // The one save: Approve story and save. REQ-472 (c): a plan the model review did not approve is saved as an estimate, as its review line says.
-  // REQ-442/497: Calculate now is the same save with calculated false (a Provisional estimate), from any page before the Save step.
+  // The one save: Accept and save. REQ-472 (c): a plan the model review did not approve is saved as an estimate, as its review line says.
+  // REQ-442/497: Calculate now is the same save with calculated false (a Provisional estimate), from any page before the Terms step.
   const save = async (final, accepted = true) => {
     setBusy(true); setError('');
     try {
@@ -153,7 +156,8 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
       // REQ-457: the measure settings ride along: the wizard's live ones, else the saved ones (initialAnswers drops unknown fields).
       await values.run(useCaseId, table, { ...sent, ...(measure ? measure.values : measureOfSaved(saved)), plan: bodyOf(plan, final).plan });
       setSavedKey(confirmed ? JSON.stringify([final.scope, final.drivers, final.economics, final.attribution_pct]) : '');
-      go('save');
+      if (pageRef.current !== 'terms') go('terms');
+      setDone(true);
       loadHistory();
     } catch (err) {
       setError(messageOf(err));
@@ -178,48 +182,48 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
 
   const onNext = async () => {
     setError('');
-    if (page === 'scope:choice' && scope?.choice === 'last_12' && scope.rows_after == null) {
-      setBusy(true);
-      try {
-        const out = await post(FILTER_ROUTE, filterBodyOfChoice('last_12', facts));
-        if (!out?.scope) throw new Error('Inspire could not count the last 12 months.');
-        setScope({ ...out.scope, choice: 'last_12' });
-      } catch (err) { setError(messageOf(err)); setBusy(false); return; }
-      setBusy(false);
-    }
-    if (page === 'filter') {
-      const body = withoutChoice(scope);
+    if (page === 'data') {
+      let chosen = scope;
+      if (scope?.choice === 'last_12' && scope.rows_after == null) {
+        setBusy(true);
+        try {
+          const out = await post(FILTER_ROUTE, filterBodyOfChoice('last_12', facts));
+          if (!out?.scope) throw new Error('Inspire could not count the last 12 months.');
+          chosen = { ...out.scope, choice: 'last_12' };
+          setScope(chosen);
+        } catch (err) { setError(messageOf(err)); setBusy(false); return; }
+        setBusy(false);
+      }
+      const body = withoutChoice(chosen);
       const currency = answers?.currency || saved?.currency || DEFAULT_CURRENCY;
       const key = JSON.stringify([body, currency]);
       if (planKey.current !== key) { planKey.current = key; setAsk((a) => ({ id: (a?.id || 0) + 1, scope: body, currency })); }
       return go('kinds');
     }
-    if (page === 'scope:facts' && !scope) {
-      // The recommended card starts picked, so Next works from the Data step; the person can pick another.
-      const pick = scopeChoices(facts).find((c) => c.recommended) || { id: 'all', label: 'All data' };
-      setScope({ ...(scopeOfChoice(pick.id, facts) || { phrase: pick.label, filters: [], window: null }), choice: pick.id });
-    }
-    if (page === 'macro:offer' || page === 'macro:series') return go(afterMacro);
     return go(pages[pages.indexOf(page) + 1]);
   };
 
   const noun = plan?.case_noun || saved?.plan?.case_noun || facts?.noun || 'record';
   const driver = plan?.drivers.find((d) => page === `driver:${d.id}`);
-  const last = page === 'save';
+  const last = page === 'terms';
   const anyOn = ready ? driversOn(plan, answers).length > 0 : false;
   const scopeDone = scope?.choice && (scope.choice !== 'filter' || Number.isFinite(Number(scope.rows_after)));
-  const nextOff = busy || (page === 'scope:facts' && !facts) || (page === 'scope:choice' && !scope?.choice) || (page === 'filter' && !scopeDone)
-    || (!SCOPE_PAGES.includes(page) && !ready) || (page === 'kinds' && !anyOn);
+  const nextOff = busy || (page === 'data' && (!facts || !scopeDone)) || (page !== 'data' && !ready) || (page === 'kinds' && !anyOn);
   const calcOff = busy || !ready || !anyOn;
-  const calcWhy = !ready ? 'Finish the Data and Filter steps first' : !anyOn ? 'Tick a kind of value first' : 'Save these numbers as a provisional estimate';
-  const money = !SCOPE_PAGES.includes(page);
+  const calcWhy = !ready ? 'Finish the Data step first' : !anyOn ? 'Tick a kind of value first' : 'Save these numbers as a provisional estimate';
+  const money = page !== 'data';
   // D21/D24: "Up to date" only when a value exists; a missing one says Calculating; no kind ticked says what to tick. No money before the Data step is done.
   const footerBusy = money && (!ready ? planState.status !== 'error' : anyOn && preview.status !== 'error' && !(preview.status === 'ready' && preview.yearly));
   const footerNote = !money || footerBusy ? '' : !ready ? 'No value yet'
     : !anyOn ? 'Tick a kind of value to calculate.' : preview.status === 'error' ? 'Could not update' : 'Up to date';
   const yearly = preview.yearly;
+  const errorBox = error && <PlainMessage text={error} role="alert" dir="auto" className="rounded-md border border-error/30 bg-error-bg px-3 py-2 text-[12px] text-error-fg" />;
+  // The macro folds have their own sub-pages; a page outside them (Keep my own estimates) closes the fold.
+  const onMacroPage = (p) => { if (p.startsWith('macro:')) setMacroPage(p); else { setMacroPage('macro:offer'); setMacroOpen(false); } };
+  const fold = 'rounded-lg border border-border px-3 py-1.5';
+  const foldTitle = 'cursor-pointer text-[13px] font-semibold text-text-primary';
   const body = () => {
-    if (page === 'scope:facts' || page === 'scope:choice') {
+    if (page === 'data') {
       if (factsState.status === 'error') {
         return (
           <div className="space-y-3 py-6 text-center">
@@ -229,10 +233,19 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
         );
       }
       if (!facts) return <BusyNote data-wizard-loading="" className="flex flex-col items-center py-8 text-center text-sm text-text-secondary" text="Reading your data." />;
-      return <StepScope page={page} facts={facts} scope={scope} useCase={{ noun }} post={post}
-        onScope={(s) => { setError(''); setScope(s); }} onFacts={(f) => { setFactsState({ status: 'ready', facts: f, error: '' }); setScope(null); }} />;
+      const counted = Number.isFinite(Number(scope?.rows_after)) && scope?.choice !== 'all';
+      return (
+        <div data-wizard-page="data" className="space-y-3">
+          {['scope:facts', 'scope:choice'].map((p) => (
+            <StepScope key={p} page={p} facts={facts} scope={scope} useCase={{ noun }} post={post}
+              onScope={(s) => { setError(''); setScope(s); }} onFacts={(f) => { setFactsState({ status: 'ready', facts: f, error: '' }); setScope(null); }} />
+          ))}
+          {scope?.choice === 'filter' && <StepFilter facts={facts} scope={scope} post={post} onScope={(s) => setScope(s)} />}
+          {counted && <p data-scope-count="" className="rounded-md border border-border bg-bg-subtle px-3 py-2 text-sm font-semibold text-text-primary">{`After the filter: ${Number(scope.rows_after).toLocaleString('en-US')} of ${Number(scope.rows_before ?? facts.rows).toLocaleString('en-US')} ${noun}s`}</p>}
+          {errorBox}
+        </div>
+      );
     }
-    if (page === 'filter') return <StepFilter facts={facts} scope={scope} post={post} onScope={(s) => setScope(s)} />;
     if (planState.status === 'error') {
       return (
         <div className="space-y-3 py-6 text-center">
@@ -242,31 +255,65 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
       );
     }
     if (!ready) return <BusyNote data-wizard-loading="" className="flex flex-col items-center py-8 text-center text-sm text-text-secondary" text="Reading your data to plan the value." />;
-    const story = storyOf({ useCase: nameOfUseCase(uc), noun, currency: answers.currency, scope: answers.scope, drivers: driversOn(plan, answers), projection: yearly?.projection, economics: answers.economics });
+    const ticked = driversOn(plan, answers);
+    const story = storyOf({ useCase: nameOfUseCase(uc), noun, currency: answers.currency, scope: answers.scope, drivers: ticked, projection: yearly?.projection, economics: answers.economics });
     const params = paramsOf(plan, answers, yearly);
+    const kindAt = driver ? ticked.findIndex((d) => d.id === driver.id) + 1 : 0;
     return (
       <>
         {!plan.model && <p role="note" data-fallback-notice="" className="rounded-md border border-warning/40 bg-warning-bg px-3 py-1.5 text-[12px] text-warning-fg">{plan.model_reason ? noModelNotice(plan.model_reason) : FALLBACK_NOTICE}</p>}
         {(page === 'kinds' || last) && reviewLineOf(plan.review) && <p role="note" data-value-review="" title={last ? reviewLineOf(plan.review) : undefined} className={`rounded-md border border-border bg-bg-subtle px-3 py-1 text-[12px] text-text-secondary${last ? ' truncate' : ''}`}>{reviewLineOf(plan.review)}</p>}
         {page === 'kinds' && <StepKinds plan={plan} answers={answers} onToggle={toggleDriver} />}
-        {driver && <StepKind driver={driver} answers={answers} yearly={yearly} onInput={setInput} status={preview.status} error={preview.error} />}
-        {page.startsWith('economics:') && <StepEconomics page={page.slice(10)} answers={answers} currency={answers.currency} projection={yearly?.projection}
-          onEconomics={setEconomics} onCredit={setCredit} onConfidence={setConfidence} />}
-        {hasMacro && <StepMacro plan={plan} onPlan={setPlan} get={get} inspireDatabase={inspireDatabase} warehouseId={warehouseId} page={page} onPage={go} />}
-        {page === 'factors' && <StepFactors plan={plan} answers={answers} yearly={yearly} onFactor={setFactor} status={preview.status} error={preview.error} />}
-        {page.startsWith('story:') && <StepStory page={page.slice(6)} story={story} polish={null} params={params} currency={answers.currency} terms={terms} onTerms={setTerms}
-          onValue={setParam} onOwner={setOwner} saved={answers.story} onApprove={approve} />}
-        {last && yearly && outsideValueRange(yearly.total?.amount) && (
-          <p role="note" data-value-range-note="" className="rounded-md border border-warning/40 bg-warning-bg px-3 py-1.5 text-[12px] text-warning-fg">{rangeNote(yearly.total.unit, yearly.total.amount)}</p>
+        {driver && (
+          <>
+            <div className="flex flex-wrap items-baseline gap-x-3">
+              <h2 data-kind-title="" className="text-2xl font-bold text-text-primary">{driver.label}</h2>
+              <p data-kind-count="" className="text-[13px] text-text-secondary">{`Kind ${kindAt} of ${ticked.length}`}</p>
+            </div>
+            <StepKind driver={driver} answers={answers} yearly={yearly} onInput={setInput} status={preview.status} error={preview.error} />
+          </>
+        )}
+        {page === 'story' && (
+          <>
+            <StepStory page="draft" story={story} polish={null} params={params} currency={answers.currency} />
+            <StepStory page="params" story={story} polish={null} params={params} currency={answers.currency} onValue={setParam} onOwner={setOwner} />
+            <details data-assumptions="" className={fold}>
+              <summary className={foldTitle}>Assumptions</summary>
+              <div className="mt-2 space-y-2">
+                <details data-assumption="ramp-cost" open className={fold}>
+                  <summary className={foldTitle}>Ramp and cost</summary>
+                  <div className="mt-2 space-y-3">
+                    <StepEconomics page="ramp" answers={answers} currency={answers.currency} projection={yearly?.projection} onEconomics={setEconomics} onCredit={setCredit} onConfidence={setConfidence} />
+                    <StepEconomics page="cost" answers={answers} currency={answers.currency} projection={yearly?.projection} onEconomics={setEconomics} onCredit={setCredit} onConfidence={setConfidence} />
+                  </div>
+                </details>
+                {showsFactors(plan, answers) && (
+                  <details data-assumption="factors" className={fold}>
+                    <summary className={foldTitle}>Market and customer factors</summary>
+                    <div className="mt-2"><StepFactors plan={plan} answers={answers} yearly={yearly} onFactor={setFactor} status={preview.status} error={preview.error} /></div>
+                  </details>
+                )}
+                {hasMacro && (
+                  <details data-assumption="macro" open={macroOpen} onToggle={(e) => setMacroOpen(e.currentTarget.open)} className={fold}>
+                    <summary className={foldTitle}>Public market data</summary>
+                    <div className="mt-2"><StepMacro plan={plan} onPlan={setPlan} get={get} inspireDatabase={inspireDatabase} warehouseId={warehouseId} page={macroPage} onPage={onMacroPage} /></div>
+                  </details>
+                )}
+              </div>
+            </details>
+          </>
         )}
         {last && (
-          <StepSave plan={plan} answers={answers} yearly={yearly} calculated={calculated} onToggleDriver={toggleDriver} onInput={setInput} onCredit={setCredit} status={preview.status}
-            accepted onAccept={() => {}}>
+          <StepSave plan={plan} answers={answers} yearly={yearly} calculated={calculated} saved={done} busy={busy}
+            onAccept={({ include }) => { const final = { ...answers, story: { ...answers.story, ...storyAnswers({ text: story.text, params, include_in_docs: include }) } }; setAnswers(final); return save(final); }}>
+            {done && yearly && outsideValueRange(yearly.total?.amount) && (
+              <p role="note" data-value-range-note="" className="rounded-md border border-warning/40 bg-warning-bg px-3 py-1.5 text-[12px] text-warning-fg">{rangeNote(yearly.total.unit, yearly.total.amount)}</p>
+            )}
             {preview.status === 'error' && <PlainMessage text={preview.error} role="status" dir="auto" className="text-[12px] text-error-fg" />}
-            <ValueHistory history={history} busy={busy} onUndo={undo} />
+            {done && <ValueHistory history={history} busy={busy} onUndo={undo} />}
           </StepSave>
         )}
-        {error && <PlainMessage text={error} role="alert" dir="auto" className="rounded-md border border-error/30 bg-error-bg px-3 py-2 text-[12px] text-error-fg" />}
+        {errorBox}
       </>
     );
   };
@@ -279,11 +326,11 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
           <span data-preview-state={preview.status} className="me-auto min-h-[34px] truncate text-[12px] leading-[34px] text-text-secondary">{footerBusy ? <BusyNote inline text="Calculating..." size={14} /> : footerNote}</span>
           {trail.length > 0 && !(last && busy) && <button type="button" className={btn} onClick={back}>Back</button>}
           {last ? (
-            <button type="button" onClick={onClose} className={primary}>Close</button>
+            done && <button type="button" onClick={onClose} className={primary}>Close</button>
           ) : (
             <>
               <button type="button" disabled={calcOff} title={calcWhy} onClick={calculateNow} className={btn}>Calculate now</button>
-              {page !== 'story:approve' && <button type="button" disabled={nextOff} onClick={onNext} className={primary}>Next</button>}
+              {!last && <button type="button" disabled={nextOff} onClick={onNext} className={primary}>Next</button>}
             </>
           )}
         </>
@@ -297,8 +344,8 @@ export default function CalculateValueDialog({ uc, table, apiPostJson, apiFetch,
         ))}
       </ol>
       <div data-wizard-body="" className="h-[min(44rem,calc(100dvh-15rem))] space-y-2 overflow-y-auto overscroll-contain">
-        {measure && <div hidden={page !== 'scope:facts'}><MeasureSettings measure={measure} /></div>}
-        <div key={page.startsWith('macro:') ? 'macro' : page} className="tab-panel-enter space-y-2">{body()}</div>
+        {measure && <div hidden={page !== 'data'}><MeasureSettings measure={measure} /></div>}
+        <div key={page} className="tab-panel-enter space-y-2">{body()}</div>
       </div>
     </ModalDialog>
   );

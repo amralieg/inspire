@@ -1,6 +1,6 @@
-// REQ-507: HTTP mocks for the redesigned Value at Stake wizard (Data, Filter, Kinds, Each value, Ramp and cost, Market data, Story, Save).
+// REQ-507: HTTP mocks for the redesigned Value at Stake wizard (REQ-544: Data, Kinds, Each kind, Value story, Terms and accept).
 // The scope, filter and macro routes are registered before mountWizard's, so they win; the preview adds yearly.projection the way L2 does.
-import { PLAN, fakeYearly, mountWizard } from './valueWizardSupport.mjs';
+import { PLAN, fakeYearly, goTo, mountWizard } from './valueWizardSupport.mjs';
 
 export const FACTS = { table: 'main.sales.orders', rows: 3412880, dated_rows: 3400840, first: '2019-01-01', last: '2026-09-30', date_column: 'created_at', noun: 'review case',
   date_candidates: [{ column: 'created_at', first: '2019-01-01', last: '2026-09-30' }, { column: 'shipped_at', first: '2019-01-03', last: '2026-10-02' }] };
@@ -70,19 +70,6 @@ export function mountReq507({ calls = [], facts = FACTS, filterReply = FILTER_OK
 }
 export const routesOf = (calls) => calls.map((c) => c.route);
 
-// Click Next until the wizard shows the page. On the Market data offer it picks "Keep my own estimates" unless macro is 'public'.
-export async function goTo507(dialog, page, { macro = 'keep' } = {}) {
-  for (let i = 0; i < 24; i += 1) {
-    // Settle first: while the next page loads (case plan, scope, filter) no marker shows, and a Next click then would skip the target.
-    await dialog.locator('[data-wizard-page], [role="alert"]').first().waitFor({ timeout: 15000 });
-    if (await dialog.locator(`[data-wizard-page="${page}"]`).count()) return;
-    if (await dialog.locator('[data-wizard-page="macro:offer"]').count()) {
-      await dialog.getByRole('button', { name: macro === 'public' ? 'Use public data' : 'Keep my own estimates' }).click();
-      if (await dialog.locator(`[data-wizard-page="${page}"]`).count()) return;
-      if (macro !== 'public') continue;
-    }
-    await dialog.getByRole('button', { name: 'Next', exact: true }).click();
-  }
-  throw new Error(`wizard never reached ${page}`);
-}
+// REQ-544: walk to the page holding the section (see goTo in valueWizardSupport.mjs). The macro offer is a fold now, so `macro` is kept only for old callers.
+export async function goTo507(dialog, page) { await goTo(dialog, page); }
 export const textOf = async (loc) => (await loc.innerText()).replace(/\s+/g, ' ').trim();
