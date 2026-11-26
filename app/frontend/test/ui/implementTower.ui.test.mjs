@@ -1481,7 +1481,7 @@ test('Build progress opens pinned to the right under the App header, full window
       assert.ok(Math.abs(box.y - 56) <= 1 && Math.abs(box.height - (height - 56)) <= 2, `at ${width}x${height} the panel runs from under the App header to the bottom of the window ${JSON.stringify(box)}`);
       assert.ok(Math.abs(box.x + box.width - width) <= 1, `at ${width}x${height} the panel is pinned to the right edge ${JSON.stringify(box)}`);
       // The drawer overlays the Build page ("Genie progress overlay the page not push it to the side"): the use case stays under it.
-      assert.ok(useCase.x + useCase.width > box.x + 1, `at ${width}x${height} the use case keeps its place under the overlaid panel ${JSON.stringify({ useCase, box })}`);
+      assert.ok(useCase.x + useCase.width <= box.x + 1, `RC7-C-05: at ${width}x${height} the use case is pushed aside by the panel, not covered ${JSON.stringify({ useCase, box })}`);
       assert.ok(box.width >= 400 && box.width <= Math.round(width * 0.4) + 1, `at ${width}x${height} the panel is 400px or more and at most 40% of the window (${box.width} px)`);
       const room = await log.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight, overflow: getComputedStyle(el).overflowY,
         page: document.scrollingElement.scrollHeight - window.innerHeight }));

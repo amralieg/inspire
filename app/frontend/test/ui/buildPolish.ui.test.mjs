@@ -9,7 +9,7 @@ test.after(closeBrowser);
 const ROOT = new URL('../../../', import.meta.url);
 
 // REQ-143: the Genie progress drawer overlays the Build page. The page keeps its full width when the drawer opens.
-test('REQ-143 the Build progress drawer overlays the page: the use case pane keeps its width with the drawer open, at 1440x900 and 1920x1080', async () => {
+test('REQ-143 / RC7-C-05 the Build progress drawer pushes the page aside: the use case pane gives way to the drawer, never sits under it, at 1440x900 and 1920x1080', async () => {
   const ui = await openUi('implement', STUDIO_STATE);
   const { page } = ui;
   try {
@@ -22,18 +22,18 @@ test('REQ-143 the Build progress drawer overlays the page: the use case pane kee
       if (await card.getAttribute('data-progress-open') === 'false') await card.locator('[data-progress-show]').click();
       await dialog.waitFor();
       assert.equal(await card.getAttribute('data-progress-open'), 'true', `Show progress opens the drawer at ${width}px`);
-      const paddingEnd = await page.locator('[data-implement-page]').evaluate((el) => getComputedStyle(el).paddingRight);
-      assert.equal(paddingEnd, '24px', `the page does not reserve a column for the drawer at ${width}px (padding-right ${paddingEnd})`);
+      const paddingEnd = await page.locator('[data-implement-page]').evaluate((el) => parseFloat(getComputedStyle(el).paddingRight));
       const openPane = await page.locator('[data-use-case-pane]').boundingBox();
       const dock = await page.locator('[data-progress-dock]').evaluate((el) => getComputedStyle(el).position);
       assert.equal(dock, 'fixed', 'the drawer is fixed over the page');
       const box = await dialog.boundingBox();
-      assert.ok(openPane.x + openPane.width > box.x, `the drawer sits over the use case pane at ${width}px`);
+      assert.ok(openPane.x + openPane.width <= box.x + 1, `the use case pane ends before the drawer at ${width}px`);
+      assert.ok(Math.abs(paddingEnd - (24 + box.width)) <= 2, `the page reserves the drawer's width at ${width}px (padding-right ${paddingEnd}, drawer ${box.width})`);
       await dialog.getByRole('button', { name: 'Close', exact: true }).click();
       await dialog.waitFor({ state: 'detached' });
       const closedPane = await page.locator('[data-use-case-pane]').boundingBox();
-      assert.ok(Math.abs(openPane.width - closedPane.width) <= 1,
-        `the use case pane is as wide with the drawer open (${Math.round(openPane.width)}px) as closed (${Math.round(closedPane.width)}px) at ${width}px`);
+      assert.ok(closedPane.width > openPane.width + 1,
+        `the use case pane takes the width back when the drawer closes (open ${Math.round(openPane.width)}px, closed ${Math.round(closedPane.width)}px) at ${width}px`);
       await page.locator('[data-progress-show]').click();
       await dialog.waitFor();
     }
@@ -94,7 +94,7 @@ test('REQ-146 the Best-of-Best short-list label counts only the use cases that m
 // REQ-143 (Amr, verbatim: "Genie progress overlay the page not push it to the side"): the Build progress drawer overlays the page at
 // every width. Opening it never squeezes the page: the page box and every card's x position stay the same, the drawer closes with
 // its Close button and with Escape, and after it closes the card's Vibe/Add button is clickable.
-test('REQ-143 the Build progress drawer overlays the page at 1024, 1280, 1440 and 1920: opening it never squeezes the page, and it closes by Close and Escape', async () => {
+test('REQ-143 / RC7-C-05 the Build progress drawer pushes the page aside at 1024, 1280, 1440 and 1920: nothing sits under it, and it closes by Close and Escape', async () => {
   const ui = await openUi('implement', STUDIO_STATE);
   const { page } = ui;
   const boxes = () => page.evaluate(() => {
@@ -119,9 +119,10 @@ test('REQ-143 the Build progress drawer overlays the page at 1024, 1280, 1440 an
       await card.locator('[data-progress-show]').click();
       await dialog.waitFor();
       const open = await boxes();
-      assert.deepEqual(open.page, closed.page, `the page box is not squeezed at ${width}px (closed ${closed.page}, open ${open.page})`);
-      assert.deepEqual(open.pane, closed.pane, `the use case pane keeps its box at ${width}px (closed ${closed.pane}, open ${open.pane})`);
-      assert.deepEqual(open.cards, closed.cards, `every card keeps its x position at ${width}px`);
+      const drawer = await dialog.boundingBox();
+      assert.ok(open.page[0] === closed.page[0], `the page keeps its left edge at ${width}px`);
+      assert.ok(open.pane[0] + open.pane[1] <= drawer.x + 1, `the use case pane ends before the drawer at ${width}px (pane ${open.pane}, drawer ${drawer.x})`);
+      assert.ok(open.pane[0] === closed.pane[0], `the use case pane keeps its left edge at ${width}px`);
       await dialog.getByRole('button', { name: 'Close', exact: true }).click();
       await dialog.waitFor({ state: 'detached' });
       await card.locator('[data-progress-show]').click();

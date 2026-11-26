@@ -1766,7 +1766,7 @@ test('Edit of a version whose swapped secondary table and own table are both gon
   }
 });
 
-test('the Genie build panel overlays the use case on first load of a built App, and at 1280x800 and 1440x900 the asset tiles stay clickable with it open', async () => {
+test('the Genie build panel pushes the use case aside on first load of a built App, and at 1280x800 and 1440x900 the asset tiles stay clickable with it open', async () => {
   const ui = await openUi('implement', STUDIO_STATE);
   const { page } = ui;
   try {
@@ -1784,7 +1784,7 @@ test('the Genie build panel overlays the use case on first load of a built App, 
         dialog.boundingBox(),
       ]);
       assert.ok(rail.x + rail.width <= pane.x + 1, `the use case list is left of the use case at ${width}px`);
-      assert.ok(pane.x + pane.width > box.x, `the panel overlays the use case, and the use case keeps its full width, at ${width}px (pane ends ${Math.round(pane.x + pane.width)}, panel starts ${Math.round(box.x)})`);
+      assert.ok(pane.x + pane.width <= box.x + 1, `RC7-C-05: the use case is pushed aside by the panel, never covered, at ${width}px (pane ends ${Math.round(pane.x + pane.width)}, panel starts ${Math.round(box.x)})`);
       assert.ok(box.width <= width * 0.4 + 1, `the panel takes at most 40% of ${width}px: ${Math.round(box.width)}px`);
       await page.locator('[data-asset-tiles] button').first().click({ timeout: 5000 });
       if (await page.locator('[data-mvp-panel]').count()) await closeAsset(page);
