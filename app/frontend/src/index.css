@@ -141,12 +141,12 @@
 /* ═══ Dark theme ═══ */
 .dark {
   --t-scrim: hwb(0 0% 100% / 0.6);
-  --t-surface: #181f25;
-  --t-bg: #0e0b19;
-  --t-bg-subtle: #1f272d;
-  --t-panel: #1a2129;
+  --t-surface: #262628;
+  --t-bg: #1c1c1e;
+  --t-bg-subtle: #2c2c2f;
+  --t-panel: #212123;
 
-  --t-border: oklch(28% .005 240);
+  --t-border: #3a3a3d;
   --t-border-subtle: rgba(255, 255, 255, 0.04);
   --t-border-strong: rgba(255, 255, 255, 0.15);
 
