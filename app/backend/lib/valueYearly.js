@@ -61,10 +61,15 @@ function dateColumnOf(columns) {
   return String((named || typed[0] || text[0] || {}).column_name || '');
 }
 
+// RC6-B-08: a date kept as text is read through a safe parse in every SQL that uses it: a value that does not parse is NULL, so the row is
+// ignored, never a SQL error. A DATE or TIMESTAMP column is read as it is.
+const isTextDate = (columns, name) => (columns || []).some((c) => String(c.column_name) === String(name) && /^string/i.test(String(c.data_type || '')));
+const dateRead = (quoted, text) => (text ? `TRY_CAST(${quoted} AS TIMESTAMP)` : quoted);
+
 // The reason a table is skipped for a year-scaled value: its name and the columns that were checked.
 function noDateReason(table, columns, doing) {
   const names = (columns || []).map((c) => String(c.column_name)).slice(0, 12);
   return `${table || 'The table'} has no date column to ${doing} to a year (columns checked: ${names.length ? names.join(', ') : 'none'}), so Inspire cannot work out a value per year.`;
 }
 
-module.exports = { PERIOD, extrapolate, valueVerb, yearlyOf, dateColumnOf, dateColumnsOf, noDateReason };
+module.exports = { PERIOD, extrapolate, valueVerb, yearlyOf, dateColumnOf, dateColumnsOf, isTextDate, dateRead, noDateReason };

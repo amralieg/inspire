@@ -2539,11 +2539,14 @@ function registerImplementRoutes(app, deps) {
     const columns = GP.scopedColumns(await I.readPickedTable(table, () => sqlRows(req.dbHost, req.dbToken, warehouseId, I.columnsStatement(table))), scopes, table);
     const dateColumn = VY.dateColumnOf(columns);
     if (!dateColumn) throw I.badRequest(VY.noDateReason(table, columns, 'scale the sample'), 422);
-    const made = GP.moneyYearlySampleSql(table, money.value, dateColumn, scopes, answers.lost_filter ?? null);
+    const textDate = VY.isTextDate(columns, dateColumn);
+    const made = GP.moneyYearlySampleSql(table, money.value, dateColumn, scopes, answers.lost_filter ?? null, textDate);
     if (!made) throw I.badRequest('Name the value: a fixed amount, one column, or an equation over the table columns, with one currency.');
     const found = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters, { rowLimit: 100, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }));
     const entries = found.map((r) => ({ kind: 'money', unit: String(r.currency ?? ''), amount: Number(r.stake) })).filter((e) => e.unit && e.amount > 0);
     const basis = found[0] || {};
+    // RC6-B-08: a date kept as text where no value parses gives no days: the clean skip, not a SQL error or a wrong number.
+    if (textDate && found.length && !(Number(basis.days) > 0)) throw I.badRequest(VY.noDateReason(table, columns, 'scale the sample'), 422);
     const yearly = VY.yearlyOf({ entries, sampled: basis.sampled, eligible: basis.eligible, days: basis.days, kpi: answers.kpi, rule: money.rule });
     if (!yearly) throw I.badRequest(`Inspire read a sample of ${table} and found no record that counts toward the value, so it shows no number.`, 422);
     const units = [...new Set(yearly.entries.map((e) => e.unit))];
@@ -2718,6 +2721,8 @@ function registerImplementRoutes(app, deps) {
       const columns = GP.scopedColumns(await I.readPickedTable(table, () => sqlRows(req.dbHost, req.dbToken, warehouseId, I.columnsStatement(table))), scopes, table);
       const dateColumn = VY.dateColumnOf(columns);
       if (!dateColumn) throw I.badRequest(VY.noDateReason(table, columns, 'scale the counts'), 422);
+      const textDate = VY.isTextDate(columns, dateColumn);
+      const dated = { date_column: dateColumn, ...(textDate ? { date_text: true } : {}) };
       const useCase = await planUseCaseOf(req, warehouseId, useCaseId);
       // REQ-507: the scope the person chose (checked again here). Its population is counted before the anchor, so the anchor sees the records.
       let chosen = null;
@@ -2727,7 +2732,7 @@ function registerImplementRoutes(app, deps) {
         const checked = VS.checkScope(req.body.scope, columns);
         if (!checked.ok) throw I.badRequest(checked.reason);
         chosen = checked.scope;
-        const countSql = VCP.currentCountSql(GP, scopes, { case_filter: null, scope: chosen, table, date_column: dateColumn });
+        const countSql = VCP.currentCountSql(GP, scopes, { case_filter: null, scope: chosen, table, ...dated });
         scopedPopulation = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, countSql.sql, countSql.parameters, { rowLimit: 1, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }))[0] || {};
         const perYear = VY.extrapolate({ amount: Number(scopedPopulation.records), sampled: 1, eligible: 1, days: Number(scopedPopulation.days) });
         records = perYear === null ? undefined : perYear;
@@ -2742,14 +2747,16 @@ function registerImplementRoutes(app, deps) {
         // A retry that keeps the same filter, grouping and metrics reads the same counts: they are not read twice.
         const readKey = JSON.stringify([plan.case_filter, plan.grouping, plan.metrics]);
         if (read && read.key === readKey) return { plan, counted: read.counted };
-        const made = VCP.groupedSql(GP, scopes, plan, table, dateColumn);
+        const made = VCP.groupedSql(GP, scopes, plan, table, dateColumn, textDate);
         const rows = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, made.sql, made.parameters, { rowLimit: VCP.GROUP_MAX_GROUPS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }));
         // The records and the days come from the whole filtered table (the C5 count), never from the grouped rows.
         let population = scopedPopulation;
         if (!population) {
-          const countSql = VCP.currentCountSql(GP, scopes, { ...plan, table, date_column: dateColumn });
+          const countSql = VCP.currentCountSql(GP, scopes, { ...plan, table, ...dated });
           population = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, countSql.sql, countSql.parameters, { rowLimit: 1, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '50s' }))[0] || {};
         }
+        // RC6-B-08: a date kept as text where no value parses: the count answers with no days. The clean skip that names the table and the columns checked.
+        if (textDate && population.records !== undefined && !(Number(population.days) > 0)) throw I.badRequest(VY.noDateReason(table, columns, 'scale the counts'), 422);
         read = { key: readKey, counted: VCP.groupsFrom(rows, plan, population) };
         return { plan, counted: read.counted };
       };
@@ -2777,7 +2784,7 @@ function registerImplementRoutes(app, deps) {
         valueCheck = !review.approved || outsideRange(final, range) ? { amount: final, low: range.low, high: range.high } : null;
       }
       const anchored = anchor ? { likely_value: { amount: anchor.typical, currency: currencyOf(req.body?.currency), reason: anchor.reason }, economic_trend: anchor.economic_trend, economic_factors: anchor.economic_factors || [] } : {};
-      return res.json({ plan: { ...plan, ...anchored, ...(review ? { review } : {}), table, date_column: dateColumn, days: counted.days, groups: counted.groups, use_case_id: useCaseId, basis: VCP.PLAN_BASIS, ...(valueCheck ? { value_check: valueCheck } : {}) } });
+      return res.json({ plan: { ...plan, ...anchored, ...(review ? { review } : {}), table, ...dated, days: counted.days, groups: counted.groups, use_case_id: useCaseId, basis: VCP.PLAN_BASIS, ...(valueCheck ? { value_check: valueCheck } : {}) } });
     } catch (err) {
       return sendError(res, estimateFailure(err, table));
     }
@@ -3071,8 +3078,9 @@ function registerImplementRoutes(app, deps) {
       if (!basisOf.has(table)) {
         basisOf.set(table, (async () => {
           const asked = I.columnsStatement(table);
-          const dateColumn = VY.dateColumnOf(GP.scopedColumns(await sqlRows(req.dbHost, req.dbToken, warehouseId, asked), scopes, table));
-          const made = dateColumn ? GP.eligibleSql(table, dateColumn, scopes) : null;
+          const columns = GP.scopedColumns(await sqlRows(req.dbHost, req.dbToken, warehouseId, asked), scopes, table);
+          const dateColumn = VY.dateColumnOf(columns);
+          const made = dateColumn ? GP.eligibleSql(table, dateColumn, scopes, VY.isTextDate(columns, dateColumn)) : null;
           return made ? (await readOrEmpty(made.sql, made.parameters))[0] || null : null;
         })().catch(() => null));
       }
