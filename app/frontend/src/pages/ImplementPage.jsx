@@ -31,7 +31,6 @@ import UseCaseDrawer from '../components/UseCaseDrawer';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
 import QualityBarChip from '../components/QualityBarChip';
 import UseCaseDetailBody from '../components/UseCaseDetailBody';
-import InspireScoreBadge from '../components/InspireScoreBadge';
 import Celebration from '../components/Celebration';
 import { RUN_STATE_UNKNOWN, runStateText } from '../lib/runState';
 import GenieLogo from '../components/GenieLogo';
@@ -93,8 +92,8 @@ const NO_JOB = { label: 'No job yet', tone: 'idle' };
 const CHECKING = { label: 'Checking', tone: 'idle' };
 const ERROR_BOX = 'text-xs text-error-fg bg-error-bg border border-error/20 rounded-lg px-3 py-2';
 const NOTE_BOX = 'text-xs text-info-fg bg-info-bg border border-info/20 rounded-lg px-3 py-2';
-// Header actions: equal widths per row, and a row that does not fit wraps to a second row instead of overlapping.
-const HEADER_ACTIONS = 'grid w-full gap-1.5 grid-cols-[repeat(auto-fit,minmax(9.5rem,16rem))] justify-end';
+// Header actions (REQ-545): one left-aligned row under the name that wraps when it does not fit; More is last.
+const HEADER_ACTIONS = 'flex w-full flex-wrap items-center justify-start gap-1.5';
 const OUTLINE_BUTTON = 'inline-flex h-8 items-center justify-center gap-1.5 px-3 rounded-lg whitespace-nowrap text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
 const LINK = 'text-sm font-semibold text-db-red-fg inline-flex items-center gap-1 hover:underline';
 const DANGER_BUTTON = `${OUTLINE_BUTTON} border-error/40 text-error-fg`;
@@ -1955,18 +1954,11 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
               {row?.domain && <span className="whitespace-nowrap"><bdi>{row.domain}</bdi>{row.subdomain && <> › <bdi>{row.subdomain}</bdi></>}</span>}
               {latest?.spec_version != null && <span className="whitespace-nowrap font-mono">· v{latest.spec_version}</span>}
               <ImplementStatusBadge state={item.state} />
+              {row?.inspire != null && <span data-score-inline="" title="Inspire composite score" className="whitespace-nowrap">· Score {row.inspire.toFixed(1)}</span>}
             </div>
           </div>
-          {row && <InspireScoreBadge score={row.inspire} />}
         </div>
-        {item.uc && (valuedLine(valueTotal)
-          ? <RunValue row={{ id: item.id, value: valueTotal }} />
-          : <ValueEstimateLine uc={item.uc} estimate={valueEstimate} onSetRule={onSetRule} />)}
-        {built && progress.active && <ProgressLine chip={chip} summary={progress} typical={typicalBuildText(builds)} />}
         <div className={HEADER_ACTIONS}>
-          {item.uc && (
-            <MoreMenu items={[{ label: 'Use case details', onSelect: () => setDetailsOpen(true) }]} />
-          )}
           {readOnly ? (built && onOpenDemoMvp && (
             <Button type="button" data-demo-open-mvp={useCaseId} onClick={onOpenDemoMvp} size="sm">
               <ArrowRight size={14} /> Open MVP
@@ -1991,7 +1983,14 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
               <Sparkles size={14} /> {START_MVP_LABEL}
             </Button>
           )}
+          {item.uc && (
+            <MoreMenu items={[{ label: 'Use case details', onSelect: () => setDetailsOpen(true) }]} />
+          )}
         </div>
+        {item.uc && (valuedLine(valueTotal)
+          ? <RunValue row={{ id: item.id, value: valueTotal }} />
+          : <ValueEstimateLine uc={item.uc} estimate={valueEstimate} onSetRule={onSetRule} />)}
+        {built && progress.active && <ProgressLine chip={chip} summary={progress} typical={typicalBuildText(builds)} />}
         {!hasMvp && (
           <p className="text-[12px] text-text-secondary">
             {readOnly ? SHOWCASE_NO_MVP : `Not built yet. Press ${START_MVP_LABEL} to build it.`}
