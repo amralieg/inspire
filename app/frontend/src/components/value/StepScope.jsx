@@ -2,6 +2,7 @@
 // My own filter. No money here.
 import { PlainMessage } from '../TechnicalDetails';
 import { useState } from 'react';
+import { RECOMMENDED } from '../../lib/recommended';
 import { SCOPE_ROUTE, choiceDates, factsLine, scopeChoices, scopeOfChoice } from '../../lib/valueScope.js';
 
 const card = 'rounded-lg border px-3 py-2 text-start text-sm';
@@ -36,12 +37,13 @@ export default function StepScope({ page, facts, scope, onScope, onFacts, post, 
   return (
     <div data-wizard-page="scope:choice" className="space-y-2">
       <p className="text-sm text-text-secondary">Which rows should the value be worked out from?</p>
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-3" data-choice="scope">
         {choices.map((c) => (
-          <button key={c.id} type="button" data-scope-choice={c.id} data-recommended={c.recommended ? 'true' : undefined} aria-pressed={chosen === c.id}
+          <button key={c.id} type="button" data-scope-choice={c.id} data-option={c.recommended ? 'true' : c.id} data-recommended={c.recommended ? 'true' : undefined} aria-pressed={chosen === c.id}
             onClick={() => onScope({ ...(scopeOfChoice(c.id, facts) || { phrase: c.label, filters: [], window: null }), choice: c.id })}
             className={`${card} ${chosen === c.id ? 'border-primary-solid bg-bg-subtle' : 'border-border bg-surface'}`}>
-            <span className="block font-semibold">{c.label}{c.recommended ? ' (recommended)' : ''}</span>
+            {c.recommended && <span className="mb-1 inline-block rounded-full bg-success-bg border border-success/30 px-1.5 py-px text-caption font-semibold text-success-fg whitespace-nowrap">{RECOMMENDED}</span>}
+            <span className="block font-semibold">{c.label}</span>
             <span className="block text-[12px] text-text-secondary">
               {c.id === 'all' && factsLine(facts, useCase?.noun || 'record')}
               {c.id === 'last_12' && choiceDates(c)}

@@ -192,6 +192,7 @@ test('on a run whose priority is a number, the priority pills, the priority filt
   try {
     await cards(page).first().waitFor();
     await idle(page);
+    await page.getByRole('button', { name: /^More filters/ }).click(); // REQ-510 L5: the priority pills sit under More filters
     const pill = (name) => page.getByRole('button', { name: new RegExp(`^${name}\\s*\\d+$`) });
     for (const [name, count] of [['U-High', 1], ['V-High', 1], ['High', 1], ['Medium', 1]]) {
       assert.match((await pill(name).innerText()).replace(/\s+/g, ' '), new RegExp(`${count}$`), `${name} pill counts ${count}`);
