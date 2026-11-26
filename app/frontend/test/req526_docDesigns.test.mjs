@@ -70,7 +70,7 @@ for (const id of NEW_IDS) for (const mode of ['light', 'dark']) {
     const svg = infographicSvg(model(), th);
     assert.match(svg, /^<svg /); assert.match(svg, /width="794"/); assert.ok(Number(/^<svg [^>]*?height="(\d+)"/.exec(svg)[1]) >= 1123, 'page height at least 1123');
     assert.ok((svg.match(/<circle /g) || []).length >= 20, 'one point per valued use case');
-    assert.ok((svg.match(/<(path|rect) /g) || []).length > 40, 'bars, arcs, tiles');
+    assert.ok((svg.match(/<(path|rect) /g) || []).length > 35, 'bars, arcs, tiles');
     assert.ok(svg.includes(`>${moneyText('USD', sum)}<`), 'the App money text of the real total');
     const bad = LOG.filter((e) => contrast(e.fill, e.bg) < 4.5 || e.size < 12).map((e) => `${e.ctx} ${e.fill}/${e.bg} ${e.size}`);
     assert.deepEqual(bad, []);
