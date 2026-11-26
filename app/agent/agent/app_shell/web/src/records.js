@@ -323,15 +323,16 @@ export function evidenceOf(raw) {
   }
 }
 
-const ESTIMATE_PHRASE = /\s*\[\s*estimate\b[^\]]*\]/gi;
-const ESTIMATE_BASIS = /\[\s*estimate\s*:\s*depends on\s+([^\]]+)\]/i;
+const ESTIMATE_PHRASE = /\s*(?:\[\s*estimate\b[^\]]*\]|\(\s*estimate\b[^)]*\))/gi;
+const ESTIMATE_BASIS = /(?:\[\s*estimate\s*:\s*depends on\s+([^\]]+)\]|\(\s*estimate\s*:\s*depends on\s+([^)]+)\))/i;
 const DOTTED_PATH = /\w+\.[\w.`]+/;
 
-/** REQ-306: an estimate tag leaves the figure and becomes a short note. The basis names no table: a column reads in plain words. */
+/** REQ-306: an estimate tag, bracket or plain "(estimate: ...)" form, leaves the figure and becomes a short note. The basis names no table: a column reads in plain words. */
 export function splitEstimate(text) {
   const raw = String(text ?? '');
-  if (!/\[\s*estimate\b/i.test(raw)) return { text: raw, note: '' };
-  const basis = ESTIMATE_BASIS.exec(raw)?.[1]?.replace(/[`"']/g, '').trim() || '';
+  if (!/[[(]\s*estimate\b/i.test(raw)) return { text: raw, note: '' };
+  const found = ESTIMATE_BASIS.exec(raw);
+  const basis = (found?.[1] || found?.[2])?.replace(/[`"']/g, '').trim() || '';
   const from = !basis || DOTTED_PATH.test(basis) ? 'the data behind this record' : basis.replace(/_+/g, ' ').replace(/[,;]/g, '').trim();
   return { text: raw.replace(ESTIMATE_PHRASE, '').replace(/\s+/g, ' ').trim(), note: `Estimate, based on ${from}.` };
 }

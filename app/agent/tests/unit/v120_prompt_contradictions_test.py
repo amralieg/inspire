@@ -67,7 +67,7 @@ def test_b02_one_number_rule_for_business_value(ns):
                    "(a) trace to a named column in `Tables Involved` that could compute it"):
         assert phrase not in base, phrase
     assert "Never write a concrete percentage, currency amount, multiplier or time saving in any UC field." in base
-    assert base.count("[ESTIMATE: depends on <column_name from supplied schema>]") >= 2
+    assert base.count("depends on <column_name from supplied schema>") >= 2 and "[ESTIMATE" not in base
     assert "$2M" not in _prompt(ns, "COMBINED_VALUE_QUALITY_SCORE_PROMPT")
     assert "30 days before cancellation" not in _prompt(ns, "COMBINED_VALUE_QUALITY_SCORE_PROMPT")
 

@@ -5,7 +5,7 @@ R03,grounding,BLOCKING,UC,Copy table/column names exactly (catalog.schema.table 
 R04,grounding,HIGH,UC,Statement and Solution each must name at least 2 backticked columns from Tables Involved.,BASE_USE_CASE_GEN_PROMPT RULE 4; Phase G2,v0.5.0
 R05,invention,BLOCKING,UC,No invented capabilities — concepts must trace to a column or be explicitly derived.,BASE_USE_CASE_GEN_PROMPT RULE 5,v0.5.0
 R06,portfolio,BLOCKING,portfolio,"Full-portfolio signal coverage: date+measure, fact+dim FK, grouping id, status column each must produce >=1 UC.",BASE_USE_CASE_GEN_PROMPT RULE 6,v0.5.0
-R07,quantification,HIGH,UC,No invented dollar/percent figures; use [ESTIMATE: depends on <column>] when quantification needed.,BASE_USE_CASE_GEN_PROMPT RULE 7,v0.5.0
+R07,quantification,HIGH,UC,No invented dollar/percent figures; write the plain words "depends on <column>" when quantification needed.,BASE_USE_CASE_GEN_PROMPT RULE 7,v0.5.0
 R08,dedup,BLOCKING,portfolio,No near-duplicate UCs; merge UCs differing only by technique on identical Tables Involved.,BASE_USE_CASE_GEN_PROMPT RULE 8; Phase Q2,v0.5.0
 R09,invention,BLOCKING,UC,No invented organizational constructs (programs/tiers/committees) without a column grounding them.,BASE_USE_CASE_GEN_PROMPT RULE 9,v0.5.0
 R10,invention,BLOCKING,UC,"No inferred-externality claims (industry benchmarks, market prices, regulations) — must trace to a column.",BASE_USE_CASE_GEN_PROMPT RULE 10,v0.5.0
@@ -17,7 +17,7 @@ R15,selfreview,HIGH,UC,Pre-emission §A: UC must identify Who funds it / What de
 R16,selfreview,HIGH,UC,Pre-emission §B: UC must pass compute-proof / technique-data fit / data-fit sanity.,BASE_USE_CASE_GEN_PROMPT SELF-REVIEW B,v0.5.0
 R17,selfreview,HIGH,portfolio,Pre-emission §C: Pattern coverage / FK exploitation / type balance / technique redundancy <=25%.,BASE_USE_CASE_GEN_PROMPT SELF-REVIEW C,v0.5.0
 R18,selfreview,HIGH,UC,Pre-emission §D: Stakeholder plausibility — realistic beneficiary/sponsor roles; no invented programs.,BASE_USE_CASE_GEN_PROMPT SELF-REVIEW D,v0.5.0
-R19,selfreview,HIGH,UC,Pre-emission §E: Every $/percent figure traces to a column OR is tagged [ESTIMATE: ...].,BASE_USE_CASE_GEN_PROMPT SELF-REVIEW E,v0.5.0
+R19,selfreview,HIGH,UC,Pre-emission §E: Every $/percent figure traces to a column OR says "depends on <column>" in plain words.,BASE_USE_CASE_GEN_PROMPT SELF-REVIEW E,v0.5.0
 R20,selfreview,HIGH,UC,Pre-emission §F: No marketing copy; plain operational language; specific technique names.,BASE_USE_CASE_GEN_PROMPT SELF-REVIEW F,v0.5.0
 R21,selfreview,HIGH,UC,Pre-emission §G: Within-batch dedup check before emitting any UC.,BASE_USE_CASE_GEN_PROMPT SELF-REVIEW G,v0.5.0
 R22,selfreview,HIGH,UC,Pre-emission §I: Coherence — technique matches problem; Solution produces claimed Business Value; no topic switching; multi-table necessity.,BASE_USE_CASE_GEN_PROMPT SELF-REVIEW I,v0.5.23

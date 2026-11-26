@@ -162,8 +162,8 @@ def test_invented_figures_are_replaced_and_user_figures_are_kept(agent_ns):
     record = obj._validate_alignment_record(item, uc("U1"), context(agent_ns, obj))
     text = record["financial"][0]
     assert "25%" not in text and "$2 million" not in text and "24%" in text
-    assert text.count("[ESTIMATE: depends on c.s.orders.customer_id]") == 2
-    assert record["measures"] == ["Adoption reaches [ESTIMATE: depends on c.s.orders.customer_id]"]
+    assert text.count("(estimate: depends on c.s.orders.customer_id)") == 2
+    assert record["measures"] == ["Adoption reaches (estimate: depends on c.s.orders.customer_id)"]
     assert record["scrubbed"] == 3
 
 
@@ -203,7 +203,7 @@ def test_failed_answers_fall_back_to_labelled_placeholders_and_a_failed_step(age
     obj._run_strategy_alignment(ucs)
     only = ucs[0]
     assert only["KPIs"][0]["name"] == "Stock-out rate" and only["KPIs"][0]["direction"] == "decrease"
-    assert only["Financial Benefits"] == ["[ESTIMATE: depends on c.s.orders]"]
+    assert only["Financial Benefits"] == ["(estimate: depends on c.s.orders)"]
     assert only["Strategy Alignment"] == [] and only["Strategic Alignment"] == 1.0
     assert [f["step"] for f in obj.failed_steps] == ["Strategy Alignment"]
 
