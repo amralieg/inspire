@@ -2,7 +2,7 @@
 // The PowerPoint, Excel and PDF writers load here with import(), only when a person generates, so the main bundle does not carry them.
 import { buildDocModel } from './docgen/docModel.js';
 import { infographicSvg } from './docgen/docSvg.js';
-import { buildAgentPdf } from './docgen/agentPdf.js';
+import { buildAgentPdf, PDF_RASTER } from './docgen/agentPdf.js';
 import { splitInfographic } from './docgen/designs/panelTiles.js';
 import { agentLabelTexts, buildAgentModel } from './docgen/agentModel.js';
 import { resolveTheme } from './docgen/docStyles.js';
@@ -66,16 +66,17 @@ export function modelFor({ businessName, useCases, values, options, language, id
   return m;
 }
 
+// REQ-561: a tile per use case with the panel's business fields. C26: one PDF page per chunk of at most three A4 pages.
+// C27: the pages are JPEG at the agent PDF's settings (PDF_RASTER), so the file stays small enough for /api/inspire/docs/save.
+export async function infographicPdf(m, theme, agent, rasterize) {
+  const pages = [];
+  for (const svg of splitInfographic(infographicSvg(m, theme, buildAgentModel(agent).ranked))) pages.push(await rasterize(svg, PDF_RASTER.scale, { type: PDF_RASTER.type, quality: PDF_RASTER.quality }));
+  const { pdfFromImages } = await import('./docgen/pdfDoc.js');
+  return pdfFromImages(pages);
+}
+
 async function makeFile(file, m, theme, options, agent) {
-  const scale = theme.design ? 2 : 1; // REQ-526: the A4 design pages (794x1123) are drawn at twice the size so the PDF text stays sharp
-  if (file.kind === 'infographic') {
-    // REQ-561: a tile per use case with the panel's business fields. C26: one PDF page per chunk of at most three A4 pages.
-    const pngs = [];
-    const tall = infographicSvg(m, theme, buildAgentModel(agent).ranked);
-    for (const svg of splitInfographic(tall)) pngs.push(await svgToPng(svg, scale));
-    const { pdfFromImages } = await import('./docgen/pdfDoc.js');
-    return pdfFromImages(pngs);
-  }
+  if (file.kind === 'infographic') return infographicPdf(m, theme, agent, svgToPng);
   if (file.kind === 'pdf') {
     // C25 (REQ-559): the PDF is the agent's catalog PDF plus value, in every style (the style still shapes the other kinds).
     return buildAgentPdf(agent, svgToPng);

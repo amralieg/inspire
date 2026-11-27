@@ -297,6 +297,15 @@ table.proj td.lk { font-weight: 700; color: #__C_teal__; }
 .opener h4 { font-size: __F_heading__; margin-bottom: 7px; }
 .opener .chip { font-size: __F_small__; padding: 4px 10px; margin-bottom: 6px; }
 .opener h4.dch { margin: 4px 0 10px; }
+.opener .dvs { flex: none; margin-top: 14px; padding: 14px 18px 8px; border: 1px solid #__C_sand2__; border-radius: 14px; background: #__C_white__; }
+.opener .dvs h4 { margin-bottom: 8px; }
+.opener .dvr { display: flex; align-items: center; gap: 12px; height: 26px; }
+.opener .dvr .nm { flex: 0 0 30%; font-size: __F_small__; color: #__C_body__; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.opener .dvr .tr { flex: 1 1 0; height: 10px; border-radius: 5px; background: #__C_sand2__; overflow: hidden; }
+.opener .dvr .tr i { display: block; height: 100%; background: #__C_teal_mid__; border-radius: 5px; opacity: .55; }
+.opener .dvr .am { flex: 0 0 70px; text-align: __E__; font-size: __F_small__; color: #__C_body__; white-space: nowrap; }
+.opener .dvr.me .nm, .opener .dvr.me .am { color: #__C_ink__; font-weight: 700; }
+.opener .dvr.me .tr i { background: #__C_teal__; opacity: 1; }
 .opener .dcs { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
 .opener.cont .dcs { margin-top: 4px; }
 .dc { flex: 1 1 0; min-height: 58px; max-height: 230px; display: flex; align-items: center; gap: 16px; background: #__C_sand__; border: 1px solid #__C_sand2__; border-radius: 14px; padding: 8px 18px; }
@@ -862,11 +871,23 @@ function openerPage(d, m, b) {
     return `<div class="dc"><div class="rk ${v.kind}">${esc(v.rank)}</div><div class="dt"><div class="dn"${b.dir(v.title)}>${b.text(v.title)}</div>${line ? `<div class="dl"${b.dir(line)}>${b.text(line)}</div>` : ''}</div>`
       + `<div class="dv">${v.value.amount !== null ? `<div class="dm">${b.html(v.value.text)}</div>` : ''}${q}</div></div>`;
   };
+  // C27: the value of every domain as bars with this one marked, so a domain with few use cases still fills its page like a report page.
+  const vrows = (() => {
+    const all = m.value.byDomain.filter((r) => r.amount > 0);
+    if (!all.length || !(d.value && d.value.amount > 0)) return [];
+    const sorted = [...all].sort((a, c) => c.amount - a.amount);
+    const pick = sorted.slice(0, 7); if (!pick.some((r) => r.index === d.index)) pick.splice(6, 1, all.find((r) => r.index === d.index));
+    return pick.sort((a, c) => c.amount - a.amount);
+  })();
+  const vmax = Math.max(1, ...vrows.map((r) => r.amount));
+  const vblock = vrows.length ? `<div class="dvs"><h4>${esc(T('value_per_domain'))}</h4>${vrows.map((r) => `<div class="dvr${r.index === d.index ? ' me' : ''}"><span class="nm">${b.html(r.name)}</span>`
+    + `<span class="tr"><i style="width:${Math.max(3, (100 * r.amount) / vmax).toFixed(1)}%"></i></span><span class="am">${b.html(r.text)}</span></div>`).join('')}</div>` : '';
+  const vblockH = vrows.length ? 14 + 14 + F.heading * 1.16 + 8 + vrows.length * 26 + 8 : 0;
   const overW = CW * 0.55 - 14;
   const bandH = 72 + 40 + F.numeral * 0.92 + F.label * 1.5 + 8 + textH(d.name, F.display, CW - 120, 1.16, { bold: true }) + (subtitle ? 8 + textH(subtitle, F.body, CW - 60) : 0) + 28;
   const statsH = 24 + F.heading * 1.15 + 6 + F.label * 2.6 + 18;
   const overH = 40 + F.heading * 1.16 + 8 + d.overview.reduce((a, p, i) => a + 8 + textH(p, F.lead, overW, 1.6), 0);
-  const top = bandH + statsH + overH + 12 + F.heading * 1.16 + 14;
+  const top = bandH + statsH + overH + 12 + F.heading * 1.16 + 14 + vblockH;
   const perPage = Math.max(1, Math.floor((ROOM + 72 - top - 8) / DC_MIN));
   const list = d.useCases;
   const chunks = []; for (let i = 0; i < list.length; i += perPage) chunks.push(list.slice(i, i + perPage));
@@ -878,7 +899,7 @@ function openerPage(d, m, b) {
     + `<div class="body"><table class="stats big domstats"><tr>${cells}</tr></table>`
     + `<div class="orow"><div class="overview txt"><h4>${esc(T('doc_domain_overview'))}</h4>${d.overview.map((p, i) => `<p class="${i ? '' : 'first'}"${b.dir(p)}>${b.text(p)}</p>`).join('')}</div>`
     + `${chips ? `<div class="cov"><h4>${esc(T('doc_what_it_covers'))}</h4><div class="chips">${chips}</div></div>` : ''}</div>`
-    + `<h4 class="dch">${esc(T('doc_top_opportunities'))}</h4><div class="dcs">${chunks[0].map(dcard).join('')}</div></div></section>`] };
+    + `<h4 class="dch">${esc(T('doc_top_opportunities'))}</h4><div class="dcs">${chunks[0].map(dcard).join('')}</div>${vblock}</div></section>`] };
   const more = chunks.slice(1).map((c) => ({ kind: 'domain', domain: d.index, room: ROOM, used: ROOM, parts: [
     `<section class="opener cont"><div class="eyebrow">${esc(label)} ${number}</div><h2 class="title">${b.html(d.name)}</h2><div class="rule"></div><div class="dcs">${c.map(dcard).join('')}</div></section>`] }));
   return [first, ...more];
