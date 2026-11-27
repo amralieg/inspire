@@ -4,7 +4,7 @@
 // There is no agent writer and no button (the FX-116 guards stay).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { agentPdfSvgs, buildAgentPdf } from './docgen/agentPdf.js';
-import { svgToPng, toBase64 } from './generateDocs.js';
+import { markNewDocs, svgToPng, toBase64 } from './generateDocs.js';
 import { hasStrategyDocument, artifactTreeFiles } from './artifactFiles.js';
 import { sessionFailed, sessionFinished } from './monitorState.js';
 import { strategyGoals, v130View } from './v130UseCase.js';
@@ -53,9 +53,12 @@ export function strategyDocNeeded({ session, useCases, rootFiles, tree }) {
 export async function saveStrategyDoc({ post, folder, businessName, useCases, values, summary, foundations, inspireDatabase, warehouseId, sessionId }) {
   const bytes = await buildAgentPdf({ businessName, useCases, values, summary, foundations, groups: groupByObjective, groupLabelKey: 'objective_label' }, svgToPng);
   // No use_case_ids: this document does not mark any use case as documented.
-  await post('/api/inspire/docs/save', {
-    inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId), folder, name: strategyFileName(businessName), content_base64: toBase64(bytes),
+  const name = strategyFileName(businessName);
+  const saved = await post('/api/inspire/docs/save', {
+    inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId), folder, name, content_base64: toBase64(bytes),
   });
+  // REQ-121 + FX-115: like every file the App generates, the strategy PDF is marked NEW in Assets.
+  markNewDocs(sessionId, [saved?.path || `${folder}/${name}`]);
 }
 
 // One build per run folder at a time and one save per run folder for the page's life, across re-renders and tabs of this page.
