@@ -90,7 +90,12 @@ test('2b: the Business rows show counted-in amounts that sum to the run total, a
     assert.match(await text(panel.locator('[data-value-row="N01-U03"] [data-value-counted]')), /\$0/, 'the shared row adds $0');
     const legend = await text(panel.locator('[data-bar-legend="Reviewed calculations vs provisional estimates"]'));
     assert.match(legend, /Reviewed calculation \$6\.8M/);
-    assert.match(legend, /Provisional estimate \$2\.4M/);
+    assert.match(legend, /Provisional estimate \$4\.7M/);
+    // RC7-B-14 (c0b89fef4): the split names raw sums; one line names the left-out sum; counted = provisional - left out = 2.4M stays visible in the rows.
+    assert.match(await text(panel.locator('[data-left-out]')), /\$2\.3M left out of the total/);
+    const provisionalCounted = await panel.locator('[data-value-row]').evaluateAll((rows) => rows.filter((r) => /provisional estimate/i.test(r.innerText))
+      .map((r) => r.querySelector('[data-value-counted]')?.innerText || ''));
+    assert.equal(Math.round(provisionalCounted.reduce((t, x) => t + (money(x) || 0), 0)), 2400000, `provisional rows count in $2.4M: ${provisionalCounted.join(' + ')}`);
     assert.match(await text(panel.locator('[data-value-row="N02-U01"]')), /not estimated/i, 'an old estimate says it is not estimated');
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }
