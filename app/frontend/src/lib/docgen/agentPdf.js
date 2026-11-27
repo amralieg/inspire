@@ -3,7 +3,7 @@
 // after the last domain's cards and before the index. The pages are cut here (a deterministic height model stands in for the paged
 // media the agent had), each page is an A4 SVG holding XHTML, and the browser draws them to PNG for jsPDF.
 import {
-  buildAgentModel, agentOutline, DOC_COLORS, DOC_BRAND, DOC_TYPE_SCALE, DOC_PDF_PX_PER_PT, DOC_QUALITY_ORDER, DOC_INDEX_COLUMNS, DOC_VALUE_LEFT,
+  buildAgentModel, agentOutline, DOC_COLORS, DOC_BRAND, DOC_QUALITY_ORDER, DOC_INDEX_COLUMNS, DOC_VALUE_LEFT,
   qualityColor, docJoin,
 } from './agentModel.js';
 
@@ -219,13 +219,6 @@ const PAGE_CSS = `
 .ap .ftr { top: 1070px; align-items: flex-start; color: #__C_grey__; }
 .ap .ftr .pno { font-weight: 700; color: #__C_muted__; }
 .uc.cont .kick { color: #__C_muted__; }
-.uc .stake { display: table; width: 100%; table-layout: fixed; margin-top: 7px; background: #__C_ice__; border-radius: 10px; border-__S__: 3px solid #__C_gold__; }
-.uc .stake > * { display: table-cell; vertical-align: middle; padding: 6px 10px; }
-.uc .stake .amt { width: 34%; }
-.uc .stake .money { font-family: __DISPLAY__; font-size: __F_card_title__; font-weight: 700; color: #__C_teal_dark__; line-height: 1.15; }
-.uc .stake .money.none { font-family: __BODY__; font-size: __F_small__; font-weight: 700; color: #__C_muted__; }
-.uc .stake .why { font-size: __F_small__; color: #__C_body__; }
-.uc .stake .why b { color: #__C_teal__; }
 table.bars.vbars td.n { width: 24%; text-align: __E__; white-space: nowrap; }
 table.bars.vbars td.nm { width: 34%; }
 table.index td.ix-amount { white-space: nowrap; font-weight: 700; color: #__C_teal__; text-align: __E__; }
@@ -244,6 +237,144 @@ table.proj th { text-align: __E__; padding: 3px 6px; color: #__C_muted__; font-s
 table.proj td { text-align: __E__; padding: 4px 6px; border-bottom: 1px solid #__C_sand2__; white-space: nowrap; }
 table.proj td:first-child, table.proj th:first-child { text-align: __S__; }
 table.proj td.lk { font-weight: 700; color: #__C_teal__; }
+
+.story .sum { display: flex; align-items: center; gap: 24px; background: #__C_ice__; border-radius: 14px; border-__S__: 5px solid #__C_gold__; padding: 18px 22px; margin-bottom: 14px; }
+.story .sum > * { display: block; padding: 0; }
+.story .sum .amt { flex: 0 0 38%; }
+.story .sum .money { font-size: __F_hero__; line-height: 1.05; }
+.story .sum .why { flex: 1; font-size: __F_small__; line-height: 1.45; }
+.story .sum .why > div { margin-bottom: 6px; }
+.story .sum h5, .story .lede h5 { font-family: __BODY__; font-size: __F_label__; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #__C_teal__; margin: 0 0 6px; }
+.story .lede { border-__S__: 4px solid #__C_teal__; padding: 4px 0 4px 20px; margin-bottom: 14px; }
+.story .lede p { font-size: __F_lead__; line-height: 1.55; color: #__C_body2__; margin: 0 0 6px; }
+.story.grow { flex: 1 1 auto; display: flex; flex-direction: column; margin-bottom: 14px; min-height: 250px; }
+.story .pcard, .story .dcard { background: #__C_white__; border: 1px solid #__C_line__; border-radius: 14px; padding: 16px 22px; }
+.story .pcard { flex: 1 1 auto; display: flex; flex-direction: column; background: #__C_sand__; border-color: #__C_sand2__; }
+.story .dcard { margin-bottom: 0; }
+.story h4 { font-size: __F_heading__; margin: 0; }
+.story .phd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.story .legend2 span { display: inline-block; margin-__S__: 14px; font-size: __F_small__; color: #__C_muted__; }
+.story .sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-__E__: 5px; vertical-align: -1px; }
+.story .sw.low, .story .b.low { background: #__C_mint2__; }
+.story .sw.likely, .story .b.likely { background: #__C_teal__; }
+.story .sw.high, .story .b.high { background: #__C_gold__; }
+.story .chart { flex: 1 1 auto; display: flex; gap: 22px; min-height: 150px; margin-bottom: 10px; }
+.story .yg { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.story .plot { flex: 1; display: flex; align-items: stretch; justify-content: center; gap: 8px; border-bottom: 2px solid #__C_line__; }
+.story .col { width: 30%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+.story .bv { font-size: __F_small__; font-weight: 700; color: #__C_ink__; margin-bottom: 4px; white-space: nowrap; }
+.story .b { width: 100%; border-radius: 6px 6px 0 0; }
+.story .yl { text-align: center; font-size: __F_small__; font-weight: 700; color: #__C_muted__; padding-top: 6px; }
+.story table.proj { font-size: __F_small__; background: #__C_white__; border-radius: 10px; }
+.story table.proj th { font-size: __F_label__; text-transform: uppercase; letter-spacing: .8px; padding: 7px 10px; }
+.story table.proj td { padding: 7px 10px; }
+.story table.proj tbody tr:nth-child(even) td { background: #__C_sand3__; }
+.story .drv { margin-top: 14px; }
+.story .dh { display: flex; justify-content: space-between; font-size: __F_body__; font-weight: 700; margin-bottom: 5px; }
+.story .ds { color: #__C_teal__; }
+.story .track { height: 12px; border-radius: 6px; }
+.story .fill { height: 12px; border-radius: 6px; }
+.story .df { font-size: __F_small__; color: #__C_body__; margin-top: 5px; line-height: 1.45; }
+.fillcol > .story { flex-shrink: 0; }
+.fillcol > .story.grow { flex-shrink: 1; }
+
+.opener { height: 979px; display: flex; flex-direction: column; }
+.opener .band { flex: none; margin-bottom: 0; padding: 14mm 15mm 10mm; }
+.opener .band .art { width: 110mm; height: 110mm; }
+.opener .num { font-size: __F_numeral__; }
+.opener h2 { font-size: __F_display__; }
+.opener .band .sub { font-size: __F_lead__; }
+.opener .body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 18px 0 0; }
+.opener table.domstats { margin-top: 0; margin-bottom: 14px; border-spacing: 10px 0; margin-left: -10px; margin-right: -10px; width: calc(100% + 20px); }
+.opener table.domstats td { padding: 14px 8px; border-radius: 14px; }
+.opener table.domstats .v { font-size: 34px; line-height: 1.1; white-space: nowrap; }
+.opener table.domstats .l { font-size: __F_small__; margin-top: 4px; }
+.opener .orow { display: flex; gap: 28px; margin-bottom: 14px; }
+.opener .orow .overview { flex: 1 1 0; }
+.opener .orow .cov { flex: 0 0 38%; }
+.opener .overview p { font-size: __F_body__; line-height: 1.55; margin-bottom: 6px; }
+.opener .overview p.first { font-size: __F_lead__; }
+.opener h4 { font-size: __F_heading__; margin-bottom: 7px; }
+.opener .chip { font-size: __F_small__; padding: 4px 10px; margin-bottom: 6px; }
+.opener h4.dch { margin: 4px 0 10px; }
+.opener .dcs { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.opener.cont .dcs { margin-top: 4px; }
+.dc { flex: 1 1 0; min-height: 58px; max-height: 230px; display: flex; align-items: center; gap: 16px; background: #__C_sand__; border: 1px solid #__C_sand2__; border-radius: 14px; padding: 8px 18px; }
+.dc .rk { flex: none; width: 44px; height: 44px; line-height: 44px; border-radius: 12px; background: #__C_teal__; color: #__C_white__; text-align: center; font-family: __DISPLAY__; font-weight: 700; font-size: __F_heading__; }
+.dc .rk.elite { background: #__C_gold__; color: #__C_gold_ink__; }
+.dc .rk.coverage { background: #__C_coral__; }
+.dc .dt { flex: 1; min-width: 0; }
+.dc .dn { font-family: __DISPLAY__; font-weight: 700; font-size: __F_heading__; line-height: 1.2; color: #__C_ink__; }
+.dc .dl { font-size: __F_small__; color: #__C_body__; margin-top: 3px; line-height: 1.4; }
+.dc .dv { flex: none; text-align: __E__; min-width: 110px; }
+.dc .dm { font-family: __DISPLAY__; font-weight: 700; font-size: __F_card_name__; color: #__C_teal_dark__; line-height: 1.1; margin-bottom: 4px; white-space: nowrap; }
+
+/* C26 (REQ-563): the executive layout. A page is full, text is 11 px or more, and the card has a facts panel and the value at stake beside the story. */
+.ap { line-height: 1.45; }
+.fillcol { display: flex; flex-direction: column; height: 979px; }
+.fillcol > * { flex-shrink: 0; }
+.fillcol > .uc, .fillcol > .grow { flex: 1 1 auto; }
+.uc { padding: 16px 22px; border-radius: 16px; margin: 0 0 14px; display: flex; flex-direction: column; border-color: #__C_line__; }
+.fillcol > .uc:last-child { margin-bottom: 0; }
+.uc .main { flex: 1 1 auto; display: flex; flex-direction: column; }
+.uc .head { display: flex; gap: 16px; align-items: flex-start; }
+.uc .badge { flex: none; width: 56px; height: 56px; line-height: 56px; border-radius: 14px; font-size: __F_card_name__; }
+.uc .hd { padding-__S__: 0; flex: 1; min-width: 0; }
+.uc .kick { font-size: __F_label__; letter-spacing: 1.4px; }
+.uc h3 { font-size: __F_card_name__; line-height: 1.16; margin-top: 3px; }
+.uc .sub { font-size: __F_body__; color: #__C_body__; margin-top: 6px; line-height: 1.45; }
+.uc .spon { font-size: __F_small__; color: #__C_muted__; margin-top: 6px; }
+.uc .spon b { color: #__C_teal__; text-transform: uppercase; letter-spacing: 1px; font-size: __F_label__; margin-__E__: 6px; }
+.uc .band { height: 4px; margin: 10px 0 10px; }
+.uc table.stats.chipsrow { border-spacing: 8px 0; margin-left: -8px; margin-right: -8px; margin-bottom: 12px; }
+.uc table.stats.chipsrow td { padding: 7px 6px; border-radius: 10px; }
+.uc table.stats.chipsrow .v { font-size: __F_heading__; }
+.uc table.stats.chipsrow .l { font-size: __F_label__; text-transform: uppercase; letter-spacing: .8px; }
+.uc .cols { flex: 1 1 auto; display: flex; gap: 0; margin-top: 6px; }
+.uc .cols > * { display: block; width: auto; }
+.uc .lcol { flex: 0 0 __LCOL__px; padding-__E__: 24px; }
+.uc .side { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 0; }
+.uc h5 { font-size: __F_label__; letter-spacing: 1.2px; margin: 0 0 5px; }
+.uc .blk { margin-bottom: 11px; }
+.uc .lcol .blk:last-child { margin-bottom: 0; }
+.uc .blk p { font-size: __F_body__; line-height: 1.5; color: #__C_body2__; }
+.uc .panel { background: #__C_sand__; border-radius: 12px; padding: 6px 14px; }
+.uc table.kv { font-size: __F_small__; margin: 0; }
+.uc table.kv td { padding: 4px 0; line-height: 1.4; }
+.uc table.kv td.k { width: 40%; font-size: __F_small__; }
+.uc .stake { margin-top: auto; background: #__C_ice__; border-radius: 12px; border-__S__: 4px solid #__C_gold__; padding: 12px 16px; }
+.uc .stake h5 { margin-bottom: 2px; }
+.uc .stake .money { font-family: __DISPLAY__; font-size: __F_card_title__; font-weight: 700; color: #__C_teal_dark__; line-height: 1.12; }
+.uc .stake .money.none { font-family: __BODY__; font-size: __F_small__; color: #__C_muted__; }
+.uc .stake .why { font-size: __F_small__; color: #__C_body__; margin-top: 6px; line-height: 1.45; }
+.uc .stake .why b { color: #__C_teal__; }
+.uc .val { display: flex; gap: 28px; margin-top: 10px; padding-top: 12px; border-top: 1px solid #__C_line__; }
+.uc .val > * { display: block; width: auto; flex: 1 1 0; min-width: 0; padding: 0; }
+.uc .blk ul { font-size: __F_small__; padding-__S__: 17px; margin: 0; }
+.uc .blk li { margin: 0 0 3px; line-height: 1.45; color: #__C_body2__; }
+.uc .foot { margin-top: auto; padding-top: 10px; }
+.uc .val { margin-top: auto; }
+.uc .cols { margin-bottom: 8px; }
+.ribbons { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+.ribbons .ribbon { margin: 0; padding: 5px 12px; flex: 0 1 auto; }
+.uc.roomy .blk p { font-size: 15px; line-height: 1.55; }
+.uc.roomy .blk { margin-bottom: 22px; }
+.uc.roomy .blk li { font-size: 13.5px; }
+.uc.roomy table.kv td { padding: 8px 0; font-size: 13.5px; }
+.uc.roomy .sub { font-size: 14.5px; }
+.uc.tight .blk p { font-size: 12.5px; line-height: 1.4; }
+.uc.tight .blk ul { font-size: 12px; }
+.uc.tight .blk li { margin-bottom: 2px; line-height: 1.35; }
+.uc.tight .blk { margin-bottom: 8px; }
+.uc.tight .sub { font-size: 12.5px; margin-top: 4px; }
+.uc.tight .band { margin: 8px 0; }
+.uc.tight table.kv td { padding: 3px 0; }
+.uc.tight .stake .money { font-size: 32px; }
+.uc.tight .stake .why { margin-top: 3px; line-height: 1.35; }
+.uc.tight .val { margin-top: 6px; padding-top: 9px; }
+.btn { font-size: __F_label__; padding: 6px 14px; }
+.ribbon { font-size: __F_small__; padding: 9px 14px; margin-bottom: 10px; }
+.story .kick { font-size: __F_label__; }
 `;
 
 const BODY_STACK = 'Inter, "Helvetica Neue", Helvetica, Arial, sans-serif';
@@ -252,14 +383,14 @@ const W = 794;
 const H = 1123;
 const ROOM = 979; // A4 less the 19 mm top and bottom margins, in CSS px
 const CW = 680; // A4 less the 15 mm side margins
-const pxOf = (key) => Math.round(DOC_TYPE_SCALE[key] * DOC_PDF_PX_PER_PT * 10) / 10;
-const F = Object.fromEntries(Object.keys(DOC_TYPE_SCALE).map((k) => [k, pxOf(k)]));
+// C26 (REQ-563): the PDF's own type scale in CSS px, set for an executive reading a laptop at 100%: nothing under 11 px.
+const F = { numeral: 64, hero: 48, display: 38, title: 28, card_title: 38, card_name: 25, heading: 19, lead: 15, body: 13, small: 12, label: 11, micro: 11 };
 
 // _pdf_css: the agent's sheet with its tokens filled in for one direction.
 export function agentPdfCss(m) {
   const [start, end] = m.rtl ? ['right', 'left'] : ['left', 'right'];
   const css = (AGENT_PDF_CSS + PAGE_CSS).replace(/__S__/g, start).replace(/__E__/g, end).replace(/__GDIR__/g, m.rtl ? '270deg' : '90deg')
-    .replace(/__BODY__/g, BODY_STACK).replace(/__DISPLAY__/g, m.latinDisplay ? DISPLAY_STACK : BODY_STACK);
+    .replace(/__LCOL__/g, String(LCOL)).replace(/__BODY__/g, BODY_STACK).replace(/__DISPLAY__/g, m.latinDisplay ? DISPLAY_STACK : BODY_STACK);
   return css.replace(/__C_(\w+?)__/g, (_, k) => DOC_COLORS[k].toLowerCase()).replace(/__F_(\w+?)__/g, (_, k) => `${F[k].toFixed(1)}px`);
 }
 
@@ -324,6 +455,7 @@ const charWidth = (ch) => {
   return 0.56;
 };
 const SAFETY = 1.06;
+const ZOOM_MAX = 1.3;
 // Lines one text takes in a box of `width` px at `size` px (bold and capitals are wider; letter spacing adds per character).
 export function linesOf(text, size, width, { bold = false, upper = false, spacing = 0 } = {}) {
   const s = String(text ?? '').replace(/\s+/g, ' ').trim();
@@ -341,7 +473,9 @@ export function linesOf(text, size, width, { bold = false, upper = false, spacin
   }
   return lines;
 }
-const textH = (text, size, width, lh = 1.5, o) => linesOf(text, size, width, o) * size * lh;
+const textHBase = (text, size, width, lh = 1.5, o) => linesOf(text, size, width, o) * size * lh;
+const textH = textHBase;
+const CARD_CAL = 0.84;
 
 // ---- the shared pieces of the agent sheet (_pdf_wordmark, heading, stats_table, _pdf_index_table) ----
 const wordmark = (extra = '') => `<span class="wordmark ${extra}" dir="ltr"><i class="mark"></i>${esc(DOC_BRAND.maker)} <b>${esc(DOC_BRAND.product)}</b></span>`;
@@ -377,12 +511,13 @@ function indexTable(rows, m, b) {
 const tableHtml = (t, rows = t.rows) => ({ html: t.open + rows.map((r) => r.html).join('') + t.close, h: t.headH + rows.reduce((a, r) => a + r.h, 0) });
 
 // ---- pages: a page is its kind, its body html and its height; flow() cuts a section over as many pages as it needs ----
+// C26: a page whose blocks are marked grow is drawn as a flex column, so the growing blocks take the room that is left and the page is full.
 function flow(out, kind, { head = null, blocks = [], table = null, after = [], extra = {} }) {
-  let page = null;
-  const open = (first) => { page = { kind, ...extra, parts: [], used: 0, room: ROOM }; out.push(page); if (first && head) { page.parts.push(head.html); page.used += head.h; } };
+  let page = null; const mine = [];
+  const open = (first) => { page = { kind, ...extra, parts: [], used: 0, room: ROOM }; out.push(page); mine.push(page); if (first && head) { page.parts.push(head.html); page.used += head.h; } };
   const put = (blk) => {
     if (page.parts.length && page.used + blk.h > ROOM) open(false);
-    page.parts.push(blk.html); page.used += blk.h;
+    page.parts.push(blk.html); page.used += blk.h; if (blk.grow) page.grow = true;
   };
   open(true);
   for (const blk of blocks) put(blk);
@@ -399,16 +534,20 @@ function flow(out, kind, { head = null, blocks = [], table = null, after = [], e
     flush();
   }
   for (const blk of after) put(blk);
+  for (const pg of mine) if (pg.grow) { pg.parts = ['<div class="fillcol">', ...pg.parts, '</div>']; pg.used = ROOM; }
   return out;
 }
 const card = (inner, h, extra = '') => ({ html: `<div class="card ${extra}">${inner}</div>`, h: h + 26 });
 
 // ---- the use case card (_pdf_use_case_card) plus its value; a card taller than a page is cut at block and line boundaries ----
-const CARD_IN = CW - 30;
-const COL = CARD_IN / 2 - 13;
-const KV_K = (CARD_IN / 2) * 0.44 - 9;
-const KV_V = (CARD_IN / 2) * 0.56;
-const CHUNK = 380; // the most one text block may take before it is cut by sentence
+const CARD_IN = CW - 44; // the card's border and 22 px padding each side
+const LCOL = Math.round(CARD_IN * 0.57);
+const COL = LCOL - 24; // the narrative column's text width
+const RCOL = CARD_IN - LCOL; // the facts panel's outer width
+const KV_K = (RCOL - 28) * 0.4 - 8;
+const KV_V = (RCOL - 28) * 0.6;
+const VCOL = CARD_IN / 2 - 16; // the value lists below the columns
+const CHUNK = 420; // the most one text block may take before it is cut by sentence
 
 function sentencesOf(text, size, width) {
   const s = String(text ?? '');
@@ -431,83 +570,102 @@ function wordsChunks(text, size, width) {
 
 function cardPieces(v, m, b) {
   const T = m.T;
-  const kicker = [v.id, v.domain, v.subdomain].filter(Boolean).join(' \u00B7 ');
-  const h5H = F.label * 1.16 + 2;
+  const textH = (...a) => textHBase(...a) * CARD_CAL; // measured against the browser (tools/measure.mjs): the card model ran about 12% tall
+  const kicker = [v.id, v.domain, v.subdomain].filter(Boolean).join(' · ');
+  const h5H = F.label * 1.3 + 4;
+  const sponsor = v.facts.find((f) => f[0] === 'sponsor');
+  const hdW = CARD_IN - 72;
   const headHtml = `<div class="head"><div class="badge ${v.kind}">${esc(v.rank)}</div><div class="hd"><div class="kick">${b.html(kicker)}</div>`
-    + `<h3${b.dir(v.title)}>${b.text(v.title)}</h3>${v.subtitle ? `<div class="sub"${b.dir(v.subtitle)}>${b.text(v.subtitle)}</div>` : ''}</div></div><div class="band"></div>`;
-  const hdW = CARD_IN - 52;
-  const headH = Math.max(40, F.label * 1.5 + 2 + textH(v.title, F.heading, hdW, 1.16, { bold: true }) + (v.subtitle ? 2 + textH(v.subtitle, F.small, hdW) : 0)) + 19;
-  const mw = (CARD_IN + 10) / v.metrics.length - 18;
-  const metricsHtml = `<table class="stats"><tr>${v.metrics.map(([, l, val]) => `<td><div class="v">${b.html(val)}</div><div class="l">${esc(l)}</div></td>`).join('')}</tr></table>`;
-  const metricsH = 17 + Math.max(...v.metrics.map(([, l, val]) => textH(val, F.small, mw, 1.15, { bold: true }) + 2 + textH(l, F.micro, mw, 1.25)));
+    + `<h3${b.dir(v.title)}>${b.text(v.title)}</h3>${v.subtitle ? `<div class="sub"${b.dir(v.subtitle)}>${b.text(v.subtitle)}</div>` : ''}`
+    + `${sponsor ? `<div class="spon"><b>${esc(sponsor[1])}</b> ${b.html(sponsor[2])}</div>` : ''}</div></div><div class="band"></div>`;
+  const headH = Math.max(56, F.label * 1.5 + 2 + textH(v.title, F.card_name, hdW, 1.16, { bold: true }) + (v.subtitle ? 5 + textH(v.subtitle, F.body, hdW) : 0)
+    + (sponsor ? 5 + textH(`${sponsor[1]} ${sponsor[2]}`, F.small, hdW) : 0)) + 24;
+  const mw = (CARD_IN + 10) / v.metrics.length - 24;
+  const metricsHtml = `<table class="stats chipsrow"><tr>${v.metrics.map(([, l, val]) => `<td><div class="v">${b.html(val)}</div><div class="l">${esc(l)}</div></td>`).join('')}</tr></table>`;
+  const metricsH = 24 + Math.max(...v.metrics.map(([, l, val]) => textH(val, F.heading, mw, 1.15, { bold: true }) + 2 + textH(l, F.label, mw, 1.25))) + 12;
   const ribbons = [];
-  const ribbonH = (t) => 22 + textH(t, F.small, CARD_IN - 26, 1.5, { bold: true });
+  const ribbonH = (t) => 24 + textH(t, F.small, CARD_IN - 30, 1.5, { bold: true });
   if (v.meetsBar) ribbons.push({ html: `<div class="ribbon meets"><b>${esc(v.meetsBar)}</b></div>`, h: ribbonH(v.meetsBar) });
   if (v.star) ribbons.push({ html: `<div class="ribbon star"><b>${b.html(v.star)}</b></div>`, h: ribbonH(v.star) });
   if (v.coverage) {
     const [label, reasonLabel, reason] = v.coverage;
     ribbons.push({ html: `<div class="ribbon"><b>${esc(label)}</b>. ${esc(reasonLabel)}: ${b.html(reason)}</div>`, h: ribbonH(`${label}. ${reasonLabel}: ${reason}`) });
   }
-  const top = { html: headHtml + metricsHtml + ribbons.map((r) => r.html).join(''), h: headH + metricsH + ribbons.reduce((a, r) => a + r.h, 0) };
-  // The narrative (left) and the facts (right): one item per block, long texts cut into sentence chunks (the label prints once).
+  // The ribbons sit side by side when they are short, so they take one row.
+  const rw = ribbons.length ? (ribbons.length === 1 || ribbons.every((r) => r.h <= 40) ? Math.max(...ribbons.map((r) => r.h)) + 6 : ribbons.reduce((a, r) => a + r.h, 0)) : 0;
+  const top = { html: headHtml + metricsHtml + (ribbons.length ? `<div class="ribbons">${ribbons.map((r) => r.html).join('')}</div>` : ''), h: headH + metricsH + rw };
+  // The narrative (left) and the facts panel with the value at stake (right): one item per block, long texts cut into sentence chunks.
   const left = v.narrative.flatMap(([, label, value]) => sentencesOf(value, F.body, COL).map((chunk, i) => ({
-    html: `<div class="blk">${i ? '' : `<h5>${esc(label)}</h5>`}<p${b.dir(chunk)}>${b.text(chunk)}</p></div>`, h: (i ? 0 : h5H) + textH(chunk, F.body, COL) + 6,
+    html: `<div class="blk">${i ? '' : `<h5>${esc(label)}</h5>`}<p${b.dir(chunk)}>${b.text(chunk)}</p></div>`, h: (i ? 0 : h5H) + textH(chunk, F.body, COL) + 14,
   })));
-  const right = v.facts.map(([, label, value]) => ({
-    html: `<tr><td class="k">${esc(label)}</td><td>${b.html(value)}</td></tr>`,
-    h: 5 + Math.max(textH(label, F.small, KV_K, 1.5, { bold: true }), textH(value, F.small, KV_V)),
+  const right = v.facts.filter((f) => f !== sponsor).map(([, label, value]) => ({
+    fact: true, html: `<tr><td class="k">${esc(label)}</td><td>${b.html(value)}</td></tr>`,
+    h: 11 + Math.max(textH(label, F.small, KV_K, 1.5, { bold: true }), textH(value, F.small, KV_V)),
   }));
-  const cols = { left, right, render: (l, r) => `<div class="cols txt"><div>${l.map((x) => x.html).join('')}</div><div>${r.length ? `<table class="kv">${r.map((x) => x.html).join('')}</table>` : ''}</div></div>`, pad: 2 };
-  const valueItems = (facts) => facts.flatMap(([, label, items]) => items.flatMap((item) => sentencesOf(item, F.small, COL - 14)).map((item, i) => ({
-    label: i ? '' : label, html: `<li${b.dir(item)}>${b.text(item)}</li>`, h: (i ? 0 : h5H) + textH(item, F.small, COL - 14) + 2,
+  // C25/C26: the value a year of this use case: the hero number, its basis and, for an estimate, the note.
+  const s = v.value;
+  const why = s.amount === null ? '' : [[T('value_basis'), s.basis], s.note ? [T('value_note'), s.note] : null, s.story ? [T('value_story'), s.story] : null].filter(Boolean);
+  const whyW = RCOL - 34;
+  right.push({
+    html: `<div class="stake"><h5>${esc(T('value_at_stake'))}</h5><div class="money${s.amount === null ? ' none' : ''}">${b.html(s.text)}</div>`
+      + `${why ? why.map(([k, t]) => `<div class="why"><b>${esc(k)}</b>: ${b.html(t)}</div>`).join('') : ''}</div>`,
+    h: 36 + h5H + (s.amount === null ? F.small * 1.5 : F.card_title * 1.15) + (why ? why.reduce((a, [k, t]) => a + 6 + textH(`${k}: ${t}`, F.small, whyW), 0) : 0),
+  });
+  const renderSide = (r) => {
+    const facts = r.filter((x) => x.fact); const rest = r.filter((x) => !x.fact);
+    return `${facts.length ? `<div class="panel"><table class="kv">${facts.map((x) => x.html).join('')}</table></div>` : ''}${rest.map((x) => x.html).join('')}`;
+  };
+  const cols = { left, right, render: (l, r) => `<div class="cols txt"><div class="lcol">${l.map((x) => x.html).join('')}</div><div class="side">${renderSide(r)}</div></div>`, pad: 6,
+    extra: (r) => (r.some((x) => x.fact) ? 28 : 0) + (r.length > 1 && r.some((x) => x.fact) ? 14 : 0) };
+  const valueItems = (facts) => facts.flatMap(([, label, items]) => items.flatMap((item) => sentencesOf(item, F.small, VCOL - 16)).map((item, i) => ({
+    label: i ? '' : label, html: `<li${b.dir(item)}>${b.text(item)}</li>`, h: (i ? 0 : h5H + 6) + textH(item, F.small, VCOL - 16) + 5,
   })));
   const valueBlock = (items) => {
     const groups = [];
     for (const it of items) { if (it.label || !groups.length) groups.push({ label: it.label, items: [] }); groups[groups.length - 1].items.push(it.html); }
     return groups.map((g) => `<div class="blk">${g.label ? `<h5>${esc(g.label)}</h5>` : ''}<ul>${g.items.join('')}</ul></div>`).join('');
   };
-  const valLeft = valueItems(v.valueFacts.filter((f) => DOC_VALUE_LEFT.includes(f[0])));
-  const valRight = valueItems(v.valueFacts.filter((f) => !DOC_VALUE_LEFT.includes(f[0])));
-  const val = v.valueFacts.length ? { left: valLeft, right: valRight, render: (l, r) => `<div class="val"><div>${valueBlock(l)}</div><div>${valueBlock(r)}</div></div>`, pad: 13 + 6 } : null;
-  // C25: the value a year of this use case, its basis and, for an estimate, the note.
-  const s = v.value;
-  const why = s.amount === null ? '' : [[T('value_basis'), s.basis], s.note ? [T('value_note'), s.note] : null, s.story ? [T('value_story'), s.story] : null].filter(Boolean);
-  const whyW = CARD_IN * 0.66 - 20;
-  const stake = {
-    html: `<div class="stake"><div class="amt"><h5>${esc(T('value_at_stake'))}</h5><div class="money${s.amount === null ? ' none' : ''}">${b.html(s.amount === null ? s.text : s.text)}</div></div>`
-      + `<div class="why">${why ? why.map(([k, t]) => `<div><b>${esc(k)}</b>: ${b.html(t)}</div>`).join('') : ''}</div></div>`,
-    h: 7 + 12 + Math.max(h5H + (s.amount === null ? F.small * 1.5 : F.card_title * 1.15), why ? why.reduce((a, [k, t]) => a + textH(`${k}: ${t}`, F.small, whyW), 0) : 0),
-  };
-  const foot = v.notebook ? { html: `<div class="foot"><span class="btn">${esc(T('doc_open_notebook'))} \u2197</span></div>`, h: 5 + F.label * 1.5 + 8 } : { html: '', h: 0 };
-  const segs = [top, cols, ...(val ? [val] : []), stake, foot];
-  const segH = (seg) => (seg.render ? seg.pad + Math.max(seg.left.reduce((a, x) => a + x.h, 0), seg.right.reduce((a, x) => a + x.h, 0)) : seg.h);
-  const shell = 24 + 10; // border, padding and the gap below the card
+  // The value lists run in two columns, cut at the group boundary that balances their heights.
+  const valAll = [...valueItems(v.valueFacts.filter((f) => DOC_VALUE_LEFT.includes(f[0]))), ...valueItems(v.valueFacts.filter((f) => !DOC_VALUE_LEFT.includes(f[0])))];
+  const valSum = valAll.reduce((a, x) => a + x.h, 0);
+  let run = 0; let cut = valAll.length; let best = valSum;
+  for (const [i, x] of valAll.entries()) { if (x.label && i > 0 && Math.abs(valSum - 2 * run) < best) { best = Math.abs(valSum - 2 * run); cut = i; } run += x.h; }
+  const valLeft = valAll.slice(0, cut); const valRight = valAll.slice(cut);
+  const val = v.valueFacts.length ? { left: valLeft, right: valRight, render: (l, r) => `<div class="val"><div>${valueBlock(l)}</div><div>${valueBlock(r)}</div></div>`, pad: 26 } : null;
+  const foot = v.notebook ? { html: `<div class="foot"><span class="btn">${esc(T('doc_open_notebook'))} ↗</span></div>`, h: 10 + F.label * 1.5 + 10 } : { html: '', h: 0 };
+  const segs = [top, cols, ...(val ? [val] : []), foot];
+  const segH = (seg) => (seg.render ? seg.pad + (seg.extra ? seg.extra(seg.right) : 0) + Math.max(seg.left.reduce((a, x) => a + x.h, 0), seg.right.reduce((a, x) => a + x.h, 0)) : seg.h);
+  const shell = 38 + 14; // border, padding and the gap below the card
   const total = shell + segs.reduce((a, seg) => a + segH(seg), 0);
-  const article = (inner, cont) => `<article class="uc${v.kind ? ` ${v.kind}` : ''}${cont ? ' cont' : ''}" data-uc="${esc(v.id)}"${cont ? '' : ` id="uc-${esc(v.id)}"`}><div class="main">${inner}</div></article>`;
-  if (total <= ROOM) return [{ html: article(segs.map((seg) => (seg.render ? seg.render(seg.left, seg.right) : seg.html)).join(''), false), h: total }];
+  const roomy = total <= ROOM * 0.8;
+  const tight = total > ROOM && total <= ROOM * 1.14; // a card a little over a page is set tighter instead of cut
+  const article = (inner, cont) => `<article class="uc${v.kind ? ` ${v.kind}` : ''}${cont ? ' cont' : ''}${roomy ? ' roomy' : ''}${tight ? ' tight' : ''}" data-uc="${esc(v.id)}"${cont ? '' : ` id="uc-${esc(v.id)}"`}><div class="main">${inner}</div></article>`;
+  if (total <= ROOM * (tight ? 1.14 : 1)) return [{ html: article(segs.map((seg) => (seg.render ? seg.render(seg.left, seg.right) : seg.html)).join(''), false), h: total, grow: true }];
   // Too tall for one page: pieces of at most a page each, the next ones headed by the id and the title.
-  const contHead = { html: `<div class="kick">${b.html(kicker)}</div><h3${b.dir(v.title)}>${b.text(v.title)}</h3>`, h: F.label * 1.5 + textH(v.title, F.heading, CARD_IN, 1.16, { bold: true }) + 6 };
+  const contHead = { html: `<div class="kick">${b.html(kicker)}</div><h3${b.dir(v.title)}>${b.text(v.title)}</h3>`, h: F.label * 1.5 + textH(v.title, F.card_name, CARD_IN, 1.16, { bold: true }) + 14 };
+  const cap = ROOM;
   const pieces = []; let parts = []; let used = shell;
-  const close = () => { pieces.push({ html: article(parts.join(''), pieces.length > 0), h: used }); parts = [contHead.html]; used = shell + contHead.h; };
+  const close = () => { pieces.push({ html: article(parts.join(''), pieces.length > 0), h: used, grow: true }); parts = [contHead.html]; used = shell + contHead.h; };
   for (const seg of segs) {
     if (!seg.render) {
-      if (parts.length > (pieces.length ? 1 : 0) && used + seg.h > ROOM) close();
+      if (parts.length > (pieces.length ? 1 : 0) && used + seg.h > cap) close();
       parts.push(seg.html); used += seg.h; continue;
     }
     let l = [...seg.left]; let r = [...seg.right];
     while (l.length || r.length) {
-      const avail = ROOM - used - seg.pad;
+      const avail = cap - used - seg.pad - (seg.extra ? 42 : 0);
       const take = (list) => { const got = []; let h = 0; while (list.length && h + list[0].h <= avail) { h += list[0].h; got.push(list.shift()); } return [got, h]; };
       let [gl, hl] = take(l); let [gr, hr] = take(r);
       if (!gl.length && !gr.length) {
         if (parts.length > (pieces.length ? 1 : 0)) { close(); continue; }
         if (l.length) { gl = [l.shift()]; hl = gl[0].h; } else { gr = [r.shift()]; hr = gr[0].h; }
       }
-      parts.push(seg.render(gl, gr)); used += seg.pad + Math.max(hl, hr);
+      parts.push(seg.render(gl, gr)); used += seg.pad + (seg.extra ? seg.extra(gr) : 0) + Math.max(hl, hr);
       if (l.length || r.length) close();
     }
   }
-  pieces.push({ html: article(parts.join(''), pieces.length > 0), h: used });
+  pieces.push({ html: article(parts.join(''), pieces.length > 0), h: used, grow: true });
+  for (const pc of pieces) pc.h = ROOM; // each piece has its own page, stretched to fill it
   return pieces;
 }
 
@@ -521,29 +679,35 @@ function storyPage(out, v, m, b, domain) {
   const head = { html: `<div class="story" data-story="${esc(v.id)}"><div class="kick">${b.html(kicker)}</div></div><h2 class="title"${b.dir(title)}>${b.text(title)}</h2><div class="rule"></div>`,
     h: F.label * 1.5 + 4 + textH(title, F.title, CW, 1.16, { bold: true }) + 25 };
   const why = [[T('value_basis'), s.basis], s.note ? [T('value_note'), s.note] : null].filter(Boolean);
-  const whyW = IN * 0.66 - 24;
-  const wrap = (html, h, tag = '') => ({ html: `<div class="story" data-story="${esc(v.id)}">${html}</div>`, h, tag });
+  const IN2 = CW - 44;
+  const whyW = CW * 0.56 - 44;
+  const wrap = (html, h, grow = false) => ({ html: `<div class="story${grow ? ' grow' : ''}" data-story="${esc(v.id)}">${html}</div>`, h, grow });
+  // The hero number with its basis, then the story as a lead paragraph.
   const blocks = [wrap(`<div class="sum"><div class="amt"><h5>${esc(T('value_at_stake'))}</h5><div class="money">${b.html(s.text)}</div></div>`
     + `<div class="why">${why.map(([k, t]) => `<div><b>${esc(k)}</b>: ${b.html(t)}</div>`).join('')}</div></div>`,
-  16 + 13 + Math.max(F.label * 1.16 + 2 + F.card_title * 1.15, why.reduce((a, [k, t]) => a + textH(`${k}: ${t}`, F.small, whyW), 0)))];
-  const cardOf = (label, inner, h) => { const c = card(`${label ? `<h4>${esc(label)}</h4>` : ''}${inner}`, (label ? F.heading * 1.16 + 6 : 0) + h + 13, 'gap'); return wrap(c.html, c.h); };
-  if (s.story) for (const [i, chunk] of sentencesOf(s.story, F.body, IN).entries()) {
-    blocks.push(cardOf(i ? '' : T('value_story'), `<p${b.dir(chunk)}>${b.text(chunk)}</p>`, textH(chunk, F.body, IN)));
+  38 + 14 + Math.max(F.label * 1.3 + 4 + F.hero * 1.15, why.reduce((a, [k, t]) => a + 6 + textH(`${k}: ${t}`, F.small, whyW), 0)) + 14)];
+  if (s.story) for (const [i, chunk] of sentencesOf(s.story, F.lead, IN2 - 24).entries()) {
+    blocks.push(wrap(`<div class="lede">${i ? '' : `<h5>${esc(T('value_story'))}</h5>`}<p${b.dir(chunk)}>${b.text(chunk)}</p></div>`, (i ? 0 : F.label * 1.3 + 4) + textH(chunk, F.lead, IN2 - 24, 1.55) + 28 + 14));
   }
-  if (s.factors.length) {
-    const rows = s.factors.map((f) => `<tr><td class="nm">${b.html(f.name)}</td><td><div class="track"><div class="fill" style="width:${Math.max(4, f.share)}%"></div></div></td><td class="n">${esc(f.share)}%</td></tr>`).join('');
-    blocks.push(cardOf(T('value_source'), `<table class="bars vbars">${rows}</table>`, s.factors.reduce((a, f) => a + 7 + textH(f.name, F.small, IN * 0.34), 0)));
-    const lines = s.factors.filter((f) => f.formula);
-    if (lines.length) {
-      const items = lines.map((f) => `<li${b.dir(f.formula)}><b>${b.html(f.name)}</b>: ${b.text(f.formula)}</li>`).join('');
-      blocks.push(cardOf(T('value_how'), `<ul class="flist">${items}</ul>`, lines.reduce((a, f) => a + 3 + textH(`${f.name}: ${f.formula}`, F.small, IN - 16), 0)));
-    }
-  }
+  // The 3-year projection: bars (low, likely, high per year) with the table under them.
   if (s.projection.length) {
+    const num = (t) => { const mm = /(\d[\d.,]*)\s*([KMBkmb])?/.exec(String(t)); if (!mm) return 0; const x = parseFloat(mm[1].replace(/,/g, '')); return Number.isFinite(x) ? x * ({ k: 1e3, m: 1e6, b: 1e9 }[(mm[2] || '').toLowerCase()] || 1) : 0; };
+    const top = Math.max(1, ...s.projection.map((y) => num(y.high)), ...s.projection.map((y) => num(y.likely)));
+    const bar = (cls, label, text) => `<div class="col"><div class="bv" dir="ltr">${b.html(text)}</div><div class="b ${cls}" style="height:${Math.max(3, (100 * num(text)) / top).toFixed(1)}%"></div></div>`;
+    const groups = s.projection.map((y) => `<div class="yg"><div class="plot">${bar('low', T('value_low'), y.low)}${bar('likely', T('value_likely'), y.likely)}${bar('high', T('value_high'), y.high)}</div><div class="yl">${esc(T('value_year_n', { n: y.year }))}</div></div>`).join('');
+    const legend = [['low', T('value_low')], ['likely', T('value_likely')], ['high', T('value_high')]].map(([c, l]) => `<span><i class="sw ${c}"></i>${esc(l)}</span>`).join('');
     const cell = (x) => `<td dir="ltr">${b.html(x)}</td>`;
     const rows = s.projection.map((y) => `<tr><td>${esc(T('value_year_n', { n: y.year }))}</td>${cell(y.low)}<td class="lk" dir="ltr">${b.html(y.likely)}</td>${cell(y.high)}</tr>`).join('');
-    const inner = `<table class="proj"><thead><tr><th>${esc(T('value_year'))}</th><th>${esc(T('value_low'))}</th><th>${esc(T('value_likely'))}</th><th>${esc(T('value_high'))}</th></tr></thead><tbody>${rows}</tbody></table>`;
-    blocks.push(cardOf(T('value_projection'), inner, F.label * 1.5 + 8 + s.projection.length * (F.small * 1.5 + 9)));
+    const table = `<table class="proj"><thead><tr><th>${esc(T('value_year'))}</th><th>${esc(T('value_low'))}</th><th>${esc(T('value_likely'))}</th><th>${esc(T('value_high'))}</th></tr></thead><tbody>${rows}</tbody></table>`;
+    blocks.push(wrap(`<div class="pcard"><div class="phd"><h4>${esc(T('value_projection'))}</h4><div class="legend2">${legend}</div></div><div class="chart">${groups}</div>${table}</div>`,
+      46 + 220 + F.label * 1.5 + 8 + s.projection.length * (F.small * 1.5 + 10) + 30, true));
+  }
+  // Where the value comes from: each driver as a bar with its share and its formula in plain words.
+  if (s.factors.length) {
+    const rows = s.factors.map((f) => `<div class="drv"><div class="dh"><span class="dn">${b.html(f.name)}</span><span class="ds">${esc(f.share)}%</span></div><div class="track"><div class="fill" style="width:${Math.max(4, f.share)}%"></div></div>`
+      + `${f.formula ? `<div class="df"${b.dir(f.formula)}>${b.text(f.formula)}</div>` : ''}</div>`).join('');
+    blocks.push(wrap(`<div class="dcard"><h4>${esc(T('value_source'))}</h4>${rows}</div>`,
+      60 + s.factors.reduce((a, f) => a + 24 + 14 + (f.formula ? textH(f.formula, F.small, IN2, 1.45) + 4 : 0) + 14, 0)));
   }
   flow(out, 'story', { head, blocks, extra: { domain } });
 }
@@ -625,7 +789,7 @@ function sections(m) {
   ] });
   // Per domain (or objective): the opener page, then its cards
   for (const d of m.domains) {
-    out.push(openerPage(d, m, b));
+    out.push(...openerPage(d, m, b));
     // REQ-561: a use case with a value is followed by its value story page; the cards before it are cut onto their pages first.
     let pending = [];
     const flush = () => { if (pending.length) flow(out, 'cards', { blocks: pending, extra: { domain: d.index } }); pending = []; };
@@ -679,27 +843,45 @@ function sections(m) {
   return out;
 }
 
-// _pdf_domain_opener: the band with the number and name, the overview and stats, what it covers and its top opportunities.
+// _pdf_domain_opener, C26: a full divider page. The band with the number and name, the domain's value and counts as big tiles, what it covers,
+// then every use case of the domain as a card (rank, name, one line, value a year, quality). The cards grow to fill the page; a domain with
+// more use cases than one page holds goes on over further pages.
+const DC_MIN = 66; // the least height of one use case card, with its gap
 function openerPage(d, m, b) {
   const T = m.T;
   const number = String(d.index).padStart(2, '0');
   const subtitle = docJoin(d.subdomains.slice(0, 5).map(([n]) => n), m.language);
   const chips = d.subdomains.slice(0, 12).map(([n, c]) => `<span class="chip">${b.html(n)} <b>${c}</b></span>`).join('');
-  const cells = d.stats.map(([v, l]) => `<td><div class="v">${b.html(v)}</div><div class="l">${esc(l)}</div></td>`).join('');
+  const tiles = [...(d.value && d.value.amount > 0 ? [[d.value.text, T('value_year')]] : []), ...d.stats];
+  const cells = tiles.map(([v, l]) => `<td><div class="v">${b.html(v)}</div><div class="l">${esc(l)}</div></td>`).join('');
   const label = T(m.groupLabelKey);
-  const top = tableHtml(indexTable(d.top, m, b));
-  const leftW = CW * 0.57 - 14; const rightW = CW * 0.43;
-  const bandH = 87 + F.label * 1.5 + 23 + F.numeral * 0.92 + F.label * 1.5 + 2 + 3 + textH(d.name, F.display, CW - 120, 1.16, { bold: true }) + (subtitle ? 7 + textH(subtitle, F.body, CW - 60) : 0);
-  const overH = F.heading * 1.16 + 7 + d.overview.reduce((a, p, i) => a + 7 + textH(p, i ? F.body : F.lead, leftW, 1.6), 0);
-  const chipsH = chips ? 12 + F.heading * 1.16 + 7 + Math.ceil(d.subdomains.slice(0, 12).reduce((a, [n]) => a + linesOf(n, F.small, 9999) * 0 + (n.length + 4) * F.small * 0.56 + 20, 0) / rightW) * (F.small * 1.5 + 8) : 0;
-  const statsH = statsTable(d.stats, b, '', rightW).h;
-  const used = bandH - 72 + 42 + Math.max(overH, statsH + chipsH) + 13 + 26 + F.heading * 1.16 + 6 + top.h;
-  return { kind: 'domain', domain: d.index, section: d.index === 1 ? 'domains' : '', noHeader: true, room: ROOM, used, parts: [
+  const firstSentence = (t) => { const x = String(t ?? '').split(/(?<=[.!?؟。])\s/)[0].trim(); return x.length > 150 ? `${x.slice(0, 147).replace(/\s+\S*$/, '')}...` : x; };
+  const dcard = (v) => {
+    const line = firstSentence(v.narrative[0]?.[2]);
+    const q = v.quality ? `<span class="pill" style="background:#${qualityColor(v.quality).toLowerCase()}">${b.html(v.quality)}</span>` : '';
+    return `<div class="dc"><div class="rk ${v.kind}">${esc(v.rank)}</div><div class="dt"><div class="dn"${b.dir(v.title)}>${b.text(v.title)}</div>${line ? `<div class="dl"${b.dir(line)}>${b.text(line)}</div>` : ''}</div>`
+      + `<div class="dv">${v.value.amount !== null ? `<div class="dm">${b.html(v.value.text)}</div>` : ''}${q}</div></div>`;
+  };
+  const overW = CW * 0.55 - 14;
+  const bandH = 72 + 40 + F.numeral * 0.92 + F.label * 1.5 + 8 + textH(d.name, F.display, CW - 120, 1.16, { bold: true }) + (subtitle ? 8 + textH(subtitle, F.body, CW - 60) : 0) + 28;
+  const statsH = 24 + F.heading * 1.15 + 6 + F.label * 2.6 + 18;
+  const overH = 40 + F.heading * 1.16 + 8 + d.overview.reduce((a, p, i) => a + 8 + textH(p, F.lead, overW, 1.6), 0);
+  const top = bandH + statsH + overH + 12 + F.heading * 1.16 + 14;
+  const perPage = Math.max(1, Math.floor((ROOM + 72 - top - 8) / DC_MIN));
+  const list = d.useCases;
+  const chunks = []; for (let i = 0; i < list.length; i += perPage) chunks.push(list.slice(i, i + perPage));
+  const nextPer = Math.max(1, Math.floor((ROOM - 70) / DC_MIN));
+  if (chunks.length > 1) { const rest = list.slice(perPage); chunks.length = 1; for (let i = 0; i < rest.length; i += nextPer) chunks.push(rest.slice(i, i + nextPer)); }
+  const first = { kind: 'domain', domain: d.index, section: d.index === 1 ? 'domains' : '', noHeader: true, room: ROOM, used: ROOM, parts: [
     `<section class="opener"${d.index === 1 ? ' id="sec-domains"' : ''}><div class="band">${artSvg('rings')}<div class="in">${wordmark('light')}<div class="num">${number}</div>`
     + `<div class="eyebrow">${esc(label)} ${number}</div><h2 id="domain-${d.index}">${b.html(d.name)}</h2>${subtitle ? `<div class="sub">${b.html(subtitle)}</div>` : ''}</div></div>`
-    + `<div class="body"><div class="cols"><div class="overview txt"><h4>${esc(T('doc_domain_overview'))}</h4>${d.overview.map((p, i) => `<p class="${i ? '' : 'first'}"${b.dir(p)}>${b.text(p)}</p>`).join('')}</div>`
-    + `<div><table class="stats"><tr>${cells}</tr></table>${chips ? `<h4 style="margin-top:12px">${esc(T('doc_what_it_covers'))}</h4><div class="chips">${chips}</div>` : ''}</div></div>`
-    + `<div class="card soft gap"><h4>${esc(T('doc_top_opportunities'))}</h4>${top.html}</div></div></section>`] };
+    + `<div class="body"><table class="stats big domstats"><tr>${cells}</tr></table>`
+    + `<div class="orow"><div class="overview txt"><h4>${esc(T('doc_domain_overview'))}</h4>${d.overview.map((p, i) => `<p class="${i ? '' : 'first'}"${b.dir(p)}>${b.text(p)}</p>`).join('')}</div>`
+    + `${chips ? `<div class="cov"><h4>${esc(T('doc_what_it_covers'))}</h4><div class="chips">${chips}</div></div>` : ''}</div>`
+    + `<h4 class="dch">${esc(T('doc_top_opportunities'))}</h4><div class="dcs">${chunks[0].map(dcard).join('')}</div></div></section>`] };
+  const more = chunks.slice(1).map((c) => ({ kind: 'domain', domain: d.index, room: ROOM, used: ROOM, parts: [
+    `<section class="opener cont"><div class="eyebrow">${esc(label)} ${number}</div><h2 class="title">${b.html(d.name)}</h2><div class="rule"></div><div class="dcs">${c.map(dcard).join('')}</div></section>`] }));
+  return [first, ...more];
 }
 
 // C25: the value page. The total a year, the value per domain, the top use cases by value and the use cases without a value.
@@ -770,21 +952,28 @@ export function pagesOf(m) {
   const pageNo = (i) => (m.rtl ? `\u200E${i} / ${n}\u200E` : `${i} / ${n}`);
   return pages.map((p, i) => {
     const body = p.parts.join('').replace(/@@PG:(\w+)@@/g, (_, k) => String(first[k] ?? ''));
+    // C26: a text or table page that is short is drawn larger (the reader sees bigger type, not a half-empty page); height grows about with the square of the zoom.
+    let page = body; let usedNow = p.used;
+    if (!p.bleed && !p.grow && !['domain', 'cards', 'story'].includes(p.kind) && p.used < ROOM * 0.9) {
+      const z = Math.min(p.kind === 'exec' ? 1.6 : ZOOM_MAX, Math.sqrt((ROOM * 0.94) / Math.max(p.used, 1)));
+      page = `<div class="zoomed" style="zoom:${z.toFixed(3)}">${body}</div>`; usedNow = Math.min(ROOM, p.used * z * z);
+    }
     const hdr = p.bleed || p.noHeader ? '' : `<div class="hdr">${wordmark()}<span${bidiFor(m).dir(m.businessName)}>${esc(m.businessName)}</span></div>`;
     const ftr = p.bleed ? '' : `<div class="ftr"><span${bidiFor(m).dir(m.generatedBy)}>${esc(m.generatedBy)}</span><span class="pno">${pageNo(i + 1)}</span></div>`;
     const classes = [cls, p.sand ? 'sand' : '', p.bleed ? 'bleed' : '', p.cls ? '' : ''].filter(Boolean).join(' ');
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><foreignObject x="0" y="0" width="${W}" height="${H}">`
-      + `<div xmlns="http://www.w3.org/1999/xhtml" class="${classes}" dir="${dir}" lang="${esc(m.lang)}" data-kind="${p.kind}"><style>${css}</style>${hdr}<div class="content">${body}</div>${ftr}</div></foreignObject></svg>`;
-    return { kind: p.kind, ...(p.domain ? { domain: p.domain } : {}), svg, used: Math.round(p.used), room: p.room };
+      + `<div xmlns="http://www.w3.org/1999/xhtml" class="${classes}" dir="${dir}" lang="${esc(m.lang)}" data-kind="${p.kind}"><style>${css}</style>${hdr}<div class="content">${page}</div>${ftr}</div></foreignObject></svg>`;
+    return { kind: p.kind, ...(p.domain ? { domain: p.domain } : {}), svg, used: Math.round(usedNow), room: p.room };
   });
 }
 export const agentPdfSvgs = (args) => agentPdfPages(args).map((p) => p.svg);
 
-// The PDF file: each page drawn to a PNG at twice the size (sharp text), one after the other to keep memory low, then jsPDF.
-// rasterize is generateDocs.svgToPng (passed in, so this module stays free of the DOM and of a circular import).
+// The PDF file: each page drawn to a JPEG (RC7C-C-01: PNG pages made a 30 MB file the save route refuses with 413), one after the other
+// to keep memory low, then jsPDF. rasterize is generateDocs.svgToPng (passed in, so this module stays free of the DOM and of a circular import).
+export const PDF_RASTER = { scale: 1.25, type: 'image/jpeg', quality: 0.5 };
 export async function buildAgentPdf(args, rasterize) {
   const images = [];
-  for (const svg of agentPdfSvgs(args)) images.push(await rasterize(svg, 2));
+  for (const svg of agentPdfSvgs(args)) images.push(await rasterize(svg, PDF_RASTER.scale, { type: PDF_RASTER.type, quality: PDF_RASTER.quality }));
   const { pdfFromImages } = await import('./pdfDoc.js');
   return pdfFromImages(images);
 }
