@@ -4,7 +4,7 @@ import { designOf, toDesignModel } from './designs/model.js';
 import { scoreInfographic } from './designs/scoreInfographic.js';
 import { resetLog, rtlSvg, SPILL, wrap as designWrap, T, rect, svgDoc } from './designs/core.js';
 import { paletteOf } from './designs/palette.js';
-import { withPanelTiles } from './designs/panelTiles.js';
+import { withPanelTiles, splitInfographic } from './designs/panelTiles.js';
 import { LB, withLabels } from './docLabels.js';
 import { extraParts, partLines } from './docModel.js';
 
@@ -158,12 +158,13 @@ const rtlRoot = (m, svg) => (m.rtl ? svg.replace(/^<svg /, '<svg direction="rtl"
 const designRtl = (m, svg) => (m.rtl ? rtlSvg(svg) : svg);
 
 // REQ-561: with the agent card views the infographic grows a tile per use case that carries every business section of the side panel.
+// C26: infographicPagesSvg cuts it into pages of at most three A4 pages (every tile kept); infographicSvg is the same as one tall svg.
+const panelPalette = (theme) => (theme.design ? paletteOf(theme.design, theme.tokens) : { page: theme.bg, card: theme.surface, ink: theme.ink, body: theme.ink, muted: theme.muted, accent: theme.accents[0] });
 export const infographicSvg = (m, theme, views = null) => withLabels(m.labels, () => {
   const svg = infographicSvgOf(m, theme);
-  if (!views) return svg;
-  const th = theme.design ? paletteOf(theme.design, theme.tokens) : { page: theme.bg, card: theme.surface, ink: theme.ink, body: theme.ink, muted: theme.muted, accent: theme.accents[0] };
-  return withPanelTiles(svg, views, th, { rtl: m.rtl });
+  return views ? withPanelTiles(svg, views, panelPalette(theme), { rtl: m.rtl }) : svg.replace(/<!--cut:\d+-->/g, '');
 });
+export const infographicPagesSvg = (m, theme, views = null) => splitInfographic(infographicSvg(m, theme, views));
 function infographicSvgOf(m, theme) {
   const d = designed(m, theme, { empty: true });
   if (d?.noValue) { resetLog(); return designRtl(m, scoreInfographic(d.dm, theme.tokens, { W: 794 }, { id: theme.design, fonts: d.design.fonts })); }
@@ -178,6 +179,7 @@ function infographicSvgOf(m, theme) {
   y += 92 + 36;
   if (has(m, 'value_projection')) { const pj = projection(m, theme, 48, y, W - 96, 280); body += pj.svg; y += pj.h; }
   body += valueBars(m, theme, 48, y, W - 96); y += 44 + m.useCases.reduce((a, u) => a + barRowH(u), 0) + 24;
+  body += `<!--cut:${Math.round(y - 8)}-->`; // C26: where the infographic may be cut into pages
   // Cards in two columns; each row is as tall as its taller card.
   for (let i = 0; i < m.useCases.length; i += 2) {
     const pair = m.useCases.slice(i, i + 2).map((u, j) => card(m, theme, u, i + j, 48 + j * (cw + gap), y, cw));
@@ -185,6 +187,7 @@ function infographicSvgOf(m, theme) {
     const rowH = Math.max(...hs);
     body += pair.map((c) => c.replace(/<!--h:\d+-->/, '').replace(/height="\d+"(?= rx)/, `height="${rowH}"`)).join('');
     y += rowH + gap;
+    body += `<!--cut:${Math.round(y - gap / 2)}-->`;
   }
   if (has(m, 'disclaimer')) { body += `<g data-block="disclaimer">${txt(m, 'Estimates are AI-generated from your data and strategy. Treat them as a starting point.', 48, y + 14, { size: 12, fill: theme.muted, w: W - 96 })}</g>`; y += 40; }
   const H = y + 20;
@@ -255,7 +258,6 @@ function briefUseCasePages(m, theme) {
     [['Sponsor', u.sponsor], ['Beneficiary', u.beneficiary], ['Technique', u.technique]].forEach(([l, v]) => part('use_case_story', l, v ? [v] : []));
     extraParts(u).forEach(([l, items]) => part('use_case_story', l, partLines(items)));
     part('value_story', 'Value story', u.value?.story ? [u.value.story] : []);
-    part('data_used', 'Data used', u.tables.length ? [u.tables.join(', ')] : []);
     if (has(m, 'value_projection') && u.value && u.value.yearly.length) {
       body += projection({ ...sub, total: { ...m.total, currency: u.value.currency } }, theme, X, y, IW, 260).svg; y += 280;
     }

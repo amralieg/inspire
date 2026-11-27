@@ -69,7 +69,6 @@ export async function buildDocx(m, theme = {}) {
       [['Sponsor', u.sponsor], ['Beneficiary', u.beneficiary], ['Technique', u.technique]].forEach(([l, v]) => part('use_case_story', l, v ? [v] : []));
       extraParts(u).forEach(([l, items]) => part('use_case_story', l, partLines(items)));
       part('value_story', 'Value story', u.value?.story ? [u.value.story] : []);
-      part('data_used', 'Data used', u.tables.length ? [u.tables.join(', ')] : []);
       if (has(m, 'value_projection') && u.value && u.value.yearly.length) { para(LB('Three-year projection'), { bold: true, color: '6B7280', size: 20 }); projection(u); }
     });
     if (has(m, 'disclaimer')) para(LB('Estimates are AI-generated from your data and strategy. Treat them as a starting point.'), { color: '6B7280', size: 20 });

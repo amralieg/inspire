@@ -12,11 +12,9 @@ export const CONTENT_BLOCKS = [
   { id: 'value_formula', label: 'Value formula', hint: 'The factors behind the figure' },
   { id: 'inspire_score', label: 'Inspire score', hint: 'The 0 to 10 score' },
   { id: 'strategy_link', label: 'Strategy link', hint: 'How it ties to the business strategy' },
-  { id: 'data_used', label: 'Data used', hint: 'The tables it reads' },
   { id: 'genie_questions', label: 'Genie questions', hint: 'Questions to ask the data' },
   { id: 'build_status', label: 'Build status', hint: 'Where the build stands' },
   { id: 'next_steps', label: 'Next steps', hint: 'What to do next' },
-  { id: 'sql', label: 'SQL', hint: 'The query behind it' },
   { id: 'disclaimer', label: 'Disclaimer', hint: 'Estimates are AI-generated' },
 ];
 
@@ -28,11 +26,11 @@ const COLUMN_GROUPS = [
   { id: 'value', label: 'Value', columns: [['inspire_score', 'Inspire score'], ['value', 'Value'], ['value_status', 'Value status'], ['value_story', 'Value story'],
     ['projection', 'Projection'], ['financial', 'Financial benefits'], ['non_financial', 'Non-financial benefits']] },
   { id: 'data', label: 'Data', columns: [['tables', 'Tables'], ['technique', 'Technique'], ['foundations', 'Foundations']] },
-  { id: 'delivery', label: 'Delivery', columns: [['design', 'Technical design'], ['kpis', 'KPIs'], ['key_results', 'Expected key results'], ['measures', 'Measures of success']] },
+  { id: 'delivery', label: 'Delivery', columns: [['kpis', 'KPIs'], ['key_results', 'Expected key results'], ['measures', 'Measures of success']] },
 ];
 // The flat list in the sheet order (the order the Excel had before the groups); each column names its group.
 const LEGACY_ORDER = ['id', 'name', 'inspire_score', 'value', 'value_status', 'domain', 'statement', 'use_case_story', 'value_story', 'projection', 'tables', 'business_value', 'sponsor',
-  'beneficiary', 'technique', 'design', 'type', 'priority_alignment', 'strategic_alignment', 'kpis', 'key_results', 'measures', 'financial', 'non_financial', 'foundations'];
+  'beneficiary', 'technique', 'type', 'priority_alignment', 'strategic_alignment', 'kpis', 'key_results', 'measures', 'financial', 'non_financial', 'foundations'];
 const BY_ID = Object.fromEntries(COLUMN_GROUPS.flatMap((g) => g.columns.map(([id, label]) => [id, { id, label, group: g.id }])));
 export const EXCEL_COLUMNS = LEGACY_ORDER.map((id) => BY_ID[id]);
 export const EXCEL_GROUPS = COLUMN_GROUPS.map((g) => ({ id: g.id, label: g.label, columns: EXCEL_COLUMNS.filter((c) => c.group === g.id).map((c) => c.id) }));
@@ -44,8 +42,8 @@ export function defaultDocOptions(language = 'English') {
     kinds: [...DEFAULT_KINDS],
     layout: 'one',
     languages: [language],
-    blocks: ['use_case_story', 'value_story', 'value_projection', 'inspire_score', 'data_used', 'disclaimer'],
-    columns: orderedColumns(['id', 'name', 'inspire_score', 'value', 'value_status', 'domain', 'statement', 'use_case_story', 'business_value', 'sponsor', 'beneficiary', 'technique', 'design', 'kpis', 'key_results', 'tables']),
+    blocks: ['use_case_story', 'value_story', 'value_projection', 'inspire_score', 'disclaimer'],
+    columns: orderedColumns(['id', 'name', 'inspire_score', 'value', 'value_status', 'domain', 'statement', 'use_case_story', 'business_value', 'sponsor', 'beneficiary', 'technique', 'kpis', 'key_results', 'tables']),
     style: 'original', // REQ-526: the four designs come first; the original is the default
     palette: 'databricks',
     customColor: '',

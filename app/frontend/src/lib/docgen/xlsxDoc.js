@@ -31,7 +31,7 @@ const CELL = {
   projection: (u) => text(projectionText(u)),
   tables: (u) => text((u.tables || []).join(', ')),
   business_value: (u) => text(u.businessValue), sponsor: (u) => text(u.sponsor), beneficiary: (u) => text(u.beneficiary), technique: (u) => text(u.technique),
-  design: (u) => text(u.design), type: (u) => text(u.type), priority_alignment: (u) => text(u.priorityAlignment), strategic_alignment: (u) => text(u.strategicAlignment),
+  type: (u) => text(u.type), priority_alignment: (u) => text(u.priorityAlignment), strategic_alignment: (u) => text(u.strategicAlignment),
   kpis: (u) => lines(u.kpis), key_results: (u) => lines(u.keyResults), measures: (u) => lines(u.measures), financial: (u) => lines(u.financial),
   non_financial: (u) => lines(u.nonFinancial), foundations: (u) => lines(u.foundations),
 };

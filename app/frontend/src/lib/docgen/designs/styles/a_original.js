@@ -195,7 +195,7 @@ function deckUseCase(m, th, u, idx) {
   });
   s += rect(815, 310, 458, 395, th.sand, { rx: 14 });
   let fy = 346;
-  [['Sponsor', u.sponsor], ['Beneficiary', u.beneficiary], ['Technique', u.technique], ['Data used', u.tables.join(', ')]].forEach(([l, v]) => {
+  [['Sponsor', u.sponsor], ['Beneficiary', u.beneficiary], ['Technique', u.technique]].forEach(([l, v]) => {
     s += t(840, fy, l, { size: 16, weight: 700, fill: th.teal, bg: th.sand, font: BODY, ctx: 'fact l' });
     const r = T(840, fy + 24, v, { size: 16, fill: th.ink, bg: th.sand, maxW: 410, lines: 2, lh: 21, font: BODY, ctx: 'fact' });
     s += r.svg; fy += 40 + r.h;

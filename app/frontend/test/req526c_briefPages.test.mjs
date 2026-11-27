@@ -47,7 +47,7 @@ for (const id of IDS) for (const mode of MODES) {
     assert.ok(p.includes(u.name.replace(/&/g, '&amp;').slice(0, 20)), 'the use case name');
     assert.ok(p.includes(`>${u.value.text}<`), 'the value');
     assert.match(p, /data-block="value_projection"/); assert.match(p, /data-block="use_case_story"/);
-    assert.match(p, /data-block="value_story"/); assert.match(p, /data-block="data_used"/);
+    assert.match(p, /data-block="value_story"/); assert.doesNotMatch(p, /data-block="data_used"/); // C26: tables are never printed
     assert.match(p, /Inspire score/i);
     const legacy = briefPagesSvg(m, resolveTheme('midnight', 'databricks', '', mode))[1];
     assert.doesNotMatch(legacy, /data-design=/, 'the legacy card has no design marker');

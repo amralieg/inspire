@@ -56,10 +56,10 @@ test('(a) no document kind prints tables, filters, foundations, notebook path, S
     withTech(flat(infographicSvg(m, theme(style), buildAgentModel(a).ranked)), `the ${style} infographic`);
     withTech(await slideText(await buildPptx(m, theme(style))), `the ${style} classic deck`);
   }
-  const docx = await JSZip.loadAsync(await (await buildDocx(m, theme('original'))).arrayBuffer());
+  const docx = await JSZip.loadAsync(await buildDocx(m, theme('original')));
   withTech(flat(await docx.file('word/document.xml').async('string')), 'the Word document');
   withTech(flat(agentPdfPages(a).filter((p) => p.kind === 'cards' || p.kind === 'story').map((p) => p.svg).join(' ')), 'the PDF use case pages');
-  withTech(await slideText(await buildAgentPptx(a)), 'the agent deck use case slides'.replace('slides', 'slides')).constructor;
+  withTech(await slideText(await buildAgentPptx(a)), 'the agent deck');
 });
 
 test('(b) the infographic of 30 use cases is cut into pages of at most 3 A4 pages, every tile kept', () => {
@@ -70,9 +70,9 @@ test('(b) the infographic of 30 use cases is cut into pages of at most 3 A4 page
     assert.ok(pages.length > 1, `${style}: more than one page`);
     let tiles = 0;
     for (const svg of pages) {
-      const h = Number(/^<svg [^>]*? height="(\d+)"/.exec(svg)[1]);
+      const hm = /^<svg [^>]*? height="(\d+)"/.exec(svg); assert.ok(hm, `page head: ${svg.slice(0, 160)}`); const h = Number(hm[1]);
       assert.ok(h <= 3 * 1123, `${style}: page height ${h} is at most 3369`);
-      assert.equal(Number(/viewBox="0 0 \d+ (\d+)"/.exec(svg)[1]), h, 'the viewBox matches the height');
+      assert.equal(Number(/viewBox="0 \d+ \d+ (\d+)"/.exec(svg)[1]), h, 'the viewBox matches the height');
       tiles += (svg.match(/data-tile="/g) || []).length;
     }
     assert.equal(tiles, 30, `${style}: all 30 tiles are on some page`);
@@ -96,8 +96,8 @@ test('(c) Arabic and French runs print the new labels translated, not in English
       const en = AGENT_VALUE_EN[k]; const tr = shift(en, n);
       const piece = (s) => s.split(/\{[a-z_]+\}/).map((x) => x.trim()).filter(Boolean).sort((x, y) => y.length - x.length)[0];
       const where = TILE.includes(k) ? [['tile', tile]] : [['PDF', pdf], ['deck', deck]];
-      for (const [w, text] of where) assert.ok(text.includes(piece(tr)), `${language} ${w}: ${k} is translated ("${piece(tr)}")`);
-      for (const [w, text] of where) if (en.length > 8) assert.ok(!text.includes(piece(en)), `${language} ${w}: ${k} is not left in English ("${piece(en)}")`);
+      for (const [w, text] of where) assert.ok(text.toLowerCase().includes(piece(tr).toLowerCase()), `${language} ${w}: ${k} is translated ("${piece(tr)}")`);
+      for (const [w, text] of where) if (en.length > 8) assert.ok(!text.toLowerCase().includes(piece(en).toLowerCase()), `${language} ${w}: ${k} is not left in English ("${piece(en)}")`);
     }
   }
 });

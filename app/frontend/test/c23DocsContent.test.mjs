@@ -33,9 +33,8 @@ const FIX = {
 };
 const FULL = [
   STATEMENT, FIX.Solution, FIX['Business Value'], FIX.Sponsor, FIX.Beneficiary, FIX['Analytics Technique'], FIX['Business Priority Alignment'], FIX['Strategic Goals Alignment'],
-  FIX['High Level Design'], 'Waste rate', 'Sell out hours lost', 'Cut unsold stock by twenty percent within two quarters', 'Remove early sell outs on weekends',
+  'Waste rate', 'Sell out hours lost', 'Cut unsold stock by twenty percent within two quarters', 'Remove early sell outs on weekends',
   'Weekly waste report signed off by finance', 'Store manager survey above eight', 'Lower ingredient purchasing cost', 'Happier regular customers',
-  'bakehouse.sales.transactions', 'bakehouse.ops.stores',
 ];
 const VALUE = { amount: 120000, currency: 'USD', status: 'calculated', verb: 'CUT COST', story: 'It pays back in the first year.', yearly: [1, 2, 3].map((year) => ({ year, low: 1000 * year, likely: 2000 * year, high: 3000 * year })), factors: [] };
 const model = ({ values = { 'UC-C23-1': VALUE }, ucs = [FIX], businessName = 'Acme Bakes' } = {}) =>
@@ -55,7 +54,6 @@ const slideText = async (bytes) => {
 test('C23 the doc model carries every use case field', () => {
   const u = model().useCases[0];
   assert.equal(u.statement, STATEMENT);
-  assert.equal(u.design, FIX['High Level Design']);
   assert.equal(u.priorityAlignment, 'Operational excellence');
   assert.equal(u.strategicAlignment, FIX['Strategic Goals Alignment']);
   assert.equal(u.type, 'Risk');
