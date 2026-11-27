@@ -149,7 +149,6 @@ export function scoreInfographic(m, th, { W = 794 } = {}, { id, fonts }) {
       out += tb.svg; cy += 18 + tb.h + 8;
     };
     if (has(m, 'use_case_story')) block('The use case', u.statement || u.solution);
-    if (has(m, 'data_used') && u.tables?.length) block('Data used', u.tables.join(', '));
     const h = cy - yy + 6;
     return { svg: out, h, box: (hh2) => (P.masthead ? line(x, yy, x + cw, yy, P.rule, 1) : rect(x, yy, cw, hh2, P.card, round ? { rx: 12, stroke: P.rule } : {})) };
   };

@@ -230,6 +230,20 @@ table.bars.vbars td.n { width: 24%; text-align: __E__; white-space: nowrap; }
 table.bars.vbars td.nm { width: 34%; }
 table.index td.ix-amount { white-space: nowrap; font-weight: 700; color: #__C_teal__; text-align: __E__; }
 .vnote { font-size: __F_small__; color: #__C_muted__; margin-top: 8px; }
+.story .kick { font-size: __F_label__; color: #__C_muted__; margin-bottom: 4px; }
+.story .sum { display: table; width: 100%; table-layout: fixed; background: #__C_ice__; border-radius: 10px; border-__S__: 3px solid #__C_gold__; margin-bottom: 13px; }
+.story .sum > * { display: table-cell; vertical-align: middle; padding: 8px 12px; }
+.story .sum .amt { width: 34%; }
+.story .sum .money { font-family: __DISPLAY__; font-size: __F_card_title__; font-weight: 700; color: #__C_teal_dark__; line-height: 1.15; }
+.story .sum .why { font-size: __F_small__; color: #__C_body__; }
+.story .sum .why b { color: #__C_teal__; }
+.story .flist { font-size: __F_small__; color: #__C_body__; padding-__S__: 16px; }
+.story .flist b { color: #__C_teal__; }
+table.proj { width: 100%; border-collapse: collapse; font-size: __F_small__; }
+table.proj th { text-align: __E__; padding: 3px 6px; color: #__C_muted__; font-size: __F_label__; border-bottom: 1px solid #__C_line__; }
+table.proj td { text-align: __E__; padding: 4px 6px; border-bottom: 1px solid #__C_sand2__; white-space: nowrap; }
+table.proj td:first-child, table.proj th:first-child { text-align: __S__; }
+table.proj td.lk { font-weight: 700; color: #__C_teal__; }
 `;
 
 const BODY_STACK = 'Inter, "Helvetica Neue", Helvetica, Arial, sans-serif';
@@ -497,6 +511,43 @@ function cardPieces(v, m, b) {
   return pieces;
 }
 
+
+// REQ-561: the value story page of one use case, right after its card: the amount with its basis and note, the story, where the value comes from
+// (factors with their share), the formula of each factor in plain words and the projection. A long story or formula spills onto more pages.
+function storyPage(out, v, m, b, domain) {
+  const T = m.T; const s = v.value; const IN = CW - 30;
+  const kicker = [v.id, v.domain, v.subdomain].filter(Boolean).join(' \u00B7 ');
+  const title = `${T('value_story')}: ${v.title}`;
+  const head = { html: `<div class="story" data-story="${esc(v.id)}"><div class="kick">${b.html(kicker)}</div></div><h2 class="title"${b.dir(title)}>${b.text(title)}</h2><div class="rule"></div>`,
+    h: F.label * 1.5 + 4 + textH(title, F.title, CW, 1.16, { bold: true }) + 25 };
+  const why = [[T('value_basis'), s.basis], s.note ? [T('value_note'), s.note] : null].filter(Boolean);
+  const whyW = IN * 0.66 - 24;
+  const wrap = (html, h, tag = '') => ({ html: `<div class="story" data-story="${esc(v.id)}">${html}</div>`, h, tag });
+  const blocks = [wrap(`<div class="sum"><div class="amt"><h5>${esc(T('value_at_stake'))}</h5><div class="money">${b.html(s.text)}</div></div>`
+    + `<div class="why">${why.map(([k, t]) => `<div><b>${esc(k)}</b>: ${b.html(t)}</div>`).join('')}</div></div>`,
+  16 + 13 + Math.max(F.label * 1.16 + 2 + F.card_title * 1.15, why.reduce((a, [k, t]) => a + textH(`${k}: ${t}`, F.small, whyW), 0)))];
+  const cardOf = (label, inner, h) => { const c = card(`${label ? `<h4>${esc(label)}</h4>` : ''}${inner}`, (label ? F.heading * 1.16 + 6 : 0) + h + 13, 'gap'); return wrap(c.html, c.h); };
+  if (s.story) for (const [i, chunk] of sentencesOf(s.story, F.body, IN).entries()) {
+    blocks.push(cardOf(i ? '' : T('value_story'), `<p${b.dir(chunk)}>${b.text(chunk)}</p>`, textH(chunk, F.body, IN)));
+  }
+  if (s.factors.length) {
+    const rows = s.factors.map((f) => `<tr><td class="nm">${b.html(f.name)}</td><td><div class="track"><div class="fill" style="width:${Math.max(4, f.share)}%"></div></div></td><td class="n">${esc(f.share)}%</td></tr>`).join('');
+    blocks.push(cardOf(T('value_source'), `<table class="bars vbars">${rows}</table>`, s.factors.reduce((a, f) => a + 7 + textH(f.name, F.small, IN * 0.34), 0)));
+    const lines = s.factors.filter((f) => f.formula);
+    if (lines.length) {
+      const items = lines.map((f) => `<li${b.dir(f.formula)}><b>${b.html(f.name)}</b>: ${b.text(f.formula)}</li>`).join('');
+      blocks.push(cardOf(T('value_how'), `<ul class="flist">${items}</ul>`, lines.reduce((a, f) => a + 3 + textH(`${f.name}: ${f.formula}`, F.small, IN - 16), 0)));
+    }
+  }
+  if (s.projection.length) {
+    const cell = (x) => `<td dir="ltr">${b.html(x)}</td>`;
+    const rows = s.projection.map((y) => `<tr><td>${esc(T('value_year_n', { n: y.year }))}</td>${cell(y.low)}<td class="lk" dir="ltr">${b.html(y.likely)}</td>${cell(y.high)}</tr>`).join('');
+    const inner = `<table class="proj"><thead><tr><th>${esc(T('value_year'))}</th><th>${esc(T('value_low'))}</th><th>${esc(T('value_likely'))}</th><th>${esc(T('value_high'))}</th></tr></thead><tbody>${rows}</tbody></table>`;
+    blocks.push(cardOf(T('value_projection'), inner, F.label * 1.5 + 8 + s.projection.length * (F.small * 1.5 + 9)));
+  }
+  flow(out, 'story', { head, blocks, extra: { domain } });
+}
+
 // ---- the sections, in the order of _catalog_pdf_html, plus the value page after the last domain ----
 const ACCENTS = ['teal', 'coral', 'gold', 'teal_mid', 'green', 'amber'].map((k) => DOC_COLORS[k].toLowerCase());
 const MIN_SHARE = 1.5;
@@ -575,8 +626,14 @@ function sections(m) {
   // Per domain (or objective): the opener page, then its cards
   for (const d of m.domains) {
     out.push(openerPage(d, m, b));
-    const pieces = d.useCases.flatMap((v) => cardPieces(v, m, b));
-    flow(out, 'cards', { blocks: pieces, extra: { domain: d.index } });
+    // REQ-561: a use case with a value is followed by its value story page; the cards before it are cut onto their pages first.
+    let pending = [];
+    const flush = () => { if (pending.length) flow(out, 'cards', { blocks: pending, extra: { domain: d.index } }); pending = []; };
+    for (const v of d.useCases) {
+      pending.push(...cardPieces(v, m, b));
+      if (v.value.amount !== null) { flush(); storyPage(out, v, m, b, d.index); }
+    }
+    flush();
   }
   valuePages(out, m, b);
   // Index

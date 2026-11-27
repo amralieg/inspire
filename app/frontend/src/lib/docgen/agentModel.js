@@ -4,11 +4,12 @@
 import disclaimer from '../../../../backend/lib/valueDisclaimer.json' with { type: 'json' };
 import { aiWording } from '../aiWording.js';
 import { fieldOf, trackingIdOf, inspireScoreFromUc, scoreOf, belowBarReasonOf, nameOfUseCase, hasShippedGenieCode } from '../useCaseFields.js';
-import { v130View } from '../v130UseCase.js';
+import { v130View, strategyGoals } from '../v130UseCase.js';
 import { useCaseKindView, KIND_INFORMATIONAL_LABEL } from '../useCaseKind.js';
 import { moneyText } from '../valueWizard.js';
 import { buildDocModel, isRtl, STORY_NOT_APPROVED } from './docModel.js';
 import { plainDocText } from './docText.js';
+import { PANEL_BUSINESS } from './panelFields.js';
 
 // The agent's English labels (ENGLISH_TRANSLATIONS, 6a7361a39 lines 19551-19889 of the concatenated cells), the keys the documents use.
 export const AGENT_EN = {
@@ -184,6 +185,9 @@ export const AGENT_VALUE_EN = {
   value_calculated_short: 'Calculated', value_estimated_short: 'Estimated', value_other_currency: 'Values in another currency are not added to the total: {list}.',
   what_we_serve: 'What we serve', how_it_works: 'How it works', value_source: 'Where the value comes from', objective_label: 'Objective',
   value_disclaimer: disclaimer.full,
+  strategy: 'Strategy', strategy_serves: 'Serves {goal}', strategy_part_of: 'part of {under}', strategy_priorities: 'Business priorities', strategy_measured: 'Measured by',
+  not_starred: 'Not starred as Best of Best', value_how: 'How the value is worked out', value_projection: 'Projection', value_low: 'Low', value_likely: 'Likely', value_high: 'High',
+  value_year_n: 'Year {n}',
 };
 export const AGENT_LABEL_KEYS = [...Object.keys(AGENT_EN), ...Object.keys(AGENT_VALUE_EN)];
 export const AGENT_LABEL_PREFIX = 'agent|';
@@ -225,11 +229,10 @@ const QUALITY_COLORS = { 'Ultra High': 'teal_dark', 'Very High': 'teal', High: '
 export const qualityColor = (label) => DOC_COLORS[QUALITY_COLORS[label || ''] || 'grey'];
 const HIGH_TIERS = ['Ultra High', 'Very High', 'High'];
 const MODE_KEYS = { Good: 'value_mode_good', High: 'value_mode_high', 'Ultra High': 'value_mode_ultra_high' };
-const VIEW_TABLE_LIMIT = 6;
 const SUBTITLE_MAX = 240;
 const FOUNDATION_IDS = 12;
 const TOP_LIMIT = { elite: 12, default: 10, value: 10 };
-export const DOC_VALUE_LEFT = ['what_you_get', 'kpis', 'expected_key_results'];
+export const DOC_VALUE_LEFT = ['what_you_get', 'strategy', 'kpis', 'expected_key_results'];
 export const DOC_INDEX_COLUMNS = [['rank', 'doc_rank', 0.08], ['id', null, 0.09], ['title', 'usecase', 0.41], ['domain', 'domain', 0.17], ['quality', 'quality', 0.13], ['inspire_score', 'inspire_score', 0.12]];
 const LOCALES = {
   English: 'en', French: 'fr', German: 'de', Spanish: 'es', Hindi: 'hi', 'Chinese (Mandarin)': 'zh', Japanese: 'ja', Arabic: 'ar', Portuguese: 'pt',
@@ -273,21 +276,17 @@ const subdomainsOf = (members) => {
   const order = [...counts.keys()];
   return [...counts].sort((a, b) => b[1] - a[1] || order.indexOf(a[0]) - order.indexOf(b[0]));
 };
-const tablesOf = (uc) => {
-  const raw = fieldOf(uc, 'Tables Involved', 'tables_involved');
-  const items = Array.isArray(raw) ? raw.map(String) : String(raw ?? '').split(/[,\n]/);
-  return [...new Set(items.map((t) => t.trim().replace(/`/g, '')).filter((t) => t && t.toUpperCase() !== 'N/A'))];
-};
-const dataFilterLine = (uc) => (Array.isArray(uc?.data_filters) ? uc.data_filters.filter((f) => f && f.column).map((f) => `${f.column}: ${display(f.text)}`).join('; ') : '');
-
 // The value of one use case as the card shows it: the yearly amount, its basis and, for an estimate, the note.
 function valueView(v, T) {
-  if (!v) return { amount: null, text: T('value_none'), basis: '', note: '', story: '' };
+  if (!v) return { amount: null, text: T('value_none'), basis: '', note: '', story: '', factors: [], projection: [] };
   const top = (v.factors || []).filter((f) => f && f.name && Number(f.share) > 0).sort((a, b) => b.share - a.share)[0];
   const basis = [T(v.status === 'calculated' ? 'value_calculated' : 'value_estimated'), display(v.verb).toLowerCase(),
     top ? T('value_mostly', { driver: display(top.name), share: Math.round(top.share * 100) }) : ''].filter(Boolean).join(' \u00B7 ');
   const story = v.story && v.story !== STORY_NOT_APPROVED ? v.story : '';
-  return { amount: v.amount, currency: v.currency, status: v.status, text: v.text, basis, note: v.status === 'calculated' ? '' : T('value_note_body'), story };
+  // REQ-561: what the value story page holds beside the card's block: the factors with their share and formula, and the projection.
+  const factors = (v.factors || []).filter((f) => f && f.name && Number(f.share) > 0).map((f) => ({ name: display(f.name), share: Math.round(f.share * 100), formula: display(f.formula) }));
+  const projection = (v.yearly || []).filter((y) => y && Number.isFinite(Number(y.likely))).map((y) => ({ year: y.year, low: moneyText(v.currency, Number(y.low)), likely: moneyText(v.currency, Number(y.likely)), high: moneyText(v.currency, Number(y.high)) }));
+  return { amount: v.amount, currency: v.currency, status: v.status, text: v.text, basis, note: v.status === 'calculated' ? '' : T('value_note_body'), story, factors, projection };
 }
 
 // _use_case_view: everything one use case card prints, in the agent's order, plus its value.
@@ -307,8 +306,6 @@ function useCaseView(uc, d, ctx) {
     metrics.push([key, T(key), scoreText(value, scale, T)]);
   }
   const narrative = [['statement', T('statement'), d.statement || missing], ['solution', T('solution'), d.solution || missing], ['business_value', T('business_value'), d.businessValue || missing]];
-  const tables = tablesOf(uc);
-  const shown = tables.slice(0, VIEW_TABLE_LIMIT);
   const facts = [
     ['sponsor', T('sponsor'), d.sponsor || missing], ['beneficiary', T('beneficiary'), d.beneficiary || missing],
     ['business_priority_alignment', T('business_priority_alignment'), d.priorityAlignment || missing],
@@ -318,15 +315,18 @@ function useCaseView(uc, d, ctx) {
   const kv = useCaseKindView(uc);
   if (kv) facts.push(['kind', T('doc_kind'), [kv.label, kv.familyLabel, kv.informational ? KIND_INFORMATIONAL_LABEL : ''].filter(Boolean).join(' \u00B7 ')]);
   facts.push(['type', T('type'), d.type || missing]);
-  facts.push(['aspect_tables', T('aspect_tables'), shown.length ? docJoin(shown, language) + (tables.length > shown.length ? ` (+${tables.length - shown.length})` : '') : missing]);
-  const filters = dataFilterLine(uc);
-  if (filters) facts.push(['data_filters', T('doc_data_filters'), filters]);
-  if (d.foundations.length) facts.push(['foundations', T('foundations'), docJoin(d.foundations, language)]);
   if (display(uc.key_measure_note)) facts.push(['key_measure_note', T('key_measure_note'), display(uc.key_measure_note)]);
   const v = v130View(uc);
   const valueFacts = [];
   const lines = [['what_we_serve', 'serving_summary'], ['how_it_works', 'method_summary'], ['value_source', 'value_source']].map(([k, f]) => (display(uc[f]) ? `${T(k)}: ${display(uc[f])}` : '')).filter(Boolean);
   if (lines.length) valueFacts.push(['what_you_get', T('doc_what_you_get'), lines]);
+  const goals = strategyGoals(v, null);
+  const strategy = [...goals.flatMap((g) => [[T('strategy_serves', { goal: g.name }), g.under ? T('strategy_part_of', { under: g.under }) : ''].filter(Boolean).join(', '), g.evidence]),
+    v.priorityText ? `${T('strategy_priorities')}: ${v.priorityText}` : '',
+    goals.length && v.kpis.length ? `${T('strategy_measured')}: ${v.kpis.map((k) => display(k.name)).filter(Boolean).join('; ')}` : ''].map(display).filter(Boolean);
+  if (strategy.length) valueFacts.push(['strategy', T('strategy'), strategy]);
+  const bobReason = v.bestOfBest ? v.bestOfBest.reason || '' : v.notStarredReason;
+  if (v.bestOfBest || bobReason) valueFacts.push(['best_of_best', T(v.bestOfBest ? 'doc_best_of_best' : 'not_starred'), [display(bobReason)].filter(Boolean)]);
   if (v.valueEstimate?.text) valueFacts.push(['value_estimate', T('value_estimate'), [display(v.valueEstimate.text)]]);
   for (const [key, items] of [['kpis', d.kpis], ['expected_key_results', d.keyResults], ['measures_of_success', d.measures], ['financial_benefits', d.financial], ['non_financial_benefits', d.nonFinancial]]) {
     if (items.length) valueFacts.push([key, T(key), items]);
@@ -343,7 +343,7 @@ function useCaseView(uc, d, ctx) {
   const coverage = coverageKind ? [T(status === 'DOMAIN_COVERAGE_PICK' ? 'doc_coverage_pick' : 'doc_fallback_pick'), T('elite_reason'), belowBarReasonOf(uc) || missing] : null;
   return {
     uc, id: d.id, rank: rankOf.get(uc) ?? '', title: d.name || missing, subtitle, domain: domainOf(uc), subdomain: d.subdomain, kind, quality, metrics, narrative, facts,
-    valueFacts, coverage, star, meetsBar: meetsBar(uc) ? T('doc_meets_bar') : '', notebook: Boolean(String(uc.notebook_path ?? '').trim() || hasShippedGenieCode(uc)),
+    valueFacts, panelKeys: PANEL_BUSINESS.map((p) => p.key).filter((k) => [...metrics, ...narrative, ...facts, ...valueFacts].some((e) => e[0] === k)), coverage, star, meetsBar: meetsBar(uc) ? T('doc_meets_bar') : '', notebook: Boolean(String(uc.notebook_path ?? '').trim() || hasShippedGenieCode(uc)),
     value: valueView(d.value, T),
   };
 }

@@ -4,6 +4,7 @@ import { designOf, toDesignModel } from './designs/model.js';
 import { scoreInfographic } from './designs/scoreInfographic.js';
 import { resetLog, rtlSvg, SPILL, wrap as designWrap, T, rect, svgDoc } from './designs/core.js';
 import { paletteOf } from './designs/palette.js';
+import { withPanelTiles } from './designs/panelTiles.js';
 import { LB, withLabels } from './docLabels.js';
 import { extraParts, partLines } from './docModel.js';
 
@@ -138,7 +139,6 @@ function card(m, theme, u, i, x, y, w) {
   };
   s += block('use_case_story', 'USE CASE', u.statement || u.solution);
   s += block('value_story', 'VALUE STORY', u.value ? u.value.story : '');
-  s += block('data_used', 'DATA USED', u.tables.join(', '), 2);
   return `${s}</g>`.replace('CARD_H', String(ty - y + 10)) + `<!--h:${ty - y + 10}-->`;
 }
 
@@ -157,7 +157,13 @@ const rtlRoot = (m, svg) => (m.rtl ? svg.replace(/^<svg /, '<svg direction="rtl"
 // A design infographic or page 1: mirrored as a whole when right to left (use case pages mirror themselves in ucPage).
 const designRtl = (m, svg) => (m.rtl ? rtlSvg(svg) : svg);
 
-export const infographicSvg = (m, theme) => withLabels(m.labels, () => infographicSvgOf(m, theme));
+// REQ-561: with the agent card views the infographic grows a tile per use case that carries every business section of the side panel.
+export const infographicSvg = (m, theme, views = null) => withLabels(m.labels, () => {
+  const svg = infographicSvgOf(m, theme);
+  if (!views) return svg;
+  const th = theme.design ? paletteOf(theme.design, theme.tokens) : { page: theme.bg, card: theme.surface, ink: theme.ink, body: theme.ink, muted: theme.muted, accent: theme.accents[0] };
+  return withPanelTiles(svg, views, th, { rtl: m.rtl });
+});
 function infographicSvgOf(m, theme) {
   const d = designed(m, theme, { empty: true });
   if (d?.noValue) { resetLog(); return designRtl(m, scoreInfographic(d.dm, theme.tokens, { W: 794 }, { id: theme.design, fonts: d.design.fonts })); }
