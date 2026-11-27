@@ -381,7 +381,7 @@ const byDomain = (list) => {
 
 // _document_model + _doc_presentation for the App: the run's use cases (raw records) and their values (docValues contract).
 // translated: the translate route's answer for a second language (labels under agent|<key>, data under <id>|name and so on).
-export function buildAgentModel({ businessName, useCases, values, summary, foundations, language = 'English', translated = null, date, groups, groupLabelKey = 'doc_domain_label', options = {} }) {
+export function buildAgentModel({ businessName, useCases, values, summary, foundations, language = 'English', translated = null, date, groups, groupLabelKey = 'doc_domain_label', options = {}, logo = null, vibe = '' }) {
   const labels = translated ? agentLabelsFrom(translated) : {};
   const T = (key, v) => agentText(labels, key, { ...tiers, ...v });
   const tiers = { lowest: 'Ultra Low', highest: 'Ultra High', medium: 'Medium', high: 'High', ultra: 'Ultra High', min_score: 8 };
@@ -462,7 +462,7 @@ export function buildAgentModel({ businessName, useCases, values, summary, found
       ['doc_step_schedule', 'doc_step_schedule_body'], ['doc_step_measure', 'doc_step_measure_body']].map(([a, b]) => [T(a), T(b)]),
     disclaimerTitle: T('pdf_disclaimer_title'), disclaimer: ['doc_method_1', 'doc_disclaimer_ai', 'doc_disclaimer_figures', 'disclaimer', 'value_disclaimer'].map((k) => T(k)),
     closingSummary: `${ranked.length} ${T('doc_use_cases')} \u00B7 ${domains.length} ${T('doc_domains')}${mode ? ` \u00B7 ${T('doc_quality_mode')}: ${modeLabel}` : ''}`,
-    generatedBy,
+    generatedBy, logo, vibe, // C28 (REQ-572): the person's logo (data URL) and wording guide
     value: {
       total: { amount: docModel.total.amount, currency, text: docModel.total.text }, nWith: withValue.length, nWithout: ranked.length - withValue.length,
       byDomain: domains.map((d) => ({ index: d.index, name: d.name, ...d.value })), top: valueTop,

@@ -87,6 +87,8 @@ test('B-11 the wizard offers Word and saves a real .docx into the Assets folder'
     await page.locator('[data-value-bulk-bar]').getByRole('button', { name: /Generate docs/ }).click();
     const dialog = page.getByRole('dialog', { name: /Generate documents/ });
     await dialog.waitFor();
+    assert.equal(await dialog.locator('[data-doc-kind="docx"]').count(), 0, 'C28: Word is a per use case document, not an overall one');
+    await dialog.locator('[data-doc-scope="each"]').click();
     const word = dialog.locator('[data-doc-kind="docx"]');
     assert.equal(await word.count(), 1, 'a Word option');
     assert.match(await word.innerText(), /Word/);
@@ -96,13 +98,14 @@ test('B-11 the wizard offers Word and saves a real .docx into the Assets folder'
     }
     if ((await word.getAttribute('aria-checked')) !== 'true') await word.click();
     for (let i = 0; i < 6 && (await dialog.locator('[data-docs-page]:visible').first().getAttribute('data-docs-page')) !== 'review'; i += 1) await dialog.getByRole('button', { name: /^Next/ }).click();
-    await dialog.getByRole('button', { name: /^✦?\s*Generate 1 file$/ }).click();
+    await dialog.getByRole('button', { name: /^✦?\s*Generate \d+ files?$/ }).click();
     // REQ-121: Results also auto-builds <business>_strategy.pdf App-side for a finished run and saves it through the same route; it is not the wizard's file.
     const wizardSaves = () => saves.filter((x) => !/_strategy\.pdf$/.test(x.name));
     const end = Date.now() + 90000;
     while (!wizardSaves().length && Date.now() < end) await new Promise((r) => setTimeout(r, 100));
-    assert.equal(wizardSaves().length, 1);
-    assert.match(wizardSaves()[0].name, /\.docx$/);
+    await new Promise((r) => setTimeout(r, 1500));
+    assert.ok(wizardSaves().length >= 1);
+    assert.ok(wizardSaves().every((x) => /\.docx$/.test(x.name)));
     const zip = await JSZip.loadAsync(Buffer.from(wizardSaves()[0].content_base64, 'base64'));
     const xml = await zip.file('word/document.xml').async('string');
     assert.match(xml, /Predict churn/);

@@ -111,6 +111,7 @@ function cover(d, m) {
   for (const [x, y, size, alpha] of [[8.9, 0.25, 4.2, 0.08], [10.3, 0.45, 2.7, 0.1], [8.2, 3.6, 2.3, 0.07], [10.7, 4.6, 2.5, 0.08]]) d.rect(s, x, y, size, size, C.white, { oval: true, alpha });
   d.rect(s, 11.05, 1.25, 0.62, 0.62, C.gold, { oval: true, alpha: 0.9 });
   d.wordmark(s, 0.75, 0.45, 0.42, true);
+  if (m.logo?.dataUrl) s.addImage({ data: m.logo.dataUrl, x: 10.9, y: 0.4, w: 1.9, h: 0.8, sizing: { type: 'contain', w: 1.9, h: 0.8 }, objectName: 'cover:logo' }); // C28 (REQ-572)
   d.text(s, 0.75, 1.12, 8.6, 0.32, d.kicker(`${T('doc_catalog_kicker')} · ${d.ltr(m.date)}`), { color: C.mint2, bold: true });
   d.text(s, 0.75, 1.5, 8.3, 1.75, T('pptx_main_title'), { size: S.hero, color: C.white, bold: true });
   d.text(s, 0.75, 3.35, 8.3, 0.34, T('doc_prepared_for'), { size: S.lead, color: C.mint2 });

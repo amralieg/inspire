@@ -1,12 +1,14 @@
-import { Check, FileSpreadsheet, FileText, Globe, Image as ImageIcon, Plus, Presentation, Sparkles, X } from 'lucide-react';
-import { CONTENT_BLOCKS, EXCEL_COLUMNS, EXCEL_GROUPS, orderedColumns } from '../lib/docgen/docOptions.js';
+import { useState } from 'react';
+import { Check, FileSpreadsheet, FileText, Globe, Image as ImageIcon, Plus, Presentation, Sparkles, Upload, X } from 'lucide-react';
+import { checkLogo, logoTypeOf, CONTENT_BLOCKS, EXCEL_COLUMNS, EXCEL_GROUPS, kindsForLayout, LOGO_TYPES, ORIENTATIONS, orderedColumns, VIBE_EXAMPLES } from '../lib/docgen/docOptions.js';
+import { INFOGRAPHIC_STYLES } from '../lib/docgen/infographicApi.js';
 import { DOC_PALETTES, DOC_STYLES, DOC_THEMES, resolveTheme } from '../lib/docgen/docStyles.js';
 import { DOCUMENT_LANGUAGE_CHOICES } from '../constants/documentLanguages.js';
 import { plural } from '../lib/plural.js';
 
 // REQ-503: the wizard's pages. Each is one short screen; the dialog shows one at a time.
 const KIND_INFO = {
-  infographic: { label: 'Infographic', hint: 'One picture of all selected use cases, as one PDF', Icon: ImageIcon },
+  infographic: { label: 'Infographic', hint: 'One picture of a use case, as a PDF', Icon: ImageIcon },
   pptx: { label: 'PowerPoint', hint: 'A deck: cover, summary, a slide per use case', Icon: Presentation },
   pdf: { label: 'PDF brief', hint: 'A cover and a page per use case', Icon: FileText },
   xlsx: { label: 'Excel', hint: 'One sheet, a row per use case', Icon: FileSpreadsheet },
@@ -17,7 +19,7 @@ const toggle = (list, id) => (list.includes(id) ? list.filter((x) => x !== id) :
 const card = (on) => `rounded-xl border p-3 text-start transition-colors motion-safe:duration-150 ${on ? 'border-db-red bg-db-red-50 shadow-sm' : 'border-border bg-surface hover:bg-bg-subtle'}`;
 const tick = (on) => `mt-0.5 inline-block h-4 w-4 shrink-0 rounded border ${on ? 'border-primary-solid bg-primary-solid' : 'border-border-strong bg-surface'}`;
 
-export const TITLES = { documents: 'Documents', layout: 'Layout and language', include: 'What to include', style: 'Style and color', columns: 'Excel columns', review: 'Review' };
+export const TITLES = { documents: 'Documents', layout: 'Layout and language', include: 'What to include', style: 'Style and color', columns: 'Excel columns', vibe: 'Vibe your docs', review: 'Review' };
 
 // The strip above every page and above the progress: the use cases it is for and the steps. `made` ticks every step (the files are being made).
 export function DocsHeader({ names, pages, pageId, made = false }) {
@@ -42,21 +44,35 @@ export function DocsHeader({ names, pages, pageId, made = false }) {
 }
 
 export function DocumentsPage({ options, set }) {
+  const each = options.layout === 'each';
+  const offered = kindsForLayout(options.layout);
+  // C28 (REQ-570): overall documents are Excel, PDF and PowerPoint; one document per use case also offers the infographic and Word.
+  const pickScope = (layout) => set({ layout, kinds: options.kinds.filter((k) => kindsForLayout(layout).includes(k)) });
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      {Object.entries(KIND_INFO).map(([id, info]) => {
-        const { label, hint, Icon } = info;
-        const on = options.kinds.includes(id);
-        return (
-          <button key={id} type="button" role="checkbox" aria-checked={on} data-doc-kind={id} onClick={() => set({ kinds: toggle(options.kinds, id) })} className={`${card(on)} flex items-start gap-3`}>
-            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${on ? 'bg-primary-solid text-white' : 'bg-bg-subtle text-text-secondary'}`}><Icon size={20} aria-hidden /></span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-bold text-text-primary">{label}</span>
-              <span className="block text-xs text-text-secondary">{hint}</span>
-            </span>
-          </button>
-        );
-      })}
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Documents for">
+        <span className="text-sm font-semibold text-text-primary" aria-hidden>Documents for</span>
+        {[['one', 'Overall', 'All selected use cases together'], ['each', 'Each use case', 'One document per use case, with the infographic']].map(([v, label, hint]) => (
+          <button key={v} type="button" role="radio" aria-checked={options.layout === v} data-doc-scope={v} title={hint} onClick={() => pickScope(v)}
+            className={`${card(options.layout === v)} px-4 py-1.5 text-sm font-semibold text-text-primary`}>{label}</button>
+        ))}
+      </div>
+      <p className="text-xs text-text-secondary">{each ? 'Each use case gets its own files, and the infographic is made one per use case.' : 'The overall documents are Excel, PDF and PowerPoint. Pick "Each use case" for the infographic.'}</p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {Object.entries(KIND_INFO).filter(([id]) => offered.includes(id)).map(([id, info]) => {
+          const { label, hint, Icon } = info;
+          const on = options.kinds.includes(id);
+          return (
+            <button key={id} type="button" role="checkbox" aria-checked={on} data-doc-kind={id} onClick={() => set({ kinds: toggle(options.kinds, id) })} className={`${card(on)} flex items-start gap-3`}>
+              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${on ? 'bg-primary-solid text-white' : 'bg-bg-subtle text-text-secondary'}`}><Icon size={20} aria-hidden /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold text-text-primary">{label}</span>
+                <span className="block text-xs text-text-secondary">{hint}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -71,11 +87,11 @@ export function LayoutPage({ options, set, eachApplies, count }) {
         <legend className="text-sm font-bold text-text-primary">How many files</legend>
         {[['one', 'One file for all selected', `All ${plural(count, 'use case')} together`], ['each', 'One file for each use case', `${plural(count, 'file')} for each document type`]].map(([v, label, hint]) => (
           <label key={v} className={`${card(options.layout === v)} flex cursor-pointer items-start gap-3`}>
-            <input type="radio" name="docs-layout" value={v} checked={options.layout === v} onChange={() => set({ layout: v })} className="mt-1" />
+            <input type="radio" name="docs-layout" value={v} checked={options.layout === v} onChange={() => set({ layout: v, kinds: options.kinds.filter((k) => kindsForLayout(v).includes(k)) })} className="mt-1" />
             <span><span className="block text-sm font-bold text-text-primary">{label}</span><span className="block text-xs text-text-secondary">{hint}</span></span>
           </label>
         ))}
-        {!eachApplies && <p className="text-xs text-text-secondary">This applies to PowerPoint, the PDF brief and Word. The infographic and Excel are always one file.</p>}
+        {!eachApplies && <p className="text-xs text-text-secondary">This applies to PowerPoint, the PDF brief and Word. Excel is always one file.</p>}
       </fieldset>
       <div className="space-y-2">
         <p className="flex items-center gap-2 text-sm font-bold text-text-primary"><Globe size={14} aria-hidden /> Languages</p>
@@ -120,7 +136,7 @@ export function IncludePage({ options, set }) {
 // REQ-526: a small picture of each design's own infographic (an inline data image, no network).
 const thumbOf = (svg) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
-export function StylePage({ options, set, svg, thumbs = {} }) {
+export function StylePage({ options, set, svg, thumbs = {}, infographic = false }) {
   const theme = resolveTheme(options.style, options.palette, options.customColor, options.theme);
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -134,6 +150,28 @@ export function StylePage({ options, set, svg, thumbs = {} }) {
           </div>
           <p className="mt-1 text-xs text-text-secondary">Applies to PDF and PowerPoint files; Word is always white. Excel sheets stay light.</p>
         </div>
+        {infographic && (
+          <div className="space-y-2" data-docs-infographic-options="">
+            <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Infographic orientation">
+              <span className="text-sm font-semibold text-text-primary" aria-hidden>Infographic</span>
+              {ORIENTATIONS.map((o) => (
+                <button key={o.id} type="button" role="radio" aria-checked={(options.orientation || 'landscape') === o.id} data-doc-orientation={o.id} onClick={() => set({ orientation: o.id })} className={`${card((options.orientation || 'landscape') === o.id)} px-4 py-1.5 text-sm font-semibold text-text-primary`}>{o.label}</button>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Infographic style">
+              {INFOGRAPHIC_STYLES.map((s) => {
+                const on = (options.infographicStyle || INFOGRAPHIC_STYLES[0].id) === s.id;
+                const pic = s.thumbnail || (thumbs[s.id] ? thumbOf(thumbs[s.id]) : '');
+                return (
+                  <button key={s.id} type="button" role="radio" aria-checked={on} data-doc-infographic-style={s.id} onClick={() => set({ infographicStyle: s.id })} className={`${card(on)} py-2`}>
+                    {pic && <img data-doc-infographic-thumb="" src={pic.startsWith('data:') || pic.startsWith('http') || pic.startsWith('/') ? pic : thumbOf(pic)} alt="" className="mb-1 max-h-28 w-auto rounded border border-border" />}
+                    <span className="block text-xs font-bold text-text-primary">{s.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Style">
           {DOC_STYLES.map((s) => (
             <button key={s.id} type="button" role="radio" aria-checked={options.style === s.id} data-doc-style={s.id} onClick={() => set({ style: s.id })} className={`${card(options.style === s.id)} py-2`}>
@@ -158,6 +196,56 @@ export function StylePage({ options, set, svg, thumbs = {} }) {
         </label>
       </div>
       <div data-docs-preview="" aria-label="Preview" className="max-h-[48vh] min-w-0 overflow-hidden rounded-xl border border-border bg-bg-subtle p-2 shadow-inner [&>svg]:h-auto [&>svg]:max-h-[44vh] [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: svg }} />
+    </div>
+  );
+}
+
+// C28 (REQ-572): the last step. A text that guides the documents' wording (passed to the AI calls), clickable examples, and the person's logo.
+export function VibePage({ options, set }) {
+  const [problem, setProblem] = useState('');
+  const logo = options.logo;
+  const pickFile = (file) => {
+    if (!file) return;
+    const type = logoTypeOf(file);
+    const bad = checkLogo({ type, size: file.size });
+    setProblem(bad ? `${file.name}: ${bad}` : '');
+    if (bad) return;
+    const reader = new FileReader();
+    reader.onload = () => set({ logo: { name: file.name, type, size: file.size, dataUrl: String(reader.result).replace(/^data:[^;,]*/, `data:${type}`) } });
+    reader.onerror = () => setProblem('The logo could not be read.');
+    reader.readAsDataURL(file);
+  };
+  return (
+    <div className="space-y-4" data-docs-vibe="">
+      <div className="space-y-2">
+        <label htmlFor="docs-vibe-text" className="block text-sm font-bold text-text-primary">Tell the documents how to sound</label>
+        <textarea id="docs-vibe-text" data-docs-vibe-text="" rows={4} maxLength={1000} value={options.vibe || ''} onChange={(e) => set({ vibe: e.target.value })}
+          placeholder="For example: board-level tone, lead with value, keep each page to one idea." className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary" />
+        <p className="text-xs text-text-secondary">Optional. Your words guide the wording of the documents. Click an example to use it.</p>
+        <div className="flex flex-wrap gap-2">
+          {VIBE_EXAMPLES.map((ex, i) => (
+            <button key={i} type="button" data-docs-vibe-example={i} onClick={() => set({ vibe: ex })} className="rounded-full border border-border px-3 py-1 text-start text-xs text-text-secondary hover:bg-bg-subtle">{ex}</button>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-2">
+        <p className="text-sm font-bold text-text-primary">Your logo</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle">
+            <Upload size={14} aria-hidden /> {logo ? 'Replace logo' : 'Upload a logo'}
+            <input type="file" data-docs-logo-input="" accept={LOGO_TYPES.join(',')} className="sr-only" onChange={(e) => { pickFile(e.target.files?.[0]); e.target.value = ''; }} />
+          </label>
+          {logo && (
+            <>
+              <img data-docs-logo-preview="" src={logo.dataUrl} alt={`Logo ${logo.name}`} className="h-12 min-h-8 min-w-8 max-w-32 rounded border border-border bg-surface object-contain p-1" />
+              <span className="text-xs text-text-secondary">{logo.name}</span>
+              <button type="button" onClick={() => set({ logo: null })} className="rounded-md p-1.5 text-text-secondary hover:bg-bg-subtle" aria-label="Remove logo"><X size={14} aria-hidden /></button>
+            </>
+          )}
+        </div>
+        {problem && <p role="alert" data-docs-logo-problem="" className="text-xs text-error-fg">{problem}</p>}
+        <p className="text-xs text-text-secondary">PNG, SVG or JPEG, up to 512 KB. It goes on the cover of the PDF, PowerPoint and Word files and on the infographic.</p>
+      </div>
     </div>
   );
 }
@@ -201,6 +289,8 @@ export function ReviewPage({ plan, count, options }) {
     <div className="space-y-2">
       <p className="text-sm text-text-secondary">{plan.length} {plan.length === 1 ? 'file' : 'files'} from {count} use {count === 1 ? 'case' : 'cases'}, saved to this run's Assets.</p>
       {options && <p data-doc-review-style="" className="text-xs text-text-secondary">Style: {(DOC_STYLES.find((s) => s.id === options.style) || DOC_STYLES[0]).label}</p>}
+      {options?.vibe?.trim() && <p data-doc-review-vibe="" className="text-xs text-text-secondary">Vibe: {options.vibe.trim()}</p>}
+      {options?.logo && <p data-doc-review-logo="" className="text-xs text-text-secondary">Logo: {options.logo.name}</p>}
       {options && <p data-doc-review-theme="" className="text-xs text-text-secondary">Theme: {(options.theme || 'light') === 'dark' ? 'Dark' : 'Light'}</p>}
       <ul className="max-h-[42vh] divide-y divide-border overflow-y-auto rounded-xl border border-border">
         {plan.map((f) => (
