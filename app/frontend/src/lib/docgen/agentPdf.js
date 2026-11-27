@@ -661,9 +661,9 @@ function valuePages(out, m, b) {
   const tableOf = (list, valued) => ({
     open: `<table class="index"><colgroup>${cols.map(([, , w]) => `<col style="width:${(100 * w).toFixed(1)}%"/>`).join('')}</colgroup><thead><tr>${cols.map(([, l]) => `<th>${esc(l)}</th>`).join('')}</tr></thead><tbody>`,
     close: '</tbody></table>', headH: F.label * 1.5 + 10,
-    rows: list.map((u) => {
+    rows: list.map((u, i) => {
       const status = valued ? T(u.value.status === 'calculated' ? 'value_calculated_short' : 'value_estimated_short') : '';
-      const cells = { rank: esc(u.rank), id: `<a>${esc(u.id)}</a>`, title: `<a>${b.html(u.title)}</a>`, domain: b.html(u.domain),
+      const cells = { rank: esc(valued ? i + 1 : u.rank), id: `<a>${esc(u.id)}</a>`, title: `<a>${b.html(u.title)}</a>`, domain: b.html(u.domain),
         amount: valued ? b.html(u.value.text) : '', status: valued ? esc(status) : esc(u.value.text) };
       return { html: `<tr>${cols.map(([k]) => `<td class="ix-${k}">${cells[k]}</td>`).join('')}</tr>`,
         h: 9 + Math.max(textH(u.title, F.small, CW * 0.37 - 12), textH(u.domain, F.small, CW * 0.16 - 12), textH(valued ? status : u.value.text, F.small, CW * 0.16 - 12)) };
