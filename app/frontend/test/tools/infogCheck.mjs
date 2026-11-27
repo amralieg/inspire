@@ -74,8 +74,10 @@ export function cutPhraseProblems(svg, sources) {
     const t = norm(raw).replace(/[.,;:!?]+$/, ''); if (t.split(' ').length < 4) continue;
     const spots = []; for (const src of sources) { let i = src.indexOf(t); while (i >= 0) { spots.push([src, i]); i = src.indexOf(t, i + 1); } }
     const starts = spots.filter(([src, i]) => i === 0 || /[.;:!?|(,]\s$/.test(src.slice(Math.max(0, i - 2), i)));
-    if (!starts.length || /(?:\d[\d,]*(?:\.\d+)?\s?[%MKB]?|\b(?:a|per|each|every|this|next|last)\s(?:year|week|month|day|quarter|hour|cycle|run))$/i.test(t)) continue;
-    if (!starts.some(([src, i]) => { const rest = src.slice(i + t.length); return rest === '' || /^\s?[.,;:!?)|]/.test(rest) || /^\s*[-–—(]\s?/.test(rest) || /^\s(who|which|that|when|where|while|because|and|but|or|so|then|for|to|with|by|from|in|on|at|per|of|across|before|after|until|unless|since|using|than|around|among|within|without|through|into|over|under|between|toward|towards|near|instead|how|what|why|whether|above|below|beyond|against|about|via|weighted|based|ranked|sorted|measured|grouped|scored)\s/.test(rest); })) bad.push(`"${raw}"`);
+    if (!starts.length) continue;
+    // Whole phrase: it ends the source, or the source goes on with punctuation (a " | " after a whole field), a dash, a clause led by
+    // a conjunction or relative word, or a prepositional phrase (coordinator review of c29_infog4, 27 Nov).
+    if (!starts.some(([src, i]) => { const rest = src.slice(i + t.length); return rest === '' || /^\s?[.,;:!?)|(]/.test(rest) || /^\s*[-–—]\s/.test(rest) || /^\s(who|which|that|when|where|while|because|so|then|but|and|or|unless|since|to|for|with|by|from|in|on|at|across|before|after|until|using|through|into|over|under|between|within|without|via|toward|towards|around|among|near|instead|above|below|beyond|against|about)\s/.test(rest); })) bad.push(`"${raw}"`);
   }
   return bad;
 }
