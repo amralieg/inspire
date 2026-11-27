@@ -74,11 +74,16 @@ test('owning another use case does not make you an owner of this one', async () 
   assert.equal(refusedByPolicy(got), true, got.text.slice(0, 300));
 });
 
-test('use case owners are read only from the App database, so a database the caller names cannot make them an owner', async () => {
-  S.reset({ history: [{ ...someoneElsesBuild[0], created_by: ME }] });
-  const got = await S.request('POST', `/api/inspire/implement/rerun?${qs({ ...UC, inspire_database: 'their_catalog.their_schema' })}`, { person: ME, body: {} });
+test('use case owners are read only from the App database, so a database the caller names cannot make them an owner (SEC-07: the named database is replaced by the App\'s own)', async () => {
+  const named = `/api/inspire/implement/rerun?${qs({ ...UC, inspire_database: 'their_catalog.their_schema' })}`;
+  S.reset({ history: [{ ...someoneElsesBuild[0], created_by: 'builder@example.com' }] });
+  const got = await S.request('POST', named, { person: ME, body: {} });
   assert.equal(refusedByPolicy(got), true, got.text.slice(0, 300));
   assert.equal(S.state.calls.filter((c) => c.statement.includes('their_catalog')).length, 0);
+  S.reset({ history: [{ ...someoneElsesBuild[0], created_by: ME }] });
+  const owner = await S.request('POST', named, { person: ME, body: {} });
+  assert.equal(refusedByPolicy(owner), false, 'the App database names this person as the owner, so the check passes');
+  assert.equal(S.state.calls.filter((c) => c.statement.includes('their_catalog')).length, 0, 'the database the caller named is never read');
 });
 
 test('someone else launched the run, so cancelling it is refused; a run with no launcher recorded refuses non-managers', async () => {

@@ -64,8 +64,14 @@ test('finished, unknown, regenerated, reopened, other-database and mismatched ru
   S.state.calls.length = 0;
   const other = await S.request('GET', `/api/inspire/sessions?inspire_database=other.inspire&warehouse_id=${S.APP_WAREHOUSE}&all=1`, { person: 'reader@example.com' });
   assert.equal(other.status, 200, other.text.slice(0, 300));
-  // REQ-418: every database is read as the App, so the run that writes to other.inspire is starting there, and no read uses the person token.
-  assert.deepEqual(other.data.sessions.map((s) => [s.session_id, s.run_id, s.starting]), [['7005', '705', true]], 'the run shows as starting in the database it writes to');
+  // SEC-07 (server.js:123): a person who does not manage the App is given the App's own database in place of the one they name, so the
+  // other-database run is not starting for them. REQ-418: a manager's named database is kept, and it is read as the App (no person token).
+  assert.deepEqual(other.data.sessions, [], 'a person who does not manage the App is read in the App database, where the other-database run is not listed');
+  S.state.managers = ['boss@example.com'];
+  S.state.calls.length = 0;
+  const managed = await S.request('GET', `/api/inspire/sessions?inspire_database=other.inspire&warehouse_id=${S.APP_WAREHOUSE}&all=1`, { person: 'boss@example.com' });
+  assert.equal(managed.status, 200, managed.text.slice(0, 300));
+  assert.deepEqual(managed.data.sessions.map((s) => [s.session_id, s.run_id, s.starting]), [['7005', '705', true]], 'the run shows as starting in the database it writes to');
   // SEC-02: the person's own LIMIT 0 probe of a session's tables (the session check) is the one read that carries the person token.
   assert.deepEqual(S.state.calls.filter((c) => c.token === S.PERSON_TOKEN && !['auth', 'policy'].includes(c.category) && !/LIMIT 0\s*$/.test(c.statement || '')).map((c) => c.path), []);
   S.state.launches[0].inspire_database = S.APP_DB;

@@ -41,7 +41,10 @@ test('Latest Run marks the newest run of a named business that has 2 or more run
   assert.equal(F.isLatestRun({ widget_values: { business: 'Acme' }, business_runs: 2, business_rank: 1 }), false,
     'the name is the session row business_name the agent always writes, never a widget copy');
   for (const not of [{ latest_run: true }, { business_name: 'Acme' }, {}, null]) assert.equal(F.isLatestRun(not), false, JSON.stringify(not));
-  assert.equal(F.runDate({ last_updated: 'b', completed_on: 'c', create_at: 'a' }), 'b');
+  // RC7-A-05 (frontend/src/lib/reviewFigures.js:173): completion first, then start; last_updated moves with every answers save, so it is the last resort.
+  assert.equal(F.runDate({ last_updated: 'b', completed_on: 'c', create_at: 'a' }), 'c');
+  assert.equal(F.runDate({ last_updated: 'b', create_at: 'a' }), 'a');
+  assert.equal(F.runDate({ last_updated: 'b' }), 'b');
   assert.equal(F.runDate({ last_updated: null, completed_on: 'c', create_at: 'a' }), 'c');
   assert.equal(F.runDate({ create_at: 'a' }), 'a');
   assert.equal(F.runDate(null), '');

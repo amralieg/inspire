@@ -71,7 +71,7 @@ function crash(script, env) {
   try {
     const run = spawnSync(process.execPath, ['--require', preload, path.join(SCRIPTS, script)], {
       cwd: APP, encoding: 'utf8', timeout: 60000,
-      env: { ...process.env, INSPIRE_URL: 'http://127.0.0.1:9', DATABRICKS_PROFILE: 'fake', SESSION_ID: '1', SHOWCASE_ID: 'fake', SHOWCASE_TITLE: 'Fake', OUT: path.join(dir, 'out'), DIST: dist, ...env },
+      env: { ...process.env, INSPIRE_URL: 'http://127.0.0.1:9', DATABRICKS_PROFILE: 'fake', SESSION_ID: '1', SHOWCASE_ID: 'fake', SHOWCASE_TITLE: 'Fake', MVPS: 'N01-U01', OUT: path.join(dir, 'out'), DIST: dist, ...env },
     });
     return { status: run.status, output: `${run.stdout}\n${run.stderr}` };
   } finally {

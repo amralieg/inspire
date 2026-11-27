@@ -89,7 +89,7 @@ const SAMPLES = [
   { key: 'POST /api/inspire/value/run-review', rule: 'owners', method: 'POST', path: '/api/inspire/value/run-review', body: { ...UC } },
   { key: 'POST /api/inspire/value/preview', rule: 'any', method: 'POST', path: '/api/inspire/value/preview', body: { ...UC, plan: { drivers: [] }, answers: { shape: 2, drivers: {} } } },
   { key: 'PUT /api/inspire/value/answers', rule: 'owners', method: 'PUT', path: '/api/inspire/value/answers', body: { ...UC, answers: { drivers: { cost_cut: { spend_per_year: 1000, cut_pct: 10 } }, currency: 'USD' } } },
-  { key: 'POST /api/inspire/value/answers/undo', rule: 'any', method: 'POST', path: '/api/inspire/value/answers/undo', body: { ...UC } },
+  { key: 'POST /api/inspire/value/answers/undo', rule: 'owners', method: 'POST', path: '/api/inspire/value/answers/undo', body: { ...UC } },
   { key: 'POST /api/money/rate-sample', rule: 'any', method: 'POST', path: '/api/money/rate-sample', body: { ...UC, base: 'USD' } },
   { key: 'ALL /run/:id/{*rest}', rule: 'delegated', method: 'POST', path: '/run/missing-page/api/refresh', body: {} },
   { key: 'ALL /showcase/:id/mvp/:mvp/api/*rest', rule: 'any', method: 'POST', path: '/showcase/missing/mvp/missing/api/page', body: {} },
