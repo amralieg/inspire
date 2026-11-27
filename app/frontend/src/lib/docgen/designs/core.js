@@ -14,7 +14,10 @@ export const has = (m, id) => !Array.isArray(m.blocks) || m.blocks.includes(id);
 // Every verb the data holds (and the empty one) gets a colour: the style's own for the known verbs, then the pool in order.
 export function verbColors(known, verbs, pool) {
   const out = { ...known }; let i = 0;
-  for (const v of verbs) if (!out[v.name]) { out[v.name] = pool[i % pool.length]; i += 1; }
+  // C26 (REQ-563): a verb with no fixed colour takes a pool colour no present verb already has, so two verbs never share one colour.
+  const taken = new Set(verbs.map((v) => known[v.name]).filter(Boolean));
+  const free = pool.filter((c) => !taken.has(c));
+  for (const v of verbs) if (!out[v.name]) { out[v.name] = (free.length ? free : pool)[i % (free.length || pool.length)]; i += 1; }
   out[''] = pool[0];
   return out;
 }
