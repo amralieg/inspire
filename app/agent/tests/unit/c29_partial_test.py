@@ -68,7 +68,7 @@ def _count_problems(ns, tmp_path, page):
 
 
 def test_one_app_kpi_that_cannot_run_is_left_out_with_a_plain_warning_and_the_app_deploys(agent_ns, tmp_path):
-    inst, context, seen, runner, page = _app(agent_ns, tmp_path, {("kpis", page_kpi := "loss_rate"): MISSING})
+    inst, context, seen, runner, page = _app(agent_ns, tmp_path, {("kpis", page_kpi := "exposure"): MISSING})
     fields = inst._implement_app(context, runner)
     assert seen["deployed"], "one bad KPI tile never fails the App"
     deployed = _deployed(seen)
