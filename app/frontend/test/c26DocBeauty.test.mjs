@@ -75,8 +75,13 @@ test('(c) PPTX: body text is at least 14pt, nothing below 12pt, and a use case t
   const sizes = xs.flatMap((x) => [...x.matchAll(/ sz="(\d+)"/g)].map((m) => Number(m[1])));
   assert.ok(sizes.every((s) => s >= 1200), `the deck has text below 12pt: ${[...new Set(sizes.filter((s) => s < 1200))].join(', ')}`);
   assert.ok(sizes.filter((s) => s >= 1400).length / sizes.length >= 0.9, 'less than 90% of the deck text is 14pt or more');
+  // REQ-563 (c27): count only the use case slides (card, overflow, story); the cover, contents, executive, how-to-read, portfolio, domain, value, index,
+  // methodology, roadmap and disclaimer slides may name a use case too.
+  const kindOf = (x) => (decode(x).match(/<p:cNvPr [^>]*name="slide:([^":]*)/) || [])[1];
+  const UC_KINDS = ['uc_card', 'uc_value', 'uc_story'];
+  assert.ok(xs.some((x) => UC_KINDS.includes(kindOf(x))), 'the use case slides are marked');
   for (const u of a.useCases) {
-    const own = xs.filter((x) => decode(x).includes(u.Name));
+    const own = xs.filter((x) => UC_KINDS.includes(kindOf(x)) && decode(x).includes(u.Name));
     assert.ok(own.length <= 2, `${u.Name} takes ${own.length} slides`);
   }
 });
