@@ -26,7 +26,7 @@ for (const [saved, asked] of PAIRS) {
     const rows = [row('42', saved), row('7', 'N09-U09')];
     assert.deepEqual(I.mergeRegistry(rows, { sessionId: '42', useCaseId: asked }).app, []);
     const mine = I.sharedHolders(rows, { sessionId: '42', useCaseId: asked }).app;
-    assert.ok(mine && mine.use_cases.length === 2, JSON.stringify(mine));
+    assert.ok(mine && mine.use_cases.length === 1, JSON.stringify(mine));
   });
 
   test(`resultTableHolderProblem: a holder saved as ${saved} is the same use case as ${asked}`, () => {

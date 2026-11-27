@@ -18,6 +18,7 @@ const { heldOn } = require('./lib/spCatalogs');
 const { moneyStatements, moneyView, moneyWithheld } = require('./lib/implementMoney');
 const FB = require('./lib/appFeedback');
 const { eitherIdFound, eitherIdRows, savedIdOf } = require('./lib/useCaseLookup');
+const { sameUseCaseId } = require('../shared/useCaseId.mjs');
 const { specVibeAsks } = require('../frontend/src/lib/vibeLimits.js');
 const { chosenTableScopes } = require('../frontend/src/lib/tableScope.js');
 const { HOSTED_NO_TOKEN } = require('./lib/hostedRun');
@@ -418,7 +419,7 @@ function registerImplementRoutes(app, deps) {
     const { catalog, schema } = dbOf(req, splitInspireDatabase);
     const sid = sessionIdOf(req);
     const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
-    if (asked && asked.use_case_id !== useCaseId) throw I.badRequest(`the spec is for use case ${asked.use_case_id || '(none)'}, not ${useCaseId}`, 400);
+    if (asked && !sameUseCaseId(asked.use_case_id, useCaseId)) throw I.badRequest(`the spec is for use case ${asked.use_case_id || '(none)'}, not ${useCaseId}`, 400);
     // The saved involved tables and the build record are the App's own tracking tables: read as the App (REQ-268 sweep, as REQ-267).
     const appToken = await appTokenOf(req);
     const involved = await useCasesTables(req, warehouseId, catalog, schema, sid, [useCaseId], appToken);
@@ -3479,7 +3480,7 @@ function registerImplementRoutes(app, deps) {
           try {
             // REQ-569: actions are logged under the id the build history holds; only an id the history does not hold tries the other form.
             const readLog = (id) => sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, C.controlLogSelect(ctx.logTable, { sessionId: ctx.sid, useCaseId: id }));
-            const held = (ctx.history || []).some((r) => String((r && r.use_case_id) ?? '').trim() === ctx.useCaseId);
+            const held = (ctx.history || []).some((r) => sameUseCaseId((r && r.use_case_id) ?? '', ctx.useCaseId));
             actions = held ? await readLog(ctx.useCaseId) : await eitherIdRows(ctx.useCaseId, readLog);
             missingControlLogs.delete(ctx.logTable);
           } catch (err) {
