@@ -18,8 +18,8 @@ TEXT = ("_id", "label", "lever", "driver", "segment", "name", "tier", "reason", 
         "code", "entity", "member", "action", "item", "scenario", "flag", "dimension", "source", "target", "stage", "peer", "step")
 DATES = ("period", "date", "as_of", "start", "end", "week", "ts", "time")
 # f37c9b144 (REQ-327): the dashboard date filter reads TRY_CAST(col AS DATE) where it read CAST; only that changed.
-QUEUE_DASHBOARD_SHA = "d2f2cb6ceff28de2c6fa702dd515df4fd7ed4c7de36b7139e287deb218e04761"
-QUEUE_ABOUT_DASHBOARD_SHA = "52568345d18088726e887dc7ea6f4e17e7d470ab1fa9d4721d73a8d6205463c7"
+QUEUE_DASHBOARD_SHA = "6df816ca1c27c2eb26807bf1caf3ddcf15089472a72646eef29023fde1ed9144"
+QUEUE_ABOUT_DASHBOARD_SHA = "e0ed1795d1588cb2b1f70d91d0b90e94e52663888d8bdef6471eb37fe83c186c"
 QUEUE_ALERT_SHA = "7f733f497737e35344172189c9b9775470f27586a0cc5d97422202d2aafa3233"
 QUEUE_GENIE_SHA = "94ebab939154c7c79d5a46313fc7abef3ee44fd913a48a090047c92d79b94940"
 QUEUE_USE_CASE = {"Name": "Predict churn", "Statement": "Customers leave", "use_case_kind": "risk_propensity",

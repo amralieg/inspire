@@ -314,9 +314,6 @@ REVIEWED = {
         ('assert_no_blocking', "', '.join((a['rule_id'] for a in blocking[:10]))"),
         ('deep_signal_measures', 'check'),
         ('deploy', "implement_app_raw_block(raw, [t for t in raw if not self._implement_scope_columns(t)])"),
-        # REQ-237: the chart's person name (its title, its position among shared titles, or 'one chart'), built from the App's own spec.
-        ('deploy', "inspire_shell_facts.chart_names(page)[str(chart['id'])]"),
-        ('deploy', 'name'),
         ('finalize_pipeline', 'self.session_id'),
         ('finalize_pipeline', 'self.session_table'),
         ('initialize_session', 'self.session_id'),
@@ -440,7 +437,6 @@ REVIEWED = {
         ('build_output', 'locked[name]'),
         ('canonical_use_cases_quality', 'legacy_text'),
         ('canonical_discovery_type', 'legacy_text'),
-        ('deploy', "'; '.join(dated)"),
         ('deploy', "'; '.join(errors)"),
         ('deploy', "'; '.join(problems)"),
         ('deploy', 'own'),
