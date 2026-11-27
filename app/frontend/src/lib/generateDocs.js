@@ -4,6 +4,7 @@ import { buildDocModel } from './docgen/docModel.js';
 import { infographicSvg } from './docgen/docSvg.js';
 import { infographicFor } from './docgen/infographicApi.js';
 import { buildAgentPdf, PDF_RASTER } from './docgen/agentPdf.js';
+import { rasterPage } from './docgen/pngIndexed.js';
 import { splitInfographic } from './docgen/designs/panelTiles.js';
 import { agentLabelTexts, buildAgentModel } from './docgen/agentModel.js';
 import { resolveTheme } from './docgen/docStyles.js';
@@ -38,6 +39,9 @@ export async function svgToPng(svg, scale = 1, { type = 'image/png', quality } =
   const dataUrl = canvas.toDataURL(type, quality);
   return { dataUrl, type, width, height, bytes: Uint8Array.from(atob(dataUrl.split(',')[1]), (c) => c.charCodeAt(0)) };
 }
+
+// C28 (REQ-566): the Word charts are 560 px SVGs printed 6.5 in (468 pt) wide; scale 3 gives 1680 px = 258 DPI (scale 2 was 172).
+export const DOCX_RASTER_SCALE = 3;
 
 // The texts a second language needs: per use case, its name, statement, solution and value story.
 export const textsToTranslate = (useCases, values, summary = [], businessName = '') => {
@@ -96,9 +100,9 @@ export function modelFor({ businessName, useCases, values, options, language, id
 // C27: the pages are JPEG at the agent PDF's settings (PDF_RASTER), so the file stays small enough for /api/inspire/docs/save.
 export async function infographicPdf(m, theme, agent, rasterize, drawn = null) {
   const pages = [];
-  for (const svg of splitInfographic(drawn || infographicSvg(m, theme, buildAgentModel(agent).ranked))) pages.push(await rasterize(svg, PDF_RASTER.scale, { type: PDF_RASTER.type, quality: PDF_RASTER.quality }));
+  for (const svg of splitInfographic(drawn || infographicSvg(m, theme, buildAgentModel(agent).ranked))) pages.push(await rasterPage(rasterize, svg, PDF_RASTER.scale, PDF_RASTER));
   const { pdfFromImages } = await import('./docgen/pdfDoc.js');
-  return pdfFromImages(pages);
+  return pdfFromImages(pages, PDF_RASTER.scale);
 }
 
 async function makeFile(file, m, theme, options, agent) {
@@ -112,7 +116,7 @@ async function makeFile(file, m, theme, options, agent) {
     // C25 (REQ-559): the PDF is the agent's catalog PDF plus value, in every style (the style still shapes the other kinds).
     return buildAgentPdf(agent, svgToPng);
   }
-  if (file.kind === 'docx') { const { buildDocx } = await import('./docgen/docxDoc.js'); return buildDocx(m, theme, { chartPng: async (svg) => (await svgToPng(svg, 2)).bytes, views: buildAgentModel(agent).ranked }); }
+  if (file.kind === 'docx') { const { buildDocx } = await import('./docgen/docxDoc.js'); return buildDocx(m, theme, { chartPng: async (svg) => (await svgToPng(svg, DOCX_RASTER_SCALE)).bytes, views: buildAgentModel(agent).ranked }); }
   if (file.kind === 'pptx') { const { buildAgentPptx } = await import('./docgen/agentPptx.js'); return buildAgentPptx(agent); } // C25 (REQ-559): the agent's deck plus value
   const { buildXlsx } = await import('./docgen/xlsxDoc.js');
   return toBytes(await buildXlsx(m, orderedColumns(options.columns), theme));
