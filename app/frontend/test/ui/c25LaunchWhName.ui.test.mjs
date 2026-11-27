@@ -11,6 +11,8 @@ async function footerOf(warehouses) {
   try {
     const footer = ui.page.locator('[data-admin-footer]');
     await footer.waitFor({ timeout: 15000 });
+    // The harness run default now supplies warehouseId at once, so the footer first shows "SQL warehouse wh1"; wait for /api/warehouses to settle.
+    await ui.page.waitForLoadState('networkidle');
     let text = '';
     await until(async () => {
       text = (await footer.innerText()).replace(/\s+/g, ' ').trim();

@@ -18,6 +18,8 @@ const NEW = ['Acme_infographic.png', 'Acme_deck.pptx', 'Acme_use_cases.xlsx'].ma
 function backend() {
   const state = { saved: false, lists: 0 };
   const mount = (app) => {
+    // The finished run lists no strategy PDF, so Assets builds and saves one (REQ-121); this test does not look at it, but the save must answer 200.
+    app.post('/api/inspire/docs/save', (req, res) => res.json({ path: `${req.body.folder}/${req.body.name}`, name: req.body.name, size: 1 }));
     app.get('/api/workspace/list', (_req, res) => { state.lists += 1; res.json({ files: state.saved ? [OLD, ...NEW] : [OLD] }); });
   };
   return { state, mount };
