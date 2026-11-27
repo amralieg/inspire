@@ -47,6 +47,8 @@ export default function UseCaseRow({
   const domainParts = [str(uc._domain || uc['Business Domain'] || uc.domain), str(uc.Subdomain)].filter(Boolean);
   const technique = str(fieldOf(uc, 'Analytics Technique', 'analytics_technique'));
   const kind = v130?.kind || null;
+  // REQ-562: once documents exist the same button offers to make them again.
+  const docsLabel = docsMade ? 'Re-generate docs' : 'Generate docs';
   const build = buildCell(implementStatus, { onImplement, onOpenMvp });
   const BuildIcon = build.busy ? Loader2 : build.primary ? ArrowRight : Sparkles;
   // The Calculate box is replaced by the value box once a value is saved, so the dialog hands focus back to the row, which stays.
@@ -117,13 +119,13 @@ export default function UseCaseRow({
             // REQ-516 / REQ-510 L5: a built row keeps 7 controls, so Generate docs and the asset links share one More menu.
             <div data-row-more="" className="flex justify-center" onClick={(e) => e.stopPropagation()}>
               <MoreMenu label="More" items={[
-                { label: 'Generate docs', onSelect: onGenerateDocs, disabled: !onGenerateDocs },
+                { label: docsLabel, onSelect: onGenerateDocs, disabled: !onGenerateDocs },
                 ...assetLinks.map((link) => ({ label: link.label, onSelect: () => window.open(link.url, '_blank', 'noopener,noreferrer') })),
               ]} />
             </div>
           ) : (
             <button type="button" disabled={!onGenerateDocs} onClick={(e) => { e.stopPropagation(); onGenerateDocs?.(); }} className={BTN_OUTLINE}>
-              <FileText size={14} aria-hidden />Generate docs
+              <FileText size={14} aria-hidden />{docsLabel}
             </button>
           )}
           {docsMade && <span data-docs-made="" className="inline-flex items-center justify-center gap-1 text-caption font-medium text-success-fg"><Check size={14} aria-hidden />Docs made</span>}

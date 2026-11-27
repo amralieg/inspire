@@ -13,7 +13,7 @@ const LABELS = { waiting: 'Waiting', working: 'Working', stopped: 'Stopped' };
 
 // REQ-441, REQ-512: the toolbar above the rows while one or more are ticked: the same three actions the row carries, for the whole selection.
 // Calculate value runs the bulk run; Build MVP and Generate docs open their wizard for the ticked use cases (a queue, "1 of N", for the MVP wizard).
-export function ValueBulkBar({ shown, selected, onSelectAll, onClear, onCalculate, onGenerate = null, onBuild = null, busy = false }) {
+export function ValueBulkBar({ shown, selected, onSelectAll, onClear, onCalculate, onGenerate = null, allDocsMade = false, onBuild = null, busy = false }) {
   if (selected < 1) return null;
   const all = shown > 0 && selected === shown;
   const ghost = 'rounded-md px-3 py-1.5 text-xs font-medium text-white hover:bg-white/10 hover:text-white';
@@ -22,7 +22,7 @@ export function ValueBulkBar({ shown, selected, onSelectAll, onClear, onCalculat
     <div role="toolbar" aria-label="Actions for the selected use cases" data-value-bulk-bar="" className="sticky top-0 z-10 mb-2 flex flex-wrap items-center gap-2 rounded-xl bg-black py-2 pe-2 ps-4 text-xs text-white shadow-lg">
       <span className="me-2 font-semibold tabular-nums">{selected} selected</span>
       {onBuild && <button type="button" onClick={onBuild} className={action}>Build MVP for {selected}</button>}
-      {onGenerate && <button type="button" onClick={onGenerate} className={action}>Generate docs for {selected}</button>}
+      {onGenerate && <button type="button" onClick={onGenerate} className={action}>{allDocsMade ? 'Re-generate docs' : 'Generate docs'} for {selected}</button>}
       <button type="button" onClick={onCalculate} disabled={busy} title={busy ? 'A value calculation is running. Wait for it to finish or stop it first.' : undefined}
         className="rounded-md bg-primary-solid px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-solid-hover disabled:cursor-not-allowed disabled:opacity-50">
         Calculate value for {selected}

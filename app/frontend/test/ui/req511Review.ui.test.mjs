@@ -132,7 +132,8 @@ test('4: the row Build MVP opens the Genie MVP wizard and the row Generate docs 
     await wizard.waitFor({ timeout: 10000 });
     await page.keyboard.press('Escape');
     await wizard.waitFor({ state: 'hidden' });
-    await row('N01-U03').getByRole('button', { name: /^Generate docs$/ }).click();
+    // REQ-562: N01-U03 has docs made, so the same button says Re-generate docs.
+    await row('N01-U03').getByRole('button', { name: /^Re-generate docs$/ }).click();
     const docs = page.getByRole('dialog', { name: 'Generate documents' });
     await docs.waitFor({ timeout: 10000 });
     assert.match(await docs.innerText(), /Segment shoppers|1 use case/);

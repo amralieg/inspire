@@ -804,6 +804,7 @@ export default function ResultsPage({
   useEffect(() => { setBulkPicked(new Set()); }, [selectedSessionId]);
   const bulkIds = filteredUseCases.map((uc) => trackingIdOf(uc)).filter((id) => id && bulkPicked.has(id));
   const setBulkPick = (id, on) => setBulkPicked((prev) => { const next = new Set(prev); if (on) next.add(id); else next.delete(id); return next; });
+  const [docsMadeIds, setDocsMadeIds] = useState(() => new Set()); // REQ-562: use cases the wizard just saved documents for (the listing catches up after)
   const [docsUcs, setDocsUcs] = useState(null); // the use cases the Generate docs wizard is open for (one row, or the ticked rows)
   // REQ-512 D1: there is no bulk build API, so "Build MVP for N" opens the MVP wizard once per use case; buildQueue says where it is.
   const [buildQueue, setBuildQueue] = useState({ left: [], total: 0 });
@@ -2176,7 +2177,7 @@ export default function ResultsPage({
               {docsRun.run?.sessionId === String(selectedSessionId ?? '') && <DocsRunProgress />}
               {bulkOn && filteredUseCases.length > 0 && (
                 <ValueBulkBar shown={filteredUseCases.filter((uc) => trackingIdOf(uc)).length} selected={bulkIds.length} onCalculate={startBulk} busy={Boolean(bulkRun.run?.running)}
-                  onGenerate={() => setDocsUcs(pickedUseCases())} onBuild={canImplement ? () => startBuildQueue(pickedUseCases()) : null}
+                  onGenerate={() => setDocsUcs(pickedUseCases())} allDocsMade={bulkIds.length > 0 && pickedUseCases().every((uc) => uc.docs_generated_at || docsMadeIds.has(trackingIdOf(uc)))} onBuild={canImplement ? () => startBuildQueue(pickedUseCases()) : null}
                   onClear={() => setBulkPicked(new Set())}
                   onSelectAll={(on) => setBulkPicked(on ? new Set(filteredUseCases.map((uc) => trackingIdOf(uc)).filter(Boolean)) : new Set())} />
               )}
@@ -2234,7 +2235,7 @@ export default function ResultsPage({
                         onOpen={() => setExpandedUseCase(expandedUseCase === key ? null : key)}
                         selection={bulkOn && tid ? { checked: bulkPicked.has(tid), onChange: (on) => setBulkPick(tid, on) } : null}
                         onGenerateDocs={tid ? () => setDocsUcs([uc]) : undefined}
-                        docsMade={Boolean(uc.docs_generated_at)}
+                        docsMade={Boolean(uc.docs_generated_at) || docsMadeIds.has(tid)}
                         {...cardProps}
                       />
                       );
@@ -2372,7 +2373,7 @@ export default function ResultsPage({
           values={docValuesOf({ byId: calculated.byId, totals: valueTotals })}
           businessName={runBusiness(selectedSession)} language={docLanguageOf(selectedSession)} folder={generationPath} summary={summaryParagraphs} foundations={foundationsList}
           apiPostJson={apiPostJson} inspireDatabase={inspireDb} warehouseId={warehouseId} sessionId={selectedSessionId}
-          onSaved={() => { loadArtifacts(generationPath); refreshUsecasesForSession(selectedSessionId); }}
+          onSaved={() => { setDocsMadeIds((prev) => new Set([...prev, ...docsUcs.map(trackingIdOf)])); loadArtifacts(generationPath); refreshUsecasesForSession(selectedSessionId); }}
           onClose={() => setDocsUcs(null)} />
       )}
       {implementUc && buildQueue.total > 1 && (
