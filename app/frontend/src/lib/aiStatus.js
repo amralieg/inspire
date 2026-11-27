@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react';
 // The routes below are the ones whose server handler asks the chat model (askChatModel, generate-genie, vibe, translate, describe-value).
 export const AI_ROUTES = [
   '/api/inspire/value/estimate', '/api/inspire/value/case-plan', '/api/inspire/value/filter', '/api/inspire/value/run-review',
-  '/api/inspire/docs/translate', '/api/inspire/generate-genie', '/api/inspire/generate_genie',
+  '/api/inspire/docs/translate', '/api/inspire/docs/infographic-pick', '/api/inspire/generate-genie', '/api/inspire/generate_genie',
   '/api/inspire/implement/feedback/vibe', '/api/money/describe-value',
 ];
 export const isAiRoute = (url) => { const path = String(url).split('?')[0]; return AI_ROUTES.includes(path); };

@@ -71,4 +71,4 @@ function readTranslations(raw, keys) {
   return Object.keys(salvaged).length > Object.keys(best).length ? salvaged : best;
 }
 
-module.exports = { chunkTexts, readTranslations, CHUNK_CHARS };
+module.exports = { chunkTexts, readTranslations, objectsIn, CHUNK_CHARS };

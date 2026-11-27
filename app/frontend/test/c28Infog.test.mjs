@@ -135,3 +135,10 @@ test('the styles list has an id, a name and a thumbnail svg per scenario and ori
 test('docSvg exports the infographic API for the dialog', () => {
   for (const k of ['infographicFor', 'infographicStyles', 'pickInfographic', 'fallbackPick']) assert.equal(typeof docSvg[k], 'function', k);
 });
+
+test('infographicApi gives the dialog infographicFor (style and palette pick the theme) and INFOGRAPHIC_STYLES with a thumbnail', async () => {
+  const api = await import('../src/lib/docgen/infographicApi.js');
+  assert.ok(api.INFOGRAPHIC_STYLES.length >= 6 && api.INFOGRAPHIC_STYLES.every((s) => s.id && s.name && s.thumbnail.startsWith('<svg')));
+  const a = api.infographicFor(FIXTURES[2], { orientation: 'portrait', scenario: 'timeline', businessName: 'Acme', values: {}, style: 'bold', palette: 'databricks', customColor: '' });
+  assert.ok(a.startsWith('<svg') && a.includes('data-scenario="timeline"'));
+});
