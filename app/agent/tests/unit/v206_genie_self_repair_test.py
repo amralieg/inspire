@@ -195,6 +195,6 @@ def test_settings_genie_changed_are_saved_with_their_reason(agent_ns):
 
 def test_the_build_shows_genie_changes_in_the_summary_and_the_version_history():
     source = ast.unparse(method_node("DatabricksInspire", "_implement_one_locked"))
-    assert "warnings += [f'Notebook: {note}'[:1500] for note in outcome['genie_changes']]" in source
+    assert "warnings += [f'Notebook: {note}'[:1500] for note in implement_genie_note_split(outcome['genie_changes'])[0]]" in source
     assert "**({'notes': outcome['genie_changes']} if outcome.get('genie_changes') else {})" in source
     assert "self._implement_record_genie_settings(uc_id, result_table, fill)" in source
