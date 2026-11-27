@@ -239,7 +239,7 @@ const SUBTITLE_MAX = 240;
 const FOUNDATION_IDS = 12;
 const TOP_LIMIT = { elite: 12, default: 10, value: 10 };
 export const DOC_VALUE_LEFT = ['what_you_get', 'strategy', 'kpis', 'expected_key_results'];
-export const DOC_INDEX_COLUMNS = [['rank', 'doc_rank', 0.08], ['id', null, 0.12], ['title', 'usecase', 0.36], ['domain', 'domain', 0.19], ['quality', 'quality', 0.13], ['inspire_score', 'inspire_score', 0.12]];
+export const DOC_INDEX_COLUMNS = [['rank', 'doc_rank', 0.08], ['id', null, 0.09], ['title', 'usecase', 0.41], ['domain', 'domain', 0.17], ['quality', 'quality', 0.13], ['inspire_score', 'inspire_score', 0.12]];
 const LOCALES = {
   English: 'en', French: 'fr', German: 'de', Spanish: 'es', Hindi: 'hi', 'Chinese (Mandarin)': 'zh', Japanese: 'ja', Arabic: 'ar', Portuguese: 'pt',
   Russian: 'ru', Swedish: 'sv', Danish: 'da', Norwegian: 'nb', Finnish: 'fi', Italian: 'it', Polish: 'pl', Romanian: 'ro', Ukrainian: 'uk', Dutch: 'nl',

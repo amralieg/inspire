@@ -124,12 +124,13 @@ table.qrows td.n { text-align: __E__; font-weight: 700; }
 table.index { width: 100%; border-collapse: collapse; font-size: __F_small__; table-layout: fixed; }
 table.index thead { display: table-header-group; }
 table.index th { background: #__C_teal__; color: #__C_white__; padding: 5px 6px; text-align: __S__; font-weight: 600; font-size: __F_label__; }
-table.index td { padding: 5px 6px; border-bottom: 1px solid #__C_line__; vertical-align: middle; overflow-wrap: normal; hyphens: manual; word-break: normal; }
+table.index td { padding: 5px 6px; border-bottom: 1px solid #__C_line__; vertical-align: middle; }
 table.index tr { break-inside: avoid; }
 table.index tbody tr:nth-child(even) td { background: #__C_sand3__; }
 table.index td.ix-rank { font-family: __DISPLAY__; font-weight: 700; color: #__C_teal__; text-align: center; }
 table.index td.ix-id a { color: #__C_coral__; font-weight: 700; }
 table.index td.ix-id { white-space: nowrap; }
+table.index td.ix-domain { overflow-wrap: normal; word-break: normal; hyphens: manual; }
 table.index td.ix-title a { color: #__C_ink__; }
 table.index .ixflag { display: inline-block; background: #__C_note__; color: #__C_note_ink__; border-radius: 6px; padding: 0 5px; font-size: __F_label__; font-weight: 700; margin-__E__: 4px; }
 table.index td.ix-quality, table.index td.ix-inspire_score { text-align: center; }
@@ -525,9 +526,11 @@ function statsTable(items, b, extra = '', width = CW, big = extra === 'big') {
   const h = 16 + Math.max(...items.map(([v, l]) => textH(v, vs, cw, 1.15, { bold: true }) + 2 + textH(l, F.label, cw, 1.25)));
   return { html: `<table class="stats ${extra}"><tr>${cells}</tr></table>`, h };
 }
+export const PDF_INDEX_W = { rank: 0.07, id: 0.11, title: 0.41, domain: 0.17, quality: 0.13, inspire_score: 0.11 };
 function indexTable(rows, m, b) {
   const T = m.T;
-  const cols = DOC_INDEX_COLUMNS.map(([k, labelKey, w]) => [k, labelKey ? T(labelKey) : 'ID', w]);
+  // C28: the PDF gives the ID and domain columns the room the longest id and domain word need (the deck keeps DOC_INDEX_COLUMNS).
+  const cols = DOC_INDEX_COLUMNS.map(([k, labelKey, w]) => [k, labelKey ? T(labelKey) : 'ID', PDF_INDEX_W[k] ?? w]);
   const head = `<table class="index"><colgroup>${cols.map(([, , w]) => `<col style="width:${(100 * w).toFixed(1)}%"/>`).join('')}</colgroup>`
     + `<thead><tr>${cols.map(([, l]) => `<th>${esc(l)}</th>`).join('')}</tr></thead><tbody>`;
   const headH = F.label * 1.5 + 10;

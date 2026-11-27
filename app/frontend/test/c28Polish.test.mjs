@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import JSZip from 'jszip';
-import { agentPdfPages, linesOf } from '../src/lib/docgen/agentPdf.js';
+import { agentPdfPages, linesOf, PDF_INDEX_W } from '../src/lib/docgen/agentPdf.js';
 import { buildAgentModel, DOC_INDEX_COLUMNS } from '../src/lib/docgen/agentModel.js';
 import { buildDocx } from '../src/lib/docgen/docxDoc.js';
 import { buildDocModel } from '../src/lib/docgen/docModel.js';
@@ -19,7 +19,7 @@ const am = buildAgentModel(ARGS);
 const colPx = (w) => CW * w - 12; // column width less the cell padding
 
 test('P1: every index row\'s id fits its column on one line (bold, as printed)', () => {
-  const idCol = DOC_INDEX_COLUMNS.find(([k]) => k === 'id');
+  const idCol = ['id', null, PDF_INDEX_W.id];
   const bad = am.ranked.filter((v) => linesOf(v.id, SMALL, colPx(idCol[2]), { bold: true }) !== 1).map((v) => v.id);
   assert.deepEqual(bad, [], `ids wider than the ID column: ${bad.join(', ')}`);
 });
@@ -27,7 +27,8 @@ test('P1: every index row\'s id fits its column on one line (bold, as printed)',
 test('P2: no index cell breaks inside a word (every word fits its column on one line)', () => {
   const texts = { title: (v) => v.title, domain: (v) => v.domain, quality: (v) => v.quality || '', id: (v) => v.id };
   const bad = [];
-  for (const [k, , w] of DOC_INDEX_COLUMNS) {
+  for (const [k, , w0] of DOC_INDEX_COLUMNS) {
+    const w = PDF_INDEX_W[k] ?? w0;
     if (!texts[k]) continue;
     for (const v of am.ranked) for (const word of String(texts[k](v)).split(/\s+/).filter(Boolean)) {
       if (linesOf(word, SMALL, colPx(w), { bold: k === 'id' }) !== 1) bad.push(`${k}:${word}`);
@@ -40,7 +41,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 const seen = [];
 const m = buildDocModel({ ...ARGS, options: defaultDocOptions('English') });
 const theme = resolveTheme('original', 'databricks', '', 'light');
-await buildDocx(m, theme, { chartPng: async (svg) => { seen.push(svg); return new Uint8Array(PNG); }, ranked: am.ranked });
+await buildDocx(m, theme, { chartPng: async (svg) => { seen.push(svg); return new Uint8Array(PNG); }, views: am.ranked });
 const svgsOf = (s) => [...String(s).matchAll(/<svg\b[^>]*\bdata-chart="[^"]+"[\s\S]*?<\/svg>/g)].map((x) => x[0]);
 const marks = (svg) => (svg.match(/<(circle|path|polygon|polyline|ellipse)\b/g) || []).length + Math.max(0, (svg.match(/<rect\b/g) || []).length - 3);
 
