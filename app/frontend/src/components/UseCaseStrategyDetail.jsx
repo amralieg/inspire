@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { plural } from '../lib/plural.js';
+import { displayId } from '../../../shared/useCaseId.mjs';
 import {
   bestOfBestLabel,
   dataSignalLine,
@@ -245,7 +246,7 @@ export function UseCaseStrategyDetail({ info, knownPriorities, foundationsById, 
               const f = foundationsById?.get(id);
               return (
                 <span key={id} title={(f?.tables || []).join(', ')} className="rounded-full border border-border bg-surface px-2 py-0.5 text-caption text-text-secondary">
-                  {id}{f?.name ? ` · ${f.name}` : ''}
+                  {displayId(id)}{f?.name ? ` · ${f.name}` : ''}
                 </span>
               );
             })}

@@ -10,7 +10,7 @@ Inspire tags the jobs, job runs and assets it creates so DBUs can be summed per 
 | `dbx_inspire_ai_business` | Business name, cleaned | every Inspire job and asset |
 | `dbx_inspire_ai_session_id` | Session id | every Inspire job and asset |
 | `dbx_inspire_ai_run_type` | `discovery`, `implement`, `training`, `analysis`, `genie_regen` | every job |
-| `dbx_inspire_ai_usecase_id` | Use case id, for example `N01-U01` | use case runs |
+| `dbx_inspire_ai_usecase_id` | Use case id, for example `AI01-UC01` | use case runs |
 | `dbx_inspire_ai_usecase_name` | Full use case name, lower snake_case, for example `predict_customer_churn` | use case runs with one use case |
 | `dbx_inspire_ai_usecase` | Same value as `dbx_inspire_ai_usecase_name` (legacy key, kept for existing readers) | Genie jobs |
 | `dbx_inspire_ai_app_name` / `dbx_inspire_ai_app_id` | App name and id | the job that builds an App |

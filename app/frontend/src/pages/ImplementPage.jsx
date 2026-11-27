@@ -1,5 +1,5 @@
 import OUTPUT_LABELS from '../../../backend/lib/implementOutputLabels.json' with { type: 'json' };
-import { sameUseCaseId } from '../../../shared/useCaseId.mjs';
+import { displayId, sameUseCaseId } from '../../../shared/useCaseId.mjs';
 import Button from '../components/ui/Button';
 import UiPageHeader from '../components/ui/PageHeader';
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -2039,7 +2039,7 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
       )}
       {!built && notebook && <NotebookPanel notebook={notebook} />}
       {uninstalling && (
-        <ConfirmDialog title={`Uninstall everything ${item.name || useCaseId} built`} confirmLabel={`Uninstall ${item.name || useCaseId}`} useCaseId={useCaseId} busy={submitBusy}
+        <ConfirmDialog title={`Uninstall everything ${item.name || displayId(useCaseId)} built`} confirmLabel={`Uninstall ${item.name || displayId(useCaseId)}`} useCaseId={useCaseId} busy={submitBusy}
           onCancel={() => setUninstalling(false)} onConfirm={uninstallAll}>
           <p>
             Inspire deletes the MVP notebook, its job, the build jobs of every version, the dashboard, the Genie Agent, the App, the alert, the App&apos;s Lakebase copy and every version kept live, in a new version of this MVP. A build job that is still running stays until its run ends, and Inspire says so.

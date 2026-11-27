@@ -10,6 +10,7 @@ import { kpiTargetOf, kpiTargetProblems, stakeWords, withKpiTarget } from './tar
 import { FIRST_RUN_LABEL, firstRunSent, latestRunScope, scopeProblems, scopeValues } from './runScope.js';
 import { normalizeTableScope, tableScopeOf } from './tableScope.js';
 import { PLACE_NAME_RE } from './tableName.js';
+import { displayId } from '../../../shared/useCaseId.mjs';
 import {
   allowedRule, allowedText, isSettingWidget, numberText, settingsModelOf, settingsProblems, widgetProblems, widgetSetProblems, widgetValueProblem,
   wizardSettings, withSettingsNote,
@@ -3341,7 +3342,7 @@ export function implementGroups(useCases, latestRows, notebookRun, query = '') {
   const listedIds = new Set(listed.map(caseIdOf));
   const orphans = [...latestById.entries()]
     .filter(([id]) => id && !listedIds.has(id))
-    .map(([id, row]) => ({ id, Name: String(row.use_case_name || id) }));
+    .map(([id, row]) => ({ id, Name: String(row.use_case_name || displayId(id)) }));
   const terms = String(query || '').toLowerCase().split(/\s+/).filter(Boolean);
   const items = [...listed, ...orphans].map((uc) => {
     const id = caseIdOf(uc);

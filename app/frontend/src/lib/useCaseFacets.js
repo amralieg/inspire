@@ -9,6 +9,7 @@ import {
   hasShippedGenieCode,
   trackingIdOf,
 } from './useCaseFields.js';
+import { displayId } from '../../../shared/useCaseId.mjs';
 
 export const GENIE_LABELS = Object.freeze({
   shipped: 'Databricks AI instruction written',
@@ -29,7 +30,7 @@ export function catalogRow(uc, index, ctx = {}) {
     index,
     uc,
     id,
-    title: nameOfUseCase(uc) || id || `Use case ${index + 1}`,
+    title: nameOfUseCase(uc) || displayId(id) || `Use case ${index + 1}`,
     domain: String(uc?._domain || '').trim() || text('Business Domain', 'business_domain'),
     subdomain: text('Subdomain', 'subdomain'),
     technique: text('Analytics Technique', 'analytics_technique'),
