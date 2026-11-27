@@ -32,7 +32,7 @@ const withUseCase = (results, no, extra) => ({
 });
 const CHURN_KEY = { use_case_key: 'acme:predict-churn' };
 const DEMO_RESULTS = withUseCase(withUseCase(RESULTS, 'N01-U03', { notebook_path: NOTEBOOK }), 'N01-U01', { ...CHURN_KEY, tables_involved: 'main.s.orders' });
-const DEMO_RUN = { ...REVIEW_SESSIONS[0], usecase_overview: { total: 6, high: 2, meets: 6, below: 0, domains: 2, unread: {}, preview_use_cases: [{ Name: 'Predict churn' }, { Name: 'Forecast stock' }] } };
+const DEMO_RUN = { ...REVIEW_SESSIONS[0], generation_path: './inspire_output', usecase_overview: { total: 6, high: 2, meets: 6, below: 0, domains: 2, unread: {}, preview_use_cases: [{ Name: 'Predict churn' }, { Name: 'Forecast stock' }] } };
 const RUN_STEPS = [
   { step_id: '1', stage_name: 'Discovery', step_name: 'Read the tables', status: 'ended_success', last_updated: '2026-10-31T09:10:00Z', message: 'Read 4 tables', progress_increment: 20 },
   { step_id: '2', stage_name: 'Use Case Generation', step_name: 'Write the use cases', status: 'ended_success', last_updated: '2026-10-31T09:40:00Z',
@@ -58,7 +58,7 @@ const STATE = {
   notebooks: { [NOTEBOOK]: NOTEBOOK_TEXT },
 };
 const DEFAULTS = {
-  envSkipsSetupWizard: true, isDatabricksApp: true, databricksHost: 'https://workspace.example.com',
+  envSkipsSetupWizard: true, isDatabricksApp: true, hasServerPlatformAuth: true, databricksHost: 'https://workspace.example.com',
   warehouseId: 'wh1', inspireDatabase: 'main.inspire', notebookPath: '/Shared/inspire_ai',
 };
 const SHELL = {
@@ -67,7 +67,20 @@ const SHELL = {
   'static/assets/index.css': '.app { font: 16px sans-serif; }',
 };
 const WRITE_SQL = /\b(?:INSERT\s+INTO|UPDATE\s+\S+\s+SET|DELETE\s+FROM|MERGE\s+INTO)\b/i;
-const serveDefaults = (app) => app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
+// REQ-560: Review Assets lists the demo run's output folder and View reads a generated PDF in place, so the recording must save both reads.
+const DEMO_PDF = 'Acme_use_cases.pdf';
+const PDF_BYTES = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF');
+const serveDefaults = (app) => {
+  app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
+  app.get('/api/workspace/list', (req, res) => {
+    const folder = String(req.query.path || '').replace(/\/+$/, '');
+    res.json({ files: [{ name: DEMO_PDF, path: `${folder}/${DEMO_PDF}`, is_directory: false, file_size: PDF_BYTES.length }] });
+  });
+  app.get('/api/workspace/export', (req, res, next) => {
+    if (!String(req.query.path || '').endsWith(`/${DEMO_PDF}`)) return next();
+    return res.type('application/pdf').send(PDF_BYTES);
+  });
+};
 const besidesRefusals = (errors) => errors.filter((e) => !/status of 403 \(Forbidden\)/.test(e));
 const demoBar = (page) => page.getByRole('region', { name: 'Demo' });
 const list = (page) => page.getByRole('region', { name: 'Use case list' });
