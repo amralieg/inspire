@@ -19,6 +19,9 @@ export const VIBE_EXAMPLES = [
 ];
 export const LOGO_TYPES = ['image/png', 'image/svg+xml', 'image/jpeg'];
 export const LOGO_MAX_BYTES = 512 * 1024;
+// The type of a picked file: the browser's own, or (when it gives none) the one its extension names.
+const EXT_TYPES = { png: 'image/png', svg: 'image/svg+xml', jpg: 'image/jpeg', jpeg: 'image/jpeg' };
+export const logoTypeOf = ({ name = '', type = '' }) => type || EXT_TYPES[String(name).split('.').pop().toLowerCase()] || '';
 export const checkLogo = ({ type, size }) => {
   if (!LOGO_TYPES.includes(type)) return 'Use a PNG, SVG or JPEG picture.';
   if (!(size > 0) || size > LOGO_MAX_BYTES) return `The logo must be under ${LOGO_MAX_BYTES / 1024} KB.`;

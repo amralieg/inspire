@@ -32,6 +32,7 @@ test('(d) a valid PNG logo previews with a data: URL and no error; an invalid fi
     const preview = dialog.locator('[data-docs-logo-preview]');
     const problem = dialog.locator('[data-docs-logo-problem]');
 
+    await dialog.locator('[data-docs-vibe-example="0"]').click();
     await input.setInputFiles({ name: 'dot.png', mimeType: 'image/png', buffer: TINY });
     await preview.waitFor();
     const dot = await preview.boundingBox();

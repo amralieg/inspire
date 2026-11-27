@@ -7,7 +7,7 @@ import { LB, withLabels } from './docLabels.js';
 import { extraParts, partLines } from './docModel.js';
 import { DOC_COLORS as K, qualityColor, AGENT_EN } from './agentModel.js';
 import { chartTypesFor, ucChartSvg, portfolioChartSvg } from './designs/ucCharts.js';
-import { execSummaryParas, purposeParas, domainsListOf } from './storyParts.js';
+import { execSummaryParas, purposeParas, domainsListOf, storyPick } from './storyParts.js';
 
 const has = (m, id) => m.blocks.includes(id);
 const esc = (s) => String(s ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -146,12 +146,12 @@ export async function buildDocx(m, theme = {}, { chartPng, views } = {}) {
 
     // Executive summary: its own page, a short story and the portfolio pictures.
     para(LB('Executive summary'), { style: 'Heading1', pageBreak: true });
-    execSummaryParas(m).forEach((p) => para(p));
+    execSummaryParas(m).forEach((p, i) => para(storyPick(m.story, `exec|${i}`, p)));
     picture('portfolio0', 'Value or use cases by business domain');
 
     // Purpose and domains.
     para(LB('What this catalog is for'), { style: 'Heading1', pageBreak: true });
-    purposeParas(m).forEach((p) => para(p));
+    purposeParas(m).forEach((p, i) => para(storyPick(m.story, `purpose|${i}`, p)));
     picture('portfolio1', 'Priority against feasibility');
     para(LB('Business domains'), { style: 'Heading1', pageBreak: true });
     const anyV = dl.some((d) => d.value);

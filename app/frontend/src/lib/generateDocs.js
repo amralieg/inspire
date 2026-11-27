@@ -7,7 +7,7 @@ import { buildAgentPdf, PDF_RASTER } from './docgen/agentPdf.js';
 import { splitInfographic } from './docgen/designs/panelTiles.js';
 import { agentLabelTexts, buildAgentModel } from './docgen/agentModel.js';
 import { resolveTheme } from './docgen/docStyles.js';
-import { storyTexts } from './docgen/storyParts.js';
+import { storyFrom, storyTexts } from './docgen/storyParts.js';
 import { trackingIdOf } from './useCaseFields.js';
 import { summaryOf } from './docgen/docModel.js';
 import { orderedColumns } from './docgen/docOptions.js';
@@ -55,6 +55,9 @@ export const textsToTranslate = (useCases, values, summary = [], businessName = 
   return texts;
 };
 
+// C28 (REQ-572): the keys a vibe rewrites in English: the story pages and the session summary. Fixed labels and use case fields stay as they are.
+const storyOnly = (texts) => Object.fromEntries(Object.entries(texts).filter(([k]) => k.startsWith('story|') || k.startsWith('summary|')));
+
 // C28 (REQ-572): the person's wording guide and logo, read from the options and handed to every document kind and every LLM call.
 export const docContext = (options = {}) => ({ vibe: String(options.vibe ?? '').trim(), logo: options.logo || null });
 
@@ -78,6 +81,7 @@ export function modelFor({ businessName, useCases, values, options, language, id
   const m = buildDocModel({ businessName, useCases: picked, values, options: { ...options, languages: [language] }, summary, foundations });
   if (!translated) return m;
   m.labels = labelsFrom(translated);
+  m.story = storyFrom(translated);
   // REQ-526 part E: the executive summary is translated with the other texts, one entry per paragraph.
   if (m.summary.length) m.summary = m.summary.map((p, i) => translated[`summary|${i}`] || p);
   m.useCases.forEach((u) => {
@@ -134,6 +138,12 @@ export async function generateDocs({ plan, options, useCases, values, businessNa
         files.forEach((f) => onFile(f.name, 'failed', e?.message || 'The translation failed.'));
         continue;
       }
+    } else if (ctx.vibe) {
+      // C28 (REQ-572): the vibe also shapes English: the story texts go through one rewrite call; if it fails the deterministic texts stand.
+      try {
+        const res = await post('/api/inspire/docs/translate', { ...where, language, vibe: ctx.vibe, texts: storyOnly(textsToTranslate(useCases, values, summary, businessName)) });
+        translated = res?.texts || null;
+      } catch { translated = null; }
     }
     for (const file of files) {
       if (signal?.aborted) { onFile(file.name, 'stopped'); continue; }

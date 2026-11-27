@@ -811,7 +811,7 @@ function sections(m) {
   // (English; another language keeps the translated session summary). A bar notice stays first.
   const notices = m.executive.slice(0, Math.max(0, m.executive.length - (m.summary?.length || 2)));
   const english = m.language === 'English';
-  const exec = para([...notices, ...(english ? execSummaryParas(m) : execFor(m, notices.length))], F.body + 1, CW, 1.55);
+  const exec = para([...notices, ...(english ? execSummaryParas(m).map((p, i) => storyPick(m.story, `exec|${i}`, p)) : execFor(m, notices.length))], F.body + 1, CW, 1.55);
   const stats = statsTable(m.headline, b, 'big');
   const pw = Math.floor((CW - 14) / 2); const ph = 220;
   const valued = m.ranked.some((u) => u.value.amount !== null);

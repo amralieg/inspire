@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check, FileSpreadsheet, FileText, Globe, Image as ImageIcon, Plus, Presentation, Sparkles, Upload, X } from 'lucide-react';
-import { checkLogo, CONTENT_BLOCKS, EXCEL_COLUMNS, EXCEL_GROUPS, kindsForLayout, LOGO_TYPES, ORIENTATIONS, orderedColumns, VIBE_EXAMPLES } from '../lib/docgen/docOptions.js';
+import { checkLogo, logoTypeOf, CONTENT_BLOCKS, EXCEL_COLUMNS, EXCEL_GROUPS, kindsForLayout, LOGO_TYPES, ORIENTATIONS, orderedColumns, VIBE_EXAMPLES } from '../lib/docgen/docOptions.js';
 import { INFOGRAPHIC_STYLES } from '../lib/docgen/infographicApi.js';
 import { DOC_PALETTES, DOC_STYLES, DOC_THEMES, resolveTheme } from '../lib/docgen/docStyles.js';
 import { DOCUMENT_LANGUAGE_CHOICES } from '../constants/documentLanguages.js';
@@ -206,11 +206,12 @@ export function VibePage({ options, set }) {
   const logo = options.logo;
   const pickFile = (file) => {
     if (!file) return;
-    const bad = checkLogo({ type: file.type, size: file.size });
-    setProblem(bad);
+    const type = logoTypeOf(file);
+    const bad = checkLogo({ type, size: file.size });
+    setProblem(bad ? `${file.name}: ${bad}` : '');
     if (bad) return;
     const reader = new FileReader();
-    reader.onload = () => set({ logo: { name: file.name, type: file.type, size: file.size, dataUrl: String(reader.result) } });
+    reader.onload = () => set({ logo: { name: file.name, type, size: file.size, dataUrl: String(reader.result).replace(/^data:[^;,]*/, `data:${type}`) } });
     reader.onerror = () => setProblem('The logo could not be read.');
     reader.readAsDataURL(file);
   };
@@ -236,7 +237,7 @@ export function VibePage({ options, set }) {
           </label>
           {logo && (
             <>
-              <img data-docs-logo-preview="" src={logo.dataUrl} alt={`Logo ${logo.name}`} className="max-h-12 max-w-32 rounded border border-border bg-surface p-1" />
+              <img data-docs-logo-preview="" src={logo.dataUrl} alt={`Logo ${logo.name}`} className="h-12 min-h-8 min-w-8 max-w-32 rounded border border-border bg-surface object-contain p-1" />
               <span className="text-xs text-text-secondary">{logo.name}</span>
               <button type="button" onClick={() => set({ logo: null })} className="rounded-md p-1.5 text-text-secondary hover:bg-bg-subtle" aria-label="Remove logo"><X size={14} aria-hidden /></button>
             </>

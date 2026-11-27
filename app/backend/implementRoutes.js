@@ -3680,8 +3680,12 @@ function registerImplementRoutes(app, deps) {
       if (keys.length > DOC_TEXT_KEYS) throw I.badRequest(`texts has more than ${DOC_TEXT_KEYS} entries.`);
       if (keys.some((k) => typeof texts[k] !== 'string')) throw I.badRequest('every text must be a string.');
       if (keys.some((k) => texts[k].length > DOC_TEXT_CHARS)) throw I.badRequest(`a text is over ${DOC_TEXT_CHARS} characters.`, 413);
-      if (/^english$/i.test(language)) return res.json({ language, texts });
-      const system = `You translate short business texts into ${language}. Reply with one JSON object that has exactly the same keys as the input, each value the translation of that text. Keep names, numbers, product names and acronyms as they are. If the user's input names a wording or term to use, that explicit input wins.${DT.vibeLine(req.body?.vibe)} Reply with JSON only.`;
+      // C28 (REQ-572): English with no vibe is the source as it is; English with a vibe is one rewrite in the person's voice, like any other language.
+      const english = /^english$/i.test(language);
+      const vibe = DT.vibeLine(req.body?.vibe);
+      if (english && !vibe) return res.json({ language, texts });
+      const system = `${english ? 'You rewrite short business texts in English, following the direction below. Reply with one JSON object that has exactly the same keys as the input, each value the rewritten text. Keep every number, name, product name, acronym and {0}-style placeholder exactly as it is.'
+        : `You translate short business texts into ${language}. Reply with one JSON object that has exactly the same keys as the input, each value the translation of that text. Keep names, numbers, product names and acronyms as they are.`} If the user's input names a wording or term to use, that explicit input wins.${vibe} Reply with JSON only.`;
       // RC7-B-09: the texts go in chunks; a chunk whose reply holds nothing usable is asked once more; a key still without a translation keeps
       // its source text and is named in `untranslated`, so one bad reply never fails the file.
       const out = {};
@@ -3697,8 +3701,8 @@ function registerImplementRoutes(app, deps) {
         for (let attempt = 0; attempt < 2 && !Object.keys(got).length; attempt += 1) {
           const asked = await askChatModel(req, messages, FB.JSON_ANSWER_MAX_TOKENS);
           if (!asked.got) {
-            if (!reached) throw I.badRequest(`No model could translate: ${asked.reason}`, 503);
-            continue;
+            if (!reached && !english) throw I.badRequest(`No model could translate: ${asked.reason}`, 503);
+            continue; // English keeps its deterministic text when the model cannot be reached
           }
           reached = true;
           const reply = asked.got.data && asked.got.data.choices && asked.got.data.choices[0] && asked.got.data.choices[0].message;
