@@ -3681,7 +3681,7 @@ function registerImplementRoutes(app, deps) {
       if (keys.some((k) => typeof texts[k] !== 'string')) throw I.badRequest('every text must be a string.');
       if (keys.some((k) => texts[k].length > DOC_TEXT_CHARS)) throw I.badRequest(`a text is over ${DOC_TEXT_CHARS} characters.`, 413);
       if (/^english$/i.test(language)) return res.json({ language, texts });
-      const system = `You translate short business texts into ${language}. Reply with one JSON object that has exactly the same keys as the input, each value the translation of that text. Keep names, numbers, product names and acronyms as they are. If the user's input names a wording or term to use, that explicit input wins. Reply with JSON only.`;
+      const system = `You translate short business texts into ${language}. Reply with one JSON object that has exactly the same keys as the input, each value the translation of that text. Keep names, numbers, product names and acronyms as they are. If the user's input names a wording or term to use, that explicit input wins.${DT.vibeLine(req.body?.vibe)} Reply with JSON only.`;
       // RC7-B-09: the texts go in chunks; a chunk whose reply holds nothing usable is asked once more; a key still without a translation keeps
       // its source text and is named in `untranslated`, so one bad reply never fails the file.
       const out = {};

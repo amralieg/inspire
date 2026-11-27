@@ -2,6 +2,7 @@
 // The PowerPoint, Excel and PDF writers load here with import(), only when a person generates, so the main bundle does not carry them.
 import { buildDocModel } from './docgen/docModel.js';
 import { infographicSvg } from './docgen/docSvg.js';
+import { infographicFor } from './docgen/infographicApi.js';
 import { buildAgentPdf, PDF_RASTER } from './docgen/agentPdf.js';
 import { splitInfographic } from './docgen/designs/panelTiles.js';
 import { agentLabelTexts, buildAgentModel } from './docgen/agentModel.js';
@@ -54,6 +55,24 @@ export const textsToTranslate = (useCases, values, summary = [], businessName = 
   return texts;
 };
 
+// C28 (REQ-572): the person's wording guide and logo, read from the options and handed to every document kind and every LLM call.
+export const docContext = (options = {}) => ({ vibe: String(options.vibe ?? '').trim(), logo: options.logo || null });
+
+// The logo drawn to PNG bytes for Word (which takes no SVG); null when it cannot be drawn.
+export async function logoPng(logo) {
+  try {
+    if (!logo?.dataUrl) return null;
+    const img = new Image();
+    const loaded = new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
+    img.src = logo.dataUrl; await loaded;
+    const w = img.naturalWidth || 300; const h = img.naturalHeight || 100;
+    const k = Math.min(1, 600 / w); const canvas = document.createElement('canvas'); canvas.width = Math.round(w * k); canvas.height = Math.round(h * k);
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    const url = canvas.toDataURL('image/png');
+    return { bytes: Uint8Array.from(atob(url.split(',')[1]), (c) => c.charCodeAt(0)), w: canvas.width, h: canvas.height };
+  } catch { return null; }
+}
+
 export function modelFor({ businessName, useCases, values, options, language, ids, translated, summary, foundations }) {
   const picked = useCases.filter((uc) => ids.includes(trackingIdOf(uc)));
   const m = buildDocModel({ businessName, useCases: picked, values, options: { ...options, languages: [language] }, summary, foundations });
@@ -71,15 +90,20 @@ export function modelFor({ businessName, useCases, values, options, language, id
 
 // REQ-561: a tile per use case with the panel's business fields. C26: one PDF page per chunk of at most three A4 pages.
 // C27: the pages are JPEG at the agent PDF's settings (PDF_RASTER), so the file stays small enough for /api/inspire/docs/save.
-export async function infographicPdf(m, theme, agent, rasterize) {
+export async function infographicPdf(m, theme, agent, rasterize, drawn = null) {
   const pages = [];
-  for (const svg of splitInfographic(infographicSvg(m, theme, buildAgentModel(agent).ranked))) pages.push(await rasterize(svg, PDF_RASTER.scale, { type: PDF_RASTER.type, quality: PDF_RASTER.quality }));
+  for (const svg of splitInfographic(drawn || infographicSvg(m, theme, buildAgentModel(agent).ranked))) pages.push(await rasterize(svg, PDF_RASTER.scale, { type: PDF_RASTER.type, quality: PDF_RASTER.quality }));
   const { pdfFromImages } = await import('./docgen/pdfDoc.js');
   return pdfFromImages(pages);
 }
 
 async function makeFile(file, m, theme, options, agent) {
-  if (file.kind === 'infographic') return infographicPdf(m, theme, agent, svgToPng);
+  if (file.kind === 'infographic') {
+    // C28 (REQ-570): one infographic per use case, drawn by the infographic interface with the dialog's orientation, style, content, theme and logo.
+    const drawn = infographicFor(agent.useCases[0], { orientation: file.orientation || options.orientation, style: options.infographicStyle || options.style, palette: options.palette,
+      customColor: options.customColor, theme: options.theme, content: options.blocks, logo: agent.logo, businessName: agent.businessName, values: agent.values, scenario: 'likely' });
+    return infographicPdf(m, theme, agent, svgToPng, drawn);
+  }
   if (file.kind === 'pdf') {
     // C25 (REQ-559): the PDF is the agent's catalog PDF plus value, in every style (the style still shapes the other kinds).
     return buildAgentPdf(agent, svgToPng);
@@ -96,6 +120,7 @@ export async function generateDocs({ plan, options, useCases, values, businessNa
   const theme = resolveTheme(options.style, options.palette, options.customColor, options.theme);
   const where = { inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId) };
   const saved = [];
+  const ctx = docContext(options);
   for (const language of options.languages) {
     const files = plan.filter((f) => f.language === language);
     const halt = () => { files.forEach((f) => onFile(f.name, 'stopped')); };
@@ -103,7 +128,7 @@ export async function generateDocs({ plan, options, useCases, values, businessNa
     let translated = null;
     if (language !== 'English') {
       try {
-        const res = await post('/api/inspire/docs/translate', { ...where, language, texts: textsToTranslate(useCases, values, summary, businessName) });
+        const res = await post('/api/inspire/docs/translate', { ...where, language, vibe: ctx.vibe, texts: textsToTranslate(useCases, values, summary, businessName) });
         translated = res?.texts || {};
       } catch (e) {
         files.forEach((f) => onFile(f.name, 'failed', e?.message || 'The translation failed.'));
@@ -116,8 +141,9 @@ export async function generateDocs({ plan, options, useCases, values, businessNa
       try {
         const m = modelFor({ businessName, useCases, values, options, language, ids: file.useCaseIds, translated, summary, foundations });
         m.sessionId = String(sessionId ?? '');
+        m.vibe = ctx.vibe; m.logo = ctx.logo ? { ...ctx.logo, png: file.kind === 'docx' ? await logoPng(ctx.logo) : null } : null;
         m.appUrl = typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}`.replace(/\/+$/, '') : '';
-        const agent = { businessName, useCases: useCases.filter((uc) => file.useCaseIds.includes(trackingIdOf(uc))), values, summary, foundations, language, translated };
+        const agent = { businessName, useCases: useCases.filter((uc) => file.useCaseIds.includes(trackingIdOf(uc))), values, summary, foundations, language, translated, logo: ctx.logo, vibe: ctx.vibe };
         const bytes = await toBytes(await makeFile(file, m, theme, options, agent));
         await post('/api/inspire/docs/save', { ...where, folder, name: file.name, content_base64: toBase64(bytes), use_case_ids: file.useCaseIds });
         saved.push(`${folder}/${file.name}`);

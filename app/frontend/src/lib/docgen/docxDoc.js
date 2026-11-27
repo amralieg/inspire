@@ -58,6 +58,13 @@ export async function buildDocx(m, theme = {}, { chartPng, views } = {}) {
       pics.set(key, { rid: `rIdImg${images.length}`, n: images.length, w: PAGE_IN, h: (PAGE_IN * d.h) / d.w });
     } catch { /* a chart that cannot be drawn is left out; the text stays */ }
   };
+  // C28 (REQ-572): the person's logo as a PNG (made from their file by generateDocs) on the cover.
+  if (m.logo?.png?.bytes?.length) {
+    let lw = Math.min(1.8, m.logo.png.w / 96 || 1.8); let lh = (lw * m.logo.png.h) / (m.logo.png.w || 1);
+    if (lh > 1) { lw /= lh; lh = 1; }
+    images.push({ name: `chart${images.length + 1}.png`, bytes: m.logo.png.bytes });
+    pics.set('logo', { rid: `rIdImg${images.length}`, n: images.length, w: lw, h: lh });
+  }
   const ucTypes = new Map();
   const portfolioTypes = ['domain-value', 'matrix'];
   for (const [i, t] of portfolioTypes.entries()) await addChart(`portfolio${i}`, portfolioChartSvg(t, views && views.length ? views : m.useCases, { w: 560, h: 290 }), { w: 560, h: 290 });
@@ -118,7 +125,8 @@ export async function buildDocx(m, theme = {}, { chartPng, views } = {}) {
     // Cover: a full-width dark block with the title, the business name and the date, then three colour tiles.
     const dateText = new Date().toLocaleDateString(m.rtl ? 'ar' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
     body.push(`<w:tbl>${tblPr()}<w:tblGrid><w:gridCol w:w="${W}"/></w:tblGrid><w:tr><w:trPr><w:trHeight w:val="6600" w:hRule="atLeast"/></w:trPr><w:tc><w:tcPr><w:tcW w:w="${W}" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="${DARK}"/><w:vAlign w:val="center"/></w:tcPr>`
-      + paraXml(run('DATABRICKS INSPIRE AI', { bold: true, color: K.gold, size: 24 }), { before: 600, after: 200 })
+      + (pics.get('logo') ? paraXml(picRun(pics.get('logo'), 'Logo'), { before: 400, after: 100 }) : '')
+      + paraXml(run('DATABRICKS INSPIRE AI', { bold: true, color: K.gold, size: 24 }), { before: pics.get('logo') ? 100 : 600, after: 200 })
       + paraXml(run('Strategic AI Use Cases Powered by Databricks AI', { bold: true, color: 'FFFFFF', size: 72 }), { style: 'Title', before: 0, after: 300 })
       + paraXml(run(m.businessName || 'Inspire', { bold: true, color: K.gold, size: 48 }), { after: 120 })
       + paraXml(run(LB('Where data and AI pay back first'), { color: K.mint2, size: 28 }), { after: 120 })

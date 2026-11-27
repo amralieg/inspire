@@ -74,6 +74,7 @@ table.stats.big .v { font-size: __F_title__; }
 .cover .art { position: absolute; top: 0; __E__: 0; width: 150mm; height: 150mm; }
 .cover .net { position: absolute; bottom: 0; left: 0; width: 210mm; height: 70mm; }
 .cover .inner { position: relative; }
+.cover .clogo { display: block; max-height: 22mm; max-width: 60mm; object-fit: contain; margin-top: 8mm; }
 .cover .kick { letter-spacing: 3px; text-transform: uppercase; font-size: __F_label__; font-weight: 700; color: #__C_mint2__; margin-top: 16mm; }
 .cover h1 { font-size: __F_hero__; color: #__C_white__; margin: 13px 0 0; max-width: 146mm; }
 .cover .for { font-size: __F_lead__; color: #__C_mint2__; margin-top: 20px; }
@@ -506,6 +507,8 @@ const textH = textHBase;
 const CARD_CAL = 0.84;
 
 // ---- the shared pieces of the agent sheet (_pdf_wordmark, heading, stats_table, _pdf_index_table) ----
+// C28 (REQ-572): the person's logo, a data URL image (PNG, SVG or JPEG) on the cover; the page needs no network for it.
+const logoImg = (m) => (m.logo?.dataUrl ? `<img data-doc-logo="" class="clogo" alt="" src="${esc(m.logo.dataUrl)}"/>` : '');
 const wordmark = (extra = '') => `<span class="wordmark ${extra}" dir="ltr"><i class="mark"></i>${esc(DOC_BRAND.maker)} <b>${esc(DOC_BRAND.product)}</b></span>`;
 // C27 (REQ-564): each section header carries its own deck colour: the eyebrow as a coloured pill and a two-colour rule under the title.
 const SECTION_TONES = { contents: ['teal', 'gold'], executive: ['coral', 'gold'], purpose: ['teal_mid', 'green'], domainslist: ['gold', 'coral'], guide: ['green', 'teal_mid'],
@@ -781,7 +784,7 @@ function sections(m) {
   const para = (ps, size, width, lh) => ps.map((p, i) => ({ html: `<p class="${i === 0 ? 'first' : ''}"${b.dir(p)}>${b.text(p)}</p>`, h: textH(p, size, width, lh) + 9 }));
   // Cover
   const glass = m.headline.slice(0, 3).map(([v, l]) => `<td><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></td>`).join('');
-  out.push({ kind: 'cover', bleed: true, room: H, used: 860, parts: [`<section class="cover">${artSvg('rings')}${artSvg('net')}<div class="inner">${wordmark('light big')}`
+  out.push({ kind: 'cover', bleed: true, room: H, used: 860, parts: [`<section class="cover">${artSvg('rings')}${artSvg('net')}<div class="inner">${wordmark('light big')}${logoImg(m)}`
     + `<div class="kick">${esc(T('doc_catalog_kicker'))} \u00B7 <span dir="ltr">${esc(m.date)}</span></div><h1>${esc(T('pdf_title'))}</h1>`
     + `<div class="for">${esc(T('doc_prepared_for'))}</div><div class="biz">${b.html(m.businessName)}</div>`
     + `${m.mode ? `<div class="modepill">${esc(T('doc_quality_mode'))}: ${esc(m.modeLabel)}</div>` : ''}<table class="glass"><tr>${glass}</tr></table></div>`
