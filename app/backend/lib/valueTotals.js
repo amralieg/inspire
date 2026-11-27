@@ -5,6 +5,7 @@ const { idList, totalOf } = require('./inspireValue');
 const VP = require('./valuePlausibility');
 const OV = require('./valueOverlap');
 const { PLAN_BASIS } = require('./valueCasePlan');
+const { sameUseCaseId } = require('../../shared/useCaseId.mjs');
 
 const round2 = (n) => Math.round(n * 100) / 100;
 const finite = (v) => v !== null && v !== undefined && v !== '' && typeof v !== 'boolean' && Number.isFinite(Number(v));
@@ -43,7 +44,7 @@ const NOT_ESTIMATED_REASON = 'This estimate was saved before Inspire planned eac
 const NO_DATA_REASON = 'This use case names no table Inspire can count, so it has no estimate.';
 const ownPlan = (saved, id) => {
   const plan = saved.answers && saved.answers.plan;
-  return Boolean(plan && plan.basis === PLAN_BASIS && (!id || plan.use_case_id === undefined || String(plan.use_case_id) === String(id)));
+  return Boolean(plan && plan.basis === PLAN_BASIS && (!id || plan.use_case_id === undefined || sameUseCaseId(plan.use_case_id, id)));
 };
 
 function estimateEntry(estimate) {

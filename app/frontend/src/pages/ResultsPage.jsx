@@ -89,6 +89,7 @@ import {
   hasGenieInstruction,
   sponsorFromUc,
   trackingIdOf,
+  linkedUseCase,
   compareMeetsQualityBarFirst,
   qualityBarCountsOf,
   qualityBarFilterMatches,
@@ -1004,7 +1005,7 @@ export default function ResultsPage({
     const want = pendingUseCase.current;
     if (!want || !results || loading) return;
     pendingUseCase.current = '';
-    const uc = builtUseCases.find((u) => trackingIdOf(u) === want);
+    const uc = linkedUseCase(builtUseCases, want);
     if (uc) openUseCase(uc);
     else setLinkNote(reviewLinkText(linkRef.current, inspireDb, 'no_use_case'));
   }, [results, loading, builtUseCases]); // eslint-disable-line react-hooks/exhaustive-deps

@@ -191,6 +191,9 @@ SHELL_ENTRY_POINTS = {
     # implement_off_table_drivers, so its own entry moved to that function.
     ("implement_drivers_brief", "shell_sql.layouts"),
     ("implement_off_table_drivers", "shell_sql.driver_charts"),
+    # c24_rc7mvp (fbcdce5a3): the Dashboard Drivers repair reads the same reviewed driver_charts page-shape API to decide whether
+    # a Drivers chart is left before it marks a fallback one.
+    ("implement_repair_drivers", "shell_sql.driver_charts"),
     ("implement_settle_drivers", "shell_sql.page_layout"),
     ("implement_layout_brief", "shell_sql.layout_decides"),
     *LAKEBASE_ENFORCEMENT_REVIEWED,

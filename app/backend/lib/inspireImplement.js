@@ -1,4 +1,4 @@
-const { storedForms } = require('../../shared/useCaseId.mjs');
+const { storedForms, sameUseCaseId } = require('../../shared/useCaseId.mjs');
 const { joinSentences } = require('./sentences');
 const { appShellCatalog } = require('./appShell');
 const { IMPLEMENT_RUN_ID_PARAM, parseMaybeJson, resourceTagKey, useCaseNameTag, resourceTagValue, withInspireInstallParams } = require('./inspireJobParams');
@@ -1438,7 +1438,7 @@ function registryEntries(rows, { sessionId, useCaseId } = {}) {
   for (const list of groups.values()) {
     const sorted = [...list].sort((a, b) => (b.spec_version || 0) - (a.spec_version || 0));
     const first = sorted[0];
-    const own = str(first.session_id) === str(sessionId) && str(first.use_case_id) === str(useCaseId);
+    const own = str(first.session_id) === str(sessionId) && sameUseCaseId(first.use_case_id, useCaseId);
     const built = sorted.find((r) => IMPLEMENT_DONE_STATUSES.includes(r.status)) || first;
     const outputs = (isPlainObject(built.spec_json) && isPlainObject(built.spec_json.outputs)) ? built.spec_json.outputs : {};
     const holder = {
@@ -3088,7 +3088,9 @@ function filterImplementSteps(rows, useCaseId) {
     if (!id) return true;
     const payload = row.result_json;
     const fromJson = payload && typeof payload === 'object' ? str(payload.use_case_id) : '';
-    return fromJson === id || str(row.step_name).includes(id) || str(row.sub_step_name).includes(id);
+    const forms = storedForms(id); // REQ-569: a step is named by the id it was saved under, either form
+    const named = (text) => forms.some((form) => str(text).includes(form));
+    return sameUseCaseId(fromJson, id) || named(row.step_name) || named(row.sub_step_name);
   });
 }
 
@@ -3762,7 +3764,7 @@ function resultTableHolderProblem(table, holder, sessionId, useCaseId) {
   if (!holder) return '';
   const sid = str(holder.session_id);
   const uc = str(holder.use_case_id);
-  if (!sid || (sid === str(sessionId) && uc === str(useCaseId))) return '';
+  if (!sid || (sid === str(sessionId) && sameUseCaseId(uc, useCaseId))) return '';
   return `${plainTable(table)} already holds the results of use case ${uc} of session ${sid}; give each use case its own `
     + 'result table so its outputs show only its rows';
 }
@@ -3850,7 +3852,7 @@ function useCaseOwnSchemas(inspireDatabase, useCaseId, sessionId, businessName) 
 function useCaseSchemaOwner(held, { inspireDatabase, useCaseId, sessionId }) {
   const fact = held || {};
   if (!fact.exists && !fact.session && !fact.database && !fact.useCase) return 'free';
-  const sameUseCase = str(fact.useCase).trim().toLowerCase() === str(useCaseId).trim().toLowerCase();
+  const sameUseCase = sameUseCaseId(str(fact.useCase).trim().toUpperCase(), str(useCaseId).trim().toUpperCase());
   const sameLineage = fact.database ? fact.database.toLowerCase() === inspireDatabaseKey(inspireDatabase) : str(fact.session) === str(sessionId).trim();
   if (!(sameUseCase && sameLineage)) return 'foreign';
   // REQ-478: this use case's schema from an earlier install, where Inspire now holds no right: never reused, never granted on.
