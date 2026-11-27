@@ -172,9 +172,11 @@ export async function buildDocx(m, theme = {}, { chartPng } = {}) {
           body.push(paraXml(runs, { shade: K.sand, edge: K.gold, after: story(u) ? 0 : 160, before: 60 }));
           if (story(u)) body.push(paraXml(run(story(u)), { shade: K.sand, edge: K.gold, after: 160 }));
         }
-        const sec = (label, text) => { if (has(m, 'use_case_story') && text) { para(LB(label), { style: 'Heading2' }); para(text); } };
+        // Page 1 of a use case is the visual one (title, chips, value, two charts); page 2 carries the words and the tables.
+        const shown = [picture(`${u.id}|0`, `${u.name}: ${(ucTypes.get(u.id) || [])[0] || 'chart'}`), picture(`${u.id}|1`, `${u.name}: ${(ucTypes.get(u.id) || [])[1] || 'chart'}`)].some(Boolean);
+        let first = shown;
+        const sec = (label, text) => { if (has(m, 'use_case_story') && text) { body.push(paraXml(run(LB(label), { bold: true, color: TEAL, size: 26 }), { style: 'Heading2', pageBreak: first })); first = false; para(text); } };
         sec('Statement', u.statement); sec('Solution', u.solution); sec('Business value', u.businessValue);
-        picture(`${u.id}|0`, `${u.name}: ${(ucTypes.get(u.id) || [])[0] || 'chart'}`); picture(`${u.id}|1`, `${u.name}: ${(ucTypes.get(u.id) || [])[1] || 'chart'}`);
         if (has(m, 'use_case_story')) {
           const facts = [['Sponsor', u.sponsor], ['Beneficiary', u.beneficiary], ['Technique', u.technique]].filter(([, v]) => v).map(([l, v]) => [LB(l), v])
             .concat(extraParts(u).map(([l, items]) => [LB(l), partLines(items)]));
