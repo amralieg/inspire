@@ -80,7 +80,7 @@ import { useValueRead } from '../lib/useValueLedger';
 import { BuildNextStep, RunValue } from '../components/BuildNext';
 import CalculateValueDialog from '../components/CalculateValueDialog';
 import { tableOfUseCase, useCalculatedValues } from '../lib/calculatedValue';
-import { trackingIdOf } from '../lib/useCaseFields';
+import { linkedUseCase, trackingIdOf } from '../lib/useCaseFields';
 import { valuedLine } from '../lib/buildNext';
 import { raisePermissions } from '../lib/permissionBus';
 import BusyNote from '../components/BusyNote';
@@ -508,7 +508,8 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
   };
   const allItems = useMemo(() => implementGroups(useCases, rail.latest, rail.notebook_run).flatMap((g) => g.items), [useCases, rail.latest, rail.notebook_run]);
   const summary = useMemo(() => buildSummary(allItems), [allItems]);
-  const shownId = chosenId || groups.flatMap((g) => g.items)[0]?.id || allItems[0]?.id || null;
+  // REQ-569: a #/build link may name the use case by either id form; the rail, the reads and the writes use the id the session saved.
+  const shownId = (chosenId && (linkedUseCase(allItems, chosenId)?.id || chosenId)) || groups.flatMap((g) => g.items)[0]?.id || allItems[0]?.id || null;
   const selected = allItems.find((item) => sameUseCaseId(item.id, shownId)) || null;
   const openedStep = useRef('');
   useEffect(() => {
