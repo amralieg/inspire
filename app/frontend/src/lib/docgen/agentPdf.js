@@ -530,7 +530,7 @@ function statsTable(items, b, extra = '', width = CW, big = extra === 'big') {
   const h = 16 + Math.max(...items.map(([v, l]) => textH(v, vs, cw, 1.15, { bold: true }) + 2 + textH(l, F.label, cw, 1.25)));
   return { html: `<table class="stats ${extra}"><tr>${cells}</tr></table>`, h };
 }
-export const PDF_INDEX_W = { rank: 0.07, id: 0.11, title: 0.41, domain: 0.17, quality: 0.13, inspire_score: 0.11 };
+export const PDF_INDEX_W = { rank: 0.07, id: 0.15, title: 0.37, domain: 0.17, quality: 0.13, inspire_score: 0.11 };
 function indexTable(rows, m, b) {
   const T = m.T;
   // C28: the PDF gives the ID and domain columns the room the longest id and domain word need (the deck keeps DOC_INDEX_COLUMNS).
@@ -998,7 +998,7 @@ function valuePages(out, m, b) {
   const bars = v.byDomain.map((d) => `<tr data-domain-amount="${d.amount}"><td class="nm">${b.html(d.name)}</td><td><div class="track"><div class="fill" style="width:${Math.max(d.amount ? 4 : 0, (100 * d.amount) / maxAmount).toFixed(1)}%"></div></div></td><td class="n">${b.html(d.amount ? d.text : '\u2013')}</td></tr>`).join('');
   const barsH = v.byDomain.reduce((a, d) => a + 7 + textH(d.name, F.small, CW * 0.34), 0);
   const blocks = [card(`<h4>${esc(T('value_per_domain'))}</h4><table class="bars vbars">${bars}</table>`, F.heading * 1.16 + 6 + barsH + 13, 'gap')];
-  const cols = [['rank', T('doc_rank'), 0.07], ['id', 'ID', 0.125], ['title', T('usecase'), 0.345], ['domain', T('domain'), 0.16], ['amount', T('value_year'), 0.14], ['status', T('value_status'), 0.16]];
+  const cols = [['rank', T('doc_rank'), 0.07], ['id', 'ID', 0.155], ['title', T('usecase'), 0.315], ['domain', T('domain'), 0.16], ['amount', T('value_year'), 0.14], ['status', T('value_status'), 0.16]];
   const tableOf = (list, valued) => ({
     open: `<table class="index"><colgroup>${cols.map(([, , w]) => `<col style="width:${(100 * w).toFixed(1)}%"/>`).join('')}</colgroup><thead><tr>${cols.map(([, l]) => `<th>${esc(l)}</th>`).join('')}</tr></thead><tbody>`,
     close: '</tbody></table>', headH: F.label * 1.5 + 10,
