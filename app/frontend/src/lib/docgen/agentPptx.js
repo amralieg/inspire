@@ -16,7 +16,7 @@ const MODES = [['Good', 'value_mode_good', 'doc_mode_good_body'], ['High', 'valu
 const chipW = (label) => Math.min(4.6, 0.45 + String(label).length * 0.11);
 // Height in inches of text set at size pt in a box w inches wide (average glyph 0.52 em, line 1.2 em): lets a block get the box it needs instead of shrinking.
 const LINE = (size) => (size * 1.22) / 72;
-const linesOf = (text, w, size) => String(text ?? '').split('\n').reduce((n, part) => n + Math.max(1, Math.ceil((part.length * size * 0.0075) / Math.max(0.5, w - 0.12))), 0);
+const linesOf = (text, w, size) => String(text ?? '').split('\n').reduce((n, part) => n + Math.max(1, Math.ceil((part.length * size * 0.007) / Math.max(0.5, w - 0.12))), 0);
 const heightOf = (paras, w, size, gap = 0.06) => (Array.isArray(paras) ? paras : [paras]).reduce((h, p, i) => h + linesOf(Array.isArray(p) ? p.map((r) => r[0]).join('') : p, w, size) * LINE(size) + (i ? gap : 0), 0) + 0.08;
 
 // The biggest size of the list at which the text fits the box (never below the last, 14 pt).
@@ -280,19 +280,11 @@ function cardHead(d, s, v, T) {
   d.rect(s, CM, 1.7, CW, 0.05, C.teal);
 }
 
-// The value of the use case a year with its basis and, for an estimate, the estimate note; one band, on the card.
-function valueBand(d, s, m, v, top) {
-  const T = m.T; const val = v.value;
-  const paras = [[[`${T('value_at_stake')}: `, { bold: true, color: C.teal_dark }], [val.text, { bold: true, color: val.amount === null ? C.muted : C.teal, size: S.heading }]]];
-  if (val.amount !== null) {
-    paras[0].push(['    ', {}], [`${T('value_basis')}: `, { bold: true, color: C.teal_dark }], [val.basis, {}]);
-    if (val.note) paras.push([[`${T('value_note')}: `, { bold: true, color: C.teal_dark }], [val.note, {}]]);
-  }
-  const h = Math.max(0.5, heightOf(paras, CW - 0.5, S.body, 0.02) + 0.14);
-  d.rect(s, CM, top, CW, h, C.ice, { radius: 0.08, line: [C.mint2, 0.75] });
-  d.rect(s, CM, top, 0.07, h, C.teal);
-  d.text(s, CM + 0.25, top, CW - 0.4, h, paras, { anchor: 'middle', spacing: 2 });
-  return top + h + 0.12;
+// The value story slide's header: one small line (rank, id, title), not the card's big title again.
+function storyHead(d, s, v, kicker) {
+  d.text(s, CM, 0.4, CW, 0.34, d.kicker(`${kicker} · ${v.id}`), { color: C.coral, bold: true });
+  d.text(s, CM, 0.74, CW, 0.5, v.title, { size: 24, color: C.ink, bold: true });
+  d.rect(s, CM, 1.4, CW, 0.05, C.teal);
 }
 
 function noteBand(d, s, top, accent, paras) {
@@ -331,49 +323,63 @@ function useCaseCard(d, m, v) {
   // Score chips and the ribbons in one flowing row.
   let x = CM; let y = 1.9; const rowH = 0.42;
   const place = (label, value, fill, color, vcolor) => {
-    const text = value === '' ? label : `${label}  ${value}`; const w = 0.3 + text.length * 0.1;
+    const text = value === '' ? label : `${label}  ${value}`; const w = 0.28 + text.length * 0.093;
     if (x + w > CM + CW && x > CM) { x = CM; y += rowH + 0.08; }
     d.rect(s, x, y, w, rowH, fill, { radius: 0.21 });
     d.text(s, x + 0.08, y, w - 0.16, rowH, [[[label, { color }], ...(value === '' ? [] : [['  ', {}], [d.ltr(value), { bold: true, color: vcolor || color }]])]], { color, align: 'center', anchor: 'middle' });
-    x += w + 0.1;
+    x += w + 0.08;
   };
   for (const [key, label, value] of v.metrics) {
     if (key === 'quality') place(label, value, qualityColor(value), C.white, C.white); else place(label, value, C.sand, C.muted, C.teal);
   }
   if (v.meetsBar) place(v.meetsBar, '', C.green, C.white);
   if (v.star) place(v.star, '', C.gold, C.gold_ink);
-  let top = y + rowH + 0.12;
+  let top = y + rowH + 0.14;
   if (v.coverage) top = noteBand(d, s, top, C.coral, [[[`${v.coverage[0]}. `, { bold: true, color: C.note_dark }], [`${v.coverage[1]}: ${v.coverage[2]}`, {}]]]);
-  top = valueBand(d, s, m, v, top);
-  const bottom = 7.1; const LW = 7.9; const RX = CM + LW + 0.3; const RW = W - CM - RX;
+  const bottom = 7.1; const GAP = 0.4; const CWD = (CW - GAP) / 2;
   const narrative = v.narrative.map(([, label, value]) => [label, [value]]);
   const extra = v.valueFacts.filter(([, , items]) => items.length).map(([, label, items]) => [label, items]);
-  // The biggest text that fits: 16 pt, else 14 pt; what does not fit at 14 pt moves to the second slide.
-  let size = S.lead; let left = [...narrative, ...extra];
-  const room = bottom - top;
-  const need = (blocks, sz) => blocks.reduce((h, b) => h + blockH(b[0], b[1], LW, sz) + 0.1, 0);
-  if (need(left, size) > room) size = S.body;
-  const spill = [];
-  while (need(left, size) > room && left.length > narrative.length) spill.unshift(left.pop());
-  column(d, s, CM, top, bottom, LW, left, size);
-  d.rect(s, RX, top, RW, bottom - top, C.sand, { radius: 0.14 });
+  // The facts (sponsor, beneficiary ...) are one sand strip in two columns; every business block then flows over two text columns in order.
   const facts = v.facts.map(([, label, value]) => [[`${label}: `, { bold: true, color: C.teal }], [value, { color: C.ink }]]);
-  const fh = heightOf(facts, RW - 0.4, S.body, 0.08);
-  // What the left column could not take goes into the free part of the facts panel when it fits, else to the second slide.
-  let free = bottom - top - 0.24 - fh - 0.2; const inPanel = []; const rest = [];
-  for (const b of spill) { const h = blockH(b[0], b[1], RW - 0.4, S.body) + 0.15; if (h <= free) { inPanel.push(b); free -= h; } else rest.push(b); }
-  const sp = inPanel.length ? 6 : Math.min(16, Math.max(6, ((bottom - top - 0.3 - fh) * 72) / Math.max(1, facts.length)));
-  d.text(s, RX + 0.2, top + 0.12, RW - 0.4, inPanel.length ? fh : bottom - top - 0.24, facts, { spacing: sp, anchor: inPanel.length || facts.length * 0.9 < 3 ? 'top' : 'middle' });
-  if (inPanel.length) column(d, s, RX + 0.2, top + 0.12 + fh + 0.12, bottom - 0.1, RW - 0.4, inPanel, S.body);
+  if (facts.length) {
+    const half = Math.ceil(facts.length / 2); const cols = [facts.slice(0, half), facts.slice(half)].filter((c) => c.length);
+    const fh = Math.max(...cols.map((c) => heightOf(c, CWD - 0.1, S.body, 0.06))) + 0.2;
+    d.rect(s, CM, top, CW, fh, C.sand, { radius: 0.1 });
+    cols.forEach((c, i) => d.text(s, CM + 0.2 + i * (CWD + GAP), top + 0.1, CWD - 0.1, fh - 0.2, c, { spacing: 4 }));
+    top += fh + 0.15;
+  }
+  const room = bottom - top;
+  const hs = (blocks, sz) => blocks.reduce((h, b) => h + blockH(b[0], b[1], CWD, sz) + 0.1, 0);
+  // The narrative is split over two columns in order at the biggest size that fits (16 pt, else 14 pt); each other block then goes
+  // to the shorter column if it fits, else the other, else to the second slide.
+  const split = (list, sz) => {
+    let best = null;
+    for (let k = 0; k <= list.length; k += 1) {
+      const l = hs(list.slice(0, k), sz); const r = hs(list.slice(k), sz);
+      if (l <= room && r <= room && (!best || Math.max(l, r) < best.m)) best = { k, m: Math.max(l, r) };
+    }
+    return best;
+  };
+  let sz = S.lead; let plan = split(narrative, sz);
+  if (!plan) { sz = S.body; plan = split(narrative, sz); }
+  const cols = [narrative.slice(0, plan ? plan.k : narrative.length), narrative.slice(plan ? plan.k : narrative.length)];
+  const rest = [];
+  for (const b of extra) {
+    const order = hs(cols[0], sz) <= hs(cols[1], sz) ? [0, 1] : [1, 0];
+    const at = order.find((i) => hs([...cols[i], b], sz) <= room);
+    if (at === undefined) rest.push(b); else cols[at].push(b);
+  }
+  column(d, s, CM, top, bottom, CWD, cols[0], sz);
+  column(d, s, CM + CWD + GAP, top, bottom, CWD, cols[1], sz);
   return rest;
 }
 
 // Blocks that did not fit the card, one sand box each, full width and as big as the text allows (the second slide of a use case without a value).
 function useCaseValue(d, m, v, blocks) {
   const s = d.new('uc_value', v.title, { key: v.id });
-  cardHead(d, s, v, m.T);
-  const top = 1.95; const bottom = 7.1; const w = CW - 0.5; const gap = 0.2;
-  const size = [24, 22, 20, 18, 16, 14].find((z) => blocks.reduce((h, b) => h + blockH(b[0], b[1], w, z) + 0.3 + gap, 0) <= bottom - top + gap) || 14;
+  storyHead(d, s, v, v.domain);
+  const top = 1.7; const bottom = 7.1; const w = CW - 0.5; const gap = 0.2;
+  const size = [32, 28, 24, 22, 20, 18, 16, 14].find((z) => blocks.reduce((h, b) => h + blockH(b[0], b[1], w, z) + 0.3 + gap, 0) <= bottom - top + gap) || 14;
   const boxes = blocks.map((b) => blockH(b[0], b[1], w, size) + 0.3);
   const spare = Math.max(0, bottom - top - boxes.reduce((a, h) => a + h, 0) - gap * (blocks.length - 1));
   let y = top;
@@ -395,8 +401,8 @@ const parseMoney = (t) => {
 function useCaseStory(d, m, v, spill = []) {
   const T = m.T; const val = v.value;
   const s = d.new('uc_story', v.title, { key: v.id });
-  cardHead(d, s, v, T);
-  const bottom = 7.1; const top = 1.95; const LW = 6.0; const RX = CM + LW + 0.33; const RW = W - CM - RX;
+  storyHead(d, s, v, T('value_story'));
+  const bottom = 7.1; const top = 1.7; const LW = 6.0; const RX = CM + LW + 0.33; const RW = W - CM - RX;
   const proj = val.projection; const hasF = val.factors.length > 0;
   // Left: the hero number with its basis, then the blocks that did not fit the card, or else the projection chart.
   const heroParas = [[[`${T('value_basis')}: `, { bold: true, color: C.teal_dark }], [val.basis, {}]]];
@@ -437,7 +443,7 @@ function useCaseStory(d, m, v, spill = []) {
   };
   const drivers = (x, y, w, h) => {
     const label = 0.34; const shown = val.factors.slice(0, 6); const rowH = Math.min(1.0, (h - label) / shown.length);
-    d.text(s, x, y, w, label, d.kicker(T('value_source')), { color: C.teal, bold: true });
+    d.text(s, x, y, w, label, d.kicker(T('value_how')), { color: C.teal, bold: true });
     shown.forEach((f, i) => {
       const fy = y + label + i * rowH; const nameW = Math.max(1.4, w * 0.4); const barW = Math.max(0.6, w - nameW - 0.85);
       d.text(s, x, fy, nameW, 0.34, f.name, { color: C.ink, bold: true, anchor: 'middle' });
