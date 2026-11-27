@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { displayId } from '../../../../shared/useCaseId.mjs';
 import { inspireScoreFromUc, nameOfUseCase, scoreOf, trackingIdOf } from '../../lib/useCaseFields';
 
 // No chart palette in index.css, so the domains take a fixed ordered list of semantic tokens, each at least 3:1 on the surface in both themes.
@@ -25,7 +26,7 @@ export default function ValueMap({ useCases, valueTotals, openUseCase, onRunValu
       const domain = uc._domain || 'Other';
       if (!names.includes(domain)) names.push(domain);
       const feas = scoreOf(uc, 'feasibility_score', 'Feasibility_Score', 'Feasibility Score');
-      return { uc, id, no: String(uc?.No ?? id ?? ''), name: nameOfUseCase(uc), score: inspireScoreFromUc(uc) ?? 0, amount, currency: e?.currency || 'USD', feas, domain };
+      return { uc, id, no: displayId(String(uc?.No ?? id ?? '')), name: nameOfUseCase(uc), score: inspireScoreFromUc(uc) ?? 0, amount, currency: e?.currency || 'USD', feas, domain };
     });
     return { points: rows, domains: names, maxValue: Math.max(0, ...rows.map((r) => r.amount || 0)) };
   }, [useCases, valueTotals]);

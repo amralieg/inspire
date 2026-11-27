@@ -8,7 +8,7 @@ const { invokeChatModel, appChatModels } = require('./lib/modelAccess');
 const { mapLimit } = require('./lib/mapLimit');
 
 // REQ-323: how many history rows are enriched at once.
-const HISTORY_ROW_CONCURRENCY = 25;
+const HISTORY_ROW_CONCURRENCY = 50;
 const { runWithQueryTags, lookupWithRetry } = require('./lib/sqlStatements');
 const { genieNotebookJobName, latestGenieNotebookRun } = require('./lib/genieNotebookJob');
 const C = require('./lib/implementControl');
@@ -1810,12 +1810,12 @@ function registerImplementRoutes(app, deps) {
     if (!req.dbToken) return [];
     const scopes = chosenTableScopes(spec.data, parseTableScopeText(session.table_scope).scopes);
     const tables = I.sourceTables(spec, I.useCaseTables(useCase)).filter((t) => !I.resultTableNameError(t, 'tables'));
-    const out = [];
-    for (const table of tables) {
+    // c29_history: the table reads do not depend on each other, so they run together (bounded), and the problems keep the table order.
+    const found = await mapLimit(tables, HISTORY_ROW_CONCURRENCY, async (table) => {
       const got = await fetchJsonFor(req)(`/api/2.1/unity-catalog/tables/${encodeURIComponent(table)}`).catch(() => null);
-      if (got && got.ok) out.push(...I.policiedScopeProblems(table, got.data, scopes));
-    }
-    return out;
+      return got && got.ok ? I.policiedScopeProblems(table, got.data, scopes) : [];
+    });
+    return found.flat();
   }
 
   async function refuseUnreadableSources(req, spec, useCase) {
@@ -2266,14 +2266,16 @@ function registerImplementRoutes(app, deps) {
   }
 
   async function feedbackLists(req, ctx, statementOf) {
-    const lists = [];
-    for (const table of feedbackTables(ctx)) {
+    // c29_history: the feedback tables are read together; a missing table is skipped and the others keep their order.
+    const got = await Promise.all(feedbackTables(ctx).map(async (table) => {
       try {
-        lists.push(await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, statementOf(table)));
+        return await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, statementOf(table));
       } catch (err) {
         if (!isMissingTableError(err)) throw err;
+        return null;
       }
-    }
+    }));
+    const lists = got.filter((list) => list !== null);
     return { lists, missing: lists.length === 0 };
   }
 

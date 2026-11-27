@@ -1,4 +1,5 @@
 import OUTPUT_LABELS from '../../../backend/lib/implementOutputLabels.json' with { type: 'json' };
+import { sameUseCaseId } from '../../../shared/useCaseId.mjs';
 import Button from '../components/ui/Button';
 import UiPageHeader from '../components/ui/PageHeader';
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -508,7 +509,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
   const allItems = useMemo(() => implementGroups(useCases, rail.latest, rail.notebook_run).flatMap((g) => g.items), [useCases, rail.latest, rail.notebook_run]);
   const summary = useMemo(() => buildSummary(allItems), [allItems]);
   const shownId = chosenId || groups.flatMap((g) => g.items)[0]?.id || allItems[0]?.id || null;
-  const selected = allItems.find((item) => item.id === shownId) || null;
+  const selected = allItems.find((item) => sameUseCaseId(item.id, shownId)) || null;
   const openedStep = useRef('');
   useEffect(() => {
     if (!focusStep || !selected?.uc || openedStep.current === `${focusStep}:${selected.id}`) return;

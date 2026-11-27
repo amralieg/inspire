@@ -2,6 +2,7 @@
 // Same slide order, the same use case card and value slides with every label they had, the use case's value on each use case
 // slide, and one value slide after the last domain and before the index. Reads the agent document model (agentModel.js).
 // Source: c25_scratch/old_src.py, _doc_presentation 55335, the deck 56058-56920.
+import { displayId } from '../../shared/useCaseId.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -77,8 +78,8 @@ test('(a) the slide sequence is the agent deck order, with the value slide after
   assert.ok(bytes instanceof Uint8Array && bytes.length > 1000, 'a pptx file');
   const seq = slides.map((s) => (s.key ? `${s.kind}:${s.key}` : s.kind));
   assert.deepEqual(seq, ['cover', 'contents', 'summary', 'guide', 'portfolio', 'top_index',
-    'domain:1', 'uc_card:N01-U01', 'uc_story:N01-U01', 'uc_card:N01-U02', 'uc_story:N01-U02',
-    'domain:2', 'uc_card:N02-U01', 'uc_story:N02-U01', 'uc_card:N02-U02', 'uc_value:N02-U02', // the unvalued use case's card spills one overflow slide
+    'domain:1', 'uc_card:AI01-UC01', 'uc_story:AI01-UC01', 'uc_card:AI01-UC02', 'uc_story:AI01-UC02',
+    'domain:2', 'uc_card:AI02-UC01', 'uc_story:AI02-UC01', 'uc_card:AI02-UC02', 'uc_value:AI02-UC02', // the unvalued use case's card spills one overflow slide
     'value', 'index', 'methodology', 'glossary', 'foundations', 'roadmap', 'disclaimer', 'closing']);
   assert.ok(slides[0].text.includes('Acme') && slides[0].text.includes('Strategic AI Use Cases Powered by Databricks AI'), 'the cover');
   assert.ok(slides.find((s) => s.kind === 'summary').text.includes(SUMMARY[0]), 'the executive summary');
@@ -86,7 +87,7 @@ test('(a) the slide sequence is the agent deck order, with the value slide after
   const dom2 = slides.find((s) => s.kind === 'domain' && s.key === '2').text;
   assert.ok(dom2.includes('Operations') && dom2.includes('Top opportunities'), 'the domain slide');
   const index = slides.find((s) => s.kind === 'index').text;
-  for (const uc of UCS) assert.ok(index.includes(uc.No) && index.includes(uc.Name), `${uc.No} is in the index`);
+  for (const uc of UCS) assert.ok(index.includes(displayId(uc.No)) && index.includes(uc.Name), `${uc.No} is in the index`);
   // The in-App View lists the same slides with a title each.
   const outline = agentPptxSlides(ARGS);
   assert.deepEqual(outline.map((s) => (s.key ? `${s.kind}:${s.key}` : s.kind)), seq);
@@ -95,23 +96,23 @@ test('(a) the slide sequence is the agent deck order, with the value slide after
 
 test('(b) the use case slides (card and story together) carry every label of the old uc_card and uc_value slides, the ribbons and the notebook button', () => {
   for (const uc of UCS) {
-    const pair = ucSlides(uc.No);
+    const pair = ucSlides(displayId(uc.No));
     assert.deepEqual(pair.map((s) => s.kind), VALUES[uc.No] ? ['uc_card', 'uc_story'] : ['uc_card', 'uc_value'], `${uc.No} has its card and ${VALUES[uc.No] ? 'its story slide' : 'one overflow slide (no value, no story)'}`);
     for (const label of OLD_UC_CARD_LABELS) assert.ok(pair.some((s) => hasLabel(s, label)), `${uc.No} shows the label ${label}`);
     const card = pair[0].text;
     assert.ok(card.includes(uc.Name) && card.includes(uc.Statement) && card.includes(uc['Business Value']), `${uc.No} prints its title and text`);
     assert.ok(card.includes('Open the Genie notebook'), `${uc.No} has the notebook button`);
   }
-  const first = ucSlides('N01-U01')[0].text;
+  const first = ucSlides('AI01-UC01')[0].text;
   assert.ok(first.includes('Meets your quality bar') && first.includes('Best of Best #1'), 'meets-bar and Best of Best ribbons');
-  const cover = ucSlides('N02-U02')[0].text;
+  const cover = ucSlides('AI02-UC02')[0].text;
   assert.ok(cover.includes('no use case above the bar') && !cover.includes('Meets your quality bar'), 'coverage ribbon, not meeting the bar');
 });
 
 test('(c) the story slide of a valued use case shows the value a year with its basis and, for an estimate, the estimate note; the card does not repeat the value line', () => {
   for (const uc of UCS) {
     const v = VALUES[uc.No];
-    const [card, ...rest] = ucSlides(uc.No);
+    const [card, ...rest] = ucSlides(displayId(uc.No));
     if (v) {
       assert.equal(rest.length, 1, `${uc.No} has one story slide`);
       const s = rest[0];

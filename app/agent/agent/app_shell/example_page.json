@@ -2,7 +2,7 @@
   "version": 2,
   "layout": "decision_queue",
   "id": "n01_u05",
-  "use_case_id": "N01-U05",
+  "use_case_id": "AI01-UC05",
   "title": "Price-loss decision desk",
   "question": "Which items lose the most margin to discounts, and what should we do about each one?",
   "sponsor": "Head of Pricing",

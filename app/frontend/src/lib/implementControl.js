@@ -1,4 +1,5 @@
 import OUTPUT_LABELS from '../../../backend/lib/implementOutputLabels.json' with { type: 'json' };
+import { sameUseCaseId } from '../../../shared/useCaseId.mjs';
 import {
   BUILT_ASSET_STATES, IMPLEMENT_DONE_STATUSES, IMPLEMENT_OUTPUTS, IMPLEMENT_UNINSTALLED, IMPLEMENT_VIBE_NOT_MET, assetLabel, builtVersion, heldAsks,
   holderNames, holdersText, holdoutText, joinWords, partAsks, partLabel, partOf, rebuildableOutputs, statusChip, versionActive, vibesKey, VIBE_NOT_MET_FIRST,
@@ -973,7 +974,7 @@ export function appUpdateChanges(latest, history) {
 }
 
 export function removeConfirmed(typed, useCaseId) {
-  return Boolean(useCaseId) && String(typed ?? '').trim() === String(useCaseId);
+  return Boolean(useCaseId) && sameUseCaseId(String(typed ?? '').trim(), String(useCaseId));
 }
 
 export function controlActionText(entry) {
