@@ -9,6 +9,7 @@ import {
 import { chartTypesFor, ucChartSvg, portfolioChartSvg } from './designs/ucCharts.js';
 import { execSummaryParas, purposeParas, domainsListOf, storyPick } from './storyParts.js';
 import { withLabels } from './docLabels.js';
+import { rasterPage } from './pngIndexed.js';
 
 // The agent's _PDF_CSS (6a7361a39) without the @page rules, which the page box below replaces; html is the page root .ap.
 const AGENT_PDF_CSS = `
@@ -994,7 +995,7 @@ function valuePages(out, m, b) {
   const bars = v.byDomain.map((d) => `<tr data-domain-amount="${d.amount}"><td class="nm">${b.html(d.name)}</td><td><div class="track"><div class="fill" style="width:${Math.max(d.amount ? 4 : 0, (100 * d.amount) / maxAmount).toFixed(1)}%"></div></div></td><td class="n">${b.html(d.amount ? d.text : '\u2013')}</td></tr>`).join('');
   const barsH = v.byDomain.reduce((a, d) => a + 7 + textH(d.name, F.small, CW * 0.34), 0);
   const blocks = [card(`<h4>${esc(T('value_per_domain'))}</h4><table class="bars vbars">${bars}</table>`, F.heading * 1.16 + 6 + barsH + 13, 'gap')];
-  const cols = [['rank', T('doc_rank'), 0.07], ['id', 'ID', 0.1], ['title', T('usecase'), 0.37], ['domain', T('domain'), 0.16], ['amount', T('value_year'), 0.14], ['status', T('value_status'), 0.16]];
+  const cols = [['rank', T('doc_rank'), 0.07], ['id', 'ID', 0.125], ['title', T('usecase'), 0.345], ['domain', T('domain'), 0.16], ['amount', T('value_year'), 0.14], ['status', T('value_status'), 0.16]];
   const tableOf = (list, valued) => ({
     open: `<table class="index"><colgroup>${cols.map(([, , w]) => `<col style="width:${(100 * w).toFixed(1)}%"/>`).join('')}</colgroup><thead><tr>${cols.map(([, l]) => `<th>${esc(l)}</th>`).join('')}</tr></thead><tbody>`,
     close: '</tbody></table>', headH: F.label * 1.5 + 10,
@@ -1003,7 +1004,7 @@ function valuePages(out, m, b) {
       const cells = { rank: esc(valued ? i + 1 : u.rank), id: `<a>${esc(u.id)}</a>`, title: `<a>${b.html(u.title)}</a>`, domain: b.html(u.domain),
         amount: valued ? b.html(u.value.text) : '', status: valued ? esc(status) : esc(u.value.text) };
       return { html: `<tr>${cols.map(([k]) => `<td class="ix-${k}">${cells[k]}</td>`).join('')}</tr>`,
-        h: 9 + Math.max(textH(u.title, F.small, CW * 0.37 - 12), textH(u.domain, F.small, CW * 0.16 - 12), textH(valued ? status : u.value.text, F.small, CW * 0.16 - 12)) };
+        h: 9 + Math.max(textH(u.title, F.small, CW * 0.345 - 12), textH(u.domain, F.small, CW * 0.16 - 12), textH(valued ? status : u.value.text, F.small, CW * 0.16 - 12)) };
     }),
   });
   if (v.top.length) { const t = tableHtml(tableOf(v.top, true)); blocks.push(card(`<h4>${esc(T('value_top'))}</h4>${t.html}`, F.heading * 1.16 + 6 + t.h + 13, 'gap')); }
@@ -1070,12 +1071,14 @@ function pagesIn(m) {
 }
 export const agentPdfSvgs = (args) => agentPdfPages(args).map((p) => p.svg);
 
-// The PDF file: each page drawn to a JPEG (RC7C-C-01: PNG pages made a 30 MB file the save route refuses with 413), one after the other
+// The PDF file: each page drawn to a 16-colour PNG when its colours allow (sharp text), else a JPEG (RC7C-C-01: full-colour PNG pages made a 30 MB file the save route refuses with 413), one after the other
 // to keep memory low, then jsPDF. rasterize is generateDocs.svgToPng (passed in, so this module stays free of the DOM and of a circular import).
-export const PDF_RASTER = { scale: 1.25, type: 'image/jpeg', quality: 0.5 };
+// C28 (REQ-566): a page is 794 CSS px = 595.5 pt wide, so 200 DPI needs 2.78 raster px per pt = a scale of 2.084; pdfFromImages places each page at its
+// natural size (raster / scale), so the DPI is real and not the 96 the raster size alone gave.
+export const PDF_RASTER = { scale: 2.1, type: 'image/jpeg', quality: 0.5 };
 export async function buildAgentPdf(args, rasterize) {
   const images = [];
-  for (const svg of agentPdfSvgs(args)) images.push(await rasterize(svg, PDF_RASTER.scale, { type: PDF_RASTER.type, quality: PDF_RASTER.quality }));
+  for (const svg of agentPdfSvgs(args)) images.push(await rasterPage(rasterize, svg, PDF_RASTER.scale, PDF_RASTER));
   const { pdfFromImages } = await import('./pdfDoc.js');
-  return pdfFromImages(images);
+  return pdfFromImages(images, PDF_RASTER.scale);
 }
