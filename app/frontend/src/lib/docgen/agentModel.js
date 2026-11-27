@@ -26,7 +26,7 @@ export const AGENT_EN = {
   "business_value": "Business Value",
   "disclaimer": "This content is AI-generated and should be reviewed by a qualified engineer before being used in production. Databricks is not liable for any issues arising from the use of this content.",
   "doc_appendix": "Appendix",
-  "doc_bar_partial_notice": "{meets} of {total} use cases meet the {mode} quality bar. They come first; the rest follow, each marked with its reason.",
+  "doc_bar_partial_notice": "{count}. They come first; the rest follow, each marked with its reason.",
   "doc_best_of_best": "Best of Best",
   "doc_best_score": "Best Inspire Score",
   "doc_bob_score": "Best-of-Best Score",
@@ -59,8 +59,7 @@ export const AGENT_EN = {
   "doc_elite_score_title": "Elite score",
   "doc_elite_use_cases": "Elite use cases",
   "doc_exec_kicker": "The opportunity",
-  "doc_fallback_notice": "0 of {total} use cases meet the {mode} quality bar. Here is what we found, each marked with its reason.",
-  "doc_fallback_notice_one": "{count}. Here is what we found, each marked with its reason.",
+  "doc_fallback_notice": "{count}. Here is what we found, each marked with its reason.",
   "doc_fallback_pick": "Below bar",
   "doc_foundation_tables": "Tables",
   "doc_foundation_unlocks": "Use cases unlocked",
@@ -434,7 +433,7 @@ export function buildAgentModel({ businessName, useCases, values, summary, found
   const modeLabel = mode ? T(MODE_KEYS[mode]) : '';
   let executive = docModel.summary.length ? [...docModel.summary] : [T('pdf_fallback_summary_p1', { total_cases: ranked.length, business_name: docModel.businessName }), T('pdf_fallback_summary_p2')];
   if (ranked.length && meets !== ranked.length) {
-    const key = meets ? 'doc_bar_partial_notice' : ranked.length === 1 ? 'doc_fallback_notice_one' : 'doc_fallback_notice';
+    const key = meets ? 'doc_bar_partial_notice' : 'doc_fallback_notice';
     executive = [T(key, { mode: modeLabel || T('value_mode_good'), total: ranked.length, meets, count: qualityBarCountText(ranked.length, meets, modeLabel || T('value_mode_good')) }), ...executive];
   }
   if (translated) executive = executive.map((p, i) => translated[`summary|${i - (executive.length - docModel.summary.length)}`] || p);
