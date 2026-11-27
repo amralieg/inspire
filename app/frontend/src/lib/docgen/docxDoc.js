@@ -79,8 +79,13 @@ export async function buildDocx(m, theme = {}) {
     if (m.useCases.length) {
       const anyValue = m.useCases.some((u) => u.value);
       const heads = ['#', LB('Use case'), LB('Domain'), ...(anyValue ? [LB('Value a year')] : []), LB('Quality')];
-      const widths = anyValue ? [600, 3900, 2000, 1738, 1400] : [600, 5438, 2200, 1400];
-      table([heads, ...m.useCases.map((u, i) => [String(i + 1), u.name, u.domain || '', ...(anyValue ? [u.value ? u.value.text : ''] : []), u.quality || ''])], widths);
+      // C27 (REQ-563): columns are sized to their content (longest word never breaks, longest cell up to a cap); the use case column takes the rest.
+      const cellsOf = m.useCases.map((u, i) => [String(i + 1), u.name, u.domain || '', ...(anyValue ? [u.value ? u.value.text : ''] : []), u.quality || '']);
+      const want = heads.map((h, ci) => Math.max(...[h, ...cellsOf.map((r) => r[ci])].map((t) => String(t).length)) * 125 + 280);
+      const widths = want.map((w, ci) => (ci === 1 ? 0 : ci === 0 ? Math.max(w, 600) : Math.min(w, 2800)));
+      widths[1] = Math.max(2600, W - widths.reduce((a, b) => a + b, 0));
+      const over = widths.reduce((a, b) => a + b, 0) - W; if (over > 0) widths[2] = Math.max(1400, widths[2] - over);
+      table([heads, ...cellsOf], widths);
     }
     m.useCases.forEach((u) => {
       para(u.name, { style: 'Heading1', pageBreak: true });

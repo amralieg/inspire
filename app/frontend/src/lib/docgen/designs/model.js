@@ -25,8 +25,9 @@ export const DESIGN_STYLES = [
 ];
 
 const QUALITY_ORDER = ['Ultra High', 'Very High', 'High', 'Medium', 'Low'];
+// C27 (REQ-563): cards carry the use case title the App shows (Name); the usecase field is the App's subtitle.
 const mapUseCase = (u) => ({
-  id: u.id, name: u.name, short: u.short || u.name, domain: u.domain || 'Other', subdomain: u.subdomain, statement: u.statement, solution: u.solution,
+  id: u.id, name: u.name, short: u.name || u.short, domain: u.domain || 'Other', subdomain: u.subdomain, statement: u.statement, solution: u.solution,
   businessValue: u.businessValue, beneficiary: u.beneficiary, sponsor: u.sponsor, technique: u.technique, quality: u.quality, score: Number.isFinite(u.score) ? u.score : null,
   type: u.type, priorityAlignment: u.priorityAlignment, strategicAlignment: u.strategicAlignment, kpis: u.kpis || [], keyResults: u.keyResults || [],
   measures: u.measures || [], financial: u.financial || [], nonFinancial: u.nonFinancial || [], foundations: u.foundations || [],
@@ -60,10 +61,11 @@ export function toDesignModel(doc) {
   const known = QUALITY_ORDER.filter((q) => counts.has(q)); const other = [...counts.keys()].filter((q) => !QUALITY_ORDER.includes(q));
   const quality = [...known, ...other].map((name) => ({ name, n: counts.get(name) }));
 
+  // C27 (REQ-563): domains are counted over every use case of the document (as the Word brief does), not only the valued ones the charts place.
   return {
     businessName: doc.businessName, language: doc.language, rtl: doc.rtl, blocks: [...doc.blocks], summary: doc.summary || [], executiveSummary: '',
     useCases, pageUseCases, ranked, domains, verbs, quality,
-    total: { amount: doc.total.amount, currency: cur, text: doc.total.text, yearText: `${doc.total.text} a year`, n: doc.total.n, nWithValue: doc.total.nWithValue, nDomains: domains.length },
+    total: { amount: doc.total.amount, currency: cur, text: doc.total.text, yearText: `${doc.total.text} a year`, n: doc.total.n, nWithValue: doc.total.nWithValue, nDomains: new Set(doc.useCases.map((u) => u.domain).filter(Boolean)).size },
     median: useCases.length ? { score: median(useCases.map((u) => u.score)), value: median(useCases.map((u) => u.value.amount)) } : null,
   };
 }
