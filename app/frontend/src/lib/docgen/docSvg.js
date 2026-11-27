@@ -1,7 +1,7 @@
 // FX-113 (REQ-503): the SVG infographic and brief pages. Every text is XML-escaped; every content block is wrapped in <g data-block="id">.
 import { moneyText } from '../valueWizard.js';
 import { designOf, toDesignModel } from './designs/model.js';
-import { scoreInfographic } from './designs/scoreInfographic.js';
+import { scoreInfographic, posterInfographic } from './designs/scoreInfographic.js';
 import { resetLog, rtlSvg, SPILL, wrap as designWrap, T, rect, svgDoc } from './designs/core.js';
 import { paletteOf } from './designs/palette.js';
 import { withPanelTiles, splitInfographic } from './designs/panelTiles.js';
@@ -159,14 +159,16 @@ const designRtl = (m, svg) => (m.rtl ? rtlSvg(svg) : svg);
 
 // REQ-561: with the agent card views the infographic grows a tile per use case that carries every business section of the side panel.
 // C26: infographicPagesSvg cuts it into pages of at most three A4 pages (every tile kept); infographicSvg is the same as one tall svg.
-const panelPalette = (theme) => (theme.design ? paletteOf(theme.design, theme.tokens) : { page: theme.bg, card: theme.surface, ink: theme.ink, body: theme.ink, muted: theme.muted, accent: theme.accents[0] });
+const panelPalette = (theme) => (theme.design ? paletteOf(theme.design, theme.tokens) : { page: theme.bg, card: theme.surface, ink: theme.ink, body: theme.ink, muted: theme.muted, accent: theme.accents[0], cats: theme.accents });
 export const infographicSvg = (m, theme, views = null) => withLabels(m.labels, () => {
-  const svg = infographicSvgOf(m, theme);
+  const svg = infographicSvgOf(m, theme, views);
   return views ? withPanelTiles(svg, views, panelPalette(theme), { rtl: m.rtl }) : svg.replace(/<!--cut:\d+-->/g, '');
 });
 export const infographicPagesSvg = (m, theme, views = null) => splitInfographic(infographicSvg(m, theme, views));
-function infographicSvgOf(m, theme) {
+function infographicSvgOf(m, theme, views = null) {
   const d = designed(m, theme, { empty: true });
+  // C27 (REQ-564): the Inspire original design (the deck's look) draws the infographic poster when the use case card views are given (the download); without them the design draws its own layout; the other designs keep their own layout.
+  if (d && theme.design === 'original' && views?.length) { resetLog(); return designRtl(m, posterInfographic(d.dm, theme.tokens, { W: 794 }, { id: theme.design, fonts: d.design.fonts }, views || [])); }
   if (d?.noValue) { resetLog(); return designRtl(m, scoreInfographic(d.dm, theme.tokens, { W: 794 }, { id: theme.design, fonts: d.design.fonts })); }
   if (d) { resetLog(); return designRtl(m, d.design.infographic(d.dm, theme.tokens, { W: 794, H: 1123 })); }
   const W = 1200; const gap = 24; const cw = (W - 96 - gap) / 2;
