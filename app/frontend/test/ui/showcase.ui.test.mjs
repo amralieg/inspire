@@ -32,7 +32,7 @@ const withUseCase = (results, no, extra) => ({
 });
 const CHURN_KEY = { use_case_key: 'acme:predict-churn' };
 const DEMO_RESULTS = withUseCase(withUseCase(RESULTS, 'N01-U03', { notebook_path: NOTEBOOK }), 'N01-U01', { ...CHURN_KEY, tables_involved: 'main.s.orders' });
-const DEMO_RUN = { ...REVIEW_SESSIONS[0], generation_path: './inspire_output', usecase_overview: { total: 6, high: 2, meets: 6, below: 0, domains: 2, unread: {}, preview_use_cases: [{ Name: 'Predict churn' }, { Name: 'Forecast stock' }] } };
+const DEMO_RUN = { ...REVIEW_SESSIONS[0], generation_path: '/Workspace/Shared/inspire_output', usecase_overview: { total: 6, high: 2, meets: 6, below: 0, domains: 2, unread: {}, preview_use_cases: [{ Name: 'Predict churn' }, { Name: 'Forecast stock' }] } };
 const RUN_STEPS = [
   { step_id: '1', stage_name: 'Discovery', step_name: 'Read the tables', status: 'ended_success', last_updated: '2026-10-31T09:10:00Z', message: 'Read 4 tables', progress_increment: 20 },
   { step_id: '2', stage_name: 'Use Case Generation', step_name: 'Write the use cases', status: 'ended_success', last_updated: '2026-10-31T09:40:00Z',
@@ -232,8 +232,12 @@ test('recording the demo walks every Results and Build view through the read-onl
     assert.deepEqual(Object.keys(step.result_json).sort(), ['prompt_name', 'use_cases', 'use_cases_count'], 'the prompt and the response of a step are never recorded');
     assert.deepEqual(step.result_json.use_cases.map((u) => Object.keys(u).sort().join()), ['Name,No', 'Name,No', 'Name,No']);
     t.diagnostic(`the walk recorded ${Buffer.byteLength(showcaseText(bundle))} bytes, under the cap of ${SHOWCASE_MAX_BYTES}`);
-    const notebook = Object.entries(bundle.inspire).filter(([key, answer]) => key.startsWith('GET /api/workspace/export?') && answer.status === 200);
-    assert.deepEqual(notebook, [], 'a use case card opens its notebook in the workspace, so the demo records no notebook text');
+    const exported = Object.entries(bundle.inspire).filter(([key, answer]) => key.startsWith('GET /api/workspace/export?') && answer.status === 200);
+    assert.deepEqual(exported.filter(([key]) => !decodeURIComponent(key).endsWith(`/${DEMO_PDF}`)), [], 'a use case card opens its notebook in the workspace, so the demo records no notebook text');
+    // REQ-560: the walk lists the run folder in Assets and views its PDF, so the recording holds a 200 list and a 200 PDF export
+    const listed = Object.entries(bundle.inspire).filter(([key, answer]) => key.startsWith('GET /api/workspace/list?') && answer.status === 200);
+    assert.equal(listed.length, 1, 'the recording holds the 200 list of the demo run folder');
+    assert.equal(exported.length, 1, 'the recording holds the 200 export of the demo PDF');
     const text = JSON.stringify(bundle);
     assert.ok(!text.includes(new URL(MVP_URL).host), 'the MVP App host is gone');
     assert.ok(text.includes(`"app_url":"${HOSTED}"`), 'the App link points at the MVP hosted in Inspire');
