@@ -52,7 +52,7 @@ function completePairs(raw) {
   const out = {};
   const re = /"((?:[^"\\]|\\.)*)"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
   for (let m = re.exec(raw); m; m = re.exec(raw)) {
-    try { out[JSON.parse(`"${m[1]}"`)] = JSON.parse(`"${m[2]}"`); } catch (_) { /* a broken escape: that pair is skipped */ }
+    try { out[parseExactJson(`"${m[1]}"`)] = parseExactJson(`"${m[2]}"`); } catch (_) { /* a broken escape: that pair is skipped */ }
   }
   return out;
 }
