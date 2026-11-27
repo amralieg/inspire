@@ -49,8 +49,10 @@ test('styles: 8 named styles, at least 4 palettes, a custom brand colour leads t
 test('options: the 4 kinds, the content blocks and Excel columns from the wireframe, sensible defaults', () => {
   assert.deepEqual(DOC_KINDS, ['infographic', 'pptx', 'pdf', 'xlsx', 'docx']);
   const blocks = CONTENT_BLOCKS.map((b) => b.id);
-  for (const id of ['use_case_story', 'value_story', 'value_projection', 'value_formula', 'inspire_score', 'strategy_link', 'data_used',
-    'genie_questions', 'build_status', 'next_steps', 'sql', 'disclaimer']) assert.ok(blocks.includes(id), id);
+  for (const id of ['use_case_story', 'value_story', 'value_projection', 'value_formula', 'inspire_score', 'strategy_link',
+    'genie_questions', 'build_status', 'next_steps', 'disclaimer']) assert.ok(blocks.includes(id), id);
+  // REQ-561: documents are business-only, so the Data used and SQL blocks no longer exist.
+  for (const id of ['data_used', 'sql']) assert.ok(!blocks.includes(id), `${id} is gone`);
   const cols = EXCEL_COLUMNS.map((c) => c.id);
   for (const id of ['name', 'inspire_score', 'value', 'value_status', 'domain', 'statement', 'use_case_story', 'value_story', 'projection', 'tables']) assert.ok(cols.includes(id), id);
   const d = defaultDocOptions('Arabic');
