@@ -409,7 +409,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
           <div className="relative">
             <Search size={14} aria-hidden className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
             <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search runs and use cases" placeholder="Search runs and use cases" dir="auto"
-              className="w-full rounded-lg border border-border bg-surface py-2 ps-9 pe-3 text-sm text-text-primary placeholder:text-text-tertiary focus-visible:outline-2 focus-visible:outline-offset-2" />
+              className="w-full max-w-[1040px] rounded-lg border border-border bg-surface py-2 ps-9 pe-3 text-sm text-text-primary placeholder:text-text-tertiary focus-visible:outline-2 focus-visible:outline-offset-2" />
           </div>
 
           {runFilter && (

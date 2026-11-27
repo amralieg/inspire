@@ -114,7 +114,7 @@ test('a link to a run that exists but has no such use case opens the run and say
   const { page } = ui;
   try {
     await note(page).waitFor({ timeout: 20000 });
-    assert.equal(await note(page).innerText(), 'Run 42 has no use case N09-U09, so Review shows every use case of the run.');
+    assert.equal(await note(page).innerText(), 'Run 42 has no use case AI09-UC09, so Review shows every use case of the run.');
     await page.locator('[data-run-heading]').waitFor();
     assert.equal(await list(page).locator('[data-use-case-row][data-open]').count(), 0);
     assert.ok(await list(page).locator('[data-use-case-no]').count() >= 6, 'every use case of the run is listed');
