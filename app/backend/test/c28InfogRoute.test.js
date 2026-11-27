@@ -8,7 +8,8 @@ const SESSION = { business_name: 'Acme', discovery_type: 'Deep', catalogs: 'main
 const ENDPOINTS = { 'GET /api/2.0/serving-endpoints': [{ endpoints: [{ name: 'chat-new', state: { ready: 'READY' }, task: 'llm/v1/chat' }] }] };
 const BASE = { inspire_database: 'main.inspire', warehouse_id: 'wh1', session_id: '42' };
 const UC = { Name: 'Predict churn', Statement: 'Customers leave without warning.', Solution: 'A model scores risk.', 'Business Value': 'Saves $2M a year.', 'Tables Involved': 'main.s.secret' };
-const GOOD = { scenario: 'funnel', title: 'Keep customers', steps: [{ title: 'Collect', text: 'signals' }, 'Score'], outcomes: [{ title: 'Retain', text: 'more' }], kpi: { value: '$2M', label: 'a year' } };
+// C29: the pick carries the 12 concepts' fields (a funnel needs its stages) in place of the c28 outcomes and kpi.
+const GOOD = { scenario: 'funnel', title: 'Keep customers', steps: [{ title: 'Collect', text: 'signals' }, 'Score'], hero: { value: '$2M', label: 'a year' }, stages: [{ value: '1,000', label: 'scored' }, { value: '100', label: 'called' }] };
 
 function harness(replies) {
   const asked = [];
@@ -34,10 +35,11 @@ test('a valid reply is returned as the pick; the prompt holds the use case, the 
     const r = await post(srv, { use_case: UC, vibe: 'bold and friendly', orientation: 'portrait' });
     assert.equal(r.status, 200, JSON.stringify(r.data));
     assert.equal(r.data.pick.scenario, 'funnel');
-    assert.equal(r.data.pick.steps[1].title, 'Score');
+    assert.equal(r.data.pick.steps[1], 'Score'); // C29: steps are short strings now (no c28 {title, text})
+    assert.equal(r.data.pick.stages[0].value, '1,000');
     assert.equal(h.asked.length, 1);
     const prompt = JSON.stringify(h.asked[0].messages);
-    assert.ok(prompt.includes('Predict churn') && prompt.includes('bold and friendly') && prompt.includes('hub_spokes') && prompt.includes('portrait'));
+    assert.ok(prompt.includes('Predict churn') && prompt.includes('bold and friendly') && prompt.includes('hub') && prompt.includes('waterfall') && prompt.includes('portrait'));
     assert.ok(!prompt.includes('main.s.secret'), 'tables are not sent to the model');
   } finally { await srv.close(); }
 });

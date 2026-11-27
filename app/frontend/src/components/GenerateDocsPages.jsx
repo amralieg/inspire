@@ -158,13 +158,18 @@ export function StylePage({ options, set, svg, thumbs = {}, infographic = false 
                 <button key={o.id} type="button" role="radio" aria-checked={(options.orientation || 'landscape') === o.id} data-doc-orientation={o.id} onClick={() => set({ orientation: o.id })} className={`${card((options.orientation || 'landscape') === o.id)} px-4 py-1.5 text-sm font-semibold text-text-primary`}>{o.label}</button>
               ))}
             </div>
-            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Infographic style">
+            {/* C29 (REQ-571): "Let the AI choose" (the default) picks the concept per use case; choosing one of the 12 forces it. Thumbnails are drawn by the library for the chosen orientation. */}
+            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Infographic style">
+              <button type="button" role="radio" aria-checked={!options.infographicStyle} data-doc-infographic-style="" onClick={() => set({ infographicStyle: '' })} className={`${card(!options.infographicStyle)} py-2`}>
+                <span className="block text-xs font-bold text-text-primary">Let the AI choose</span>
+                <span className="block text-xs text-text-secondary">The best concept for each use case</span>
+              </button>
               {INFOGRAPHIC_STYLES.map((s) => {
-                const on = (options.infographicStyle || INFOGRAPHIC_STYLES[0].id) === s.id;
-                const pic = s.thumbnail || (thumbs[s.id] ? thumbOf(thumbs[s.id]) : '');
+                const on = options.infographicStyle === s.id;
+                const pic = (s.thumbnails && s.thumbnails[options.orientation || 'landscape']) || s.thumbnail || '';
                 return (
-                  <button key={s.id} type="button" role="radio" aria-checked={on} data-doc-infographic-style={s.id} onClick={() => set({ infographicStyle: s.id })} className={`${card(on)} py-2`}>
-                    {pic && <img data-doc-infographic-thumb="" src={pic.startsWith('data:') || pic.startsWith('http') || pic.startsWith('/') ? pic : thumbOf(pic)} alt="" className="mb-1 max-h-28 w-auto rounded border border-border" />}
+                  <button key={s.id} type="button" role="radio" aria-checked={on} data-doc-infographic-style={s.id} onClick={() => set({ infographicStyle: s.id })} className={`${card(on)} py-2`} title={s.description}>
+                    {pic && <img data-doc-infographic-thumb="" src={pic.startsWith('data:') ? pic : thumbOf(pic)} alt="" className="mb-1 max-h-28 w-auto rounded border border-border" />}
                     <span className="block text-xs font-bold text-text-primary">{s.name}</span>
                   </button>
                 );

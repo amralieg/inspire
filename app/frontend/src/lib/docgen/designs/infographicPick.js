@@ -1,37 +1,60 @@
-// C28 (REQ-571): the scenario picker. The App's model picks the best scenario for a use case and writes the story text and numbers into its
+// C28, C29 (REQ-571): the concept picker. The App's model picks the best scenario for a use case and writes the story text and numbers into its
 // slots (POST /api/inspire/docs/infographic-pick); when the model is unavailable or returns junk, a deterministic pick is made from the use case fields.
 import { validatePick, SCENARIO_IDS, STORY_FIELDS } from '../../../../../backend/lib/infographicPick.mjs';
+import { baseContent, contentFor } from './infog/content.js';
+import { drawConcept } from './infog/concepts.js';
+import { textBlock } from './infog/text.js';
 
 export { validatePick, SCENARIO_IDS };
 const ROUTE = '/api/inspire/docs/infographic-pick';
 
-const firstSentence = (text, max) => {
-  const s = String(text ?? '').replace(/`/g, '').replace(/\[[^\]]*\]/g, '').replace(/\s+/g, ' ').trim();
-  const m = /^(.+?[.!?])(\s|$)/.exec(s); const one = m ? m[1] : s;
-  return one.length > max ? `${one.slice(0, max - 1).trimEnd()}…` : one;
-};
-const MONEY = /[$€£]\s?\d[\d.,]*\s?[KMB]?\+?|\b\d[\d.,]*\s?(?:%|[KMB]\b)\+?/;
-
-// The pick the fields give when no model answers. Rules read the analytics technique and the stated value, never an industry.
-export function fallbackPick(uc = {}) {
-  const f = (k) => String(uc[k] ?? '').trim();
-  const tech = `${f('Analytics Technique')} ${f('Name')} ${f('usecase')}`;
-  const kpiHit = MONEY.exec(f('Business Value')) || MONEY.exec(f('Return on Investment'));
-  let scenario = 'process_flow';
-  if (/forecast|time.?series|predict|project|roadmap/i.test(tech)) scenario = 'timeline';
-  else if (/recommend|network|graph|knowledge|relationship|link/i.test(tech)) scenario = 'hub_spokes';
-  else if (/classif|segment|cluster|rank|scor|prioriti|filter/i.test(tech)) scenario = 'funnel';
-  else if (/anomal|detect|monitor|optimi|automat|replace/i.test(tech)) scenario = 'before_after';
-  else if (kpiHit) scenario = 'kpi_hero';
-  const steps = [['The challenge', 'Statement'], ['The approach', 'Solution'], ['The technique', 'Analytics Technique']]
-    .map(([title, k]) => ({ title, text: firstSentence(f(k), 160) })).filter((s, i) => s.text || i < 2);
-  while (steps.length < 2) steps.push({ title: steps.length ? 'The approach' : 'The challenge', text: '' });
-  const outcomes = [['Business value', 'Business Value'], ['Who benefits', 'Beneficiary']].map(([title, k]) => ({ title, text: firstSentence(f(k), 160) })).filter((o, i) => o.text || i === 0);
-  const kpi = kpiHit ? { value: kpiHit[0].trim().slice(0, 16), label: 'stated value' } : null;
-  return { scenario, title: f('Name') || f('usecase') || 'Use case', subtitle: f('Business Domain'), steps: steps.slice(0, 3), outcomes, ...(kpi ? { kpi } : {}) };
+// The "when it fits" rules (backend SCENARIOS) read on the analytics technique, the use case kind and the name, and on the shape of the stated
+// facts; never on an industry word. The first rule that fits wins; the data to decision scene fits every use case.
+const RULES = [
+  ['map', /\b(geo\w*|spatial|sites?|locations?|territor\w*)\b/i],
+  ['network', /\b(network|graph|rings?|communit\w*)\b/i],
+  ['hub', /\b(agent|assistant|questions?|chat|search|knowledge)\b/i],
+  ['journey', /\b(process mining|journey|path|workflow)\b/i],
+  ['waterfall', /\b(decompos\w*|bridge|variance|breakdown)\b/i, (c) => c.facts.filter((f) => f.unit === '$').length >= 2],
+  ['balance', /\b(causal|uplift|lift|experiment\w*|impact|benchmark\w*|peers?|compar\w*)\b/i],
+  ['timeline', /\b(forecast\w*|time series)\b/i],
+  ['cycle', /\b(recommend\w*|next best|personali\w*|offers?)\b/i],
+  ['funnel', /\b(classif\w*|propensity|churn|rank\w*|scor\w*|prioriti\w*)\b/i],
+  ['beforeafter', /\b(controls?|anomal\w*|detect\w*|leak\w*|reconcil\w*|audit\w*)\b/i],
+  ['pictogram', /\b(segment\w*|cluster\w*|survival|cohorts?)\b/i, (c) => c.facts.some((f) => f.unit === '%')],
+];
+const pair = (o) => (o && (o.value || o.label) ? { value: String(o.value ?? ''), label: String(o.label ?? '') } : undefined);
+// A concept's drawn content as the pick the model would have written (so the browser validates both the same way).
+function asPick(id, c) {
+  const p = { scenario: id, title: c.title, steps: c.steps.map((s) => s.label), ...(c.hero ? { hero: pair(c.hero) } : {}), who: c.who, cadence: c.cadence, problem: c.problem };
+  const add = { pain: pair(c.pain), hub: pair(c.hub), trend: pair(c.trend), share: c.share ? { value: c.share.value, label: c.share.label } : undefined, before: c.before, after: c.after,
+    stages: c.stages && c.stages.map(pair), center: c.center, spokes: c.spokes, places: c.places, groups: c.groups, count: c.count || undefined,
+    bars: c.bars && c.bars.map((b) => ({ label: b.label, value: b.value })), total: pair(c.total), options: c.options && c.options.map((o) => ({ label: o.label, value: o.value })) };
+  for (const [k, v] of Object.entries(add)) if (v !== undefined && v !== null) p[k] = v;
+  return p;
 }
 
-// One use case's pick: { pick, source: 'ai' | 'fallback' }. `post(route, body)` is the App's API helper; `where` is { inspire_database, warehouse_id, session_id }.
+// The pick the use case gives when no model answers: { scenario, title, steps, hero, who, cadence, problem, ...the concept's fields }.
+export function fallbackPick(uc = {}) {
+  const row = uc && typeof uc === 'object' ? uc : {};
+  const text = ['Analytics Technique', 'kind_label', 'Name'].map((k) => String(row[k] ?? '')).join(' | ');
+  const base = baseContent(row);
+  const rule = RULES.find(([, re, ok]) => re.test(text) && (!ok || ok(base)));
+  // The concept the rules give, else the two that fit any story (data to decision, today against the new way). A concept whose slots are too
+  // small for this use case's text (a text no whole phrase of which fits, so it would be left out) gives way to the next one that fits it.
+  const ids = [...new Set([rule ? rule[0] : 'isometric', 'isometric', 'beforeafter'])]; let best = null;
+  for (const id of ids) {
+    const c = contentFor(row, id); const p = validatePick(asPick(id, c)); if (!p) continue;
+    const before = textBlock.dropped; drawConcept(id, c, 'landscape'); drawConcept(id, c, 'portrait'); const lost = textBlock.dropped - before;
+    if (!lost) return p; if (!best || lost < best.lost) best = { p, lost };
+  }
+  if (best) return best.p;
+  // A use case too thin for any concept's fields still keeps the concept its kind fits when that concept needs only steps.
+  const id = rule && validatePick({ scenario: rule[0], title: 't', steps: ['a', 'b'] }) ? rule[0] : 'isometric';
+  return { scenario: id, title: base.title || 'Use case', steps: ['Read the data', 'Show the decision'], ...(base.hero ? { hero: { value: base.hero.value, label: base.hero.label || '' } } : {}) };
+}
+
+// One use case's pick: { pick, source: 'ai' | 'fallback' }. `post(route, body)` is the App's API helper; `where` names the database, the SQL compute and the session.
 export async function pickInfographic(useCase, { post, vibe = '', scenario = '', orientation = '', where = {} } = {}) {
   const fallback = () => ({ pick: fallbackPick(useCase), source: 'fallback' });
   if (typeof post !== 'function') return fallback();
