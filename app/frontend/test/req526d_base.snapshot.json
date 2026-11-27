@@ -1,7 +1,7 @@
 {
   "original|light|ltr": {
     "info": "3232a2e54718462be40c6b9b3edc50654dc52d7b04b0bc0ee05a6c762c253701",
-    "p1": "650ebfcf3ecdfdf37592b0a5789211c7a244de28d5bd2078bd0afc071ece9177",
+    "p1": "50eb1886f90b84c0f1a48caa42db322f4fddbb511d7954b5fad6fe34593f6ecb",
     "p2": "2ea8e09c1bdf1a9be1416636b2d70213ac3703b408e2b6ab6db467025dced01d",
     "rest": [
       "5d51b5723c9d4e046fa06fa9a631497f14fa88ed588d351ae5a2ad0dbb51f8dd",
@@ -113,7 +113,7 @@
   },
   "original|dark|ltr": {
     "info": "f8c53d2b5fc87437e1eae32c3f6aa6c6194c0329717e495feef4edc4e8aa3b4b",
-    "p1": "a3a9aaea201d8ffc2b9665d297756bcd69e54e204b6c602cbccbc9656bab7d32",
+    "p1": "f01edf03fef368775a877d05381e1653358c8497320972b52b3eb2f81a02df73",
     "p2": "c8f1394be2109843d2cf025c9f8a83f0091ffa72653d67d6e8ac42c76e200b94",
     "rest": [
       "0560d7e1610f4df9aaf0fa2cfea0c4e177ab08ac2263cc84284eb4c745acdad5",
@@ -449,7 +449,7 @@
   },
   "bold|light|ltr": {
     "info": "1892cdab01ecfb1307017f0d6c4441f4ddceccfea54186fc7c29e0aa8d857444",
-    "p1": "e6c1bbc2097d4c7f98e7c0228f793b2757fee3ec74fdecd8edb4dde632004e0f",
+    "p1": "923467438a54c186aaed6fca7e6fa286b318568138908a5f549b1a1484f10d8a",
     "p2": "0cb230d60eaac5c42229bf151de6f20edbb1f4fb5d3ee68bc6f4d96c5ec2d2b7",
     "rest": [
       "c70b2d0069ffb2708512f174b525eb4fa883ec6db2a70351c9c41b75238fbb8a",
@@ -561,7 +561,7 @@
   },
   "bold|dark|ltr": {
     "info": "67a716da89c5cbdd7007f491513b46e3e949194964689cdccb1bdca1206753f4",
-    "p1": "3e92b46b637b66c17aa3ede977d006dabb36f6b6311720aafb3e332c0b44faf5",
+    "p1": "22834ab898bdda5bd5d9a9a865bd2b861b7d008730a896c843d566beb607d4ac",
     "p2": "d8fbdfe709a7a9f3204dc685867afb55cd7978801ba459df22db451eec97d5be",
     "rest": [
       "a55c065e98809869dc07a84c5b2e41651ae4df6a41f303b59cd0e645efc8d92b",
@@ -673,7 +673,7 @@
   },
   "consulting|light|ltr": {
     "info": "a3dde9914393609a4b7fd7b775f8164072a5aa677699f4783396128a62ab8990",
-    "p1": "1e24c3b099eb2de234aa22216b2127252842e51ea9ef284b783e9499a6a77bbd",
+    "p1": "a59c32b5ef069e61fe81a1dad2455fad700e60b8898776499283bfeb0e394700",
     "p2": "db4370f8a7001f2f425a61bd0e556cea5f0bb77076f0946cf026d9a66308c92c",
     "rest": [
       "74e342356b62d3dd2b755218359f083172e9d6e58b63aae1d206b5271dfa97dc",
@@ -785,7 +785,7 @@
   },
   "consulting|dark|ltr": {
     "info": "eeed113f0121480b35bb93973c3ca8265f31e599710e0f0e73fc05dd6ae8c0f1",
-    "p1": "c272faf626bb9d48db006fd02cd963ac8d68caafe41e22cc4e8afca4399b2c96",
+    "p1": "d330b44ec460de7d994bc38e17c626bfe9411ba5801e4174c1b32fe05a8b6f51",
     "p2": "22859a12415ea752cecebad3f63f0740428ca5460be7751afbdd2edf52ab59c2",
     "rest": [
       "84dc31f7686423d18d85bf5d353ed14ce9aec233bfd462362d8b2108ec6b24ce",
