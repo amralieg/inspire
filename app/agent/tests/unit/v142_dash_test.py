@@ -224,9 +224,9 @@ def test_a_page_spec_without_the_user_filter_goes_back_to_genie_then_publishes(a
 
 def test_a_failing_dataset_query_blocks_publish_and_goes_back_to_genie(agent_ns, tmp_path):
     inst, context, seen = _flow(agent_ns, tmp_path, fail="concat_ws")
-    with pytest.raises(RuntimeError, match="still failed after 3 Genie rounds"):
-        inst._implement_dashboard(context, _runner(*[_churn_page(agent_ns)] * 3))
-    assert _published(seen) == []
+    runner = _runner(*[_churn_page(agent_ns)] * 3)
+    fields = inst._implement_dashboard(context, runner)  # c29_partial2: after Genie's repair round the dataset is left out, not refused
+    assert len(runner.prompts) == 2 and len(_published(seen)) == 2 and any("left out" in w for w in fields["_warnings"])
     messages = [e["message"] for e in inst.emitted if e["step_name"] == "Dashboard"]
     assert any("dataset records failed: UNRESOLVED_COLUMN: boom" in m for m in messages), messages
 
