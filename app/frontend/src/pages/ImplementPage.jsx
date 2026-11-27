@@ -2013,9 +2013,9 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
               <Sparkles size={14} /> {START_MVP_LABEL}
             </Button>
           )}
-          {/* REQ-545: the More menu sits in the same row as the other actions, at its end, so its panel (end-aligned, 12rem) opens inside the pane and never over the rail resizer. */}
+          {/* REQ-545: the More menu sits in the same row as the other actions, its panel is drawn on the page layer, so the rail resizer cannot cover it. */}
           {item.uc && (
-            <div className="ms-auto"><MoreMenu items={[{ label: 'Use case details', onSelect: () => setDetailsOpen(true) }]} /></div>
+            <div><MoreMenu items={[{ label: 'Use case details', onSelect: () => setDetailsOpen(true) }]} /></div>
           )}
         </div>
         {item.uc && (valuedLine(valueTotal)
