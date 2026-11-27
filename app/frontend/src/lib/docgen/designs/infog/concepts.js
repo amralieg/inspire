@@ -4,7 +4,7 @@
 // (a process diagram with icons), who uses it and how often. Content comes from content.js (the AI pick, else the use case itself).
 import { P, tint, f1, ribbon, badge, callout, blob, ring, curve, hex, pill, chevron } from './shapes.js';
 import { icon, iconDisc, distinctIcons } from './icons.js';
-import { textBlock, label, esc, wrap } from './text.js';
+import { textBlock, label, esc, wrap, tidy, measure } from './text.js';
 import { chevronSteps, cycle, funnel, hubSpokes, decisionSplit } from './process.js';
 import { unitGrid } from './pictogram.js';
 import { dashboardScreen, dataStack, person, mapField, constellation } from './scenes.js';
@@ -19,10 +19,13 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // A numbered list of steps with an icon disc each (the "how it works" in a small space). Returns { svg, h }.
 function stepList(x, y, w, steps, o = {}) {
   const r = o.r || 18; const size = o.size || 20; const gap = o.gap ?? 8; const cs = o.colors || cols(); let yy = y; let svg = '';
-  steps.forEach((st, i) => {
-    const t = textBlock(x + 2 * r + 12, yy + r - size * 0.62, w - 2 * r - 12, st.label, { size, weight: o.weight || 600, color: o.ink || P.ink, maxLines: o.maxLines || 1 });
-    svg += iconDisc(st.icon, x + r, yy + r, r, cs[i % cs.length]) + t.svg; yy += Math.max(2 * r, t.h + (r - size * 0.62)) + gap;
-  });
+  for (let i = 0; i < steps.length; i += 1) { const st = steps[i];
+    // adapt: a step that does not fit one line takes two, and the steps that no longer fit the height are left out (never a cut phrase).
+    const tw = w - 2 * r - 12; const ml = o.adapt ? Math.min(2, wrap(st.label, tw, size, o.weight || 600).length) : o.maxLines || 1;
+    const t = textBlock(x + 2 * r + 12, yy + r - size * 0.62, tw, st.label, { size, weight: o.weight || 600, color: o.ink || P.ink, maxLines: ml });
+    const rowH = Math.max(2 * r, t.h + (r - size * 0.62)); if (o.adapt && i > 0 && yy + rowH - y > (o.maxH || 1e9)) break;
+    svg += iconDisc(st.icon, x + r, yy + r, r, cs[i % cs.length]) + t.svg; yy += rowH + gap;
+  }
   return { svg: `<g data-process="steps">${svg}</g>`, h: yy - y - gap };
 }
 // Steps in one row: an icon disc, its label to the right, a small arrow to the next one.
@@ -30,7 +33,7 @@ function inlineFlow(x, y, w, steps, o = {}) {
   const n = steps.length; const seg = w / n; const r = o.r || 22; const cs = o.colors || cols(); let svg = '';
   steps.forEach((st, i) => { const sx = x + i * seg;
     svg += iconDisc(st.icon, sx + r, y + r, r, cs[i % cs.length]);
-    svg += textBlock(sx + 2 * r + 10, y + r - 23, seg - 2 * r - 40, st.label, { size: o.size || 20, weight: 600, color: o.ink || P.ink, maxLines: 2 }).svg;
+    svg += textBlock(sx + 2 * r + 10, y + r - 23, seg - 2 * r - 40, st.label, { size: o.size || 20, weight: 600, color: o.ink || P.ink, maxLines: 3 }).svg;
     if (i < n - 1) svg += chevron(sx + seg - 24, y + r - 10, 16, 20, o.arrow || P.grey, true, 0.5); });
   return `<g data-process="flow">${svg}</g>`;
 }
@@ -46,7 +49,7 @@ function miniFlow(x, y, w, steps, o = {}) {
 
 // The steps the picture does not already show (a footer never repeats a line of the picture).
 const unused = (steps, ...shown) => { const seen = new Set(shown.flat().filter(Boolean).map(String)); return steps.filter((x) => !seen.has(x.label)); };
-const footSteps = (steps, ink) => (steps.length ? (x, y, w) => stepList(x, y, w, steps.slice(0, 3), { r: 16, size: 20, maxLines: 1, gap: 4, ...(ink ? { ink } : {}) }).svg : null);
+const footSteps = (steps, ink) => (steps.length ? (x, y, w) => stepList(x, y, w, steps.slice(0, 3), { r: 16, size: 20, adapt: true, maxH: 112, gap: 4, ...(ink ? { ink } : {}) }).svg : null);
 
 // The page: header (id, technique, title, problem, the value), the concept's picture, the footer (who uses it, the screen or the logo).
 function page(c, orient, concept, draw, o = {}) {
@@ -57,26 +60,30 @@ function page(c, orient, concept, draw, o = {}) {
   let b = o.backdrop || '';
   const pic = draw(c, box, land, k);
   if (land) {
+    const hStart = b.length;
     b += pill(48, 28, tag, dark ? P.lava : P.ink, '#fff', 20).svg;
-    const ts = wrap(c.title, 700, 38, 800).length > 2 ? 32 : 38;
+    const ts = [38, 32, 28, 24].find((z) => wrap(c.title, 700, z, 800).length <= 2) || 24;
     const t = textBlock(48, 76, 700, c.title, { size: ts, weight: 800, color: ink, lh: 1.08, maxLines: 2 }); b += t.svg;
-    b += textBlock(48, 76 + t.h + 12, 700, c.problem, { size: 21, color: muted, maxLines: 2 }).svg;
+    const prL = textBlock(48, 76 + t.h + 12, 700, c.problem, { size: 21, color: muted, maxLines: 2 }); b += prL.svg;
     if (c.hero) {
       b += hero(1192, 110, c.hero.value, fitSize(c.hero.value, 84, 400), 'url(#gHot)', 'end');
       if (c.hero.label) b += textBlock(1192, 124, 400, c.hero.label, { size: 22, weight: 700, color: ink, anchor: 'end', maxLines: 1 }).svg;
       if (c.heroNote) b += textBlock(1192, 154, 400, c.heroNote, { size: 20, color: muted, anchor: 'end', maxLines: 2 }).svg;
     }
+    // No value to show: the header sits in the middle of its band instead of leaving an empty one above the picture.
+    if (!c.hero) { const dy = Math.round((218 - (76 + t.h + 12 + prL.h) - 8) / 2); if (dy > 8) b = b.slice(0, hStart) + `<g transform="translate(0 ${dy})">${b.slice(hStart)}</g>`; }
     b += pic.svg;
     b += `<rect x="40" y="564" width="1160" height="2" fill="${rule}"/>`;
     b += whoBlock(48, 572, c, [P.blue, P.lava, P.green], { ph: 90, w: 320, size: 22, ink, muted, accent: P.lava }).svg;
     if (pic.foot) b += pic.foot(500, 580, 410);
-    if (o.logo) b += `<image href="${esc(o.logo)}" x="972" y="586" width="220" height="92" preserveAspectRatio="xMaxYMid meet"/>`;
-    else if (c.screen) b += icon('monitor', 932, 588, 30, P.lava, 2) + label(972, 611, 'ON SCREEN', { size: 20, weight: 700, color: P.grey, spacing: 1.5 }) + textBlock(932, 628, 262, c.screen, { size: 21, weight: 700, color: ink, maxLines: 2 }).svg;
+    if (o.logo) b += `<image href="${esc(o.logo)}" x="1012" y="4" width="180" height="40" preserveAspectRatio="xMaxYMid meet"/>`;
+    if (c.screen) b += icon('monitor', 932, 588, 30, P.lava, 2) + label(972, 611, 'ON SCREEN', { size: 20, weight: 700, color: P.grey, spacing: 1.5 }) + textBlock(932, 628, 262, c.screen, { size: 21, weight: 700, color: ink, maxLines: 2 }).svg;
   } else {
+    const hStart = b.length;
     b += pill(64, 60, tag, dark ? P.lava : P.ink, '#fff', 22).svg;
-    const ts = wrap(c.title, 1112, 56, 800).length > 2 ? 46 : 56;
+    const ts = (c.hero ? [56, 46, 40, 34] : c.problem ? [72, 64, 56, 46, 40, 34] : [104, 88, 72, 64, 56, 46, 40, 34]).find((z) => wrap(c.title, 1112, z, 800).length <= 2) || 34;
     const t = textBlock(64, 124, 1112, c.title, { size: ts, weight: 800, color: ink, lh: 1.08, maxLines: 2 }); b += t.svg;
-    const pr = textBlock(64, 124 + t.h + 18, 1112, c.problem, { size: 28, color: muted, maxLines: 3 }); b += pr.svg;
+    const pr = textBlock(64, 124 + t.h + 18, 1112, c.problem, { size: c.hero ? 28 : 32, color: muted, maxLines: 3 }); b += pr.svg;
     if (c.hero) {
       const hs = fitSize(c.hero.value, 150, 560); const hw = heroWidth(c.hero.value, hs);
       const lx = 64 + hw + 32; const lw = 1176 - lx;
@@ -89,6 +96,8 @@ function page(c, orient, concept, draw, o = {}) {
       if (c.hero.label) { b += textBlock(lx, ly, lw, c.hero.label, { size: 34, weight: 700, color: ink, maxLines: 2 }).svg; ly += l.h + 14; }
       if (c.heroNote) b += textBlock(lx, ly, lw, c.heroNote, { size: 26, color: muted, maxLines: 2 }).svg;
     }
+    // No value to show: the header block sits in the middle of its band instead of leaving an empty one under it.
+    if (!c.hero) { const dy = Math.round((626 - (124 + t.h + 18 + pr.h)) / 2) + 10; if (dy > 12) b = b.slice(0, hStart) + `<g transform="translate(0 ${dy})">${b.slice(hStart)}</g>`; }
     b += `<rect x="48" y="574" width="1144" height="2" fill="${rule}"/>`;
     b += pic.svg;
     b += `<rect x="48" y="1524" width="1144" height="2" fill="${rule}"/>`;
@@ -111,9 +120,9 @@ function journey(c, b, land, k) {
     st.forEach((x, i) => { const cx = X(i); const cy = Y(i); const lc = clamp(cx, b.x + lw / 2, b.x + b.w - lw / 2);
       s += `<circle cx="${f1(cx)}" cy="${cy}" r="40" fill="#fff" filter="url(#sh)"/>${iconDisc(x.icon, cx, cy, 32, cs[i % cs.length])}${badge(cx + 30, cy - 30, 16, String(i + 1), P.ink)}`;
       s += textBlock(lc, i % 2 ? b.y + 282 : b.y - 2, lw, x.label, { size: 20, weight: 600, color: P.ink, anchor: 'middle', maxLines: 2 }).svg; });
-    s += '</g>';
+    s += `${iconDisc('flag', b.x + 14, Y(0) + 60, 24, P.green)}${iconDisc('target', b.x + b.w - 14, Y(n - 1) + (n % 2 ? 60 : -60), 24, P.lava)}</g>`;
     const pain = c.pain;
-    return { svg: s, foot: pain ? (x, y, w) => `<rect x="${x}" y="${y}" width="${w}" height="100" rx="20" fill="${P.ink}"/>${icon('hourglass', x + 18, y + 18, 40, P.amber, 2.2)}${label(x + 70, y + 46, pain.value, { size: 32, weight: 800, color: '#fff' })}${textBlock(x + 70, y + 58, w - 90, pain.label, { size: 20, color: '#DDE3EA', maxLines: 1 }).svg}` : null };
+    return { svg: s, foot: pain ? (x, y, w) => `<rect x="${x}" y="${y}" width="${w}" height="112" rx="20" fill="${P.ink}"/>${icon('hourglass', x + 18, y + 18, 40, P.amber, 2.2)}${label(x + 70, y + 40, pain.value, { size: 32, weight: 800, color: '#fff' })}${textBlock(x + 70, y + 52, w - 90, pain.label, { size: 20, color: '#DDE3EA', maxLines: 2 }).svg}` : null };
   }
   const gap = (b.h - 300) / Math.max(1, n - 1); const X = (i) => b.x + (i % 2 ? 380 : 170); const Y = (i) => b.y + 70 + i * gap;
   const pts = [[b.x + 90, b.y - 10], ...st.map((_, i) => [X(i), Y(i)]), [b.x + 280, b.y + b.h - 170]];
@@ -121,7 +130,7 @@ function journey(c, b, land, k) {
   st.forEach((x, i) => { const cx = X(i); const cy = Y(i);
     s += `<circle cx="${cx}" cy="${f1(cy)}" r="48" fill="#fff" filter="url(#sh)"/>${iconDisc(x.icon, cx, cy, 40, cs[i % cs.length])}${badge(cx + 38, cy - 38, 18, String(i + 1), P.ink)}`;
     s += leader(cx + 56, cy, b.x + 556, cy) + textBlock(b.x + 576, cy - 30, 568, x.label, { size: 24, weight: 600, color: P.ink, maxLines: 3 }).svg; });
-  s += '</g>';
+  s += `${iconDisc('flag', b.x + 90, b.y + 10, 30, P.green)}${iconDisc('target', b.x + 280, b.y + b.h - 190, 30, P.lava)}</g>`;
   if (c.pain) { const y = b.y + b.h - 144;
     s += `<rect x="${b.x}" y="${y}" width="${b.w}" height="128" rx="24" fill="${P.ink}"/>${icon('hourglass', b.x + 28, y + 36, 56, P.amber, 2.2)}${label(b.x + 104, y + 62, c.pain.value, { size: 44, weight: 800, color: '#fff' })}`;
     s += textBlock(b.x + 104, y + 76, b.w - 140, c.pain.label, { size: 24, color: '#DDE3EA', maxLines: 1 }).svg; }
@@ -147,7 +156,7 @@ function cycleConcept(c, b, land, k) {
   const cyc = cycle(cx, cy, 250, st, cs, { nodeR: 52, w: 16 }); s += cyc.svg;
   s += `<circle cx="${cx}" cy="${cy}" r="150" fill="#fff" filter="url(#sh)"/>${ring(cx, cy, 134, 16, 0.7, P.purple, tint(P.purple))}`;
   if (hubv) { s += hero(cx, cy + 18, hubv.value, fitSize(hubv.value, 96, 210), 'url(#gViolet)', 'middle');
-    if (hubv.label && hubv !== c.hero) s += textBlock(cx, cy + 40, 200, hubv.label, { size: 20, color: P.body, anchor: 'middle', maxLines: 2 }).svg; }
+    if (hubv.label && hubv !== c.hero) s += textBlock(cx, cy + 36, 230, hubv.label, { size: 20, color: P.body, anchor: 'middle', maxLines: 3 }).svg; }
   cyc.nodes.forEach((nd, i) => { s += badge(+f1(nd.x + nd.dx * 70), +f1(nd.y + nd.dy * 70), 18, String(i + 1), nd.color); });
   s += tagline(b.x, b.y + 680, 'refresh', `A LOOP THAT RUNS ${String(c.cadence || 'again').toUpperCase()}`, P.purple);
   const rows = Math.ceil(n / 2); const rh = 190 / rows;
@@ -173,7 +182,7 @@ function isometric(c, b, land, k) {
     s += '<g data-process="iso-flow">';
     xs.forEach((x, i) => { s += station(i, x, i === 0 ? y - 10 : y, 1); if (i < 3) s += curve([x + 90, y], [x + 140, y - 30], [xs[i + 1] - 150, y - 30], [xs[i + 1] - 100, y], P.grey, 5, { head: 18 });
       s += iconDisc(icons[i] || 'sparkles', x - 104, b.y + 54, 22, cs[i]) + badge(x - 82, b.y + 34, 14, String(i + 1), P.ink);
-      s += textBlock(x, b.y + 262, 266, labels[i], { size: 20, weight: 600, color: P.ink, anchor: 'middle', maxLines: 2 }).svg; });
+      s += textBlock(x, b.y + 262, 266, labels[i], { size: 20, weight: 600, color: P.ink, anchor: 'middle', maxLines: 3 }).svg; });
     s += '</g>' + person(b.x + 1140, b.y + 236, 120, P.lava);
     const r = c.ring;
     return { svg: s, foot: r ? (x, y, w) => `${ring(x + 40, y + 44, 38, 12, r.value / 100, P.green, tint(P.green))}${label(x + 40, y + 51, r.raw, { size: 20, weight: 800, color: P.green, anchor: 'middle' })}${textBlock(x + 92, y + 4, w - 92, r.label, { size: 20, color: P.body, maxLines: 3 }).svg}` : null };
@@ -203,8 +212,8 @@ function pictogram(c, b, land, k) {
     const rx = b.x + 360;
     s += hero(rx, b.y + 80, big, fitSize(big, 88, 300), 'url(#gGreen)') + textBlock(rx + 320, b.y + 14, b.x + b.w - rx - 320, what, { size: 22, weight: 600, color: P.ink, maxLines: 3 }).svg;
     s += `<rect x="${rx}" y="${b.y + 112}" width="22" height="22" rx="5" fill="${P.green}"/>` + label(rx + 34, b.y + 131, legend, { size: 20, color: P.body });
-    s += tagline(rx, b.y + 176, 'route', 'HOW IT WORKS', P.green);
-    s += chevronSteps(rx, b.y + 190, b.x + b.w - rx, 60, c.steps, [P.cyan, P.blue, P.green, P.purple, P.amber], { size: 20, maxLines: 2 }).svg;
+    s += tagline(rx, b.y + 162, 'route', 'HOW IT WORKS', P.green);
+    s += chevronSteps(rx, b.y + 174, b.x + b.w - rx, 52, c.steps, [P.cyan, P.blue, P.green, P.purple, P.amber], { size: 20, maxLines: 3 }).svg;
     return { svg: s };
   }
   const g = unitGrid(b.x + 10, b.y + 10, 10, 100, on, unit, 48, 14, P.green, '#DDE3E8'); s += g.svg;
@@ -221,15 +230,19 @@ function beforeafter(c, b, land, k) {
   const before = (c.before || []).slice(0, 3); const after = (c.after || []).slice(0, 3); let s = '';
   const panel = (x, y, w, h, title, ic, col, lines, icons, size) => {
     let p = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="24" fill="${tint(col)}"/>${iconDisc(ic, x + 40, y + 38, 22, col)}${label(x + 74, y + 46, title, { size: size + 2, weight: 800, color: col, spacing: 1.5 })}`;
-    const avail = h - 90; const ml = avail / Math.max(1, lines.length) >= size * 2.6 ? 2 : 1; let yy = y + 76;
-    lines.forEach((t, i) => { p += icon(icons[i % icons.length], x + 26, yy, size + 6, col, 2.2); const tb = textBlock(x + 40 + size + 6, yy, w - 80 - size, t, { size, weight: 600, color: P.ink, maxLines: ml }); p += tb.svg; yy += Math.max(size + 10, tb.h) + 14; });
+    // Each line gets as many text lines as the panel can hold (never a cut phrase), then the spare room is spread between the lines.
+    const tw = w - 80 - size; const avail = h - 90; const lh = size * 1.22; const need = lines.map((t) => wrap(t, tw, size, 600).length);
+    const hs = (L) => need.map((n) => Math.max(size + 10, (Math.min(n, L) - 1) * lh + size)); const sum = (a) => a.reduce((x, y) => x + y, 0);
+    let L = 4; while (L > 1 && sum(hs(L)) + 14 * (lines.length - 1) > avail) L -= 1;
+    const hh = hs(L); const gap = lines.length > 1 ? Math.min(44, Math.max(14, (avail - sum(hh)) / lines.length)) : 0; let yy = y + 76 + Math.max(0, (avail - sum(hh) - gap * (lines.length - 1)) / 2);
+    lines.forEach((t, i) => { p += icon(icons[i % icons.length], x + 26, yy + (hh[i] - size - 6) / 2, size + 6, col, 2.2); p += textBlock(x + 40 + size + 6, yy, tw, t, { size, weight: 600, color: P.ink, maxLines: L }).svg; yy += hh[i] + gap; });
     return p;
   };
   if (land) {
-    s += panel(b.x, b.y, 540, 248, 'TODAY', 'alert', P.red, before, ['clock', 'alert', 'document'], 21);
-    s += panel(b.x + 620, b.y, 540, 248, 'AFTER', 'check', P.green, after, ['check', 'shield', 'sparkles'], 21);
-    s += chevron(b.x + 552, b.y + 94, 56, 60, P.lava, true, 0.5);
-    s += inlineFlow(b.x, b.y + 268, b.w, c.steps);
+    s += panel(b.x, b.y, 540, 240, 'TODAY', 'alert', P.red, before, ['clock', 'alert', 'document'], 21);
+    s += panel(b.x + 620, b.y, 540, 240, 'AFTER', 'check', P.green, after, ['check', 'shield', 'sparkles'], 21);
+    s += chevron(b.x + 552, b.y + 90, 56, 60, P.lava, true, 0.5);
+    s += inlineFlow(b.x, b.y + 256, b.w, c.steps);
     return { svg: s };
   }
   s += panel(b.x, b.y, b.w, 300, 'TODAY', 'alert', P.red, before, ['clock', 'alert', 'document'], 26);
@@ -289,7 +302,7 @@ function funnelConcept(c, b, land, k) {
   if (land) {
     const sh = (310 - 10 * (n - 1)) / n;
     s += draw(b.x + 20, b.y + 10, 520, sh, 200, fitSize(stages.reduce((a, x) => (x.value.length > a.length ? x.value : a), '') || '0', 30, 120), 21, b.x + 610, b.x + b.w - b.x - 610, 2);
-    return { svg: s, foot: (x, y, w) => stepList(x, y, w, c.steps.slice(0, 3), { r: 16, size: 20, maxLines: 1, gap: 4 }).svg };
+    return { svg: s, foot: (x, y, w) => stepList(x, y, w, c.steps.slice(0, 3), { r: 16, size: 20, adapt: true, maxH: 112, gap: 4 }).svg };
   }
   const sh = Math.min(130, (540 - 12 * (n - 1)) / n);
   s += draw(b.x + 10, b.y + 10, 640, sh, 240, fitSize(stages.reduce((a, x) => (x.value.length > a.length ? x.value : a), '') || '0', 44, 160), 24, b.x + 700, b.w - 700, 3);
@@ -310,14 +323,15 @@ function hub(c, b, land, k) {
     p += curve([b.x + 160, b.y + 200], [b.x + 260, b.y + 200], [hx - 180, hy], [hx - 100, hy], P.grey, 5, { head: 18 });
     const gap = spokes.length > 1 ? 280 / (spokes.length - 1) : 0;
     spokes.forEach((t, i) => { const y = b.y + 24 + i * gap; p += curve([hx + 92, hy], [hx + 200, hy], [sx - 140, y], [sx - 30, y], cs[i], 4, { head: 0 });
-      p += iconDisc(ics[i], sx, y, 26, cs[i]) + textBlock(sx + 40, y - 22, 1192 - sx - 40, t, { size: 20, weight: 600, color: P.ink, maxLines: 2 }).svg; });
+      p += iconDisc(ics[i], sx, y, 26, cs[i]) + textBlock(sx + 40, y - 22, 1192 - sx - 40, t, { size: 20, weight: 600, color: P.ink, maxLines: gap >= 76 ? 3 : 2 }).svg; });
     p += `<circle cx="${hx}" cy="${hy}" r="92" fill="#fff" filter="url(#sh)"/>${iconDisc('brain', hx, hy, 70, P.ink)}`;
     s += `<g data-process="hub">${p}</g>` + textBlock(hx, b.y + 252, 320, c.center, { size: 21, weight: 800, color: P.ink, anchor: 'middle', maxLines: 2 }).svg;
     return { svg: s, foot: footSteps(rest) };
   }
   s += person(b.x + 70, b.y + 220, 210, P.lava);
-  s += `<rect x="${b.x + 160}" y="${b.y}" width="${b.w - 160}" height="128" rx="24" fill="#fff" filter="url(#sh)"/>` + icon('message', b.x + 184, b.y + 24, 36, P.lava, 2.2);
-  s += textBlock(b.x + 236, b.y + 20, b.w - 276, ask, { size: 24, color: P.ink, maxLines: 3 }).svg;
+  const aq = textBlock(b.x + 236, 0, b.w - 276, ask, { size: 26, color: P.ink, maxLines: 3 }); const bh = Math.max(64, aq.h + 36);
+  s += `<rect x="${b.x + 160}" y="${b.y}" width="${b.w - 160}" height="${bh}" rx="24" fill="#fff" filter="url(#sh)"/>` + icon('message', b.x + 184, b.y + (bh - 36) / 2, 36, P.lava, 2.2);
+  s += textBlock(b.x + 236, b.y + (bh - aq.h) / 2, b.w - 276, ask, { size: 26, color: P.ink, maxLines: 3 }).svg;
   s += textBlock(620, b.y + 160, 640, c.center, { size: 26, weight: 800, color: P.ink, anchor: 'middle', maxLines: 1 }).svg;
   const n = spokes.length; const hs = hubSpokes(620, b.y + 440, 230, 'brain', spokes.map((t, i) => ({ icon: ics[i] })), cs, { start: -Math.PI / 2 + Math.PI / Math.max(1, n), hubR: 90, spokeR: 44 });
   s += hs.svg; hs.nodes.forEach((nd, i) => { s += badge(+f1(nd.x + 34), +f1(nd.y - 34), 16, String(i + 1), P.ink); });
@@ -355,7 +369,7 @@ function map(c, b, land, k) {
 // 10. Network clusters (a dark page): the groups found among linked entities, the new ones glowing.
 function network(c, b, land, k) {
   const groups = (c.groups || []).slice(0, 4); const ics = distinctIcons(groups, ['network', 'users', 'link', 'alert']); const cs = [P.cyan, P.lava, P.purple, P.amber]; let s = '';
-  const card = (x, y, w, h, t, i, size) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="16" fill="#22364C"/>${iconDisc(ics[i], x + 34, y + h / 2, 20, cs[i])}${textBlock(x + 66, y + h / 2 - size * (wrap(t, w - 86, size, 600).length > 1 ? 1.1 : 0.55), w - 86, t, { size, weight: 600, color: '#fff', maxLines: 2 }).svg}`;
+  const card = (x, y, w, h, t, i, size) => { const r = Math.min(32, Math.max(20, h * 0.28)); const tx = 2 * r + 28; return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="16" fill="#22364C"/>${iconDisc(ics[i], x + r + 14, y + h / 2, r, cs[i])}${textBlock(x + tx, y + h / 2 - size * (wrap(t, w - tx - 20, size, 600).length > 1 ? 1.1 : 0.55), w - tx - 20, t, { size, weight: 600, color: '#fff', maxLines: 2 }).svg}`; };
   if (land) {
     s += '<g data-process="links">' + constellation([{ cx: b.x + 130, cy: b.y + 110, r: 80, n: 7, color: P.cyan }, { cx: b.x + 360, cy: b.y + 210, r: 88, n: 8, color: P.lava, hot: true }, { cx: b.x + 570, cy: b.y + 96, r: 66, n: 6, color: P.purple }, { cx: b.x + 600, cy: b.y + 262, r: 50, n: 5, color: P.amber, hot: true }], { bridges: [[0, 1], [1, 2], [1, 3]] }) + '</g>';
     if (c.count) s += `<circle cx="${b.x + 130}" cy="${b.y + 270}" r="44" fill="${P.lava}"/>` + label(b.x + 130, b.y + 282, c.count, { size: fitSize(c.count, 34, 70), weight: 800, color: '#fff', anchor: 'middle' });
@@ -392,7 +406,7 @@ function waterfall(c, b, land, k) {
       p += textBlock(cx, yB + 16, slot - 14, it.label, { size: ls, weight: isT ? 800 : 600, color: P.ink, anchor: 'middle', maxLines: lml }).svg; });
     return `<g data-process="bridge" data-chart="waterfall">${p}</g>`;
   };
-  if (land) return { svg: draw(b.x + 10, b.x + b.w - 10, b.y + 86, b.y + 236, b.y + 24, 20, 22, 20, 2), foot: (x, y, w) => stepList(x, y, w, c.steps.slice(0, 3), { r: 16, size: 20, maxLines: 1, gap: 4 }).svg };
+  if (land) return { svg: draw(b.x + 10, b.x + b.w - 10, b.y + 84, b.y + 224, b.y + 24, 20, 22, 20, 3), foot: (x, y, w) => stepList(x, y, w, c.steps.slice(0, 3), { r: 16, size: 20, adapt: true, maxH: 112, gap: 4 }).svg };
   let s = draw(b.x + 10, b.x + b.w - 10, b.y + 130, b.y + 520, b.y + 40, 28, 28, 22, 3);
   s += tagline(b.x, b.y + 690, 'route', 'HOW IT WORKS', P.lava);
   s += chevronSteps(b.x, b.y + 714, b.w, 70, c.steps, [P.cyan, P.blue, P.green, P.purple, P.amber], { size: 20, maxLines: 3 }).svg;
@@ -400,7 +414,7 @@ function waterfall(c, b, land, k) {
 }
 
 // 12. Balance and decision: the measured effect weighed on a scale, then the keep, change or stop fork.
-const VERB = (o) => (o.label && o.label.split(/\s+/).length <= 3 ? o.label : o.sign > 0 || /^\+/.test(o.value) ? 'Keep' : o.sign < 0 || /^-|^−/.test(o.value) ? 'Stop' : 'Review');
+const VERB = (o, fit = () => true) => (o.label && tidy(o.label).split(/\s+/).length <= 3 && fit(tidy(o.label)) ? tidy(o.label) : o.sign > 0 || /^\+/.test(o.value) ? 'Keep' : o.sign < 0 || /^-|^−/.test(o.value) ? 'Stop' : 'Review');
 function balance(c, b, land, k) {
   const opts = (c.options || []).slice(0, 3).map((o) => ({ ...o, sign: o.sign ?? (/^-|^−/.test(o.value) ? -1 : /^\+/.test(o.value) ? 1 : 0) }));
   const [A, B] = [opts[0] || { label: '', value: '' }, opts[1] || { label: '', value: '' }];
@@ -415,15 +429,15 @@ function balance(c, b, land, k) {
       p += `<path d="M${f1(e[0] - panW / 2)},${f1(pyb)} Q${f1(e[0])},${f1(pyb + panW * 0.34)} ${f1(e[0] + panW / 2)},${f1(pyb)}Z" fill="${col}"/>`;
       p += iconDisc(o.sign < 0 ? 'trendDown' : 'trendUp', e[0], e[1] - vs * 1.2, vs * 0.6, col);
       if (o.value) p += label(e[0], pyb - 8, o.value, { size: vs, weight: 800, color: col, anchor: 'middle' });
-      p += textBlock(e[0], pyb + panW * 0.26, lw, o.label, { size: ls, weight: 600, color: P.ink, anchor: 'middle', maxLines: lml }).svg; });
+      p += textBlock(clamp(e[0], b.x + lw / 2, b.x + b.w - lw / 2), pyb + panW * 0.26, lw, o.label, { size: ls, weight: 600, color: P.ink, anchor: 'middle', maxLines: lml }).svg; });
     return `<g data-chart="balance">${p}</g>`;
   };
   const split = (x, y, w, h, vs, ls) => { const d = decisionSplit(x, y, w, h, { icon: 'scale' }, opts.map((o) => ({ icon: o.sign > 0 ? 'check' : o.sign < 0 ? 'alert' : 'refresh' })), opts.map(colOf));
-    let p = d.svg; d.nodes.slice(1).forEach((nd, i) => { p += label(nd.x + 72, nd.y - 4, VERB(opts[i]), { size: vs, weight: 800, color: nd.color }) + (opts[i].value ? label(nd.x + 72, nd.y + ls + 6, opts[i].value, { size: ls, weight: 600, color: P.ink }) : ''); });
+    let p = d.svg; d.nodes.slice(1).forEach((nd, i) => { p += textBlock(nd.x + 72, nd.y - 4 - vs * 0.92, Math.max(120, 1200 - nd.x - 72), VERB(opts[i], (v) => measure(v, vs, 800) <= Math.max(120, 1200 - nd.x - 72)), { size: vs, weight: 800, color: nd.color, maxLines: 1 }).svg + (opts[i].value ? label(nd.x + 72, nd.y + ls + 6, opts[i].value, { size: ls, weight: 600, color: P.ink }) : ''); });
     return p; };
   if (land) {
     const s = scale(b.x + 300, b.y + 120, 170, b.y + 300, 150, 24, 20, 220, 2) + split(b.x + 630, b.y + 10, 360, 310, 24, 22);
-    return { svg: s, foot: (x, y, w) => stepList(x, y, w, c.steps.slice(0, 3), { r: 16, size: 20, maxLines: 1, gap: 4 }).svg };
+    return { svg: s, foot: (x, y, w) => stepList(x, y, w, c.steps.slice(0, 3), { r: 16, size: 20, adapt: true, maxH: 112, gap: 4 }).svg };
   }
   let s = scale(620, b.y + 150, 330, b.y + 440, 220, 34, 24, 420, 3);
   s += tagline(b.x, b.y + 520, 'scale', 'THE DECISION', P.lava) + split(b.x + 60, b.y + 540, 640, 340, 34, 26);

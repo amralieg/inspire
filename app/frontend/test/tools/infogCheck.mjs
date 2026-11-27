@@ -65,7 +65,7 @@ const dec = (s) => s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt
 export const texts = (svg) => [...String(svg).matchAll(/<text\b[^>]*>([\s\S]*?)<\/text>/g)].map((m) => dec(m[1].replace(/<\/tspan>/g, ' </tspan>').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim());
 const norm = (s) => String(s).toLowerCase().replace(/\s+/g, ' ').trim();
 export const sourcesOf = (rows) => rows.map((r) => norm(Object.values(r).filter((v) => typeof v === 'string').join(' | ')));
-const DANGLING = /\b(and|or|the|a|an|of|to|for|with|in|on|at|by|from|that|which|is|are|than|as|per|into|its|their|this|these|but|so|if|when|while|between|across|over|under|against|about|before|after|until|each|every)$/i;
+const DANGLING = /(?<![\w&'-])(and|or|the|a|an|of|to|for|with|in|on|at|by|from|that|which|is|are|than|as|per|into|its|their|this|these|but|so|if|when|while|between|across|over|under|against|about|before|after|until|each|every)$/i;
 export const ellipsisProblems = (svg) => texts(svg).filter((t) => /…|\.\.\./.test(t) || /[,;:(-]$/.test(t) || (t.split(' ').length >= 3 && DANGLING.test(t))).map((t) => `"${t}"`);
 // A phrase of 4+ words that starts like a clause of the source and stops before the source does must stop at a clause boundary.
 export function cutPhraseProblems(svg, sources) {
@@ -74,8 +74,8 @@ export function cutPhraseProblems(svg, sources) {
     const t = norm(raw).replace(/[.,;:!?]+$/, ''); if (t.split(' ').length < 4) continue;
     const spots = []; for (const src of sources) { let i = src.indexOf(t); while (i >= 0) { spots.push([src, i]); i = src.indexOf(t, i + 1); } }
     const starts = spots.filter(([src, i]) => i === 0 || /[.;:!?|(,]\s$/.test(src.slice(Math.max(0, i - 2), i)));
-    if (!starts.length) continue;
-    if (!starts.some(([src, i]) => { const rest = src.slice(i + t.length); return rest === '' || /^[.,;:!?)|]/.test(rest) || /^\s*[-–—]\s/.test(rest); })) bad.push(`"${raw}"`);
+    if (!starts.length || /(?:\d[\d,]*(?:\.\d+)?\s?[%MKB]?|\b(?:a|per|each|every|this|next|last)\s(?:year|week|month|day|quarter|hour|cycle|run))$/i.test(t)) continue;
+    if (!starts.some(([src, i]) => { const rest = src.slice(i + t.length); return rest === '' || /^\s?[.,;:!?)|]/.test(rest) || /^\s*[-–—(]\s?/.test(rest) || /^\s(who|which|that|when|where|while|because|and|but|or|so|then|for|to|with|by|from|in|on|at|per|of|across|before|after|until|unless|since|using|than|around|among|within|without|through|into|over|under|between|toward|towards|near|instead|how|what|why|whether|above|below|beyond|against|about|via|weighted|based|ranked|sorted|measured|grouped|scored)\s/.test(rest); })) bad.push(`"${raw}"`);
   }
   return bad;
 }

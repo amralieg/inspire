@@ -5,6 +5,8 @@ import { displayId } from '../../../../../../shared/useCaseId.mjs';
 import { storyOf, facts as factsIn } from './story.js';
 import { splitStake } from './common.js';
 import { distinctIcons } from './icons.js';
+import { LIMITS } from '../../../../../../backend/lib/infographicPick.mjs';
+import { phrase } from './text.js';
 
 const TIME = /^(hours?|days?|weeks?|months?|minutes?|years?|times|points?)\b/i;
 const NEG = /\b(took|lost|loses?|fell|falls?|cut|cuts|missed|down|drops?|dropped|costs?|below|minus|takes?)\b/i;
@@ -41,6 +43,8 @@ export function baseContent(row, pick = null) {
   if (!hero) { const f = factsIn(str(row && row['Business Value'])).find((x) => x.unit === '$'); if (f) hero = { value: f.raw, label: '' }; }
   let steps = Array.isArray(p.steps) && p.steps.length >= 2 ? p.steps.map((t) => str(typeof t === 'object' && t ? t.title || t.label : t)).filter(Boolean) : s.steps.map((x) => x.label);
   if (steps.length < 3) steps = uniq([...steps, ...String(s.screenDetail || '').split(/,\s+|;\s+/).map((t) => cap(t.trim())).filter((t) => t.split(' ').length >= 3), s.valueWhat]).slice(0, Math.max(3, steps.length));
+  // Every picture lays out three or more stages: a use case that states fewer gets the plain generic ones for the rest (never a topic claim).
+  for (const g of ['Bring the data together', 'Find the pattern', 'Show the answer']) if (steps.length < 3 && !steps.includes(g)) steps.push(g);
   const icons = distinctIcons(steps);
   return {
     no: displayId(row && row.No), title: str(p.title) || s.title || 'Use case', technique: s.technique || s.kind, problem: str(p.problem) || s.problem,
@@ -91,13 +95,13 @@ const FIELDS = {
     const money = c.facts.filter((f) => f.unit === '$');
     if (money.length >= 3) {
       const [t, ...rest] = money; const tp = phraseOf(t, money); const ts = tp.sign || -1;
-      const bars = rest.slice(0, 4).map((f) => { const ph = phraseOf(f, money); const sg = ph.sign || (rest.indexOf(f) === 0 ? ts : ph.sign) || ts; return { label: ph.label || words(f.clause, 3), value: `${sg < 0 ? '-' : '+'}${f.raw}`, n: sg * f.value }; });
+      const bars = rest.slice(0, 4).map((f) => { const ph = phraseOf(f, money); const sg = ph.sign || (rest.indexOf(f) === 0 ? ts : ph.sign) || ts; return { label: ph.label || phrase(f.clause, 48), value: `${sg < 0 ? '-' : '+'}${f.raw}`, n: sg * f.value }; });
       const sum = bars.reduce((a, b) => a + b.n, 0); const diff = ts * t.value - sum;
       if (Math.abs(diff) > Math.abs(t.value) * 0.01 && bars.length < 5) bars.push({ label: 'The rest', value: fmtMoney(diff, t.raw), n: diff });
       return { bars, total: { label: tp.label || 'Total', value: `${ts < 0 ? '-' : '+'}${t.raw}` } };
     }
-    const bars = uniq(others(c), (f) => f.raw).slice(0, 4).map((f) => ({ label: words(f.clause, 4), value: shown(f) }));
-    for (const t of stepLabels(c)) { if (bars.length >= 3) break; bars.push({ label: words(t, 4), value: '' }); }
+    const bars = uniq(others(c), (f) => f.raw).slice(0, 4).map((f) => ({ label: phrase(f.clause, 48), value: shown(f) }));
+    for (const t of stepLabels(c)) { if (bars.length >= 3) break; bars.push({ label: phrase(t, 48), value: '' }); }
     return { bars, total: c.hero ? { label: c.hero.label, value: c.hero.value } : null };
   },
   balance: (c, p) => {
@@ -109,9 +113,21 @@ const FIELDS = {
   },
 };
 
+// Every text slot holds a short whole phrase: a longer text is cut at its last clause (or whole word), never mid-thought and never with an ellipsis.
+// The caps are the ones the AI pick must keep (LIMITS), so the drawing of a pick and of the use case itself read the same.
+const CAP = { title: LIMITS.title, problem: LIMITS.problem, who: LIMITS.who, cadence: LIMITS.cadence, screen: LIMITS.step, heroNote: LIMITS.label, technique: 40, label: LIMITS.label, center: LIMITS.center };
+const LIST_CAP = { before: LIMITS.line, after: LIMITS.line, places: LIMITS.line, spokes: LIMITS.spoke, groups: LIMITS.group };
+const SKIP = new Set(['facts', 'story', 'icon', 'value', 'raw', 'count']);
+function fit(v, key, listCap) {
+  if (typeof v === 'string') return listCap ? phrase(v, listCap) : CAP[key] ? phrase(v, CAP[key]) : v;
+  if (Array.isArray(v)) return v.map((x) => fit(x, key, key === 'steps' ? 0 : LIST_CAP[key]));
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, SKIP.has(k) ? x : fit(x, k, 0)]));
+  return v;
+}
+
 // The full content of one concept for one use case.
 export function contentFor(row, concept, pick = null) {
   const p = pick && typeof pick === 'object' && !Array.isArray(pick) ? pick : {};
   const c = baseContent(row, p);
-  return { ...c, concept, ...(FIELDS[concept] ? FIELDS[concept](c, p) : {}) };
+  return fit({ ...c, concept, ...(FIELDS[concept] ? FIELDS[concept](c, p) : {}) }, '', 0);
 }

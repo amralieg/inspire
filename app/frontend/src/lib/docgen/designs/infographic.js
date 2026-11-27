@@ -21,7 +21,8 @@ export function renderInfographic(useCase, { orientation = 'landscape', scenario
   const keep = P.lava;
   let svg;
   try { if (accent) P.lava = accent; svg = drawConcept(id, contentFor(row, id, pick), orient, { logo: logo || '' }); } finally { P.lava = keep; }
-  if (rtl) svg = rtlSvg(svg);
+  // The root has direction="rtl", which already swaps what start and end mean, so the anchors rtlSvg flipped go back: a text stays upright and ends where the mirrored page needs it.
+  if (rtl) svg = rtlSvg(svg).replace(/(<text transform="translate\([-\d.]+ 0\) scale\(-1 1\)"[^>]*?text-anchor=")(start|end)(")/g, (_, a1, an, a3) => a1 + (an === 'start' ? 'end' : 'start') + a3);
   return { svg, scenario: id, width: DIMS[orient].W, height: DIMS[orient].H };
 }
 export const infographicFor = (useCase, o = {}) => renderInfographic(useCase, o).svg;

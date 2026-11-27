@@ -19,9 +19,12 @@ export const SCENARIOS = [
   { id: 'balance', name: 'Balance and decision', when: 'a measured lift against a baseline decides between options such as keep, change or stop', fields: { options: 'two or three options, each {"label": up to 3 words, "value": the amount or effect from the use case}' }, required: ['options'] },
 ];
 export const SCENARIO_IDS = SCENARIOS.map((s) => s.id);
-export const LIMITS = { steps: [2, 5], title: 120, value: 18, label: 90, line: 110, list: [2, 6] };
+// Max characters per slot. Each slot sits in a small space of the page, so a longer text is refused (the route asks the model once more),
+// never cut: a cut sentence has no place on an executive page.
+export const LIMITS = { steps: [2, 5], title: 90, problem: 160, value: 18, label: 70, line: 80, step: 80, who: 48, cadence: 28, center: 40, spoke: 40, group: 48, list: [2, 6] };
+class TooLong extends Error {}
 
-const clean = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+const clean = (v, max) => { const t = String(v ?? '').replace(/\s+/g, ' ').trim(); if (t.length > max) throw new TooLong(); return t; };
 const strings = (list, [min, max], len = LIMITS.line) => {
   if (!Array.isArray(list)) return null;
   const out = list.map((x) => clean(x && typeof x === 'object' ? x.title || x.label || x.text : x, len)).filter(Boolean);
@@ -40,8 +43,8 @@ const FIELD = {
   share: (r) => { const n = Number(String(r.share && r.share.value).replace('%', '')); return Number.isFinite(n) && n > 0 && n <= 100 ? { value: Math.round(n), label: clean(r.share.label, LIMITS.label) } : null; },
   before: (r) => strings(r.before, [1, 3]), after: (r) => strings(r.after, [1, 3]),
   stages: (r) => pairs(r.stages, [2, 4]), bars: (r) => pairs(r.bars, [2, 5]), options: (r) => pairs(r.options, [2, 3]),
-  center: (r) => clean(r.center, 60) || null, spokes: (r) => strings(r.spokes, [3, 6], 60), places: (r) => strings(r.places, [2, 5]),
-  groups: (r) => strings(r.groups, [2, 6], 60), count: (r) => clean(r.count, LIMITS.value) || null,
+  center: (r) => clean(r.center, LIMITS.center) || null, spokes: (r) => strings(r.spokes, [3, 6], LIMITS.spoke), places: (r) => strings(r.places, [2, 5]),
+  groups: (r) => strings(r.groups, [2, 6], LIMITS.group), count: (r) => clean(r.count, LIMITS.value) || null,
 };
 
 // The reply as a usable pick, or null when it is not one. `forced` (a concept the user chose) replaces the model's choice: user input wins.
@@ -51,11 +54,14 @@ export function validatePick(raw, forced = '') {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   if (!SCENARIO_IDS.includes(raw.scenario) || (forced && !SCENARIO_IDS.includes(forced))) return null;
   const scenario = forced || raw.scenario;
-  const title = clean(raw.title, LIMITS.title); const steps = strings(raw.steps, LIMITS.steps);
+  try { return pickOf(raw, forced, scenario); } catch (e) { if (e instanceof TooLong) return null; throw e; }
+}
+function pickOf(raw, forced, scenario) {
+  const title = clean(raw.title, LIMITS.title); const steps = strings(raw.steps, LIMITS.steps, LIMITS.step);
   if (!title || !steps) return null;
   const pick = { scenario, title, steps };
   const hero = vpair(raw.hero); if (hero) pick.hero = hero;
-  for (const k of ['who', 'cadence', 'problem']) { const t = clean(raw[k], k === 'problem' ? 200 : 60); if (t) pick[k] = t; }
+  for (const k of ['who', 'cadence', 'problem']) { const t = clean(raw[k], LIMITS[k]); if (t) pick[k] = t; }
   const spec = SCENARIOS.find((s) => s.id === raw.scenario);
   for (const k of Object.keys(spec.fields).concat(spec.required)) { if (k === 'steps') continue; const v = FIELD[k](raw); if (v) pick[k] = v; else if (spec.required.includes(k)) return null; }
   return pick;
@@ -70,7 +76,7 @@ export function buildMessages({ useCase, vibe = '', scenario = '', orientation =
 {"scenario": one of the concept ids, "title": the use case headline (up to 8 words), "problem": one sentence, "hero": {"value": the headline number stated in the use case, "label": what it is, up to 8 words}, "steps": [2 to 5 short steps of how it works, up to 10 words each], "who": who uses it, "cadence": how often they act, plus the chosen concept's own fields}
 Concepts:
 ${list}
-Rules: business text only; never a table, column, SQL or technical name. Use only facts that are in the use case and never invent a number; leave a field out when the use case states none. Write in the language of the use case text. Keep every line short, because each sits in a small space on the page. User input wins: if a style note or a chosen concept is given, follow it.${scenario ? ` The user chose the concept "${scenario}": use it and fill its fields.` : ''}${orientation ? ` The page is ${orientation}.` : ''}`;
+Rules: business text only; never a table, column, SQL or technical name. Use only facts that are in the use case and never invent a number; leave a field out when the use case states none. Write in the language of the use case text. Keep every line short, because each sits in a small space on the page and a longer text is rejected, never cut. Hard limits in characters: title ${LIMITS.title}, problem ${LIMITS.problem}, each step ${LIMITS.step}, who ${LIMITS.who}, cadence ${LIMITS.cadence}, each label ${LIMITS.label}, each before/after/place line ${LIMITS.line}, center ${LIMITS.center}, each spoke ${LIMITS.spoke}, each group ${LIMITS.group}, each value ${LIMITS.value}. Write each as one complete short phrase that stands alone, never a sentence that trails off. User input wins: if a style note or a chosen concept is given, follow it.${scenario ? ` The user chose the concept "${scenario}": use it and fill its fields.` : ''}${orientation ? ` The page is ${orientation}.` : ''}`;
   const story = Object.fromEntries(STORY_FIELDS.filter((k) => useCase && useCase[k]).map((k) => [k, useCase[k]]));
   const user = `Use case:\n${JSON.stringify(story)}${vibe ? `\n\nStyle note from the user (tone, emphasis, audience): ${vibe}` : ''}`;
   return [{ role: 'system', content: system }, { role: 'user', content: user }];
