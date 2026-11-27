@@ -38,7 +38,8 @@ const bytesOf = (r) => (r && r.bytes ? r.bytes : r);
 const dims = (svg, w, h) => { const m = /<svg[^>]*\bwidth="(\d+(?:\.\d+)?)"[^>]*\bheight="(\d+(?:\.\d+)?)"/.exec(svg); return m ? { w: Number(m[1]), h: Number(m[2]) } : { w, h }; };
 const fmt1 = (v) => (Number.isFinite(Number(v)) && v !== null ? Number(v).toFixed(1) : '');
 
-export async function buildDocx(m, theme = {}, { chartPng } = {}) {
+// ranked: the agent views (buildAgentModel(...).ranked) the PDF draws its charts from; the charts then carry the same scores in both documents.
+export async function buildDocx(m, theme = {}, { chartPng, ranked = null } = {}) {
   const accent = TEAL;
   const ink = '374151';
   const face = String(theme.font || 'Calibri').split(',')[0].replace(/['"]/g, '').trim() || 'Calibri';
@@ -59,7 +60,7 @@ export async function buildDocx(m, theme = {}, { chartPng } = {}) {
   };
   const ucTypes = new Map();
   const portfolioTypes = ['domain-value', 'matrix'];
-  for (const [i, t] of portfolioTypes.entries()) await addChart(`portfolio${i}`, portfolioChartSvg(t, m.useCases, { w: 560, h: 290 }), { w: 560, h: 290 });
+  for (const [i, t] of portfolioTypes.entries()) await addChart(`portfolio${i}`, portfolioChartSvg(t, ranked || m.useCases, { w: 560, h: 290 }), { w: 560, h: 290 });
   for (const u of m.useCases) {
     const types = (chartTypesFor(u) || []).slice(0, 2); ucTypes.set(u.id, types);
     for (const [i, t] of types.entries()) await addChart(`${u.id}|${i}`, ucChartSvg(t, u, { w: 560, h: 250 }), { w: 560, h: 250 });

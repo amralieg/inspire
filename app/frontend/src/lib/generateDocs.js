@@ -84,7 +84,7 @@ async function makeFile(file, m, theme, options, agent) {
     // C25 (REQ-559): the PDF is the agent's catalog PDF plus value, in every style (the style still shapes the other kinds).
     return buildAgentPdf(agent, svgToPng);
   }
-  if (file.kind === 'docx') { const { buildDocx } = await import('./docgen/docxDoc.js'); return buildDocx(m, theme, { chartPng: async (svg) => (await svgToPng(svg, 2)).bytes }); }
+  if (file.kind === 'docx') { const { buildDocx } = await import('./docgen/docxDoc.js'); return buildDocx(m, theme, { chartPng: async (svg) => (await svgToPng(svg, 2)).bytes, ranked: buildAgentModel(agent).ranked }); }
   if (file.kind === 'pptx') { const { buildAgentPptx } = await import('./docgen/agentPptx.js'); return buildAgentPptx(agent); } // C25 (REQ-559): the agent's deck plus value
   const { buildXlsx } = await import('./docgen/xlsxDoc.js');
   return toBytes(await buildXlsx(m, orderedColumns(options.columns), theme));

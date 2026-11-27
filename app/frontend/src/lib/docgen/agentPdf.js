@@ -124,7 +124,7 @@ table.qrows td.n { text-align: __E__; font-weight: 700; }
 table.index { width: 100%; border-collapse: collapse; font-size: __F_small__; table-layout: fixed; }
 table.index thead { display: table-header-group; }
 table.index th { background: #__C_teal__; color: #__C_white__; padding: 5px 6px; text-align: __S__; font-weight: 600; font-size: __F_label__; }
-table.index td { padding: 4px 6px; border-bottom: 1px solid #__C_line__; vertical-align: middle; }
+table.index td { padding: 5px 6px; border-bottom: 1px solid #__C_line__; vertical-align: middle; overflow-wrap: normal; hyphens: manual; word-break: normal; }
 table.index tr { break-inside: avoid; }
 table.index tbody tr:nth-child(even) td { background: #__C_sand3__; }
 table.index td.ix-rank { font-family: __DISPLAY__; font-weight: 700; color: #__C_teal__; text-align: center; }
@@ -538,7 +538,7 @@ function indexTable(rows, m, b) {
       domain: b.html(v.domain), quality: `<span class="pill" style="background:#${qualityColor(v.quality).toLowerCase()}">${b.html(v.quality || T('doc_not_scored'))}</span>`,
       inspire_score: m.rtl ? `<span dir="ltr">${esc(v.metrics[1][2])}</span>` : esc(v.metrics[1][2]),
     };
-    const h = 9 + Math.max(...cols.map(([k, , w]) => textH(k === 'title' ? `${flag} ${v.title}` : k === 'quality' ? v.quality : k === 'domain' ? v.domain : k === 'id' ? v.id : '0', F.small, CW * w - 12)));
+    const h = 11 + Math.max(...cols.map(([k, , w]) => textH(k === 'title' ? `${flag} ${v.title}` : k === 'quality' ? v.quality : k === 'domain' ? v.domain : k === 'id' ? v.id : '0', F.small, CW * w - 12)));
     return { html: `<tr>${cols.map(([k]) => `<td class="ix-${k}">${cells[k]}</td>`).join('')}</tr>`, h };
   });
   return { open: head, close: '</tbody></table>', headH, rows: body };
