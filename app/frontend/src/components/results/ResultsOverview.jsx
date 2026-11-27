@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BookOpen, Download, ExternalLink, Eye, FileText, Loader2, Plus } from 'lucide-react';
 import { artifactTreeFiles, fileActions, fileDateText, fileSizeText, fileTypeText, hasStrategyDocument, overallDocsByFormat } from '../../lib/artifactFiles';
+import BusyNote from '../BusyNote';
 import { isViewable } from '../../lib/docView';
 import { nameOfUseCase, trackingIdOf } from '../../lib/useCaseFields';
 
@@ -76,7 +77,7 @@ function OverviewDocuments({
   const withDocs = allUseCases.filter((uc) => uc.docs_generated_at || docsMadeIds.has(trackingIdOf(uc)));
   return (
     <section data-overview-documents="" aria-label="Documents" className="min-w-0">
-      {strategyDoc?.state === 'building' && <p data-strategy-doc-building="" role="status" className="mb-2 text-caption text-text-secondary">Building the strategy document...</p>}
+      {strategyDoc?.state === 'building' && <p data-strategy-doc-building="" className="mb-2 text-caption text-text-secondary"><BusyNote inline text="Building the strategy document" /></p>}
       {strategyDoc?.state === 'failed' && (
         <p data-strategy-doc-failed="" className="mb-2 text-caption text-text-secondary">
           The strategy document could not be saved.{' '}

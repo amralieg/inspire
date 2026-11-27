@@ -187,7 +187,7 @@ test('W4: Generate saves one real file per planned file into the Assets folder, 
     }
     assert.equal(be.calls.translates.length, 0, 'English needs no translation');
     const marked = await page.evaluate(() => JSON.parse(sessionStorage.getItem('inspire:new-docs:42') || '[]'));
-    assert.deepEqual([...marked].sort(), be.calls.saves.filter((s) => s.name !== 'Acme_strategy.pdf').map((s) => `${s.folder}/${s.name}`).sort(), 'the saved paths are marked new for Assets');
+    assert.deepEqual([...marked].sort(), be.calls.saves.map((s) => `${s.folder}/${s.name}`).sort(), 'the saved paths are marked new for Assets');
     await dialog.getByRole('button', { name: 'Go to Assets' }).click();
     await dialog.waitFor({ state: 'hidden' });
     assert.equal(await page.locator('[data-results-nav-item="overview"]').getAttribute('aria-selected'), 'true');
