@@ -38,3 +38,15 @@ test('history sends at most a fixed number of statements, independent of the num
   assert.ok(many <= FIXED_STATEMENTS, `50 runs sent ${many} statements, bound ${FIXED_STATEMENTS}`);
   assert.equal(many, few, `5 runs sent ${few} statements, 50 runs sent ${many}`);
 });
+
+test('the batched ended-run statement binds every row and matches only the row still holding that run', () => {
+  const I = require('../lib/inspireImplement');
+  const row = (n) => ({ session_id: 42, use_case_id: `N01-U0${n}`, spec_version: 1, status: 'filling', implement_run_id: String(500 + n) });
+  const stalled = (n) => ({ ended: true, run_id: String(500 + n), reason: `ended ${n}`, ended_by: 'outside' });
+  const got = I.implementRunsEndedStatement('t', [1, 2, 3].map((n) => ({ row: row(n), stalled: stalled(n) })).concat([{ row: { ...row(4), status: 'ready' }, stalled: stalled(4) }]));
+  assert.match(got.sql, /^MERGE INTO t AS t USING/);
+  assert.match(got.sql, /t\.implement_run_id = s\.run/);
+  assert.equal((got.sql.match(/:uc\d/g) || []).length, 3, 'a row that is not active is left out');
+  assert.equal(got.parameters.find((p) => p.name === 'msg2').value, 'ended 3');
+  assert.equal(I.implementRunsEndedStatement('t', []), null);
+});
