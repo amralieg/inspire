@@ -284,8 +284,10 @@ function beforeafter(c, b, land, k) {
   const TODAY = (x, y, w, h, z) => panel(x, y, w, h, 'TODAY', 'alert', P.red, before, ['clock', 'alert', 'document'], z);
   const AFTER = (x, y, w, h, z) => panel(x, y, w, h, 'AFTER', 'check', P.green, after, ['check', 'shield', 'sparkles'], z);
   // The steps spread down the room left under y (a big numbered list, so no band of the box is left empty).
-  const spread = (y0) => { const steps = keepShown(c.steps.slice(0, 5), (st) => shows(b.w - 2 * (land ? 30 : 46) - 12, st.label, { size: land ? 24 : 32, weight: 600, maxLines: 2 }));
-    const r = land ? 30 : 46; const size = land ? 24 : 32; const top = y0 + (land ? 56 : 80);
+  // The list holds as many steps as the room has rows for (a row is its disc or its two lines, whichever is taller), so rows never overlap.
+  const spread = (y0) => { const r = land ? 30 : 46; const size = land ? 24 : 32; const top = y0 + (land ? 56 : 80);
+    const rows = Math.max(1, Math.floor((b.y + b.h - top) / (Math.max(2 * r, size * 2.22) + 8)));
+    const steps = keepShown(c.steps.slice(0, 5), (st) => shows(b.w - 2 * r - 12, st.label, { size, weight: 600, maxLines: 2 }), rows);
     const rowH = steps.length ? (b.y + b.h - top) / steps.length : 0; let t = '';
     steps.forEach((st, i) => { t += stepList(b.x, top + i * rowH + Math.max(0, (rowH - 2 * r) / 2), b.w, [st], { r, size, maxLines: 2, colors: [cols()[i % 6]] }).svg; });
     return slot(tagline(b.x, y0 + (land ? 26 : 40), 'route', 'HOW IT WORKS', P.lava, { size: land ? 22 : 28 }), t); };

@@ -13,6 +13,7 @@ const NEG = /\b(took|lost|loses?|fell|falls?|cut|cuts|missed|down|drops?|dropped
 const POS = /\b(added|adds?|gained|gains?|saved|saves?|rose|rises?|up|grew|grows?|plus|earns?)\b/i;
 const FILLER = /(?<![\w-])(and|the|of|a|an|by|took|lost|fell|added|adds|gained|saved|moved|is|are|was|were|with|this|that|at|in|for|to|its|it)(?![\w-])/gi;
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
+const lines = (a) => (Array.isArray(a) && a.length ? a.map((x) => (x && typeof x === 'object' ? str(x.title || x.label || x.text) : str(x))).filter(Boolean) : null);
 const words = (s, n) => String(s || '').split(/\s+/).filter(Boolean).slice(0, n).join(' ');
 // A phrase that cannot stand alone as a label: it starts with a preposition or a link word ("of that value", "of it").
 const FRAGMENT = /^(of|to|for|with|by|from|in|on|at|into|over|under|between|within|without|than|per|about|across|and|or|but|that|which|who)\b/i;
@@ -74,9 +75,10 @@ const FIELDS = {
     if (m && Number(m[2].replace(/,/g, '')) > 0) { const v = Math.round((100 * Number(m[1].replace(/,/g, ''))) / Number(m[2].replace(/,/g, ''))); if (v > 0 && v <= 100) return { share: { value: v, label: m[0], unit: 'square', ratio: true } }; }
     return { share: null };
   },
+  // A listed line given as a card ({ title, text }) reads as its title (never "[object Object]").
   beforeafter: (c, p) => ({
-    before: p.before || (clauses(c).length ? clauses(c).slice(0, 3) : [c.problem].filter(Boolean)),
-    after: p.after || uniq([c.screen, c.story.screenDetail, c.heroNote]).slice(0, 3),
+    before: lines(p.before) || (clauses(c).length ? clauses(c).slice(0, 3) : [c.problem].filter(Boolean)),
+    after: lines(p.after) || uniq([c.screen, c.story.screenDetail, c.heroNote]).slice(0, 3),
   }),
   timeline: (c, p) => ({ trend: p.trend || (() => { const f = others(c).find((x) => x.unit === '%') || others(c)[0]; return f ? { value: shown(f), label: f.clause } : null; })() }),
   funnel: (c, p) => {
