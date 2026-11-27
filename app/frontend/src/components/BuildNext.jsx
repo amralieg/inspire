@@ -11,6 +11,7 @@ import { trackBuildSubmit } from '../lib/implementControl';
 import { appGrantText, moneyRuleColumns, preflightParams, primaryTableOf, specForSibling } from '../lib/implementWizard';
 import { joinSentences } from '../lib/sentences';
 import { STATUS_LABELS } from '../lib/valueLabels';
+import { displayId } from '../../../shared/useCaseId.mjs';
 
 const BUILD_NOW_BUTTON = 'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-white bg-primary-solid shadow-sm shadow-db-red/20 hover:bg-primary-solid-hover disabled:opacity-70';
 const BUILD_CUSTOM_BUTTON = 'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-xs font-semibold text-text-primary hover:bg-bg-subtle';
@@ -133,7 +134,7 @@ export function BuildNextStep({ apiFetch, apiPostJson, inspireDatabase, warehous
     <section aria-label="Build another" data-build-another="" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 shadow-sm">
       <p className="text-sm text-text-primary">{`Build another: ${another.unbuilt} more use case${another.unbuilt === 1 ? '' : 's'} in this run ${another.unbuilt === 1 ? 'is' : 'are'} ready to build`}</p>
       <button type="button" data-build-another-open={another.next[0].id} onClick={() => onOpen(another.next[0].id)} className={BUILD_CUSTOM_BUTTON}>
-        {`Open ${another.next[0].name || another.next[0].id}`} <ArrowRight size={14} aria-hidden />
+        {`Open ${another.next[0].name || displayId(another.next[0].id)}`} <ArrowRight size={14} aria-hidden />
       </button>
     </section>
   ) : null;

@@ -31,7 +31,7 @@ export function demoRunPages(showcase) {
   const mvps = Array.isArray(showcase?.mvps) ? showcase.mvps : [];
   return mvps
     .filter((m) => m && typeof m.id === 'string' && RUN_DEMO_PATH_RE.test(String(m.url || '')))
-    .map((m) => ({ kind: RUN_DEMO_KIND, id: m.id, use_case_id: m.id, name: String(m.title || m.id), domain: String(showcase.business || ''), path: m.url }));
+    .map((m) => ({ kind: RUN_DEMO_KIND, id: m.id, use_case_id: m.id, name: String(m.title || displayId(m.id)), domain: String(showcase.business || ''), path: m.url }));
 }
 
 const RUN_HASH_RE = /^#\/run\/([^/?#]*)$/;
