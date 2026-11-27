@@ -23,13 +23,13 @@ async function readTheme(page, dark) {
   }, dark);
 }
 
-test('dark backdrop is neutral grey 24-36 per channel (spread <= 6), surfaces lighter, borders lighter still, AA text; light unchanged', async () => {
+test('dark backdrop is the measured Omnigent violet-black, surfaces lighter, borders lighter still, AA text; light unchanged', async () => {
   const ui = await openUi('results', { ...REVIEW_STATE, sessions: REVIEW_SESSIONS, results: REVIEW_RESULTS }, '');
   try {
     const light = await readTheme(ui.page, false);
     const dark = await readTheme(ui.page, true);
-    for (const c of dark.body) assert.ok(c >= 24 && c <= 36, `body channel ${c} in 24-36 (${dark.body})`);
-    assert.ok(Math.max(...dark.body) - Math.min(...dark.body) <= 6, `no tint ${dark.body}`);
+    const OMNIGENT_BG = [15, 12, 25]; // #0f0c19, measured from the Omnigent window (c25_theme_omnigent.md)
+    for (let i = 0; i < 3; i++) assert.ok(Math.abs(dark.body[i] - OMNIGENT_BG[i]) <= 3, `body ${dark.body} within 3 of Omnigent ${OMNIGENT_BG}`);
     assert.deepEqual(dark.body, dark.bg);
     assert.ok(lum(dark.surface) > lum(dark.bg), `surface ${dark.surface} lighter than ${dark.bg}`);
     assert.ok(lum(dark.border) > lum(dark.surface), `border ${dark.border} lighter than surface ${dark.surface}`);

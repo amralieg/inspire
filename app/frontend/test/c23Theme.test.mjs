@@ -23,11 +23,11 @@ function darkBlock() {
 }
 
 const TARGET = {
-  't-bg': '#0e0b19',
-  't-surface': '#181f25',
-  't-bg-subtle': '#1f272d',
-  't-panel': '#1a2129',
-  't-border': 'oklch(28% .005 240)',
+  't-bg': '#0f0c19',
+  't-surface': '#1a1724',
+  't-bg-subtle': '#25232e',
+  't-panel': '#13101d',
+  't-border': '#27292b',
   't-input-bg': '#ffffff26',
 };
 
@@ -53,11 +53,11 @@ test('app dark body and secondary text meet AA on every solid surface', () => {
 test('shell dark palettes use the Omnigent surfaces and keep AA text', () => {
   for (const [name, p] of Object.entries(PALETTES)) {
     const b = p.dark.base;
-    assert.equal(b.bg, '#0e0b19', `${name} bg`);
+    assert.equal(b.bg, '#0f0c19', `${name} bg`);
     if (name === 'mono') continue;
-    assert.equal(b.card, '#181f25', `${name} card`);
-    assert.equal(b.well, '#1f272d', `${name} well`);
-    assert.equal(b.panel, '#1a2129', `${name} panel`);
+    assert.equal(b.card, '#1a1724', `${name} card`);
+    assert.equal(b.well, '#25232e', `${name} well`);
+    assert.equal(b.panel, '#13101d', `${name} panel`);
     assert.equal(b.line, '#27292b', `${name} line`);
     for (const s of ['bg', 'card', 'well', 'panel']) {
       for (const f of ['ink', 'muted']) {

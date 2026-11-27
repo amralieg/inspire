@@ -124,7 +124,7 @@ test('the offline walk checks the Run tab section', { skip }, async () => {
   const appApi = { 'GET /api/settings': [() => viewOf(values)], 'GET /api/runs': [{ runs, total: 1, offset: 0, limit: 20 }] };
   const row = withScopeModel();
   const registry = [{ ...row, spec_json: JSON.stringify({ ...JSON.parse(row.spec_json), use_case_name: 'Predict churn' }) }];
-  const state = { registry, useCaseScope: [{ session_id: '42', use_case_id: 'N01-U01', domain: 'Retention' }], history: [row], forwardedToken: PERSON, appApi };
+  const state = { registry, useCaseScope: [{ session_id: '42', use_case_id: 'N01-U01', domain: 'Retention' }], history: [row], forwardedToken: PERSON, appApi, runDefaults: { inspireDatabase: 'main.inspire', warehouseId: 'wh1' } };
   const ui = await openUi('run', state, '', { init: profileAt(calls, PROFILE) });
   const { page, made } = ui;
   try {

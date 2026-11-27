@@ -223,7 +223,7 @@ export async function openUi(open, overrides = {}, query = '', { mount, init, bu
       ? { run: { totals: [], n: 0, n_calculated: 0, n_estimated: 0, n_none: 0, by_verb: [] }, use_cases: {} }
       : { runs: [], all: { totals: [], n_calculated: 0, n_estimated: 0 } }));
   };
-  const made = makeApp({ useCase: HARNESS_USE_CASE, buildStamp: UNKNOWN_BUILD, forwardedEmail: overrides.me?.userName, ...overrides }, { mount: withAnswers });
+  const made = makeApp({ runDefaults: { inspireDatabase: 'main.inspire', warehouseId: 'wh1' }, useCase: HARNESS_USE_CASE, buildStamp: UNKNOWN_BUILD, forwardedEmail: overrides.me?.userName, ...overrides }, { mount: withAnswers });
   const opened = [];
   let record = null;
   const close = async () => {

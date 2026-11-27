@@ -47,7 +47,7 @@ test('styles: 8 named styles, at least 4 palettes, a custom brand colour leads t
 });
 
 test('options: the 4 kinds, the content blocks and Excel columns from the wireframe, sensible defaults', () => {
-  assert.deepEqual(DOC_KINDS, ['infographic', 'pptx', 'pdf', 'xlsx']);
+  assert.deepEqual(DOC_KINDS, ['infographic', 'pptx', 'pdf', 'xlsx', 'docx']);
   const blocks = CONTENT_BLOCKS.map((b) => b.id);
   for (const id of ['use_case_story', 'value_story', 'value_projection', 'value_formula', 'inspire_score', 'strategy_link', 'data_used',
     'genie_questions', 'build_status', 'next_steps', 'sql', 'disclaimer']) assert.ok(blocks.includes(id), id);

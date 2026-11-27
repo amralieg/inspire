@@ -8,7 +8,7 @@ const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const many = Array.from({ length: 80 }, (_, i) => `cat_${String(i).padStart(3, '0')}`);
 
 async function resultStep(state) {
-  const ui = await openUi('wizard', { me: { userName: 'owner@example.com', displayName: 'Owner' }, schemas: { main: ['inspire'] }, ...state });
+  const ui = await openUi('wizard', { me: { userName: 'owner@example.com', displayName: 'Owner' }, schemas: { main: ['inspire'] }, forwardedToken: 'tok', ...state });
   await goToStep(ui.page, 'Data');
   await openFolded(ui.page, 'Result table');
   const step = ui.page.getByRole('region', { name: 'Where the result table lives' });

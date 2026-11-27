@@ -538,7 +538,7 @@ def test_the_dashboard_theme_follows_the_app_palette_when_the_user_set_one(agent
     assert agent_ns["implement_dashboard_highlight"](theme) == {"themeColorType": "visualizationColors", "position": len(hues)}
     default = agent_ns["implement_dashboard_theme"](palettes, "default")
     assert default["selectionColor"] == {"light": "#ff3621", "dark": "#ff5c47"}, "the default palette is the Databricks palette"
-    assert default["widgetBackgroundColor"] == {"light": "#ffffff", "dark": "#161b22"}
+    assert default["widgetBackgroundColor"] == {"light": "#ffffff", "dark": hexed(palettes["default"]["dark"]["base"]["card"])}
     for palette in (None, "no-such-palette"):
         assert agent_ns["implement_dashboard_theme"](palettes, palette) == default
     assert agent_ns["implement_dashboard_theme"](None, "ocean") is None
