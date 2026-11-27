@@ -105,8 +105,7 @@ test('What to deliver is the first step, Data and results is one page, and Where
     await page.setViewportSize(viewports[0]);
     const picked = page.getByRole('region', { name: 'What Inspire picked' });
     const pickedStyle = await picked.evaluate((el) => ({ overflowY: getComputedStyle(el).overflowY, height: getComputedStyle(el).height }));
-    assert.equal(pickedStyle.overflowY, 'auto', 'the chosen options scroll inside their own area');
-    assert.equal(pickedStyle.height, '192px', 'the chosen options have a fixed height');
+    assert.ok(!['auto', 'scroll'].includes(pickedStyle.overflowY), 'RC7-C-02: the chosen options do not scroll inside a nested area');
     assert.ok(await picked.locator('[data-picked-change]').first().count(), 'Edit links stay');
     await snap(page, 'restructure-review');
     assert.deepEqual(ui.pageErrors, []);
