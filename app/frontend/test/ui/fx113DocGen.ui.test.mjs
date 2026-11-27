@@ -82,7 +82,7 @@ test('planFiles: one file for all vs one per use case, one set per language, saf
 test('buildDocModel: selected order, numeric scores, values and a same-currency total, a use case with no value is null', () => {
   const m = model();
   assert.equal(m.businessName, 'Acme Air');
-  assert.deepEqual(m.useCases.map((u) => u.id), ['N01-U01', 'N01-U02', 'N02-U01']);
+  assert.deepEqual(m.useCases.map((u) => u.id), ['AI01-UC01', 'AI01-UC02', 'AI02-UC01']);
   assert.equal(m.useCases[0].name, 'Predict delay risk per route');
   assert.equal(m.useCases[0].score, 9.1);
   assert.equal(m.useCases[0].value.amount, 2400000);

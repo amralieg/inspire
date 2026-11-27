@@ -11,6 +11,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { countEntries, parseStrategicContext, treeDepth } from '../lib/strategyContext';
+import { displayId } from '../../../shared/useCaseId.mjs';
 import { formatDuration } from '../lib/formatWhen';
 import { counted } from '../lib/plural';
 import { aiSeesAggregates, discoveryTypeOf } from '../lib/discoveryType';
@@ -307,7 +308,7 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
       domain: uc['Business Domain'] || '',
       priority: uc.Priority || '',
       quality: uc.Quality || '',
-      id: uc.No || '',
+      id: displayId(uc.No || ''),
     })));
   }, [steps]);
 

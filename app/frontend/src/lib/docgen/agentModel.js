@@ -9,6 +9,7 @@ import { useCaseKindView, KIND_INFORMATIONAL_LABEL } from '../useCaseKind.js';
 import { moneyText } from '../valueWizard.js';
 import { buildDocModel, isRtl, STORY_NOT_APPROVED } from './docModel.js';
 import { plainDocText } from './docText.js';
+import { displayId } from '../../../../shared/useCaseId.mjs';
 import { PANEL_BUSINESS } from './panelFields.js';
 
 // The agent's English labels (ENGLISH_TRANSLATIONS, 6a7361a39 lines 19551-19889 of the concatenated cells), the keys the documents use.
@@ -342,7 +343,7 @@ function useCaseView(uc, d, ctx) {
     ? `\u2605 ${T('doc_best_of_best')} #${uc.best_of_best_rank ?? ''} \u00B7 ${T('doc_elite_score')} ${scoreText(uc.best_of_best_score, 10, T)}` : '';
   const coverage = coverageKind ? [T(status === 'DOMAIN_COVERAGE_PICK' ? 'doc_coverage_pick' : 'doc_fallback_pick'), T('elite_reason'), belowBarReasonOf(uc) || missing] : null;
   return {
-    uc, id: d.id, rank: rankOf.get(uc) ?? '', title: d.name || missing, subtitle, domain: domainOf(uc), subdomain: d.subdomain, kind, quality, metrics, narrative, facts,
+    uc: { ...uc, ...(uc.No != null ? { No: displayId(uc.No) } : {}), ...(uc.id != null ? { id: displayId(uc.id) } : {}) }, id: d.id, rank: rankOf.get(uc) ?? '', title: d.name || missing, subtitle, domain: domainOf(uc), subdomain: d.subdomain, kind, quality, metrics, narrative, facts,
     valueFacts, panelKeys: PANEL_BUSINESS.map((p) => p.key).filter((k) => [...metrics, ...narrative, ...facts, ...valueFacts].some((e) => e[0] === k)), coverage, star, meetsBar: meetsBar(uc) ? T('doc_meets_bar') : '', notebook: Boolean(String(uc.notebook_path ?? '').trim() || hasShippedGenieCode(uc)),
     value: valueView(d.value, T),
   };

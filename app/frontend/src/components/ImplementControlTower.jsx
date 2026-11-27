@@ -9,6 +9,7 @@ import GenieLogo from './GenieLogo';
 import ImplementStatusBadge from './ImplementStatusBadge';
 import { IconChip, PANEL_CLASS, SectionTitle } from './BuildUi';
 import { TargetKpiLine } from './TargetKpiCard';
+import { displayId } from '../../../shared/useCaseId.mjs';
 import { controlTiles, controlActionText, removeConfirmed, sharedControlAsks, sharedControlText, sharedNote, uninstallText } from '../lib/implementControl';
 import { formatWhen } from '../lib/formatWhen';
 import { readOnlyReason } from '../lib/showcase';
@@ -45,7 +46,7 @@ export function ConfirmDialog({ title, confirmLabel, useCaseId, busy, onCancel, 
       footer={actions} dialogAttrs={{ 'data-confirm-dialog': '' }}>
       <div className="text-[12px] text-text-secondary space-y-2">{children}</div>
       <label className="block text-[12px] text-text-secondary">
-        Type <span className="font-mono font-semibold text-text-primary">{useCaseId}</span> to confirm
+        Type <span className="font-mono font-semibold text-text-primary">{displayId(useCaseId)}</span> to confirm
         <input dir="auto"
           autoFocus
           aria-label="Type the use case id to confirm"
