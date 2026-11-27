@@ -183,10 +183,14 @@ test('value chips and the overall banner keep 4.5:1 contrast in light and dark',
   }
 });
 
-test('showcase mode never calls the value routes, because the demo has none', async () => {
+// REQ-560 (8efa746d7, BuildNext.jsx:43): the demo replays recorded value reads. A request is recorded when it is a GET that names the demo's own
+// database and warehouse ("showcase"), which the replay answers from the recording; a value request with a real workspace or a write is un-recorded.
+test('showcase mode sends no un-recorded value request: every value read is a GET answered from the recording', async () => {
+  const calls = [];
   const ui = await openUi('app', { ...REVIEW_STATE }, '', {
     mount: (app) => {
       app.get('/api/showcase', (_req, res) => res.json({ showcases: [{ id: 'acme', session_id: '42', title: 'Acme retail', business: 'Acme', summary: 'Demo' }] }));
+      app.use('/api/inspire/value', (req, _res, next) => { calls.push({ method: req.method, q: req.query }); next(); });
       mountValue(app);
     },
   });
@@ -196,10 +200,13 @@ test('showcase mode never calls the value routes, because the demo has none', as
     await openShowcase(page);
     await page.getByRole('region', { name: 'Demo' }).getByText(SHOWCASE_NOTE).waitFor({ timeout: 20000 });
     valueHits.length = 0;
+    calls.length = 0; // reads made on the Start page before the demo opened belong to the real workspace
     await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => null);
     await page.locator('[data-run-heading], [data-portfolio]').first().waitFor({ timeout: 20000 }).catch(() => null);
-    assert.deepEqual(valueHits, [], 'no value request while the showcase is open');
-    assert.equal(await page.locator('[data-value-overall], [data-run-value]').count(), 0);
+    const unrecorded = calls.filter((c) => c.method !== 'GET' || c.q.inspire_database !== 'showcase' || c.q.warehouse_id !== 'showcase').map((c) => `${c.method} ${JSON.stringify(c.q)}`);
+    assert.deepEqual(unrecorded, [], 'no value request reaches the network un-recorded while the showcase is open');
+    assert.ok(calls.length > 0, 'the demo does read its recorded values');
+    assert.ok(await page.locator('[data-value-overall], [data-run-value]').count() > 0, 'the recorded values are shown in the demo');
   } finally {
     await ui.close();
   }
