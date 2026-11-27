@@ -58,11 +58,11 @@ export async function buildDocx(m, theme = {}, { chartPng } = {}) {
     } catch { /* a chart that cannot be drawn is left out; the text stays */ }
   };
   const ucTypes = new Map();
-  const portfolioTypes = ['domain_value', 'priority_matrix'];
-  for (const [i, t] of portfolioTypes.entries()) await addChart(`portfolio${i}`, portfolioChartSvg(t, m.useCases, { w: 900, h: 400 }), { w: 900, h: 400 });
+  const portfolioTypes = ['domain-value', 'matrix'];
+  for (const [i, t] of portfolioTypes.entries()) await addChart(`portfolio${i}`, portfolioChartSvg(t, m.useCases, { w: 560, h: 290 }), { w: 560, h: 290 });
   for (const u of m.useCases) {
     const types = (chartTypesFor(u) || []).slice(0, 2); ucTypes.set(u.id, types);
-    for (const [i, t] of types.entries()) await addChart(`${u.id}|${i}`, ucChartSvg(t, u, { w: 900, h: 360 }), { w: 900, h: 360 });
+    for (const [i, t] of types.entries()) await addChart(`${u.id}|${i}`, ucChartSvg(t, u, { w: 560, h: 250 }), { w: 560, h: 250 });
   }
 
   const body = [];
@@ -108,6 +108,8 @@ export async function buildDocx(m, theme = {}, { chartPng } = {}) {
   // Domains in the order they first appear, each with its use cases.
   const groups = [];
   m.useCases.forEach((u) => { const d = u.domain || 'Other'; let g = groups.find((x) => x.domain === d); if (!g) { g = { domain: d, ucs: [] }; groups.push(g); } g.ucs.push(u); });
+  const dl = domainsListOf(m.useCases);
+  groups.sort((a, b) => dl.findIndex((d) => d.domain === a.domain) - dl.findIndex((d) => d.domain === b.domain));
   const fillOf = (d) => DOMAIN_FILLS[Math.max(0, groups.findIndex((g) => g.domain === d)) % DOMAIN_FILLS.length];
   const top = m.useCases.map((u) => u.score).filter((s) => Number.isFinite(s));
 
@@ -136,15 +138,15 @@ export async function buildDocx(m, theme = {}, { chartPng } = {}) {
     // Executive summary: its own page, a short story and the portfolio pictures.
     para(LB('Executive summary'), { style: 'Heading1', pageBreak: true });
     execSummaryParas(m).forEach((p) => para(p));
-    picture('portfolio0', 'Portfolio chart'); picture('portfolio1', 'Portfolio chart');
+    picture('portfolio0', 'Value or use cases by business domain');
 
     // Purpose and domains.
     para(LB('What this catalog is for'), { style: 'Heading1', pageBreak: true });
     purposeParas(m).forEach((p) => para(p));
-    para(LB('Business domains'), { style: 'Heading1', before: 360 });
-    const dl = domainsListOf(m.useCases);
+    picture('portfolio1', 'Priority against feasibility');
+    para(LB('Business domains'), { style: 'Heading1', pageBreak: true });
     const anyV = dl.some((d) => d.value);
-    table([['Domain', LB('use cases'), ...(anyV ? [LB('Value a year')] : []), 'Best score', 'What it covers'], ...dl.map((d) => [d.domain, String(d.count), ...(anyV ? [d.value || ''] : []), d.best != null ? fmt1(d.best) : '', d.description || ''])],
+    table([['Domain', LB('use cases'), ...(anyV ? [LB('Value a year')] : []), 'Best score', 'What it covers'], ...dl.map((d) => [d.domain, String(d.count), ...(anyV ? [d.value ? d.value.text : ''] : []), d.bestScore != null ? fmt1(d.bestScore) : '', d.description || ''])],
       anyV ? [1900, 800, 1300, 900, W - 4900] : [2100, 900, 1000, W - 4000], { band: true });
 
     // One banner per domain, then its use cases.
