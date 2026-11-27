@@ -72,7 +72,7 @@ export function defaultDocOptions(language = 'English') {
     customColor: '',
     theme: 'light', // REQ-525: 'light' or 'dark' (PDF and PowerPoint; Excel stays light)
     orientation: 'landscape', // C28 (REQ-570): the per use case infographic, 'landscape' or 'portrait'
-    infographicStyle: '', // C28: an id from infographicApi INFOGRAPHIC_STYLES ('' is the first)
+    infographicStyle: '', // C29: '' lets the AI choose per use case; an id from infographicApi INFOGRAPHIC_STYLES forces that concept
     vibe: '', // C28 (REQ-572): the person's words that guide the documents' wording
     logo: null, // C28 (REQ-572): { name, type, size, dataUrl }
   };

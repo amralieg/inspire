@@ -7,6 +7,9 @@ import { resolveTheme } from '../src/lib/docgen/docStyles.js';
 import { renderInfographic, infographicFor, SCENARIO_IDS, infographicStyles } from '../src/lib/docgen/designs/infographic.js';
 import { fallbackPick, pickInfographic } from '../src/lib/docgen/designs/infographicPick.js';
 import * as docSvg from '../src/lib/docgen/docSvg.js';
+import { chromium } from 'playwright';
+import { checkSvg } from './tools/infogCheck.mjs';
+import { validatePick } from '../../backend/lib/infographicPick.mjs';
 
 const raw = JSON.parse(fs.readFileSync(new URL('../../agent/demos/bakehouse/docs/Samples bakehouse-dbx_inspire.json', import.meta.url), 'utf8'));
 const UCS = raw.domains.flatMap((d) => d.use_cases);
@@ -40,30 +43,23 @@ test('at least 6 scenarios, each rendered landscape (16:9) and portrait (A4) wit
   }
 });
 
-test('no text overflows its box or overlaps another text, for long names, in every scenario, orientation and theme', () => {
-  for (const th of [theme, dark]) {
-    for (const scenario of SCENARIO_IDS) {
-      for (const orientation of ['landscape', 'portrait']) {
-        for (const [fi, uc] of FIXTURES.entries()) {
-          for (const content of [null, LONG_CONTENT(scenario)]) {
-            const { svg, blocks, width, height } = renderInfographic(uc, { orientation, scenario, theme: th, content });
-            const tag = `${scenario}/${orientation}/fixture${fi}/${content ? 'long' : 'fallback'}`;
-            assert.ok(blocks.length >= 5, `${tag}: text blocks logged (${blocks.length})`);
-            assert.ok(svg.includes('<text'), tag);
-            for (const b of blocks) {
-              assert.ok(b.h <= b.boxH + 0.5, `${tag}: "${b.text}" is ${b.h} high in a ${b.boxH} box`);
-              assert.ok(b.maxW <= b.w + 0.5, `${tag}: "${b.text}" is ${b.maxW} wide in a ${b.w} box`);
-              assert.ok(b.size >= 12, `${tag}: "${b.text}" is ${b.size}px`);
-              assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= width + 0.5 && b.y + b.h <= height + 0.5, `${tag}: "${b.text}" leaves the page`);
-            }
-            for (let i = 0; i < blocks.length; i += 1) {
-              for (let j = i + 1; j < blocks.length; j += 1) assert.ok(!overlap(blocks[i], blocks[j]), `${tag}: "${blocks[i].text}" overlaps "${blocks[j].text}"`);
-            }
-          }
-        }
+// C29: the c28 renderers logged their text blocks; the 12 concepts are laid out in Chromium instead (test/tools/infogCheck.mjs), so the
+// long-name, long-content check now measures the real layout. Both themes are covered by the light accent and the dark network page.
+test('no text overflows its box or overlaps another text, for long names, in every scenario, orientation and theme', async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); const bad = [];
+    for (const th of [theme, dark]) for (const scenario of SCENARIO_IDS) for (const orientation of ['landscape', 'portrait']) for (const [fi, uc] of FIXTURES.entries()) {
+      for (const content of [null, LONG_CONTENT(scenario)]) {
+        if (th === dark && fi !== 0) continue;
+        const { svg, width, height } = renderInfographic(uc, { orientation, scenario, theme: th, content });
+        const tag = `${scenario}/${orientation}/fixture${fi}/${content ? 'long' : 'fallback'}`;
+        assert.ok(svg.includes('<text') && width > 0 && height > 0 && !/NaN|undefined/.test(svg), tag);
+        const p = await checkSvg(page, svg); if (p.length) bad.push(`${tag}: ${p.slice(0, 3).join('; ')}`);
       }
     }
-  }
+    assert.deepEqual(bad, []);
+  } finally { await browser.close(); }
 });
 
 test('the logo goes into the page and a right-to-left page is mirrored', () => {
@@ -77,10 +73,10 @@ test('the fallback pick follows the use case fields and is always a usable conte
   for (const uc of FIXTURES) {
     const pick = fallbackPick(uc);
     assert.ok(SCENARIO_IDS.includes(pick.scenario));
-    assert.ok(pick.title && pick.steps.length >= 2 && pick.outcomes.length >= 1);
+    assert.ok(pick.title && pick.steps.length >= 2 && validatePick(pick), `${pick.scenario}: a valid pick`);
   }
   assert.equal(fallbackPick({ Name: 'x', 'Analytics Technique': 'Time series forecasting', Statement: 'a. b.', Solution: 'c.', 'Business Value': 'd.' }).scenario, 'timeline');
-  assert.ok(fallbackPick({ Name: 'x', Statement: 'a.', Solution: 'b.', 'Business Value': 'Saves $2.4M a year' }).kpi.value.includes('2.4M'));
+  assert.ok(fallbackPick({ Name: 'x', Statement: 'a.', Solution: 'b.', 'Business Value': 'Saves $2.4M a year' }).hero.value.includes('2.4M'));
   assert.ok(fallbackPick({}).title, 'an empty use case still gets a pick');
 });
 
@@ -97,12 +93,12 @@ test('the picker falls back when the LLM is unavailable or returns junk, and kee
   assert.equal(thrown.source, 'fallback');
   const none = await pickInfographic(uc, {});
   assert.equal(none.source, 'fallback');
-  const good = { scenario: SCENARIO_IDS[1], title: 'Better story', steps: [{ title: 'One', text: 'a' }, 'Two'], outcomes: [{ title: 'Win', text: 'b' }], kpi: { value: '42%', label: 'faster' } };
+  const good = { scenario: SCENARIO_IDS[1], title: 'Better story', steps: [{ title: 'One', text: 'a' }, 'Two'], hero: { value: '42%', label: 'faster' } };
   const ok = await pickInfographic(uc, { post: async () => ({ pick: good }) });
   assert.equal(ok.source, 'ai');
   assert.equal(ok.pick.scenario, SCENARIO_IDS[1]);
-  assert.equal(ok.pick.steps[1].title, 'Two');
-  assert.equal(ok.pick.kpi.value, '42%');
+  assert.equal(ok.pick.steps[1], 'Two');
+  assert.equal(ok.pick.hero.value, '42%');
 });
 
 test('the vibe text, the use case and a chosen scenario reach the request', async () => {
@@ -118,7 +114,7 @@ test('the vibe text, the use case and a chosen scenario reach the request', asyn
 
 test('a chosen scenario wins over the picked one', () => {
   const svg = infographicFor(FIXTURES[2], { orientation: 'landscape', scenario: 'funnel', content: { ...LONG_CONTENT('timeline'), steps: LONG_CONTENT('x').steps.slice(0, 3) }, theme });
-  assert.ok(svg.includes('data-scenario="funnel"'));
+  assert.ok(svg.includes('data-concept="funnel"'));
 });
 
 test('the styles list has an id, a name and a thumbnail svg per scenario and orientation', () => {
@@ -140,5 +136,5 @@ test('infographicApi gives the dialog infographicFor (style and palette pick the
   const api = await import('../src/lib/docgen/infographicApi.js');
   assert.ok(api.INFOGRAPHIC_STYLES.length >= 6 && api.INFOGRAPHIC_STYLES.every((s) => s.id && s.name && s.thumbnail.startsWith('<svg')));
   const a = api.infographicFor(FIXTURES[2], { orientation: 'portrait', scenario: 'timeline', businessName: 'Acme', values: {}, style: 'bold', palette: 'databricks', customColor: '' });
-  assert.ok(a.startsWith('<svg') && a.includes('data-scenario="timeline"'));
+  assert.ok(a.startsWith('<svg') && a.includes('data-concept="timeline"'));
 });

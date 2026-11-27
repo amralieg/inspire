@@ -11,7 +11,10 @@ export function measure(s, size, weight = 400) {
 }
 
 export function wrap(s, width, size, weight = 400) {
-  const words = String(s ?? '').split(/\s+/).filter(Boolean); const lines = []; let cur = '';
+  // A word wider than the line (a long name with no spaces) is cut into pieces that fit, so it never runs off the page.
+  const cut = (w) => { if (measure(w, size, weight) <= width) return [w]; const out = []; let piece = '';
+    for (const ch of w) { if (piece && measure(piece + ch, size, weight) > width) { out.push(piece); piece = ch; } else piece += ch; } if (piece) out.push(piece); return out; };
+  const words = String(s ?? '').split(/\s+/).filter(Boolean).flatMap(cut); const lines = []; let cur = '';
   for (const w of words) { const t = cur ? `${cur} ${w}` : w; if (cur && measure(t, size, weight) > width) { lines.push(cur); cur = w; } else cur = t; }
   if (cur) lines.push(cur);
   return lines;

@@ -8,7 +8,7 @@ export const LAND = { w: 1240, h: 800 };
 export const PORT = { w: 1240, h: 1680 };
 
 export function frame(pattern, orient, w, h, defs, body, o = {}) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" data-infog="${pattern}" data-orientation="${orient}"${o.uc ? ` data-uc="${esc(o.uc)}"` : ''}><defs>${shadow('sh')}${grad('gHot', P.lava, P.amber)}${grad('gCool', P.cyan, P.blue)}${grad('gViolet', P.purple, P.pink)}${grad('gGreen', P.green, P.cyan)}${defs || ''}</defs><rect width="${w}" height="${h}" fill="${o.bg || '#FBF9F6'}"/>${body}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" data-infog="${pattern}" data-orientation="${orient}"${o.concept ? ` data-concept="${o.concept}"` : ''}${o.uc ? ` data-uc="${esc(o.uc)}"` : ''}><defs>${shadow('sh')}${grad('gHot', P.lava, P.amber)}${grad('gCool', P.cyan, P.blue)}${grad('gViolet', P.purple, P.pink)}${grad('gGreen', P.green, P.cyan)}${defs || ''}</defs><rect width="${w}" height="${h}" fill="${o.bg || '#FBF9F6'}"/>${body}</svg>`;
 }
 
 // The kind pill and the title. Returns { svg, bottom }.
@@ -27,11 +27,11 @@ export const heroWidth = (text, size) => (measure(text, size, 800) - String(text
 // Split a stake like "$2.4M a year" into the number and the rest.
 export function splitStake(stake) { const m = /^(.*?)(\$?\d[\d,.]*\s?[MKB]?|\d[\d,.]*)(.*)$/.exec(stake || ''); return m ? { lead: m[1].trim(), num: m[2].trim(), rest: m[3].trim() } : { lead: '', num: stake || '', rest: '' }; }
 
-// "Who uses it": a small team, the role in bold and the cadence with a calendar icon.
+// "Who uses it": a small team, a people icon on the heading, the role in bold and the cadence with a calendar icon.
 export function whoBlock(x, y, s, colors = [P.blue, P.lava, P.green], o = {}) {
   const ph = o.ph || 110; let svg = team(x + ph * 0.45, y + ph, ph, colors, 3);
   const tx = x + ph * 1.1 + 18; const tw = o.w || 300;
-  svg += label(tx, y + 24, 'WHO USES IT', { size: 20, weight: 700, color: P.grey, spacing: 1.5 });
+  svg += icon('users', tx, y + 3, 24, o.accent || P.lava, 2) + label(tx + 32, y + 24, 'WHO USES IT', { size: 20, weight: 700, color: P.grey, spacing: 1.5 });
   const t = textBlock(tx, y + 36, tw, s.who, { size: o.size || 26, weight: 800, color: o.ink || P.ink, maxLines: 2 });
   svg += t.svg + icon('calendar', tx, y + 46 + t.h, 26, o.accent || P.lava, 2) + label(tx + 36, y + 68 + t.h, s.cadence, { size: 22, weight: 600, color: o.muted || P.body });
   return { svg: `<g data-part="who">${svg}</g>`, h: Math.max(ph, 80 + t.h) };

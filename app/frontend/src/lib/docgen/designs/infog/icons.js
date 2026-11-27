@@ -80,11 +80,11 @@ const WORDS = [
   [/forecast|predict|trend|rise/i, 'trendUp'], [/learn|model|cluster|similar/i, 'brain'], [/solver|optimi|pick|plan/i, 'sliders'],
   [/score|chance|risk|probab/i, 'gauge'], [/match|check|test|control|flag/i, 'shield'], [/\bcalls?\b|phone/i, 'phone'], [/list|queue/i, 'checklist'],
   [/map|location|site|place|catchment/i, 'pin'], [/network|link|node|ring|communit/i, 'network'], [/time|wait|hour|day|week/i, 'clock'],
-  [/invoice|bill|payment|cash/i, 'receipt'], [/margin|cost|price|spend|\$/i, 'coin'], [/compare|peer|bench|baseline/i, 'scale'],
+  [/bill|payment|cash/i, 'receipt'], [/margin|cost|price|spend|\$/i, 'coin'], [/compare|peer|bench|baseline/i, 'scale'],
   [/question|ask|answer|summar/i, 'message'], [/dashboard|view|cockpit|explorer|readout|desk|lab/i, 'monitor'],
   [/split|bridge|driver|decompos/i, 'bars'], [/event|log|path|step|flow/i, 'route'], [/accept|override|approve|call\b|keep/i, 'check'],
-  [/ship|deliver|freight|transport/i, 'truck'], [/contract|agreement|terms/i, 'document'],
-  [/sales|order|buy|basket/i, 'cart'], [/group|segment|buyer|customer|account/i, 'users'], [/data|table|history|year/i, 'database'],
+  [/ship|deliver|transport/i, 'truck'], [/contract|agreement|terms/i, 'document'],
+  [/sales|order|buy|basket/i, 'cart'], [/group|segment|customer|member|account|people/i, 'users'], [/data|table|history|year/i, 'database'],
 ];
 export const iconFor = (text, fallback = 'sparkles') => (WORDS.find(([re]) => re.test(String(text || ''))) || [0, fallback])[1];
 
