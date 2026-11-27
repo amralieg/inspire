@@ -51,6 +51,10 @@ export function clip(s, fits) {
   if (!t || fits(t)) return t;
   let best = '';
   for (const m of t.matchAll(BOUNDARY)) { const c = t.slice(0, m.index + (/[,;:.!?)]/.test(m[0][0]) ? 1 : 0)).replace(/[\s,;:\u2013\u2014-]+$/, '').trim(); if (c && c.length > best.length && fits(c) && c === tidy(c) && (!LINKW.test(t.slice(m.index, m.index + 14)) || (closed(c) && !/,\s*[\w'-]+$/.test(c))) && (m[0][0] !== ',' || !openClause(words(c), VERB_STRICT))) best = c; }
+  // A word that does not fit the slot even on its own (a long name with no spaces) can never be shown whole, so the lead before the first
+  // such word is a cut point too (a closed phrase, never one that dangles), rather than leaving the whole text out.
+  if (!best) { const m = [...t.matchAll(/\s(?=(\S+))/g)].find((x) => !fits(x[1]));
+    const c = m ? t.slice(0, m.index).replace(/[\s,;:\u2013\u2014-]+$/, '').trim() : ''; if (c && fits(c) && c === tidy(c) && closed(c)) best = c; }
   if (!best) clip.none = true;
   return best;
 }
