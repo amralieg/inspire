@@ -322,7 +322,7 @@ function useCaseView(uc, d, ctx) {
   const valueFacts = [];
   const said = new Set([d.solution, d.businessValue].map((t) => display(t).toLowerCase()).filter(Boolean));
   const lines = [['what_we_serve', 'serving_summary'], ['how_it_works', 'method_summary'], ['value_source', 'value_source']]
-    .map(([k, f]) => (display(uc[f]) && !said.has(display(uc[f]).toLowerCase()) ? `${T(k)}: ${display(uc[f])}` : '')).filter(Boolean);
+    .map(([k, f]) => { const t = display(uc[f]); const low = t.toLowerCase(); return t && ![...said].some((x) => x.includes(low) || low.includes(x)) ? `${T(k)}: ${t}` : ''; }).filter(Boolean);
   if (lines.length) valueFacts.push(['what_you_get', T('doc_what_you_get'), lines]);
   const goals = strategyGoals(v, null);
   const strategy = [...goals.flatMap((g) => [[T('strategy_serves', { goal: g.name }), g.under ? T('strategy_part_of', { under: g.under }) : ''].filter(Boolean).join(', '), g.evidence]),

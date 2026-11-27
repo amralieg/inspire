@@ -22,7 +22,7 @@ const uc = (i) => ({
   'Analytics Technique': 'Optimization', Statement: 'Moving 1,260 units between 6 warehouses saves $310K this week. One warehouse is almost full.',
   Solution: SOLUTION, 'Business Value': 'Fewer stockouts and less overstock: lost margin avoided plus holding cost saved. At stake: $310K this week.',
   Beneficiary: 'Supply planners', Sponsor: 'Head of Supply', Quality: 'Very High', 'Quality Score': 4.3, 'Inspire Score': 8.6 - i / 10, Priority: 8.6,
-  serving_summary: SOLUTION, method_summary: 'A solver picks the moves that cover forecast demand within warehouse capacity and truck slots.',
+  serving_summary: SOLUTION.split(' so ')[0], method_summary: 'A solver picks the moves that cover forecast demand within warehouse capacity and truck slots.',
   KPIs: [{ name: 'Saving vs the current plan', direction: 'increase' }], best_of_best: i === 1 ? 'Y' : 'N', best_of_best_rank: '1',
 });
 const YEARS = [1, 2, 3].map((year) => ({ year, low: 300000 * year, likely: 500000 * year, high: 700000 * year }));
