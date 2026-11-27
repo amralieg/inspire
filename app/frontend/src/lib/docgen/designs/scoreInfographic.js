@@ -2,7 +2,9 @@
 // It still carries the design's own fonts, colours and layout, and real graphics built from the use case data: the Inspire score bars,
 // a donut of use cases by domain, a score meter and a domain icon on every card. Long text wraps to as many lines as it needs, never "...".
 // The page grows in height with the text. Pure SVG strings, same helpers as the four styles.
-import { t, T, rect, line, circle, icon, svgDoc, iconName, arc, has } from './core.js';
+import { t, T, rect, line, circle, icon, svgDoc, iconName, arc, has, money, mix, bestInk, treemap } from './core.js';
+import { hbars, donut, legend } from './charts.js';
+import { domainColors, qualityTone, readiness } from './panelTiles.js';
 import { paletteOf } from './palette.js';
 import { NOT_YET } from './ucPage.js';
 import { LB } from '../docLabels.js';
@@ -165,5 +167,160 @@ export function scoreInfographic(m, th, { W = 794 } = {}, { id, fonts }) {
     s += `<g data-block="disclaimer">${d.svg}</g>`; y += d.h + 20;
   }
   const H = Math.ceil(y + 24);
+  return svgDoc(W, H, rect(0, 0, W, H, P.page) + s, body);
+}
+
+// C27 (REQ-564): the infographic poster of the Inspire original design (the deck's look): a strategic title, a KPI band, portfolio charts, then the use case tiles.
+// Colours are the deck palette (paletteOf); a domain keeps one colour in every chart and tile. Every chart is a <g data-chart="type">. Works with or without calculated values.
+const chart = (type, svg) => `<g data-chart="${type}">${svg}</g>`;
+
+const TITLE = 'Strategic AI Use Cases Powered by Databricks AI';
+
+// A scatter of use cases: x = priority score, y = readiness, one dot per use case in its domain colour; dashed medians split four quadrants.
+function matrix(pts, box, o) {
+  const xs = pts.map((p) => p.x); const ys = pts.map((p) => p.y);
+  const pad = { l: 34, b: 34, t: 26, r: 10 };
+  const lo = (a, step) => Math.floor((Math.min(...a) - step / 2) / step) * step; const hi = (a, step) => Math.ceil((Math.max(...a) + step / 2) / step) * step;
+  const x0 = lo(xs, 0.5); const x1 = hi(xs, 0.5); const y0 = lo(ys, 0.5); const y1 = hi(ys, 0.5);
+  const px = (v) => box.x + pad.l + ((v - x0) / (x1 - x0 || 1)) * (box.w - pad.l - pad.r);
+  const py = (v) => box.y + box.h - pad.b - ((v - y0) / (y1 - y0 || 1)) * (box.h - pad.b - pad.t);
+  const med = (a) => [...a].sort((p, q) => p - q)[Math.floor(a.length / 2)];
+  const mx = px(med(xs)); const my = py(med(ys));
+  let s = rect(mx, box.y + pad.t, box.x + box.w - pad.r - mx, my - box.y - pad.t, o.quadFill, { rx: 6 });
+  s += line(box.x + pad.l, box.y + box.h - pad.b, box.x + box.w - pad.r, box.y + box.h - pad.b, o.axis, 1) + line(box.x + pad.l, box.y + pad.t, box.x + pad.l, box.y + box.h - pad.b, o.axis, 1);
+  s += line(mx, box.y + pad.t, mx, box.y + box.h - pad.b, o.axis, 1, { dash: '4 4' }) + line(box.x + pad.l, my, box.x + box.w - pad.r, my, o.axis, 1, { dash: '4 4' });
+  for (let v = Math.ceil(x0); v <= x1; v += 1) s += t(px(v), box.y + box.h - 18, String(v), { size: 12, fill: o.muted, bg: o.bg, anchor: 'middle', font: o.font, ctx: 'tick' });
+  for (let v = Math.ceil(y0); v <= y1; v += 1) s += t(box.x + pad.l - 6, py(v) + 4, String(v), { size: 12, fill: o.muted, bg: o.bg, anchor: 'end', font: o.font, ctx: 'tick' });
+  pts.forEach((p) => { s += `<circle data-uc="${p.id}" cx="${px(p.x)}" cy="${py(p.y)}" r="7" fill="${p.color}" fill-opacity="0.9" stroke="${o.bg}" stroke-width="1.5"/>`; });
+  s += t(box.x + box.w - pad.r - 6, box.y + pad.t + 16, LB('Do first'), { size: 12, weight: 700, fill: o.quadInk, bg: o.quadFill, anchor: 'end', font: o.font, ctx: 'quad' });
+  s += t(box.x + box.w - pad.r, box.y + box.h - 2, LB(o.xLabel), { size: 12, fill: o.muted, bg: o.bg, anchor: 'end', font: o.font, ctx: 'axis' });
+  s += t(box.x + 2, box.y + 12, LB(o.yLabel), { size: 12, fill: o.muted, bg: o.bg, font: o.font, ctx: 'axis' });
+  return s;
+}
+
+export function posterInfographic(m, th, { W = 794 } = {}, { id, fonts }, views = []) {
+  const P = paletteOf(id, th);
+  const body = fonts.body; const display = fonts.display || fonts.body;
+  const kindHead = /serif|Georgia|Didot|Fraunces/i.test(display) && !/sans/i.test(display) ? 'serif' : 'sans';
+  const CW = W - 2 * PAD;
+  const ucs = m.pageUseCases;
+  const cur = m.total.currency || 'USD';
+  const showScore = has(m, 'inspire_score');
+  const names = [...new Set(ucs.map((u) => u.domain))];
+  const colorOf = domainColors(names, P);
+  const byView = new Map((views || []).map((v) => [v.id, v]));
+  let s = ''; let y = 0;
+
+  // ---- hero: the strategic title on the deck's dark colour, with rings ----
+  const heroBg = P.rings || P.chips ? P.coverBg : P.accent; const heroInk = bestInk(heroBg); const heroMuted = mix(heroInk, heroBg, 0.22);
+  const hero = (yy) => T(PAD, yy, TITLE, { size: 34, weight: 700, fill: heroInk, bg: heroBg, font: display, kind: kindHead, maxW: CW - 40, lh: 40, ctx: 'title' });
+  const ttl = hero(0); const hh = 84 + ttl.h + 70;
+  s += rect(0, 0, W, hh, heroBg);
+  [[W - 70, 60, 120], [W - 70, 60, 84], [W - 130, hh - 10, 56]].forEach(([cx, cy, r]) => { s += circle(cx, cy, r, 'none', { stroke: heroInk, sw: 1.4, sop: 0.2 }); });
+  s += circle(W - 44, 40, 16, P.warm, { op: 0.95 }) + circle(W - 120, hh - 56, 9, P.cats[2], { op: 0.9 }) + circle(W - 168, 84, 6, P.cats[1], { op: 0.9 });
+  s += t(PAD, 44, 'DATABRICKS INSPIRE AI', { size: 12, weight: 700, fill: heroMuted, bg: heroBg, ls: 2, font: body, ctx: 'brand' });
+  s += hero(94).svg;
+  s += t(PAD, 94 + ttl.h + 14, m.businessName || 'Inspire', { size: 18, weight: 700, fill: heroInk, bg: heroBg, font: display, kind: kindHead, ctx: 'business' });
+  const domainsN = names.length;
+  s += t(PAD, 94 + ttl.h + 40, LB(`${m.total.n} use cases | ${m.total.nWithValue} with a calculated value`), { size: 14, fill: heroMuted, bg: heroBg, font: body, ctx: 'subtitle' });
+  s += rect(0, hh - 6, W / 4, 6, P.cats[0]) + rect(W / 4, hh - 6, W / 4, 6, P.cats[1]) + rect(W / 2, hh - 6, W / 4, 6, P.cats[2]) + rect(3 * W / 4, hh - 6, W / 4, 6, P.cats[3]);
+  y = hh + 22;
+
+  // ---- KPI band: four solid colour tiles ----
+  const techniques = [...new Set(ucs.map((u) => u.technique).filter(Boolean))];
+  const scored = ucs.filter((u) => Number.isFinite(u.score)).sort((a, b) => b.score - a.score);
+  const kpis = [[String(m.total.n), 'Use cases', 'layers'], [String(domainsN), 'Domains', 'compass']];
+  if (techniques.length) kpis.push([String(techniques.length), 'Analytics techniques', 'sparkles']);
+  if (m.total.nWithValue) kpis.push([m.total.text, 'Total value', 'wallet']); else if (showScore && scored.length) kpis.push([scored[0].score.toFixed(1), 'Top Inspire score', 'star']);
+  const gap = 12; const kw = (CW - (kpis.length - 1) * gap) / kpis.length; const kh = 96;
+  kpis.forEach(([v, l, ic], i) => {
+    const x = PAD + i * (kw + gap); const c = P.cats[i % P.cats.length]; const ink = bestInk(c);
+    s += rect(x, y, kw, kh, c, { rx: 14 }) + circle(x + kw - 18, y + 4, 38, ink, { op: 0.12 });
+    s += icon(ic, x + 14, y + 12, 22, ink, 2);
+    s += t(x + 14, y + 66, v, { size: Math.max(16, Math.min(30, Math.floor((kw - 28) / (String(v).length * 0.62)))), weight: 700, fill: ink, bg: c, font: display, kind: kindHead, ctx: 'kpi' });
+    s += t(x + 14, y + 86, l, { size: 12, fill: ink, bg: c, font: body, ctx: 'kpi label' });
+  });
+  y += kh + 22;
+  s += '<!--cut:' + Math.round(y - 11) + '-->';
+
+  // A panel: card, a colour bar on top, a heading with a dot. Returns the inner top.
+  const panelBg = P.card;
+  const panel = (x, yy, w, h, label, c) => rect(x, yy, w, h, P.card, { rx: 14, stroke: P.rule }) + rect(x, yy, w, 6, c, { rx: 3 })
+    + circle(x + 24, yy + 30, 6, c) + t(x + 38, yy + 35, label, { size: 16, weight: 700, fill: P.ink, bg: panelBg, font: display, kind: kindHead, ctx: 'heading' });
+
+  // ---- chart 1: use cases by domain, every domain named, in its colour ----
+  {
+    const parts = names.map((n) => {
+      const mine = ucs.filter((u) => u.domain === n); const val = mine.reduce((a, u) => a + (u.value && u.value.currency === cur && u.value.amount > 0 ? u.value.amount : 0), 0);
+      return { label: n, value: mine.length, text: val > 0 ? `${mine.length} | ${money(val, cur)}` : String(mine.length) };
+    }).sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
+    const bars = hbars(parts, { x: PAD + 20, y: y + 54, w: CW - 40 }, { rowH: 30, barH: 14, labelW: 250, valueW: 96, track: P.track, fill: (i, r) => colorOf.get(r.label), ink: P.ink, muted: P.muted, bg: panelBg, rx: 7, size: 13, font: body });
+    const ph = 54 + bars.h + 16;
+    s += panel(PAD, y, CW, ph, LB('Use cases by domain'), P.cats[0]) + chart('domain-bars', bars.svg);
+    y += ph + 18; s += '<!--cut:' + Math.round(y - 9) + '-->';
+  }
+
+  // ---- row: quality mix donut + priority against readiness ----
+  const half = (CW - 18) / 2; const inner = half - 36;
+  const pts = ucs.map((u) => ({ id: u.id, x: Number.isFinite(u.priorityScore) ? u.priorityScore : u.score, y: readiness(u, byView.get(u.id)), color: colorOf.get(u.domain) })).filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+  const qCounts = new Map(); for (const u of ucs) if (u.quality) qCounts.set(u.quality, (qCounts.get(u.quality) || 0) + 1);
+  const qParts = [...qCounts.entries()].map(([name, n]) => ({ name, value: n, color: qualityTone(name) })).sort((a, b) => b.value - a.value);
+  const showMatrix = pts.length >= 3; const showQ = qParts.length >= 1;
+  if (showQ || showMatrix) {
+    const ch = 230; const ph = 54 + ch + 16; const wQ = showMatrix ? half : CW; const xM = PAD + (showQ ? half + 18 : 0); const wM = showQ ? half : CW;
+    if (showQ) {
+      s += panel(PAD, y, wQ, ph, LB('Quality mix'), P.cats[1]);
+      const r1 = 84; const r0 = 52; const cx = PAD + 20 + r1; const cy = y + 54 + 20 + r1;
+      const ring = donut(qParts, cx, cy, r0, r1, { bg: panelBg, ink: P.ink, muted: P.muted, font: body, displayFont: display, centerTop: String(m.total.n), centerBottom: LB('use cases'), centerSize: 26 });
+      const lg = legend(qParts.map((p) => ({ name: p.name, color: p.color, text: String(p.value) })), cx + r1 + 26, cy - (qParts.length * 26) / 2 + 12, { rowH: 26, size: 13, ink: P.ink, bg: panelBg, font: body, w: wQ - 20 - (r1 * 2 + 46) - 14 + 0 });
+      s += chart('quality-donut', ring + lg);
+    }
+    if (showMatrix) {
+      s += panel(xM, y, wM, ph, LB('Priority against readiness'), P.cats[2]);
+      s += chart('priority-matrix', matrix(pts, { x: xM + 14, y: y + 48, w: wM - 28, h: ch - 4 }, { axis: P.rule, muted: P.muted, bg: panelBg, font: body, quadFill: mix(P.cats[0], P.card, 0.86), quadInk: P.ink, xLabel: 'Priority score', yLabel: 'Readiness' }));
+    }
+    y += ph + 18; s += '<!--cut:' + Math.round(y - 9) + '-->';
+  }
+
+  // ---- row: top opportunities + techniques treemap ----
+  {
+    const valued = ucs.filter((u) => u.value && u.value.currency === cur && u.value.amount > 0);
+    const top = (valued.length >= 3 ? [...valued].sort((a, b) => b.value.amount - a.value.amount) : scored).slice(0, 8);
+    const techCounts = new Map(); for (const u of ucs) if (u.technique) techCounts.set(u.technique, (techCounts.get(u.technique) || 0) + 1);
+    const showTop = top.length > 0; const showTech = techCounts.size >= 3;
+    if (showTop || showTech) {
+      const rows = top.map((u) => ({ label: u.name, value: valued.length >= 3 ? u.value.amount : u.score, text: valued.length >= 3 ? money(u.value.amount, cur) : u.score.toFixed(1) }));
+      if (showTop) {
+        const bars = hbars(rows, { x: PAD + 20, y: y + 54, w: CW - 40 }, { rowH: 30, barH: 14, labelW: 300, valueW: 80, track: P.track, fill: (i) => colorOf.get(top[i].domain), ink: P.ink, muted: P.muted, bg: panelBg, rx: 7, size: 13, font: body });
+        const ph = 54 + bars.h + 16;
+        s += panel(PAD, y, CW, ph, LB(valued.length >= 3 ? 'Top use cases by value' : 'Top use cases'), P.cats[3]) + chart('top-opportunities', bars.svg);
+        y += ph + 18; s += '<!--cut:' + Math.round(y - 9) + '-->';
+      }
+      if (showTech) {
+        const ph = 54 + 300 + 14;
+        s += panel(PAD, y, CW, ph, LB('Analytics techniques'), P.cats[4]);
+        const pool = [P.cats[0], P.cats[1], P.cats[2], P.cats[3], P.cats[4], '#D9922E', '#9B2C3B', '#2F6DB5'];
+        const items = [...techCounts.entries()].map(([name, n], i) => ({ name, value: n, text: String(n), color: pool[i % pool.length] }));
+        const cells = treemap(items, { x: PAD + 14, y: y + 50, w: CW - 28, h: 300 });
+        let tm = '';
+        cells.forEach((c) => {
+          const ink = bestInk(c.color); const w = c.w - 4; const h = c.h - 4;
+          tm += rect(c.x + 2, c.y + 2, w, h, c.color, { rx: 8 });
+          if (w > 56 && h > 30) tm += T(c.x + 10, c.y + 20, c.name, { size: 12, weight: 700, fill: ink, bg: c.color, maxW: w - 16, lh: 14, font: body, ctx: 'treemap name' }).svg;
+        });
+        s += chart('technique-treemap', tm);
+        y += ph + 18; s += '<!--cut:' + Math.round(y - 9) + '-->';
+      }
+    }
+  }
+
+  // ---- band that leads into the use case tiles, then the footnote ----
+  s += rect(PAD, y, CW, 38, P.cats[0], { rx: 10 }) + rect(PAD, y, 8, 38, P.cats[1], {}) + t(PAD + 24, y + 25, LB('Every use case at a glance'), { size: 16, weight: 700, fill: bestInk(P.cats[0]), bg: P.cats[0], font: display, kind: kindHead, ctx: 'band' });
+  y += 56;
+  if (has(m, 'disclaimer')) {
+    const d = T(PAD, y + 4, LB(FOOT), { size: 12, fill: P.muted, bg: P.page, font: body, maxW: CW, lh: 16, ctx: 'disclaimer' });
+    s += `<g data-block="disclaimer">${d.svg}</g>`; y += d.h + 12;
+  }
+  const H = Math.ceil(y + 10);
   return svgDoc(W, H, rect(0, 0, W, H, P.page) + s, body);
 }

@@ -2,14 +2,32 @@
 // No table, filter, SQL, notebook path or foundation is ever drawn here. Pure SVG strings; works for the design and the older themes alike.
 import { esc, wrap, textW, mix } from './core.js';
 
+// C27 (REQ-564): one colour per domain, shared by the infographic charts and the tiles: the design's own colours first, then the deck's amber, wine, blue and purple.
+const EXTRA = ['#D9922E', '#9B2C3B', '#2F6DB5', '#7B52C9', '#C9A24B', '#1F9D55'];
+export function domainColors(names, pal) {
+  const base = [...new Set([...(pal.cats || [pal.accent]), ...EXTRA])];
+  const sorted = [...new Set(names.filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b)));
+  return new Map(sorted.map((n, i) => [n, base[i % base.length]]));
+}
+// Quality tiers from the deck: darker teal for higher quality, then green, amber, coral.
+const TONES = { 'Ultra High': '#0B4642', 'Very High': '#0F5E5A', High: '#1F9D55', Medium: '#D9922E', Low: '#E2725B', 'Very Low': '#D1495B', 'Ultra Low': '#9B2C3B' };
+export const qualityTone = (q) => TONES[q] || '#9AA4AC';
+// Readiness of a use case on a 0-10 scale: its feasibility, else the quality score of its card view (out of 5, doubled).
+export function readiness(u, view) {
+  if (Number.isFinite(u?.feasibility)) return u.feasibility;
+  const q = (view?.metrics || []).find((mm) => mm[0] === 'quality_score_header');
+  const n = q ? parseFloat(String(q[2])) : NaN;
+  return Number.isFinite(n) ? n * 2 : NaN;
+}
+
 // C26 (REQ-563): each use case is a one-glance card at two per A4 row: rank and name, domain, the value as the hero, chips for quality and score,
 // then the side panel business fields as short labelled blocks (12-13px, bold uppercase labels, space between blocks).
 const PAD = 40; const GAP = 20; const IN = 18;
 const TITLE = 17; const HERO = 26; const SMALL = 12; const BODY = 13; const BLH = 18; const SLH = 16; const BLOCK = 12;
 
 // The tile of one use case: its height for a width, and a drawing function for a position and a row height.
-function tile(v, pal, cw, rtl) {
-  const inW = cw - 2 * IN; const ops = []; let y = IN;
+function tile(v, pal, cw, rtl, color) {
+  const inW = cw - 2 * IN; const ops = []; let y = IN + 6;
   const anchor = rtl ? 'end' : 'start';
   const tx = (x) => (rtl ? x + cw - IN : x + IN);
   const text = (lines, o, lh) => {
@@ -47,7 +65,7 @@ function tile(v, pal, cw, rtl) {
     for (const [c, px, r, w] of place) {
       ops.push((x, yt) => {
         const rx = rtl ? x + cw - IN - px - w : x + IN + px; const ry = yt + y0 + r * (CH + 6);
-        return `<rect x="${rx}" y="${ry}" width="${w}" height="${CH}" rx="12" fill="${mix(pal.accent, pal.card, 0.82)}"/><text x="${rx + w / 2}" y="${ry + 16}" font-size="${SMALL}" fill="${pal.ink}" text-anchor="middle"><tspan>${esc(c)}</tspan></text>`;
+        return `<rect x="${rx}" y="${ry}" width="${w}" height="${CH}" rx="12" fill="${mix(color, pal.card, 0.8)}"/><text x="${rx + w / 2}" y="${ry + 16}" font-size="${SMALL}" fill="${pal.ink}" text-anchor="middle"><tspan>${esc(c)}</tspan></text>`;
       });
     }
     y += (row + 1) * (CH + 6) - 6;
@@ -76,7 +94,7 @@ function tile(v, pal, cw, rtl) {
   }
   const h = Math.ceil(y - BLOCK + IN);
   const title = `${v.rank}. ${v.title}`;
-  return { id: v.id, h, draw: (x, y0, rowH) => `<rect x="${x}" y="${y0}" width="${cw}" height="${rowH}" rx="12" fill="${pal.card}"/><title>${esc(title)}</title>${ops.map((f) => f(x, y0, rowH)).join('')}` };
+  return { id: v.id, h, draw: (x, y0, rowH) => `<rect x="${x}" y="${y0}" width="${cw}" height="${rowH}" rx="12" fill="${color}"/><rect x="${x}" y="${y0 + 6}" width="${cw}" height="${rowH - 6}" rx="12" fill="${pal.card}"/><title>${esc(title)}</title>${ops.map((f) => f(x, y0, rowH)).join('')}` };
 }
 
 const A4_H = 1123;
@@ -90,10 +108,11 @@ export function withPanelTiles(svg, views, pal, { rtl = false } = {}) {
   const W = Number(/ width="(\d+)"/.exec(head || '')?.[1]); const H0 = Number(/ height="(\d+)"/.exec(head || '')?.[1]);
   if (!head || !W || !H0) return svg;
   const colN = W >= 1000 ? 3 : 2;
+  const colorOf = domainColors(views.map((v) => v.domain), pal);
   const cw = (W - 2 * PAD - (colN - 1) * GAP) / colN;
   const rows = [];
   for (let i = 0; i < views.length; i += colN) {
-    const row = views.slice(i, i + colN).map((v) => tile(v, pal, cw, rtl));
+    const row = views.slice(i, i + colN).map((v) => tile(v, pal, cw, rtl, colorOf.get(v.domain) || pal.accent));
     rows.push({ tiles: row, h: Math.max(...row.map((t) => t.h)) });
   }
   let y = H0 + 10; let body = `<!--cut:${y}-->`;
