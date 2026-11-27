@@ -2,10 +2,11 @@
 // The PowerPoint, Excel and PDF writers load here with import(), only when a person generates, so the main bundle does not carry them.
 import { buildDocModel } from './docgen/docModel.js';
 import { infographicSvg } from './docgen/docSvg.js';
-import { buildAgentPdf } from './docgen/agentPdf.js';
+import { buildAgentPdf, PDF_RASTER } from './docgen/agentPdf.js';
 import { splitInfographic } from './docgen/designs/panelTiles.js';
 import { agentLabelTexts, buildAgentModel } from './docgen/agentModel.js';
 import { resolveTheme } from './docgen/docStyles.js';
+import { storyTexts } from './docgen/storyParts.js';
 import { trackingIdOf } from './useCaseFields.js';
 import { summaryOf } from './docgen/docModel.js';
 import { orderedColumns } from './docgen/docOptions.js';
@@ -20,7 +21,7 @@ export function toBase64(bytes) {
 }
 
 // An SVG string drawn to a PNG: the width and height are the SVG's own.
-export async function svgToPng(svg, scale = 1) {
+export async function svgToPng(svg, scale = 1, { type = 'image/png', quality } = {}) {
   const [, w, h] = /width="(\d+)" height="(\d+)"/.exec(svg) || [];
   const natural = { w: Number(w) || 1200, h: Number(h) || 800 };
   const width = Math.round(natural.w * scale); const height = Math.round(natural.h * scale);
@@ -30,17 +31,21 @@ export async function svgToPng(svg, scale = 1) {
   await loaded;
   const canvas = document.createElement('canvas');
   canvas.width = width; canvas.height = height;
-  canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-  const dataUrl = canvas.toDataURL('image/png');
-  return { dataUrl, width, height, bytes: Uint8Array.from(atob(dataUrl.split(',')[1]), (c) => c.charCodeAt(0)) };
+  const ctx = canvas.getContext('2d');
+  if (type !== 'image/png') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, height); } // JPEG has no transparency
+  ctx.drawImage(img, 0, 0, width, height);
+  const dataUrl = canvas.toDataURL(type, quality);
+  return { dataUrl, type, width, height, bytes: Uint8Array.from(atob(dataUrl.split(',')[1]), (c) => c.charCodeAt(0)) };
 }
 
 // The texts a second language needs: per use case, its name, statement, solution and value story.
-export const textsToTranslate = (useCases, values, summary = []) => {
+export const textsToTranslate = (useCases, values, summary = [], businessName = '') => {
   const texts = {};
   summaryOf(summary).forEach((p, i) => { texts[`summary|${i}`] = p; });
   Object.assign(texts, labelTexts()); // RC6-B-11: the fixed labels of every document are translated with the data, never printed in English
   Object.assign(texts, agentLabelTexts()); // C25 (REQ-559): the agent PDF's labels, under agent|<key>
+  // C28 (REQ-564): the story pages (executive summary, purpose, domains list) are built from the data once and translated under story|<part>|<key>.
+  Object.assign(texts, storyTexts(buildAgentModel({ businessName, useCases, values, summary })));
   for (const uc of useCases) {
     const id = trackingIdOf(uc);
     const m = buildDocModel({ useCases: [uc], values, options: {} }).useCases[0];
@@ -64,21 +69,22 @@ export function modelFor({ businessName, useCases, values, options, language, id
   return m;
 }
 
+// REQ-561: a tile per use case with the panel's business fields. C26: one PDF page per chunk of at most three A4 pages.
+// C27: the pages are JPEG at the agent PDF's settings (PDF_RASTER), so the file stays small enough for /api/inspire/docs/save.
+export async function infographicPdf(m, theme, agent, rasterize) {
+  const pages = [];
+  for (const svg of splitInfographic(infographicSvg(m, theme, buildAgentModel(agent).ranked))) pages.push(await rasterize(svg, PDF_RASTER.scale, { type: PDF_RASTER.type, quality: PDF_RASTER.quality }));
+  const { pdfFromImages } = await import('./docgen/pdfDoc.js');
+  return pdfFromImages(pages);
+}
+
 async function makeFile(file, m, theme, options, agent) {
-  const scale = theme.design ? 2 : 1; // REQ-526: the A4 design pages (794x1123) are drawn at twice the size so the PDF text stays sharp
-  if (file.kind === 'infographic') {
-    // REQ-561: a tile per use case with the panel's business fields. C26: one PDF page per chunk of at most three A4 pages.
-    const pngs = [];
-    const tall = infographicSvg(m, theme, buildAgentModel(agent).ranked);
-    for (const svg of splitInfographic(tall)) pngs.push(await svgToPng(svg, scale));
-    const { pdfFromImages } = await import('./docgen/pdfDoc.js');
-    return pdfFromImages(pngs);
-  }
+  if (file.kind === 'infographic') return infographicPdf(m, theme, agent, svgToPng);
   if (file.kind === 'pdf') {
     // C25 (REQ-559): the PDF is the agent's catalog PDF plus value, in every style (the style still shapes the other kinds).
     return buildAgentPdf(agent, svgToPng);
   }
-  if (file.kind === 'docx') { const { buildDocx } = await import('./docgen/docxDoc.js'); return buildDocx(m, theme); }
+  if (file.kind === 'docx') { const { buildDocx } = await import('./docgen/docxDoc.js'); return buildDocx(m, theme, { chartPng: async (svg) => (await svgToPng(svg, 2)).bytes, views: buildAgentModel(agent).ranked }); }
   if (file.kind === 'pptx') { const { buildAgentPptx } = await import('./docgen/agentPptx.js'); return buildAgentPptx(agent); } // C25 (REQ-559): the agent's deck plus value
   const { buildXlsx } = await import('./docgen/xlsxDoc.js');
   return toBytes(await buildXlsx(m, orderedColumns(options.columns), theme));
@@ -97,7 +103,7 @@ export async function generateDocs({ plan, options, useCases, values, businessNa
     let translated = null;
     if (language !== 'English') {
       try {
-        const res = await post('/api/inspire/docs/translate', { ...where, language, texts: textsToTranslate(useCases, values, summary) });
+        const res = await post('/api/inspire/docs/translate', { ...where, language, texts: textsToTranslate(useCases, values, summary, businessName) });
         translated = res?.texts || {};
       } catch (e) {
         files.forEach((f) => onFile(f.name, 'failed', e?.message || 'The translation failed.'));

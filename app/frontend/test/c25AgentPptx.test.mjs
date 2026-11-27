@@ -69,15 +69,16 @@ async function slidesOf(bytes) {
 
 const bytes = await buildAgentPptx(ARGS);
 const slides = await slidesOf(bytes);
-const ucSlides = (id) => slides.filter((s) => (s.kind === 'uc_card' || s.kind === 'uc_value') && s.key === id);
+// REQ-563 (c27): a use case no longer repeats its header and value line over three slides: card, then (valued) the value story; an overflow slide only when the card has spill.
+const ucSlides = (id) => slides.filter((s) => (s.kind === 'uc_card' || s.kind === 'uc_value' || s.kind === 'uc_story') && s.key === id);
 const hasLabel = (s, label) => s.runs.some((r) => r.trim().replace(/:$/, '').toLowerCase() === label.toLowerCase());
 
 test('(a) the slide sequence is the agent deck order, with the value slide after the last domain and before the index', () => {
   assert.ok(bytes instanceof Uint8Array && bytes.length > 1000, 'a pptx file');
   const seq = slides.map((s) => (s.key ? `${s.kind}:${s.key}` : s.kind));
   assert.deepEqual(seq, ['cover', 'contents', 'summary', 'guide', 'portfolio', 'top_index',
-    'domain:1', 'uc_card:N01-U01', 'uc_value:N01-U01', 'uc_story:N01-U01', 'uc_card:N01-U02', 'uc_value:N01-U02', 'uc_story:N01-U02',
-    'domain:2', 'uc_card:N02-U01', 'uc_value:N02-U01', 'uc_story:N02-U01', 'uc_card:N02-U02', 'uc_value:N02-U02',
+    'domain:1', 'uc_card:N01-U01', 'uc_story:N01-U01', 'uc_card:N01-U02', 'uc_story:N01-U02',
+    'domain:2', 'uc_card:N02-U01', 'uc_story:N02-U01', 'uc_card:N02-U02', 'uc_value:N02-U02', // the unvalued use case's card spills one overflow slide
     'value', 'index', 'methodology', 'glossary', 'foundations', 'roadmap', 'disclaimer', 'closing']);
   assert.ok(slides[0].text.includes('Acme') && slides[0].text.includes('Strategic AI Use Cases Powered by Databricks AI'), 'the cover');
   assert.ok(slides.find((s) => s.kind === 'summary').text.includes(SUMMARY[0]), 'the executive summary');
@@ -92,10 +93,10 @@ test('(a) the slide sequence is the agent deck order, with the value slide after
   assert.ok(outline.every((s) => typeof s.title === 'string' && s.title.trim()), 'every slide has a title for the View');
 });
 
-test('(b) the use case slides carry every label of the old uc_card and uc_value slides, the ribbons and the notebook button', () => {
+test('(b) the use case slides (card and story together) carry every label of the old uc_card and uc_value slides, the ribbons and the notebook button', () => {
   for (const uc of UCS) {
     const pair = ucSlides(uc.No);
-    assert.equal(pair.length, 2, `${uc.No} has a card and a value slide`);
+    assert.deepEqual(pair.map((s) => s.kind), VALUES[uc.No] ? ['uc_card', 'uc_story'] : ['uc_card', 'uc_value'], `${uc.No} has its card and ${VALUES[uc.No] ? 'its story slide' : 'one overflow slide (no value, no story)'}`);
     for (const label of OLD_UC_CARD_LABELS) assert.ok(pair.some((s) => hasLabel(s, label)), `${uc.No} shows the label ${label}`);
     const card = pair[0].text;
     assert.ok(card.includes(uc.Name) && card.includes(uc.Statement) && card.includes(uc['Business Value']), `${uc.No} prints its title and text`);
@@ -107,16 +108,23 @@ test('(b) the use case slides carry every label of the old uc_card and uc_value 
   assert.ok(cover.includes('no use case above the bar') && !cover.includes('Meets your quality bar'), 'coverage ribbon, not meeting the bar');
 });
 
-test('(c) each use case slide shows the value a year with its basis and, for an estimate, the estimate note', () => {
+test('(c) the story slide of a valued use case shows the value a year with its basis and, for an estimate, the estimate note; the card does not repeat the value line', () => {
   for (const uc of UCS) {
     const v = VALUES[uc.No];
-    for (const s of ucSlides(uc.No)) {
-      assert.ok(hasLabel(s, 'Value at stake per year'), `${uc.No} ${s.kind} has the value block`);
-      if (v) {
-        assert.ok(s.text.includes(moneyText(v.currency, v.amount)), `${uc.No} ${s.kind} shows ${moneyText(v.currency, v.amount)}`);
-        assert.ok(hasLabel(s, 'Basis'), `${uc.No} ${s.kind} shows its basis`);
-        assert.equal(hasLabel(s, 'Estimate note'), v.status === 'estimated', `${uc.No} ${s.kind} shows the estimate note only for an estimate`);
-      } else assert.ok(s.text.includes('Value not calculated yet'), `${uc.No} ${s.kind} says it has no value`);
+    const [card, ...rest] = ucSlides(uc.No);
+    if (v) {
+      assert.equal(rest.length, 1, `${uc.No} has one story slide`);
+      const s = rest[0];
+      assert.equal(s.kind, 'uc_story', `${uc.No} second slide is the story`);
+      assert.ok(hasLabel(s, 'Value at stake per year'), `${uc.No} story has the value block`);
+      assert.ok(s.text.includes(moneyText(v.currency, v.amount)), `${uc.No} story shows ${moneyText(v.currency, v.amount)}`);
+      assert.ok(hasLabel(s, 'Basis'), `${uc.No} story shows its basis`);
+      assert.equal(hasLabel(s, 'Estimate note'), v.status === 'estimated', `${uc.No} story shows the estimate note only for an estimate`);
+      assert.ok(!hasLabel(card, 'Value at stake per year') && !card.text.includes(moneyText(v.currency, v.amount)), `${uc.No} card does not repeat the value line`);
+    } else {
+      assert.ok(!rest.some((x) => x.kind === 'uc_story'), `${uc.No} has no story slide`);
+      // The card no longer prints a value line; "Value not calculated yet" is on the one value slide, locked in (d).
+      assert.ok(![card, ...rest].some((x) => hasLabel(x, 'Value at stake per year')), `${uc.No} prints no value block on its own slides`);
     }
   }
 });

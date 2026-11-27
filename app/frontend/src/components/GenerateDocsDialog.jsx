@@ -5,6 +5,7 @@ import { ColumnsPage, DocsHeader, DocumentsPage, IncludePage, LayoutPage, Review
 import { defaultDocOptions, planFiles } from '../lib/docgen/docOptions.js';
 import { buildDocModel } from '../lib/docgen/docModel.js';
 import { infographicSvg } from '../lib/docgen/docSvg.js';
+import { buildAgentModel } from '../lib/docgen/agentModel.js';
 import { DOC_STYLES, resolveTheme } from '../lib/docgen/docStyles.js';
 import { useDocsRun } from '../lib/docsRun.jsx';
 import { trackingIdOf } from '../lib/useCaseFields.js';
@@ -30,15 +31,17 @@ export default function GenerateDocsDialog({ useCases, values, businessName, sum
   const svg = useMemo(() => {
     if (pageId !== 'style') return '';
     const m = buildDocModel({ businessName, useCases, values, options });
-    return infographicSvg(m, resolveTheme(options.style, options.palette, options.customColor, options.theme));
-  }, [pageId, businessName, useCases, values, options]);
+    const views = buildAgentModel({ businessName, useCases, values, summary, foundations }).ranked; // the use case views, as generateDocs draws the file
+    return infographicSvg(m, resolveTheme(options.style, options.palette, options.customColor, options.theme), views);
+  }, [pageId, businessName, useCases, values, summary, foundations, options]);
 
   // REQ-526: one thumbnail per design, drawn from the same model, theme mode and colour as the preview.
   const thumbs = useMemo(() => {
     if (pageId !== 'style') return {};
     const m = buildDocModel({ businessName, useCases, values, options });
-    return Object.fromEntries(DOC_STYLES.filter((s) => s.design).map((s) => [s.id, infographicSvg(m, resolveTheme(s.id, options.palette, options.customColor, options.theme))]));
-  }, [pageId, businessName, useCases, values, options]);
+    const views = buildAgentModel({ businessName, useCases, values, summary, foundations }).ranked;
+    return Object.fromEntries(DOC_STYLES.filter((s) => s.design).map((s) => [s.id, infographicSvg(m, resolveTheme(s.id, options.palette, options.customColor, options.theme), views)]));
+  }, [pageId, businessName, useCases, values, summary, foundations, options]);
 
   const names = useCases.map((uc) => String(uc.Name || uc.name || uc.use_case || trackingIdOf(uc)));
 

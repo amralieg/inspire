@@ -23,7 +23,9 @@ test('M1: totals equal the sum of the real values and use the App money text', (
   assert.equal(m.total.text, moneyText('USD', sum));
   assert.equal(m.total.n, UCS.length);
   assert.equal(m.total.nWithValue, VALUED.length);
-  assert.equal(m.total.nDomains, m.domains.length);
+  // C27 (REQ-563): every kind counts the document's domains the same way (all use cases, as the Word brief); the value charts place only valued domains.
+  assert.equal(m.total.nDomains, new Set(UCS.map((u) => u.Domain || u.domain).filter(Boolean)).size);
+  assert.ok(m.domains.length <= m.total.nDomains);
   assert.equal(m.domains.reduce((s, d) => s + d.value, 0), sum);
   assert.equal(m.verbs.reduce((s, v) => s + v.value, 0), sum);
 });

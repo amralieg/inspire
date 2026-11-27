@@ -107,7 +107,7 @@ test('(b) PDF: the card carries every business section and no technical field; a
   assert.ok(pages.every((p) => p.used <= p.room), 'no page overflows');
 });
 
-test('(c) PPTX: the card slide carries every business section and no technical field; the story slide follows the valued card', async () => {
+test('(c) PPTX: the use case slides carry every business section exactly once and no technical field; the story slide follows the valued card', async () => {
   const zip = await JSZip.loadAsync(await buildAgentPptx(ARGS));
   const n = Object.keys(zip.files).filter((f) => /^ppt\/slides\/slide\d+\.xml$/.test(f)).length;
   const slides = [];
@@ -119,7 +119,13 @@ test('(c) PPTX: the card slide carries every business section and no technical f
   }
   const ucKinds = new Set(['uc_card', 'uc_value', 'uc_story']);
   const mine = slides.map((s, i) => ({ ...s, i })).filter((s) => ucKinds.has(s.kind) && s.key === 'P01-U01');
-  checkBusiness(mine.filter((s) => s.kind !== 'uc_story').map((s) => s.text).join(' '), 'the PPTX card slides');
+  // REQ-563 (c27): a valued use case's own slides are its card and its story (the card's overflow moves to the story); each section is printed once across them.
+  const ownText = mine.map((s) => s.text).join(' ');
+  checkBusiness(ownText, 'the PPTX use case slides');
+  // The Strategy section cites two values that are also fields of their own ("Business priorities: <priority>", "Measured by: <kpi>"); those are printed exactly twice, every other text exactly once.
+  const CITED = [BIZ.priority, BIZ.kpi];
+  const counts = BUSINESS_TEXT.map((t) => `${t} x${ownText.split(t).length - 1}`);
+  assert.deepEqual(counts, BUSINESS_TEXT.map((t) => `${t} x${CITED.includes(t) ? 2 : 1}`), 'every business section is printed exactly once on the use case slides');
   checkNoTechnical(slides.filter((s) => ucKinds.has(s.kind)).map((s) => s.text).join(' '), 'the PPTX use case slides');
   const story = mine.filter((s) => s.kind === 'uc_story');
   assert.equal(story.length, 1, 'one story slide');
