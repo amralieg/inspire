@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { agentPdfPages } from '../src/lib/docgen/agentPdf.js';
 import { ARGS, ROWS, DOMAINS, IDS, flat, words, charts } from './c27x_fixture.mjs';
+import { sameUseCaseId } from '../../shared/useCaseId.mjs';
 
 const pages = agentPdfPages(ARGS);
 const all = pages.map((p) => p.svg).join('\n');
@@ -29,7 +30,7 @@ test('A3: a domains list page names every business domain', () => {
 
 test('A4: every use case has at least 2 charts, the chart types depend on the use case, 6+ types in all', () => {
   const list = charts(all);
-  const byUc = new Map(IDS.map((id) => [id, list.filter((c) => c.uc === id).map((c) => c.type)]));
+  const byUc = new Map(IDS.map((id) => [id, list.filter((c) => sameUseCaseId(c.uc, id)).map((c) => c.type)]));
   for (const [id, types] of byUc) assert.ok(types.length >= 2, `${id} has ${types.length} charts`);
   const first = new Map(IDS.map((id) => [id, byUc.get(id)[0]]));
   const tech = new Map(ROWS.map((r) => [String(r.No), String(r['Analytics Technique'])]));

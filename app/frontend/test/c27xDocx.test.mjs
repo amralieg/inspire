@@ -8,6 +8,7 @@ import { buildDocModel } from '../src/lib/docgen/docModel.js';
 import { defaultDocOptions } from '../src/lib/docgen/docOptions.js';
 import { resolveTheme } from '../src/lib/docgen/docStyles.js';
 import { ARGS, DOMAINS, IDS, flat, charts } from './c27x_fixture.mjs';
+import { sameUseCaseId } from '../../shared/useCaseId.mjs';
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 const seen = [];
@@ -41,7 +42,7 @@ test('B5: a chart picture per use case, 6+ chart types, from the shared chart co
   const media = Object.keys(zip.files).filter((f) => f.startsWith('word/media/'));
   assert.ok(media.length >= 1 && (xml.match(/<pic:pic/g) || []).length >= IDS.length, `pictures ${(xml.match(/<pic:pic/g) || []).length}`);
   const list = seen.flatMap(charts);
-  for (const id of IDS) assert.ok(list.some((c) => c.uc === id), `${id} has a chart`);
+  for (const id of IDS) assert.ok(list.some((c) => sameUseCaseId(c.uc, id)), `${id} has a chart`);
   assert.ok(new Set(list.map((c) => c.type)).size >= 6, `types ${[...new Set(list.map((c) => c.type))]}`);
 });
 test('B6: colorful (5+ distinct cell shadings)', () => {
