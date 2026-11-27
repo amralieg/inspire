@@ -773,6 +773,15 @@ components:
               type: array
               items:
                 type: object
+            use_case_titles:
+              type: array
+              description: The names of the first 30 use cases, in preview order, for the run search
+              items:
+                type: string
+            avg_inspire_score:
+              type: number
+              nullable: true
+              description: The average Inspire Score of the run's use cases, on the 0 to 10 scale the pages show
             unread:
               type: object
               description: For each of high, quality and domains that cannot be counted, the reason

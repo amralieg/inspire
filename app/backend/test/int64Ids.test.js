@@ -60,9 +60,10 @@ test('the Choose page overview names each 19-digit session exactly, so its count
   const bySid = Object.fromEntries(got.data.sessions.map((s) => [s.session_id, s.usecase_overview]));
   assert.deepEqual(got.data.sessions.map((s) => s.session_id), [MAX, HALF, '17']);
   const preview = (...names) => names.map((Name) => ({ Name, name_with_technique: null }));
-  assert.deepEqual(bySid[MAX], { total: 2, high: 1, meets: 2, below: 0, domains: 2, unread: {}, preview_use_cases: preview('Forecast demand by zone', 'Reduce churn') });
-  assert.deepEqual(bySid[HALF], { total: 1, high: 1, meets: 1, below: 0, domains: 1, unread: {}, preview_use_cases: preview('Price basket mix') });
-  assert.deepEqual(bySid['17'], { total: 0, high: 0, meets: 0, below: 0, domains: 0, unread: {}, preview_use_cases: [] }, 'a run with no use cases stays at zero');
+  assert.deepEqual(bySid[MAX], { total: 2, high: 1, meets: 2, below: 0, domains: 2, unread: {}, avg_inspire_score: null, preview_use_cases: preview('Forecast demand by zone', 'Reduce churn'),
+    use_case_titles: ['Forecast demand by zone', 'Reduce churn'] });
+  assert.deepEqual(bySid[HALF], { total: 1, high: 1, meets: 1, below: 0, domains: 1, unread: {}, avg_inspire_score: null, preview_use_cases: preview('Price basket mix'), use_case_titles: ['Price basket mix'] });
+  assert.deepEqual(bySid['17'], { total: 0, high: 0, meets: 0, below: 0, domains: 0, unread: {}, preview_use_cases: [], use_case_titles: [] }, 'a run with no use cases stays at zero');
   const asked = S.state.calls.filter((c) => c.statement.includes('__inspire_usecases'));
   assert.equal(asked.length, 2);
   for (const c of asked) assert.ok(c.statement.includes(`IN (${MAX},${HALF},17)`), c.statement);
@@ -156,7 +157,7 @@ test('a use case table that cannot be read gives every run the reason, and a tab
   S.reset({ sessionList: ONE_RUN, usecases: [] });
   S.state.conflictOn = (sql) => (sql.includes('__inspire_usecases') ? '[TABLE_OR_VIEW_NOT_FOUND] The table or view `__inspire_usecases` cannot be found.' : '');
   const fresh = (await S.request('GET', LIST, { person: 'reader@example.com' })).data.sessions[0].usecase_overview;
-  assert.deepEqual(fresh, { total: 0, high: 0, meets: 0, below: 0, domains: 0, unread: {}, preview_use_cases: [] });
+  assert.deepEqual(fresh, { total: 0, high: 0, meets: 0, below: 0, domains: 0, unread: {}, preview_use_cases: [], use_case_titles: [] });
 });
 
 test('cancelling a run with a 19-digit run id sends the exact id to the Jobs API', async () => {

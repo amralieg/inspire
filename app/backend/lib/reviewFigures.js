@@ -14,6 +14,7 @@ const {
 
 const SESSION_LIST_CAP = 20;
 const SESSION_PREVIEW_CAP = 4;
+const SESSION_TITLES_CAP = 30;
 const PORTFOLIO_RUN_CAP = 1000;
 const PORTFOLIO_TABLES = ['__inspire_session', '__inspire_usecases', IMPLEMENT_TABLE];
 const PORTFOLIO_ASSETS = [['apps', 'app'], ['dashboards', 'dashboard'], ['genie_spaces', 'genie_space'], ['alerts', 'alert']];
@@ -52,6 +53,9 @@ function overviewUnread(existing) {
     .map((figure) => [figure.key, figure.why]));
 }
 
+// REQ-575: the run's average Inspire score on the scale the pages show (0 to 10; the SQL score is halved for the 0 to 5 priority bands).
+const averageScoreSql = (has, unread) => (unread.high ? 'CAST(NULL AS DOUBLE) AS avg_inspire_score' : `CAST(2 * AVG(${inspireScoreSql(has)}) AS DOUBLE) AS avg_inspire_score`);
+
 function sessionOverviewStatement(table, sessionIds, existing = null) {
   const ids = sessionIds.filter((id) => /^\d+$/.test(String(id))).join(',');
   const has = (name) => !existing || existing.has(name);
@@ -63,7 +67,7 @@ function sessionOverviewStatement(table, sessionIds, existing = null) {
     return `CAST(SUM(CASE WHEN ${rules[key]} THEN 1 ELSE 0 END) AS INT) AS ${column}`;
   };
   return {
-    sql: `SELECT session_id, CAST(COUNT(*) AS INT) AS usecase_count, ${OVERVIEW_FIGURES.map(figure).join(', ')} `
+    sql: `SELECT session_id, CAST(COUNT(*) AS INT) AS usecase_count, ${OVERVIEW_FIGURES.map(figure).join(', ')}, ${averageScoreSql(has, unread)} `
       + `FROM ${table} WHERE session_id IN (${ids}) GROUP BY session_id`,
     parameters: null,
   };
@@ -93,7 +97,7 @@ const figureOrNull = (value) => (value == null ? null : whole(value));
 async function loadSessionOverviews(run, table, sessionIds) {
   let existing = null;
   let rows;
-  let previews = {};
+  let previews = { bySession: {}, titles: {} };
   try {
     try {
       rows = await run(sessionOverviewStatement(table, sessionIds));
@@ -125,9 +129,11 @@ async function loadSessionOverviews(run, table, sessionIds) {
       below: meets == null ? null : total - meets,
       domains: unread.domains ? null : figureOrNull(row.domain_count),
       unread,
+      avg_inspire_score: unread.high || row.avg_inspire_score == null || !Number.isFinite(Number(row.avg_inspire_score)) ? null : Number(row.avg_inspire_score),
     };
   }
-  return Object.fromEntries(sessionIds.map((sid) => [String(sid), { ...(bySession[String(sid)] || empty), preview_use_cases: previews[String(sid)] || [] }]));
+  return Object.fromEntries(sessionIds.map((sid) => [String(sid), { ...(bySession[String(sid)] || empty), preview_use_cases: previews.bySession[String(sid)] || [],
+    use_case_titles: previews.titles[String(sid)] || [] }]));
 }
 
 function sessionListCap(all) {
@@ -149,7 +155,7 @@ function sessionPreviewStatement(table, sessionIds, { withTechnique = true, byBa
     sql: 'SELECT session_id, Name, name_with_technique, rn FROM ('
       + `SELECT session_id, COALESCE(NULLIF(TRIM(use_case), ''), CONCAT('Use case ', CAST(id AS STRING))) AS Name, ${label}, `
       + `ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY ${order}) AS rn `
-      + `FROM ${table} WHERE session_id IN (${ids})) z WHERE z.rn <= ${SESSION_PREVIEW_CAP} ORDER BY session_id, rn`,
+      + `FROM ${table} WHERE session_id IN (${ids})) z WHERE z.rn <= ${SESSION_TITLES_CAP} ORDER BY session_id, rn`,
     parameters: null,
   };
 }
@@ -168,13 +174,16 @@ async function loadSessionPreviews(run, table, sessionIds, existing = null) {
     }
   }
   const bySession = {};
+  const titles = {};
   for (const row of rows) {
     const sid = int64Id(row.session_id);
     if (!sid) continue;
     const list = bySession[sid] || (bySession[sid] = []);
     if (row.Name && list.length < SESSION_PREVIEW_CAP) list.push({ Name: String(row.Name), name_with_technique: row.name_with_technique ? String(row.name_with_technique) : null });
+    // REQ-575: the run search reads the first SESSION_TITLES_CAP titles, in the same order as the preview.
+    if (row.Name) (titles[sid] || (titles[sid] = [])).push(String(row.Name));
   }
-  return bySession;
+  return { bySession, titles };
 }
 
 const barModeOf = (value) => (typeof value === 'string' && value.trim() ? value.trim() : null);

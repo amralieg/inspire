@@ -55,7 +55,7 @@ test('the run previews read the name with its technique next to the Name, and a 
   assert.match(fresh, /, name_with_technique, ROW_NUMBER/);
   assert.match(fresh, /AS Name/);
   assert.match(fresh, /session_id IN \(42,43\)/, 'only whole-number ids reach the SQL');
-  assert.match(fresh, /z\.rn <= 4/);
+  assert.match(fresh, /z\.rn <= 30/);
   const rows = [
     { session_id: '42', Name: 'Forecast stock', name_with_technique: 'Forecast stock using forecasting', rn: 1 },
     { session_id: '42', Name: 'Spot late suppliers', name_with_technique: '', rn: 2 },
@@ -68,8 +68,9 @@ test('the run previews read the name with its technique next to the Name, and a 
     return rows;
   }, UC, ['42', '43']);
   assert.equal(sent.length, 2);
-  assert.deepEqual(old['42'], [{ Name: 'Forecast stock', name_with_technique: 'Forecast stock using forecasting' }, { Name: 'Spot late suppliers', name_with_technique: null }]);
-  assert.deepEqual(old['43'].map((u) => u.Name), ['a', 'b', 'c']);
+  assert.deepEqual(old.bySession['42'], [{ Name: 'Forecast stock', name_with_technique: 'Forecast stock using forecasting' }, { Name: 'Spot late suppliers', name_with_technique: null }]);
+  assert.deepEqual(old.bySession['43'].map((u) => u.Name), ['a', 'b', 'c']);
+  assert.deepEqual(old.titles['43'], ['a', 'b', 'c'], 'the run search reads every title the statement returns');
   const once = [];
   await R.loadSessionPreviews(async (statement) => { once.push(statement.sql); return []; }, UC, ['42']);
   assert.equal(once.length, 1, 'a table with the column is read once');
@@ -301,4 +302,14 @@ test('the bar mode is read from the VARIANT results_json with the colon path, an
     if (statement.sql.includes('results_json')) throw new Error('[DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE] Cannot resolve "x" due to data type mismatch');
     return [];
   }, TABLE), /DATATYPE_MISMATCH/, 'the type error reaches the caller instead of being dropped');
+});
+
+test('REQ-575: the run overview reads the average Inspire score on the 0 to 10 scale the pages show, and none from a table that cannot work a score out', () => {
+  const UC = '`main`.`inspire`.`__inspire_usecases`';
+  const fresh = R.sessionOverviewStatement(UC, ['42']).sql;
+  assert.match(fresh, /CAST\(2 \* AVG\(COALESCE\(inspire_score, 0\.65 \* LEAST/);
+  assert.match(fresh, /AS avg_inspire_score/);
+  const bare = R.sessionOverviewStatement(UC, ['42'], new Set(['session_id', 'business_domain', 'elite_status'])).sql;
+  assert.match(bare, /CAST\(NULL AS DOUBLE\) AS avg_inspire_score/);
+  assert.doesNotMatch(bare, /AVG\(/);
 });
