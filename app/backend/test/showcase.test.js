@@ -126,7 +126,7 @@ test('a demo request gets the saved answer and never reaches the workspace route
     assert.equal(missing.status, 404);
     assert.equal(missing.data.error, S.SHOWCASE_MISSING);
     assert.equal(missing.data.showcase, true);
-    for (const [method, url] of [['POST', '/api/inspire/implement/submit'], ['POST', '/api/inspire/feedback'], ['DELETE', '/api/inspire/session?session_id=1001'], ['POST', '/api/run/5/cancel']]) {
+    for (const [method, url] of [['POST', '/api/inspire/implement/submit'], ['POST', '/api/inspire/feedback'], ['POST', '/api/inspire/docs/save'], ['DELETE', '/api/inspire/session?session_id=1001'], ['POST', '/api/run/5/cancel']]) {
       const refused = await call(srv.url, url, { method, body: method === 'POST' ? { session_id: '1001' } : undefined, headers: DEMO });
       assert.equal(refused.status, 403, `${method} ${url}`);
       assert.equal(refused.data.error, S.SHOWCASE_READ_ONLY);
