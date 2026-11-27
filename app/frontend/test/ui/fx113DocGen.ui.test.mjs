@@ -54,7 +54,7 @@ test('options: the 4 kinds, the content blocks and Excel columns from the wirefr
   const cols = EXCEL_COLUMNS.map((c) => c.id);
   for (const id of ['name', 'inspire_score', 'value', 'value_status', 'domain', 'statement', 'use_case_story', 'value_story', 'projection', 'tables']) assert.ok(cols.includes(id), id);
   const d = defaultDocOptions('Arabic');
-  assert.deepEqual(d.kinds, DOC_KINDS);
+  assert.deepEqual(d.kinds, ['infographic', 'pptx', 'pdf', 'xlsx']);
   assert.equal(d.layout, 'one');
   assert.deepEqual(d.languages, ['Arabic']);
   for (const id of ['use_case_story', 'value_story', 'value_projection', 'disclaimer']) assert.ok(d.blocks.includes(id), id);

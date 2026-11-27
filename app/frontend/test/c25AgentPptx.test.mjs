@@ -79,7 +79,7 @@ test('(a) the slide sequence is the agent deck order, with the value slide after
     'domain:1', 'uc_card:N01-U01', 'uc_value:N01-U01', 'uc_card:N01-U02', 'uc_value:N01-U02',
     'domain:2', 'uc_card:N02-U01', 'uc_value:N02-U01', 'uc_card:N02-U02', 'uc_value:N02-U02',
     'value', 'index', 'methodology', 'glossary', 'foundations', 'roadmap', 'disclaimer', 'closing']);
-  assert.ok(slides[0].text.includes('Acme') && slides[0].text.includes('Strategic AI Use Cases Powered by Databricks Genie Code'), 'the cover');
+  assert.ok(slides[0].text.includes('Acme') && slides[0].text.includes('Strategic AI Use Cases Powered by Databricks AI'), 'the cover');
   assert.ok(slides.find((s) => s.kind === 'summary').text.includes(SUMMARY[0]), 'the executive summary');
   assert.ok(slides.find((s) => s.kind === 'contents').text.includes('Value at stake'), 'the contents list the value slide');
   const dom2 = slides.find((s) => s.kind === 'domain' && s.key === '2').text;
