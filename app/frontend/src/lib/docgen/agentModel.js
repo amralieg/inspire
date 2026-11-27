@@ -354,7 +354,7 @@ function useCaseView(uc, d, ctx) {
   const coverage = coverageKind ? [T(status === 'DOMAIN_COVERAGE_PICK' ? 'doc_coverage_pick' : 'doc_fallback_pick'), T('elite_reason'), belowBarReasonOf(uc) || missing] : null;
   const biz = (rows) => rows.map(([k, label, value]) => [k, label, Array.isArray(value) ? value.map(plainBusiness) : plainBusiness(value)]);
   return {
-    uc: { ...uc, ...(uc.No != null ? { No: displayId(uc.No) } : {}), ...(uc.id != null ? { id: displayId(uc.id) } : {}) }, id: d.id, rank: rankOf.get(uc) ?? '', title: d.name || missing, subtitle: plainBusiness(subtitle), domain: domainOf(uc), subdomain: d.subdomain, kind, quality, metrics, narrative: biz(narrative), facts: biz(facts),
+    uc: { ...uc, ...(uc.No != null ? { No: displayId(uc.No) } : {}), ...(uc.id != null ? { id: displayId(uc.id) } : {}) }, id: d.id, storedId: d.storedId, rank: rankOf.get(uc) ?? '', title: d.name || missing, subtitle: plainBusiness(subtitle), domain: domainOf(uc), subdomain: d.subdomain, kind, quality, metrics, narrative: biz(narrative), facts: biz(facts),
     valueFacts: biz(valueFacts), panelKeys: PANEL_BUSINESS.map((p) => p.key).filter((k) => [...metrics, ...narrative, ...facts, ...valueFacts].some((e) => e[0] === k)), coverage, star, meetsBar: meetsBar(uc) ? T('doc_meets_bar') : '', notebook: Boolean(String(uc.notebook_path ?? '').trim() || hasShippedGenieCode(uc)),
     value: valueView(d.value, T),
   };
