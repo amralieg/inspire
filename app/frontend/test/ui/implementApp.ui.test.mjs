@@ -1080,7 +1080,7 @@ const CAN_CREATE_SCHEMA = { 'information_schema.schema_tags': () => ({ rows: [{ 
 const UNWRITABLE_RESULT = { rows: [accessRow('catalog', 'OWNER', 'admins', false), accessRow('schema', 'OWNER', 'admins', false)] };
 
 test('every wizard step but the App steps, Deliver with the App and where it goes included, fits a 1440x900 screen with nothing to scroll, and every step reads at 4.5:1 in light and dark', async () => {
-  const ui = await openUi('wizard', { ...MERGE_STATE, me: { userName: OWNER, displayName: 'Owner' }, policies: POLICIED_SOURCE, // D-SL-11: the access choice shows for a row-filtered source
+  const ui = await openUi('wizard', { ...MERGE_STATE, me: { userName: OWNER, displayName: 'Owner' }, forwardedToken: 'owner-token', policies: POLICIED_SOURCE, // D-SL-11: the access choice shows for a row-filtered source
     warehousePermissions: { access_control_list: [{ service_principal_name: 'app-sp-id', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] }, // REQ-418: the App's principal manages it
     statements: { ...CAN_CREATE_SCHEMA, 'SELECT level, privilege, principal': WRITABLE_RESULT } });
   const { page } = ui;
