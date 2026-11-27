@@ -1,3 +1,4 @@
+import { displayText } from '../../../../../shared/useCaseId.mjs';
 import { CLOSED_STATUSES, CODES } from './records.js';
 export const DEMO_NOTE = 'This is a demo, so it is read-only: nothing you do here changes any data.';
 export const toneOf = (err) => (err?.calm ? 'info' : 'error');
@@ -80,7 +81,16 @@ const json = async (method, path, body) => {
   return data;
 };
 
-export const getApp = () => json('GET', 'app');
+// REQ-569: an App saved before the AIx-UCx ids holds Nx-Ux in its text. Every string a person reads is shown in the new form here, once, so no
+// render point prints the old one; ids, keys, links and queries keep the stored value (their keys are skipped).
+const STORED_KEYS = /^(id|key|use_case_id|url|href|review|sql|expr|where|space_id|result_table|conversation_id)$|_(id|ids|key|keys|sql|url|table)$/;
+export const shownIds = (value) => {
+  if (typeof value === 'string') return displayText(value);
+  if (Array.isArray(value)) return value.map(shownIds);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, STORED_KEYS.test(k) ? v : shownIds(v)]));
+  return value;
+};
+export const getApp = () => json('GET', 'app').then(shownIds);
 export const appAccess = (step, body = {}) => json('POST', 'access', { ...body, step });
 // REQ-311: Request for Access. The server reads the grants itself; the check reads the destinations once, the send files as the viewer.
 export const accessRequestCheck = () => json('POST', 'access-request/check', {});

@@ -146,7 +146,7 @@ test('the three styles and the full-height Genie screen stay on a phone screen',
 });
 
 test('a long use case title ends in an ellipsis in the switcher instead of widening the page', async () => {
-  const title = 'N05-U01 Recommend Cross-Sell Item Bundles with Next-Best-Offer Playbook';
+  const title = 'AI05-UC01 Recommend Cross-Sell Item Bundles with Next-Best-Offer Playbook';
   for (const layout of ['sidebar', 'tabs', 'home']) {
     const { page, seen, context } = await openPage(appInfo({ layout, title, subtitle: `${title} · built by Inspire` }, 2, { title }), 1600, title);
     await page.waitForFunction(chartsDrawn, 4);
@@ -169,7 +169,7 @@ test('a long use case title ends in an ellipsis in the switcher instead of widen
 
 // PRODUCT GAP (REQ-506): the shell draws no App title or subtitle any more; the App title is only the document title (App.jsx:184).
 test('the App title and subtitle are in the browser tab title even though the header shows the use case', async () => {
-  const title = 'N05-U01 Recommend Cross-Sell Item Bundles with Next-Best-Offer Playbook';
+  const title = 'AI05-UC01 Recommend Cross-Sell Item Bundles with Next-Best-Offer Playbook';
   const { page, context } = await openPage(appInfo({ title, subtitle: `${title} · built by Inspire` }, 1), 375);
   assert.ok((await page.title()).endsWith(` · ${title}`), await page.title());
   assert.ok((await page.locator('.top').innerText()).includes(title), 'the header says which App this is (PRODUCT GAP: it shows the use case only)');

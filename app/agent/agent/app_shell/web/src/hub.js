@@ -1,3 +1,4 @@
+import { displayId } from '../../../../../shared/useCaseId.mjs';
 import { addCounts, asDate, countOf, grouped, isAmount, isMoney, kindOf, largestFirst, stakeNameOf, sumOf, unitOf, wholeMoney } from './format.js';
 import { savedFormula, sumFormula } from './money.js';
 
@@ -213,7 +214,7 @@ export function switcherMatches(pages, text) {
   const words = String(text || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return pages;
   return pages.filter((p) => {
-    const said = [p.title, p.use_case_id, p.domain, p.subdomain].filter(Boolean).join(' ').toLowerCase();
+    const said = [p.title, p.use_case_id, displayId(p.use_case_id), p.domain, p.subdomain].filter(Boolean).join(' ').toLowerCase();
     return words.every((w) => said.includes(w));
   });
 }
