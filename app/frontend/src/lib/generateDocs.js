@@ -3,7 +3,7 @@
 import { buildDocModel } from './docgen/docModel.js';
 import { infographicSvg } from './docgen/docSvg.js';
 import { buildAgentPdf } from './docgen/agentPdf.js';
-import { agentLabelTexts } from './docgen/agentModel.js';
+import { agentLabelTexts, buildAgentModel } from './docgen/agentModel.js';
 import { resolveTheme } from './docgen/docStyles.js';
 import { trackingIdOf } from './useCaseFields.js';
 import { summaryOf } from './docgen/docModel.js';
@@ -66,7 +66,7 @@ export function modelFor({ businessName, useCases, values, options, language, id
 async function makeFile(file, m, theme, options, agent) {
   const scale = theme.design ? 2 : 1; // REQ-526: the A4 design pages (794x1123) are drawn at twice the size so the PDF text stays sharp
   if (file.kind === 'infographic') {
-    const svg = infographicSvg(m, theme);
+    const svg = infographicSvg(m, theme, buildAgentModel(agent).ranked); // REQ-561: a tile per use case with the panel's business fields
     // One PDF of all selected, the picture at full size.
     const png = await svgToPng(svg, scale);
     const { pdfFromImages } = await import('./docgen/pdfDoc.js');

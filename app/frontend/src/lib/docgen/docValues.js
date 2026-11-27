@@ -2,6 +2,15 @@
 // Pure. No invented growth: the projection stays empty until saved answers carry one (REQ-507), so a document shows the one-year value only.
 import { moneyText } from '../valueWizard.js';
 import { valueFromSaved } from './docModel.js';
+import { formulaOf } from '../valueFormula.js';
+
+// REQ-561: one factor's formula in plain words, from the ledger part's own inputs (empty while a number is missing).
+function formulaLine(part, currency) {
+  const inputs = Array.isArray(part.inputs) ? part.inputs : [];
+  const driver = { id: part.id, asks: inputs.map((i) => ({ id: i.id, label: i.label, source: i.source === 'data' ? 'data' : 'estimate' })) };
+  const typed = Object.fromEntries(inputs.map((i) => [i.id, i.value]));
+  return formulaOf(driver, typed, part, currency).text;
+}
 
 const finite = (v) => (v !== null && v !== '' && v !== undefined && Number.isFinite(Number(v)) ? Number(v) : null);
 
@@ -10,9 +19,9 @@ function fromLedger(entry) {
   const amount = finite(y?.total?.amount);
   if (amount === null) return null;
   const currency = y.currency || y.total.unit || 'USD';
-  const parts = (Array.isArray(y.parts) ? y.parts : []).map((p) => ({ name: String(p.label ?? p.id ?? ''), amount: finite(p.amount) })).filter((p) => p.name && p.amount !== null && p.amount > 0);
+  const parts = (Array.isArray(y.parts) ? y.parts : []).map((p) => ({ name: String(p.label ?? p.id ?? ''), amount: finite(p.amount), formula: formulaLine(p, currency) })).filter((p) => p.name && p.amount !== null && p.amount > 0);
   const sum = parts.reduce((s, p) => s + p.amount, 0);
-  const factors = sum > 0 ? parts.map((p) => ({ name: p.name, share: p.amount / sum })) : [];
+  const factors = sum > 0 ? parts.map((p) => ({ name: p.name, share: p.amount / sum, formula: p.formula })) : [];
   const top = factors.length ? factors.reduce((a, b) => (b.share > a.share ? b : a)) : null;
   const story = top ? `${moneyText(currency, amount)} a year, mostly from ${top.name} (${Math.round(top.share * 100)}%).` : '';
   // REQ-507 L8: a saved story (approved or not; docModel shows only an approved one) and the saved projection win.

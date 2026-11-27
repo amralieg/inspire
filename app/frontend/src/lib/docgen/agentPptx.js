@@ -337,6 +337,59 @@ function useCaseValue(d, m, v) {
   }
 }
 
+// REQ-561: the value story slide that follows a valued use case: the amount with its basis and note, the story, where the value comes from
+// (factors with their share), the formula of each factor in plain words and the projection.
+function useCaseStory(d, m, v) {
+  const T = m.T; const val = v.value;
+  const s = d.new('uc_story', v.title, { key: v.id });
+  cardHead(d, s, v, T);
+  const paras = [[[`${T('value_at_stake')}: `, { bold: true, color: C.teal_dark }], [val.text, { bold: true, color: C.teal }]], [[`${T('value_basis')}: `, { bold: true, color: C.teal_dark }], [val.basis, {}]]];
+  if (val.note) paras.push([[`${T('value_note')}: `, { bold: true, color: C.teal_dark }], [val.note, {}]]);
+  const bandH = 0.16 + 0.24 * paras.length;
+  d.rect(s, 0.6, 1.86, 12.13, bandH, C.ice, { radius: 0.08, line: [C.mint2, 0.75] });
+  d.rect(s, 0.6, 1.86, 0.07, bandH, C.teal);
+  d.text(s, 0.8, 1.9, 11.8, bandH - 0.08, paras, { anchor: 'middle', spacing: 0 });
+  const top = 1.86 + bandH + 0.12; const bottom = 6.95; const room = bottom - top; const COLW = 5.98;
+  const box = (x, y, h, label, body) => {
+    d.rect(s, x, y, COLW, h, C.sand, { radius: 0.12 });
+    d.text(s, x + 0.18, y + 0.06, COLW - 0.36, 0.28, d.kicker(label), { color: C.teal, bold: true, fit: false });
+    if (body) d.text(s, x + 0.18, y + 0.36, COLW - 0.36, Math.max(0.25, h - 0.42), body, {});
+  };
+  // Left: the story, then where the value comes from.
+  const storyH = val.story ? Math.min(room * 0.45, 0.6 + 0.2 * Math.ceil(val.story.length / 70)) : 0;
+  if (val.story) box(0.6, top, storyH, T('value_story'), val.story);
+  if (val.factors.length) {
+    const y = top + (storyH ? storyH + 0.12 : 0); const h = bottom - y;
+    box(0.6, y, h, T('value_source'));
+    const shown = val.factors.slice(0, 8); const step = Math.min(0.5, (h - 0.5) / shown.length);
+    shown.forEach((f, i) => {
+      const fy = y + 0.42 + i * step;
+      d.text(s, 0.78, fy, 2.3, step, f.name, { color: C.ink, anchor: 'middle' });
+      d.rect(s, 3.15, fy + step / 2 - 0.075, 1.9, 0.15, C.sand2, { radius: 0.07 });
+      d.rect(s, 3.15, fy + step / 2 - 0.075, Math.max(0.06, (1.9 * f.share) / 100), 0.15, C.teal, { radius: 0.07 });
+      d.text(s, 5.1, fy, 1.3, step, d.ltr(`${f.share}%`), { color: C.teal, bold: true, anchor: 'middle', align: 'end' });
+    });
+  }
+  // Right: the projection, then the formula of each factor.
+  const lines = val.factors.filter((f) => f.formula);
+  const projH = val.projection.length ? 0.55 + 0.3 * (val.projection.length + 1) : 0;
+  if (projH) {
+    box(6.75, top, projH, T('value_projection'));
+    let cols = [[T('value_year'), 1.3], [T('value_low'), 1.5], [T('value_likely'), 1.6], [T('value_high'), 1.3]];
+    const cells = (row) => row.map(([text, o]) => ({ text, options: o }));
+    const head = cells(cols.map(([l]) => [l, { bold: true, color: C.white, fill: { color: C.teal } }]));
+    const body = val.projection.map((y, i) => cells([[T('value_year_n', { n: y.year }), {}], [d.ltr(y.low), {}], [d.ltr(y.likely), { bold: true, color: C.teal }], [d.ltr(y.high), {}]]
+      .map(([t, o]) => [t, { fill: { color: i % 2 ? C.sand3 : C.white }, ...o }])));
+    if (d.rtl) { cols = [...cols].reverse(); head.reverse(); body.forEach((r) => r.reverse()); }
+    s.addTable([head, ...body], { x: d.mx(6.93, 5.6), y: top + 0.4, w: 5.6, colW: cols.map((c) => c[1] * (5.6 / 5.7)), rowH: 0.3, fontSize: S.body, valign: 'middle', border: { type: 'none' }, margin: 0.04,
+      align: d.align(), ...(d.rtl ? { rtlMode: true } : {}) });
+  }
+  if (lines.length) {
+    const y = top + (projH ? projH + 0.12 : 0);
+    box(6.75, y, bottom - y, T('value_how'), lines.map((f) => [[`${f.name}: `, { bold: true, color: C.teal }], [f.formula, {}]]));
+  }
+}
+
 // New: the value slide, after the last domain and before the index: the total, the value per domain and the top use cases.
 function valueSlide(d, m) {
   const T = m.T; const v = m.value;
@@ -489,7 +542,7 @@ export function buildAgentDeck(m) {
   cover(d, m); contents(d, m); summary(d, m); guide(d, m); portfolio(d, m); topIndex(d, m, deckCount);
   for (const dom of m.domains) {
     domainSlide(d, m, dom);
-    for (const v of dom.useCases.filter(inDeck)) { useCaseCard(d, m, v); if (v.valueFacts.length) useCaseValue(d, m, v); }
+    for (const v of dom.useCases.filter(inDeck)) { useCaseCard(d, m, v); if (v.valueFacts.length) useCaseValue(d, m, v); if (v.value.amount !== null) useCaseStory(d, m, v); }
   }
   valueSlide(d, m);
   const pages = Math.max(1, Math.ceil(m.ranked.length / INDEX_ROWS));
