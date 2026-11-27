@@ -4646,9 +4646,15 @@ class Shell:
         counted = (done[("list", "keys")].get("rows") or [{}])[0]
         rows_seen, keys_seen = int(counted.get("n") or 0), int(counted.get("k") or 0)
         if keys_seen < rows_seen:
-            problems.append((CHECK_DESIGN, f"{where}: the decision list repeats keys: {shell_sql.shown_number(rows_seen)} rows carry {shell_sql.shown_number(keys_seen)} distinct keys, so "
-                             f"the page cannot tell its rows apart and their history and edits fail; select record_key, the result "
-                             f"table's key for one record, in the {shell_sql.RECORDS_DATASET} dataset"))
+            seen = f"{shell_sql.shown_number(rows_seen)} rows carry {shell_sql.shown_number(keys_seen)} distinct keys"
+            if "record_key" in columns:
+                fix = (f"the {shell_sql.RECORDS_DATASET} dataset already selects record_key, so a join repeats each record; the result "
+                       f"table holds one row per record_key, so join each companion table through a subquery that returns one row per "
+                       f"record_key (aggregate it or pick one row), so the list has one row per record_key")
+            else:
+                fix = (f"select record_key, the result table's key for one record, in the {shell_sql.RECORDS_DATASET} dataset")
+            problems.append((CHECK_DESIGN, f"{where}: the decision list repeats keys: {seen}, so the page cannot tell its rows apart "
+                                           f"and their history and edits fail; {fix}"))
         return problems
 
     def run_summary_row(self, ws, who, page: dict):
