@@ -49,12 +49,13 @@ test('styles: 8 named styles, at least 4 palettes, a custom brand colour leads t
 test('options: the 4 kinds, the content blocks and Excel columns from the wireframe, sensible defaults', () => {
   assert.deepEqual(DOC_KINDS, ['infographic', 'pptx', 'pdf', 'xlsx', 'docx']);
   const blocks = CONTENT_BLOCKS.map((b) => b.id);
-  for (const id of ['use_case_story', 'value_story', 'value_projection', 'value_formula', 'inspire_score', 'strategy_link', 'data_used',
-    'genie_questions', 'build_status', 'next_steps', 'sql', 'disclaimer']) assert.ok(blocks.includes(id), id);
+  for (const id of ['use_case_story', 'value_story', 'value_projection', 'value_formula', 'inspire_score', 'strategy_link',
+    'genie_questions', 'build_status', 'next_steps', 'disclaimer']) assert.ok(blocks.includes(id), id);
+  for (const id of ['data_used', 'sql']) assert.ok(!blocks.includes(id), `${id} is gone: the docs are business only (REQ-561)`);
   const cols = EXCEL_COLUMNS.map((c) => c.id);
   for (const id of ['name', 'inspire_score', 'value', 'value_status', 'domain', 'statement', 'use_case_story', 'value_story', 'projection', 'tables']) assert.ok(cols.includes(id), id);
   const d = defaultDocOptions('Arabic');
-  assert.deepEqual(d.kinds, ['infographic', 'pptx', 'pdf', 'xlsx']);
+  assert.deepEqual(d.kinds, ['pptx', 'pdf', 'xlsx'], 'the overall set is PowerPoint, PDF and Excel; the infographic is per use case only (REQ-570)');
   assert.equal(d.layout, 'one');
   assert.deepEqual(d.languages, ['Arabic']);
   for (const id of ['use_case_story', 'value_story', 'value_projection', 'disclaimer']) assert.ok(d.blocks.includes(id), id);
@@ -64,15 +65,18 @@ test('options: the 4 kinds, the content blocks and Excel columns from the wirefr
 
 test('planFiles: one file for all vs one per use case, one set per language, safe unique names', () => {
   const one = planFiles({ ...defaultDocOptions('English'), businessName: 'Acme Air' }, UCS);
-  assert.deepEqual(one.map((f) => f.ext), ['pdf', 'pptx', 'pdf', 'xlsx']);
+  assert.deepEqual(one.map((f) => f.ext), ['pptx', 'pdf', 'xlsx']);
   assert.ok(one.every((f) => f.useCaseIds.length === 3 && f.language === 'English'));
   const each = planFiles({ ...defaultDocOptions('English'), layout: 'each', businessName: 'Acme Air' }, UCS);
   assert.equal(each.filter((f) => f.kind === 'pptx').length, 3);
   assert.equal(each.filter((f) => f.kind === 'pdf').length, 3);
   assert.ok(each.filter((f) => f.kind === 'pptx').every((f) => f.useCaseIds.length === 1));
-  assert.equal(each.filter((f) => f.kind === 'infographic').length, 1, 'the infographic is always one PDF of all selected');
+  const inf = (layout) => planFiles({ ...defaultDocOptions('English'), kinds: ['infographic', 'pdf'], layout, businessName: 'Acme Air' }, UCS).filter((f) => f.kind === 'infographic');
+  assert.equal(inf('one').length, 0, 'no overall infographic (REQ-570)');
+  assert.equal(inf('each').length, 3, 'one infographic per use case (REQ-570)');
+  assert.ok(inf('each').every((f) => f.useCaseIds.length === 1));
   const two = planFiles({ ...defaultDocOptions('English'), languages: ['English', 'Arabic'], businessName: 'Acme / Air <x>' }, UCS);
-  assert.equal(two.length, 8);
+  assert.equal(two.length, 6);
   const names = two.map((f) => f.name);
   assert.equal(new Set(names).size, names.length, 'names are unique');
   assert.ok(names.every((n, i) => /^[A-Za-z0-9._-]+$/.test(n) && n.endsWith(`.${two[i].ext}`)), names.join(' '));
@@ -82,7 +86,7 @@ test('planFiles: one file for all vs one per use case, one set per language, saf
 test('buildDocModel: selected order, numeric scores, values and a same-currency total, a use case with no value is null', () => {
   const m = model();
   assert.equal(m.businessName, 'Acme Air');
-  assert.deepEqual(m.useCases.map((u) => u.id), ['N01-U01', 'N01-U02', 'N02-U01']);
+  assert.deepEqual(m.useCases.map((u) => u.id), ['AI01-UC01', 'AI01-UC02', 'AI02-UC01']);
   assert.equal(m.useCases[0].name, 'Predict delay risk per route');
   assert.equal(m.useCases[0].score, 9.1);
   assert.equal(m.useCases[0].value.amount, 2400000);

@@ -1,6 +1,6 @@
 // REQ-526 design study: chart primitives as SVG strings. Every style composes these with its own tokens and shapes.
 // Each chart has a pptxgenjs twin noted in index.html (BAR, DOUGHNUT, SCATTER/BUBBLE native; treemap, waterfall, funnel drawn as shapes).
-import { t, T, rect, line, circle, arc, treemap, icon, money, bestInk, wrap } from './core.js';
+import { t, T, rect, line, circle, arc, treemap, icon, money, bestInk, wrap, nLines } from './core.js';
 
 // Horizontal bars: rows [{label, value, text, icon?}], box {x, y, w}, o = {rowH, barH, labelW, valueW, track, fill(i,row), ink, muted, bg, rx, size, iconC, iconBg, font}
 export function hbars(rows, b, o) {
@@ -10,15 +10,20 @@ export function hbars(rows, b, o) {
   const labelW = o.labelW || 120; const valueW = o.valueW || 56;
   const bx = b.x + iw + labelW; const bw = b.w - iw - labelW - valueW;
   let s = '';
+  // C26 (REQ-563): a label too long for its column wraps (text is never cut) and its row grows, so it never runs into the next row.
+  const lh = Math.round(size * 1.2);
+  const heights = rows.map((r) => Math.max(rowH, nLines(r.label, labelW - 8, size) * lh + (rowH - lh)));
+  let top = b.y;
   rows.forEach((r, i) => {
-    const y = b.y + i * rowH; const cy = y + rowH / 2;
+    const y = top; const cy = y + heights[i] / 2; top += heights[i];
+    const n = nLines(r.label, labelW - 8, size);
     if (o.icon) { if (o.iconBg) s += circle(b.x + 9, cy, 10, o.iconBg); s += icon(r.icon, b.x + 9 - 6.5, cy - 6.5, 13, o.iconC, 2); }
-    s += t(b.x + iw + (o.icon ? 4 : 0), cy + size * 0.36, r.label, { size, fill: o.ink, bg: o.bg, maxW: labelW - 8, lines: 1, font: o.font, ctx: 'bar label' });
+    s += t(b.x + iw + (o.icon ? 4 : 0), cy + size * 0.36 - ((n - 1) * lh) / 2, r.label, { size, fill: o.ink, bg: o.bg, maxW: labelW - 8, lh, font: o.font, ctx: 'bar label' });
     if (o.track) s += rect(bx, cy - barH / 2, bw, barH, o.track, { rx: o.rx ?? barH / 2 });
     s += rect(bx, cy - barH / 2, Math.max(3, (r.value / max) * bw), barH, o.fill(i, r), { rx: o.rx ?? barH / 2 });
     s += t(b.x + b.w, cy + size * 0.36, r.text, { size, weight: 700, fill: o.valueC || o.ink, bg: o.bg, anchor: 'end', font: o.font, ctx: 'bar value' });
   });
-  return { svg: s, h: rows.length * rowH };
+  return { svg: s, h: top - b.y };
 }
 
 // Donut: parts [{name, value, color}], centre (cx, cy), r0..r1; o = {gap, bg, centerTop, centerBottom, ink, muted, font, displayFont, centerSize}

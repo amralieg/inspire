@@ -45,7 +45,7 @@ function ucCard(u, i, x, y, w, h, th, m, desc = false) {
   let s = rect(x, y, w, h, th.card, { rx: 12, stroke: th.line });
   s += rect(x + 12, y + 12, 30, 30, elite ? th.gold : th.teal, { rx: 8 });
   s += t(x + 27, y + 32, String(i + 1), { size: 15, weight: 700, fill: elite ? th.goldInk : th.onTeal, bg: elite ? th.gold : th.teal, anchor: 'middle', font: DISPLAY, ctx: 'badge' });
-  s += icon(VERB_ICON[u.verb], x + w - 30, y + 14, 16, th.coralText, 2);
+  s += icon(VERB_ICON[u.verb], x + w - 30, y + 28, 16, th.coralText, 2);
   s += t(x + 52, y + 23, u.domain, { size: 12, weight: 700, fill: th.coralText, bg: th.card, caps: true, ls: 1, maxW: w - 90, lines: 1, font: BODY, ctx: 'card kicker' });
   s += t(x + 52, y + 39, u.verb, { size: 12, fill: th.muted, bg: th.card, caps: true, ls: 0.6, font: BODY, ctx: 'card verb' });
   s += t(x + 12, y + 62, u.short, { size: 14, weight: 700, fill: th.ink, bg: th.card, maxW: w - 24, lines: 2, lh: 17, font: DISPLAY, kind: 'serif', ctx: 'card title' });
@@ -79,11 +79,11 @@ function infographic(m, th, { W, H }) {
   // section 1: value by domain + donut by verb
   let y = h0 + 20;
   const hasV = m.verbs.length > 0; const lw = hasV ? 456 : CW; const rh = 20; const nd = Math.min(m.domains.length, 9);
-  const h1 = Math.max(50 + nd * rh + 10, hasV ? 58 + 92 + 26 + m.verbs.length * 18 : 0);
+  const bars = hbars(m.domains.slice(0, nd).map((d) => ({ label: d.name, value: d.value, text: d.text, icon: d.icon })), { x: P + 16, y: y + 50, w: lw - 32 },
+    { rowH: rh, barH: 9, labelW: 150, valueW: 60, track: th.barTrack, fill: () => 'url(#aBar)', ink: th.ink, bg: th.card, icon: true, iconC: th.mode === 'dark' ? th.tealMid : th.teal, font: BODY });
+  const h1 = Math.max(50 + bars.h + 10, hasV ? 58 + 92 + 26 + m.verbs.length * 18 : 0); // C26 (REQ-563): the card fits rows that grew for a wrapped label
   s += rect(P, y, lw, h1, th.card, { rx: 14, stroke: th.line });
   s += eyebrow(P + 16, y + 22, 'Where the value sits', th, th.card) + head(P + 16, y + 42, 'Yearly value by domain', th, th.card, 16);
-  const bars = hbars(m.domains.slice(0, nd).map((d) => ({ label: d.name, value: d.value, text: d.text, icon: d.icon })), { x: P + 16, y: y + 50, w: lw - 32 },
-    { rowH: rh, barH: 9, labelW: 118, valueW: 60, track: th.barTrack, fill: () => 'url(#aBar)', ink: th.ink, bg: th.card, icon: true, iconC: th.mode === 'dark' ? th.tealMid : th.teal, font: BODY });
   s += bars.svg;
   const rx = P + lw + 14; const rw = CW - lw - 14;
   const vc = verbColors(VERB_COLOR(th), m.verbs, [th.teal, th.gold, th.coral, th.green, th.tealMid]);

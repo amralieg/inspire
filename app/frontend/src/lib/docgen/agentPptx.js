@@ -7,13 +7,20 @@ import PptxGenJS from 'pptxgenjs';
 import { buildAgentModel, agentOutline, DOC_COLORS as C, DOC_INDEX_COLUMNS, DOC_QUALITY_ORDER, DOC_VALUE_LEFT, DOC_BRAND, qualityColor } from './agentModel.js';
 
 const W = 13.333;
-const S = { numeral: 60, hero: 40, display: 32, title: 28, card_title: 22, heading: 16, lead: 14, body: 12 }; // _DOC_TYPE_SCALE, 12 pt floor
+const S = { numeral: 60, hero: 44, display: 32, title: 28, card_title: 28, heading: 16, lead: 16, body: 14 }; // C26: titles 28-32, labels 14, body 14-16, hero 40-60; nothing below 14 pt
 const INDEX_ROWS = 12; // _DOC_PPTX_INDEX_ROWS
 const FOUNDATION_ROWS = 6; // _DOC_PPTX_FOUNDATION_ROWS
 const DECK_ALL = 15; // _DOC_TOP_LIMIT["deck_all"]: up to this many use cases, every one gets its slides
 const ACCENTS = [C.teal, C.coral, C.gold, C.teal_mid, C.green, C.amber];
 const MODES = [['Good', 'value_mode_good', 'doc_mode_good_body'], ['High', 'value_mode_high', 'doc_mode_high_body'], ['Ultra High', 'value_mode_ultra_high', 'doc_mode_ultra_body']];
-const chipW = (label) => Math.min(4.2, 0.4 + String(label).length * 0.095);
+const chipW = (label) => Math.min(4.6, 0.45 + String(label).length * 0.11);
+// Height in inches of text set at size pt in a box w inches wide (average glyph 0.52 em, line 1.2 em): lets a block get the box it needs instead of shrinking.
+const LINE = (size) => (size * 1.22) / 72;
+const linesOf = (text, w, size) => String(text ?? '').split('\n').reduce((n, part) => n + Math.max(1, Math.ceil((part.length * size * 0.007) / Math.max(0.5, w - 0.12))), 0);
+const heightOf = (paras, w, size, gap = 0.06) => (Array.isArray(paras) ? paras : [paras]).reduce((h, p, i) => h + linesOf(Array.isArray(p) ? p.map((r) => r[0]).join('') : p, w, size) * LINE(size) + (i ? gap : 0), 0) + 0.08;
+
+// The biggest size of the list at which the text fits the box (never below the last, 14 pt).
+const pick = (paras, w, h, sizes = [20, 18, 16, 14]) => sizes.find((z) => heightOf(paras, w, z) <= h) || sizes[sizes.length - 1];
 
 class Deck {
   constructor(m) {
@@ -42,18 +49,18 @@ class Deck {
     });
   }
   // paragraphs: a string, a list of strings, or a list of paragraphs, each a list of [text, options] runs.
-  text(s, x, y, w, h, paragraphs, { size = S.body, color = C.body, bold = false, italic = false, align = 'start', anchor = 'top', fit = true, spacing = 4, name } = {}) {
+  text(s, x, y, w, h, paragraphs, { size = S.body, color = C.body, bold = false, italic = false, align = 'start', anchor = 'top', spacing = 4, name } = {}) {
     const paras = (Array.isArray(paragraphs) ? paragraphs : [paragraphs]).map((p) => (Array.isArray(p) ? p : [[p, {}]]));
     const runs = [];
     paras.forEach((p, i) => p.forEach(([t, o = {}], j) => runs.push({
       text: String(t ?? ''), options: { bold: o.bold ?? bold, italic: o.italic ?? italic, color: o.color || color, ...(j === p.length - 1 && i < paras.length - 1 ? { breakLine: true } : {}) },
     })));
     s.addText(runs, { x: this.mx(x, w), y, w, h, fontSize: size, color, align: this.align(align), valign: anchor, margin: 0.04, paraSpaceAfter: paras.length > 1 ? spacing : 0,
-      ...(fit ? { fit: 'shrink' } : {}), ...(this.rtl ? { rtlMode: true } : {}), ...(name ? { objectName: name } : {}) });
+      ...(this.rtl ? { rtlMode: true } : {}), ...(name ? { objectName: name } : {}) });
   }
   wordmark(s, x, y, h, light) {
     this.rect(s, x, y + h / 2 - 0.07, 0.14, 0.14, C.gold, { oval: true });
-    this.text(s, x + 0.22, y, 4.0, h, [[[`${DOC_BRAND.maker} `, { color: light ? C.mint2 : C.muted }], [DOC_BRAND.product, { color: light ? C.white : C.teal, bold: true }]]], { size: S.heading, anchor: 'middle', fit: false });
+    this.text(s, x + 0.22, y, 4.0, h, [[[`${DOC_BRAND.maker} `, { color: light ? C.mint2 : C.muted }], [DOC_BRAND.product, { color: light ? C.white : C.teal, bold: true }]]], { size: S.heading, anchor: 'middle' });
   }
   header(s, kicker, title) {
     this.text(s, 0.6, 0.5, 9.0, 0.3, this.kicker(kicker), { color: C.coral, bold: true });
@@ -65,7 +72,7 @@ class Deck {
     this.text(s, 0.6, 1.62, 12.13, 0.4, text, { color: C.muted, italic });
     return 2.08;
   }
-  tile(s, x, y, w, h, value, label, { fill = C.sand, valueSize = S.heading, name } = {}) {
+  tile(s, x, y, w, h, value, label, { fill = C.sand, valueSize = 24, name } = {}) {
     this.rect(s, x, y, w, h, fill, { radius: 0.12, name });
     this.text(s, x + 0.1, y + 0.04, w - 0.2, h * 0.56, String(value), { size: valueSize, color: C.teal, bold: true, align: 'center', anchor: 'middle' });
     this.text(s, x + 0.1, y + h * 0.58, w - 0.2, h * 0.4, label, { color: C.muted, align: 'center' });
@@ -89,8 +96,11 @@ class Deck {
       const style = { rank: [C.teal, true], id: [C.coral, true], title: [C.ink, false], domain: [C.body, false], inspire_score: [C.teal, true] }[k];
       return { text: val, options: { ...base, color: style[0], bold: style[1] } };
     }));
-    const rowH = Math.max(0.3, Math.min(0.4, (bottom - y - 0.42) / Math.max(1, rows.length)));
-    s.addTable([head, ...rows], { x: 0.6, y, w: 12.13, colW: cols.map((c) => c[2]), rowH: [0.42, ...rows.map(() => rowH)], fontSize: S.body, valign: 'middle',
+    const rowH = Math.max(0.3, Math.min(0.5, (bottom - y - 0.42) / Math.max(1, rows.length)));
+    const titleW = (cols.find((c) => c[0] === 'title') || [0, 0, 5])[2];
+    const longest = Math.max(0, ...views.map((v) => String(v.title).length));
+    const fontSize = rowH >= 0.38 && longest * 0.125 < titleW - 0.2 ? 16 : S.body;
+    s.addTable([head, ...rows], { x: 0.6, y, w: 12.13, colW: cols.map((c) => c[2]), rowH: [0.42, ...rows.map(() => rowH)], fontSize, valign: 'middle',
       border: { type: 'none' }, margin: 0.05, ...(this.rtl ? { rtlMode: true } : {}) });
   }
 }
@@ -101,6 +111,7 @@ function cover(d, m) {
   for (const [x, y, size, alpha] of [[8.9, 0.25, 4.2, 0.08], [10.3, 0.45, 2.7, 0.1], [8.2, 3.6, 2.3, 0.07], [10.7, 4.6, 2.5, 0.08]]) d.rect(s, x, y, size, size, C.white, { oval: true, alpha });
   d.rect(s, 11.05, 1.25, 0.62, 0.62, C.gold, { oval: true, alpha: 0.9 });
   d.wordmark(s, 0.75, 0.45, 0.42, true);
+  if (m.logo?.dataUrl) s.addImage({ data: m.logo.dataUrl, x: 10.9, y: 0.4, w: 1.9, h: 0.8, sizing: { type: 'contain', w: 1.9, h: 0.8 }, objectName: 'cover:logo' }); // C28 (REQ-572)
   d.text(s, 0.75, 1.12, 8.6, 0.32, d.kicker(`${T('doc_catalog_kicker')} · ${d.ltr(m.date)}`), { color: C.mint2, bold: true });
   d.text(s, 0.75, 1.5, 8.3, 1.75, T('pptx_main_title'), { size: S.hero, color: C.white, bold: true });
   d.text(s, 0.75, 3.35, 8.3, 0.34, T('doc_prepared_for'), { size: S.lead, color: C.mint2 });
@@ -125,14 +136,14 @@ function contents(d, m) {
   d.header(s, m.businessName, m.T('doc_contents'));
   const outline = agentOutline(m);
   const rows = Math.ceil(outline.length / 2);
-  const h = Math.min(1.2, (5.1 - 0.16 * (rows - 1)) / Math.max(1, rows));
+  const h = Math.min(1.25, (5.2 - 0.16 * (rows - 1)) / Math.max(1, rows));
   outline.forEach(([, title, subtitle], i) => {
     const x = 0.6 + (i % 2) * 6.19; const y = 1.8 + Math.floor(i / 2) * (h + 0.16);
     d.rect(s, x, y, 5.94, h, C.sand, { radius: 0.14 });
     d.rect(s, x + 0.2, y + (h - 0.66) / 2, 0.66, 0.66, ACCENTS[i % ACCENTS.length], { radius: 0.14 });
     d.text(s, x + 0.2, y + (h - 0.66) / 2, 0.66, 0.66, String(i + 1).padStart(2, '0'), { size: S.heading, color: C.white, bold: true, align: 'center', anchor: 'middle' });
-    d.text(s, x + 1.05, y + 0.08, 4.7, h * 0.5, title, { size: S.heading, color: C.ink, bold: true, anchor: 'middle' });
-    d.text(s, x + 1.05, y + h * 0.52, 4.7, h * 0.44, subtitle, { color: C.muted });
+    d.text(s, x + 1.05, y + 0.06, 4.7, h * 0.44, title, { size: 20, color: C.ink, bold: true, anchor: 'middle' });
+    d.text(s, x + 1.05, y + h * 0.5, 4.7, h * 0.46, subtitle, { color: C.muted });
   });
 }
 
@@ -146,8 +157,8 @@ function summary(d, m) {
   d.header(s, T('doc_exec_kicker'), T('pdf_exec_summary'));
   d.rect(s, 0.6, 1.8, 8.35, 4.95, C.sand, { radius: 0.14 });
   d.rect(s, 0.6, 1.8, 0.1, 4.95, C.teal);
-  d.text(s, 0.95, 2.0, 7.75, 4.55, first, { size: 15 });
-  m.headline.forEach(([value, label], i) => d.tile(s, 9.2, 1.8 + i * 1.26, 3.53, 1.13, value, label, { valueSize: S.title }));
+  d.text(s, 0.95, 2.0, 7.75, 4.55, first, { size: pick(first, 7.75, 4.55, [22, 20, 18, 16, 14]), spacing: 10 });
+  m.headline.forEach(([value, label], i) => d.tile(s, 9.2, 1.8 + i * 1.26, 3.53, 1.13, value, label, { valueSize: 32 }));
   if (!rest.length) return;
   const more = d.new('summary_more', `${T('pdf_exec_summary')} (${T('doc_continued')})`);
   d.header(more, T('doc_exec_kicker'), `${T('pdf_exec_summary')} (${T('doc_continued')})`);
@@ -157,7 +168,7 @@ function summary(d, m) {
     const x = 0.6 + col * 6.19;
     d.rect(more, x, 1.8, 5.94, 4.95, C.white, { radius: 0.14, line: [C.line, 1] });
     d.rect(more, x, 1.8, 5.94, 0.09, col ? C.coral : C.teal);
-    d.text(more, x + 0.3, 2.1, 5.34, 4.45, chunk, { size: S.lead });
+    d.text(more, x + 0.3, 2.1, 5.34, 4.45, chunk, { size: pick(chunk, 5.34, 4.45, [20, 18, 16, 14]), spacing: 10 });
   });
 }
 
@@ -165,12 +176,12 @@ function guide(d, m) {
   const T = m.T;
   const s = d.new('guide', T('doc_how_to_read'), { background: C.sand });
   d.header(s, T('doc_guide_kicker'), T('doc_how_to_read'));
-  d.text(s, 0.6, 1.62, 12.13, 0.5, T(m.guideLeadKey), {});
+  d.text(s, 0.6, 1.62, 12.13, 0.5, T(m.guideLeadKey), { size: pick(T(m.guideLeadKey), 12.13, 0.5, [16, 14]) });
   const top = 2.15; const cardH = 2.35;
   [[0.6, T('doc_inspire_score_title'), T('doc_inspire_score_body')], [6.79, T('doc_quality_tiers_title'), T('doc_quality_tiers_body')]].forEach(([x, title, body]) => {
     d.rect(s, x, top, 5.94, cardH, C.white, { radius: 0.14, line: [C.line, 1] });
     d.text(s, x + 0.25, top + 0.12, 5.44, 0.36, title, { size: S.heading, color: C.ink, bold: true });
-    d.text(s, x + 0.25, top + 0.5, 5.44, cardH - 1.0, body, {});
+    d.text(s, x + 0.25, top + 0.5, 5.44, cardH - 1.0, body, { size: pick(body, 5.44, cardH - 1.0, [18, 16, 14]) });
   });
   const marks = top + cardH - 0.4;
   [C.coral, C.amber, C.green, C.teal_dark].forEach((c, i) => d.rect(s, 0.85 + i * 1.36, marks, 1.36, 0.14, c));
@@ -184,11 +195,13 @@ function guide(d, m) {
   const low = top + cardH + 0.15; const h = 6.8 - low;
   d.rect(s, 0.6, low, 5.94, h, C.sand2, { radius: 0.14 });
   d.text(s, 0.85, low + 0.1, 5.44, 0.34, T('doc_modes_title'), { size: S.heading, color: C.ink, bold: true });
-  d.text(s, 0.85, low + 0.5, 5.44, h - 0.6, MODES.map(([mode, nameKey, bodyKey]) => [
-    [`${T(nameKey)}${mode === m.mode ? ` · ${T('doc_this_catalog')}` : ''}: `, { bold: true, color: mode === m.mode ? C.gold_dark : C.teal }], [T(bodyKey), {}]]), {});
+  const modeParas = MODES.map(([mode, nameKey, bodyKey]) => [
+    [`${T(nameKey)}${mode === m.mode ? ` · ${T('doc_this_catalog')}` : ''}: `, { bold: true, color: mode === m.mode ? C.gold_dark : C.teal }], [T(bodyKey), {}]]);
+  d.text(s, 0.85, low + 0.5, 5.44, h - 0.6, modeParas, { size: pick(modeParas, 5.44, h - 0.6, [16, 14]) });
   d.rect(s, 6.79, low, 5.94, h, C.white, { radius: 0.14, line: [C.line, 1] });
   d.text(s, 7.04, low + 0.1, 5.44, 0.36, T('doc_elite_score_title'), { size: S.heading, color: C.ink, bold: true });
-  d.text(s, 7.04, low + 0.5, 5.44, h - 0.6, [[[T('doc_elite_score_body'), {}]], [[`${T('doc_coverage_title')}: `, { bold: true, color: C.coral }], [T('doc_coverage_body'), {}]]], {});
+  const eliteParas = [[[T('doc_elite_score_body'), {}]], [[`${T('doc_coverage_title')}: `, { bold: true, color: C.coral }], [T('doc_coverage_body'), {}]]];
+  d.text(s, 7.04, low + 0.5, 5.44, h - 0.6, eliteParas, { size: pick(eliteParas, 5.44, h - 0.6, [16, 14]) });
 }
 
 function portfolio(d, m) {
@@ -200,25 +213,26 @@ function portfolio(d, m) {
   const limit = 11;
   const shown = m.domains.slice(0, m.domains.length <= limit ? limit : limit - 1);
   const peak = Math.max(1, ...m.domains.map((x) => x.useCases.length));
-  const step = Math.min(0.4, 4.1 / Math.max(1, shown.length + (m.domains.length > shown.length ? 1 : 0)));
+  const step = Math.min(0.55, 4.2 / Math.max(1, shown.length + (m.domains.length > shown.length ? 1 : 0)));
   shown.forEach((dom, i) => {
     const y = 2.45 + i * step;
-    d.text(s, 0.85, y, 2.45, step, dom.name, { color: C.ink, anchor: 'middle' });
+    d.text(s, 0.85, y, 2.5, step, dom.name, { size: 16, color: C.ink, anchor: 'middle' });
     d.rect(s, 3.4, y + step / 2 - 0.075, 3.25, 0.15, C.sand2, { radius: 0.07 });
     d.rect(s, 3.4, y + step / 2 - 0.075, Math.max(0.08, (3.25 * dom.useCases.length) / peak), 0.15, C.teal, { radius: 0.07 });
-    d.text(s, 6.75, y, 0.7, step, String(dom.useCases.length), { color: C.teal, bold: true, anchor: 'middle', align: 'end' });
+    d.text(s, 6.75, y, 0.7, step, String(dom.useCases.length), { size: 16, color: C.teal, bold: true, anchor: 'middle', align: 'end' });
   });
-  if (m.domains.length > shown.length) d.text(s, 0.85, 2.45 + shown.length * step, 6.5, step, `+${m.domains.length - shown.length} ${T('doc_domains')}`, { color: C.muted, anchor: 'middle' });
+  if (m.domains.length > shown.length) d.text(s, 0.85, 2.45 + shown.length * step, 6.5, step, `+${m.domains.length - shown.length} ${T('doc_domains')}`, { size: 16, color: C.muted, anchor: 'middle' });
   d.rect(s, 7.85, 1.8, 4.88, 4.95, C.sand, { radius: 0.14 });
   d.text(s, 8.1, 1.95, 4.4, 0.36, T('doc_quality_distribution'), { size: S.heading, color: C.ink, bold: true });
   const total = Math.max(1, m.qualityRows.reduce((a, r) => a + r[1], 0));
   let x = 8.1;
-  for (const [label, n] of m.qualityRows) { const w = (4.38 * n) / total; d.rect(s, x, 2.5, w, 0.3, qualityColor(label)); x += w; }
-  m.qualityRows.slice(0, 8).forEach(([label, n, name], i) => {
-    const y = 3.0 + i * 0.4;
-    d.rect(s, 8.12, y + 0.11, 0.16, 0.16, qualityColor(label), { oval: true });
-    d.text(s, 8.4, y, 3.3, 0.38, name, { color: C.ink, anchor: 'middle' });
-    d.text(s, 11.75, y, 0.75, 0.38, String(n), { color: C.teal, bold: true, anchor: 'middle', align: 'end' });
+  for (const [label, n] of m.qualityRows) { const w = (4.38 * n) / total; d.rect(s, x, 2.5, w, 0.4, qualityColor(label)); x += w; }
+  const qrows = m.qualityRows.slice(0, 8); const qstep = Math.min(0.7, 3.6 / Math.max(1, qrows.length));
+  qrows.forEach(([label, n, name], i) => {
+    const y = 3.05 + i * qstep;
+    d.rect(s, 8.12, y + qstep / 2 - 0.1, 0.2, 0.2, qualityColor(label), { oval: true });
+    d.text(s, 8.45, y, 3.2, qstep, name, { size: 18, color: C.ink, anchor: 'middle' });
+    d.text(s, 11.7, y, 0.8, qstep, String(n), { size: 24, color: C.teal, bold: true, anchor: 'middle', align: 'end' });
   });
 }
 
@@ -241,153 +255,232 @@ function domainSlide(d, m, dom) {
   d.text(s, 0.6, 1.72, 6.8, 0.7, dom.name, { size: S.title, color: C.white, bold: true });
   dom.stats.slice(0, 4).forEach(([value, label], i) => d.tile(s, 7.6 + (i % 2) * 2.6, 0.5 + Math.floor(i / 2) * 1.04, 2.5, 0.96, value, label, { fill: C.white }));
   d.text(s, 0.6, 2.82, 7.3, 0.32, T('doc_domain_overview'), { size: S.heading, color: C.teal, bold: true });
-  d.text(s, 0.6, 3.2, 7.3, 1.45, dom.overview, {});
+  d.text(s, 0.6, 3.2, 7.3, 1.5, dom.overview, { size: pick(dom.overview, 7.3, 1.5, [18, 16, 14]) });
   d.text(s, 8.13, 2.82, 4.6, 0.32, T('doc_what_it_covers'), { size: S.heading, color: C.teal, bold: true });
   let x = 8.13; let y = 3.22;
   for (const [name, count] of dom.subdomains.slice(0, 12)) {
     const label = `${name} ${count}`; const w = chipW(label);
     if (x + w > 12.73) { x = 8.13; y += 0.42; }
-    if (y > 4.4) break;
+    if (y > 4.3) break;
     d.chip(s, x, y, w, label, C.sand2, C.teal);
     x += w + 0.08;
   }
   d.text(s, 0.6, 4.78, 12.13, 0.32, T('doc_top_opportunities'), { size: S.heading, color: C.ink, bold: true });
-  d.indexTable(s, dom.top, 5.16);
+  d.indexTable(s, dom.top.slice(0, 4), 5.16, 7.1);
 }
+
+const CM = 0.5; const CW = W - 2 * CM; // use case slides: 0.5 in margins
 
 function cardHead(d, s, v, T) {
   const accent = { elite: C.gold, coverage: C.coral }[v.kind] || C.teal;
-  d.rect(s, 0.6, 0.5, 0.82, 0.82, accent, { radius: 0.14 });
-  d.text(s, 0.6, 0.5, 0.82, 0.82, String(v.rank), { size: S.heading, color: v.kind === 'elite' ? C.gold_ink : C.white, bold: true, align: 'center', anchor: 'middle' });
-  d.text(s, 1.6, 0.45, 8.0, 0.3, d.kicker([v.id, v.domain, v.subdomain].filter(Boolean).join(' · ')), { color: C.coral, bold: true });
-  const tw = v.notebook ? 8.4 : 11.13; // the notebook button sits at the end of the head, as a link-style button
-  d.text(s, 1.6, 0.75, tw, 0.6, v.title, { size: S.card_title, color: C.ink, bold: true });
-  if (v.notebook) {
-    d.rect(s, 10.13, 0.78, 2.6, 0.42, C.night, { radius: 0.1 });
-    d.text(s, 10.18, 0.78, 2.5, 0.42, `${T('doc_open_notebook')} \u2197`, { color: C.mint, bold: true, align: 'center', anchor: 'middle' });
-  }
-  if (v.subtitle) d.text(s, 1.6, 1.33, tw, 0.32, v.subtitle, { color: C.muted });
-  d.rect(s, 0.6, 1.7, 12.13, 0.05, C.teal);
+  d.rect(s, CM, 0.4, 0.9, 0.9, accent, { radius: 0.14 });
+  d.text(s, CM, 0.4, 0.9, 0.9, String(v.rank), { size: S.title, color: v.kind === 'elite' ? C.gold_ink : C.white, bold: true, align: 'center', anchor: 'middle' });
+  d.text(s, 1.65, 0.38, CW - 1.15, 0.34, d.kicker([v.id, v.domain, v.subdomain].filter(Boolean).join(' · ')), { color: C.coral, bold: true });
+  const big = linesOf(v.title, CW - 1.15, S.card_title) <= 2;
+  d.text(s, 1.65, 0.72, CW - 1.15, 0.95, v.title, { size: big ? S.card_title : 24, color: C.ink, bold: true });
+  d.rect(s, CM, 1.7, CW, 0.05, C.teal);
 }
 
-// New: the value of the use case a year, its basis and, for an estimate, the estimate note (on both use case slides).
-function valueBand(d, s, m, v, top) {
-  const T = m.T; const val = v.value;
-  const paras = [[[`${T('value_at_stake')}: `, { bold: true, color: C.teal_dark }], [val.text, { bold: true, color: val.amount === null ? C.muted : C.teal }]]];
-  if (val.amount !== null) {
-    paras.push([[`${T('value_basis')}: `, { bold: true, color: C.teal_dark }], [val.basis, {}]]);
-    if (val.note) paras.push([[`${T('value_note')}: `, { bold: true, color: C.teal_dark }], [val.note, {}]]);
-    if (val.story) paras.push([[`${T('value_story')}: `, { bold: true, color: C.teal_dark }], [val.story, {}]]);
-  }
-  const h = 0.16 + 0.24 * paras.length + (val.story ? 0.2 : 0);
-  d.rect(s, 0.6, top, 12.13, h, C.ice, { radius: 0.08, line: [C.mint2, 0.75] });
-  d.rect(s, 0.6, top, 0.07, h, C.teal);
-  d.text(s, 0.8, top + 0.04, 11.8, h - 0.08, paras, { anchor: 'middle', spacing: 0 });
-  return top + h + 0.1;
+// The value story slide's header: one small line (rank, id, title), not the card's big title again.
+function storyHead(d, s, v, kicker) {
+  d.text(s, CM, 0.4, CW, 0.34, d.kicker(`${kicker} · ${v.id}`), { color: C.coral, bold: true });
+  d.text(s, CM, 0.74, CW, 0.5, v.title, { size: 24, color: C.ink, bold: true });
+  d.rect(s, CM, 1.4, CW, 0.05, C.teal);
 }
 
 function noteBand(d, s, top, accent, paras) {
-  d.rect(s, 0.6, top, 12.13, 0.4, C.note, { radius: 0.08, line: [C.note_line, 0.75] });
-  d.rect(s, 0.6, top, 0.07, 0.4, accent);
-  d.text(s, 0.8, top, 11.8, 0.4, paras, { color: C.note_ink, anchor: 'middle' });
-  return top + 0.48;
+  const h = Math.max(0.46, heightOf(paras, CW - 0.5, S.body) + 0.1);
+  d.rect(s, CM, top, CW, h, C.note, { radius: 0.08, line: [C.note_line, 0.75] });
+  d.rect(s, CM, top, 0.07, h, accent);
+  d.text(s, CM + 0.25, top, CW - 0.4, h, paras, { color: C.note_ink, anchor: 'middle' });
+  return top + h + 0.1;
+}
+
+// One block of a card: a label and its items. A list of short items reads as one line of points; long ones stay paragraphs.
+const blockParas = (items) => {
+  const list = items.map(String);
+  return list.length > 1 && list.every((x) => x.length <= 48) ? [list.join('  ·  ')] : list;
+};
+const blockH = (label, items, w, size) => 0.32 + heightOf(blockParas(items), w, size);
+
+// Draws blocks (label then text) down a column; free height is shared out as space between them.
+function column(d, s, x, top, bottom, w, blocks, size) {
+  const need = blocks.reduce((h, b) => h + blockH(b[0], b[1], w, size), 0);
+  const gap = blocks.length > 1 ? Math.min(0.32, Math.max(0.1, (bottom - top - need) / (blocks.length - 1))) : 0;
+  const lift = blocks.length ? Math.min(0.6, Math.max(0, (bottom - top - need - gap * (blocks.length - 1)) / 2)) : 0;
+  let y = top + lift;
+  for (const [label, items] of blocks) {
+    const h = blockH(label, items, w, size);
+    d.text(s, x, y, w, 0.3, d.kicker(label), { color: C.teal, bold: true });
+    d.text(s, x, y + 0.32, w, h - 0.32, blockParas(items), { size, color: C.ink, spacing: 4 });
+    y += h + gap;
+  }
 }
 
 function useCaseCard(d, m, v) {
   const T = m.T;
   const s = d.new('uc_card', v.title, { key: v.id });
-  cardHead(d, s, v, T);
-  const w = (12.13 - 0.1 * (v.metrics.length - 1)) / Math.max(1, v.metrics.length);
-  v.metrics.forEach(([, label, value], i) => d.tile(s, 0.6 + i * (w + 0.1), 1.84, w, 1.0, d.ltr(value), label));
-  let top = 2.94;
-  if (v.meetsBar) top = noteBand(d, s, top, C.green, [[[v.meetsBar, { bold: true, color: C.teal_dark }]]]);
-  if (v.star) top = noteBand(d, s, top, C.gold, [[[v.star, { bold: true, color: C.note_dark }]]]);
-  if (v.coverage) top = noteBand(d, s, top, C.coral, [[[`${v.coverage[0]}. `, { bold: true, color: C.note_dark }], [`${v.coverage[1]}: ${v.coverage[2]}`, {}]]]);
-  top = valueBand(d, s, m, v, top);
-  const bottom = 6.95; const room = bottom - top;
-  const per = room / v.narrative.length;
-  v.narrative.forEach(([, label, value], i) => {
-    const y = top + i * per;
-    d.text(s, 0.6, y, 6.6, 0.26, d.kicker(label), { color: C.teal, bold: true, fit: false });
-    d.text(s, 0.6, y + 0.27, 6.6, per - 0.31, value, {});
-  });
-  d.rect(s, 7.4, top, 5.33, room, C.sand, { radius: 0.14 });
-  d.text(s, 7.55, top + 0.08, 5.03, room - 0.16, v.facts.map(([, label, value]) => [[`${label}: `, { bold: true, color: C.teal }], [value, { color: C.ink }]]), { spacing: 0 });
-}
-
-function useCaseValue(d, m, v) {
-  const s = d.new('uc_value', v.title, { key: v.id });
   cardHead(d, s, v, m.T);
-  const top = valueBand(d, s, m, v, 1.86);
-  const left = v.valueFacts.filter((f) => DOC_VALUE_LEFT.includes(f[0]));
-  const right = v.valueFacts.filter((f) => !DOC_VALUE_LEFT.includes(f[0]));
-  for (const [x, entries] of [[0.6, left], [6.75, right]]) {
-    if (!entries.length) continue;
-    const weights = entries.map(([, , items]) => 1 + items.length * 0.6);
-    const total = weights.reduce((a, b) => a + b, 0);
-    const room = 6.95 - top - 0.12 * (entries.length - 1);
-    let y = top;
-    entries.forEach(([, label, items], i) => {
-      const h = (room * weights[i]) / total;
-      d.rect(s, x, y, 5.98, h, C.sand, { radius: 0.12 });
-      d.text(s, x + 0.18, y + 0.06, 5.6, 0.28, d.kicker(label), { color: C.teal, bold: true, fit: false });
-      d.text(s, x + 0.18, y + 0.36, 5.6, Math.max(0.25, h - 0.42), items.map((item) => `• ${item}`), {});
-      y += h + 0.12;
-    });
+  // Score chips and the ribbons in one flowing row.
+  let x = CM; let y = 1.9; const rowH = 0.42;
+  const place = (label, value, fill, color, vcolor) => {
+    const text = value === '' ? label : `${label}  ${value}`; const w = 0.28 + text.length * 0.093;
+    if (x + w > CM + CW && x > CM) { x = CM; y += rowH + 0.08; }
+    d.rect(s, x, y, w, rowH, fill, { radius: 0.21 });
+    d.text(s, x + 0.08, y, w - 0.16, rowH, [[[label, { color }], ...(value === '' ? [] : [['  ', {}], [d.ltr(value), { bold: true, color: vcolor || color }]])]], { color, align: 'center', anchor: 'middle' });
+    x += w + 0.08;
+  };
+  for (const [key, label, value] of v.metrics) {
+    if (key === 'quality') place(label, value, qualityColor(value), C.white, C.white); else place(label, value, C.sand, C.muted, C.teal);
   }
+  if (v.meetsBar) place(v.meetsBar, '', C.green, C.white);
+  if (v.star) place(v.star, '', C.gold, C.gold_ink);
+  // The notebook button, as on the PDF card foot.
+  if (v.notebook) place(`${T('doc_open_notebook')} ↗`, '', C.teal, C.white);
+  let top = y + rowH + 0.14;
+  if (v.coverage) top = noteBand(d, s, top, C.coral, [[[`${v.coverage[0]}. `, { bold: true, color: C.note_dark }], [`${v.coverage[1]}: ${v.coverage[2]}`, {}]]]);
+  const bottom = 7.1; const GAP = 0.4; const CWD = (CW - GAP) / 2;
+  const narrative = v.narrative.map(([, label, value]) => [label, [value]]);
+  const extra = v.valueFacts.filter(([, , items]) => items.length).map(([, label, items]) => [label, items]);
+  // The facts (sponsor, beneficiary ...) are one sand strip in two columns; every business block then flows over two text columns in order.
+  const facts = v.facts.map(([, label, value]) => [[`${label}: `, { bold: true, color: C.teal }], [value, { color: C.ink }]]);
+  if (facts.length) {
+    const half = Math.ceil(facts.length / 2); const cols = [facts.slice(0, half), facts.slice(half)].filter((c) => c.length);
+    const fh = Math.max(...cols.map((c) => heightOf(c, CWD - 0.1, S.body, 0.06))) + 0.2;
+    d.rect(s, CM, top, CW, fh, C.sand, { radius: 0.1 });
+    cols.forEach((c, i) => d.text(s, CM + 0.2 + i * (CWD + GAP), top + 0.1, CWD - 0.1, fh - 0.2, c, { spacing: 4 }));
+    top += fh + 0.15;
+  }
+  const room = bottom - top;
+  const hs = (blocks, sz) => blocks.reduce((h, b) => h + blockH(b[0], b[1], CWD, sz) + 0.1, 0);
+  // The narrative is split over two columns in order at the biggest size that fits (16 pt, else 14 pt); each other block then goes
+  // to the shorter column if it fits, else the other, else to the second slide.
+  const split = (list, sz) => {
+    let best = null;
+    for (let k = 0; k <= list.length; k += 1) {
+      const l = hs(list.slice(0, k), sz); const r = hs(list.slice(k), sz);
+      if (l <= room && r <= room && (!best || Math.max(l, r) < best.m)) best = { k, m: Math.max(l, r) };
+    }
+    return best;
+  };
+  let sz = S.lead; let plan = split(narrative, sz);
+  if (!plan) { sz = S.body; plan = split(narrative, sz); }
+  const cols = [narrative.slice(0, plan ? plan.k : narrative.length), narrative.slice(plan ? plan.k : narrative.length)];
+  const rest = [];
+  for (const b of extra) {
+    const order = hs(cols[0], sz) <= hs(cols[1], sz) ? [0, 1] : [1, 0];
+    const at = order.find((i) => hs([...cols[i], b], sz) <= room);
+    if (at === undefined) rest.push(b); else cols[at].push(b);
+  }
+  column(d, s, CM, top, bottom, CWD, cols[0], sz);
+  column(d, s, CM + CWD + GAP, top, bottom, CWD, cols[1], sz);
+  return rest;
 }
 
-// REQ-561: the value story slide that follows a valued use case: the amount with its basis and note, the story, where the value comes from
-// (factors with their share), the formula of each factor in plain words and the projection.
-function useCaseStory(d, m, v) {
+// Blocks that did not fit the card, one sand box each, full width and as big as the text allows (the second slide of a use case without a value).
+function useCaseValue(d, m, v, blocks) {
+  const s = d.new('uc_value', v.title, { key: v.id });
+  storyHead(d, s, v, v.domain);
+  const top = 1.7; const bottom = 7.1; const w = CW - 0.5; const gap = 0.2;
+  const size = [32, 28, 24, 22, 20, 18, 16, 14].find((z) => blocks.reduce((h, b) => h + blockH(b[0], b[1], w, z) + 0.3 + gap, 0) <= bottom - top + gap) || 14;
+  const boxes = blocks.map((b) => blockH(b[0], b[1], w, size) + 0.3);
+  const spare = Math.max(0, bottom - top - boxes.reduce((a, h) => a + h, 0) - gap * (blocks.length - 1));
+  let y = top;
+  blocks.forEach((b, i) => {
+    const h = boxes[i] + spare / blocks.length;
+    d.rect(s, CM, y, CW, h, C.sand, { radius: 0.14 });
+    column(d, s, CM + 0.25, y + 0.12, y + h - 0.12, w, [b], size);
+    y += h + gap;
+  });
+}
+
+const parseMoney = (t) => {
+  const m = /([\d,]*\.?\d+)\s*([KMB])?/i.exec(String(t));
+  return m ? Number(m[1].replace(/,/g, '')) * ({ K: 1e3, M: 1e6, B: 1e9 }[(m[2] || '').toUpperCase()] || 1) : 0;
+};
+
+// REQ-561 / C26: the value story slide: the amount as a hero with its basis, the story, the 3-year projection as a bar chart and a small
+// table, and the drivers as bars with their formula. Blocks that did not fit the card follow the story.
+function useCaseStory(d, m, v, spill = []) {
   const T = m.T; const val = v.value;
   const s = d.new('uc_story', v.title, { key: v.id });
-  cardHead(d, s, v, T);
-  const paras = [[[`${T('value_at_stake')}: `, { bold: true, color: C.teal_dark }], [val.text, { bold: true, color: C.teal }]], [[`${T('value_basis')}: `, { bold: true, color: C.teal_dark }], [val.basis, {}]]];
-  if (val.note) paras.push([[`${T('value_note')}: `, { bold: true, color: C.teal_dark }], [val.note, {}]]);
-  const bandH = 0.16 + 0.24 * paras.length;
-  d.rect(s, 0.6, 1.86, 12.13, bandH, C.ice, { radius: 0.08, line: [C.mint2, 0.75] });
-  d.rect(s, 0.6, 1.86, 0.07, bandH, C.teal);
-  d.text(s, 0.8, 1.9, 11.8, bandH - 0.08, paras, { anchor: 'middle', spacing: 0 });
-  const top = 1.86 + bandH + 0.12; const bottom = 6.95; const room = bottom - top; const COLW = 5.98;
-  const box = (x, y, h, label, body) => {
-    d.rect(s, x, y, COLW, h, C.sand, { radius: 0.12 });
-    d.text(s, x + 0.18, y + 0.06, COLW - 0.36, 0.28, d.kicker(label), { color: C.teal, bold: true, fit: false });
-    if (body) d.text(s, x + 0.18, y + 0.36, COLW - 0.36, Math.max(0.25, h - 0.42), body, {});
-  };
-  // Left: the story, then where the value comes from.
-  const storyH = val.story ? Math.min(room * 0.45, 0.6 + 0.2 * Math.ceil(val.story.length / 70)) : 0;
-  if (val.story) box(0.6, top, storyH, T('value_story'), val.story);
-  if (val.factors.length) {
-    const y = top + (storyH ? storyH + 0.12 : 0); const h = bottom - y;
-    box(0.6, y, h, T('value_source'));
-    const shown = val.factors.slice(0, 8); const step = Math.min(0.5, (h - 0.5) / shown.length);
-    shown.forEach((f, i) => {
-      const fy = y + 0.42 + i * step;
-      d.text(s, 0.78, fy, 2.3, step, f.name, { color: C.ink, anchor: 'middle' });
-      d.rect(s, 3.15, fy + step / 2 - 0.075, 1.9, 0.15, C.sand2, { radius: 0.07 });
-      d.rect(s, 3.15, fy + step / 2 - 0.075, Math.max(0.06, (1.9 * f.share) / 100), 0.15, C.teal, { radius: 0.07 });
-      d.text(s, 5.1, fy, 1.3, step, d.ltr(`${f.share}%`), { color: C.teal, bold: true, anchor: 'middle', align: 'end' });
+  storyHead(d, s, v, T('value_story'));
+  const bottom = 7.1; const top = 1.7; const LW = 6.0; const RX = CM + LW + 0.33; const RW = W - CM - RX;
+  const proj = val.projection; const hasF = val.factors.length > 0;
+  // Left: the hero number with its basis, then the blocks that did not fit the card, or else the projection chart.
+  const heroParas = [[[`${T('value_basis')}: `, { bold: true, color: C.teal_dark }], [val.basis, {}]]];
+  if (val.note) heroParas.push([[`${T('value_note')}: `, { bold: true, color: C.teal_dark }], [val.note, {}]]);
+  const heroH = 1.2 + heightOf(heroParas, LW - 0.5, S.body, 0.06);
+  d.rect(s, CM, top, LW, heroH, C.ice, { radius: 0.14, line: [C.mint2, 0.75] });
+  d.rect(s, CM, top, 0.09, heroH, C.teal);
+  d.text(s, CM + 0.3, top + 0.08, LW - 0.5, 0.3, d.kicker(T('value_at_stake')), { color: C.teal_dark, bold: true });
+  d.text(s, CM + 0.3, top + 0.36, LW - 0.5, 0.8, val.text, { size: 54, color: C.teal, bold: true, anchor: 'middle', name: `story-hero:${val.amount}` });
+  d.text(s, CM + 0.3, top + 1.18, LW - 0.5, heroH - 1.2, heroParas, { spacing: 4 });
+  const lTop = top + heroH + 0.2;
+  const chart = (x, y, w, h) => {
+    const nums = proj.map((q) => parseMoney(q.likely));
+    const peak = Math.max(1, ...nums);
+    const [div, suffix] = peak >= 1e9 ? [1e9, 'B'] : peak >= 1e6 ? [1e6, 'M'] : peak >= 1e3 ? [1e3, 'K'] : [1, ''];
+    const prefix = (/^[^\d]*/.exec(String(proj[0].likely)) || [''])[0].trim();
+    const labels = proj.map((q) => T('value_year_n', { n: q.year }));
+    const values = nums.map((n) => Math.round((n / div) * 100) / 100);
+    d.text(s, x, y, w, 0.3, d.kicker(`${T('value_projection')} · ${T('value_likely')} (${prefix}${suffix})`), { color: C.teal, bold: true });
+    s.addChart(d.pptx.charts.BAR, [{ name: T('value_likely'), labels: d.rtl ? [...labels].reverse() : labels, values: d.rtl ? [...values].reverse() : values }], {
+      x: d.mx(x, w), y: y + 0.32, w, h: Math.max(1.2, h - 0.32), barDir: 'col', barGapWidthPct: 25, chartColors: [C.teal], showLegend: false,
+      catAxisLabelFontSize: S.body, catAxisLabelColor: C.body, valAxisHidden: true, valGridLine: { style: 'none' }, catGridLine: { style: 'none' },
+      showValue: true, dataLabelFontSize: S.body, dataLabelFontBold: true, dataLabelColor: C.ink, dataLabelFormatCode: '0.0', dataLabelPosition: 'outEnd',
     });
-  }
-  // Right: the projection, then the formula of each factor.
-  const lines = val.factors.filter((f) => f.formula);
-  const projH = val.projection.length ? 0.55 + 0.3 * (val.projection.length + 1) : 0;
-  if (projH) {
-    box(6.75, top, projH, T('value_projection'));
-    let cols = [[T('value_year'), 1.3], [T('value_low'), 1.5], [T('value_likely'), 1.6], [T('value_high'), 1.3]];
+  };
+  const table = (x, y, w, h) => {
+    const rowH = Math.min(0.4, h / (proj.length + 1));
+    let cols = [[T('value_year'), 1.5], [T('value_low'), 0.9], [T('value_likely'), 0.9], [T('value_high'), 0.9]];
+    const sum = cols.reduce((a, c) => a + c[1], 0);
     const cells = (row) => row.map(([text, o]) => ({ text, options: o }));
     const head = cells(cols.map(([l]) => [l, { bold: true, color: C.white, fill: { color: C.teal } }]));
-    const body = val.projection.map((y, i) => cells([[T('value_year_n', { n: y.year }), {}], [d.ltr(y.low), {}], [d.ltr(y.likely), { bold: true, color: C.teal }], [d.ltr(y.high), {}]]
-      .map(([t, o]) => [t, { fill: { color: i % 2 ? C.sand3 : C.white }, ...o }])));
+    const body = proj.map((p, i) => cells([[T('value_year_n', { n: p.year }), {}], [d.ltr(p.low), {}], [d.ltr(p.likely), { bold: true, color: C.teal }], [d.ltr(p.high), {}]]
+      .map(([t, o]) => [t, { fill: { color: i % 2 ? C.sand3 : C.sand }, ...o }])));
     if (d.rtl) { cols = [...cols].reverse(); head.reverse(); body.forEach((r) => r.reverse()); }
-    s.addTable([head, ...body], { x: d.mx(6.93, 5.6), y: top + 0.4, w: 5.6, colW: cols.map((c) => c[1] * (5.6 / 5.7)), rowH: 0.3, fontSize: S.body, valign: 'middle', border: { type: 'none' }, margin: 0.04,
+    s.addTable([head, ...body], { x: d.mx(x, w), y, w, colW: cols.map((c) => (c[1] * w) / sum), rowH, fontSize: S.body, valign: 'middle', border: { type: 'none' }, margin: 0.04,
       align: d.align(), ...(d.rtl ? { rtlMode: true } : {}) });
+    return rowH * (proj.length + 1);
+  };
+  const drivers = (x, y, w, h) => {
+    const label = 0.34; const shown = val.factors.slice(0, 6); const rowH = Math.min(1.0, (h - label) / shown.length);
+    d.text(s, x, y, w, label, d.kicker(T('value_how')), { color: C.teal, bold: true });
+    shown.forEach((f, i) => {
+      const fy = y + label + i * rowH; const nameW = Math.max(1.4, w * 0.4); const barW = Math.max(0.6, w - nameW - 0.85);
+      d.text(s, x, fy, nameW, 0.34, f.name, { color: C.ink, bold: true, anchor: 'middle' });
+      d.rect(s, x + nameW, fy + 0.08, barW, 0.18, C.sand2, { radius: 0.09 });
+      d.rect(s, x + nameW, fy + 0.08, Math.max(0.06, (barW * f.share) / 100), 0.18, C.teal, { radius: 0.09 });
+      d.text(s, x + w - 0.8, fy, 0.8, 0.34, d.ltr(`${f.share}%`), { color: C.teal, bold: true, anchor: 'middle', align: 'end' });
+      if (f.formula) d.text(s, x, fy + 0.34, w, rowH - 0.36, f.formula, { color: C.muted });
+    });
+  };
+  if (spill.length) {
+    d.rect(s, CM, lTop, LW, bottom - lTop, C.sand, { radius: 0.14 });
+    column(d, s, CM + 0.22, lTop + 0.1, bottom - 0.1, LW - 0.44, spill, S.body);
+  } else if (proj.length) chart(CM, lTop, LW, bottom - lTop);
+  // Right: the story, then the projection (chart and table beside each other when the left column is full), then the drivers.
+  let y = top;
+  if (val.story) {
+    const h = blockH(T('value_story'), [val.story], RW - 0.44, S.lead) + 0.2;
+    d.rect(s, RX, y, RW, h, C.sand, { radius: 0.14 });
+    column(d, s, RX + 0.22, y + 0.08, y + h - 0.08, RW - 0.44, [[T('value_story'), [val.story]]], S.lead);
+    y += h + 0.2;
   }
-  if (lines.length) {
-    const y = top + (projH ? projH + 0.12 : 0);
-    box(6.75, y, bottom - y, T('value_how'), lines.map((f) => [[`${f.name}: `, { bold: true, color: C.teal }], [f.formula, {}]]));
+  if (proj.length) {
+    const room = bottom - y; const th = (proj.length + 1) * 0.4;
+    if (spill.length) {
+      const ch = Math.min(2.2, Math.max(1.7, room - (hasF ? 1.6 : 0)));
+      chart(RX, y, 2.3, ch); table(RX + 2.45, y + 0.36, RW - 2.45, ch - 0.36);
+      y += ch + 0.15;
+    } else {
+      d.text(s, RX, y, RW, 0.3, d.kicker(T('value_projection')), { color: C.teal, bold: true });
+      y += 0.36 + table(RX, y + 0.36, RW, th) + 0.2 - 0.0;
+      y -= 0.0;
+    }
   }
+  if (hasF) drivers(RX, y, RW, bottom - y);
 }
 
 // New: the value slide, after the last domain and before the index: the total, the value per domain and the top use cases.
@@ -398,21 +491,21 @@ function valueSlide(d, m) {
   const top = d.lead(s, T('value_lead', { with: v.nWith, total: m.total }));
   const tiles = [[v.total.text, T('value_total'), `value-total:${v.total.amount}`], [`${v.nWith} / ${m.total}`, T('value_with')],
     [String(v.byDomain.filter((x) => x.n).length), T('value_domains')]];
-  tiles.forEach(([value, label, name], i) => d.tile(s, 0.6 + i * 4.09, top, 3.95, 1.0, value, label, { valueSize: S.title, name }));
+  tiles.forEach(([value, label, name], i) => d.tile(s, 0.6 + i * 4.09, top, 3.95, 1.0, value, label, { valueSize: 32, name }));
   const y0 = top + 1.15; const bottom = 6.7;
-  d.rect(s, 0.6, y0, 4.9, bottom - y0, C.white, { radius: 0.14, line: [C.line, 1] });
+  d.rect(s, 0.6, y0, 4.5, bottom - y0, C.white, { radius: 0.14, line: [C.line, 1] });
   d.text(s, 0.8, y0 + 0.1, 4.5, 0.34, T('value_per_domain'), { size: S.heading, color: C.ink, bold: true });
   const shown = v.byDomain.slice(0, 9);
   const peak = Math.max(1, ...shown.map((x) => x.amount));
-  const step = Math.min(0.55, (bottom - y0 - 0.6) / Math.max(1, shown.length));
+  const step = Math.min(0.5, (bottom - y0 - 0.6) / Math.max(1, shown.length));
   shown.forEach((dom, i) => {
     const y = y0 + 0.55 + i * step;
-    d.text(s, 0.8, y, 1.9, step, dom.name, { color: C.ink, anchor: 'middle', name: `value-domain:${dom.amount}` });
-    d.rect(s, 2.75, y + step / 2 - 0.075, 1.5, 0.15, C.sand2, { radius: 0.07 });
-    if (dom.amount) d.rect(s, 2.75, y + step / 2 - 0.075, Math.max(0.06, (1.5 * dom.amount) / peak), 0.15, C.teal, { radius: 0.07 });
-    d.text(s, 4.3, y, 1.1, step, dom.text, { color: C.teal, bold: true, anchor: 'middle', align: 'end' });
+    d.text(s, 0.8, y, 1.75, step, dom.name, { size: 14, color: C.ink, anchor: 'middle', name: `value-domain:${dom.amount}` });
+    d.rect(s, 2.6, y + step / 2 - 0.075, 1.2, 0.15, C.sand2, { radius: 0.07 });
+    if (dom.amount) d.rect(s, 2.6, y + step / 2 - 0.075, Math.max(0.06, (1.2 * dom.amount) / peak), 0.15, C.teal, { radius: 0.07 });
+    d.text(s, 3.85, y, 1.15, step, dom.text, { size: 16, color: C.teal, bold: true, anchor: 'middle', align: 'end' });
   });
-  let cols = [['rank', T('doc_rank'), 0.5], ['id', 'ID', 0.9], ['title', T('usecase'), 2.2], ['domain', T('domain'), 1.15], ['amount', T('value_year'), 1.0], ['status', T('value_status'), 1.33]];
+  let cols = [['rank', T('doc_rank'), 0.6], ['id', 'ID', 0.95], ['title', T('usecase'), 3.3], ['amount', T('value_year'), 1.3], ['status', T('value_status'), 1.38]];
   if (d.rtl) cols = [...cols].reverse();
   const head = (label) => cols.map(([k, l]) => ({ text: k === 'title' ? label : l, options: { bold: true, color: C.white, fill: { color: C.teal } } }));
   const row = (u, valued, i) => cols.map(([k]) => ({
@@ -420,7 +513,7 @@ function valueSlide(d, m) {
       status: valued ? T(u.value.status === 'calculated' ? 'value_calculated_short' : 'value_estimated_short') : u.value.text }[k],
     options: { color: k === 'amount' ? C.teal : k === 'id' ? C.coral : C.body, bold: k === 'amount' || k === 'id', fill: { color: i % 2 ? C.sand3 : C.white } },
   }));
-  const maxRows = 11;
+  const maxRows = 6;
   const topRows = v.top.slice(0, maxRows).map((u, i) => row(u, true, i));
   const rows = [head(T('value_top')), ...topRows];
   const room = maxRows - topRows.length;
@@ -430,10 +523,10 @@ function valueSlide(d, m) {
     shownWithout.forEach((u, i) => rows.push(row(u, false, i)));
     if (v.without.length > shownWithout.length) rows.push(cols.map(([k]) => ({ text: k === 'title' ? `+${v.without.length - shownWithout.length}` : '', options: { color: C.muted } })));
   }
-  s.addTable(rows, { x: d.mx(5.65, 7.08), y: y0, w: 7.08, colW: cols.map((c) => c[2]), rowH: Math.min(0.4, (bottom - y0) / rows.length), fontSize: S.body,
+  s.addTable(rows, { x: d.mx(5.3, 7.53), y: y0, w: 7.53, colW: cols.map((c) => c[2]), rowH: Math.min(0.46, (bottom - y0) / rows.length), fontSize: S.body,
     valign: 'middle', border: { type: 'none' }, margin: 0.04, align: d.align(), ...(d.rtl ? { rtlMode: true } : {}) });
   const notes = [...(v.otherCurrency.length ? [T('value_other_currency', { list: v.otherCurrency.join(', ') })] : []), T('value_note_body')];
-  d.text(s, 0.6, 6.78, 12.13, 0.5, notes.join(' '), { color: C.muted, italic: true });
+  d.text(s, 0.6, 6.82, 12.13, 0.55, notes.join(' '), { color: C.muted, italic: true });
 }
 
 function indexSlide(d, m, chunk, page, pages) {
@@ -450,11 +543,12 @@ function methodology(d, m) {
   d.header(s, T('doc_appendix'), T('doc_methodology'));
   d.rect(s, 0.6, 1.8, 12.13, 5.05, C.white, { radius: 0.14, line: [C.line, 1] });
   const per = 4.75 / m.methodSteps.length;
+  const msize = Math.min(...m.methodSteps.map((t) => pick(t, 11.1, per - 0.06, [20, 18, 16])));
   m.methodSteps.forEach((text, i) => {
     const y = 2.0 + i * per;
     d.rect(s, 0.8, y + 0.02, 0.44, 0.44, C.teal, { oval: true });
-    d.text(s, 0.8, y + 0.02, 0.44, 0.44, String(i + 1), { color: C.white, bold: true, align: 'center', anchor: 'middle', fit: false });
-    d.text(s, 1.45, y, 11.1, per - 0.06, text, { size: S.lead });
+    d.text(s, 0.8, y + 0.02, 0.44, 0.44, String(i + 1), { color: C.white, bold: true, align: 'center', anchor: 'middle' });
+    d.text(s, 1.45, y, 11.1, per - 0.06, text, { size: msize, anchor: 'middle' });
   });
 }
 
@@ -466,7 +560,8 @@ function glossary(d, m) {
   [m.glossary.slice(0, half), m.glossary.slice(half)].forEach((part, col) => {
     const x = 0.6 + col * 6.16;
     d.rect(s, x, 1.8, 5.97, 5.05, C.sand, { radius: 0.14 });
-    d.text(s, x + 0.24, 2.0, 5.49, 4.7, part.map(([term, body]) => [[`${term}: `, { bold: true, color: C.teal }], [body, {}]]), { size: S.lead });
+    const gp = part.map(([term, body]) => [[`${term}: `, { bold: true, color: C.teal }], [body, {}]]);
+    d.text(s, x + 0.24, 2.0, 5.49, 4.7, gp, { size: pick(gp, 5.49, 4.7, [18, 16, 14]), spacing: 8 });
   });
 }
 
@@ -481,7 +576,7 @@ function foundationsSlide(d, m) {
     const y = top + i * (h + 0.1); const accent = ACCENTS[i % ACCENTS.length];
     d.rect(s, 0.6, y, 12.13, h, C.sand, { radius: 0.12 });
     d.rect(s, 0.6, y, 0.09, h, accent);
-    d.text(s, 0.85, y, 0.75, h, r.id, { size: S.heading, color: accent, bold: true, anchor: 'middle' });
+    d.text(s, 0.85, y, 0.75, h, r.id, { size: 18, color: accent, bold: true, anchor: 'middle' });
     d.text(s, 1.65, y + 0.06, 6.3, h - 0.12, [[[r.tables, { bold: true, color: C.ink }]], ...(r.joins ? [[[r.joins, { color: C.muted }]]] : [])], { anchor: 'middle' });
     const ids = r.useCaseIds.join(', ') + (r.more ? ` (+${r.more})` : '');
     d.text(s, 8.2, y + 0.06, 4.4, h - 0.12, [[[`${r.count} `, { bold: true, color: C.teal }], [T('doc_foundation_unlocks'), { color: C.muted }]], [[ids, {}]]], { anchor: 'middle' });
@@ -498,14 +593,14 @@ function roadmap(d, m) {
     d.rect(s, x, 1.85, w, 3.6, C.sand, { radius: 0.14 });
     d.rect(s, x, 1.85, w, 0.09, accent);
     d.rect(s, x + 0.2, 2.1, 0.5, 0.5, accent, { oval: true });
-    d.text(s, x + 0.2, 2.1, 0.5, 0.5, String(i + 1), { size: S.heading, color: C.white, bold: true, align: 'center', anchor: 'middle', fit: false });
-    d.text(s, x + 0.2, 2.74, w - 0.4, 0.62, title, { size: S.lead, color: C.ink, bold: true });
-    d.text(s, x + 0.2, 3.4, w - 0.4, 1.95, body, {});
+    d.text(s, x + 0.2, 2.1, 0.5, 0.5, String(i + 1), { size: S.heading, color: C.white, bold: true, align: 'center', anchor: 'middle' });
+    d.text(s, x + 0.2, 2.74, w - 0.4, 0.62, title, { size: 16, color: C.ink, bold: true });
+    d.text(s, x + 0.2, 3.4, w - 0.4, 1.95, body, { size: pick(body, w - 0.4, 1.95, [16, 14]) });
     if (i < m.roadmap.length - 1) s.addShape(d.rtl ? 'leftArrow' : 'rightArrow', { x: d.mx(x + w + 0.06, 0.26), y: 3.5, w: 0.26, h: 0.3, fill: { color: C.muted }, line: { type: 'none' } });
   });
   d.rect(s, 0.6, 5.6, 12.13, 1.15, C.ice, { radius: 0.12 });
   d.rect(s, 0.6, 5.6, 0.1, 1.15, C.teal);
-  d.text(s, 0.95, 5.68, 11.55, 1.0, T('doc_closing_body'), { size: S.lead, color: C.ink, anchor: 'middle' });
+  d.text(s, 0.95, 5.68, 11.55, 1.0, T('doc_closing_body'), { size: pick(T('doc_closing_body'), 11.55, 1.0, [20, 18, 16]), color: C.ink, anchor: 'middle' });
 }
 
 function disclaimerSlide(d, m) {
@@ -513,11 +608,12 @@ function disclaimerSlide(d, m) {
   d.header(s, DOC_BRAND.wordmark, m.disclaimerTitle);
   d.rect(s, 0.6, 1.8, 12.13, 4.95, C.white, { radius: 0.14, line: [C.line, 1] });
   const per = 4.75 / m.disclaimer.length;
+  const dsize = Math.min(...m.disclaimer.map((t) => pick(t, 10.9, per - 0.06, [20, 18, 16, 14])));
   m.disclaimer.forEach((text, i) => {
     const y = 1.9 + i * per;
     d.rect(s, 0.85, y + (per - 0.5) / 2, 0.5, 0.5, C.teal, { radius: 0.1 });
-    d.text(s, 0.85, y + (per - 0.5) / 2, 0.5, 0.5, String(i + 1), { size: S.lead, color: C.white, bold: true, align: 'center', anchor: 'middle', fit: false });
-    d.text(s, 1.6, y, 10.9, per - 0.06, text, { color: C.body2, anchor: 'middle' });
+    d.text(s, 0.85, y + (per - 0.5) / 2, 0.5, 0.5, String(i + 1), { size: S.lead, color: C.white, bold: true, align: 'center', anchor: 'middle' });
+    d.text(s, 1.6, y, 10.9, per - 0.06, text, { size: dsize, color: C.body2, anchor: 'middle' });
   });
 }
 
@@ -542,7 +638,10 @@ export function buildAgentDeck(m) {
   cover(d, m); contents(d, m); summary(d, m); guide(d, m); portfolio(d, m); topIndex(d, m, deckCount);
   for (const dom of m.domains) {
     domainSlide(d, m, dom);
-    for (const v of dom.useCases.filter(inDeck)) { useCaseCard(d, m, v); if (v.valueFacts.length) useCaseValue(d, m, v); if (v.value.amount !== null) useCaseStory(d, m, v); }
+    for (const v of dom.useCases.filter(inDeck)) {
+      const spill = useCaseCard(d, m, v);
+      if (v.value.amount !== null) useCaseStory(d, m, v, spill); else if (spill.length) useCaseValue(d, m, v, spill);
+    }
   }
   valueSlide(d, m);
   const pages = Math.max(1, Math.ceil(m.ranked.length / INDEX_ROWS));

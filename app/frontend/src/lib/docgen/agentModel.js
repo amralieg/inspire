@@ -7,8 +7,13 @@ import { fieldOf, trackingIdOf, inspireScoreFromUc, scoreOf, belowBarReasonOf, n
 import { v130View, strategyGoals } from '../v130UseCase.js';
 import { useCaseKindView, KIND_INFORMATIONAL_LABEL } from '../useCaseKind.js';
 import { moneyText } from '../valueWizard.js';
+import { labelsFrom } from './docLabels.js';
+import { storyFrom } from './storyParts.js';
 import { buildDocModel, isRtl, STORY_NOT_APPROVED } from './docModel.js';
-import { plainDocText } from './docText.js';
+import { plainDocText, plainBusiness } from './docText.js';
+import { displayId } from '../../../../shared/useCaseId.mjs';
+
+export { plainBusiness };
 import { PANEL_BUSINESS } from './panelFields.js';
 
 // The agent's English labels (ENGLISH_TRANSLATIONS, 6a7361a39 lines 19551-19889 of the concatenated cells), the keys the documents use.
@@ -183,6 +188,8 @@ export const AGENT_VALUE_EN = {
   value_total: 'Total value per year', value_with: 'Use cases with a value', value_domains: 'Domains with a value', value_per_domain: 'Value per domain',
   value_top: 'Top use cases by value', value_without: 'Use cases without a value', value_year: 'Value a year', value_status: 'Basis',
   value_calculated_short: 'Calculated', value_estimated_short: 'Estimated', value_other_currency: 'Values in another currency are not added to the total: {list}.',
+  doc_purpose_kicker: 'About this catalog', doc_purpose_title: 'What this catalog is for', doc_domains_list_kicker: 'The portfolio', doc_domains_list_title: 'Business domains',
+  doc_domains_list_lead: 'Every business domain in this catalog, with its use cases, its value and its best score.', doc_dl_count: 'Use cases', doc_dl_best: 'Best score',
   what_we_serve: 'What we serve', how_it_works: 'How it works', value_source: 'Where the value comes from', objective_label: 'Objective',
   value_disclaimer: disclaimer.full,
   strategy: 'Strategy', strategy_serves: 'Serves {goal}', strategy_part_of: 'part of {under}', strategy_priorities: 'Business priorities', strategy_measured: 'Measured by',
@@ -286,23 +293,24 @@ function valueView(v, T) {
   // REQ-561: what the value story page holds beside the card's block: the factors with their share and formula, and the projection.
   const factors = (v.factors || []).filter((f) => f && f.name && Number(f.share) > 0).map((f) => ({ name: display(f.name), share: Math.round(f.share * 100), formula: display(f.formula) }));
   const projection = (v.yearly || []).filter((y) => y && Number.isFinite(Number(y.likely))).map((y) => ({ year: y.year, low: moneyText(v.currency, Number(y.low)), likely: moneyText(v.currency, Number(y.likely)), high: moneyText(v.currency, Number(y.high)) }));
-  return { amount: v.amount, currency: v.currency, status: v.status, text: v.text, basis, note: v.status === 'calculated' ? '' : T('value_note_body'), story, factors, projection };
+  return { amount: v.amount, currency: v.currency, status: v.status, text: v.text, yearly: v.yearly || [], basis, note: v.status === 'calculated' ? '' : T('value_note_body'), story, factors, projection };
 }
 
 // _use_case_view: everything one use case card prints, in the agent's order, plus its value.
 function useCaseView(uc, d, ctx) {
-  const { T, language, rankOf, ultra } = ctx;
+  const { T, language, rankOf } = ctx;
   const missing = T('doc_not_provided');
   const status = eliteStatus(uc);
   const coverageKind = status === 'DOMAIN_COVERAGE_PICK' || status === 'FALLBACK_BELOW_BAR';
   const kind = status === 'ELITE' ? 'elite' : coverageKind ? 'coverage' : '';
   const quality = canonicalQuality(d.quality || uc.Quality);
-  const metrics = [['quality', T('quality'), quality || T('doc_not_scored')]];
+  // C26 (REQ-563): an executive reads only what is known: a score, fact or ribbon with no value is left out, never printed as "Not provided".
+  const metrics = quality ? [['quality', T('quality'), quality]] : [];
   const scores = [['inspire_score', inspireScoreFromUc(uc), 10], ['doc_elite_score', uc.elite_score, 10], ['quality_score_header', scoreOf(uc, 'Quality Score', 'quality_score'), 5],
     ['doc_bob_score', uc.bob_score, 10], ['priority_score', scoreOf(uc, 'Priority', 'Priority Score', 'priority_score'), 10], ['value_score', scoreOf(uc, 'Value', 'value_score'), 5],
     ['feasibility_score', scoreOf(uc, 'Feasibility', 'feasibility'), 5]];
   for (const [key, value, scale] of scores) {
-    if (key === 'doc_elite_score' && !(ultra || finite(value) !== null)) continue;
+    if (finite(value) === null) continue;
     metrics.push([key, T(key), scoreText(value, scale, T)]);
   }
   const narrative = [['statement', T('statement'), d.statement || missing], ['solution', T('solution'), d.solution || missing], ['business_value', T('business_value'), d.businessValue || missing]];
@@ -315,10 +323,13 @@ function useCaseView(uc, d, ctx) {
   const kv = useCaseKindView(uc);
   if (kv) facts.push(['kind', T('doc_kind'), [kv.label, kv.familyLabel, kv.informational ? KIND_INFORMATIONAL_LABEL : ''].filter(Boolean).join(' \u00B7 ')]);
   facts.push(['type', T('type'), d.type || missing]);
+  for (let i = facts.length - 1; i >= 0; i -= 1) if (facts[i][2] === missing) facts.splice(i, 1);
   if (display(uc.key_measure_note)) facts.push(['key_measure_note', T('key_measure_note'), display(uc.key_measure_note)]);
   const v = v130View(uc);
   const valueFacts = [];
-  const lines = [['what_we_serve', 'serving_summary'], ['how_it_works', 'method_summary'], ['value_source', 'value_source']].map(([k, f]) => (display(uc[f]) ? `${T(k)}: ${display(uc[f])}` : '')).filter(Boolean);
+  const said = new Set([d.solution, d.businessValue].map((t) => display(t).toLowerCase()).filter(Boolean));
+  const lines = [['what_we_serve', 'serving_summary'], ['how_it_works', 'method_summary'], ['value_source', 'value_source']]
+    .map(([k, f]) => { const t = display(uc[f]); const low = t.toLowerCase(); return t && ![...said].some((x) => x.includes(low) || low.includes(x)) ? `${T(k)}: ${t}` : ''; }).filter(Boolean);
   if (lines.length) valueFacts.push(['what_you_get', T('doc_what_you_get'), lines]);
   const goals = strategyGoals(v, null);
   const strategy = [...goals.flatMap((g) => [[T('strategy_serves', { goal: g.name }), g.under ? T('strategy_part_of', { under: g.under }) : ''].filter(Boolean).join(', '), g.evidence]),
@@ -339,11 +350,12 @@ function useCaseView(uc, d, ctx) {
   const subtitle = [outcome ? `${outcome}.` : '', d.technique ? `${T('analytics_technique')}: ${d.technique}.` : '',
     scope && !d.name.toLowerCase().includes(scope.toLowerCase()) ? T('doc_subtitle_scope', { scope }) : ''].filter(Boolean).join(' ');
   const star = String(uc.best_of_best ?? '').trim().toUpperCase() === 'Y'
-    ? `\u2605 ${T('doc_best_of_best')} #${uc.best_of_best_rank ?? ''} \u00B7 ${T('doc_elite_score')} ${scoreText(uc.best_of_best_score, 10, T)}` : '';
+    ? [`\u2605 ${T('doc_best_of_best')} #${uc.best_of_best_rank ?? ''}`, finite(uc.best_of_best_score) === null ? '' : `${T('doc_elite_score')} ${scoreText(uc.best_of_best_score, 10, T)}`].filter(Boolean).join(' \u00B7 ') : '';
   const coverage = coverageKind ? [T(status === 'DOMAIN_COVERAGE_PICK' ? 'doc_coverage_pick' : 'doc_fallback_pick'), T('elite_reason'), belowBarReasonOf(uc) || missing] : null;
+  const biz = (rows) => rows.map(([k, label, value]) => [k, label, Array.isArray(value) ? value.map(plainBusiness) : plainBusiness(value)]);
   return {
-    uc, id: d.id, rank: rankOf.get(uc) ?? '', title: d.name || missing, subtitle, domain: domainOf(uc), subdomain: d.subdomain, kind, quality, metrics, narrative, facts,
-    valueFacts, panelKeys: PANEL_BUSINESS.map((p) => p.key).filter((k) => [...metrics, ...narrative, ...facts, ...valueFacts].some((e) => e[0] === k)), coverage, star, meetsBar: meetsBar(uc) ? T('doc_meets_bar') : '', notebook: Boolean(String(uc.notebook_path ?? '').trim() || hasShippedGenieCode(uc)),
+    uc: { ...uc, ...(uc.No != null ? { No: displayId(uc.No) } : {}), ...(uc.id != null ? { id: displayId(uc.id) } : {}) }, id: d.id, rank: rankOf.get(uc) ?? '', title: d.name || missing, subtitle: plainBusiness(subtitle), domain: domainOf(uc), subdomain: d.subdomain, kind, quality, metrics, narrative: biz(narrative), facts: biz(facts),
+    valueFacts: biz(valueFacts), panelKeys: PANEL_BUSINESS.map((p) => p.key).filter((k) => [...metrics, ...narrative, ...facts, ...valueFacts].some((e) => e[0] === k)), coverage, star, meetsBar: meetsBar(uc) ? T('doc_meets_bar') : '', notebook: Boolean(String(uc.notebook_path ?? '').trim() || hasShippedGenieCode(uc)),
     value: valueView(d.value, T),
   };
 }
@@ -370,7 +382,7 @@ const byDomain = (list) => {
 
 // _document_model + _doc_presentation for the App: the run's use cases (raw records) and their values (docValues contract).
 // translated: the translate route's answer for a second language (labels under agent|<key>, data under <id>|name and so on).
-export function buildAgentModel({ businessName, useCases, values, summary, foundations, language = 'English', translated = null, date, groups, groupLabelKey = 'doc_domain_label', options = {} }) {
+export function buildAgentModel({ businessName, useCases, values, summary, foundations, language = 'English', translated = null, date, groups, groupLabelKey = 'doc_domain_label', options = {}, logo = null, vibe = '' }) {
   const labels = translated ? agentLabelsFrom(translated) : {};
   const T = (key, v) => agentText(labels, key, { ...tiers, ...v });
   const tiers = { lowest: 'Ultra Low', highest: 'Ultra High', medium: 'Medium', high: 'High', ultra: 'Ultra High', min_score: 8 };
@@ -413,7 +425,7 @@ export function buildAgentModel({ businessName, useCases, values, summary, found
     const value = members.reduce((s, u) => s + amountOf(u), 0);
     return {
       index: i + 1, name: g.name, useCases: members.map((u) => views.get(u)), overview: [T('doc_domain_fallback', { count: members.length, subdomains: listed })],
-      subdomains, stats, top: (members.filter((u) => eliteStatus(u) !== 'DOMAIN_COVERAGE_PICK').slice(0, 3).length ? members.filter((u) => eliteStatus(u) !== 'DOMAIN_COVERAGE_PICK').slice(0, 3) : members.slice(0, 1)).map((u) => views.get(u)),
+      subdomains, stats, bestScore: best(members), top: (members.filter((u) => eliteStatus(u) !== 'DOMAIN_COVERAGE_PICK').slice(0, 3).length ? members.filter((u) => eliteStatus(u) !== 'DOMAIN_COVERAGE_PICK').slice(0, 3) : members.slice(0, 1)).map((u) => views.get(u)),
       value: { amount: value, text: moneyText(currency, value), n: members.filter((u) => docOf.get(u).value).length },
     };
   });
@@ -439,7 +451,8 @@ export function buildAgentModel({ businessName, useCases, values, summary, found
   const valueTop = [...withValue].filter((u) => docOf.get(u).value.currency === currency).sort((a, b) => amountOf(b) - amountOf(a) || compareFinalRank(a, b)).slice(0, TOP_LIMIT.value).map((u) => views.get(u));
   const model = {
     language, lang: LOCALES[language] || 'en', rtl: isRtl(language), latinDisplay: !NON_LATIN_LANGUAGES.includes(language), T, labels,
-    businessName: docModel.businessName, date: day, mode, ultra, modeLabel, total: ranked.length, domains, groupLabelKey,
+    docLabels: translated ? labelsFrom(translated) : {}, story: translated ? storyFrom(translated) : {},
+    businessName: docModel.businessName, summary: docModel.summary, date: day, mode, ultra, modeLabel, total: ranked.length, domains, groupLabelKey,
     ranked: ranked.map((u) => views.get(u)), qualityCounts, qualityRows, unscored, executive, top, foundations: foundationList,
     headline: [[String(ranked.length), T('doc_use_cases')], [String(domains.length), T('doc_domains')],
       ultra ? [String(elite.length), T('doc_elite_use_cases')] : [String(highOrBetter), T('doc_high_or_better')], [scoreText(bestScore, 10, T), T('doc_best_score')]],
@@ -450,7 +463,7 @@ export function buildAgentModel({ businessName, useCases, values, summary, found
       ['doc_step_schedule', 'doc_step_schedule_body'], ['doc_step_measure', 'doc_step_measure_body']].map(([a, b]) => [T(a), T(b)]),
     disclaimerTitle: T('pdf_disclaimer_title'), disclaimer: ['doc_method_1', 'doc_disclaimer_ai', 'doc_disclaimer_figures', 'disclaimer', 'value_disclaimer'].map((k) => T(k)),
     closingSummary: `${ranked.length} ${T('doc_use_cases')} \u00B7 ${domains.length} ${T('doc_domains')}${mode ? ` \u00B7 ${T('doc_quality_mode')}: ${modeLabel}` : ''}`,
-    generatedBy,
+    generatedBy, logo, vibe, // C28 (REQ-572): the person's logo (data URL) and wording guide
     value: {
       total: { amount: docModel.total.amount, currency, text: docModel.total.text }, nWith: withValue.length, nWithout: ranked.length - withValue.length,
       byDomain: domains.map((d) => ({ index: d.index, name: d.name, ...d.value })), top: valueTop,

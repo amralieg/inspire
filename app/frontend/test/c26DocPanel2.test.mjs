@@ -96,7 +96,9 @@ test('(c) Arabic and French runs print the new labels translated, not in English
       const en = AGENT_VALUE_EN[k]; const tr = shift(en, n);
       const piece = (s) => s.split(/\{[a-z_]+\}/).map((x) => x.trim()).filter(Boolean).sort((x, y) => y.length - x.length)[0];
       const where = TILE.includes(k) ? [['tile', tile]] : [['PDF', pdf], ['deck', deck]];
-      for (const [w, text] of where) assert.ok(text.toLowerCase().includes(piece(tr).toLowerCase()), `${language} ${w}: ${k} is translated ("${piece(tr)}")`);
+      // REQ-563: the PDF no longer prints the value_how heading, so it is translated on the deck only; the not-in-English check still runs on every surface.
+      const printed = k === 'value_how' ? where.filter(([w]) => w !== 'PDF') : where;
+      for (const [w, text] of printed) assert.ok(text.toLowerCase().includes(piece(tr).toLowerCase()), `${language} ${w}: ${k} is translated ("${piece(tr)}")`);
       for (const [w, text] of where) if (en.length > 8) assert.ok(!text.toLowerCase().includes(piece(en).toLowerCase()), `${language} ${w}: ${k} is not left in English ("${piece(en)}")`);
     }
   }

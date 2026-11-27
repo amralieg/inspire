@@ -208,6 +208,7 @@ const ROUTE_POLICY = {
   'POST /api/inspire/feedback': tracked('send feedback'),
   'POST /api/inspire/docs/save': owners("save a document the Generate docs wizard made into the run's Assets folder", { target: wholeRunTarget, runWide: true, launcherOwnsUnbuilt: true }),
   'POST /api/inspire/docs/translate': tracked('translate the selected use case texts for a document language'),
+  'POST /api/inspire/docs/infographic-pick': tracked('pick the infographic scenario and write its text for one use case'),
   'POST /api/inspire/sync-genie-flags': managers('change the Genie flags of use cases'),
   'POST /api/inspire/usecase-name': managers('rename a use case'),
   'DELETE /api/inspire/session': { rule: 'launcher', action: 'delete it', target: sessionTarget, identity: 'app', why: GATED },

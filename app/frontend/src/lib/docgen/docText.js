@@ -20,3 +20,9 @@ export function foundationLabel(item, namesById) {
   if (!/^F\d+$/i.test(text)) return text;
   return String((namesById && namesById.get(text.toUpperCase())) || '').trim();
 }
+
+// REQ-561 (c27): a business line never prints a column or table identifier. "table.column" keeps the column, snake_case words become plain words ("on_hand" -> "on hand").
+const SNAKE_ID = /\b[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+\b/g;
+export const plainBusiness = (text) => String(text ?? '').replace(/`/g, '')
+  .replace(/\b([A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)*)\.([A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)*)\b/g, (all, l, r) => (all.includes('_') ? r : all))
+  .replace(SNAKE_ID, (id) => id.replace(/_/g, ' '));

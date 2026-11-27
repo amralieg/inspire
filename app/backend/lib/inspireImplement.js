@@ -1,3 +1,4 @@
+const { storedForms } = require('../../shared/useCaseId.mjs');
 const { joinSentences } = require('./sentences');
 const { appShellCatalog } = require('./appShell');
 const { IMPLEMENT_RUN_ID_PARAM, parseMaybeJson, resourceTagKey, useCaseNameTag, resourceTagValue, withInspireInstallParams } = require('./inspireJobParams');
@@ -4042,17 +4043,18 @@ function removedTableProblems(spec, involved, primary = '') {
 }
 
 function useCaseRowStatement(table, sessionId, useCaseId) {
+  const forms = storedForms(useCaseId); // REQ-569: a row saved as Nx-Ux is found by AIx-UCx and the other way round
   return {
-    sql: `SELECT * FROM ${table} WHERE session_id = :sid AND id = :uc LIMIT 1`,
+    sql: `SELECT * FROM ${table} WHERE session_id = :sid AND id IN (${forms.map((_, i) => `:uc${i}`).join(', ')}) LIMIT 1`,
     parameters: [
       { name: 'sid', value: String(sessionId), type: 'BIGINT' },
-      { name: 'uc', value: String(useCaseId), type: 'STRING' },
+      ...forms.map((value, i) => ({ name: `uc${i}`, value, type: 'STRING' })),
     ],
   };
 }
 
 function useCaseTablesStatement(table, sessionId, useCaseIds) {
-  const ids = (useCaseIds || []).map((id, i) => ({ name: `uc${i}`, value: String(id), type: 'STRING' }));
+  const ids = [...new Set((useCaseIds || []).flatMap((id) => storedForms(id)))].map((value, i) => ({ name: `uc${i}`, value, type: 'STRING' }));
   return {
     sql: `SELECT id, tables_involved, primary_table FROM ${table} WHERE session_id = :sid AND id IN (${ids.map((p) => `:${p.name}`).join(', ')})`,
     parameters: [{ name: 'sid', value: String(sessionId), type: 'BIGINT' }, ...ids],

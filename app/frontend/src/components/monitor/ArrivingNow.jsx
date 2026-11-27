@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { displayId } from '../../../../shared/useCaseId.mjs';
 import { liveCountText } from '../../lib/liveUseCases';
 
 // REQ-511 Monitor C: the live use cases as cards, with one chip per domain that filters them.
@@ -46,7 +47,7 @@ export default function ArrivingNow({ useCases, live, empty }) {
           {cards.slice(0, CARD_CAP).map((uc, i) => (
             <li key={`${uc.id || uc.name}-${i}`} data-live-use-case="" className="min-w-0 rounded-lg border border-border bg-bg p-3">
               <div className="flex items-center gap-2 text-xs text-text-tertiary">
-                <span className="font-mono tabular-nums">{uc.id || `#${i + 1}`}</span>
+                <span className="font-mono tabular-nums">{displayId(uc.id) || `#${i + 1}`}</span>
                 {uc.priority && <span className={`ms-auto rounded-full px-2 py-0.5 text-caption font-semibold ${toneOf(uc.priority)}`}>{uc.priority}</span>}
               </div>
               <p className="mt-1 text-sm font-medium leading-snug text-text-primary break-words">{uc.label || uc.name}</p>

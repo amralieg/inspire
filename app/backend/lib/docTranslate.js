@@ -71,4 +71,11 @@ function readTranslations(raw, keys) {
   return Object.keys(salvaged).length > Object.keys(best).length ? salvaged : best;
 }
 
-module.exports = { chunkTexts, readTranslations, CHUNK_CHARS };
+// C28 (REQ-572): the person's "Vibe your docs" text as one prompt line: wording guidance only, never a change of keys, names or numbers. Cut at 1000 characters.
+const VIBE_MAX = 1000;
+function vibeLine(vibe) {
+  const text = String(vibe ?? '').replace(/\s+/g, ' ').trim().slice(0, VIBE_MAX);
+  return text ? ` The person asked for this tone and style in the wording (it guides word choice only; it never changes the keys, names or numbers): "${text}".` : '';
+}
+
+module.exports = { vibeLine, chunkTexts, readTranslations, objectsIn, CHUNK_CHARS };

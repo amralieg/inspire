@@ -1,33 +1,108 @@
 // REQ-561: one tile per use case under the infographic, with every business section of the side panel (the agent card view) and the value with a one-line story.
 // No table, filter, SQL, notebook path or foundation is ever drawn here. Pure SVG strings; works for the design and the older themes alike.
-import { esc, wrap } from './core.js';
+import { esc, wrap, textW, mix } from './core.js';
+import { ucChartSvg, chartTypesFor } from './ucCharts.js';
 
-const SIZE = 12; const LH = 16; const PAD = 40; const GAP = 20; const IN = 14;
+// C27 (REQ-564): one colour per domain, shared by the infographic charts and the tiles: the design's own colours first, then the deck's amber, wine, blue and purple.
+const EXTRA = ['#D9922E', '#9B2C3B', '#2F6DB5', '#7B52C9', '#C9A24B', '#1F9D55'];
+export function domainColors(names, pal) {
+  const base = [...new Set([...(pal.cats || [pal.accent]), ...EXTRA])];
+  const sorted = [...new Set(names.filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b)));
+  return new Map(sorted.map((n, i) => [n, base[i % base.length]]));
+}
+// Quality tiers from the deck: darker teal for higher quality, then green, amber, coral.
+const TONES = { 'Ultra High': '#0B4642', 'Very High': '#0F5E5A', High: '#1F9D55', Medium: '#D9922E', Low: '#E2725B', 'Very Low': '#D1495B', 'Ultra Low': '#9B2C3B' };
+export const qualityTone = (q) => TONES[q] || '#9AA4AC';
+// Readiness of a use case on a 0-10 scale: its feasibility, else the quality score of its card view (out of 5, doubled).
+export function readiness(u, view) {
+  if (Number.isFinite(u?.feasibility)) return u.feasibility;
+  const q = (view?.metrics || []).find((mm) => mm[0] === 'quality_score_header');
+  const n = q ? parseFloat(String(q[2])) : NaN;
+  return Number.isFinite(n) ? n * 2 : NaN;
+}
 
-// The lines of one tile as [{ text, bold, color, size }], wrapped to the tile's inner width.
-function tileLines(v, pal, width) {
-  const out = [];
-  const add = (text, o = {}) => {
-    const size = o.size || SIZE;
-    for (const line of wrap(String(text ?? ''), width, size, 'sans', o.bold ? 700 : 400)) out.push({ text: line, bold: !!o.bold, color: o.color || pal.body, size, gap: o.gap || 0 });
+// C26 (REQ-563): each use case is a one-glance card at two per A4 row: rank and name, domain, the value as the hero, chips for quality and score,
+// then the side panel business fields as short labelled blocks (12-13px, bold uppercase labels, space between blocks).
+const PAD = 40; const GAP = 20; const IN = 18;
+const TITLE = 17; const HERO = 26; const SMALL = 12; const BODY = 13; const BLH = 18; const SLH = 16; const BLOCK = 12;
+
+// The tile of one use case: its height for a width, and a drawing function for a position and a row height.
+function tile(v, pal, cw, rtl, color) {
+  const inW = cw - 2 * IN; const ops = []; let y = IN + 6;
+  const anchor = rtl ? 'end' : 'start';
+  const tx = (x) => (rtl ? x + cw - IN : x + IN);
+  const text = (lines, o, lh) => {
+    lines.forEach((l, i) => {
+      const yy = y + i * lh + o.size;
+      ops.push((x, y0) => `<text x="${tx(x)}" y="${y0 + yy}" font-size="${o.size}"${o.bold ? ' font-weight="700"' : ''} fill="${o.color}" text-anchor="${anchor}"${o.ls ? ` letter-spacing="${o.ls}"` : ''}>${typeof l === 'string' ? `<tspan>${esc(l)}</tspan>` : l.map(([t, b]) => `<tspan${b ? ' font-weight="700"' : ''}>${esc(t)}</tspan>`).join('')}</text>`);
+    });
+    y += lines.length * lh;
   };
-  const section = (label, items) => {
-    const list = items.map((i) => String(i ?? '').trim()).filter(Boolean);
-    if (!list.length) return;
-    add(label, { bold: true, color: pal.accent, gap: 6 });
-    list.forEach((i) => add(i));
-  };
-  add(`${v.rank}. ${v.title}`, { bold: true, color: pal.ink, size: 15 });
-  add([v.id, v.domain, v.subdomain].filter(Boolean).join(' · '), { color: pal.muted });
-  const s = v.value;
-  add(s.amount === null ? s.text : `${s.text} ${s.currency ? '' : ''}`.trim(), { bold: true, color: pal.accent, size: 14, gap: 4 });
-  if (s.amount !== null && s.story) add(s.story, { color: pal.muted });
-  v.metrics.forEach(([, label, value]) => add(`${label}: ${value}`, { color: pal.muted }));
-  if (v.star) add(v.star, { bold: true, color: pal.accent });
-  v.narrative.forEach(([, label, value]) => section(label, [value]));
-  v.facts.forEach(([, label, value]) => add(`${label}: ${value}`));
-  v.valueFacts.forEach(([, label, items]) => section(label, items));
-  return out;
+  const para = (str, o, lh) => text(wrap(String(str ?? ''), inW, o.size, 'sans', o.bold ? 700 : 400), o, lh);
+  // Rank and name (the whole name is also the tile's <title> so it can be found whole when it wraps).
+  para(`${v.rank}. ${v.title}`, { size: TITLE, bold: true, color: pal.ink }, 22);
+  y += 2;
+  const where = [v.domain, v.subdomain].filter(Boolean).join(' \u00B7 ');
+  if (where) { para(where, { size: SMALL, color: pal.muted }, SLH); }
+  // The value a year as the hero.
+  const val = v.value || {};
+  y += 10;
+  if (val.amount != null) {
+    para(val.text, { size: HERO, bold: true, color: pal.accent }, 32);
+    if (val.story) para(val.story, { size: SMALL, color: pal.muted }, SLH);
+  } else para(val.text || '', { size: 15, bold: true, color: pal.muted }, 20);
+  // Chips: quality and Inspire score, and the star.
+  const chips = [];
+  for (const [key, label, value] of v.metrics || []) if (key === 'quality' || key === 'inspire_score') chips.push(`${label}: ${value}`);
+  if (v.star) chips.push(v.star);
+  if (chips.length) {
+    y += 10; let cx = 0; let row = 0; const CH = 24; const place = [];
+    for (const c of chips) {
+      const w = Math.ceil(textW(c, SMALL, 'sans', 400) * 0.88 + 18);
+      if (cx && cx + w > inW) { cx = 0; row++; }
+      place.push([c, cx, row, w]); cx += w + 8;
+    }
+    const y0 = y;
+    for (const [c, px, r, w] of place) {
+      ops.push((x, yt) => {
+        const rx = rtl ? x + cw - IN - px - w : x + IN + px; const ry = yt + y0 + r * (CH + 6);
+        return `<rect x="${rx}" y="${ry}" width="${w}" height="${CH}" rx="12" fill="${mix(color, pal.card, 0.8)}"/><text x="${rx + w / 2}" y="${ry + 16}" font-size="${SMALL}" fill="${pal.ink}" text-anchor="middle"><tspan>${esc(c)}</tspan></text>`;
+      });
+    }
+    y += (row + 1) * (CH + 6) - 6;
+  }
+  // C27 (REQ-564): the use case's own chart (its lead type follows its analytics technique), in the deck palette.
+  {
+    const ch = 150; const cy0 = y + 12;
+    const svg = ucChartSvg(chartTypesFor(v)[0], v, { w: inW, h: ch, palette: { cats: [color, ...(pal.cats || []).filter((c) => c !== color)] } });
+    ops.push((x, yt) => svg.replace(/^<svg /, `<svg x="${x + IN}" y="${yt + cy0}" `));
+    y += ch + 12;
+  }
+  y += 12;
+  const ly = y - 4;
+  ops.push((x, y0) => `<line x1="${x + IN}" y1="${y0 + ly}" x2="${x + cw - IN}" y2="${y0 + ly}" stroke="${mix(pal.muted, pal.card, 0.7)}" stroke-width="1"/>`);
+  y += 6;
+  const label = (l) => { text([String(l).toUpperCase()], { size: SMALL, bold: true, color: pal.accent, ls: 0.6 }, SLH); y += 2; };
+  for (const [, l, str] of v.narrative || []) {
+    if (!String(str ?? '').trim()) continue;
+    label(l); para(str, { size: BODY, color: pal.body }, BLH); y += BLOCK;
+  }
+  // Facts: one line each as "Label: value" with the label in bold.
+  for (const [, l, str] of v.facts || []) {
+    if (!String(str ?? '').trim()) continue;
+    const full = `${l}: ${str}`; const lines = wrap(full, inW, BODY, 'sans', 400);
+    text(lines.map((ln, i) => (i === 0 && ln.startsWith(`${l}:`) ? [[`${l}:`, true], [ln.slice(l.length + 1), false]] : ln)), { size: BODY, color: pal.body }, BLH);
+    y += 2;
+  }
+  y += 8;
+  for (const [, l, items] of v.valueFacts || []) {
+    const list = (items || []).map((i) => String(i ?? '').trim()).filter(Boolean);
+    if (!list.length) continue;
+    label(l); list.forEach((i) => { para(i, { size: BODY, color: pal.body }, BLH); y += 4; }); y += BLOCK - 4;
+  }
+  const h = Math.ceil(y - BLOCK + IN);
+  const title = `${v.rank}. ${v.title}`;
+  return { id: v.id, h, draw: (x, y0, rowH) => `<rect x="${x}" y="${y0}" width="${cw}" height="${rowH}" rx="12" fill="${color}"/><rect x="${x}" y="${y0 + 6}" width="${cw}" height="${rowH - 6}" rx="12" fill="${pal.card}"/><title>${esc(title)}</title>${ops.map((f) => f(x, y0, rowH)).join('')}` };
 }
 
 const A4_H = 1123;
@@ -41,24 +116,18 @@ export function withPanelTiles(svg, views, pal, { rtl = false } = {}) {
   const W = Number(/ width="(\d+)"/.exec(head || '')?.[1]); const H0 = Number(/ height="(\d+)"/.exec(head || '')?.[1]);
   if (!head || !W || !H0) return svg;
   const colN = W >= 1000 ? 3 : 2;
-  const cw = (W - 2 * PAD - (colN - 1) * GAP) / colN; const inW = cw - 2 * IN;
+  const colorOf = domainColors(views.map((v) => v.domain), pal);
+  const cw = (W - 2 * PAD - (colN - 1) * GAP) / colN;
   const rows = [];
   for (let i = 0; i < views.length; i += colN) {
-    const row = views.slice(i, i + colN).map((v) => ({ id: v.id, lines: tileLines(v, pal, inW) }));
-    row.forEach((t) => { t.h = IN * 2 + t.lines.reduce((a, l) => a + (l.size > SIZE ? l.size * 1.3 : LH) + l.gap, 0); });
+    const row = views.slice(i, i + colN).map((v) => tile(v, pal, cw, rtl, colorOf.get(v.domain) || pal.accent));
     rows.push({ tiles: row, h: Math.max(...row.map((t) => t.h)) });
   }
   let y = H0 + 10; let body = `<!--cut:${y}-->`;
   for (const r of rows) {
     r.tiles.forEach((t, j) => {
-      const x = PAD + j * (cw + GAP); const left = rtl ? x + cw - IN : x + IN;
-      let ty = y + IN; let inner = `<rect x="${x}" y="${y}" width="${cw}" height="${r.h}" rx="10" fill="${pal.card}"/>`;
-      for (const l of t.lines) {
-        ty += l.gap + (l.size > SIZE ? l.size * 1.1 : SIZE + 1);
-        inner += `<text x="${left}" y="${ty}" font-size="${l.size}"${l.bold ? ' font-weight="700"' : ''} fill="${l.color}" text-anchor="${rtl ? 'end' : 'start'}"><tspan>${esc(l.text)}</tspan></text>`;
-        ty += l.size > SIZE ? l.size * 0.2 : LH - SIZE - 1;
-      }
-      body += `<g data-tile="${esc(t.id)}" data-y="${Math.floor(y)}" data-b="${Math.ceil(y + r.h)}">${inner}</g>`;
+      const x = PAD + j * (cw + GAP);
+      body += `<g data-tile="${esc(t.id)}" data-y="${Math.floor(y)}" data-b="${Math.ceil(y + r.h)}">${t.draw(x, y, r.h)}</g>`;
     });
     y += r.h + GAP; body += `<!--cut:${Math.floor(y - GAP / 2)}-->`;
   }

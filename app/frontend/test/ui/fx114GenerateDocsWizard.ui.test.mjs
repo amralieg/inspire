@@ -25,7 +25,7 @@ function backend({ failName = null } = {}) {
   const mount = (app) => {
     app.get('/api/inspire/value/answers', (_req, res) => res.json({ answers: { 'N01-U01': SAVED } }));
     app.post('/api/inspire/docs/save', (req, res) => {
-      calls.saves.push(req.body);
+      if (!/_strategy\.pdf$/.test(req.body.name)) calls.saves.push(req.body); // REQ-121: the strategy PDF is auto-built by Results, not by the wizard
       if (req.body.name === failName) return res.status(500).json({ error: 'The workspace refused the write.' });
       const bytes = Buffer.from(String(req.body.content_base64 || ''), 'base64');
       res.json({ path: `${req.body.folder}/${req.body.name}`, name: req.body.name, size: bytes.length });
@@ -94,7 +94,8 @@ test('W2: the wizard is split into pages: one section per page, an Excel columns
     for (const p of PICKED) assert.ok(text.includes(p.name), `the header names ${p.name}`);
     assert.ok((await dialog.locator('[data-docs-step]').count()) >= 5, 'a step indicator with every page');
     assert.equal(await currentPage(dialog), 'documents');
-    for (const kind of ['infographic', 'pptx', 'pdf', 'xlsx']) assert.ok(await on(dialog.locator(`[data-doc-kind="${kind}"]`)), `${kind} on by default`);
+    for (const kind of ['pptx', 'pdf', 'xlsx']) assert.ok(await on(dialog.locator(`[data-doc-kind="${kind}"]`)), `${kind} on by default`);
+    assert.equal(await dialog.locator('[data-doc-kind="infographic"]').count(), 0, 'C28: the overall documents have no infographic'); // C28 (REQ-570)
     assert.equal(await dialog.locator('[data-doc-style]:visible').count(), 0, 'styles are not on the documents page');
     assert.equal(await dialog.locator('[data-doc-column]:visible').count(), 0, 'columns are not on the documents page');
     const seen = [];
@@ -104,14 +105,14 @@ test('W2: the wizard is split into pages: one section per page, an Excel columns
     };
     seen.push(await currentPage(dialog)); await fits();
     for (let i = 0; i < 6 && (await currentPage(dialog)) !== 'review'; i += 1) { await next(dialog); seen.push(await currentPage(dialog)); await fits(); }
-    assert.deepEqual(seen, ['documents', 'layout', 'include', 'style', 'columns', 'review']);
+    assert.deepEqual(seen, ['documents', 'layout', 'include', 'style', 'columns', 'vibe', 'review']); // C28: Vibe your docs is the last step
     // Back to Documents, turn Excel off: the Excel columns page is gone.
     for (let i = 0; i < 6 && (await currentPage(dialog)) !== 'documents'; i += 1) await dialog.getByRole('button', { name: /^Back/ }).click();
     await dialog.locator('[data-doc-kind="xlsx"]').click();
     assert.equal(await on(dialog.locator('[data-doc-kind="xlsx"]')), false);
     const without = [await currentPage(dialog)];
     for (let i = 0; i < 6 && (await currentPage(dialog)) !== 'review'; i += 1) { await next(dialog); without.push(await currentPage(dialog)); }
-    assert.deepEqual(without, ['documents', 'layout', 'include', 'style', 'review']);
+    assert.deepEqual(without, ['documents', 'layout', 'include', 'style', 'vibe', 'review']);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -138,7 +139,7 @@ test('W3: layout and language, the content blocks, eight styles with palettes an
     assert.equal(await dialog.locator('[data-doc-style]').count(), DOC_STYLES.length);
     assert.ok((await dialog.locator('[data-doc-palette]').count()) >= 4);
     assert.equal(await dialog.locator('input[aria-label="Brand color"]').count(), 1);
-    const preview = dialog.locator('[data-docs-preview] svg');
+    const preview = dialog.locator('[data-docs-preview] > svg');
     await preview.waitFor();
     const before = await preview.evaluate((el) => el.outerHTML);
     assert.ok(before.includes('Predict churn'), 'the preview is the real infographic of the selected use cases');
@@ -206,7 +207,7 @@ test('W5: a second language is translated through the App once and adds a file s
     await dialog.getByRole('button', { name: /Add a language/ }).click();
     await dialog.locator('select[data-docs-language]').nth(1).selectOption('Arabic');
     for (let i = 0; i < 6 && (await currentPage(dialog)) !== 'review'; i += 1) await next(dialog);
-    const plan = planFiles({ ...defaultDocOptions('English'), kinds: ['infographic', 'xlsx'], languages: ['English', 'Arabic'], businessName: 'Acme' },
+    const plan = planFiles({ ...defaultDocOptions('English'), kinds: ['xlsx'], languages: ['English', 'Arabic'], businessName: 'Acme' },
       PICKED.map((p) => ({ No: p.id })));
     assert.equal(await dialog.locator('[data-doc-plan-file]').count(), plan.length);
     await dialog.getByRole('button', { name: new RegExp(`Generate ${plan.length} files$`) }).click();
@@ -218,7 +219,7 @@ test('W5: a second language is translated through the App once and adds a file s
     const failed = dialog.locator('[data-doc-file="Acme_use_cases_Arabic.xlsx"]');
     assert.equal(await failed.getAttribute('data-doc-file-state'), 'failed');
     assert.match(await failed.innerText(), /The workspace refused the write/);
-    assert.ok((await dialog.innerText()).includes(`${plan.length - 1} files ready`));
+    assert.ok((await dialog.innerText()).includes(`${plan.length - 1} ${plan.length - 1 === 1 ? 'file' : 'files'} ready`));
     assert.deepEqual(be.calls.saves.map((s) => s.name).sort(), plan.map((f) => f.name).sort());
   } finally {
     await ui.close();

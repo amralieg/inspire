@@ -3,7 +3,30 @@ import { trackingIdOf } from '../useCaseFields.js';
 
 export const DOC_KINDS = ['infographic', 'pptx', 'pdf', 'xlsx', 'docx'];
 // C24 (RC7-B-11): Word is offered and starts unticked, so the files a run makes by default stay the four it made before.
-const DEFAULT_KINDS = DOC_KINDS.filter((k) => k !== 'docx');
+const DEFAULT_KINDS = DOC_KINDS.filter((k) => k !== 'docx' && k !== 'infographic');
+
+// C28 (REQ-570): the overall (all use cases together) documents are Excel, PDF and PowerPoint; the infographic is per use case only.
+export const OVERALL_KINDS = ['xlsx', 'pdf', 'pptx'];
+export const kindsForLayout = (layout) => (layout === 'each' ? [...DOC_KINDS] : [...OVERALL_KINDS]);
+export const ORIENTATIONS = [{ id: 'landscape', label: 'Landscape' }, { id: 'portrait', label: 'Portrait' }];
+
+// C28 (REQ-572): "Vibe your docs": a few clickable examples, and the logo's limits.
+export const VIBE_EXAMPLES = [
+  'Board-level tone, lead with value, keep each page to one idea.',
+  'Plain words for a team that is new to data and AI; no jargon.',
+  'Warm and confident, short sentences, always say what to do next.',
+  'Sober and precise for a risk committee: state the assumptions behind each number.',
+];
+export const LOGO_TYPES = ['image/png', 'image/svg+xml', 'image/jpeg'];
+export const LOGO_MAX_BYTES = 512 * 1024;
+// The type of a picked file: the browser's own, or (when it gives none) the one its extension names.
+const EXT_TYPES = { png: 'image/png', svg: 'image/svg+xml', jpg: 'image/jpeg', jpeg: 'image/jpeg' };
+export const logoTypeOf = ({ name = '', type = '' }) => type || EXT_TYPES[String(name).split('.').pop().toLowerCase()] || '';
+export const checkLogo = ({ type, size }) => {
+  if (!LOGO_TYPES.includes(type)) return 'Use a PNG, SVG or JPEG picture.';
+  if (!(size > 0) || size > LOGO_MAX_BYTES) return `The logo must be under ${LOGO_MAX_BYTES / 1024} KB.`;
+  return '';
+};
 
 export const CONTENT_BLOCKS = [
   { id: 'use_case_story', label: 'Use case story', hint: 'What the use case does, in plain words' },
@@ -48,29 +71,33 @@ export function defaultDocOptions(language = 'English') {
     palette: 'databricks',
     customColor: '',
     theme: 'light', // REQ-525: 'light' or 'dark' (PDF and PowerPoint; Excel stays light)
+    orientation: 'landscape', // C28 (REQ-570): the per use case infographic, 'landscape' or 'portrait'
+    infographicStyle: '', // C28: an id from infographicApi INFOGRAPHIC_STYLES ('' is the first)
+    vibe: '', // C28 (REQ-572): the person's words that guide the documents' wording
+    logo: null, // C28 (REQ-572): { name, type, size, dataUrl }
   };
 }
 
 const safe = (s) => String(s ?? '').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
 
-// Infographic: always one PDF of all selected (no PNG). PowerPoint and the PDF brief follow the layout. Excel: one. Repeated per language.
+// Infographic: one PDF per use case (C28), none for the overall run. PowerPoint and the PDF brief follow the layout. Excel: one. Repeated per language.
 export function planFiles(options, useCases) {
   const ids = (useCases || []).map((u, i) => trackingIdOf(u) || String(i + 1));
-  const kinds = options.kinds || [];
+  const kinds = (options.kinds || []).filter((k) => k !== 'infographic' || options.layout === 'each'); // C28: no overall infographic
   const biz = safe(options.businessName) || 'Inspire';
   const multi = (options.languages || []).length > 1;
   const out = [];
   const seen = new Set();
-  const push = (kind, ext, stem, useCaseIds, language) => {
+  const push = (kind, ext, stem, useCaseIds, language, extra = {}) => {
     const lang = multi ? `_${safe(language)}` : '';
     let name = `${biz}_${stem}${lang}.${ext}`;
     for (let n = 2; seen.has(name); n += 1) name = `${biz}_${stem}${lang}_${n}.${ext}`;
     seen.add(name);
-    out.push({ kind, ext, name, useCaseIds, language });
+    out.push({ kind, ext, name, useCaseIds, language, ...extra });
   };
   for (const language of options.languages || []) {
     for (const kind of kinds) {
-      if (kind === 'infographic') push(kind, 'pdf', 'infographic', ids, language);
+      if (kind === 'infographic') ids.forEach((id) => push(kind, 'pdf', `infographic_${safe(id)}`, [id], language, { orientation: options.orientation === 'portrait' ? 'portrait' : 'landscape' }));
       else if (kind === 'xlsx') push(kind, 'xlsx', 'use_cases', ids, language);
       else if (kind === 'pptx' || kind === 'pdf' || kind === 'docx') {
         const stem = kind === 'pptx' ? 'deck' : 'brief';

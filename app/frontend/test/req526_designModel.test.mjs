@@ -1,4 +1,5 @@
 // REQ-526 step 1: toDesignModel maps buildDocModel() output onto the shape the four document designs read, using real fields only.
+import { displayId } from '../../shared/useCaseId.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -23,7 +24,9 @@ test('M1: totals equal the sum of the real values and use the App money text', (
   assert.equal(m.total.text, moneyText('USD', sum));
   assert.equal(m.total.n, UCS.length);
   assert.equal(m.total.nWithValue, VALUED.length);
-  assert.equal(m.total.nDomains, m.domains.length);
+  // C27 (REQ-563): every kind counts the document's domains the same way (all use cases, as the Word brief); the value charts place only valued domains.
+  assert.equal(m.total.nDomains, new Set(UCS.map((u) => u.Domain || u.domain).filter(Boolean)).size);
+  assert.ok(m.domains.length <= m.total.nDomains);
   assert.equal(m.domains.reduce((s, d) => s + d.value, 0), sum);
   assert.equal(m.verbs.reduce((s, v) => s + v.value, 0), sum);
 });
@@ -42,10 +45,10 @@ test('M2: a use case without a value is not counted and is left out of every val
 test('M3: no field is invented (value, verb, quality, score, text all come from the input)', () => {
   const m = toDesignModel(doc());
   for (const u of m.useCases) {
-    const src = UCS.find((x) => x.No === u.id);
-    assert.equal(u.value.amount, values[u.id].amount);
-    assert.equal(u.value.text, moneyText('USD', values[u.id].amount));
-    assert.equal(u.verb, values[u.id].verb);
+    const src = UCS.find((x) => displayId(x.No) === u.id);
+    assert.equal(u.value.amount, values[src.No].amount);
+    assert.equal(u.value.text, moneyText('USD', values[src.No].amount));
+    assert.equal(u.verb, values[src.No].verb);
     assert.equal(u.quality, src.Quality);
     assert.equal(u.score, Number(src['Inspire Score']));
     assert.equal(u.sponsor, src.Sponsor);

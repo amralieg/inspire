@@ -8,7 +8,7 @@ const { invokeChatModel, appChatModels } = require('./lib/modelAccess');
 const { mapLimit } = require('./lib/mapLimit');
 
 // REQ-323: how many history rows are enriched at once.
-const HISTORY_ROW_CONCURRENCY = 25;
+const HISTORY_ROW_CONCURRENCY = 50;
 const { runWithQueryTags, lookupWithRetry } = require('./lib/sqlStatements');
 const { genieNotebookJobName, latestGenieNotebookRun } = require('./lib/genieNotebookJob');
 const C = require('./lib/implementControl');
@@ -43,6 +43,9 @@ const { fsApiPath } = require('./lib/workspacePaths');
 const { int64Id, isInt64Id, requireInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const { parseExactJson } = require('./lib/exactJson');
 const DT = require('./lib/docTranslate');
+// C28: the shared ES module of the infographic pick (also imported by the browser), loaded on first use.
+let infographicPickModule = null;
+const infographicPick = () => { infographicPickModule = infographicPickModule || import('./lib/infographicPick.mjs'); return infographicPickModule; };
 const { grantJobViewer, rememberViewer } = require('./lib/jobViewer');
 const PM = require('./lib/permissions');
 const UA = require('./lib/useCaseAssets');
@@ -1807,12 +1810,12 @@ function registerImplementRoutes(app, deps) {
     if (!req.dbToken) return [];
     const scopes = chosenTableScopes(spec.data, parseTableScopeText(session.table_scope).scopes);
     const tables = I.sourceTables(spec, I.useCaseTables(useCase)).filter((t) => !I.resultTableNameError(t, 'tables'));
-    const out = [];
-    for (const table of tables) {
+    // c29_history: the table reads do not depend on each other, so they run together (bounded), and the problems keep the table order.
+    const found = await mapLimit(tables, HISTORY_ROW_CONCURRENCY, async (table) => {
       const got = await fetchJsonFor(req)(`/api/2.1/unity-catalog/tables/${encodeURIComponent(table)}`).catch(() => null);
-      if (got && got.ok) out.push(...I.policiedScopeProblems(table, got.data, scopes));
-    }
-    return out;
+      return got && got.ok ? I.policiedScopeProblems(table, got.data, scopes) : [];
+    });
+    return found.flat();
   }
 
   async function refuseUnreadableSources(req, spec, useCase) {
@@ -2263,14 +2266,16 @@ function registerImplementRoutes(app, deps) {
   }
 
   async function feedbackLists(req, ctx, statementOf) {
-    const lists = [];
-    for (const table of feedbackTables(ctx)) {
+    // c29_history: the feedback tables are read together; a missing table is skipped and the others keep their order.
+    const got = await Promise.all(feedbackTables(ctx).map(async (table) => {
       try {
-        lists.push(await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, statementOf(table)));
+        return await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, statementOf(table));
       } catch (err) {
         if (!isMissingTableError(err)) throw err;
+        return null;
       }
-    }
+    }));
+    const lists = got.filter((list) => list !== null);
     return { lists, missing: lists.length === 0 };
   }
 
@@ -3704,8 +3709,12 @@ function registerImplementRoutes(app, deps) {
       if (keys.length > DOC_TEXT_KEYS) throw I.badRequest(`texts has more than ${DOC_TEXT_KEYS} entries.`);
       if (keys.some((k) => typeof texts[k] !== 'string')) throw I.badRequest('every text must be a string.');
       if (keys.some((k) => texts[k].length > DOC_TEXT_CHARS)) throw I.badRequest(`a text is over ${DOC_TEXT_CHARS} characters.`, 413);
-      if (/^english$/i.test(language)) return res.json({ language, texts });
-      const system = `You translate short business texts into ${language}. Reply with one JSON object that has exactly the same keys as the input, each value the translation of that text. Keep names, numbers, product names and acronyms as they are. If the user's input names a wording or term to use, that explicit input wins. Reply with JSON only.`;
+      // C28 (REQ-572): English with no vibe is the source as it is; English with a vibe is one rewrite in the person's voice, like any other language.
+      const english = /^english$/i.test(language);
+      const vibe = DT.vibeLine(req.body?.vibe);
+      if (english && !vibe) return res.json({ language, texts });
+      const system = `${english ? 'You rewrite short business texts in English, following the direction below. Reply with one JSON object that has exactly the same keys as the input, each value the rewritten text. Keep every number, name, product name, acronym and {0}-style placeholder exactly as it is.'
+        : `You translate short business texts into ${language}. Reply with one JSON object that has exactly the same keys as the input, each value the translation of that text. Keep names, numbers, product names and acronyms as they are.`} If the user's input names a wording or term to use, that explicit input wins.${vibe} Reply with JSON only.`;
       // RC7-B-09: the texts go in chunks; a chunk whose reply holds nothing usable is asked once more; a key still without a translation keeps
       // its source text and is named in `untranslated`, so one bad reply never fails the file.
       const out = {};
@@ -3721,8 +3730,8 @@ function registerImplementRoutes(app, deps) {
         for (let attempt = 0; attempt < 2 && !Object.keys(got).length; attempt += 1) {
           const asked = await askChatModel(req, messages, FB.JSON_ANSWER_MAX_TOKENS);
           if (!asked.got) {
-            if (!reached) throw I.badRequest(`No model could translate: ${asked.reason}`, 503);
-            continue;
+            if (!reached && !english) throw I.badRequest(`No model could translate: ${asked.reason}`, 503);
+            continue; // English keeps its deterministic text when the model cannot be reached
           }
           reached = true;
           const reply = asked.got.data && asked.got.data.choices && asked.got.data.choices[0] && asked.got.data.choices[0].message;
@@ -3734,6 +3743,44 @@ function registerImplementRoutes(app, deps) {
         }
       }
       return res.json({ language, texts: out, ...(untranslated.length ? { untranslated } : {}) });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  // C28 (REQ-571): the story of one use case as an infographic. The model picks the scenario and writes the slot text; the reply is validated
+  // (lib/infographicPick.mjs, shared with the browser), junk is asked once more, then refused with 502 and the browser draws its own fallback.
+  app.post('/api/inspire/docs/infographic-pick', requireToken, async (req, res) => {
+    try {
+      appReadToken(req);
+      sessionIdOf(req);
+      const IG = await infographicPick();
+      const useCase = req.body?.use_case;
+      if (!useCase || typeof useCase !== 'object' || Array.isArray(useCase)) throw I.badRequest('use_case must be an object.');
+      if (typeof useCase.Name !== 'string' || !useCase.Name.trim()) throw I.badRequest('use_case needs a Name.');
+      if (IG.STORY_FIELDS.some((k) => useCase[k] != null && (typeof useCase[k] !== 'string' || useCase[k].length > DOC_TEXT_CHARS))) throw I.badRequest('use_case fields must be short texts.');
+      const vibe = req.body?.vibe;
+      if (vibe != null && (typeof vibe !== 'string' || vibe.length > 2000)) throw I.badRequest('vibe must be text of at most 2000 characters.');
+      const scenario = req.body?.scenario || '';
+      if (scenario && !IG.SCENARIO_IDS.includes(scenario)) throw I.badRequest(`scenario must be one of ${IG.SCENARIO_IDS.join(', ')}.`);
+      const orientation = req.body?.orientation || '';
+      if (orientation && !['landscape', 'portrait'].includes(orientation)) throw I.badRequest('orientation must be landscape or portrait.');
+      const messages = IG.buildMessages({ useCase, vibe: (vibe || '').trim(), scenario, orientation });
+      let reached = false;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const asked = await askChatModel(req, messages, FB.JSON_ANSWER_MAX_TOKENS);
+        if (!asked.got) {
+          if (!reached) throw I.badRequest(`No model could design the infographic: ${asked.reason}`, 503);
+          continue;
+        }
+        reached = true;
+        const reply = asked.got.data && asked.got.data.choices && asked.got.data.choices[0] && asked.got.data.choices[0].message;
+        for (const obj of DT.objectsIn((reply && reply.content) || '')) {
+          const pick = IG.validatePick(obj, scenario);
+          if (pick) return res.json({ pick });
+        }
+      }
+      throw I.badRequest('The model did not return a usable infographic.', 502);
     } catch (err) {
       return sendError(res, err);
     }
