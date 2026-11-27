@@ -222,8 +222,15 @@ export function RunValueTotal({ value, red = false }) {
   );
 }
 
+const shortCounts = (value) => {
+  const calc = Number(value?.n_calculated) || 0;
+  const est = Number(value?.n_estimated) || 0;
+  const parts = [calc > 0 && `${calc} calculated`, est > 0 && `${est} ${est === 1 ? 'estimate' : 'estimates'}`].filter(Boolean);
+  return parts.length ? parts.join(' + ') : '0 estimates';
+};
+
 // REQ-488: the run's total in a red-themed box (the ALL RUNS box, smaller). The green/amber dot and word say calculated or estimated.
-export function RunValueLine({ value, label = 'Business value at stake', className = '' }) {
+export function RunValueLine({ value, label = 'Business value at stake', className = '', compact = false }) {
   const totals = value?.totals || [];
   const calculated = Number(value?.n_calculated) > 0 && !(Number(value?.n_estimated) > 0);
   const n = value ? statusCounts(value.n_calculated ?? 0, value.n_estimated ?? 0) : '';
@@ -231,12 +238,21 @@ export function RunValueLine({ value, label = 'Business value at stake', classNa
     <div data-run-value="" className={`text-caption text-text-secondary ${className}`}>
       {totals.length > 0 ? (
         <div data-run-value-box="" className="inline-flex min-w-[8rem] flex-col rounded-lg border-2 border-primary-solid bg-primary-solid px-3 py-1.5 text-white">
-          <span className="font-semibold uppercase tracking-wide text-white">{label}</span>
+          <span data-run-phrase="" className={`font-semibold uppercase tracking-wide text-white ${compact ? 'whitespace-nowrap' : ''}`}>{label}</span>
           <span className="text-[18px] font-extrabold tabular-nums"><RunValueTotal value={value} red /></span>
-          <span className="inline-flex items-center gap-1 text-caption text-white">
-            <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full ring-2 ring-white" style={{ background: calculated ? GREEN : AMBER }} />{statusLabelOf(calculated ? 'calculated' : 'estimated').toLowerCase()}
-            <span>{`(${n})`}</span>
-          </span>
+          {compact ? (
+            // Narrow column: the dot sits inline before short phrases, each kept whole; the full wording is the tooltip.
+            <span title={`${statusLabelOf(calculated ? 'calculated' : 'estimated').toLowerCase()} (${n})`} className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-caption text-white">
+              <span data-run-dot="" aria-hidden="true" className="inline-block h-2 w-2 shrink-0 rounded-full ring-2 ring-white" style={{ background: calculated ? GREEN : AMBER }} />
+              <span data-run-phrase="" className="whitespace-nowrap">{calculated ? 'calculated' : 'provisional'}</span>
+              <span data-run-phrase="" className="whitespace-nowrap">{`· ${shortCounts(value)}`}</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-caption text-white">
+              <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full ring-2 ring-white" style={{ background: calculated ? GREEN : AMBER }} />{statusLabelOf(calculated ? 'calculated' : 'estimated').toLowerCase()}
+              <span>{`(${n})`}</span>
+            </span>
+          )}
         </div>
       ) : (
         <div data-run-value-box="" className="inline-flex min-w-[8rem] flex-col gap-1 rounded-lg border-2 border-dashed border-primary-solid bg-surface px-3 py-1.5">

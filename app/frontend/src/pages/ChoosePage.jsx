@@ -567,7 +567,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
 
                     <div data-run-aside="" className="flex shrink-0 items-start gap-3">
                       <InspireScoreBadge row score={listOverview?.avgScore ?? null} />
-                      {allTotals && <div className="w-60 min-w-0"><RunValueLine value={runValueOf(sidStr)} /></div>}
+                      {allTotals && <div className="w-60 min-w-0"><RunValueLine value={runValueOf(sidStr)} compact /></div>}
                     </div>
                   </button>
 

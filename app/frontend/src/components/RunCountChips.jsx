@@ -17,7 +17,7 @@ export default function RunCountChips({ items, active, onToggle }) {
         const pressed = active === item.key;
         return (
           <li key={item.key}>
-            <button type="button" data-run-count={item.key} data-run-chip={item.key} aria-pressed={pressed} onClick={() => onToggle(item.key)}
+            <button type="button" title={item.title} aria-description={item.title} data-run-count={item.key} data-run-chip={item.key} aria-pressed={pressed} onClick={() => onToggle(item.key)}
               className={`${CHIP} ${pressed ? ON : IDLE}`}>
               {label}
             </button>

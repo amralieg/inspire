@@ -14,7 +14,7 @@ const {
 
 const SESSION_LIST_CAP = 20;
 const SESSION_PREVIEW_CAP = 4;
-const SESSION_TITLES_CAP = 30;
+const SESSION_TITLES_CAP = 1000;
 const PORTFOLIO_RUN_CAP = 1000;
 const PORTFOLIO_TABLES = ['__inspire_session', '__inspire_usecases', IMPLEMENT_TABLE];
 const PORTFOLIO_ASSETS = [['apps', 'app'], ['dashboards', 'dashboard'], ['genie_spaces', 'genie_space'], ['alerts', 'alert']];
@@ -180,7 +180,7 @@ async function loadSessionPreviews(run, table, sessionIds, existing = null) {
     if (!sid) continue;
     const list = bySession[sid] || (bySession[sid] = []);
     if (row.Name && list.length < SESSION_PREVIEW_CAP) list.push({ Name: String(row.Name), name_with_technique: row.name_with_technique ? String(row.name_with_technique) : null });
-    // REQ-575: the run search reads the first SESSION_TITLES_CAP titles, in the same order as the preview.
+    // REQ-575: the run search reads every title up to SESSION_TITLES_CAP, in the same order as the preview.
     if (row.Name) (titles[sid] || (titles[sid] = [])).push(String(row.Name));
   }
   return { bySession, titles };

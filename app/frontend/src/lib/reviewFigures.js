@@ -102,7 +102,9 @@ const UNREAD_LABELS = { quality: 'Quality', high: 'High priority', domains: 'Dom
 
 const qualityItem = (total, meetsValue, mode) => {
   const meets = countOf(meetsValue);
-  return meets == null ? { key: 'quality_bar', n: null, label: 'quality bar' } : { key: 'quality_bar', n: meets, label: '', text: qualityBarCountText(total, meets, mode) };
+  // REQ-575: the chip reads like the others ("2 good quality"); the long sentence is its title.
+  return meets == null ? { key: 'quality_bar', n: null, label: 'quality bar' }
+    : { key: 'quality_bar', n: meets, label: `${String(mode || 'Good').toLowerCase()} quality`, title: qualityBarCountText(total, meets, mode) };
 };
 
 export function runCounts(overview, portfolio, session, { running = false, mvpError = '' } = {}) {

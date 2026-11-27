@@ -55,7 +55,7 @@ test('the run previews read the name with its technique next to the Name, and a 
   assert.match(fresh, /, name_with_technique, ROW_NUMBER/);
   assert.match(fresh, /AS Name/);
   assert.match(fresh, /session_id IN \(42,43\)/, 'only whole-number ids reach the SQL');
-  assert.match(fresh, /z\.rn <= 30/);
+  assert.match(fresh, /z\.rn <= 1000/);
   const rows = [
     { session_id: '42', Name: 'Forecast stock', name_with_technique: 'Forecast stock using forecasting', rn: 1 },
     { session_id: '42', Name: 'Spot late suppliers', name_with_technique: '', rn: 2 },
