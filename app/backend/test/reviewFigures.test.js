@@ -313,3 +313,17 @@ test('REQ-575: the run overview reads the average Inspire score on the 0 to 10 s
   assert.match(bare, /CAST\(NULL AS DOUBLE\) AS avg_inspire_score/);
   assert.doesNotMatch(bare, /AVG\(/);
 });
+
+test('REQ-575 the run search reads every use case title of a long run, not the first 30', async () => {
+  const UC = '`main`.`inspire`.`__inspire_usecases`';
+  const all = Array.from({ length: 60 }, (_, i) => ({ session_id: '44', Name: `Use case ${i + 1}`, name_with_technique: null, rn: i + 1 }));
+  const sent = [];
+  const out = await R.loadSessionPreviews(async (statement) => {
+    sent.push(statement.sql);
+    const cap = Number(/z\.rn <= (\d+)/.exec(statement.sql)[1]);
+    return all.filter((row) => row.rn <= cap);
+  }, UC, ['44']);
+  assert.equal(sent.length, 1, 'one statement');
+  assert.equal(out.titles['44'].length, 60, 'all 60 titles come back');
+  assert.equal(out.bySession['44'].length, 4, 'the preview stays at 4');
+});
