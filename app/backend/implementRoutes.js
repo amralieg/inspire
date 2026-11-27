@@ -834,11 +834,13 @@ function registerImplementRoutes(app, deps) {
       });
       // REQ-323: the Jobs API reads run at most HISTORY_ROW_CONCURRENCY at a time; the run summary is one warehouse statement for all rows.
       const stops = sessionStopsReader(req);
+      const deferred = [];
       const [notebook] = await Promise.all([
         latestGenieRunOf(req, sid).then((run) => ({ run, error: '' }), (err) => ({ run: null, error: err.message })),
-        mapLimit(latest, HISTORY_ROW_CONCURRENCY, async (row) => { row.stalled = await stalledOf(req, row, stops); }),
+        mapLimit(latest, HISTORY_ROW_CONCURRENCY, async (row) => { row.stalled = await stalledOf(req, row, stops, deferred); }),
         latestRunsOf(req, warehouseId, latest, (id) => versionsByUc[id]),
       ]);
+      await recordEndedRuns(req, deferred);
       res.json({ history, latest, notebook_run: notebook.run, notebook_run_error: notebook.error });
     } catch (err) {
       sendError(res, err);
@@ -1642,7 +1644,8 @@ function registerImplementRoutes(app, deps) {
     };
   }
 
-  async function stalledOf(req, row, stops = null) {
+  // `deferred` (the history page): the ended-run write is collected, not sent, and the caller sends the whole page as one statement.
+  async function stalledOf(req, row, stops = null, deferred = null) {
     if (!row || (!I.IMPLEMENT_ACTIVE_STATUSES.includes(row.status) && !I.implementEndedRecord(row))) return null;
     const runId = String(row.implement_run_id ?? '');
     const got = /^\d{1,19}$/.test(runId)
@@ -1651,6 +1654,10 @@ function registerImplementRoutes(app, deps) {
     const runState = got && got.ok && got.data && got.data.state ? got.data.state : {};
     const stopper = String(runState.result_state || '') === 'CANCELED' ? await stoppedByOf(req, row, runId, stops) : null;
     const stalled = I.implementStalled(row, got && got.ok ? got.data : null, Date.now(), stopper);
+    if (deferred) {
+      deferred.push({ row: { session_id: sessionIdOf(req), ...row }, stalled, target: row });
+      return stalled;
+    }
     const { catalog, schema } = dbOf(req, splitInspireDatabase);
     const ended = I.implementRunEndedStatement(I.implementTableName(catalog, schema), { session_id: sessionIdOf(req), ...row }, stalled);
     if (!ended) return stalled;
@@ -1661,6 +1668,21 @@ function registerImplementRoutes(app, deps) {
     } catch (e) {
       console.warn(`implement ended-run write failed: ${e.message}`);
       return stalled;
+    }
+  }
+
+  // c28_history: every ended run of a history page is written by one statement. A failed write is logged and the rows still read as ended.
+  async function recordEndedRuns(req, deferred) {
+    const { catalog, schema } = dbOf(req, splitInspireDatabase);
+    const ended = I.implementRunsEndedStatement(I.implementTableName(catalog, schema), deferred);
+    if (!ended) return;
+    try {
+      await executeSql(req.dbHost, req.dbToken, warehouseOf(req), ended.sql, ended.parameters);
+      for (const { row, stalled, target } of deferred) {
+        if (I.implementRunEndedStatement('t', row, stalled)) Object.assign(target, { status: 'failed', status_message: stalled.reason });
+      }
+    } catch (e) {
+      console.warn(`implement ended-run write failed: ${e.message}`);
     }
   }
 
@@ -3149,7 +3171,7 @@ function registerImplementRoutes(app, deps) {
           const asked = I.columnsStatement(table);
           const columns = GP.scopedColumns(await sqlRows(req.dbHost, req.dbToken, warehouseId, asked), scopes, table);
           const dateColumn = VY.dateColumnOf(columns);
-          const made = dateColumn ? GP.eligibleSql(table, dateColumn, scopes, VY.isTextDate(columns, dateColumn)) : null;
+          const made = GP.eligibleSql(table, dateColumn, scopes, dateColumn ? VY.isTextDate(columns, dateColumn) : false);
           return made ? (await readOrEmpty(made.sql, made.parameters))[0] || null : null;
         })().catch(() => null));
       }
@@ -3164,7 +3186,9 @@ function registerImplementRoutes(app, deps) {
         + 'ORDER BY updated_at DESC NULLS LAST LIMIT 1', [{ name: 'uc', value: id, type: 'STRING' }]).catch(() => []))[0];
       const eligible = summary ? await eligibleOf(table) : null;
       if (!summary || !eligible) return null;
-      return VY.yearlyOf({ entries: measured[id].at_stake, sampled: summary.records, eligible: eligible.eligible, days: eligible.days,
+      // c28_nodate (REQ-558): no date column, or a text date where no value parses, gives no days: one assumed year scales the value.
+      const days = Number(eligible.days) > 0 ? eligible.days : VY.periodOf(null).days;
+      return VY.yearlyOf({ entries: measured[id].at_stake, sampled: summary.records, eligible: eligible.eligible, days,
         kpi: { name: summary.kpi_name, direction: summary.kpi_direction }, rule: spec.money && spec.money.rule });
     };
     const got = await mapLimit(ids, 4, oneOf);

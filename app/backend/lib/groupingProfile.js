@@ -292,7 +292,10 @@ function moneyYearlySampleSql(table, value, dateColumn, scopes, filter = null, t
 
 // REQ-432: the records of a built use case's source table and the days its date column covers, to scale its measured value.
 function eligibleSql(table, dateColumn, scopes, textDate = false) {
-  if (!RATE_TABLE_PATTERN.test(String(table || '')) || !RATE_COLUMN_PATTERN.test(String(dateColumn || ''))) return null;
+  if (!RATE_TABLE_PATTERN.test(String(table || ''))) return null;
+  // c28_nodate (REQ-558): no date column is a count with no days; the caller scales by the period it assumed.
+  if (!dateColumn) return statement(scopes, (ctx) => `SELECT COUNT(*) AS eligible, CAST(NULL AS INT) AS days FROM ${previewFrom(table, ctx, [])}`);
+  if (!RATE_COLUMN_PATTERN.test(String(dateColumn))) return null;
   const d = VY.dateRead(q(dateColumn), textDate);
   return statement(scopes, (ctx) => `SELECT COUNT(*) AS eligible, DATEDIFF(MAX(${d}), MIN(${d})) + 1 AS days FROM ${previewFrom(table, ctx, [dateColumn])}`);
 }

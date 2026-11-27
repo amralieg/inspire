@@ -1731,6 +1731,30 @@ function implementRunEndedStatement(table, row, stalled) {
   };
 }
 
+// c28_history (REQ-558 lane): the ended-run writes of a whole page of rows as ONE statement, so the history read sends a fixed number of
+// statements however many runs the session holds. Each item is { row, stalled }; a row that implementRunEndedStatement would not write is left out.
+function implementRunsEndedStatement(table, items) {
+  const writes = (items || []).map(({ row, stalled }, i) => ({ i, one: implementRunEndedStatement(table, row, stalled), row })).filter((w) => w.one);
+  if (!writes.length) return null;
+  if (writes.length === 1) return writes[0].one;
+  const parameters = [{ name: 'sid', value: String(writes[0].row.session_id), type: 'BIGINT' }];
+  const values = writes.map(({ i, one, row }) => {
+    const by = (name) => one.parameters.find((p) => p.name === name).value;
+    parameters.push(
+      { name: `uc${i}`, value: String(row.use_case_id), type: 'STRING' }, { name: `v${i}`, value: String(row.spec_version), type: 'INT' },
+      { name: `was${i}`, value: by('was'), type: 'STRING' }, { name: `run${i}`, value: by('run'), type: 'BIGINT' },
+      { name: `msg${i}`, value: by('message'), type: 'STRING' }, { name: `by${i}`, value: by('endedBy'), type: 'STRING' },
+    );
+    return `(:uc${i}, :v${i}, :was${i}, :run${i}, :msg${i}, :by${i})`;
+  });
+  return {
+    sql: `MERGE INTO ${table} AS t USING (SELECT * FROM VALUES ${values.join(', ')} AS s(uc, v, was, run, msg, endedBy)) AS s `
+      + 'ON t.session_id = :sid AND t.use_case_id = s.uc AND t.spec_version = s.v AND t.status = s.was AND t.implement_run_id = s.run '
+      + "WHEN MATCHED THEN UPDATE SET t.status = 'failed', t.status_message = s.msg, t.ended_by = s.endedBy, t.updated_at = current_timestamp()",
+    parameters,
+  };
+}
+
 function implementEndedRecord(row) {
   if (!row || row.status !== 'failed' || !/^\d{1,19}$/.test(str(row.implement_run_id))) return false;
   const version = `v${row.spec_version}`;
@@ -4286,6 +4310,7 @@ module.exports = {
   implementRunStartedStatement,
   implementStartFailedStatement,
   implementRunEndedStatement,
+  implementRunsEndedStatement,
   implementStalled,
   implementEndedRecord,
   implementBuildRunId,
