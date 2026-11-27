@@ -40,7 +40,8 @@ test('B-12 the doc model prints plain words: no bracket markers, no backticks, a
 test('B-12 the PDF brief pages carry no marker text either', () => {
   const svg = briefPagesSvg(modelOf(), resolveTheme('original', 'databricks', '', 'light')).join('\n');
   assert.ok(!/\[ESTIMATE|\[BASELINE|`|>F1</.test(svg), 'no marker in the drawn pages');
-  assert.ok(svg.includes('Orders and customers'));
+  // REQ-561: no foundation names in any printed document, so the brief pages must not carry them either.
+  assert.ok(!svg.includes('Orders and customers'), 'foundations are not printed');
 });
 
 test('B-12 the generation prompt asks for plain words in the text people read', () => {
@@ -63,7 +64,9 @@ test('B-11 the Word file has the brief content and the same plain text', async (
   assert.ok(zip.file('[Content_Types].xml') && zip.file('_rels/.rels') && zip.file('word/document.xml'), 'the parts Word needs');
   const xml = await zip.file('word/document.xml').async('string');
   const text = xml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-  for (const part of ['Acme', 'Predict churn', 'The use case', 'Business value', 'Orders and customers', 'main.s.orders']) assert.ok(text.includes(part), `the file says "${part}"`);
+  for (const part of ['Acme', 'Predict churn', 'The use case', 'Business value']) assert.ok(text.includes(part), `the file says "${part}"`);
+  // REQ-561: the Word brief is business only, so no foundation names and no table names.
+  for (const part of ['Orders and customers', 'main.s.orders']) assert.ok(!text.includes(part), `the file does not say "${part}"`);
   assert.ok(!MARKERS.test(text), 'no marker text in the Word file');
 });
 
@@ -94,11 +97,13 @@ test('B-11 the wizard offers Word and saves a real .docx into the Assets folder'
     if ((await word.getAttribute('aria-checked')) !== 'true') await word.click();
     for (let i = 0; i < 6 && (await dialog.locator('[data-docs-page]:visible').first().getAttribute('data-docs-page')) !== 'review'; i += 1) await dialog.getByRole('button', { name: /^Next/ }).click();
     await dialog.getByRole('button', { name: /^✦?\s*Generate 1 file$/ }).click();
+    // REQ-121: Results also auto-builds <business>_strategy.pdf App-side for a finished run and saves it through the same route; it is not the wizard's file.
+    const wizardSaves = () => saves.filter((x) => !/_strategy\.pdf$/.test(x.name));
     const end = Date.now() + 90000;
-    while (!saves.length && Date.now() < end) await new Promise((r) => setTimeout(r, 100));
-    assert.equal(saves.length, 1);
-    assert.match(saves[0].name, /\.docx$/);
-    const zip = await JSZip.loadAsync(Buffer.from(saves[0].content_base64, 'base64'));
+    while (!wizardSaves().length && Date.now() < end) await new Promise((r) => setTimeout(r, 100));
+    assert.equal(wizardSaves().length, 1);
+    assert.match(wizardSaves()[0].name, /\.docx$/);
+    const zip = await JSZip.loadAsync(Buffer.from(wizardSaves()[0].content_base64, 'base64'));
     const xml = await zip.file('word/document.xml').async('string');
     assert.match(xml, /Predict churn/);
     assert.deepEqual(ui.pageErrors, []);

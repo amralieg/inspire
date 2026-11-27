@@ -93,13 +93,17 @@ test('demo session: the favorite star is refused with the demo message and store
   } finally { await ui.close(); }
 });
 
-test('demo session: Generate docs is refused with the demo message and opens no dialog', async () => {
+// REQ-560 (27 Nov): the demo opens the Generate docs wizard so a visitor sees how documents are made; Save stays refused by the read-only demo server
+// (showcase.js refuses every write), so no file is stored. The wizard opening replaces the older "refused with the demo message, no dialog" rule.
+test('demo session: Generate docs opens the wizard (REQ-560) and the page sends no document save on opening', async () => {
   const { ui } = await open('&showcase=acme');
   const { page } = ui;
+  const saves = [];
+  page.on('request', (r) => { if (r.method() !== 'GET' && /\/docs\/save/.test(r.url())) saves.push(r.url()); });
   try {
-    await cardOf(page, 'N01-U02').getByRole('button', { name: 'Generate docs' }).click();
-    await page.locator('[data-demo-note]').filter({ hasText: REASON }).first().waitFor();
-    assert.equal(await page.getByRole('dialog').count(), 0, 'no dialog opens');
+    await cardOf(page, 'N01-U02').getByRole('button', { name: /generate docs/i }).click();
+    await page.getByRole('dialog', { name: /Generate documents/ }).waitFor();
+    assert.deepEqual(saves, [], 'nothing is saved by opening the wizard');
   } finally { await ui.close(); }
 });
 
