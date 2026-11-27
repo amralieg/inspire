@@ -10,7 +10,7 @@ const u32 = (b, o) => ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o +
 
 // An indexed PNG to its pieces, or null when it is not one.
 function indexedParts(bytes) {
-  if (bytes[0] !== 137 || bytes[25] !== 3) return null; // colour type 3 sits at byte 25 of every PNG
+  if (bytes[0] !== 137 || bytes[25] !== 3) return null; // color type 3 sits at byte 25 of every PNG
   const idat = []; let plte = null;
   for (let o = 8; o < bytes.length;) {
     const len = u32(bytes, o); const type = String.fromCharCode(bytes[o + 4], bytes[o + 5], bytes[o + 6], bytes[o + 7]); const d = o + 8;

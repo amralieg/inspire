@@ -248,8 +248,9 @@ function makeApp(overrides = {}, { mount } = {}) {
       }
       if (sql.includes('u.business_domain AS domain')) return { rows: state.useCaseScope || [] };
       if (sql.includes('__inspire_usecases')) {
-        const asked = ((parameters || []).find((p) => p.name === 'uc') || {}).value;
-        const listed = (state.useCases || []).find((row) => asked !== undefined && String(row.id) === String(asked));
+        // REQ-569 (e80ada8d6 ids): the row read asks for every stored form of the id (:uc0, :uc1), the older reads for :uc.
+        const asked = (parameters || []).filter((p) => /^uc\d*$/.test(p.name)).map((p) => String(p.value));
+        const listed = (state.useCases || []).find((row) => asked.includes(String(row.id)));
         return { rows: listed ? [listed] : (state.useCase ? [state.useCase] : []) };
       }
       // The run summary of every use case is one batched statement (REQ-323): each row carries the use_case_id of the parameter it answers.
