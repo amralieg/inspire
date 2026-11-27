@@ -291,18 +291,19 @@ function valueView(v, T) {
 
 // _use_case_view: everything one use case card prints, in the agent's order, plus its value.
 function useCaseView(uc, d, ctx) {
-  const { T, language, rankOf, ultra } = ctx;
+  const { T, language, rankOf } = ctx;
   const missing = T('doc_not_provided');
   const status = eliteStatus(uc);
   const coverageKind = status === 'DOMAIN_COVERAGE_PICK' || status === 'FALLBACK_BELOW_BAR';
   const kind = status === 'ELITE' ? 'elite' : coverageKind ? 'coverage' : '';
   const quality = canonicalQuality(d.quality || uc.Quality);
-  const metrics = [['quality', T('quality'), quality || T('doc_not_scored')]];
+  // C26 (REQ-563): an executive reads only what is known: a score, fact or ribbon with no value is left out, never printed as "Not provided".
+  const metrics = quality ? [['quality', T('quality'), quality]] : [];
   const scores = [['inspire_score', inspireScoreFromUc(uc), 10], ['doc_elite_score', uc.elite_score, 10], ['quality_score_header', scoreOf(uc, 'Quality Score', 'quality_score'), 5],
     ['doc_bob_score', uc.bob_score, 10], ['priority_score', scoreOf(uc, 'Priority', 'Priority Score', 'priority_score'), 10], ['value_score', scoreOf(uc, 'Value', 'value_score'), 5],
     ['feasibility_score', scoreOf(uc, 'Feasibility', 'feasibility'), 5]];
   for (const [key, value, scale] of scores) {
-    if (key === 'doc_elite_score' && !(ultra || finite(value) !== null)) continue;
+    if (finite(value) === null) continue;
     metrics.push([key, T(key), scoreText(value, scale, T)]);
   }
   const narrative = [['statement', T('statement'), d.statement || missing], ['solution', T('solution'), d.solution || missing], ['business_value', T('business_value'), d.businessValue || missing]];
@@ -315,10 +316,13 @@ function useCaseView(uc, d, ctx) {
   const kv = useCaseKindView(uc);
   if (kv) facts.push(['kind', T('doc_kind'), [kv.label, kv.familyLabel, kv.informational ? KIND_INFORMATIONAL_LABEL : ''].filter(Boolean).join(' \u00B7 ')]);
   facts.push(['type', T('type'), d.type || missing]);
+  for (let i = facts.length - 1; i >= 0; i -= 1) if (facts[i][2] === missing) facts.splice(i, 1);
   if (display(uc.key_measure_note)) facts.push(['key_measure_note', T('key_measure_note'), display(uc.key_measure_note)]);
   const v = v130View(uc);
   const valueFacts = [];
-  const lines = [['what_we_serve', 'serving_summary'], ['how_it_works', 'method_summary'], ['value_source', 'value_source']].map(([k, f]) => (display(uc[f]) ? `${T(k)}: ${display(uc[f])}` : '')).filter(Boolean);
+  const said = new Set([d.solution, d.businessValue].map((t) => display(t).toLowerCase()).filter(Boolean));
+  const lines = [['what_we_serve', 'serving_summary'], ['how_it_works', 'method_summary'], ['value_source', 'value_source']]
+    .map(([k, f]) => (display(uc[f]) && !said.has(display(uc[f]).toLowerCase()) ? `${T(k)}: ${display(uc[f])}` : '')).filter(Boolean);
   if (lines.length) valueFacts.push(['what_you_get', T('doc_what_you_get'), lines]);
   const goals = strategyGoals(v, null);
   const strategy = [...goals.flatMap((g) => [[T('strategy_serves', { goal: g.name }), g.under ? T('strategy_part_of', { under: g.under }) : ''].filter(Boolean).join(', '), g.evidence]),
@@ -339,7 +343,7 @@ function useCaseView(uc, d, ctx) {
   const subtitle = [outcome ? `${outcome}.` : '', d.technique ? `${T('analytics_technique')}: ${d.technique}.` : '',
     scope && !d.name.toLowerCase().includes(scope.toLowerCase()) ? T('doc_subtitle_scope', { scope }) : ''].filter(Boolean).join(' ');
   const star = String(uc.best_of_best ?? '').trim().toUpperCase() === 'Y'
-    ? `\u2605 ${T('doc_best_of_best')} #${uc.best_of_best_rank ?? ''} \u00B7 ${T('doc_elite_score')} ${scoreText(uc.best_of_best_score, 10, T)}` : '';
+    ? [`\u2605 ${T('doc_best_of_best')} #${uc.best_of_best_rank ?? ''}`, finite(uc.best_of_best_score) === null ? '' : `${T('doc_elite_score')} ${scoreText(uc.best_of_best_score, 10, T)}`].filter(Boolean).join(' \u00B7 ') : '';
   const coverage = coverageKind ? [T(status === 'DOMAIN_COVERAGE_PICK' ? 'doc_coverage_pick' : 'doc_fallback_pick'), T('elite_reason'), belowBarReasonOf(uc) || missing] : null;
   return {
     uc, id: d.id, rank: rankOf.get(uc) ?? '', title: d.name || missing, subtitle, domain: domainOf(uc), subdomain: d.subdomain, kind, quality, metrics, narrative, facts,
