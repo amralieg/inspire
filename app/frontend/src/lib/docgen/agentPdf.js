@@ -968,11 +968,12 @@ export function pagesOf(m) {
 }
 export const agentPdfSvgs = (args) => agentPdfPages(args).map((p) => p.svg);
 
-// The PDF file: each page drawn to a PNG at twice the size (sharp text), one after the other to keep memory low, then jsPDF.
-// rasterize is generateDocs.svgToPng (passed in, so this module stays free of the DOM and of a circular import).
+// The PDF file: each page drawn to a JPEG (RC7C-C-01: PNG pages made a 30 MB file the save route refuses with 413), one after the other
+// to keep memory low, then jsPDF. rasterize is generateDocs.svgToPng (passed in, so this module stays free of the DOM and of a circular import).
+export const PDF_RASTER = { scale: 1.25, type: 'image/jpeg', quality: 0.5 };
 export async function buildAgentPdf(args, rasterize) {
   const images = [];
-  for (const svg of agentPdfSvgs(args)) images.push(await rasterize(svg, 2));
+  for (const svg of agentPdfSvgs(args)) images.push(await rasterize(svg, PDF_RASTER.scale, { type: PDF_RASTER.type, quality: PDF_RASTER.quality }));
   const { pdfFromImages } = await import('./pdfDoc.js');
   return pdfFromImages(images);
 }

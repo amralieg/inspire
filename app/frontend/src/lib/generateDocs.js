@@ -20,7 +20,7 @@ export function toBase64(bytes) {
 }
 
 // An SVG string drawn to a PNG: the width and height are the SVG's own.
-export async function svgToPng(svg, scale = 1) {
+export async function svgToPng(svg, scale = 1, { type = 'image/png', quality } = {}) {
   const [, w, h] = /width="(\d+)" height="(\d+)"/.exec(svg) || [];
   const natural = { w: Number(w) || 1200, h: Number(h) || 800 };
   const width = Math.round(natural.w * scale); const height = Math.round(natural.h * scale);
@@ -30,9 +30,11 @@ export async function svgToPng(svg, scale = 1) {
   await loaded;
   const canvas = document.createElement('canvas');
   canvas.width = width; canvas.height = height;
-  canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-  const dataUrl = canvas.toDataURL('image/png');
-  return { dataUrl, width, height, bytes: Uint8Array.from(atob(dataUrl.split(',')[1]), (c) => c.charCodeAt(0)) };
+  const ctx = canvas.getContext('2d');
+  if (type !== 'image/png') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, height); } // JPEG has no transparency
+  ctx.drawImage(img, 0, 0, width, height);
+  const dataUrl = canvas.toDataURL(type, quality);
+  return { dataUrl, type, width, height, bytes: Uint8Array.from(atob(dataUrl.split(',')[1]), (c) => c.charCodeAt(0)) };
 }
 
 // The texts a second language needs: per use case, its name, statement, solution and value story.
