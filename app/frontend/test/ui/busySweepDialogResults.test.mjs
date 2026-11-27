@@ -55,10 +55,12 @@ test('the Calculate value dialog loading state spins in the body and the footer,
     await card.locator('[data-value-calculate]').click();
     const dialog = page.getByRole('dialog', { name: /^Calculating Value at Stake for / });
     await dialog.waitFor();
-    // REQ-507: the dialog opens on the Data step; the plan is asked after the Data and Filter steps, so click Next until the plan's loading state shows.
+    // REQ-544 (a691437c5, CalculateValueDialog.jsx:258-288): the dialog is five steps and opens on Data; the plan is asked after it, so click Next
+    // (at most 5 times) until the plan's loading state shows. Each round waits for a step page or the loading state, whichever is on screen.
     const body = dialog.locator('[data-wizard-loading]', { hasText: /plan the value/ });
-    for (let i = 0; i < 4 && !(await body.count()); i += 1) {
-      await dialog.locator('[data-wizard-page]').first().waitFor({ timeout: 15000 });
+    for (let i = 0; i < 5 && !(await body.count()); i += 1) {
+      await body.or(dialog.locator('[data-wizard-page]')).first().waitFor({ timeout: 15000 });
+      if (await body.count()) break;
       await next(dialog);
     }
     await body.waitFor({ timeout: 5000 });

@@ -13,7 +13,10 @@ const OLD_IDS = ['midnight', 'executive', 'vivid', 'editorial', 'neon', 'organic
 const dialogOf = (page) => page.getByRole('dialog', { name: /Generate documents/ });
 const currentPage = (dialog) => dialog.locator('[data-docs-page]:visible').first().getAttribute('data-docs-page');
 async function openStyle() {
-  const ui = await openUi('results', { ...REVIEW_STATE, sessions: SESSIONS, results: REVIEW_RESULTS }, '', { mount: (app) => { app.get('/api/inspire/value/answers', (_q, r) => r.json({ answers: {} })); } });
+  const ui = await openUi('results', { ...REVIEW_STATE, sessions: SESSIONS, results: REVIEW_RESULTS }, '', { mount: (app) => { app.get('/api/inspire/value/answers', (_q, r) => r.json({ answers: {} }));
+    // REQ-121 (strategyDoc.js:41): Results saves the run's strategy PDF itself; without this route the harness answered 403.
+    app.post('/api/inspire/docs/save', (req, res) => res.json({ path: `${req.body.folder}/${req.body.name}`, name: req.body.name, size: 1 }));
+    app.get('/api/workspace/list', (_q, r) => r.json({ files: [] })); } });
   await ui.page.setViewportSize({ width: 1440, height: 900 });
   await ui.page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]').first().waitFor();
   for (const n of PICKED) await ui.page.getByRole('checkbox', { name: `Select ${n}`, exact: true }).check();

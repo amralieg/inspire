@@ -12,15 +12,19 @@ test.after(closeBrowser);
 const GENERATED = '/Workspace/Users/me@example.com/inspire_out';
 const SESSIONS = REVIEW_SESSIONS.map((s, i) => (i === 0 ? { ...s, generation_path: GENERATED, output_language: 'English' } : s));
 const PICKED = ['Predict churn', 'Score upsell'];
+// REQ-121 (strategyDoc.js:41 strategyDocNeeded): Results builds and saves the run's strategy PDF itself when the listing shows none.
+// The mock answers that save at once and records it apart (state.strategy), so the held saves below are the planned files only.
+const STRATEGY = 'Acme_strategy.pdf';
 const PLAN = planFiles({ ...defaultDocOptions('English'), businessName: 'Acme' }, [{ No: 'N01-U01' }, { No: 'N01-U02' }]);
 
 // state.hold: each save waits until state.release() answers the oldest one.
 function backend(state) {
-  state.saves = []; state.pending = [];
+  state.saves = []; state.pending = []; state.strategy = [];
   state.release = () => { const p = state.pending.shift(); if (p) p.res.json({ path: `${p.req.body.folder}/${p.req.body.name}`, name: p.req.body.name, size: 1 }); return Boolean(p); };
   return (app) => {
     app.get('/api/inspire/value/answers', (_req, res) => res.json({ answers: {} }));
     app.post('/api/inspire/docs/save', (req, res) => {
+      if (req.body.name === STRATEGY) { state.strategy.push(req.body); res.json({ path: `${req.body.folder}/${req.body.name}`, name: req.body.name, size: 1 }); return; }
       state.saves.push(req.body);
       if (state.hold) state.pending.push({ req, res }); else res.json({ path: `${req.body.folder}/${req.body.name}`, name: req.body.name, size: 1 });
     });
@@ -68,7 +72,7 @@ test('H1: the Style and color step offers Light (checked) and Dark; Dark shows o
     const group = dialog.getByRole('radiogroup', { name: 'Theme' });
     assert.equal(await group.getByRole('radio', { name: 'Light' }).getAttribute('aria-checked'), 'true');
     assert.equal(await group.getByRole('radio', { name: 'Dark' }).getAttribute('aria-checked'), 'false');
-    assert.match(await dialog.innerText(), /Applies to PDF and PowerPoint files\. Excel sheets stay light\./);
+    assert.match(await dialog.innerText(), /Applies to PDF and PowerPoint files; Word is always white\. Excel sheets stay light\./);
     const lightSvg = await dialog.locator('[data-docs-preview] svg').evaluate((el) => el.outerHTML);
     await group.getByRole('radio', { name: 'Dark' }).click();
     await poll(async () => (await dialog.locator('[data-docs-preview] svg').evaluate((el) => el.outerHTML)) !== lightSvg, 'the preview follows the theme', 5000);
@@ -89,6 +93,8 @@ test('H2: a Dark run saves files made with the dark theme (the PDF infographic i
     await dialog.getByRole('button', { name: new RegExp(`Generate ${PLAN.length} files$`) }).click();
     await poll(async () => state.saves.length === PLAN.length, 'all files saved', 90000);
     assert.deepEqual(state.saves.map((s) => s.name).sort(), PLAN.map((f) => f.name).sort());
+    await poll(async () => state.strategy.length === 1, 'the strategy PDF is saved too');
+    assert.deepEqual(state.strategy.map((s) => s.name), [STRATEGY]);
     assert.ok(state.saves.every((s) => Buffer.from(s.content_base64, 'base64').length > 200));
   } finally { await ui.close(); }
 });
@@ -109,6 +115,7 @@ test('B1: Run in background hides the dialog, the progress line counts, the run 
     while (state.saves.length < PLAN.length || state.pending.length) { state.release(); await new Promise((r) => setTimeout(r, 50)); }
     await poll(async () => (await barText(page)).includes(`${PLAN.length} of ${PLAN.length} saved`), 'all saved while hidden');
     assert.deepEqual(state.saves.map((s) => s.name), PLAN.map((f) => f.name), 'the same save calls as when watched, in plan order');
+    assert.deepEqual(state.strategy.map((s) => s.name), [STRATEGY], 'the strategy PDF is saved once as well');
     await barOf(page).getByRole('button', { name: 'Open', exact: true }).click();
     const panel = dialogOf(page);
     await panel.waitFor();
