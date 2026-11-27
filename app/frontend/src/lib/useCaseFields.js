@@ -1,3 +1,4 @@
+import { storedForms } from '../../../shared/useCaseId.mjs';
 import { normalizeDatabricksFsPath } from './workspaceLinks.js';
 import { aiWording } from './aiWording.js';
 import { placeholderWords } from './placeholderWords.js';
@@ -101,9 +102,11 @@ export function collectUseCaseNotebookFilenamePrefixes(uc) {
   const out = [];
   for (const v of raw) {
     const s = String(v ?? '').trim();
-    if (s && !seen.has(s)) {
-      seen.add(s);
-      out.push(s);
+    for (const f of s ? storedForms(s) : []) { // REQ-569: a notebook saved under either id form is found
+      if (!seen.has(f)) {
+        seen.add(f);
+        out.push(f);
+      }
     }
   }
   return out;

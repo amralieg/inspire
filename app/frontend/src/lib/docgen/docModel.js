@@ -2,6 +2,7 @@
 import { aiWording, fieldOf, inspireScoreFromUc, trackingIdOf, scoreOf } from '../useCaseFields.js';
 import { moneyText } from '../valueWizard.js';
 import { v130View, kpiText } from '../v130UseCase.js';
+import { displayId } from '../../../../shared/useCaseId.mjs';
 import { plainDocText, foundationLabel } from './docText.js';
 
 export const RTL_LANGUAGES = ['Arabic', 'Hebrew', 'Persian', 'Farsi', 'Urdu'];
@@ -47,14 +48,15 @@ export function buildDocModel({ businessName, useCases, values, options, summary
   const foundationNames = new Map((Array.isArray(foundations) ? foundations : []).map((f) => [String(f.id).toUpperCase(), f.name]));
   const language = (opts.languages && opts.languages[0]) || opts.language || 'English';
   const list = (useCases || []).map((uc) => {
-    const id = trackingIdOf(uc);
+    const saved = trackingIdOf(uc); // the id as saved (values are keyed by it); documents print it as AIx-UCx
+    const id = displayId(saved);
     const score = inspireScoreFromUc(uc);
     const v = v130View(uc);
     const lines = (items) => items.map((x) => clean(x)).filter(Boolean);
     return {
       id, name: clean(fieldOf(uc, 'Name', 'name')), statement: clean(fieldOf(uc, 'Statement', 'statement')), solution: clean(fieldOf(uc, 'Solution', 'solution')),
       businessValue: clean(fieldOf(uc, 'Business Value', 'business_value')), domain: clean(fieldOf(uc, 'domain', 'Domain') || fieldOf(uc, 'Subdomain', 'subdomain')),
-      score, tables: tablesOf(uc), value: valueOf(values?.[id]),
+      score, tables: tablesOf(uc), value: valueOf(values?.[saved] ?? values?.[id]),
       // REQ-526: the extra real fields the document designs show (blank or null when the use case has none).
       short: clean(fieldOf(uc, 'usecase', 'short_name')), subdomain: clean(fieldOf(uc, 'Subdomain', 'subdomain')), sponsor: clean(fieldOf(uc, 'Sponsor', 'sponsor')),
       beneficiary: clean(fieldOf(uc, 'Beneficiary', 'beneficiary')), technique: clean(fieldOf(uc, 'Analytics Technique', 'analytics_technique')), quality: clean(fieldOf(uc, 'Quality', 'quality')),

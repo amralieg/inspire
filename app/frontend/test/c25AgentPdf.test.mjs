@@ -1,6 +1,7 @@
 // C25 (REQ-559 part 1): the PDF is the agent's original catalog PDF (the 6a7361a39 notebook, _catalog_pdf_html) plus value.
 // Same sections and order, the same use case card with every label it had, the use case's value on each card, and one value page
 // after the last domain's cards and before the index. The strategy document is made by the same generator.
+import { displayId } from '../../shared/useCaseId.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -69,8 +70,8 @@ test('(a) the page sequence is the agent PDF order, with the value page after th
     'methodology', 'foundations', 'roadmap', 'disclaimer', 'closing']);
   // Domain 1 (Sales, best rank) holds its use cases; domain 2 holds the other two.
   const ids = (d) => pages.filter((p) => p.kind === 'cards' && p.domain === d).map((p) => p.svg).join('').match(/data-uc="[^"]+"/g);
-  assert.deepEqual([...new Set(ids(1))], ['data-uc="N01-U01"', 'data-uc="N01-U02"']);
-  assert.deepEqual([...new Set(ids(2))], ['data-uc="N02-U01"', 'data-uc="N02-U02"']);
+  assert.deepEqual([...new Set(ids(1))], ['data-uc="AI01-UC01"', 'data-uc="AI01-UC02"']);
+  assert.deepEqual([...new Set(ids(2))], ['data-uc="AI02-UC01"', 'data-uc="AI02-UC02"']);
   assert.ok(pages.every((p) => /^<svg [^>]*width="794" height="1123"/.test(p.svg) && p.svg.includes('<foreignObject')), 'every page is an A4 foreignObject SVG');
   assert.ok(pages.every((p) => p.used <= p.room), 'no page is filled past its height (the height model)');
   const exec = pages.find((p) => p.kind === 'exec').svg;
@@ -81,21 +82,21 @@ test('(a) the page sequence is the agent PDF order, with the value page after th
 
 test('(b) every use case card carries every label of the old card, the ribbons and the notebook button', () => {
   for (const uc of UCS) {
-    const html = articleOf(uc.No);
+    const html = articleOf(displayId(uc.No));
     assert.ok(html, `${uc.No} has a card`);
     for (const label of OLD_UC_CARD_LABELS) assert.ok(html.includes(`>${label}<`), `${uc.No} card shows the label ${label}`);
     assert.ok(html.includes(OLD_RIBBONS.notebook), `${uc.No} has the notebook button`);
     assert.ok(html.includes(uc.Statement.split('.')[0]) && html.includes(uc['Business Value']), `${uc.No} prints its text in full`);
   }
-  assert.ok(articleOf('N01-U01').includes(OLD_RIBBONS.meets), 'meets the bar ribbon');
-  assert.ok(articleOf('N01-U01').includes(`${OLD_RIBBONS.star} #1`), 'Best of Best ribbon');
-  assert.ok(articleOf('N02-U02').includes(`${OLD_RIBBONS.coverageReason}:`) && articleOf('N02-U02').includes('no use case above the bar'), 'coverage ribbon');
-  assert.ok(!articleOf('N02-U02').includes(OLD_RIBBONS.meets), 'a coverage pick does not meet the bar');
+  assert.ok(articleOf('AI01-UC01').includes(OLD_RIBBONS.meets), 'meets the bar ribbon');
+  assert.ok(articleOf('AI01-UC01').includes(`${OLD_RIBBONS.star} #1`), 'Best of Best ribbon');
+  assert.ok(articleOf('AI02-UC02').includes(`${OLD_RIBBONS.coverageReason}:`) && articleOf('AI02-UC02').includes('no use case above the bar'), 'coverage ribbon');
+  assert.ok(!articleOf('AI02-UC02').includes(OLD_RIBBONS.meets), 'a coverage pick does not meet the bar');
 });
 
 test('(c) each card shows its value a year with its basis, and the value page totals add up', () => {
   for (const uc of UCS) {
-    const html = articleOf(uc.No);
+    const html = articleOf(displayId(uc.No));
     const v = VALUES[uc.No];
     assert.ok(html.includes('Value at stake per year'), `${uc.No} has the value block`);
     if (v) {
@@ -139,5 +140,5 @@ test('(e) Generate docs (the pdf kind) and the strategy document use the agent P
   const all = svgs.join('\n');
   assert.ok(svgs.every((s) => typeof s === 'string' && s.includes('<foreignObject')), 'strategy pages are agent PDF pages');
   assert.ok(all.includes('class="uc') && all.includes('Value at stake per year'), 'strategy pages carry the agent use case card with value');
-  for (const uc of UCS) assert.ok(all.includes(uc.No) && all.includes(uc.Name), `${uc.No} is in the strategy document`);
+  for (const uc of UCS) assert.ok(all.includes(displayId(uc.No)) && all.includes(uc.Name), `${uc.No} is in the strategy document`);
 });
