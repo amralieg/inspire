@@ -425,7 +425,7 @@ export function buildAgentModel({ businessName, useCases, values, summary, found
     const value = members.reduce((s, u) => s + amountOf(u), 0);
     return {
       index: i + 1, name: g.name, useCases: members.map((u) => views.get(u)), overview: [T('doc_domain_fallback', { count: members.length, subdomains: listed })],
-      subdomains, stats, top: (members.filter((u) => eliteStatus(u) !== 'DOMAIN_COVERAGE_PICK').slice(0, 3).length ? members.filter((u) => eliteStatus(u) !== 'DOMAIN_COVERAGE_PICK').slice(0, 3) : members.slice(0, 1)).map((u) => views.get(u)),
+      subdomains, stats, bestScore: best(members), top: (members.filter((u) => eliteStatus(u) !== 'DOMAIN_COVERAGE_PICK').slice(0, 3).length ? members.filter((u) => eliteStatus(u) !== 'DOMAIN_COVERAGE_PICK').slice(0, 3) : members.slice(0, 1)).map((u) => views.get(u)),
       value: { amount: value, text: moneyText(currency, value), n: members.filter((u) => docOf.get(u).value).length },
     };
   });

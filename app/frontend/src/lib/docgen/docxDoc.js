@@ -33,7 +33,8 @@ const stylesXml = (face, accent, ink) => `<?xml version="1.0" encoding="UTF-8" s
 
 const TEAL = K.teal; const DARK = K.teal_dark;
 const DOMAIN_FILLS = [K.teal, K.coral, K.gold_dark, K.teal_mid, K.green, K.wine, '2E6F9E', '6B4E9B'];
-const IN = 914400; const PAGE_IN = 6.5; // picture width in inches (text width 17 cm = 6.7 in)
+const chartH = (u, i) => (u.value ? UC_CHART_H[i] ?? UC_CHART_H[1] : UC_CHART_H_NO_VALUE);
+const IN = 914400; const PAGE_IN = 6.5; const UC_CHART_IN = PAGE_IN; const UC_CHART_H = [290, 190]; const UC_CHART_H_NO_VALUE = 390; // C29: the second chart starts page 2 (a use case is two pages), so the charts are sized to leave both pages more than 60% full: the first is the tall one on a page with the head, the second is shorter on a page with all the words; a use case with no value band or projection has taller charts
 const bytesOf = (r) => (r && r.bytes ? r.bytes : r);
 const dims = (svg, w, h) => { const m = /<svg[^>]*\bwidth="(\d+(?:\.\d+)?)"[^>]*\bheight="(\d+(?:\.\d+)?)"/.exec(svg); return m ? { w: Number(m[1]), h: Number(m[2]) } : { w, h }; };
 const fmt1 = (v) => (Number.isFinite(Number(v)) && v !== null ? Number(v).toFixed(1) : '');
@@ -48,14 +49,14 @@ export async function buildDocx(m, theme = {}, { chartPng, views } = {}) {
   // Pictures first (the rasterizer is async, the XML below is built in one synchronous pass).
   const images = []; // { name, bytes }
   const pics = new Map(); // key -> { rid, n, w, h } in inches
-  const addChart = async (key, svg, fallback) => {
+  const addChart = async (key, svg, fallback, inches = PAGE_IN) => {
     if (!chartPng || !svg) return;
     try {
       const bytes = bytesOf(await chartPng(svg));
       if (!bytes || !bytes.length) return;
       const d = dims(svg, fallback.w, fallback.h);
       images.push({ name: `chart${images.length + 1}.png`, bytes });
-      pics.set(key, { rid: `rIdImg${images.length}`, n: images.length, w: PAGE_IN, h: (PAGE_IN * d.h) / d.w });
+      pics.set(key, { rid: `rIdImg${images.length}`, n: images.length, w: inches, h: (inches * d.h) / d.w });
     } catch { /* a chart that cannot be drawn is left out; the text stays */ }
   };
   // C28 (REQ-572): the person's logo as a PNG (made from their file by generateDocs) on the cover.
@@ -70,14 +71,14 @@ export async function buildDocx(m, theme = {}, { chartPng, views } = {}) {
   for (const [i, t] of portfolioTypes.entries()) await addChart(`portfolio${i}`, portfolioChartSvg(t, views && views.length ? views : m.useCases, { w: 560, h: 290 }), { w: 560, h: 290 });
   for (const u of m.useCases) {
     const types = (chartTypesFor(u) || []).slice(0, 2); ucTypes.set(u.id, types);
-    for (const [i, t] of types.entries()) await addChart(`${u.id}|${i}`, ucChartSvg(t, u, { w: 560, h: 250 }), { w: 560, h: 250 });
+    for (const [i, t] of types.entries()) await addChart(`${u.id}|${i}`, ucChartSvg(t, u, { w: 560, h: chartH(u, i) }), { w: 560, h: chartH(u, i) }, UC_CHART_IN);
   }
 
   const body = [];
   const run = (text, { bold = false, color = '', size = 0, italic = false } = {}) => `<w:r><w:rPr>${bold ? '<w:b/>' : ''}${italic ? '<w:i/>' : ''}${color ? `<w:color w:val="${color}"/>` : ''}${size ? `<w:sz w:val="${Math.max(22, size)}"/><w:szCs w:val="${Math.max(22, size)}"/>` : ''}${rtl ? '<w:rtl/>' : ''}</w:rPr><w:t xml:space="preserve">${esc(text)}</w:t></w:r>`;
   const small = (text, o = {}) => run(text, { ...o, size: 0 }).replace('<w:rPr>', `<w:rPr><w:sz w:val="${o.sz || 18}"/><w:szCs w:val="${o.sz || 18}"/>`);
-  const paraXml = (runs, { style, pageBreak = false, shade = '', edge = '', after = null, before = null, keepNext = false, center = false, flat = false } = {}) => {
-    const ppr = `${style ? `<w:pStyle w:val="${style}"/>` : ''}${keepNext ? '<w:keepNext/>' : ''}${pageBreak ? '<w:pageBreakBefore/>' : ''}`
+  const paraXml = (runs, { style, pageBreak = false, shade = '', edge = '', after = null, before = null, keepNext = false, keepLines = false, center = false, flat = false } = {}) => {
+    const ppr = `${style ? `<w:pStyle w:val="${style}"/>` : ''}${keepNext ? '<w:keepNext/>' : ''}${keepLines ? '<w:keepLines/>' : ''}${pageBreak ? '<w:pageBreakBefore/>' : ''}`
       + `${flat ? '<w:pBdr><w:bottom w:val="nil"/></w:pBdr>' : ''}`
       + `${shade ? `${edge ? `<w:pBdr><w:left w:val="single" w:sz="36" w:space="8" w:color="${edge}"/></w:pBdr>` : ''}<w:shd w:val="clear" w:color="auto" w:fill="${shade}"/>` : ''}`
       + `${after != null || before != null ? `<w:spacing${before != null ? ` w:before="${before}"` : ''}${after != null ? ` w:after="${after}"` : ''}/>` : ''}${center ? '<w:jc w:val="center"/>' : ''}${rtl ? '<w:bidi/>' : ''}`;
@@ -85,7 +86,7 @@ export async function buildDocx(m, theme = {}, { chartPng, views } = {}) {
   };
   const para = (text, o = {}) => body.push(paraXml(run(text, o), o));
   const picRun = (p, alt) => `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${Math.round(p.w * IN)}" cy="${Math.round(p.h * IN)}"/><wp:docPr id="${p.n}" name="Chart ${p.n}" descr="${esc(alt)}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${p.n}" name="chart${p.n}.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${p.rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${Math.round(p.w * IN)}" cy="${Math.round(p.h * IN)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
-  const picture = (key, alt) => { const p = pics.get(key); if (p) body.push(paraXml(picRun(p, alt), { after: 100, keepNext: false, center: true })); return !!p; };
+  const picture = (key, alt, pageBreak = false) => { const p = pics.get(key); if (p) body.push(paraXml(picRun(p, alt), { after: 100, keepNext: false, center: true, pageBreak })); return !!p; };
   const gap = (after = 60) => body.push(paraXml('', { after }));
   const tblPr = (extra = '') => `<w:tblPr><w:tblW w:w="${W}" w:type="dxa"/>${rtl ? '<w:bidiVisual/>' : ''}<w:tblLayout w:type="fixed"/>${extra}</w:tblPr>`;
   const white = (n) => ['left', 'right'].map((s) => `<w:${s} w:val="single" w:sz="${n}" w:space="0" w:color="FFFFFF"/>`).join('');
@@ -183,10 +184,9 @@ export async function buildDocx(m, theme = {}, { chartPng, views } = {}) {
           body.push(paraXml(runs, { shade: K.sand, edge: K.gold, after: story(u) ? 0 : 160, before: 60 }));
           if (story(u)) body.push(paraXml(run(story(u)), { shade: K.sand, edge: K.gold, after: 160 }));
         }
-        // Page 1 of a use case is the visual one (title, chips, value, two charts); page 2 carries the words and the tables.
-        const shown = [picture(`${u.id}|0`, `${u.name}: ${(ucTypes.get(u.id) || [])[0] || 'chart'}`), picture(`${u.id}|1`, `${u.name}: ${(ucTypes.get(u.id) || [])[1] || 'chart'}`)].some(Boolean);
-        let first = shown;
-        const sec = (label, text) => { if (has(m, 'use_case_story') && text) { body.push(paraXml(run(LB(label), { bold: true, color: TEAL, size: 26 }), { style: 'Heading2', pageBreak: first })); first = false; para(text); } };
+        // C29: the words follow the two charts on the same page (no forced page break), so a use case page is full, not half empty.
+        picture(`${u.id}|0`, `${u.name}: ${(ucTypes.get(u.id) || [])[0] || 'chart'}`); picture(`${u.id}|1`, `${u.name}: ${(ucTypes.get(u.id) || [])[1] || 'chart'}`, true);
+        const sec = (label, text) => { if (has(m, 'use_case_story') && text) { body.push(paraXml(run(LB(label), { bold: true, color: TEAL, size: 26 }), { style: 'Heading2' })); para(text, { keepLines: true }); } };
         sec('Statement', u.statement); sec('Solution', u.solution); sec('Business value', u.businessValue);
         if (has(m, 'use_case_story')) {
           const facts = [['Sponsor', u.sponsor], ['Beneficiary', u.beneficiary], ['Technique', u.technique]].filter(([, v]) => v).map(([l, v]) => [LB(l), v])

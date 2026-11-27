@@ -4,7 +4,7 @@
 // media the agent had), each page is an A4 SVG holding XHTML, and the browser draws them to PNG for jsPDF.
 import {
   buildAgentModel, agentOutline, DOC_COLORS, DOC_BRAND, DOC_QUALITY_ORDER, DOC_INDEX_COLUMNS, DOC_VALUE_LEFT,
-  qualityColor, docJoin,
+  qualityColor, docJoin, scoreText,
 } from './agentModel.js';
 import { chartTypesFor, ucChartSvg, portfolioChartSvg } from './designs/ucCharts.js';
 import { execSummaryParas, purposeParas, domainsListOf, storyPick } from './storyParts.js';
@@ -960,10 +960,18 @@ function openerPage(d, m, b) {
     const pick = sorted.slice(0, 7); if (!pick.some((r) => r.index === d.index)) pick.splice(6, 1, all.find((r) => r.index === d.index));
     return pick.sort((a, c) => c.amount - a.amount);
   })();
-  const vmax = Math.max(1, ...vrows.map((r) => r.amount));
-  const vblock = vrows.length ? `<div class="dvs"><h4>${esc(T('value_per_domain'))}</h4>${vrows.map((r) => `<div class="dvr${r.index === d.index ? ' me' : ''}"><span class="nm">${b.html(r.name)}</span>`
+  // C29: a domain with no value is still a full page: the best Inspire score of every domain as bars, this one marked.
+  const srows = vrows.length ? [] : (() => {
+    const all = m.domains.filter((x) => Number.isFinite(x.bestScore));
+    if (!all.length || !all.some((x) => x.index === d.index)) return [];
+    const pick = [...all].sort((a, c) => c.bestScore - a.bestScore).slice(0, 7); if (!pick.some((x) => x.index === d.index)) pick.splice(6, 1, all.find((x) => x.index === d.index));
+    return pick.sort((a, c) => c.bestScore - a.bestScore).map((x) => ({ index: x.index, name: x.name, amount: x.bestScore, text: scoreText(x.bestScore, 10, T) }));
+  })();
+  const brows = vrows.length ? vrows : srows; const btitle = vrows.length ? T('value_per_domain') : T('doc_best_score');
+  const vmax = Math.max(1, ...brows.map((r) => r.amount));
+  const vblock = brows.length ? `<div class="dvs"><h4>${esc(btitle)}</h4>${brows.map((r) => `<div class="dvr${r.index === d.index ? ' me' : ''}"><span class="nm">${b.html(r.name)}</span>`
     + `<span class="tr"><i style="width:${Math.max(3, (100 * r.amount) / vmax).toFixed(1)}%"></i></span><span class="am">${b.html(r.text)}</span></div>`).join('')}</div>` : '';
-  const vblockH = vrows.length ? 14 + 14 + F.heading * 1.16 + 8 + vrows.length * 26 + 8 : 0;
+  const vblockH = brows.length ? 14 + 14 + F.heading * 1.16 + 8 + brows.length * 26 + 8 : 0;
   const overW = CW * 0.55 - 14;
   const bandH = 72 + 40 + F.numeral * 0.92 + F.label * 1.5 + 8 + textH(d.name, F.display, CW - 120, 1.16, { bold: true }) + (subtitle ? 8 + textH(subtitle, F.body, CW - 60) : 0) + 28;
   const statsH = 24 + F.heading * 1.15 + 6 + F.label * 2.6 + 18;
