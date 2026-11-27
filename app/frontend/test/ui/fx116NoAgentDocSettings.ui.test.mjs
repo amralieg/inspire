@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FAKE_CLOCK, closeBrowser, openUi, toView, until } from './uiSupport.mjs';
+import { FAKE_CLOCK, closeBrowser, openUi, toDocuments, until } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_SESSIONS, REVIEW_STATE } from './reviewFixtures.js';
 
 test.after(closeBrowser);
@@ -66,7 +66,7 @@ test('decision (a): Advanced Settings has no Document Languages field and a laun
   }
 });
 
-test('Assets has no rebuild-documents actions, and an old run PDF and workbook still list with a Download button', async () => {
+test('Overview has no rebuild-documents actions, and an old run PDF and workbook still list with a Download button', async () => {
   const GEN = '/Workspace/Users/me@example.com/inspire_out';
   const files = ['Acme-dbx_inspire.pdf', 'Acme-dbx_inspire.xlsx'].map((name) => ({ name, path: `${GEN}/acme/${name}`, is_directory: false, file_size: 5000 }));
   const sessions = REVIEW_SESSIONS.map((s, i) => (i === 0 ? { ...s, generation_path: GEN } : s));
@@ -75,9 +75,9 @@ test('Assets has no rebuild-documents actions, and an old run PDF and workbook s
   });
   const { page } = ui;
   try {
-    await toView(page, 'Assets');
+    await toDocuments(page);
     await page.getByText(files[0].name).first().waitFor({ timeout: 20000 });
-    assert.equal(await page.locator('[data-document-actions], [data-doc-action]').count(), 0, 'the rebuild-documents actions are still in Assets');
+    assert.equal(await page.locator('[data-document-actions], [data-doc-action]').count(), 0, 'the rebuild-documents actions are still in Overview');
     for (const f of files) assert.ok((await page.getByRole('button', { name: `Download ${f.name}`, exact: true }).count()) >= 1, `${f.name} can still be downloaded`);
     assert.deepEqual(ui.pageErrors, []);
   } finally {

@@ -4,7 +4,7 @@
 // showing, without the tag.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, openUi, toView } from './uiSupport.mjs';
+import { closeBrowser, openUi, toDocuments, toView } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_SESSIONS, REVIEW_STATE } from './reviewFixtures.js';
 
 test.after(closeBrowser);
@@ -13,7 +13,7 @@ const GENERATED = '/Workspace/Users/me@example.com/inspire_out';
 const FOLDER = `${GENERATED}/acme`;
 const SESSIONS = REVIEW_SESSIONS.map((s, i) => (i === 0 ? { ...s, generation_path: GENERATED } : s));
 const OLD = { name: 'Acme-dbx_inspire.pdf', path: `${FOLDER}/Acme-dbx_inspire.pdf`, is_directory: false, file_size: 90000 };
-const NEW = ['Acme_infographic.png', 'Acme_deck.pptx', 'Acme_use_cases.xlsx'].map((name) => ({ name, path: `${FOLDER}/${name}`, is_directory: false, file_size: 40000 }));
+const NEW = ['Acme_brief.pdf', 'Acme_deck.pptx', 'Acme_use_cases.xlsx'].map((name) => ({ name, path: `${FOLDER}/${name}`, is_directory: false, file_size: 40000 }));
 
 function backend() {
   const state = { saved: false, lists: 0 };
@@ -33,12 +33,12 @@ const poll = async (check, what, timeout = 20000) => {
   }
 };
 
-test('N1: files the wizard saved appear in Assets with a NEW tag and a Download button after the new-docs event; the old Discover PDF has no tag', async () => {
+test('N1: files the wizard saved appear in Overview > Documents with a NEW tag and a Download button after the new-docs event; the old Discover PDF has no tag', async () => {
   const be = backend();
   const ui = await openUi('results', { ...REVIEW_STATE, sessions: SESSIONS, results: REVIEW_RESULTS }, '', { mount: be.mount });
   const { page } = ui;
   try {
-    await toView(page, 'Assets');
+    await toDocuments(page);
     await page.getByText(OLD.name).first().waitFor({ timeout: 20000 });
     assert.equal(await page.locator('[data-new-doc]').count(), 0, 'nothing is new before a save');
     const listsBefore = be.state.lists;
@@ -72,7 +72,7 @@ test('N2: the NEW tags survive a reload in the same tab (sessionStorage) and bel
   });
   const { page } = ui;
   try {
-    await toView(page, 'Assets');
+    await toDocuments(page);
     await page.locator(`[data-new-doc="${NEW[0].path}"]`).first().waitFor({ timeout: 20000 });
     assert.equal(await page.locator('[data-new-doc]').evaluateAll((els) => [...new Set(els.map((e) => e.getAttribute('data-new-doc')))].length), NEW.length);
     assert.deepEqual(ui.pageErrors, []);

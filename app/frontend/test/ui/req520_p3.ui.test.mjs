@@ -60,7 +60,7 @@ test('AD-23: the "Build first" label does not touch any value-map dot', async ()
   const { page } = ui;
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     const map = page.getByRole('region', { name: 'Value map' });
     await map.locator('[data-map-point]').first().waitFor({ timeout: 15000 });
     const hits = await map.evaluate((el) => {

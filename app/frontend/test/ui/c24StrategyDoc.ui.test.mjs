@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { closeBrowser, openUi, toView } from './uiSupport.mjs';
+import { closeBrowser, openUi, toDocuments, toView } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_SESSIONS, REVIEW_STATE } from './reviewFixtures.js';
 import { trackingIdOf } from '../../src/lib/useCaseFields.js';
 
@@ -33,14 +33,14 @@ function backend({ files = [OTHER], failSave = false } = {}) {
   return { calls, mount };
 }
 const openRun = (be, { results = REVIEW_RESULTS, session = {} } = {}) => openUi('results', { ...REVIEW_STATE, sessions: sessionsWith(session), results }, '', { mount: be.mount });
-const settle = async (page, calls, ms = 3000) => { await toView(page, 'Assets'); const end = Date.now() + 15000; while (calls.lists < 1 && Date.now() < end) await new Promise((r) => setTimeout(r, 100)); await new Promise((r) => setTimeout(r, ms)); };
+const settle = async (page, calls, ms = 3000) => { await toDocuments(page); const end = Date.now() + 15000; while (calls.lists < 1 && Date.now() < end) await new Promise((r) => setTimeout(r, 100)); await new Promise((r) => setTimeout(r, ms)); };
 const waitFor = async (check, what, timeout = 30000) => { const end = Date.now() + timeout; while (!check()) { if (Date.now() > end) throw new Error(`timed out: ${what}`); await new Promise((r) => setTimeout(r, 100)); } };
 
 test('(1) a finished run with no strategy PDF listed: exactly one save, a strategy .pdf with every use case and the objective headings', async () => {
   const be = backend();
   const ui = await openRun(be);
   try {
-    await toView(ui.page, 'Assets');
+    await toDocuments(ui.page);
     await waitFor(() => be.calls.saves.length > 0, 'the strategy document is saved');
     await new Promise((r) => setTimeout(r, 2000));
     assert.equal(be.calls.saves.length, 1, 'one save call');
@@ -75,10 +75,10 @@ test('(3) opening Assets twice and re-rendering still saves once', async () => {
   const be = backend();
   const ui = await openRun(be);
   try {
-    await toView(ui.page, 'Assets');
+    await toDocuments(ui.page);
     await waitFor(() => be.calls.saves.length > 0, 'the first save');
     await toView(ui.page, 'Use cases');
-    await toView(ui.page, 'Assets');
+    await toDocuments(ui.page);
     await ui.page.setViewportSize({ width: 1100, height: 800 });
     await new Promise((r) => setTimeout(r, 3000));
     assert.equal(be.calls.saves.length, 1);
@@ -99,7 +99,7 @@ test('(5) a save that fails shows one Retry line and the page stays usable; Retr
   const be = backend({ failSave: true });
   const ui = await openRun(be);
   try {
-    await toView(ui.page, 'Assets');
+    await toDocuments(ui.page);
     const line = ui.page.locator('[data-strategy-doc-failed]');
     await line.waitFor({ timeout: 30000 });
     assert.equal(await line.count(), 1, 'one line');
@@ -107,7 +107,7 @@ test('(5) a save that fails shows one Retry line and the page stays usable; Retr
     assert.equal(await retry.count(), 1);
     await toView(ui.page, 'Use cases');
     assert.ok(await ui.page.getByRole('region', { name: 'Use case list' }).isVisible(), 'the page is usable');
-    await toView(ui.page, 'Assets');
+    await toDocuments(ui.page);
     be.calls.failSave = false;
     const before = be.calls.saves.length;
     await retry.click();
@@ -118,6 +118,6 @@ test('(5) a save that fails shows one Retry line and the page stays usable; Retr
 });
 
 test('(6) the note that said a run no longer writes a strategy document is gone', () => {
-  const src = fs.readFileSync(new URL('../../src/components/results/ResultsAssets.jsx', import.meta.url), 'utf8');
+  const src = fs.readFileSync(new URL('../../src/components/results/ResultsOverview.jsx', import.meta.url), 'utf8');
   assert.ok(!/no longer writes one/i.test(src));
 });

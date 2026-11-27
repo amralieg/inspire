@@ -1,16 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import { closeBrowser, idle, lowContrast, openUi, setDark, settled, steadyBox, toView, until } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_SESSIONS, REVIEW_STATE, RUN_SUMMARY } from './reviewFixtures.js';
 import { LATEST_RUN_LABEL } from '../../src/lib/reviewFigures.js';
 import * as V from '../../src/lib/v130UseCase.js';
 import * as A from '../../src/lib/artifactFiles.js';
 import { START_MVP_LABEL } from '../../src/lib/implementWizard.js';
-import { wheelScrolls } from './wheelScroll.mjs';
 import { panelSettled, readerOf } from './reviewRows.mjs';
 
-const AdmZip = createRequire(import.meta.url)('../../../backend/node_modules/adm-zip');
 
 test.after(closeBrowser);
 
@@ -39,7 +36,7 @@ function outsideHosts(page) {
 test('Review lists the documents of an absolute output folder, and never asks for a relative or .. folder when the agent notebook path is unknown (must-exclude)', async () => {
   const listed = async (generationPath) => {
     const sessions = REVIEW_SESSIONS.map((s) => (s.session_id === '42' ? { ...s, generation_path: generationPath } : s));
-    const ui = await openUi('results', { ...REVIEW_STATE, sessions });
+    const ui = await openUi('results', { ...REVIEW_STATE, sessions }, '', { mount: (app) => app.post('/api/inspire/docs/save', (req, res) => res.json({ path: `${req.body.folder}/${req.body.name}`, name: req.body.name, size: 1 })) });
     const asked = [];
     ui.page.on('request', (r) => {
       const u = new URL(r.url());
@@ -47,11 +44,11 @@ test('Review lists the documents of an absolute output folder, and never asks fo
     });
     try {
       await ready(ui.page);
-      await toView(ui.page, 'Business');
+      await toView(ui.page, 'Overview');
       await settled(ui.page, '[aria-label="Figures of this run"]');
       await idle(ui.page);
       assert.deepEqual(ui.pageErrors, []);
-      return asked;
+      return [...new Set(asked)]; // the strategy PDF save reloads the folder once
     } finally {
       await ui.close();
     }
@@ -67,7 +64,7 @@ test('on a small screen the figures of the run below the fold already read their
   const { page } = ui;
   try {
     await ready(page);
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     const tile = (label) => page.locator(`[aria-label="Figures of this run"] [data-stat="${label}"]`);
     const below = await tile('Live assets').evaluate((el) => el.getBoundingClientRect().top >= window.innerHeight);
     assert.equal(below, true, 'the last figure starts below the fold, so the check covers a tile nobody has scrolled to');
@@ -89,7 +86,7 @@ test('Review heads the open run with its catalog, business and date, shows each 
   const outside = outsideHosts(page);
   try {
     await ready(page);
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     assert.equal((await page.locator('h1').innerText()).trim(), 'Review', 'the page title is the tab');
     const head = heading(page);
     assert.equal(await head.getByRole('heading', { level: 2 }).innerText(), 'Acme Use Cases Catalog', 'a run with no catalog title reads Use Cases');
@@ -121,9 +118,8 @@ test('Review heads the open run with its catalog, business and date, shows each 
     });
     assert.deepEqual(runScope, { 'Use Cases': 1, Domains: 1, 'High Priority': 1 },
       'above the use case browser, the Run finished strip no longer repeats the run cards');
-    await toView(page, 'Assets');
+    await toView(page, 'Overview');
     assert.equal(await page.getByText('Every step of the run finished.').count(), 1);
-    await toView(page, 'Business');
     const summary = page.locator('[data-executive-summary]');
     assert.deepEqual(await summary.locator('p').allInnerTexts(), RUN_SUMMARY.paragraphs, 'the summary results_json holds, in its paragraphs');
     assert.equal(await page.locator('canvas').count(), 0, 'opening a finished run fires no confetti');
@@ -149,7 +145,7 @@ test('Review heads the open run with its catalog, business and date, shows each 
     await row('41').click();
     await toView(page, 'Use cases');
     await ready(page);
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     assert.equal(await heading(page).locator('[data-latest-run]').count(), 0, 'an older run of a business has no label');
     for (const dark of [false, true]) {
       await setDark(page, dark);
@@ -170,7 +166,7 @@ test('a run whose results_json holds no summary string shows no summary panel', 
     const { page } = ui;
     try {
       await ready(page);
-      await toView(page, 'Business');
+      await toView(page, 'Overview');
       await page.locator('[data-stat="Use Cases"]').waitFor();
       assert.equal(await page.locator('#executive-summary').count(), 0, label);
       assert.equal(await page.getByText('Executive summary', { exact: true }).count(), 0, label);
@@ -198,7 +194,7 @@ test('a run that is still going shows the summary its results_json already holds
       await page.getByText('Live Preview').waitFor();
       assert.match(await page.locator('[data-testid="live-use-case-count"]').innerText(), /^\d+ use cases? so far$/, label);
       assert.doesNotMatch(await page.locator('body').innerText(), /completed steps/, label);
-      await toView(page, 'Business');
+      await toView(page, 'Overview');
       assert.deepEqual(await page.locator('[data-executive-summary] p').allInnerTexts(), shown, label);
       assert.deepEqual(ui.pageErrors, [], label);
     } finally {
@@ -265,7 +261,7 @@ test('the insight cards stack at full width with no Strategy coverage card and n
   const { page } = ui;
   try {
     await ready(page);
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     const grid = page.locator('[data-insights-grid]');
     await grid.waitFor();
     assert.ok(REVIEW_STATE.results.foundations.length > 0, 'the results still carry shared foundations');
@@ -296,11 +292,11 @@ test('the insight cards stack at full width with no Strategy coverage card and n
     await toView(page, 'Use cases');
     await page.getByPlaceholder('Search use cases...').fill('no use case matches this');
     await page.getByText('No use cases match your filters.').waitFor();
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     await insight(page, 'Suggested build order').getByRole('button', { name: 'Score upsell' }).click();
     await until(async () => (await card(page, 'Score upsell').getAttribute('data-open')) !== null && (await readerOf(page).count()) === 1, 'the use case opens');
     assert.equal(await page.getByPlaceholder('Search use cases...').inputValue(), '', 'the filters that hid it are cleared');
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     for (const dark of [false, true]) {
       await setDark(page, dark);
       await panelSettled(page);
@@ -321,7 +317,7 @@ test('with feedback on and none given yet, the feedback note says how to give it
   const { page } = ui;
   try {
     await ready(page);
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     const grid = page.locator('[data-insights-grid="2"]');
     await grid.waitFor();
     assert.equal(await grid.getAttribute('data-insights-columns'), '1');
@@ -329,64 +325,6 @@ test('with feedback on and none given yet, the feedback note says how to give it
     const widths = await page.locator('[data-insight]').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().width)));
     assert.equal(new Set(widths).size, 1, 'each card takes the whole width');
     for (const b of await blankBelow(page)) assert.ok(b.blank <= 24, `${b.title}: ${b.blank}px blank`);
-    assert.deepEqual(ui.pageErrors, []);
-  } finally {
-    await ui.close();
-  }
-});
-
-const XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
-const MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
-const RELS = 'http://schemas.openxmlformats.org/package/2006/relationships';
-const DOC = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
-function workbook() {
-  const zip = new AdmZip();
-  const add = (name, text) => zip.addFile(name, Buffer.from(`${XML}${text}`, 'utf8'));
-  add('[Content_Types].xml', '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-    + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'
-    + '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
-    + '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
-    + '<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>');
-  add('_rels/.rels', `<Relationships xmlns="${RELS}"><Relationship Id="rId1" Type="${DOC}/officeDocument" Target="xl/workbook.xml"/></Relationships>`);
-  add('xl/workbook.xml', `<workbook xmlns="${MAIN}" xmlns:r="${DOC}"><sheets><sheet name="Use Cases" sheetId="1" r:id="rId1"/></sheets></workbook>`);
-  add('xl/_rels/workbook.xml.rels', `<Relationships xmlns="${RELS}"><Relationship Id="rId1" Type="${DOC}/worksheet" Target="worksheets/sheet1.xml"/>`
-    + `<Relationship Id="rId2" Type="${DOC}/sharedStrings" Target="sharedStrings.xml"/></Relationships>`);
-  add('xl/sharedStrings.xml', `<sst xmlns="${MAIN}" count="4" uniqueCount="4"><si><t>No</t></si><si><t>Name</t></si><si><t>N01-U01</t></si><si><t>Predict churn</t></si></sst>`);
-  add('xl/worksheets/sheet1.xml', `<worksheet xmlns="${MAIN}"><sheetData>`
-    + '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1" t="inlineStr"><is><t>Score</t></is></c></row>'
-    + '<row r="2"><c r="A2" t="s"><v>2</v></c><c r="B2" t="s"><v>3</v></c><c r="C2"><v>4.6</v></c></row></sheetData></worksheet>');
-  return zip.toBuffer();
-}
-
-test('an Excel catalog previews from the code Inspire ships, with no script from an outside host, and a broken file says so', async () => {
-  const folder = '/Workspace/Users/someone/inspire/acme';
-  const files = { 'catalog.xlsx': workbook(), 'broken.xlsx': Buffer.from('not a workbook') };
-  const mount = (app) => {
-    app.get('/api/workspace/list', (_req, res) => res.json({ files: Object.keys(files).map((name) => ({ name, path: `${folder}/${name}`, is_directory: false, file_size: 2048 })) }));
-    app.get('/api/workspace/export', (req, res) => res.type('application/octet-stream').send(files[String(req.query.path).split('/').pop()]));
-  };
-  const sessions = REVIEW_STATE.sessions.map((s) => (s.session_id === '42' ? { ...s, generation_path: folder, widget_values: { ...s.widget_values, generation_path: folder } } : s));
-  const ui = await openUi('results', { ...REVIEW_STATE, sessions }, '', { mount });
-  const { page } = ui;
-  const outside = outsideHosts(page);
-  try {
-    await ready(page);
-    await toView(page, 'Assets');
-    const quick = page.locator('div', { has: page.getByRole('heading', { name: /^Quick access/i }) })
-      .filter({ has: page.getByRole('button', { name: /Preview/ }) }).last();
-    await quick.waitFor();
-    const fileRow = (name) => quick.locator('div', { hasText: name }).filter({ has: page.getByRole('button', { name: /Preview/ }) }).last();
-    await fileRow('catalog.xlsx').getByRole('button', { name: /Preview/ }).click();
-    const table = quick.locator('table');
-    await table.waitFor({ timeout: 15000 });
-    assert.deepEqual((await table.locator('thead th').allInnerTexts()).map((t) => t.trim()), ['#', 'No', 'Name', 'Score']);
-    assert.deepEqual((await table.locator('tbody tr').first().locator('td').allInnerTexts()).map((t) => t.trim()), ['1', 'N01-U01', 'Predict churn', '4.6']);
-    assert.deepEqual(await table.locator('[data-grid-move]').evaluateAll((els) => els.map((b) => b.getAttribute('aria-label'))),
-      ['Move the No column', 'Move the Name column', 'Move the Score column'], 'every sheet column moves, the row number stays first');
-    assert.equal(await table.getByRole('button', { name: 'Filter Score' }).count(), 1);
-    await fileRow('broken.xlsx').getByRole('button', { name: /Preview/ }).click();
-    await quick.getByText(A.EXCEL_UNREADABLE).waitFor({ timeout: 15000 });
-    assert.deepEqual(outside, [], 'nothing came from an outside host');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -418,122 +356,8 @@ test('a live preview heads the run with its business name and offers no MVP star
   }
 });
 
-test('a 300-row CSV preview and its 300-value column filter take the mouse wheel to their last row at 1280x800 and 1024x700', async () => {
-  const folder = '/Workspace/Users/someone/inspire/acme';
-  const csv = ['No,Name,Score', ...Array.from({ length: 300 }, (_, i) => `N01-U${String(i).padStart(3, '0')},Use case ${i},${(i % 50) / 10}`)].join('\n');
-  const mount = (app) => {
-    app.get('/api/workspace/list', (_req, res) => res.json({ files: [{ name: 'catalog.csv', path: `${folder}/catalog.csv`, is_directory: false, file_size: csv.length }] }));
-    app.get('/api/workspace/export', (_req, res) => res.type('text/csv').send(csv));
-  };
-  const sessions = REVIEW_STATE.sessions.map((s) => (s.session_id === '42' ? { ...s, generation_path: folder, widget_values: { ...s.widget_values, generation_path: folder } } : s));
-  const ui = await openUi('results', { ...REVIEW_STATE, sessions }, '', { mount });
-  const { page } = ui;
-  try {
-    await ready(page);
-    await toView(page, 'Assets');
-    const quick = page.locator('div', { has: page.getByRole('heading', { name: /^Quick access/i }) })
-      .filter({ has: page.getByRole('button', { name: /Preview/ }) }).last();
-    await quick.waitFor();
-    await quick.locator('div', { hasText: 'catalog.csv' }).filter({ has: page.getByRole('button', { name: /Preview/ }) }).last().getByRole('button', { name: /Preview/ }).click();
-    const table = page.getByRole('table', { name: 'Preview of catalog.csv' }).last();
-    await table.waitFor({ timeout: 15000 });
-    const scroller = table.locator('xpath=ancestor::*[contains(@class,"overflow-auto")][1]');
-    const lastRow = () => table.locator('tbody tr').last();
-    await wheelScrolls(page, scroller, lastRow, { name: 'CSV preview' });
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await table.getByRole('button', { name: 'Filter Name' }).click();
-    const values = page.locator('[data-grid-panel] ul');
-    await values.waitFor();
-    await wheelScrolls(page, values, () => values.locator('li').last(), { name: 'CSV column filter values' });
-    assert.deepEqual(ui.pageErrors, []);
-  } finally {
-    await ui.close();
-  }
-});
 
-test('a file both in Quick access and in the file list previews once, under the list whose Preview was clicked (must-exclude: never twice)', async () => {
-  const folder = '/Workspace/Users/someone/inspire/acme';
-  const csv = 'No,Name\nN01-U01,Churn\nN01-U02,Pricing';
-  const mount = (app) => {
-    app.get('/api/workspace/list', (_req, res) => res.json({ files: [{ name: 'catalog.csv', path: `${folder}/catalog.csv`, is_directory: false, file_size: csv.length }] }));
-    app.get('/api/workspace/export', (_req, res) => res.type('text/csv').send(csv));
-  };
-  const sessions = REVIEW_STATE.sessions.map((s) => (s.session_id === '42' ? { ...s, generation_path: folder, widget_values: { ...s.widget_values, generation_path: folder } } : s));
-  const ui = await openUi('results', { ...REVIEW_STATE, sessions }, '', { mount });
-  const { page } = ui;
-  try {
-    await ready(page);
-    await toView(page, 'Assets');
-    const quick = page.getByRole('heading', { name: /^Quick access/i }).locator('xpath=ancestor::div[.//button[normalize-space()="Preview" or normalize-space()="Hide"]][1]');
-    await quick.waitFor();
-    const quickButton = quick.locator('div', { hasText: 'catalog.csv' }).filter({ has: page.getByRole('button', { name: /Preview|Hide/ }) }).last()
-      .getByRole('button', { name: /Preview|Hide/ });
-    const tables = page.getByRole('table', { name: 'Preview of catalog.csv' });
-    const toggles = page.getByRole('button', { name: /^(Preview|Hide)$/ });
-    const listButton = async () => {
-      const all = await toggles.all();
-      for (const b of all) if (!(await quick.evaluate((q, el) => q.contains(el), await b.elementHandle()))) return b;
-      return null;
-    };
-    await quickButton.click();
-    await tables.first().waitFor({ timeout: 15000 });
-    await page.waitForTimeout(300);
-    assert.equal(await tables.count(), 1, 'one preview, not one per list');
-    assert.equal(await quick.evaluate((q, t) => q.contains(t), await tables.first().elementHandle()), true, 'the preview sits under Quick access');
-    await page.getByText('catalog.csv', { exact: true }).nth(1).waitFor({ timeout: 15000 });
-    const inList = await listButton();
-    assert.ok(inList, 'the file list shows catalog.csv with its own Preview');
-    assert.equal((await inList.innerText()).trim(), 'Preview', 'the file list does not say Hide for a preview it does not show');
-    await inList.click();
-    await page.waitForTimeout(300);
-    assert.equal(await tables.count(), 1, 'moving the preview to the file list still shows it once');
-    assert.equal(await quick.evaluate((q, t) => q.contains(t), await tables.first().elementHandle()), false, 'the preview moved to the file list');
-    assert.equal((await quickButton.innerText()).trim(), 'Preview');
-    assert.deepEqual(ui.pageErrors, []);
-  } finally {
-    await ui.close();
-  }
-});
 
-test('the Markdown catalog and the JSON catalog preview in the file list: headings and tables read as text, JSON reads pretty printed, a broken JSON file says so', async () => {
-  const folder = '/Workspace/Users/someone/inspire/acme';
-  const files = {
-    'Acme-dbx_inspire.md': '# Acme use cases\n\n| No | Name |\n| --- | --- |\n| N01-U01 | Predict churn |\n\n![logo](https://outside.example/logo.png)',
-    'Acme-dbx_inspire.json': '{"use_cases":[{"id":"N01-U01"}]}',
-    'Acme-dbx_inspire_ar.json': '{"use_cases":',
-  };
-  const mount = (app) => {
-    app.get('/api/workspace/list', (_req, res) => res.json({ files: Object.keys(files).map((name) => ({ name, path: `${folder}/${name}`, is_directory: false, file_size: 2048 })) }));
-    app.get('/api/workspace/export', (req, res) => res.type('application/octet-stream').send(files[String(req.query.path).split('/').pop()]));
-  };
-  const sessions = REVIEW_STATE.sessions.map((s) => (s.session_id === '42' ? { ...s, generation_path: folder, widget_values: { ...s.widget_values, generation_path: folder } } : s));
-  const ui = await openUi('results', { ...REVIEW_STATE, sessions }, '', { mount });
-  const { page } = ui;
-  const outside = outsideHosts(page);
-  try {
-    await ready(page);
-    await toView(page, 'Assets');
-    const row = (name) => page.locator('div', { hasText: name }).filter({ has: page.getByRole('button', { name: `Download ${name}` }) }).last();
-    await row('Acme-dbx_inspire.md').waitFor({ timeout: 15000 });
-    await row('Acme-dbx_inspire.md').getByRole('button', { name: 'Preview' }).click();
-    const md = page.getByRole('document', { name: 'Preview of Acme-dbx_inspire.md' });
-    await md.waitFor({ timeout: 15000 });
-    assert.equal(await md.getByRole('heading', { name: 'Acme use cases' }).count(), 1);
-    assert.deepEqual((await md.locator('tbody td').allInnerTexts()).map((t) => t.trim()), ['N01-U01', 'Predict churn']);
-    assert.equal(await md.locator('img').count(), 0, 'no image loads from the file (must-exclude)');
-    await row('Acme-dbx_inspire.json').getByRole('button', { name: 'Preview' }).click();
-    const json = page.getByRole('document', { name: 'Preview of Acme-dbx_inspire.json' });
-    await json.waitFor({ timeout: 15000 });
-    assert.equal(await json.locator('pre').innerText(), '{\n  "use_cases": [\n    {\n      "id": "N01-U01"\n    }\n  ]\n}');
-    assert.equal(await md.count(), 0, 'one preview at a time');
-    await row('Acme-dbx_inspire_ar.json').getByRole('button', { name: 'Preview' }).click();
-    await page.getByText(A.JSON_UNREADABLE).waitFor({ timeout: 15000 });
-    assert.deepEqual(outside, [], 'nothing came from an outside host');
-    assert.deepEqual(ui.pageErrors, []);
-  } finally {
-    await ui.close();
-  }
-});
 
 const GATE_DROPS = [
   { no: 'N09-U01', name: 'Guess tomorrow from weather alone', domain: 'Sales', subdomain: 'Demand', gate: 'D5', gate_name: 'logical possibility check', gate_score: 2, bob_score: 2 },

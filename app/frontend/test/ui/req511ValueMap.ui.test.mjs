@@ -1,5 +1,5 @@
 // REQ-511 / REQ-512 value map fail-first: Amr's Review pick "in the business page, add the value map graph, I liked it" (wireframe A6, Business tab).
-// Contract: the Business view shows [data-value-map] (region "Value map"): one point per use case, x = Inspire score, y = yearly value.
+// Contract: the Overview shows [data-value-map] (region "Value map"): one point per use case, x = Inspire score, y = yearly value.
 // Each point is a button [data-map-point][data-use-case-no] named "<name>, <$ a year or No value yet>, score <n>"; a point with no value is
 // hollow (data-valued="false", transparent fill) and sits on the floor. Domain legend chips (aria-pressed) filter the points.
 // Clicking a point goes to that use case in the Use cases view through the existing openUseCase / onRunValueRow props of ResultsBusiness.
@@ -32,13 +32,13 @@ function mount(app) {
 async function openMap() {
   const ui = await openUi('results', { ...REVIEW_STATE, results: SCORED }, '', { mount });
   await ui.page.setViewportSize({ width: 1440, height: 900 });
-  await toView(ui.page, 'Business');
+  await toView(ui.page, 'Overview');
   const map = ui.page.getByRole('region', { name: 'Value map' });
   await map.locator('[data-map-point]').first().waitFor({ timeout: 15000 });
   return { ui, page: ui.page, map, point: (no) => map.locator(`[data-map-point][data-use-case-no="${no}"]`) };
 }
 
-test('1: the Business view shows the value map with one named point per use case, wide enough to read', async () => {
+test('1: the Overview shows the value map with one named point per use case, wide enough to read', async () => {
   const { ui, map, point } = await openMap();
   try {
     assert.equal(await map.getAttribute('data-value-map'), '');
@@ -90,7 +90,7 @@ test('4: clicking a valued point opens that use case in the Use cases view; a po
     const list = page.getByRole('region', { name: 'Use case list' });
     await list.locator('[data-use-case-no="N01-U02"]').first().waitFor({ state: 'visible', timeout: 10000 });
     await page.getByRole('button', { name: 'Close the reader' }).click(); // REQ-511 A6: the opened use case sits in the reader over the right of the page and covers the map
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     await page.getByRole('region', { name: 'Value map' }).locator('[data-map-point][data-use-case-no="N01-U04"]').click();
     const target = list.locator('[data-use-case-no="N01-U04"]').first();
     await target.waitFor({ state: 'visible', timeout: 10000 });

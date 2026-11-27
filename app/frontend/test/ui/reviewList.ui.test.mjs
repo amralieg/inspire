@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, idle, openUi, toView } from './uiSupport.mjs';
+import { closeBrowser, idle, openUi, toDocuments, toView } from './uiSupport.mjs';
 import { REVIEW_STATE } from './reviewFixtures.js';
 import { readerOf } from './reviewRows.mjs';
 
@@ -41,7 +41,7 @@ test('the Review list sorts, searches, clears and expands the way its labels say
     await cards(page).first().waitFor();
     await idle(page);
 
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     assert.equal((await page.locator('[data-stat="Domains"] [data-stat-value]').innerText()).trim(), '3', 'a domain with no use case is not counted');
 
     const order = page.locator('[data-insight="Suggested build order"]');
@@ -91,10 +91,11 @@ test('Review files offer Open only where a browser can show the file, give small
   const files = {
     'Acme-dbx_inspire.pdf': { size: 4096 },
     'Acme-dbx_inspire.xlsx': { size: 8192 },
-    'readme.md': { size: 300 },
+    'Acme-deck.pptx': { size: 300 },
   };
   const mount = (app) => {
     app.get('/api/workspace/list', (_req, res) => res.json({ files: Object.entries(files).map(([name, f]) => ({ name, path: `${folder}/${name}`, is_directory: false, file_size: f.size })) }));
+    app.post('/api/inspire/docs/save', (req, res) => res.json({ path: `${req.body?.folder}/${req.body?.name}`, name: req.body?.name, size: 1 }));
     app.get('/api/workspace/export', (_req, res) => res.status(404).json({ error: 'File not found' }));
   };
   const sessions = REVIEW_STATE.sessions.map((s) => (s.session_id === '42' ? { ...s, generation_path: folder, widget_values: { ...s.widget_values, generation_path: folder } } : s));
@@ -102,13 +103,13 @@ test('Review files offer Open only where a browser can show the file, give small
   const { page } = ui;
   try {
     await cards(page).first().waitFor();
-    await toView(page, 'Assets');
-    await page.getByRole('heading', { name: /^Quick access: documents/i }).waitFor();
+    await toDocuments(page);
+    await page.getByRole('region', { name: 'Documents' }).waitFor();
     await idle(page);
     assert.ok(await page.getByRole('button', { name: 'Open Acme-dbx_inspire.pdf' }).count() > 0, 'a PDF opens in a tab');
     assert.equal(await page.getByRole('button', { name: 'Open Acme-dbx_inspire.xlsx' }).count(), 0, 'an Excel file is never offered to open in a tab');
-    assert.equal(await page.getByRole('button', { name: 'Open readme.md' }).count(), 0);
-    const tree = page.locator('div', { hasText: 'readme.md' }).filter({ has: page.getByRole('button', { name: 'Download readme.md' }) }).last();
+    assert.equal(await page.getByRole('button', { name: 'Open Acme-deck.pptx' }).count(), 0);
+    const tree = page.locator('[data-doc-file="Acme-deck.pptx"]');
     assert.match(await tree.innerText(), /300 B/, 'a 300 byte file never reads 0KB');
     assert.doesNotMatch(await tree.innerText(), /\b0KB\b/);
     await page.getByRole('button', { name: 'Download Acme-dbx_inspire.xlsx' }).first().click();
@@ -149,9 +150,9 @@ test('Review names every document a language did not get, counts High priority b
   try {
     const { page } = warned;
     await cards(page).first().waitFor();
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     assert.equal((await page.locator('[data-stat="High Priority"] [data-stat-value]').innerText()).trim(), '2', 'two Ultra High pills, never 0');
-    await toView(page, 'Assets');
+    await toView(page, 'Overview');
     const done = page.locator('[data-testid="execution-complete"]');
     assert.equal(await done.getAttribute('data-status'), 'warning');
     const missing = page.getByRole('list', { name: 'Documents the run did not write' });
@@ -168,7 +169,7 @@ test('Review names every document a language did not get, counts High priority b
   const clean = await openUi('results', { ...REVIEW_STATE, results: { ...LIST_RESULTS, run_status: 'success' } });
   try {
     await cards(clean.page).first().waitFor();
-    await toView(clean.page, 'Assets');
+    await toView(clean.page, 'Overview');
     assert.equal(await clean.page.getByText('Every step of the run finished.').count(), 1);
     assert.equal(await clean.page.getByRole('list', { name: 'Documents the run did not write' }).count(), 0, 'a clean run lists nothing (must-exclude)');
   } finally {
@@ -198,7 +199,7 @@ test('on a run whose priority is a number, the priority pills, the priority filt
       assert.match((await pill(name).innerText()).replace(/\s+/g, ' '), new RegExp(`${count}$`), `${name} pill counts ${count}`);
     }
     assert.equal(await pill('Low').count(), 0, 'no pill for a tier no use case has');
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     assert.equal((await page.locator('[data-stat="High Priority"] [data-stat-value]').innerText()).trim(), '3', 'High, Very High and Ultra High, not the 6.0');
     await toView(page, 'Use cases');
     await pill('High').click();

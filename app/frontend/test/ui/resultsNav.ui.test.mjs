@@ -9,6 +9,7 @@ const FOLDER = '/Workspace/Users/someone/inspire/acme';
 const FILES = { 'Acme-catalog.pdf': 'pdf-bytes', 'Acme-catalog.xlsx': 'xlsx-bytes' };
 const mount = (app) => {
   app.get('/api/workspace/list', (_req, res) => res.json({ files: Object.keys(FILES).map((name) => ({ name, path: `${FOLDER}/${name}`, is_directory: false, file_size: 2048 })) }));
+  app.post('/api/inspire/docs/save', (req, res) => res.json({ path: `${req.body?.folder}/${req.body?.name}`, name: req.body?.name, size: 1 }));
   app.get('/api/workspace/export', (req, res) => res.type('application/octet-stream').send(FILES[String(req.query.path).split('/').pop()] || ''));
 };
 const sessions = REVIEW_SESSIONS.map((s) => (s.session_id === '42' ? { ...s, generation_path: FOLDER, widget_values: { ...s.widget_values, generation_path: FOLDER } } : s));
@@ -30,15 +31,14 @@ async function open(extra = {}) {
   return ui;
 }
 
-test('Results lands on Use cases: the nav lists Use cases, Business and Assets in that order, the Domains tree sits under Use cases, and the summary, figures and files are not shown', async () => {
+test('Results lands on Use cases: the nav lists Use cases and Overview in that order, the Domains tree sits under Use cases, and the summary, figures and files are not shown', async () => {
   const ui = await open();
   const { page } = ui;
   try {
     await nav(page).waitFor();
-    assert.deepEqual((await nav(page).locator('[data-results-nav-item]').allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim().replace(/ \d+$/, '')), ['Use cases', 'Business', 'Assets']);
+    assert.deepEqual((await nav(page).locator('[data-results-nav-item]').allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim().replace(/ \d+$/, '')), ['Use cases', 'Overview']);
     assert.equal(await item(page, 'Use cases').getAttribute('aria-current'), 'page');
-    assert.equal(await item(page, 'Business').getAttribute('aria-current'), null);
-    assert.equal(await item(page, 'Assets').getAttribute('aria-current'), null);
+    assert.equal(await item(page, 'Overview').getAttribute('aria-current'), null);
     assert.match(await item(page, 'Use cases').innerText(), /6/, 'Use cases carries its count');
     assert.equal(await cards(page).count(), 6);
     assert.equal(await item(page, 'Use cases').getAttribute('aria-selected'), 'true', 'the open tab is selected');
@@ -74,12 +74,12 @@ test('the Domains tree folds and unfolds, and a domain narrows the cards', async
   }
 });
 
-test('Business shows the executive summary, the figure tiles and the MVPs group, and no cards; an MVP tile leads back to the cards it filters', async () => {
+test('Overview shows the executive summary, the figure tiles and the MVPs group, and no cards; an MVP tile leads back to the cards it filters', async () => {
   const ui = await open();
   const { page } = ui;
   try {
-    await item(page, 'Business').click();
-    assert.equal(await item(page, 'Business').getAttribute('aria-current'), 'page');
+    await item(page, 'Overview').click();
+    assert.equal(await item(page, 'Overview').getAttribute('aria-current'), 'page');
     await summary(page).waitFor();
     await figures(page).waitFor();
     await mvps(page).waitFor();
@@ -98,12 +98,12 @@ test('Business shows the executive summary, the figure tiles and the MVPs group,
   }
 });
 
-test('Assets shows every generated file with its Download button, and Download sends the same request as before', async () => {
+test('Overview > Documents shows the overall files with their Download button, and Download sends the same request as before', async () => {
   const ui = await open();
   const { page } = ui;
   try {
-    await item(page, 'Assets').click();
-    assert.equal(await item(page, 'Assets').getAttribute('aria-current'), 'page');
+    await item(page, 'Overview').click();
+    await page.locator('[data-overview-panel="documents"]').click();
     await download(page, 'Acme-catalog.pdf').first().waitFor({ timeout: 15000 });
     await download(page, 'Acme-catalog.xlsx').first().waitFor();
     assert.equal(await cards(page).count(), 0);
@@ -122,18 +122,13 @@ test('the view lives in the URL: it survives a reload and Back returns to the vi
   const ui = await open();
   const { page } = ui;
   try {
-    await item(page, 'Business').click();
+    await item(page, 'Overview').click();
     await summary(page).waitFor();
-    await item(page, 'Assets').click();
-    await download(page, 'Acme-catalog.pdf').first().waitFor({ timeout: 15000 });
-    assert.match(page.url(), /view=assets/);
+    assert.match(page.url(), /view=overview/);
     await page.reload();
     await nav(page).waitFor();
-    await until(async () => (await item(page, 'Assets').getAttribute('aria-current')) === 'page', 'Assets is the current view after the reload');
-    await download(page, 'Acme-catalog.pdf').first().waitFor({ timeout: 15000 });
-    await page.goBack();
+    await until(async () => (await item(page, 'Overview').getAttribute('aria-current')) === 'page', 'Overview is the current view after the reload');
     await summary(page).waitFor();
-    assert.equal(await item(page, 'Business').getAttribute('aria-current'), 'page');
     await page.goBack();
     await cards(page).first().waitFor();
     assert.equal(await item(page, 'Use cases').getAttribute('aria-current'), 'page');
@@ -143,12 +138,12 @@ test('the view lives in the URL: it survives a reload and Back returns to the vi
   }
 });
 
-test('at 390 px the nav is a row of 3 tabs above the content and no view scrolls sideways', async () => {
+test('at 390 px the nav is a row of 2 tabs above the content and no view scrolls sideways', async () => {
   const ui = await open({ init: (page) => page.setViewportSize({ width: 390, height: 800 }) });
   const { page } = ui;
   try {
     await nav(page).waitFor();
-    const tabs = await Promise.all(['Use cases', 'Business', 'Assets'].map((n) => item(page, n).boundingBox()));
+    const tabs = await Promise.all(['Use cases', 'Overview'].map((n) => item(page, n).boundingBox()));
     assert.ok(tabs.every((b) => Math.abs(b.y - tabs[0].y) < 2), `one row: ${JSON.stringify(tabs)}`);
     const cardTop = (await cards(page).first().boundingBox()).y;
     assert.ok(tabs.every((b) => b.y + b.height <= cardTop), 'tabs sit above the cards');
@@ -157,12 +152,12 @@ test('at 390 px the nav is a row of 3 tabs above the content and no view scrolls
     const fold = rail(page).getByRole('button', { name: /^Domains\b/ });
     if ((await fold.getAttribute('aria-expanded')) !== 'true') await fold.click();
     assert.equal(await sideways(), true, 'Use cases with the Domains fold open');
-    await item(page, 'Business').click();
+    await item(page, 'Overview').click();
     await summary(page).waitFor();
-    assert.equal(await sideways(), true, 'Business');
-    await item(page, 'Assets').click();
+    assert.equal(await sideways(), true, 'Overview');
+    await page.locator('[data-overview-panel="documents"]').click();
     await download(page, 'Acme-catalog.pdf').first().waitFor({ timeout: 15000 });
-    assert.equal(await sideways(), true, 'Assets');
+    assert.equal(await sideways(), true, 'Overview, Documents');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -215,8 +210,8 @@ test('leaving Results leaves ?view= behind, so no other page carries it', async 
   await cards(ui.page).first().waitFor();
   const { page } = ui;
   try {
-    await item(page, 'Assets').click();
-    await until(async () => new URL(page.url()).searchParams.get('view') === 'assets', 'the URL holds view=assets');
+    await item(page, 'Overview').click();
+    await until(async () => new URL(page.url()).searchParams.get('view') === 'overview', 'the URL holds view=overview');
     await page.evaluate(() => { window.location.hash = '#/start'; });
     await page.getByRole('heading', { name: 'Welcome back' }).waitFor();
     assert.equal(new URL(page.url()).searchParams.get('view'), null, page.url());

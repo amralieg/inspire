@@ -1,8 +1,8 @@
-// C24 (RC7-B-10, RC7-B-13; T-RES-11, T-STR-01): Results -> Assets lists each file with its type and created date (the listing's modified time),
+// C24 (RC7-B-10, RC7-B-13; T-RES-11, T-STR-01): Results -> Overview > Documents lists each overall file with its type and created date (the listing's modified time),
 // newest first, and when the run wrote no strategy document it says so in plain words instead of showing nothing.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, openUi, toView } from './uiSupport.mjs';
+import { closeBrowser, openUi, toDocuments, toView } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_SESSIONS, REVIEW_STATE } from './reviewFixtures.js';
 
 test.after(closeBrowser);
@@ -16,30 +16,31 @@ const FOLDER = { name: 'docs', path: `${ROOT}/docs`, is_directory: true, file_si
 const OLDEST = file('a_catalog.pdf', at(20));
 const NEWEST = file('b_use_cases.xlsx', at(26));
 const MIDDLE = file('c_deck.pptx', at(23));
-const UNDATED = file('d_notes.md', 0);
+const NEWEST_PDF = file('e_brief.pdf', at(25));
+const UNDATED = file('d_notes.pdf', 0);
 const STRATEGY = file('Acme_strategy.pdf', at(24));
 
 // Only the run folder (the business folder under the output path) lists the files; a sub folder is empty (a folder that lists itself would loop the tree walk).
 const backendOf = (files) => (app) => { app.post('/api/inspire/docs/save', (req, res) => res.json({ path: `${req.body.folder}/${req.body.name}`, name: req.body.name, size: 1 })); app.get('/api/workspace/list', (req, res) => res.json({ files: /\/inspire_out\/acme\/?$/.test(String(req.query.path || '')) ? files : [] })); };
 const open = (files) => openUi('results', { ...REVIEW_STATE, sessions: SESSIONS, results: REVIEW_RESULTS }, '', { mount: backendOf(files) });
-const rowOf = (page, f) => page.locator(`[data-asset-row="${f.name}"]`).first();
+const rowOf = (page, f) => page.locator(`[data-doc-file="${f.name}"]`).first();
 
-test('B-10: each Assets file shows its type and created date, and files are listed newest first (a file with no date goes last)', async () => {
-  const ui = await open([FOLDER, UNDATED, OLDEST, NEWEST, MIDDLE]);
+test('B-10: each Documents file shows its type and created date, and files are listed newest first (a file with no date goes last)', async () => {
+  const ui = await open([FOLDER, UNDATED, OLDEST, NEWEST, MIDDLE, NEWEST_PDF]);
   const { page } = ui;
   try {
-    await toView(page, 'Assets');
+    await toDocuments(page);
     await rowOf(page, NEWEST).waitFor({ timeout: 20000 });
     const types = {};
     for (const f of [OLDEST, NEWEST, MIDDLE, UNDATED]) types[f.name] = (await rowOf(page, f).locator('[data-asset-type]').innerText()).trim();
-    assert.deepEqual(types, { 'a_catalog.pdf': 'PDF', 'b_use_cases.xlsx': 'Excel', 'c_deck.pptx': 'PowerPoint', 'd_notes.md': 'Markdown' });
+    assert.deepEqual(types, { 'a_catalog.pdf': 'PDF', 'b_use_cases.xlsx': 'Excel', 'c_deck.pptx': 'PowerPoint', 'd_notes.pdf': 'PDF' });
     for (const f of [OLDEST, NEWEST, MIDDLE]) {
       const want = await page.evaluate((ms) => new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), f.modified_at);
       assert.equal((await rowOf(page, f).locator('[data-asset-date]').innerText()).trim(), want, `${f.name} shows its created date`);
     }
     assert.equal(await rowOf(page, UNDATED).locator('[data-asset-date]').count(), 0, 'a file the listing gives no time for shows no date');
-    const order = await page.locator('[data-asset-row]').evaluateAll((els) => els.map((e) => e.getAttribute('data-asset-row')));
-    assert.deepEqual(order.filter((n) => n !== 'docs'), ['b_use_cases.xlsx', 'c_deck.pptx', 'a_catalog.pdf', 'd_notes.md'], 'newest first, undated last');
+    const order = await page.locator('[data-doc-file]').evaluateAll((els) => els.map((e) => e.getAttribute('data-doc-file')));
+    assert.deepEqual(order, ['b_use_cases.xlsx', 'e_brief.pdf', 'a_catalog.pdf', 'd_notes.pdf', 'c_deck.pptx'], 'by format, newest first, undated last in its format');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -50,7 +51,7 @@ test('B-13: a run with no strategy document says so in plain words and points to
   const ui = await open([OLDEST, NEWEST]);
   const { page } = ui;
   try {
-    await toView(page, 'Assets');
+    await toDocuments(page);
     const note = page.locator('[data-testid="strategy-document-note"]');
     await note.waitFor({ timeout: 20000 });
     const text = (await note.innerText()).replace(/\s+/g, ' ');
@@ -63,11 +64,11 @@ test('B-13: a run with no strategy document says so in plain words and points to
   }
 });
 
-test('T-STR-01: when the strategy PDF is listed, Assets shows it and adds no "no strategy document" note', async () => {
+test('T-STR-01: when the strategy PDF is listed, Documents shows it and adds no "no strategy document" note', async () => {
   const ui = await open([OLDEST, STRATEGY]);
   const { page } = ui;
   try {
-    await toView(page, 'Assets');
+    await toDocuments(page);
     await rowOf(page, STRATEGY).waitFor({ timeout: 20000 });
     assert.equal(await page.locator('[data-testid="strategy-document-note"]').count(), 0);
     assert.deepEqual(ui.pageErrors, []);

@@ -36,7 +36,7 @@ test('the run panel marks shared values, flagged values and what the total leave
   try {
     const list = ui.page.getByRole('region', { name: 'Use case list' });
     await list.locator('[data-use-case-row]').first().waitFor();
-    await toView(ui.page, 'Business');
+    await toView(ui.page, 'Overview');
     const panel = ui.page.locator('[data-value-run-panel]');
     await panel.waitFor({ timeout: 15000 });
     assert.match(await text(panel.locator('tr[data-value-row="N01-U02"]')), /Shared with Predict churn, counted once/);

@@ -13,6 +13,7 @@ const FILES = ['Acme_use_cases.xlsx', 'Acme_brief.pdf', 'Acme_deck.pptx', 'Acme_
 const DOCS_MADE = ['N01-U03', 'N02-U01'];
 const mount = (app) => {
   app.get('/api/workspace/list', (_req, res) => res.json({ files: FILES.map((name) => ({ name, path: `${FOLDER}/${name}`, is_directory: false, file_size: 2048 })) }));
+  app.post('/api/inspire/docs/save', (req, res) => res.json({ path: `${req.body?.folder}/${req.body?.name}`, name: req.body?.name, size: 1 }));
   app.get('/api/workspace/export', (_req, res) => res.type('application/octet-stream').send('bytes'));
 };
 const init = async (page) => {
@@ -20,7 +21,8 @@ const init = async (page) => {
   await page.route(/\/api\/inspire\/usecases\?/, async (route) => {
     const response = await route.fetch();
     const body = await response.json().catch(() => ({}));
-    const rows = (body.usecases || []).map((r) => (DOCS_MADE.includes(String(r.id)) ? { ...r, docs_generated_at: '2026-11-23T10:00:00Z' } : r));
+    const rows = (body.usecases || []).filter((r) => !DOCS_MADE.includes(String(r.id)));
+    for (const id of DOCS_MADE) rows.push({ ...((body.usecases || []).find((r) => String(r.id) === id) || { id, session_id: 42, use_case: `Use case ${id}`, Name: `Use case ${id}` }), docs_generated_at: '2026-11-23T10:00:00Z' });
     await route.fulfill({ response, json: { ...body, usecases: rows } });
   });
 };

@@ -20,7 +20,7 @@ test.after(closeBrowser);
 const KNOWN = { ...REVIEW_STATE, knownRuns: ['42', '41', '50', '51', '60', '61'] };
 const PAGES = [
   ['Home', '#/home'], ['Start', '#/start'], ['Launch', '#/launch'], ['Generate data', '#/generate-data'], ['Monitor', '#/monitor/42'],
-  ['Review: Use cases', '#/review/42'], ['Review: Business', '#/review/42', 'Business'], ['Review: Assets', '#/review/42', 'Assets'],
+  ['Review: Use cases', '#/review/42'], ['Review: Overview', '#/review/42', 'Overview'],
   ['Build', '#/build/42'], ['Run', '#/run'],
 ];
 

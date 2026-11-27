@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import JSZip from 'jszip';
-import { closeBrowser, openUi, toView } from './uiSupport.mjs';
+import { toDocuments, closeBrowser, openUi, toView } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_SESSIONS, REVIEW_STATE } from './reviewFixtures.js';
 import { DOC_KINDS } from '../../src/lib/docgen/docOptions.js';
 
@@ -69,7 +69,7 @@ async function generateOnly(page, kind) {
   return page.getByRole('dialog', { name: /Generate documents/ });
 }
 
-test('G1: a generated PDF can be viewed in place, downloaded with its name, and found in Assets', async () => {
+test('G1: a generated PDF can be viewed in place, downloaded with its name, and found in Documents', async () => {
   const be = backend([]);
   const ui = await openUi('results', { ...REVIEW_STATE, sessions: SESSIONS, results: REVIEW_RESULTS }, '', { mount: be.mount });
   const { page } = ui;
@@ -93,7 +93,7 @@ test('G1: a generated PDF can be viewed in place, downloaded with its name, and 
     const [download] = await Promise.all([page.waitForEvent('download'), panel.getByRole('button', { name: `Download ${name}`, exact: true }).click()]);
     assert.equal(download.suggestedFilename(), name);
     await panel.getByRole('button', { name: `Go to asset ${name}`, exact: true }).click();
-    assert.match(page.url(), /view=assets/);
+    assert.match(page.url(), /view=overview/);
     await page.locator('[data-asset-focus]').filter({ hasText: name }).first().waitFor();
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -101,15 +101,15 @@ test('G1: a generated PDF can be viewed in place, downloaded with its name, and 
   }
 });
 
-test('G2: an Assets PDF has View (modal iframe, same address), Download (named) and Go to asset', async () => {
+test('G2: a Documents PDF has View (modal iframe, same address) and Download (named)', async () => {
   const pdf = asset('Acme-dbx_inspire.pdf');
   const be = backend([pdf]);
   const ui = await openUi('results', { ...REVIEW_STATE, sessions: SESSIONS, results: REVIEW_RESULTS }, '', { mount: be.mount });
   const { page } = ui;
   try {
-    await toView(page, 'Assets');
+    await toDocuments(page);
     await page.getByText(pdf.name).first().waitFor({ timeout: 20000 });
-    const row = page.locator(`[data-asset-row="${pdf.name}"]`).first();
+    const row = page.locator(`[data-doc-file="${pdf.name}"]`).first();
     const before = page.url();
     await row.getByRole('button', { name: `View ${pdf.name}`, exact: true }).click();
     const viewer = page.locator('[data-doc-viewer]');
@@ -121,25 +121,22 @@ test('G2: an Assets PDF has View (modal iframe, same address), Download (named) 
     await viewer.waitFor({ state: 'detached' });
     const [download] = await Promise.all([page.waitForEvent('download'), row.getByRole('button', { name: `Download ${pdf.name}`, exact: true }).click()]);
     assert.equal(download.suggestedFilename(), pdf.name);
-    await row.getByRole('button', { name: `Go to asset ${pdf.name}`, exact: true }).click();
-    assert.match(page.url(), /view=assets/);
-    await page.locator(`[data-asset-focus="${pdf.path}"]`).first().waitFor();
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }
 });
 
-test('G3: an Assets PPTX View shows its slide titles in the App', async () => {
+test('G3: a Documents PPTX View shows its slide titles in the App', async () => {
   const deck = asset('Acme_deck.pptx');
   const be = backend([deck]);
   const ui = await openUi('results', { ...REVIEW_STATE, sessions: SESSIONS, results: REVIEW_RESULTS }, '', { mount: be.mount });
   const { page } = ui;
   try {
-    await toView(page, 'Assets');
+    await toDocuments(page);
     await page.getByText(deck.name).first().waitFor({ timeout: 20000 });
     const before = page.url();
-    await page.locator(`[data-asset-row="${deck.name}"]`).first().getByRole('button', { name: `View ${deck.name}`, exact: true }).click();
+    await page.locator(`[data-doc-file="${deck.name}"]`).first().getByRole('button', { name: `View ${deck.name}`, exact: true }).click();
     const viewer = page.locator('[data-doc-viewer]');
     await viewer.waitFor();
     for (const t of SLIDES) await viewer.getByText(t).first().waitFor();

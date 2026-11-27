@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { closeBrowser, openUi, toView } from './uiSupport.mjs';
+import { closeBrowser, openUi, toDocuments, toView } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
 import { closeReader, openReader } from './reviewRows.mjs';
 
@@ -140,14 +140,14 @@ test('every Arabic value on the Review page sits in an element that sets or isol
   const ui = await openArabic();
   try {
     const order = ui.page.getByRole('list', { name: 'Suggested build order' });
-    await toView(ui.page, 'Business');
+    await toView(ui.page, 'Overview');
     await order.waitFor();
     assert.match(await order.innerText(), new RegExp(AR.name), 'the build order lists the Arabic use case, so the check covers it');
     const { unisolated } = await ui.page.locator('body').evaluate(layout);
     assert.deepEqual(unisolated, []);
-    // REQ-444: the page is split into 3 views; the same check covers the other two.
-    for (const view of ['Use cases', 'Assets']) {
-      await toView(ui.page, view);
+    // REQ-444: the page is split into 2 views; the same check covers the other two.
+    for (const view of ['Use cases', 'Documents']) {
+      if (view === 'Documents') await toDocuments(ui.page); else await toView(ui.page, view);
       const other = await ui.page.locator('body').evaluate(layout);
       assert.deepEqual(other.unisolated, [], `${view} view`);
     }

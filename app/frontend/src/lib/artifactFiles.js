@@ -210,3 +210,21 @@ export function textPreview(ext, raw) {
   const cut = text.length > TEXT_PREVIEW_CHARS;
   return { type: ext === 'md' ? 'markdown' : 'json', text: cut ? text.slice(0, TEXT_PREVIEW_CHARS) : text, totalChars: text.length, cut };
 }
+
+// C28 (REQ-570): the overall documents of a run, by format. Excel, PDF and PowerPoint only: the infographic is a use case document, and so is a
+// deck or brief the wizard made for one use case (docgen names those `<business>_deck_<id>` / `<business>_brief_<id>`).
+export const OVERALL_DOC_FORMATS = [
+  { id: 'xlsx', label: 'Excel', extensions: ['xlsx', 'xls'] },
+  { id: 'pdf', label: 'PDF', extensions: ['pdf'] },
+  { id: 'pptx', label: 'PowerPoint', extensions: ['pptx'] },
+];
+const safeId = (id) => String(id ?? '').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+
+export function overallDocsByFormat(files, useCaseIds) {
+  const ids = (Array.isArray(useCaseIds) ? useCaseIds : []).map(safeId).filter(Boolean);
+  const own = (name) => /infographic/i.test(name) || ids.some((id) => name.includes(`_deck_${id}`) || name.includes(`_brief_${id}`));
+  return OVERALL_DOC_FORMATS.map((format) => ({
+    ...format,
+    files: filesNewestFirst((Array.isArray(files) ? files : []).filter((f) => f && !f.is_directory && format.extensions.includes(fileExtension(f)) && !own(String(f.name || '')))),
+  }));
+}

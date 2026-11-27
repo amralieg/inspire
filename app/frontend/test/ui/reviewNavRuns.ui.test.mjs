@@ -32,7 +32,7 @@ test('D10: a view switch from a scrolled Use cases view lands at the top of Busi
     await page.setViewportSize({ width: 1280, height: 500 });
     await page.evaluate(() => window.scrollTo(0, 400));
     await poll(async () => (await page.evaluate(() => window.scrollY)) > 100, 'the Use cases view scrolled down');
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     await page.locator('[data-executive-summary]').waitFor();
     await poll(async () => (await page.evaluate(() => window.scrollY)) <= 10, 'scrollY is at most 10 after the switch');
     assert.ok((await page.evaluate(() => window.scrollY)) <= 10);
@@ -53,7 +53,7 @@ test('D11: on Assets the last step chip of "Run finished" is fully visible (or a
       try {
         await page.setViewportSize({ width, height: 900 });
         await page.evaluate((d) => { document.documentElement.dir = d; }, dir);
-        await toView(page, 'Assets');
+        await toView(page, 'Overview');
         const last = page.locator('[data-testid="execution-complete"]').locator('xpath=ancestor::div[contains(@class,"shadow-elevated")]').getByText('Executive Readout', { exact: true });
         await last.waitFor();
         const label = `${width}px ${dir}`;

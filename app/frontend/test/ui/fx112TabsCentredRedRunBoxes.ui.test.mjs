@@ -10,7 +10,7 @@ test.after(closeBrowser);
 const rgb = (s) => (s.match(/\d+(\.\d+)?/g) || []).slice(0, 3).map(Number);
 
 for (const [width, height] of [[1440, 900], [1280, 800]]) {
-  test(`REQ-504: at ${width}x${height} the Use cases / Business / Assets tabs are centred at the top of the page`, async () => {
+  test(`REQ-504: at ${width}x${height} the Use cases / Overview tabs are centred at the top of the page`, async () => {
     const ui = await openUi('results', { ...REVIEW_STATE, sessions: REVIEW_SESSIONS }, '', { init: (page) => page.setViewportSize({ width, height }) });
     const { page } = ui;
     try {

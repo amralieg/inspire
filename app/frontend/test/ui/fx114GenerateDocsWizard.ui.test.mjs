@@ -186,7 +186,8 @@ test('W4: Generate saves one real file per planned file into the Assets folder, 
     assert.deepEqual([...marked].sort(), be.calls.saves.map((s) => `${s.folder}/${s.name}`).sort(), 'the saved paths are marked new for Assets');
     await dialog.getByRole('button', { name: 'Go to Assets' }).click();
     await dialog.waitFor({ state: 'hidden' });
-    assert.equal(await page.locator('[data-results-nav-item="assets"]').getAttribute('aria-selected'), 'true');
+    assert.equal(await page.locator('[data-results-nav-item="overview"]').getAttribute('aria-selected'), 'true');
+    assert.equal(await page.locator('[data-overview-panel="documents"]').getAttribute('aria-current'), 'page');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

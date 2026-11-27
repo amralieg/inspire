@@ -27,7 +27,7 @@ const GUTTER = 24;
 const KNOWN = { ...REVIEW_STATE, knownRuns: ['42', '41', '50', '51', '60', '61'] };
 const PAGES = [
   ['Start', '#/start', FRAME], ['Launch', '#/launch', WIZARD], ['Generate data', '#/generate-data', WIZARD], ['Monitor', '#/monitor/42', FRAME],
-  ['Review: Use cases', '#/review/42', FRAME], ['Review: Business', '#/review/42', FRAME, 'Business'], ['Review: Assets', '#/review/42', FRAME, 'Assets'],
+  ['Review: Use cases', '#/review/42', FRAME], ['Review: Overview', '#/review/42', FRAME, 'Overview'],
   ['Build', '#/build/42', FRAME], ['Run', '#/run', FRAME],
 ];
 const BUTTON = 640;

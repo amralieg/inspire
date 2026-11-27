@@ -56,7 +56,7 @@ test('a run where nothing meets the bar still lists every use case found, each m
     assert.match(await reader.locator('[data-testid="quality-bar-reason"]').first().innerText(),
       /^Why it is below your bar: its main table airline\.passenger\.bookings has no rows yet/);
     await closeReader(page);
-    await toView(page, 'Assets');
+    await toView(page, 'Overview');
     const done = page.locator('[data-testid="execution-complete"]');
     await done.waitFor();
     assert.equal(await done.getAttribute('data-status'), 'warning');
@@ -66,7 +66,7 @@ test('a run where nothing meets the bar still lists every use case found, each m
       'the count is shown once, on quality-bar-counts (REQ-165); the outcome line keeps the rest of the message');
     assert.equal(await page.locator('[data-testid="quality-bar-next-step"]').innerText(),
       'Next step: add rows to the 2 tables that have no rows yet (the Generate data page can add sample rows), then run again.');
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     const tiles = await page.locator('[data-stat]').evaluateAll((els) => els.map((el) => el.dataset.stat));
     for (const shown of ['High Priority', 'Avg Inspire score', 'Best of Best']) assert.ok(tiles.includes(shown), `${shown} shows even when nothing meets the bar`);
     assert.equal((await page.locator('[data-stat="High Priority"] [data-stat-value]').innerText()).trim(), 'n/a', 'High Priority claims no count when nothing meets the bar');
@@ -83,7 +83,7 @@ test('an object selection outcome never renders as [object Object]', async () =>
   const { page } = ui;
   try {
     await ready(page);
-    await toView(page, 'Assets');
+    await toView(page, 'Overview');
     const outcome = page.locator('[data-testid="execution-outcome"]');
     await outcome.waitFor();
     assert.equal(await outcome.innerText(), 'below the bar');
@@ -101,16 +101,16 @@ test('in a mixed run the use cases that meet the bar come first with the chip, a
     const chips = await cards(page).evaluateAll((els) => els.map((el) => el.querySelector('[data-testid="quality-bar-chip"]')?.dataset.meets || ''));
     assert.deepEqual(chips, ['yes', 'yes', 'yes', 'no', 'no', 'no']);
     assert.match(await cards(page).first().innerText(), /Meets your quality bar/i);
-    await toView(page, 'Assets');
+    await toView(page, 'Overview');
     assert.equal(await page.locator('[data-testid="execution-complete"]').getAttribute('data-status'), 'success');
     assert.equal(await page.locator('[data-testid="quality-bar-counts"]').innerText(), '3 of 6 use cases meet the High quality bar');
     await toView(page, 'Use cases');
     await page.getByRole('button', { name: /^More filters/ }).click(); // REQ-510 L5
     assert.deepEqual(await page.locator('select[aria-label="Quality bar"] option').allTextContents(),
       ['Quality bar: Any (6)', 'Meets the quality bar (3)', 'Below the quality bar (3)'], 'the filter labels use the same wording as the count');
-    await toView(page, 'Assets');
+    await toView(page, 'Overview');
     assert.equal(await page.locator('[data-testid="quality-bar-next-step"]').count(), 0);
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     const tiles = await page.locator('[data-stat]').evaluateAll((els) => els.map((el) => el.dataset.stat));
     assert.ok(tiles.includes('High Priority') && tiles.includes('Avg Inspire score'), tiles.join(', '));
     assert.match(await page.locator('[data-stat="High Priority"] [data-stat-value]').innerText(), /^\d+$/, 'with some meeting the bar the tile shows its count');

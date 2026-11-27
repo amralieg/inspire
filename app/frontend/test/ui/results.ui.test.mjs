@@ -228,7 +228,7 @@ test('the MVP tiles count the use cases by their MVP, a tile or the MVP filter n
     .find((name) => text.includes(name))).sort();
   try {
     await ready(page);
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     const tiles = page.getByRole('group', { name: 'MVPs' });
     await tiles.getByRole('button', { name: 'MVPs started: 4' }).waitFor();
     for (const name of ['MVPs live: 2', 'Building: 1', 'Failed: 1', 'No MVP yet: 2']) {
@@ -238,7 +238,7 @@ test('the MVP tiles count the use cases by their MVP, a tile or the MVP filter n
     await live.click();
     await card(page, 'Forecast stock').waitFor({ state: 'detached' });
     assert.deepEqual(await names(), ['Predict churn', 'Score upsell']);
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     assert.equal(await live.getAttribute('aria-pressed'), 'true');
     for (const dark of [false, true]) {
       await setDark(page, dark);
@@ -255,7 +255,7 @@ test('the MVP tiles count the use cases by their MVP, a tile or the MVP filter n
     await filter.selectOption('none');
     await card(page, 'Predict churn').waitFor({ state: 'detached' });
     assert.deepEqual(await names(), ['Price elasticity', 'Segment shoppers'], 'an uninstalled MVP counts as no MVP');
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     assert.equal(await tiles.getByRole('button', { name: 'No MVP yet: 2' }).getAttribute('aria-pressed'), 'true', 'the dropdown and the tiles agree');
     await toView(page, 'Use cases');
     await page.getByRole('button', { name: 'Clear the MVP filter' }).click();
@@ -314,7 +314,7 @@ test('value tracking shows a KPI the agent did not measure as Not measured with 
   const { page } = ui;
   try {
     await ready(page);
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     const lost = page.locator('[data-insight="Feedback and value"] [data-tracking-status="not_measured"]');
     await lost.waitFor();
     assert.equal(await lost.locator('[data-tracking-note]').textContent(), `Not measured: ${mismatch.problem}`);
