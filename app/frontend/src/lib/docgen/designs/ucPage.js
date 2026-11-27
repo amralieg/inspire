@@ -1,8 +1,8 @@
 // REQ-526 part C: the brief use case page, one A4 page (794 x 1123) per use case, laid out once for all four designs.
-// The engine owns the flow (what is shown, how long text is cut so the page never overflows, the projection chart, the data chips, the fact row);
+// The engine owns the flow (what is shown, how long text is cut so the page never overflows, the projection chart, the fact row);
 // each style passes a skin that draws its own frame, head, value tile, labels, boxes, chips and chart marks in its own visual language.
 import { extraParts, partLines } from '../docModel.js';
-import { T, t, rect, line, circle, svgDoc, has, wrap, textW, money, rtlMirror } from './core.js';
+import { T, t, rect, line, circle, svgDoc, has, wrap, money, rtlMirror } from './core.js';
 
 export const PW = 794;
 export const PH = 1123;
@@ -12,8 +12,6 @@ const BODY = 13; const LH = 18;
 const g = (block, svg) => `<g data-block="${block}">${svg}</g>`;
 // A word with no break that is wider than the box is cut, so one long table path cannot run off the page.
 const softBreak = (s, n = 60) => String(s ?? '').replace(new RegExp(`\\S{${n},}`, 'g'), (w) => w.match(new RegExp(`.{1,${n - 10}}`, 'g')).join(' '));
-// A table name wider than the box is split into pieces that each fit, never cut.
-const pieces = (s, maxW, size) => { const n = Math.max(8, Math.floor(maxW / textW('x', size))); return String(s).match(new RegExp(`.{1,${n}}`, 'g')) || ['']; };
 
 // The yearly rows that carry a number, years 1 to 3 (never filled in when missing).
 export function projectionYears(u) {
@@ -41,27 +39,14 @@ export function ucPage(m, u, idx, S) {
   // The extra detail fields come after the chart, data and facts (below), so a page that was complete before still is.
   const extra = has(m, 'use_case_story') ? extraParts(u).map(([label, items]) => ({ id: 'use_case_story', label, text: softBreak(partLines(items).join('  ')) })) : [];
   const years = has(m, 'value_projection') ? projectionYears(u) : [];
-  const tables = has(m, 'data_used') ? (u.tables || []) : [];
   const facts = [['Sponsor', u.sponsor], ['Beneficiary', u.beneficiary], ['Technique', u.technique]].filter((f) => f[1]);
 
-  // Data chips in rows; every table is shown, the box grows with the rows.
-  const chipRows = [];
-  if (tables.length) {
-    const chips = tables.flatMap((name) => pieces(name, tw - 2 * S.chipPad, 12)).map((label) => ({ label, w: S.chipW(label) }));
-    const rows = [[]]; let rx = 0;
-    for (const c of chips) {
-      if (rx && rx + c.w > tw) { rows.push([]); rx = 0; }
-      rows[rows.length - 1].push({ ...c, x: rx }); rx += c.w + 8;
-    }
-    chipRows.push(...rows);
-  }
   const boxH = (inner) => inner + 2 * pad;
   const textH = (s) => boxH(S.labelH + wrap(s.text, tw, BODY, kind, 400, 99).length * LH + 4);
   // The things to place, in order. A text section is as tall as all its lines.
   const items = [
     ...story.map((s) => ({ type: 'text', s, h: textH(s) })),
     ...(years.length ? [{ type: 'chart', h: boxH(S.labelH + S.chartH) }] : []),
-    ...(chipRows.length ? [{ type: 'chips', h: boxH(S.labelH + chipRows.length * (S.chipH + 8)) }] : []),
     ...(facts.length ? [{ type: 'facts', h: S.factsH }] : []),
     ...extra.map((s) => ({ type: 'text', s, h: textH(s) })),
   ];
@@ -90,10 +75,6 @@ export function ucPage(m, u, idx, S) {
         let inner = (S.box ? S.box(P, y, CW, it.h) : '') + S.label('Three-year projection', P + pad, y + pad, tw);
         inner += chart(u, years, P + pad, y + pad + S.labelH, tw, S.chartH, S);
         body += g('value_projection', inner);
-      } else if (it.type === 'chips') {
-        let inner = (S.box ? S.box(P, y, CW, it.h) : '') + S.label('Data used', P + pad, y + pad, tw);
-        chipRows.forEach((row, r) => row.forEach((c) => { inner += S.chipSvg(c.label, P + pad + c.x, y + pad + S.labelH + r * (S.chipH + 8), c.w); }));
-        body += g('data_used', inner);
       } else body += S.facts(facts, P, y, CW);
       y += it.h + S.gap; placed += 1;
     }

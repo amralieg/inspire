@@ -59,7 +59,7 @@ export function buildDocModel({ businessName, useCases, values, options, summary
       short: clean(fieldOf(uc, 'usecase', 'short_name')), subdomain: clean(fieldOf(uc, 'Subdomain', 'subdomain')), sponsor: clean(fieldOf(uc, 'Sponsor', 'sponsor')),
       beneficiary: clean(fieldOf(uc, 'Beneficiary', 'beneficiary')), technique: clean(fieldOf(uc, 'Analytics Technique', 'analytics_technique')), quality: clean(fieldOf(uc, 'Quality', 'quality')),
       // C23: the rest of what the agent documents printed for a use case (kept in full, one string per item).
-      design: clean(fieldOf(uc, 'High Level Design', 'high_level_design')), type: clean(fieldOf(uc, 'type', 'Type')),
+      type: clean(fieldOf(uc, 'type', 'Type')),
       priorityAlignment: clean(fieldOf(uc, 'Business Priority Alignment', 'business_priority_alignment')), strategicAlignment: clean(fieldOf(uc, 'Strategic Goals Alignment', 'strategic_goals_alignment')),
       kpis: lines(v.kpis.map(kpiText)), keyResults: lines(v.keyResults.map((k) => k.statement)), measures: lines(v.measures), financial: lines(v.financial), nonFinancial: lines(v.nonFinancial),
       foundations: lines(v.foundations.flatMap((f) => (/^F\d+(\s*[,;]\s*F\d+)+$/i.test(f.trim()) ? f.split(/\s*[,;]\s*/) : [f])).map((f) => foundationLabel(f, foundationNames))),
@@ -81,9 +81,9 @@ export function buildDocModel({ businessName, useCases, values, options, summary
 export function extraParts(u) {
   const one = (v) => (v ? [v] : []);
   return [
-    ['Technical design', one(u.design)], ['Type', one(u.type)], ['Priority alignment', one(u.priorityAlignment)], ['Strategic alignment', one(u.strategicAlignment)],
+    ['Type', one(u.type)], ['Priority alignment', one(u.priorityAlignment)], ['Strategic alignment', one(u.strategicAlignment)],
     ['KPIs', u.kpis || []], ['Expected key results', u.keyResults || []], ['Measures of success', u.measures || []],
-    ['Financial benefits', u.financial || []], ['Non-financial benefits', u.nonFinancial || []], ['Foundations', u.foundations || []],
+    ['Financial benefits', u.financial || []], ['Non-financial benefits', u.nonFinancial || []],
   ].filter(([, items]) => items.length);
 }
 // One text for a part: a single item as is, several as a bullet list on separate lines.

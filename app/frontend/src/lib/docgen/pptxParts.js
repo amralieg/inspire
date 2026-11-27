@@ -12,7 +12,6 @@ export function ucParts(m, u) {
     extraParts(u).forEach(([label, items]) => out.push({ label, text: partLines(items).join('\n') }));
   }
   if (has(m, 'value_story') && u.value?.story) out.push({ label: 'Value story', text: u.value.story });
-  if (has(m, 'data_used') && u.tables?.length) out.push({ label: 'Data used', text: u.tables.join(', ') });
   return out;
 }
 
