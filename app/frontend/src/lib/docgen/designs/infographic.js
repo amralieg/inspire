@@ -16,11 +16,23 @@ export function renderInfographic(useCase, { orientation = 'landscape', scenario
   const row = useCase && typeof useCase === 'object' ? useCase : {};
   const orient = orientation === 'portrait' ? 'portrait' : 'landscape';
   const pick = content && typeof content === 'object' ? content : null;
-  const id = SCENARIO_IDS.includes(scenario) ? scenario : pick && SCENARIO_IDS.includes(pick.scenario) ? pick.scenario : fallbackPick(row).scenario;
+  const want = SCENARIO_IDS.includes(scenario) ? scenario : pick && SCENARIO_IDS.includes(pick.scenario) ? pick.scenario : fallbackPick(row).scenario;
+  let id = want;
   const accent = theme && Array.isArray(theme.accents) && /^#[0-9a-f]{6}$/i.test(theme.accents[0] || '') ? theme.accents[0] : '';
   const keep = P.lava;
   let svg;
-  try { if (accent) P.lava = accent; svg = drawConcept(id, contentFor(row, id, pick), orient, { logo: logo || '' }); } finally { P.lava = keep; }
+  // A concept whose every label drops draws no picture (never bare icons); the page then takes the next concept that keeps a label:
+  // the one the row's own words pick, then the concepts that carry the most text, then the rest.
+  try {
+    if (accent) P.lava = accent;
+    const tried = new Set();
+    for (const x of [want, fallbackPick(row).scenario, 'beforeafter', 'isometric', 'pictogram', ...SCENARIO_IDS]) {
+      if (tried.has(x)) continue; tried.add(x);
+      const s = drawConcept(x, contentFor(row, x, x === want ? pick : null), orient, { logo: logo || '' });
+      if (!svg) { svg = s; id = x; }
+      if (!drawConcept.empty) { svg = s; id = x; break; }
+    }
+  } finally { P.lava = keep; }
   // The root has direction="rtl", which already swaps what start and end mean, so the anchors rtlSvg flipped go back: a text stays upright and ends where the mirrored page needs it.
   if (rtl) svg = rtlSvg(svg).replace(/(<text transform="translate\([-\d.]+ 0\) scale\(-1 1\)"[^>]*?text-anchor=")(start|end)(")/g, (_, a1, an, a3) => a1 + (an === 'start' ? 'end' : 'start') + a3);
   return { svg, scenario: id, width: DIMS[orient].W, height: DIMS[orient].H };

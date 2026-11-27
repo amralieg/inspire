@@ -92,10 +92,10 @@ export function shows(width, s, o = {}) { const d = textBlock.dropped; const ok 
 // ok(item, n, k) answers for a row of the n kept items k; with fewer slots each has more room, so the filter runs until it is stable.
 // With a cap (max), the row holds at most max items and an item left out gives its slot to the next candidate that shows.
 // Each slot left empty is counted as a dropped text (the picker reads it). A row none of whose texts shows at all (text with no whole phrase
-// that fits any slot) keeps its slots as a bare diagram, so the page still draws the process; the picker counts every one of them as dropped.
+// that fits any slot) is empty: never a bare diagram of icons with no labels (the concept then draws without it, or the page falls back).
 export function keepShown(items, ok, max = Infinity) {
   const all = items || []; const out = new Set(); let k = all.slice(0, max);
-  if (k.length && !k.some((it) => ok(it, k.length, k))) { textBlock.dropped += k.length; return k; }
+  if (k.length && !k.some((it) => ok(it, k.length, k))) { textBlock.dropped += k.length; return []; }
   while (k.length) { const nx = k.filter((it) => ok(it, k.length, k)); if (nx.length === k.length) break; k.forEach((it) => { if (!nx.includes(it)) out.add(it); });
     const next = all.filter((it) => !out.has(it)).slice(0, max); k = next.length > nx.length ? next : nx; }
   textBlock.dropped += Math.min(all.length, max) - k.length; return k;
@@ -106,3 +106,8 @@ export function label(x, y, s, o = {}) {
   const size = Math.max(MIN_PX, o.size || MIN_PX);
   return `<text x="${x}" y="${y}" font-family="${FONT}" font-size="${size}" font-weight="${o.weight || 400}" fill="${o.color || '#14263A'}" text-anchor="${o.anchor || 'start'}"${o.spacing ? ` letter-spacing="${o.spacing}"` : ''}>${esc(s)}</text>`;
 }
+
+// C30 (REQ-574): an icon (or a card, a disc, a heading) and its label are one slot: the slot is drawn only when its label draws a text, so a
+// page never shows an icon with no label. mark is the icon part, text the label part (any svg; it counts when it holds a <text>).
+export const hasText = (svg) => /<text[\s>]/.test(String(svg || ''));
+export const slot = (mark, text) => (hasText(text) ? `<g data-slot="1">${mark}${text}</g>` : '');

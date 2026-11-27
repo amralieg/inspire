@@ -1,6 +1,6 @@
 // REQ-574 / REQ-571: the frame and the recurring parts every infographic concept uses (title, hero number, who uses it).
 import { P, grad, shadow, pill, f1 } from './shapes.js';
-import { textBlock, label, esc, FONT, measure } from './text.js';
+import { textBlock, label, esc, FONT, measure, slot } from './text.js';
 import { icon } from './icons.js';
 import { team } from './scenes.js';
 
@@ -29,24 +29,25 @@ export function splitStake(stake) { const m = /^(.*?)(\$?\d[\d,.]*\s?[MKB]?|\d[\
 
 // "Who uses it": a small team, a people icon on the heading, the role in bold and the cadence with a calendar icon.
 export function whoBlock(x, y, s, colors = [P.blue, P.lava, P.green], o = {}) {
-  const ph = o.ph || 110; let svg = team(x + ph * 0.45, y + ph, ph, colors, 3);
+  // The team, the icon and the heading go with the text under them: with neither the role nor the second line the block is left out.
+  const ph = o.ph || 110; const mark = team(x + ph * 0.45, y + ph, ph, colors, 3);
   const tx = x + ph * 1.1 + 18; const tw = o.w || 300;
-  svg += icon('users', tx, y + 3, 24, o.accent || P.lava, 2) + label(tx + 32, y + 24, 'WHO USES IT', { size: 20, weight: 700, color: P.grey, spacing: 1.5 });
+  const head = icon('users', tx, y + 3, 24, o.accent || P.lava, 2) + label(tx + 32, y + 24, 'WHO USES IT', { size: 20, weight: 700, color: P.grey, spacing: 1.5 });
   const t = textBlock(tx, y + 36, tw, s.who, { size: o.size || 26, weight: 800, color: o.ink || P.ink, maxLines: 2 });
   // The second line is the cadence with a calendar; a use case that states no cadence (or one that does not fit the line) names its sponsor
   // there instead. An icon goes only with a text that shows: with neither the line is left out, icon and all. A "Label: value" line shows
   // whole or not at all (a cut leaves the bare label, or a label over half a name): it takes a second line when the block has the height
   // (o.maxH), else the sponsor's name alone by the briefcase, and only a name that does not fit whole either is left out.
-  const top = y + 68 + t.h - 22 * 0.92; let lh2 = 0;
+  const top = y + 68 + t.h - 22 * 0.92; let lh2 = 0; let lw2 = 0;
   const two = (ic, text, whole, lines = 1) => { const l = textBlock(tx + 36, top, tw - 36, text, { size: lines > 1 ? 20 : 22, weight: 600, color: o.muted || P.body, maxLines: lines });
     if (!l.svg || (whole && l.lines.join(' ') !== text) || top + l.h + 6 - y > (o.maxH || 1e9)) return '';
-    lh2 = l.h; return icon(ic, tx, y + 46 + t.h, 26, o.accent || P.lava, 2) + l.svg; };
+    lh2 = l.h; lw2 = l.w; return slot(icon(ic, tx, y + 46 + t.h, 26, o.accent || P.lava, 2), l.svg); };
   const sp = s.sponsor && `Sponsor: ${s.sponsor}`;
-  svg += t.svg + ((s.cadence && two('calendar', s.cadence)) || (sp && (two('briefcase', sp, true) || two('briefcase', sp, true, 2) || two('briefcase', s.sponsor, true))) || '');
-  return { svg: `<g data-part="who">${svg}</g>`, h: Math.max(ph, 80 + t.h, top + lh2 + 6 - y) };
+  const svg = slot(mark + head, t.svg + ((s.cadence && two('calendar', s.cadence)) || (sp && (two('briefcase', sp, true) || two('briefcase', sp, true, 2) || two('briefcase', s.sponsor, true))) || ''));
+  return { svg: svg && `<g data-part="who">${svg}</g>`, h: svg ? Math.max(ph, 80 + t.h, top + lh2 + 6 - y) : 0, right: svg ? tx + Math.max(measure('WHO USES IT', 20, 700) + 32, t.w, lw2 + 36) : x };
 }
 
-// A small heading with an icon (section label inside the drawing).
+// A small heading with an icon (section label inside the drawing). Callers draw it as the mark of a slot whose text is the content it heads.
 export function tagline(x, y, ic, text, color, o = {}) {
   return `${icon(ic, x, y - 22, 28, color, 2.2)}${label(x + 38, y, text, { size: o.size || 22, weight: 800, color, spacing: o.spacing ?? 1 })}`;
 }
