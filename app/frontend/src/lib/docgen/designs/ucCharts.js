@@ -27,7 +27,7 @@ export function ucFacts(u) {
   const amount = v && num(v.amount) !== null ? Number(v.amount) : null;
   const yearly = (v && Array.isArray(v.yearly) ? v.yearly : []).filter((y) => y && num(y.likely) !== null);
   return {
-    id: String(u?.id || trackingIdOf(raw) || ''), storedId: String(u?.storedId || u?.id || trackingIdOf(raw) || ''), name: String(u?.name || u?.title || fieldOf(raw, 'Name', 'name') || ''),
+    id: String(u?.id || trackingIdOf(raw) || ''), name: String(u?.name || u?.title || fieldOf(raw, 'Name', 'name') || ''),
     technique: String(u?.technique || techFact || fieldOf(raw, 'Analytics Technique', 'analytics_technique') || '').trim(),
     domain: String(u?.domain || fieldOf(raw, 'Business Domain', 'business_domain') || '').trim(), subdomain: String(u?.subdomain || fieldOf(raw, 'Subdomain', 'subdomain') || '').trim(),
     score: num(u?.score) ?? inspireScoreFromUc(raw), priority: num(u?.priorityScore) ?? scoreOf(raw, 'Priority Score', 'priority_score'),
@@ -97,7 +97,6 @@ const arcPath = (cx, cy, r0, r1x, a0, a1) => {
 const clip = (s, n) => { const t = String(s ?? ''); return t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t; };
 const fmt = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
 
-// data-uc carries the id as saved (storedId); every printed text uses the AIx-UCx form (id).
 // The frame every chart shares: a white card, a colored top rule, the title, the "Illustrative" tag, the plot area and a footnote.
 function frame(type, { w, h, P, uc, title, tag, note, accent }, body) {
   title = LB(title); tag = LB(tag); // a fixed text is translated before it is clipped
@@ -283,12 +282,12 @@ export function ucChartSvg(type, uc, { w = 320, h = 200, palette } = {}) {
   const rnd = seeded(`${f.id}|${type}`);
   if (SCORE[type]) {
     const s = SCORE[type]; const note = type === 'value-years' ? `${LB('Likely value a year')}, ${f.valueText} ${LB('in total')}` : f.quality ? qualityNote(f) : '';
-    return frame(type, { w, h, P, uc: f.storedId, title: s.title, note, accent: P.cats[2] }, s.draw(plotOf(w, h, note), P, f));
+    return frame(type, { w, h, P, uc: f.id, title: s.title, note, accent: P.cats[2] }, s.draw(plotOf(w, h, note), P, f));
   }
   const d = LEAD[type] || LEAD.gauge;
   const note = d.real ? (f.amount !== null ? valueNote(f) : f.technique) : [f.technique, scoreNote(f)].filter(Boolean).join(' · ');
   const accent = P.cats[hashOf(type) % 6];
-  return frame(LEAD[type] ? type : 'gauge', { w, h, P, uc: f.storedId, title: d.title, tag: d.real ? '' : ILLUSTRATIVE, note, accent }, d.draw(plotOf(w, h, note), P, rnd, f));
+  return frame(LEAD[type] ? type : 'gauge', { w, h, P, uc: f.id, title: d.title, tag: d.real ? '' : ILLUSTRATIVE, note, accent }, d.draw(plotOf(w, h, note), P, rnd, f));
 }
 
 // ---- portfolio charts (no data-uc): value or count by domain, the domain mix, the quality mix, the priority matrix and the top opportunities ----

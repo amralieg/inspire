@@ -57,7 +57,7 @@ export function buildDocModel({ businessName, useCases, values, options, summary
     const lines = (items) => items.map((x) => clean(x)).filter(Boolean);
     const bizLines = (items) => items.map((x) => biz(x)).filter(Boolean);
     return {
-      id, storedId: saved, name: biz(fieldOf(uc, 'Name', 'name')), statement: biz(fieldOf(uc, 'Statement', 'statement')), solution: biz(fieldOf(uc, 'Solution', 'solution')),
+      id, name: biz(fieldOf(uc, 'Name', 'name')), statement: biz(fieldOf(uc, 'Statement', 'statement')), solution: biz(fieldOf(uc, 'Solution', 'solution')),
       businessValue: biz(fieldOf(uc, 'Business Value', 'business_value')), domain: clean(fieldOf(uc, 'Business Domain', 'business_domain') || fieldOf(uc, 'domain', 'Domain') || fieldOf(uc, 'Subdomain', 'subdomain')), // C26 (REQ-563): the business domain, not the subdomain
       score, tables: tablesOf(uc), value: valueOf(values?.[saved] ?? values?.[id]),
       // REQ-526: the extra real fields the document designs show (blank or null when the use case has none).
