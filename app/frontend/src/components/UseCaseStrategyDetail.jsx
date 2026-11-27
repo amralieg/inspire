@@ -127,7 +127,7 @@ export function BestOfBestDetail({ info }) {
   return (
     <div className={`rounded-lg border p-4 ${star ? 'border-warning/30 bg-warning-bg' : 'border-border bg-bg'}`}>
       <Section title={star ? bestOfBestLabel(star) : 'Not starred as Best of Best'} tone={star ? 'text-warning-fg' : 'text-text-tertiary'}>
-        <p className="text-sm text-text-secondary leading-relaxed">{star ? star.reason || 'Passed every Best of Best check.' : info.notStarredReason}</p>
+        <p className="text-sm text-text-primary leading-relaxed">{star ? star.reason || 'Passed every Best of Best check.' : info.notStarredReason}</p>
       </Section>
     </div>
   );
