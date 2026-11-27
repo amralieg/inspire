@@ -334,6 +334,8 @@ function useCaseCard(d, m, v) {
   }
   if (v.meetsBar) place(v.meetsBar, '', C.green, C.white);
   if (v.star) place(v.star, '', C.gold, C.gold_ink);
+  // The notebook button, as on the PDF card foot.
+  if (v.notebook) place(`${T('doc_open_notebook')} ↗`, '', C.teal, C.white);
   let top = y + rowH + 0.14;
   if (v.coverage) top = noteBand(d, s, top, C.coral, [[[`${v.coverage[0]}. `, { bold: true, color: C.note_dark }], [`${v.coverage[1]}: ${v.coverage[2]}`, {}]]]);
   const bottom = 7.1; const GAP = 0.4; const CWD = (CW - GAP) / 2;

@@ -8,7 +8,9 @@ import { v130View, strategyGoals } from '../v130UseCase.js';
 import { useCaseKindView, KIND_INFORMATIONAL_LABEL } from '../useCaseKind.js';
 import { moneyText } from '../valueWizard.js';
 import { buildDocModel, isRtl, STORY_NOT_APPROVED } from './docModel.js';
-import { plainDocText } from './docText.js';
+import { plainDocText, plainBusiness } from './docText.js';
+
+export { plainBusiness };
 import { PANEL_BUSINESS } from './panelFields.js';
 
 // The agent's English labels (ENGLISH_TRANSLATIONS, 6a7361a39 lines 19551-19889 of the concatenated cells), the keys the documents use.
@@ -249,11 +251,6 @@ export const display = (value) => {
   const text = plainDocText(aiWording(Array.isArray(value) ? value.join(', ') : value)).replace(/\u2014/g, ', ').replace(/\s+/g, ' ').trim();
   return ['N/A', 'NA', 'NONE', 'NULL', '-'].includes(text.toUpperCase()) ? '' : text;
 };
-// REQ-561 (c27): a business line never prints a column or table identifier. "table.column" keeps the column, snake_case words become plain words ("on_hand" -> "on hand").
-const SNAKE_ID = /\b[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+\b/g;
-export const plainBusiness = (text) => String(text ?? '').replace(/`/g, '')
-  .replace(/\b([A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)*)\.([A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)*)\b/g, (all, l, r) => (all.includes('_') ? r : all))
-  .replace(SNAKE_ID, (id) => id.replace(/_/g, ' '));
 const finite = (v) => (v === null || v === undefined || v === '' ? null : Number.isFinite(Number(v)) ? Number(v) : null);
 export const scoreText = (value, scale, T) => { const n = finite(value); return n === null ? T('doc_not_scored') : `${n.toFixed(1)} / ${scale}`; };
 export const canonicalQuality = (v) => DOC_QUALITY_ORDER.find((l) => l.toLowerCase() === String(v ?? '').trim().toLowerCase()) || '';

@@ -58,3 +58,11 @@ test('every document kind built from the agent model (PDF, deck, infographic) pr
   const model = buildDocModel({ businessName: ARGS.businessName, useCases: rows, values: {}, options: { ...defaultDocOptions('English') }, summary: ARGS.summary, foundations: [] });
   assert.deepEqual(found(flat(infographicSvg(model, theme, buildAgentModel(ARGS).ranked))), [], 'infographic');
 });
+
+test('the Word and Excel model (buildDocModel) prints no identifier in a business line', () => {
+  const m = buildDocModel({ businessName: 'Retail', useCases: rows, values: {}, summary: [], foundations: [], language: 'English' });
+  const keys = ['name', 'statement', 'solution', 'businessValue', 'priorityAlignment', 'strategicAlignment', 'sponsor', 'beneficiary'];
+  const bad = m.useCases.flatMap((u) => [...keys.map((k) => u[k]), ...u.kpis, ...u.keyResults, ...u.measures, ...u.financial, ...u.nonFinancial]
+    .flatMap((t) => found(String(t ?? '')).map((x) => `${u.id}: ${x}`)));
+  assert.deepEqual(bad.slice(0, 8), [], 'no snake_case or table.column in a Word business line');
+});

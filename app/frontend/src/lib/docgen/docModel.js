@@ -2,13 +2,15 @@
 import { aiWording, fieldOf, inspireScoreFromUc, trackingIdOf, scoreOf } from '../useCaseFields.js';
 import { moneyText } from '../valueWizard.js';
 import { v130View, kpiText } from '../v130UseCase.js';
-import { plainDocText, foundationLabel } from './docText.js';
+import { plainDocText, foundationLabel, plainBusiness } from './docText.js';
 
 export const RTL_LANGUAGES = ['Arabic', 'Hebrew', 'Persian', 'Farsi', 'Urdu'];
 export const isRtl = (language) => RTL_LANGUAGES.includes(language);
 
 // REQ-529c: every text in a document (PDF, PowerPoint, Excel) goes through the wording rule, so older runs never print the retired product name.
 const clean = (v) => plainDocText(aiWording(v)).trim();
+// REQ-561 (c27): business lines in Word and Excel drop column and table identifiers, as in the PDF and deck.
+const biz = (v) => plainBusiness(clean(v));
 const tablesOf = (uc) => clean(fieldOf(uc, 'Tables Involved', 'tables_involved')).split(/[,;\n]+/).map((t) => t.trim()).filter(Boolean);
 
 export const STORY_NOT_APPROVED = 'Story not approved yet';
@@ -51,17 +53,18 @@ export function buildDocModel({ businessName, useCases, values, options, summary
     const score = inspireScoreFromUc(uc);
     const v = v130View(uc);
     const lines = (items) => items.map((x) => clean(x)).filter(Boolean);
+    const bizLines = (items) => items.map((x) => biz(x)).filter(Boolean);
     return {
-      id, name: clean(fieldOf(uc, 'Name', 'name')), statement: clean(fieldOf(uc, 'Statement', 'statement')), solution: clean(fieldOf(uc, 'Solution', 'solution')),
-      businessValue: clean(fieldOf(uc, 'Business Value', 'business_value')), domain: clean(fieldOf(uc, 'Business Domain', 'business_domain') || fieldOf(uc, 'domain', 'Domain') || fieldOf(uc, 'Subdomain', 'subdomain')), // C26 (REQ-563): the business domain, not the subdomain
+      id, name: biz(fieldOf(uc, 'Name', 'name')), statement: biz(fieldOf(uc, 'Statement', 'statement')), solution: biz(fieldOf(uc, 'Solution', 'solution')),
+      businessValue: biz(fieldOf(uc, 'Business Value', 'business_value')), domain: clean(fieldOf(uc, 'Business Domain', 'business_domain') || fieldOf(uc, 'domain', 'Domain') || fieldOf(uc, 'Subdomain', 'subdomain')), // C26 (REQ-563): the business domain, not the subdomain
       score, tables: tablesOf(uc), value: valueOf(values?.[id]),
       // REQ-526: the extra real fields the document designs show (blank or null when the use case has none).
-      short: clean(fieldOf(uc, 'usecase', 'short_name')), subdomain: clean(fieldOf(uc, 'Subdomain', 'subdomain')), sponsor: clean(fieldOf(uc, 'Sponsor', 'sponsor')),
-      beneficiary: clean(fieldOf(uc, 'Beneficiary', 'beneficiary')), technique: clean(fieldOf(uc, 'Analytics Technique', 'analytics_technique')), quality: clean(fieldOf(uc, 'Quality', 'quality')),
+      short: clean(fieldOf(uc, 'usecase', 'short_name')), subdomain: clean(fieldOf(uc, 'Subdomain', 'subdomain')), sponsor: biz(fieldOf(uc, 'Sponsor', 'sponsor')),
+      beneficiary: biz(fieldOf(uc, 'Beneficiary', 'beneficiary')), technique: clean(fieldOf(uc, 'Analytics Technique', 'analytics_technique')), quality: clean(fieldOf(uc, 'Quality', 'quality')),
       // C23: the rest of what the agent documents printed for a use case (kept in full, one string per item).
       type: clean(fieldOf(uc, 'type', 'Type')),
-      priorityAlignment: clean(fieldOf(uc, 'Business Priority Alignment', 'business_priority_alignment')), strategicAlignment: clean(fieldOf(uc, 'Strategic Goals Alignment', 'strategic_goals_alignment')),
-      kpis: lines(v.kpis.map(kpiText)), keyResults: lines(v.keyResults.map((k) => k.statement)), measures: lines(v.measures), financial: lines(v.financial), nonFinancial: lines(v.nonFinancial),
+      priorityAlignment: biz(fieldOf(uc, 'Business Priority Alignment', 'business_priority_alignment')), strategicAlignment: biz(fieldOf(uc, 'Strategic Goals Alignment', 'strategic_goals_alignment')),
+      kpis: bizLines(v.kpis.map(kpiText)), keyResults: bizLines(v.keyResults.map((k) => k.statement)), measures: bizLines(v.measures), financial: bizLines(v.financial), nonFinancial: bizLines(v.nonFinancial),
       foundations: lines(v.foundations.flatMap((f) => (/^F\d+(\s*[,;]\s*F\d+)+$/i.test(f.trim()) ? f.split(/\s*[,;]\s*/) : [f])).map((f) => foundationLabel(f, foundationNames))),
       priorityScore: scoreOf(uc, 'priority_score', 'Priority Score', 'Priority'), feasibility: scoreOf(uc, 'feasibility', 'Feasibility'), valueScore: scoreOf(uc, 'value_score', 'Value'),
     };
