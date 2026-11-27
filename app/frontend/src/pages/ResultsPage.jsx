@@ -128,7 +128,8 @@ import ResultsNav, { resultsPanel } from '../components/results/ResultsNav';
 import { DEFAULT_RESULTS_VIEW, searchWithView, viewOfSearch } from '../lib/resultsView';
 import ResultsBusiness from '../components/results/ResultsBusiness';
 import RunStepper from '../components/RunStepper';
-import ResultsAssets from '../components/results/ResultsAssets';
+import ResultsOverview from '../components/results/ResultsOverview';
+import RunOutcomeBar from '../components/results/RunOutcomeBar';
 import DocViewer from '../components/DocViewer';
 import { sessionFailed, sessionFinished, sessionSucceeded } from '../lib/monitorState';
 import { useStrategyDocument } from '../lib/strategyDoc';
@@ -285,7 +286,7 @@ export default function ResultsPage({
   const [fileProblem, setFileProblem] = useState('');
   // REQ-444: the Domains tree is open by default, on a narrow screen too (there it is a fold above the list).
   const [domainPanelOpen, setDomainPanelOpen] = useState(true);
-  // The view (Use cases, Business, Assets) lives in the URL query, so Back, a reload and a shared link land on the same view.
+  // The view (Use cases, Overview) lives in the URL query, so Back, a reload and a shared link land on the same view.
   const [view, setView] = useState(() => viewOfSearch(typeof window !== 'undefined' ? window.location.search : ''));
   const showView = useCallback((next) => {
     setView(next);
@@ -1109,11 +1110,12 @@ export default function ResultsPage({
     if (blob) saveBlob(blob, fileName);
   }, [exportedFile]);
 
-  // C25 (REQ-559): View opens a document in a modal over the page (DocViewer); Go to asset marks a file in Assets and switches to it.
+  // C25 (REQ-559): View opens a document in a modal over the page (DocViewer); Go to asset marks a file in Overview > Documents and switches to it.
   const [docView, setDocView] = useState(null);
   const [assetFocus, setAssetFocus] = useState('');
   const viewFile = useCallback((path, name) => setDocView({ path, name }), []);
-  const goToAsset = useCallback((path) => { setAssetFocus(typeof path === 'string' ? path : ''); showView('assets'); }, [showView]);
+  const [overviewPanel, setOverviewPanel] = useState('story'); // C28 (REQ-568): the left panel of Overview, Story or Documents
+  const goToAsset = useCallback((path) => { setAssetFocus(typeof path === 'string' ? path : ''); setOverviewPanel('documents'); showView('overview'); }, [showView]);
 
   const openFileInTab = useCallback(async (filePath, fileName) => {
     const tab = window.open('', '_blank');
@@ -2268,86 +2270,56 @@ export default function ResultsPage({
               <QualityGateDrops results={results} />
             </div>
             )}
-            {view === 'business' && (
-              <div {...resultsPanel('business', view)} className="tab-panel-enter min-w-0 flex-1">
-              <ResultsBusiness
+            {view === 'overview' && (
+              <div {...resultsPanel('overview', view)} className="tab-panel-enter min-w-0 flex-1">
+              <ResultsOverview
+                panel={overviewPanel}
+                onPanel={setOverviewPanel}
+                outcomeBar={<RunOutcomeBar isProgressive={isProgressive} runOutcome={runOutcome} qualityBarCounts={qualityBarCounts} noneMeetsBar={noneMeetsBar} reviewBarStages={reviewBarStages} />}
                 allUseCases={builtUseCases}
-                avgInspireScore={avgInspireScore}
-                describeUseCase={describeUseCase}
-                domains={domains}
-                domainsSummary={domainsSummary}
-                feedbackState={feedbackState}
-                filterMvp={filterMvp}
-                hasMvpData={hasMvpData}
-                highPriorityCount={highPriorityCount}
-                mvpStateOf={mvpStateOf}
-                noneMeetsBar={noneMeetsBar}
-                onRunValueRow={onRunValueRow}
-                onShowUseCases={() => showView('usecases')}
-                openUseCase={openUseCase}
-                results={results}
-                selectedFigures={selectedFigures}
-                setFilterMvp={setFilterMvp}
-                showRunValue={!embedded}
-                starredCount={starredCount}
-                summaryParagraphs={summaryParagraphs}
-                techniqueCount={techniqueCount}
-                uniqueSubdomainCount={uniqueSubdomainCount}
-                v130Session={v130Session}
-                valueTotals={valueTotals}
-              />
-              </div>
-            )}
-            {view === 'assets' && (
-              <div {...resultsPanel('assets', view)} className="tab-panel-enter min-w-0 flex-1">
-              {strategyDoc.state === 'building' && <p data-strategy-doc-building="" role="status" className="mb-2 text-caption text-text-secondary">Building the strategy document...</p>}
-              {strategyDoc.state === 'failed' && (
-                <p data-strategy-doc-failed="" className="mb-2 text-caption text-text-secondary">
-                  The strategy document could not be saved.{' '}
-                  <button type="button" onClick={strategyDoc.retry} className="font-medium text-db-red-fg hover:underline">Retry</button>
-                </p>
-              )}
-              <ResultsAssets
-                allUseCases={builtUseCases}
-                apiFetch={apiFetch}
-                apiPostJson={apiPostJson}
-                artifactTree={artifactTree}
-                artifactsExpanded={artifactsExpanded}
-                artifactsLoading={artifactsLoading}
+                docsMadeIds={docsMadeIds}
                 artifactsRootFiles={artifactsRootFiles}
-                databricksHost={databricksHost}
-                downloadFile={downloadFile}
-                viewFile={viewFile}
-                assetFocus={assetFocus}
-                goToAsset={goToAsset}
-                error={error}
-                expandedFolders={expandedFolders}
+                artifactTree={artifactTree}
+                artifactsLoading={artifactsLoading}
                 generationPath={generationPath}
-                genieQuickAccessExpanded={genieQuickAccessExpanded}
-                inspireDb={inspireDb}
-                isProgressive={isProgressive}
-                lastArtifactsLoadKeyRef={lastArtifactsLoadKeyRef}
+                selectedSessionId={selectedSessionId}
                 loadArtifacts={loadArtifacts}
                 loadFolder={loadFolder}
-                loading={loading}
-                noneMeetsBar={noneMeetsBar}
+                assetFocus={assetFocus}
+                viewFile={viewFile}
                 openFileInTab={openFileInTab}
-                previewData={previewData}
-                previewFile={previewFile}
-                previewFrom={previewFrom}
-                previewLoading={previewLoading}
-                qualityBarCounts={qualityBarCounts}
-                reviewBarStages={reviewBarStages}
-                runOutcome={runOutcome}
-                selectedSession={selectedSession}
-                selectedSessionId={selectedSessionId}
-                setArtifactsExpanded={setArtifactsExpanded}
-                setGenieQuickAccessExpanded={setGenieQuickAccessExpanded}
-                settings={settings}
-                settingsNotebookPath={settingsNotebookPath}
-                toggleFolder={toggleFolder}
-                togglePreview={togglePreview}
-              />
+                downloadFile={downloadFile}
+                onGenerateAll={() => setDocsUcs(builtUseCases)}
+                openUseCase={openUseCase}
+                strategyDoc={strategyDoc}
+              >
+                <ResultsBusiness
+                  allUseCases={builtUseCases}
+                  avgInspireScore={avgInspireScore}
+                  describeUseCase={describeUseCase}
+                  domains={domains}
+                  domainsSummary={domainsSummary}
+                  feedbackState={feedbackState}
+                  filterMvp={filterMvp}
+                  hasMvpData={hasMvpData}
+                  highPriorityCount={highPriorityCount}
+                  mvpStateOf={mvpStateOf}
+                  noneMeetsBar={noneMeetsBar}
+                  onRunValueRow={onRunValueRow}
+                  onShowUseCases={() => showView('usecases')}
+                  openUseCase={openUseCase}
+                  results={results}
+                  selectedFigures={selectedFigures}
+                  setFilterMvp={setFilterMvp}
+                  showRunValue={!embedded}
+                  starredCount={starredCount}
+                  summaryParagraphs={summaryParagraphs}
+                  techniqueCount={techniqueCount}
+                  uniqueSubdomainCount={uniqueSubdomainCount}
+                  v130Session={v130Session}
+                  valueTotals={valueTotals}
+                />
+              </ResultsOverview>
               </div>
             )}
           </div>

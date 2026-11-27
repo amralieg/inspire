@@ -40,7 +40,7 @@ test('runOutcomeOf: real outcomes stay what they are', () => {
 });
 
 async function banner(page) {
-  await toView(page, 'Assets');
+  await toView(page, 'Overview');
   const done = page.locator('[data-testid="execution-complete"]');
   await done.waitFor({ timeout: 15000 });
   return done;

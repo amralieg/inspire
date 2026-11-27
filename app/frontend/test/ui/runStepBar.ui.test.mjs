@@ -21,7 +21,7 @@ async function barStages(steps) {
   const ui = await openUi('results', { ...REVIEW_STATE, results: { ...REVIEW_STATE.results, run_status: 'success' } }, '', { mount: withSteps(steps) });
   try {
     const { page } = ui;
-    await toView(page, 'Assets');
+    await toView(page, 'Overview');
     await page.getByText('Every step of the run finished.').waitFor({ timeout: 15000 });
     return {
       label: await page.getByText('Data Filter Label', { exact: true }).count(),

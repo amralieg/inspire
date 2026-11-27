@@ -57,7 +57,7 @@ function StatCard({ label, value, icon: Icon, renderValue }) {
   );
 }
 
-/** The Business view of Results: the run's value at stake, the executive summary, the figure tiles, the MVPs group and the insights. Moved from ResultsPage. */
+/** The Story of the Overview of Results: the run's value at stake, the executive summary, the figure tiles, the MVPs group and the insights. Moved from ResultsPage. */
 export default function ResultsBusiness({
   allUseCases, avgInspireScore, describeUseCase, domains, domainsSummary, feedbackState, filterMvp, hasMvpData, highPriorityCount, mvpStateOf, noneMeetsBar, onRunValueRow, onShowUseCases, openUseCase, results, selectedFigures, setFilterMvp, showRunValue, starredCount, summaryParagraphs, techniqueCount, uniqueSubdomainCount, v130Session, valueTotals,
 }) {

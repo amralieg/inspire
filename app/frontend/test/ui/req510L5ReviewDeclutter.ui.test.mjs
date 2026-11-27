@@ -95,8 +95,8 @@ test('Review has one main action: the Build next panel is gone (REQ-511 D3) and 
   }
 });
 
-test('Review Business and Assets: at most 60 body words above the fold each', async () => {
-  for (const view of ['Business', 'Assets']) {
+test('Review Overview: at most 60 body words above the fold each', async () => {
+  for (const view of ['Overview']) {
     const ui = await openReview(view);
     try {
       const f = await screenFacts(ui.page);

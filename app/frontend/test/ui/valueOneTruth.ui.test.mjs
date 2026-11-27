@@ -67,7 +67,7 @@ test('2a: the Start bars, the Start panel, the run card, the Review header and t
     await header.waitFor({ timeout: 20000 });
     assert.equal(await text(header), '$9.2M', 'Review header');
     assert.equal(await page.getByText('Not measured yet').count(), 0, 'the header never says Not measured yet beside a run value');
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     const panel = page.locator('[data-value-run-panel]');
     await panel.waitFor({ timeout: 15000 });
     assert.equal(await text(panel.locator('[data-total-amount]').first()), '$9.2M', 'Business panel');
@@ -80,7 +80,7 @@ test('2b: the Business rows show counted-in amounts that sum to the run total, a
   try {
     const { page } = ui;
     await page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]').first().waitFor();
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     const panel = page.locator('[data-value-run-panel]');
     await panel.waitFor({ timeout: 15000 });
     const counted = await panel.locator('[data-value-row] [data-value-counted]').allInnerTexts();
@@ -102,7 +102,7 @@ test('2d: a bar label that does not fit its segment is hidden and moves to the t
     const { page } = ui;
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.getByRole('region', { name: 'Use case list' }).locator('[data-use-case-row]').first().waitFor();
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     const panel = page.locator('[data-value-run-panel]');
     await panel.waitFor({ timeout: 15000 });
     const clipped = await panel.locator('[data-bar-segment]').evaluateAll((els) => els.flatMap((el) => [...el.querySelectorAll('[data-bar-label]')]

@@ -1,14 +1,14 @@
-import { Briefcase, FolderOpen, Layers } from 'lucide-react';
+import { Briefcase, Layers } from 'lucide-react';
 import { RESULTS_VIEWS } from '../../lib/resultsView';
 import Tabs, { tabPanel } from '../ui/Tabs';
 
 const NAV_ID = 'results';
 /** Props for the panel under the Results tabs: role=tabpanel, hidden unless it is the current view, fades in. */
 export const resultsPanel = (id, view) => tabPanel(NAV_ID, id, view);
-const ICONS = { usecases: Layers, business: Briefcase, assets: FolderOpen };
+const ICONS = { usecases: Layers, overview: Briefcase };
 
 /**
- * The tabs of the run results: Use cases, Business, Assets, across the top of the page content at every width. `children` is the use case
+ * The tabs of the run results: Use cases and Overview, across the top of the page content at every width. `children` is the use case
  * browser's rail (the Domains tree and the other filters); it shows under the tabs, as the left rail of the Use cases view only.
  * Renders two grid items (tabs, rail) for the parent grid.
  */

@@ -171,7 +171,7 @@ test('3: How we got this number lists each part with data and estimate chips and
 test('4: the run panel shows $6.7M, 1 calculated / 2 estimated, four rows and the run total, and a row click scrolls to its card', async () => {
   const { ui, page } = await openCard({ answers: {}, totals: RUN_TOTALS });
   try {
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     const panel = page.locator('[data-value-run-panel]');
     await panel.waitFor({ timeout: 15000 });
     assert.equal(await text(panel.locator('[data-value-total] [data-total-amount]')), '$6.7M');
@@ -242,7 +242,7 @@ test('6: after a PUT answers succeeds, the card amount and the run total change 
     const amount = card.locator('[data-value-box] [data-value-amount]');
     await amount.waitFor({ timeout: 15000 });
     assert.equal(await text(amount), '$2.39M');
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     assert.equal(await text(page.locator('[data-value-run-panel] [data-value-total] [data-total-amount]')), '$5M');
     await toView(page, 'Use cases');
     await card.getByRole('button', { name: 'Edit value' }).click();
@@ -255,7 +255,7 @@ test('6: after a PUT answers succeeds, the card amount and the run total change 
     await page.waitForFunction(() => document.querySelector('[data-use-case-no="N01-U01"] [data-value-amount]')?.textContent.trim() === '$3M', null, { timeout: 15000 });
     assert.equal(state.puts.length, 1);
     await page.keyboard.press('Escape');
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     await page.waitForFunction(() => document.querySelector('[data-value-run-panel] [data-value-total] [data-total-amount]')?.textContent.trim() === '$5.61M', null, { timeout: 15000 });
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }

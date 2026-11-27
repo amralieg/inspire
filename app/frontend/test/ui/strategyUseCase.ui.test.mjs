@@ -60,7 +60,7 @@ test('the Strategy coverage card is gone; each use case names the goal and prior
   const { page } = ui;
   try {
     await ready(page);
-    await toView(page, 'Business');
+    await toView(page, 'Overview');
     await page.locator('[data-insights-grid]').waitFor();
     assert.equal(await page.locator('[data-insight="Strategy coverage"]').count(), 0, 'no Strategy coverage card');
     assert.equal(await page.getByText('use cases not aligned to any entry').count(), 0);

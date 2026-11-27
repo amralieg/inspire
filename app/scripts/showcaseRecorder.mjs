@@ -328,14 +328,17 @@ async function openTab(page, settle, id) {
   await settle();
 }
 
-// REQ-560: Assets lists the run's output folder; View opens each generated document in place, which reads its bytes (workspace/export).
+// REQ-560/REQ-570: Overview > Documents lists the run's output folder; View opens each generated document in place, which reads its bytes (workspace/export).
 const DOCUMENT_VIEW = /^View .*\.(pdf|pptx|docx|xlsx)$/i;
 export async function walkAssets(page, settle, { log = () => {} } = {}) {
-  const tab = page.getByRole('tab', { name: 'Assets' }).or(page.getByRole('button', { name: 'Assets', exact: true })).first();
+  const tab = page.getByRole('tab', { name: 'Overview' }).or(page.getByRole('button', { name: 'Overview', exact: true })).first();
   if (!(await shown(tab))) return 0;
   await tab.click();
+  const panel = page.locator('[data-overview-panel="documents"]');
+  if (!(await shown(panel))) return 0;
+  await panel.click();
   // no listed file is a result, not a hang: record-showcase.mjs refuses a walk with no documents, naming it
-  if (!(await shown(page.locator('[data-asset-row]').first()))) return 0;
+  if (!(await shown(page.locator('[data-doc-file]').first()))) return 0;
   await settle();
   const views = page.getByRole('button', { name: DOCUMENT_VIEW });
   const n = await views.count();
@@ -345,7 +348,7 @@ export async function walkAssets(page, settle, { log = () => {} } = {}) {
     await page.keyboard.press('Escape');
     await settle();
   }
-  log(`Assets: viewed ${n} generated documents`);
+  log(`Documents: viewed ${n} generated documents`);
   return n;
 }
 
