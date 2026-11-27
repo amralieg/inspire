@@ -583,8 +583,9 @@ test('REQ-078 REQ-448 Start: one totals read feeds every run card and the value 
     assert.equal(await page.locator('[data-value-all-panel] [data-all-runs-row]').count(), 0, 'no per-run table in the all-runs panel');
     assert.equal((await card.innerText()).trim(), (await panelTotal.innerText()).trim(), 'the run card says what the value panel says for the run');
     assert.match((await card.innerText()).trim(), /12/, 'the run card shows the run value');
-    // REQ-434: the run value carries the short disclaimer.
-    assert.equal(await page.locator('[data-run="42"] [data-run-value] [data-value-disclaimer]').count(), 1);
+    // REQ-434, REQ-576: the card no longer repeats the disclaimer; the page carries it once at the top.
+    assert.equal(await page.locator('[data-run="42"] [data-run-value] [data-value-disclaimer]').count(), 0);
+    assert.equal(await page.locator('[data-value-disclaimer]').count(), 1);
     const totalsReads = valueUrls.filter((u) => u.startsWith('/api/inspire/value/totals'));
     assert.equal(totalsReads.length, 1, `Start reads the totals once (StrictMode must not double it): ${valueUrls.join(' ')}`);
     assert.ok(!totalsReads[0].includes('session_id='), 'the read is all runs, not one run');

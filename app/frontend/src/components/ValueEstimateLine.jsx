@@ -1,5 +1,4 @@
 import { valueEstimateOf } from '../lib/v130UseCase';
-import ValueDisclaimer from './ValueDisclaimer';
 import { moneyText } from './ValueBox';
 import { VALUE_DISPLAY_CAP } from '../lib/valueLedger';
 
@@ -13,8 +12,7 @@ function RuleEstimateLine({ estimate, className, onSetRule, oneLine = false }) {
     return (
       <p data-value-estimate="estimated" className={base}>
         <span className="font-medium text-text-primary">Estimated {amountText(estimate.amount, estimate.currency)}</span>
-        {` · estimated with ${estimate.app}'s money rule `}
-        <ValueDisclaimer short />
+        {` · estimated with ${estimate.app}'s money rule`}
       </p>
     );
   }
@@ -55,5 +53,5 @@ export default function ValueEstimateLine({ uc = null, estimate: given = null, c
       {estimate.text}
     </p>
   );
-  return estimate.measured && !oneLine ? <>{line}<ValueDisclaimer short className="block" /></> : line;
+  return line;
 }

@@ -1,4 +1,3 @@
-import ValueDisclaimer from './ValueDisclaimer';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import ValueEstimateLine from './ValueEstimateLine';
@@ -23,7 +22,7 @@ export function RunValue({ row, onMeasure }) {
   if (valuedLine(v)) {
     return (
       <p data-value-estimate="value" className="truncate text-xs leading-snug text-text-secondary">
-        {`${v.verb || 'Value at stake'}: `}<span data-value-line-amount="" className="font-semibold tabular-nums text-text-primary">{boxMoneyText(v.currency, v.amount)}</span>{` a year (${VALUED[v.status]}) `}<ValueDisclaimer short />
+        {`${v.verb || 'Value at stake'}: `}<span data-value-line-amount="" className="font-semibold tabular-nums text-text-primary">{boxMoneyText(v.currency, v.amount)}</span>{` a year (${VALUED[v.status]})`}
       </p>
     );
   }

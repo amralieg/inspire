@@ -30,11 +30,12 @@ async function openPanel(entry, answers) {
   return { ui, panel };
 }
 
-test('a calculated value in the MVP value panel carries the full text under the number', async () => {
+test('a calculated value in the MVP value panel does not repeat the full text (REQ-576)', async () => {
   const { ui, panel } = await openPanel({ status: 'calculated', verb: 'REDUCE COST', amount: 2390000, currency: 'USD' }, { [ID]: answer });
   try {
     await panel.locator('[data-value-amount]').waitFor({ timeout: 15000 });
-    assert.ok((await panel.innerText()).replace(/\s+/g, ' ').includes(FULL), 'the full text is visible in the panel');
+    // REQ-576 (supersedes REQ-481 here): the disclaimer shows once at the top of the page, so the panel itself does not repeat it.
+    assert.ok(!(await panel.innerText()).replace(/\s+/g, ' ').includes(FULL), 'the panel does not repeat the full text');
   } finally { await ui.close(); }
 });
 

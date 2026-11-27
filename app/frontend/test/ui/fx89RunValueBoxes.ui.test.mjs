@@ -24,7 +24,7 @@ const mount = (app) => {
 };
 const text = async (loc) => (await loc.innerText()).replace(/\s+/g, ' ').trim();
 
-test('the Runs page: number-only all-runs panel, a red value box on every run, no cost-like label, a warning icon before every disclaimer', async () => {
+test('the Runs page: number-only all-runs panel, a neutral value box on every run, no cost-like label, a warning icon before every disclaimer', async () => {
   const ui = await openUi('app', REVIEW_STATE, '', { mount });
   const { page } = ui;
   try {
@@ -40,8 +40,8 @@ test('the Runs page: number-only all-runs panel, a red value box on every run, n
       const box = page.locator(`[data-run="${sid}"] [data-run-value-box]`);
       await box.waitFor({ timeout: 20000 });
       assert.ok((await text(box)).includes(want), `REQ-488: run ${sid} box shows ${want}, got "${await text(box)}"`);
-      assert.match(await box.evaluate((el) => getComputedStyle(el).borderTopColor), /rgb\(\s*(19[0-9]|2[0-9]{2}),\s*\d{1,2},\s*\d{1,2}\)|rgb\(\s*\d+,\s*\d+,\s*\d+\)/);
-      assert.ok(/border/.test(await box.getAttribute('class')) && /db-red|primary-solid/.test(await box.getAttribute('class')), 'REQ-488: red-themed border');
+      // REQ-576 (supersedes the REQ-488 red-themed box): a neutral card with a thin border token, never a red fill or border.
+      assert.ok(/border-border/.test(await box.getAttribute('class')) && !/db-red|primary-solid/.test(await box.getAttribute('class')), 'REQ-576: neutral border');
     }
     assert.ok(!/Value of this run/i.test(await page.locator('body').innerText()), 'REQ-489: "Value of this run" appears nowhere');
     assert.equal(await page.locator('[aria-label="Value of this run"]').count(), 0);

@@ -106,8 +106,9 @@ test('REQ-524: side panel, the value box is filled with white text, the score bo
     await page.waitForTimeout(700);
     const v = await paint(value);
     const s = await paint(reader.locator('[data-score-box]').first());
-    assert.equal(v.bg, v.primary, 'the value box is the primary-solid colour');
-    assert.equal(v.amount, 'rgb(255, 255, 255)', 'the amount is white');
+    // REQ-576 (supersedes REQ-524 fill): the value box is a neutral card, the amount is ink.
+    assert.notEqual(v.bg, v.primary, 'the value box is not the primary-solid colour');
+    assert.notEqual(v.amount, 'rgb(255, 255, 255)', 'the amount is ink, not white');
     assert.equal(s.bg, s.surface, 'the score box is the surface colour');
     assertPillInside(await rects(value), 'side panel');
     assert.deepEqual(ui.pageErrors, []);
@@ -137,7 +138,7 @@ test('REQ-524 must-keep: the Review row value box is still filled and its score 
     await row.locator('[data-value-yearly]').waitFor({ timeout: 15000 });
     const v = await paint(row.locator('[data-value-box]'));
     const s = await paint(row.locator('[data-score-box]'));
-    assert.equal(v.bg, v.primary);
+    assert.notEqual(v.bg, v.primary, 'REQ-576: the value box is a neutral card, not the primary fill');
     assert.equal(s.bg, s.surface);
   } finally { await ui.close(); }
 });

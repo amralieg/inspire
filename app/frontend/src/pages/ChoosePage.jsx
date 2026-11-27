@@ -1,5 +1,5 @@
 import { Fragment, useState, useEffect, useCallback, useMemo, useId } from 'react';
-import { Rocket, BarChart3, Loader2, AlertCircle, Clock, CheckCircle2, ArrowRight, ChevronRight, ChevronDown, ChevronUp, Eye, Target, FileText, Sparkles, X } from 'lucide-react';
+import { Rocket, BarChart3, Loader2, AlertCircle, Clock, CheckCircle2, ArrowRight, ChevronRight, ChevronDown, ChevronUp, Eye, Target, FileText, Sparkles, X, Search } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import MoreMenu from '../components/ui/MoreMenu';
 import Button from '../components/ui/Button';
@@ -16,11 +16,13 @@ import { useValueRead } from '../lib/useValueLedger';
 import { makeApiFetch, requestHeaders, responseError } from '../lib/apiClient';
 import { saveBlob } from '../lib/download';
 import { profileFileName, profileFileText } from '../lib/businessProfiles';
-import { buildFilterOf, portfolioCard, runCounts, runLabel, runFilterText, runsOfCard } from '../lib/reviewFigures';
+import { buildFilterOf, portfolioCard, runAverageScore, runCounts, runLabel, runFilterText, runSearchHit, runsOfCard } from '../lib/reviewFigures';
 import { sessionCountsLine, sessionStatus } from '../lib/monitorState';
 import { SHOWCASE_BUTTON } from '../lib/showcase';
 import { compareUseCaseRank, computeHighPriorityCount, nameOfUseCase, qualityBarCountsOf } from '../lib/useCaseFields';
 import { PlainMessage } from '../components/TechnicalDetails';
+import InspireScoreBadge from '../components/InspireScoreBadge';
+import RunCountChips from '../components/RunCountChips';
 
 const RUNS_ERROR_TEXT = 'Inspire could not load your runs, and you can still start a new one';
 
@@ -156,6 +158,8 @@ function getListRowOverview(session) {
       domains: api.domains == null ? null : Number(api.domains) || 0,
       unread: api.unread && typeof api.unread === 'object' ? api.unread : {},
       previewTitles: Array.isArray(api.preview_use_cases) ? api.preview_use_cases.map(nameOfUseCase).filter(Boolean) : [],
+      avgScore: runAverageScore(api),
+      searchTitles: Array.isArray(api.use_case_titles) ? api.use_case_titles : [],
     };
   }
   const legacy = getSessionSummary(session);
@@ -173,6 +177,8 @@ function getListRowOverview(session) {
       domains: legacy.domains,
       unread: {},
       previewTitles,
+      avgScore: runAverageScore(null, legacy.useCases),
+      searchTitles: legacy.useCases.map((uc) => nameOfUseCase(uc) || uc.usecase || '').filter(Boolean),
     };
   }
   if (fromApi) return { total: 0, unread: {}, previewTitles: [] };
@@ -188,6 +194,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   const [error, setError] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [runFilter, setRunFilter] = useState('');
+  const [query, setQuery] = useState('');
   const [showValue, setShowValue] = useState(false);
   const apiFetch = useMemo(() => makeApiFetch({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
   const { portfolio, error: portfolioError } = usePortfolio(apiFetch, inspireDatabase, warehouseId);
@@ -307,8 +314,16 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
     }
   };
 
-  const filtered = runFilter ? runsOfCard(runFilter, sessions, portfolio) : sessions;
-  const listed = runFilter || showAll ? filtered : filtered.slice(0, 5);
+  const byFilter = runFilter ? runsOfCard(runFilter, sessions, portfolio) : sessions;
+  // REQ-575: the search reads the run name and every use case title the list carries; each hit keeps the titles it matched.
+  const hits = new Map();
+  const filtered = query.trim() ? byFilter.filter((session) => {
+    const overview = getListRowOverview(session);
+    const hit = runSearchHit(runLabel(session), [...(overview?.searchTitles || []), ...(overview?.previewTitles || [])], query);
+    if (hit.match) hits.set(String(session.session_id), hit.titles);
+    return hit.match;
+  }) : byFilter;
+  const listed = runFilter || query.trim() || showAll ? filtered : filtered.slice(0, 5);
 
   if (loading) {
     return (
@@ -379,6 +394,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
 
         <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
 
+        {anyRunValue(allTotals) && <ValueDisclaimer />}
         {allTotals?.all && showValue && <AllRunsValuePanel reply={allTotals} />}
         {inspireDatabase && warehouseId && (
           <PortfolioCards portfolio={portfolio} error={portfolioError} sessions={sessions} active={runFilter} onCard={openCard} />
@@ -390,6 +406,12 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
             <h2 className="text-xs font-semibold text-text-secondary uppercase tracking-[0.1em]">Previous runs</h2>
           </div>
 
+          <div className="relative">
+            <Search size={14} aria-hidden className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+            <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search runs and use cases" placeholder="Search runs and use cases" dir="auto"
+              className="w-full rounded-lg border border-border bg-surface py-2 ps-9 pe-3 text-sm text-text-primary placeholder:text-text-tertiary focus-visible:outline-2 focus-visible:outline-offset-2" />
+          </div>
+
           {runFilter && (
             <div role="status" data-run-filter={runFilter} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-db-red/30 bg-db-red-50 px-3 py-2">
               <p className="min-w-0 text-[12px] font-medium text-db-red-fg">{runFilterText(runFilter, filtered.length, truncated)}</p>
@@ -398,8 +420,17 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                 onClick={() => setRunFilter('')}
                 className="inline-flex shrink-0 items-center gap-1 rounded-md border border-db-red/30 bg-surface px-2 py-1 text-xs font-semibold text-db-red-fg hover:bg-db-red-50"
               >
-                <X size={14} aria-hidden /> Clear
+                <X size={14} aria-hidden /> Clear filter
               </button>
+            </div>
+          )}
+
+          {listed.length === 0 && (query.trim() || runFilter) && (
+            <div data-runs-empty="" role="status" className="rounded-xl border border-dashed border-border px-5 py-6 text-center text-sm text-text-secondary">
+              <p>{query.trim() ? `No run or use case matches "${query.trim()}".` : 'No run has this.'}</p>
+              {query.trim() && (
+                <button type="button" onClick={() => setQuery('')} className="mt-2 rounded-md border border-border bg-surface px-2.5 py-1 text-xs font-semibold text-text-primary hover:bg-bg-subtle">Clear search</button>
+              )}
             </div>
           )}
 
@@ -457,11 +488,11 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                   className={`rounded-xl bg-surface/50 border transition-colors duration-200 ${isQuickOpen ? 'border-border-strong' : 'border-border hover:border-border-strong'}`}
                 >
                   {/* Main clickable row */}
-                  <div data-run={sidStr} className="group relative flex w-full items-center gap-4 px-5 py-4 rounded-xl hover:bg-surface transition-colors duration-200">
+                  <div data-run={sidStr} className="group relative flex w-full flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 rounded-xl hover:bg-surface transition-colors duration-200">
                   <button
                     type="button"
                     onClick={() => onViewResults(session.session_id, session.starting ? session.run_id : null)}
-                    className="flex min-w-0 flex-1 items-center gap-4 text-start before:absolute before:inset-0 before:rounded-xl before:content-['']"
+                    className="flex w-full min-w-0 items-center gap-4 text-start before:absolute before:inset-0 before:rounded-xl before:content-['']"
                   >
                     {/* Status indicator */}
                     <div className="flex-shrink-0 relative">
@@ -499,7 +530,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                             {mode}
                           </span>
                         )}
-                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${cfg.bg} ${cfg.text}`}>
+                        <span title={isCompleted && session.completed_on ? `Completed ${formatCompletedDate(session.completed_on)}` : undefined} className={`text-xs px-1.5 py-0.5 rounded font-medium ${cfg.bg} ${cfg.text}`}>
                           {cfg.label}
                         </span>
                         {session.profile_id && (
@@ -512,19 +543,11 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                         <PlainMessage as="p" text={profileError.message} role="alert" data-run-profile-error="" className="mt-1 text-xs text-error-fg" />
                       )}
                       <>
-                          {counts.items.length > 0 && (
-                            <ul data-run-counts="" aria-label="Counts for this run" className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs text-text-secondary">
-                              {counts.items.map((item) => (
-                                <li key={item.key} data-run-count={item.key} data-count-off={item.n == null ? '' : undefined}>
-                                  {item.n == null ? `${item.label} not counted` : item.text ? item.text : (
-                                    <><span className="font-semibold tabular-nums text-text-primary">{item.n.toLocaleString('en-US')}</span> {item.label}</>
-                                  )}
-                                </li>
-                              ))}
-                              {isCompleted && session.completed_on && <li className="text-text-tertiary">Completed {formatCompletedDate(session.completed_on)}</li>}
-                            </ul>
+                          {hits.get(sidStr)?.length > 0 && (
+                            <p data-run-match="" className="mt-1.5 text-xs text-text-secondary">
+                              Matches: {hits.get(sidStr).slice(0, 3).map((title, i) => <Fragment key={title}>{i ? ', ' : ''}<bdi className="font-medium text-text-primary">{title}</bdi></Fragment>)}
+                            </p>
                           )}
-                          {allTotals && <RunValueLine value={runValueOf(sidStr)} className="mt-3" />}
                           {counts.note && <p data-run-counts-note="" className="mt-1.5 text-xs text-text-secondary">{counts.note}</p>}
                           {counts.why.map((line) => (
                             <p key={line} data-run-counts-why="" className="mt-0.5 text-xs leading-snug text-text-secondary">{line}</p>
@@ -543,9 +566,15 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                       </>
                     </div>
 
+                    <div data-run-aside="" className="flex shrink-0 items-start gap-3">
+                      <InspireScoreBadge row score={listOverview?.avgScore ?? null} />
+                      {allTotals && <div className="w-60 min-w-0"><RunValueLine value={runValueOf(sidStr)} compact /></div>}
+                    </div>
                   </button>
 
-                    <div className="flex-shrink-0 flex items-center gap-2">
+                  <RunCountChips items={counts.items} active={runFilter}
+                    onToggle={(key) => setRunFilter((prev) => (prev === key ? '' : key))} />
+                    <div className="relative z-10 ms-auto flex flex-shrink-0 items-center gap-2">
                       <div className="relative z-10">
                         <MoreMenu label={`More for ${name}`} items={[
                           { label: 'Download profile', disabled: !session.profile_id, onSelect: () => downloadProfile(session.profile_id, sidStr) },
@@ -714,7 +743,6 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
             </div>
           </div>
         )}
-        {anyRunValue(allTotals) && <ValueDisclaimer footer />}
       </div>
     </div>
   );

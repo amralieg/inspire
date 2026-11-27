@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import ValueDisclaimer from './ValueDisclaimer';
 import { moneyText } from './ValueBox';
 
 // REQ-438: "How we got this number": each part of the value as its inputs joined by ×, green for data and amber for an estimate.
@@ -49,7 +48,6 @@ export default function ValueHow({ yearly, onOpen }) {
             {` · ${who}.`}
           </p>
           <p className="flex flex-wrap items-center gap-x-2">
-            <ValueDisclaimer short />
             {onOpen && <button type="button" onClick={onOpen} className="font-semibold text-db-red-fg hover:underline underline-offset-2">Open the full calculation</button>}
           </p>
         </div>

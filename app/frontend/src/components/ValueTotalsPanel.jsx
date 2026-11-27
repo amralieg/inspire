@@ -1,7 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { moneyText } from './ValueBox';
 import { ValueCheckNote } from './ValueCheckNote';
-import ValueDisclaimer from './ValueDisclaimer';
 import Badge from './ui/Badge';
 import { valueChips } from '../lib/valueLedger';
 import { plural as pluralOf } from '../lib/plural';
@@ -11,6 +10,9 @@ import { STATUS_LABELS, statusCounts, statusLabelOf } from '../lib/valueLabels';
 // Amounts are per currency; two currencies show two totals, never one converted number.
 const GREEN = 'color-mix(in srgb, var(--color-success) 70%, black)';
 const AMBER = 'var(--color-warning)';
+// REQ-576: the status dot sits on the neutral card, so it takes the foreground tokens (>= 3:1 on the surface in light and dark).
+const DOT_GREEN = 'var(--color-success-fg)';
+const DOT_AMBER = 'var(--color-warning-fg)';
 const PALETTE = ['var(--color-error-solid)', 'color-mix(in srgb, var(--color-info) 80%, black)', 'color-mix(in srgb, color-mix(in srgb, var(--color-info) 50%, var(--color-error-solid)) 80%, black)', 'color-mix(in srgb, color-mix(in srgb, var(--color-info) 50%, var(--color-success)) 75%, black)', 'color-mix(in srgb, var(--color-warning) 60%, black)'];
 
 // FX-34 (W16 D1/D8): a segment label that does not fit its segment is hidden; the tooltip and the legend under the bar carry it.
@@ -61,9 +63,9 @@ export function Bar({ parts, label }) {
 
 export function TotalBox({ label, totals, sub }) {
   return (
-    <div data-value-total="" className="flex min-w-[9rem] flex-col items-center justify-center rounded-xl border-2 border-primary-solid bg-surface px-4 py-3 text-center">
+    <div data-value-total="" className="flex min-w-[9rem] flex-col items-center justify-center rounded-xl border border-border bg-surface px-4 py-3 text-center">
       <span className="text-caption tracking-wide text-text-primary">{label}</span>
-      {totals.length ? totals.map((t) => <span key={t.currency} data-total-amount="" className="text-[22px] font-extrabold tabular-nums text-db-red-fg">{moneyText(t.currency, t.amount)}</span>)
+      {totals.length ? totals.map((t) => <span key={t.currency} data-total-amount="" className="text-[22px] font-extrabold tabular-nums text-text-primary">{moneyText(t.currency, t.amount)}</span>)
         : <span data-total-amount="" className="text-[22px] font-extrabold text-text-tertiary">None yet</span>}
       <span className="text-caption text-text-secondary">{sub}</span>
       <span className="text-caption text-text-secondary">Per year</span>
@@ -102,7 +104,7 @@ function CountNotes({ run }) {
 
 // RC6-B-07: the provisional values the total leaves out, each with its plain reason, and their sum per currency.
 // RC7-B-14: every amount a use case adds less than it is worth (counted once, outside the range, scaled by the run review) is left out of the
-// total, so the split names the raw sums and one line names the left-out sum: Reviewed + Provisional - left out = the header total.
+// total, so the split names the raw sums and one line names the sum not counted: Reviewed + Provisional - not counted = the header total.
 export function provisionalOf(useCases, nameOf) {
   const sums = { estimated: {}, calculated: {} };
   const leftOut = {};
@@ -168,7 +170,6 @@ export function RunValuePanel({ run, useCases, nameOf, onRow }) {
               {run.review?.reason && <span data-run-review-reason="" className="block text-caption font-normal text-text-secondary">{run.review.reason}</span>}</td></tr>
         </tbody>
       </table>
-      <ValueDisclaimer className="mt-2" />
     </section>
   );
 }
@@ -186,7 +187,6 @@ export function AllRunsValuePanel({ reply }) {
           <RunValueKinds value={all} className="text-[12px] text-text-secondary" />
         </div>
       </div>
-      <ValueDisclaimer className="mt-2" />
     </section>
   );
 }
@@ -209,42 +209,57 @@ export function RunValueKinds({ value, className = '' }) {
 
 // FX-34 (W16 D2/D3/D9): one line for the value of a run, from the run value the server computes once (valueTotals.runValueOf).
 // The Start bars, the run card and the Review header all render it, so they cannot disagree.
-export function RunValueTotal({ value, red = false }) {
+export function RunValueTotal({ value, neutral = false }) {
   const totals = value?.totals || [];
   if (!totals.length) return <Badge data-run-value-state="not-calculated">Not calculated</Badge>;
   // Green when the total is calculated, amber when any of it is only estimated.
   const calculated = Number(value?.n_calculated) > 0 && !(Number(value?.n_estimated) > 0);
   return (
-    <span data-run-value-total="" data-run-value-state={calculated ? 'calculated' : 'estimated'} className={red ? 'text-white' : calculated ? 'text-success-fg' : 'text-warning-fg'}>
+    <span data-run-value-total="" data-run-value-state={calculated ? 'calculated' : 'estimated'} className={neutral ? 'text-text-primary' : calculated ? 'text-success-fg' : 'text-warning-fg'}>
       {totals.map((t) => moneyText(t.currency, t.amount)).join(' + ')}
       {value?.review && value.review.ai_checked === false && <span data-run-not-ai-checked="" className="ms-1 text-caption font-normal text-text-secondary">Not checked by AI</span>}
     </span>
   );
 }
 
-// REQ-488: the run's total in a red-themed box (the ALL RUNS box, smaller). The green/amber dot and word say calculated or estimated.
-export function RunValueLine({ value, label = 'Business value at stake', className = '' }) {
+const shortCounts = (value) => {
+  const calc = Number(value?.n_calculated) || 0;
+  const est = Number(value?.n_estimated) || 0;
+  const parts = [calc > 0 && `${calc} calculated`, est > 0 && `${est} ${est === 1 ? 'estimate' : 'estimates'}`].filter(Boolean);
+  return parts.length ? parts.join(' + ') : '0 estimates';
+};
+
+// REQ-488, REQ-576: the run's total in a neutral card (the ALL RUNS box, smaller; no red fill). The green/amber dot and word say calculated or estimated.
+export function RunValueLine({ value, label = 'Business value at stake', className = '', compact = false }) {
   const totals = value?.totals || [];
   const calculated = Number(value?.n_calculated) > 0 && !(Number(value?.n_estimated) > 0);
   const n = value ? statusCounts(value.n_calculated ?? 0, value.n_estimated ?? 0) : '';
   return (
     <div data-run-value="" className={`text-caption text-text-secondary ${className}`}>
       {totals.length > 0 ? (
-        <div data-run-value-box="" className="inline-flex min-w-[8rem] flex-col rounded-lg border-2 border-primary-solid bg-primary-solid px-3 py-1.5 text-white">
-          <span className="font-semibold uppercase tracking-wide text-white">{label}</span>
-          <span className="text-[18px] font-extrabold tabular-nums"><RunValueTotal value={value} red /></span>
-          <span className="inline-flex items-center gap-1 text-caption text-white">
-            <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full ring-2 ring-white" style={{ background: calculated ? GREEN : AMBER }} />{statusLabelOf(calculated ? 'calculated' : 'estimated').toLowerCase()}
-            <span>{`(${n})`}</span>
-          </span>
+        <div data-run-value-box="" className="inline-flex min-w-[8rem] flex-col rounded-lg border border-border bg-surface px-3 py-1.5">
+          <span data-run-phrase="" className={`font-semibold uppercase tracking-wide text-text-secondary ${compact ? 'whitespace-nowrap' : ''}`}>{label}</span>
+          <span className="text-[18px] font-extrabold tabular-nums"><RunValueTotal value={value} neutral /></span>
+          {compact ? (
+            // Narrow column: the dot sits inline before short phrases, each kept whole; the full wording is the tooltip.
+            <span title={`${statusLabelOf(calculated ? 'calculated' : 'estimated').toLowerCase()} (${n})`} className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-caption text-text-secondary">
+              <span data-run-dot="" aria-hidden="true" className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: calculated ? DOT_GREEN : DOT_AMBER }} />
+              <span data-run-phrase="" className="whitespace-nowrap">{calculated ? 'calculated' : 'provisional'}</span>
+              <span data-run-phrase="" className="whitespace-nowrap">{`· ${shortCounts(value)}`}</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-caption text-text-secondary">
+              <span data-run-dot="" aria-hidden="true" className="inline-block h-2 w-2 rounded-full" style={{ background: calculated ? DOT_GREEN : DOT_AMBER }} />{statusLabelOf(calculated ? 'calculated' : 'estimated').toLowerCase()}
+              <span>{`(${n})`}</span>
+            </span>
+          )}
         </div>
       ) : (
-        <div data-run-value-box="" className="inline-flex min-w-[8rem] flex-col gap-1 rounded-lg border-2 border-dashed border-primary-solid bg-surface px-3 py-1.5">
+        <div data-run-value-box="" className="inline-flex min-w-[8rem] flex-col gap-1 rounded-lg border border-dashed border-border bg-surface px-3 py-1.5">
           <span className="font-semibold uppercase tracking-wide text-text-primary">{label}</span>
           <RunValueTotal value={value} />
         </div>
       )}
-      {totals.length > 0 && <div className="mt-1"><ValueDisclaimer short /></div>}
       <RunValueKinds value={value} className="mt-1" />
     </div>
   );

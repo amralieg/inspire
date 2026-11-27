@@ -106,11 +106,10 @@ export default function ValueBox({ yearly = null, summary = null, status = '', c
       </button>
     );
   }
-  // REQ-516, REQ-524: the value box is filled with the primary token and the figure is white, in the Review row and in the side panel
-  // (dark mode keeps the light red so white stays above 4.5:1). Every verb, GROW included, takes the same fill.
-  const fill = 'border-primary-solid bg-primary-solid text-white';
-  const amt = 'text-white';
-  const sub = 'text-white';
+  // REQ-576: the value box is a neutral card (surface, thin border, strong ink); no red fill, so the green and amber status pill never sits on red.
+  const fill = 'border-border bg-surface text-text-secondary';
+  const amt = 'text-text-primary';
+  const sub = 'text-text-secondary';
   const [tag, tagCls] = TAGS[m.state];
   const text = moneyText(m.unit, amount);
   const note = <ValueCheckNote check={yearly?.check} notCounted={!m.calculated && m.state !== 'measured'} />;

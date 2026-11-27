@@ -90,8 +90,9 @@ test('1: a calculated card shows two boxes of the same size, the score box solid
     assert.notEqual(got.bg, probe, 'the score box is not the solid red token');
     assert.notEqual(got.fg, 'rgb(255, 255, 255)');
     const vgot = await value.evaluate((el) => ({ bg: getComputedStyle(el).backgroundColor, fg: getComputedStyle(el.querySelector('[data-value-amount]')).color }));
-    assert.equal(vgot.bg, probe, 'the value box is the solid red token');
-    assert.equal(vgot.fg, 'rgb(255, 255, 255)');
+    // REQ-576 (supersedes REQ-516 A7): the value box is a neutral card, not the red token; its amount is strong ink.
+    assert.notEqual(vgot.bg, probe, 'the value box is not the solid red token');
+    assert.notEqual(vgot.fg, 'rgb(255, 255, 255)');
     assert.match(await text(score), /INSPIRE\s*7\.4\s*score/i);
     assert.equal((await text(value.locator('[data-value-verb]'))).toUpperCase(), 'REDUCE COST');
     assert.equal(await text(value.locator('[data-value-amount]')), '$2.39M');
@@ -115,9 +116,10 @@ test('2: estimated, out of date, GROW REVENUE, none and no data each read as the
         assert.equal((await text(v.locator('[data-value-verb]'))).toUpperCase(), 'GROW REVENUE');
         // REQ-516 (A7): every value box in the row is filled with the primary token and the figure is white, GROW REVENUE included.
         const colors = await v.evaluate((el) => ({ bg: getComputedStyle(el).backgroundColor, amount: getComputedStyle(el.querySelector('[data-value-amount]')).color }));
-        assert.equal(colors.amount, 'rgb(255, 255, 255)', `white amount: ${colors.amount}`);
+        // REQ-576 (supersedes the REQ-516 red fill): a neutral card with a dark-ink amount, never a red fill.
+        assert.notEqual(colors.amount, 'rgb(255, 255, 255)', `ink amount: ${colors.amount}`);
         const [r, g, b] = colors.bg.match(/\d+/g).map(Number);
-        assert.ok(r > g && r > b, `red fill: ${colors.bg}`);
+        assert.ok(!(r > g + 60 && r > b + 60), `no red fill: ${colors.bg}`);
       }],
     ['none', { answers: {}, totals: withTotals('N01-U01', useCaseEntry('none')) },
       async (card) => {

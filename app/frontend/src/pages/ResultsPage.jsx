@@ -1319,6 +1319,7 @@ export default function ResultsPage({
           {linkNote && <p role="alert" data-review-link-note="" className="rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-[12px] font-medium text-warning-fg">{linkNote}</p>}
         </div>
       )}
+      {(valueTotals?.run?.totals?.length > 0 || anyValued(valueTotals?.use_cases)) && <ValueDisclaimer className="mb-3" />}
       {!embedded && results && (
         <section aria-label="This run" data-run-box="" className="mb-3 mt-4 flex flex-wrap items-center gap-x-7 gap-y-3 rounded-2xl border border-db-red/20 bg-linear-to-r from-db-red-50 to-surface px-5 py-3.5">
           <div data-run-heading="" className="min-w-0">
@@ -1548,7 +1549,7 @@ export default function ResultsPage({
               <Loader2 size={14} className="animate-spin text-warning-fg shrink-0" />
               <div className="flex-1">
                 <span className="text-sm font-semibold text-warning-fg">Live Preview</span>
-                <span className="text-xs text-text-secondary ms-2">
+                <span className="text-xs text-text-primary ms-2">
                   <span data-testid="live-use-case-count">{liveCountText(builtUseCases.length)}</span>, the same count as Monitor.
                   The final catalog keeps the ones that pass every check. Results will be enriched as the pipeline progresses. {START_MVP_LABEL} opens on each use case once the run has saved it.
                 </span>
@@ -2385,7 +2386,6 @@ export default function ResultsPage({
           } : null}
         />
       )}
-      {(valueTotals?.run?.totals?.length > 0 || anyValued(valueTotals?.use_cases)) && <ValueDisclaimer footer />}
     </div>
   );
 }

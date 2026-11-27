@@ -1598,8 +1598,8 @@ export default function ImplementWizard({
             {genieOff && (
               <div role="note" aria-label={GENIE_CODE_OFF_TITLE} className="rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-[12px] space-y-1">
                 <p className="font-semibold text-text-primary">{GENIE_CODE_OFF_TITLE}</p>
-                <p className="text-text-secondary">{genieOff.reason}</p>
-                {genieOff.fix && <p className="text-text-secondary">Admin fix: {genieOff.fix}</p>}
+                <p className="text-text-primary">{genieOff.reason}</p>
+                {genieOff.fix && <p className="text-text-primary">Admin fix: {genieOff.fix}</p>}
               </div>
             )}
           </>

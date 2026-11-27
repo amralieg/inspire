@@ -1,5 +1,5 @@
 import OUTPUT_LABELS from '../../../backend/lib/implementOutputLabels.json' with { type: 'json' };
-import { displayCleanText } from './useCaseFields.js';
+import { displayCleanText, inspireScoreFromUc } from './useCaseFields.js';
 import { qualityBarCountText } from './qualityBarWording.js';
 import { sessionSucceeded } from './monitorState.js';
 
@@ -64,7 +64,33 @@ const RUN_FILTERS = {
   use_cases: (session, portfolio) => figureOf(portfolio, session, 'use_cases') > 0,
   domains: (session, portfolio) => figureOf(portfolio, session, 'domains') > 0,
   best_of_best: (session, portfolio) => figureOf(portfolio, session, 'best_of_best') > 0,
+  // REQ-575: the chips on a run card filter by the same rule, a run that has at least one of the thing the chip counts.
+  quality_bar: (session) => Number(session?.usecase_overview?.meets) > 0,
+  high_priority: (session) => Number(session?.usecase_overview?.high) > 0,
+  mvps_built: (session, portfolio) => figureOf(portfolio, session, 'mvps_live') > 0,
+  mvps_building: (session, portfolio) => figureOf(portfolio, session, 'mvps_building') > 0,
+  mvps_failed: (session, portfolio) => figureOf(portfolio, session, 'mvps_failed') > 0,
 };
+
+export const RUN_CHIP_KEYS = ['use_cases', 'quality_bar', 'high_priority', 'domains', 'mvps_built', 'mvps_building', 'mvps_failed'];
+
+// REQ-575: the average Inspire score of a run's use cases, one formula (inspireScoreFromUc). The server sends the average of the whole run; a run read from
+// embedded results has its use cases here.
+export function runAverageScore(overview, useCases) {
+  const sent = overview?.avg_inspire_score;
+  if (sent != null && Number.isFinite(Number(sent))) return Number(sent);
+  const scores = (Array.isArray(useCases) ? useCases : []).map(inspireScoreFromUc).filter((n) => n != null && Number.isFinite(n));
+  return scores.length ? scores.reduce((sum, n) => sum + n, 0) / scores.length : null;
+}
+
+// REQ-575: what a search finds in a run: its name, and the titles of its use cases that contain the words typed.
+export function runSearchHit(name, titles, query) {
+  const words = String(query || '').toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return { match: true, titles: [] };
+  const has = (text, ...w) => w.every((word) => String(text).toLowerCase().includes(word));
+  const found = [...new Set(titles || [])].filter((title) => has(title, ...words));
+  return { match: has(name, ...words) || found.length > 0, titles: found };
+}
 
 export function runsOfCard(key, sessions, portfolio) {
   const keep = RUN_FILTERS[key];
@@ -76,7 +102,9 @@ const UNREAD_LABELS = { quality: 'Quality', high: 'High priority', domains: 'Dom
 
 const qualityItem = (total, meetsValue, mode) => {
   const meets = countOf(meetsValue);
-  return meets == null ? { key: 'quality_bar', n: null, label: 'quality bar' } : { key: 'quality_bar', n: meets, label: '', text: qualityBarCountText(total, meets, mode) };
+  // REQ-575: the chip reads like the others ("2 good quality"); the long sentence is its title.
+  return meets == null ? { key: 'quality_bar', n: null, label: 'quality bar' }
+    : { key: 'quality_bar', n: meets, label: `${String(mode || 'Good').toLowerCase()} quality`, title: qualityBarCountText(total, meets, mode) };
 };
 
 export function runCounts(overview, portfolio, session, { running = false, mvpError = '' } = {}) {
@@ -147,6 +175,11 @@ export function runFilterText(key, shown, truncated = false) {
     use_cases: `the ${runs} that found use cases`,
     domains: `the ${runs} that found domains`,
     best_of_best: `the ${runs} with Best of Best use cases`,
+    quality_bar: `the ${runs} with use cases that meet the quality bar`,
+    high_priority: `the ${runs} with high priority use cases`,
+    mvps_built: `the ${runs} with MVPs built`,
+    mvps_building: `the ${runs} with MVPs being built`,
+    mvps_failed: `the ${runs} with failed MVPs`,
   }[key];
   if (!text) return '';
   return `Showing: ${text}${truncated ? ', from the newest 1,000 runs' : ''}`;

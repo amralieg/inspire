@@ -105,7 +105,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
       {!canCallApi && (
         <div className="mb-6 p-4 rounded-lg border border-warning/30 bg-warning-bg flex gap-3">
           <AlertCircle size={16} className="text-warning-fg shrink-0 mt-0.5" />
-          <p className="text-sm text-text-secondary">
+          <p className="text-sm text-text-primary">
             Connect your workspace first in Workspace setup.
           </p>
         </div>

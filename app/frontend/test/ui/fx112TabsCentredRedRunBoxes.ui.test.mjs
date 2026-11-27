@@ -45,7 +45,7 @@ const mount = (app) => {
   app.get('/api/inspire/value/totals', (req, res) => totalsQueryMissing(req, res) || res.json(TOTALS));
 };
 
-test('REQ-505: each run with a value shows it in a solid red box with white text; a run with none shows a dashed box', async () => {
+test('REQ-505, REQ-576: each run with a value shows it in a neutral box with strong ink text; a run with none shows a dashed box', async () => {
   const ui = await openUi('app', REVIEW_STATE, '', { mount });
   const { page } = ui;
   try {
@@ -55,11 +55,15 @@ test('REQ-505: each run with a value shows it in a solid red box with white text
       const box = page.locator(`[data-run="${sid}"] [data-run-value-box]`);
       await box.waitFor({ timeout: 20000 });
       const [r, g, b] = rgb(await box.evaluate((el) => getComputedStyle(el).backgroundColor));
-      assert.ok(r >= 180 && g <= 90 && b <= 90, `run ${sid}: solid red background, got rgb(${r},${g},${b})`);
+      // REQ-576 (supersedes the solid red fill of REQ-505): the box is a neutral card, never red.
+      assert.ok(!(r > g + 60 && r > b + 60), `run ${sid}: neutral background, not red, got rgb(${r},${g},${b})`);
       const amount = box.getByText(want, { exact: false }).first();
       await amount.waitFor();
       const [tr, tg, tb] = rgb(await amount.evaluate((el) => getComputedStyle(el).color));
-      assert.ok(tr >= 240 && tg >= 240 && tb >= 240, `run ${sid}: white value text, got rgb(${tr},${tg},${tb})`);
+      // REQ-576: strong ink on the neutral card, at least 4.5:1.
+      const lum = ([x, y, z]) => [x, y, z].map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }).reduce((s, c, i) => s + c * [0.2126, 0.7152, 0.0722][i], 0);
+      const [hi, lo] = [lum([tr, tg, tb]), lum([r, g, b])].sort((x, y) => y - x);
+      assert.ok((hi + 0.05) / (lo + 0.05) >= 4.5, `run ${sid}: value text rgb(${tr},${tg},${tb}) on rgb(${r},${g},${b}) is >= 4.5:1`);
     }
     const none = page.locator('[data-run="51"] [data-run-value-state="not-calculated"]');
     await none.waitFor({ timeout: 20000 });
