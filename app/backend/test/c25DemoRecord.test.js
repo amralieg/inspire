@@ -45,6 +45,6 @@ test('the leak scan reads the text of a document: a real host or email inside a 
   const bundleOf = (bytes) => ({ inspire: { 'GET /api/workspace/export?path=a.pdf': { status: 200, body: bytes.toString('base64'), base64: true, type: 'application/pdf' } } });
   assert.deepEqual(showcaseLeaks(bundleOf(pdf('Prepared for the demo business'))), []);
   assert.equal(showcaseLeaks(bundleOf(pdf(`see https://adb-1.${['azure', 'databricks'].join('')}.net/x`))).length > 0, true);
-  assert.equal(showcaseLeaks(bundleOf(zip('ppt/slides/slide1.xml', '<a:t>owner jane.doe@acme.com</a:t>'))).length > 0, true);
+  assert.equal(showcaseLeaks(bundleOf(zip('ppt/slides/slide1.xml', `<a:t>owner ${['jane.doe', 'corp.org'].join('@')}</a:t>`))).length > 0, true);
   assert.equal(showcaseLeaks(bundleOf(pdf('warehouse 0a1b2c3d4e5f6a7b'))).length > 0, true);
 });

@@ -331,8 +331,11 @@ async function openTab(page, settle, id) {
 // REQ-560: Assets lists the run's output folder; View opens each generated document in place, which reads its bytes (workspace/export).
 const DOCUMENT_VIEW = /^View .*\.(pdf|pptx|docx|xlsx)$/i;
 export async function walkAssets(page, settle, { log = () => {} } = {}) {
-  await page.getByRole('tab', { name: 'Assets' }).or(page.getByRole('button', { name: 'Assets', exact: true })).first().click();
-  await page.locator('[data-asset-row]').first().waitFor({ timeout: 120000 });
+  const tab = page.getByRole('tab', { name: 'Assets' }).or(page.getByRole('button', { name: 'Assets', exact: true })).first();
+  if (!(await shown(tab))) return 0;
+  await tab.click();
+  // no listed file is a result, not a hang: record-showcase.mjs refuses a walk with no documents, naming it
+  if (!(await shown(page.locator('[data-asset-row]').first()))) return 0;
   await settle();
   const views = page.getByRole('button', { name: DOCUMENT_VIEW });
   const n = await views.count();
@@ -496,8 +499,11 @@ export async function walkInspireDemo(page, { settle, log = () => {}, mvps = tru
     reviewed = opened;
     log(`Review: opened ${opened} of ${n} use cases`);
     assets = await walkAssets(page, settle, { log });
-    await page.getByRole('tab', { name: 'Use cases' }).or(page.getByRole('button', { name: 'Use cases', exact: true })).first().click();
-    await settle();
+    const back = page.getByRole('tab', { name: 'Use cases' }).or(page.getByRole('button', { name: 'Use cases', exact: true })).first();
+    if (assets !== null && (await back.count())) {
+      await back.click();
+      await settle();
+    }
   }
   const build = [];
   let listed = null;
