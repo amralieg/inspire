@@ -326,7 +326,7 @@ export default function ResultsPage({
 
   const [portfolioTick, setPortfolioTick] = useState(0);
   const { portfolio } = usePortfolio(apiFetch, inspireDb, warehouseId, portfolioTick);
-  const runValueUrl = selectedSessionId && inspireDb && warehouseId && !showcase
+  const runValueUrl = selectedSessionId && inspireDb && warehouseId
     ? `/api/inspire/value?${valueQuery(inspireDb, warehouseId, { session_id: String(selectedSessionId) })}`
     : '';
   const runValue = useValueRead(apiFetch, runValueUrl, implementRefresh);
@@ -339,7 +339,7 @@ export default function ResultsPage({
   const totalsUrl = runValueUrl ? runValueUrl.replace('/api/inspire/value?', '/api/inspire/value/totals?') : '';
   const valueTotals = useValueRead(apiFetch, totalsUrl, implementRefresh * 1000 + valueTick);
   // FX-104 (REQ-487, REQ-488): the Change run list reads the same all-runs totals the Start page reads: a value box per run and the all-runs number.
-  const allRunsUrl = inspireDb && warehouseId && !showcase && !embedded ? `/api/inspire/value/totals?${valueQuery(inspireDb, warehouseId)}` : '';
+  const allRunsUrl = inspireDb && warehouseId && !embedded ? `/api/inspire/value/totals?${valueQuery(inspireDb, warehouseId)}` : '';
   const allTotals = useValueRead(apiFetch, allRunsUrl, valueTick);
   const runValueOf = (sid) => (allTotals?.runs || []).find((r) => String(r.session_id) === String(sid))?.run_value || null;
 
@@ -1200,8 +1200,8 @@ export default function ResultsPage({
 
   // Auto-load artifacts to discover notebook paths and document previews (server PAT counts as auth)
   useEffect(() => {
-    if (!generationPath || showcase) return;
-    if (!token && !serverEnvHasPat) return;
+    if (!generationPath) return;
+    if (!showcase && !token && !serverEnvHasPat) return;
     const k = `${selectedSessionId}|${generationPath}`;
     if (lastArtifactsLoadKeyRef.current === k) return;
     lastArtifactsLoadKeyRef.current = k;
@@ -2176,7 +2176,7 @@ export default function ResultsPage({
               {docsRun.run?.sessionId === String(selectedSessionId ?? '') && <DocsRunProgress />}
               {bulkOn && filteredUseCases.length > 0 && (
                 <ValueBulkBar shown={filteredUseCases.filter((uc) => trackingIdOf(uc)).length} selected={bulkIds.length} onCalculate={startBulk} busy={Boolean(bulkRun.run?.running)}
-                  onGenerate={() => (showcase ? setDemoRefusal(readOnlyReason(true)) : setDocsUcs(pickedUseCases()))} onBuild={canImplement ? () => startBuildQueue(pickedUseCases()) : null}
+                  onGenerate={() => setDocsUcs(pickedUseCases())} onBuild={canImplement ? () => startBuildQueue(pickedUseCases()) : null}
                   onClear={() => setBulkPicked(new Set())}
                   onSelectAll={(on) => setBulkPicked(on ? new Set(filteredUseCases.map((uc) => trackingIdOf(uc)).filter(Boolean)) : new Set())} />
               )}
@@ -2233,7 +2233,7 @@ export default function ResultsPage({
                         open={expandedUseCase === key}
                         onOpen={() => setExpandedUseCase(expandedUseCase === key ? null : key)}
                         selection={bulkOn && tid ? { checked: bulkPicked.has(tid), onChange: (on) => setBulkPick(tid, on) } : null}
-                        onGenerateDocs={tid ? () => (showcase ? setDemoRefusal(readOnlyReason(true)) : setDocsUcs([uc])) : undefined}
+                        onGenerateDocs={tid ? () => setDocsUcs([uc]) : undefined}
                         docsMade={Boolean(uc.docs_generated_at)}
                         {...cardProps}
                       />
@@ -2344,7 +2344,6 @@ export default function ResultsPage({
                 setGenieQuickAccessExpanded={setGenieQuickAccessExpanded}
                 settings={settings}
                 settingsNotebookPath={settingsNotebookPath}
-                showcase={showcase}
                 toggleFolder={toggleFolder}
                 togglePreview={togglePreview}
               />

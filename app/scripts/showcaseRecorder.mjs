@@ -223,11 +223,20 @@ function refuse(route, blocked, method, pathname) {
   return route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: SHOWCASE_READ_ONLY, showcase: true }) });
 }
 
+const isDocumentExport = (method, url, type) => String(method).toUpperCase() === 'GET' && new URL(url).pathname === '/api/workspace/export'
+  && /(pdf|officedocument|msword|ms-excel|ms-powerpoint|octet-stream|zip)/i.test(type);
+
 async function passOn(route, exchanges, { url, headers, postData }, shape = (body) => body) {
   const request = route.request();
   const response = await route.fetch({ url, method: request.method(), headers, postData });
-  const text = await response.text();
   const type = response.headers()['content-type'] || '';
+  // REQ-560: a generated PDF, PPTX, DOCX or XLSX is binary; keep its bytes (base64), never a lossy text read of them.
+  if (isDocumentExport(request.method(), url, type) && response.status() < 300) {
+    const bytes = await response.body();
+    exchanges.push({ method: request.method(), url: request.url(), status: response.status(), body: bytes.toString('base64'), base64: true, type });
+    return route.fulfill({ response, body: bytes });
+  }
+  const text = await response.text();
   const plain = Boolean(type) && !/json/i.test(type);
   const got = parsed(text);
   const body = plain ? text : response.status() < 300 ? shape(got) : got;
@@ -317,6 +326,24 @@ export function tabButton(page, id) {
 async function openTab(page, settle, id) {
   await tabButton(page, id).click();
   await settle();
+}
+
+// REQ-560: Assets lists the run's output folder; View opens each generated document in place, which reads its bytes (workspace/export).
+const DOCUMENT_VIEW = /^View .*\.(pdf|pptx|docx|xlsx)$/i;
+export async function walkAssets(page, settle, { log = () => {} } = {}) {
+  await page.getByRole('tab', { name: 'Assets' }).or(page.getByRole('button', { name: 'Assets', exact: true })).first().click();
+  await page.locator('[data-asset-row]').first().waitFor({ timeout: 120000 });
+  await settle();
+  const views = page.getByRole('button', { name: DOCUMENT_VIEW });
+  const n = await views.count();
+  for (let i = 0; i < n; i += 1) {
+    await views.nth(i).click();
+    await settle();
+    await page.keyboard.press('Escape');
+    await settle();
+  }
+  log(`Assets: viewed ${n} generated documents`);
+  return n;
 }
 
 async function walkReviewRuns(page, settle) {
@@ -450,6 +477,7 @@ export async function walkInspireDemo(page, { settle, log = () => {}, mvps = tru
   let runs = null;
   let n = null;
   let reviewed = null;
+  let assets = null;
   if (doing.has('review')) {
     runs = await walkReviewRuns(page, settle);
     log(`Review: opened ${runs} run cards`);
@@ -467,6 +495,9 @@ export async function walkInspireDemo(page, { settle, log = () => {}, mvps = tru
     }
     reviewed = opened;
     log(`Review: opened ${opened} of ${n} use cases`);
+    assets = await walkAssets(page, settle, { log });
+    await page.getByRole('tab', { name: 'Use cases' }).or(page.getByRole('button', { name: 'Use cases', exact: true })).first().click();
+    await settle();
   }
   const build = [];
   let listed = null;
@@ -507,7 +538,7 @@ export async function walkInspireDemo(page, { settle, log = () => {}, mvps = tru
   if (start) log(`Start: ${start.runs} runs, ${start.quick} quick views, ${start.totals} totals, ${start.cards.length} cards${start.cards.length ? ` (${start.cards.join(', ')})` : ''}`);
   const monitor = doing.has('monitor') ? await walkMonitor(page, settle) : null;
   if (monitor) log(`Monitor: ${monitor.steps ? 'the steps of the run' : 'no steps'}`);
-  return { results: n, reviewed, runs, build, listed, run, start, monitor, tabs: ['results', 'implement', 'run', 'choose', 'monitor'] };
+  return { results: n, reviewed, assets, runs, build, listed, run, start, monitor, tabs: ['results', 'implement', 'run', 'choose', 'monitor'] };
 }
 
 async function askEach(page, settle, buttons, max, log, where) {

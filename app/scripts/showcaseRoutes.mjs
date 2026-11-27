@@ -7,6 +7,13 @@ export const DEMO_READS = {
   'GET /api/inspire/implement/history': 'Review and Build read the MVP versions',
   'GET /api/inspire/session': 'Monitor reads the demo run',
   'GET /api/inspire/steps': 'Monitor lists the steps of the demo run',
+  // REQ-560: the demo shows the values and documents of a real current run, so the walk records the value reads and the Assets files.
+  'GET /api/inspire/value': 'Review shows the Business value at stake of the demo run',
+  'GET /api/inspire/value/totals': 'Review, Build and Start show the value of each use case and of the run',
+  'GET /api/inspire/value/yearly': 'Review and Build cards show the value a year of each use case',
+  'GET /api/inspire/value/estimates': 'Review and Build cards show the estimate of each use case',
+  'GET /api/workspace/list': 'Review Assets lists the files the demo run wrote to its output folder',
+  'GET /api/workspace/export': 'Review Assets views and downloads a generated PDF, PPTX, DOCX or XLSX in place',
 };
 
 export const DEMO_MVP_READS = {
@@ -36,11 +43,7 @@ export function demoReads(withMvps, walk = null) {
 export const NOT_IN_DEMO = {
   'GET /api/inspire/macro/sources': 'the Calculate value dialog lists public economic data sources only outside the demo; the demo is read only, has no ledger to save a calculation to, and reaches no outside host (REQ-507)',
   'POST /api/inspire/macro/series': 'the Calculate value dialog reads a public economic series from the cache in the Inspire database or an outside host only outside the demo; the demo has neither (REQ-507)',
-  'GET /api/inspire/value': 'the value at stake and saved of a run is read from the ledger of a workspace run; a demo has no ledger, so the Review card and the run header send no value read while the demo is open',
-  'GET /api/inspire/value/estimates': 'the Build and Review cards read each use case estimate from the value ledger of a workspace run; the demo has no ledger, so the cards send no estimate read while the demo is open',
-  'GET /api/inspire/value/yearly': 'the Review and Build cards read the value per year of each use case from the value ledger of a workspace run; the demo has no ledger, so the pages send no yearly read while the demo is open (REQ-432)',
   'GET /api/inspire/value/answers': 'the Review cards read the saved Calculate answers of a workspace run from its answers table; the demo has no such table, so the pages send no answers read while the demo is open (REQ-435)',
-  'GET /api/inspire/value/totals': 'the Start and Results value panels and the MVP Measure step read the run and all-runs totals from the value ledger of a workspace run; the demo has no ledger, so no page sends a totals read while the demo is open',
   'GET /api/defaults': 'the App reads its workspace settings when it starts, before the demo opens, and never with the demo header',
   'GET /api/showcase': 'this is the list of demos itself, read from the demo files the App carries',
   'GET /api/warehouses': 'setup, Settings and the Start MVP wizard pick a warehouse; the demo has no setup and no wizard',
@@ -62,8 +65,6 @@ export const NOT_IN_DEMO = {
   'GET /api/inspire/implement/runs': 'the Run tab and the Build page read the last runs of a deployed use case from its App outside the demo only; the demo is read only and shows its recorded MVP Apps',
   'GET /api/inspire/profiles': 'Get Started lists the business profiles saved on this workspace; Get Started is not a demo tab, so the demo sends no profile list read',
   'GET /api/inspire/profiles/:p': 'Get Started loads a saved profile, and Start offers Download profile only on a run linked to one; the demo is read only and its runs carry no profile link',
-  'GET /api/workspace/list': 'Review lists the files a run wrote only outside the demo; the demo hides the files panel',
-  'GET /api/workspace/export': 'Review previews and downloads the files a run wrote only outside the demo, where the demo hides the files panel; a use case card opens its notebook in the workspace and never previews it',
   'GET /api/inspire/step-results': 'the demo run is complete, so Review reads its final results and never the results of a run still in progress',
   'GET /api/demo-data/templates': 'the App check script reads it from a live App to confirm the backend is current; no page of the demo calls it',
   'GET /api/inspire/implement/context': 'the Start MVP wizard reads it; the demo offers no new build',
@@ -81,7 +82,6 @@ export const NOT_IN_DEMO = {
   'POST /api/inspire/implement/plan': 'the Start MVP wizard plans a new build; the demo offers no new build',
   'POST /api/inspire/implement/swaps': 'the Start MVP wizard and an editable tables panel look for other tables; the demo edits nothing',
   'GET /api/inspire/implement/table-lookup': 'the Start MVP wizard checks a table the person types in; the demo edits nothing',
-  'GET /api/inspire/value': 'the value at stake and saved is read from the value ledger outside the demo only; the demo shows the value it recorded and never calls the ledger',
 };
 
 export function routeOf(method, url) {

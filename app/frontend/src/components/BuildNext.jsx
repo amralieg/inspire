@@ -40,7 +40,7 @@ export function RunValue({ row, onMeasure }) {
   );
 }
 
-// The demo has no value ledger, so its cards send no estimate read (showcase).
+// REQ-560: the demo replays the value reads it recorded; a recording that lacks them shows no estimate instead of an error (showcase).
 // REQ-497 FX-103: refreshKey moves when a value is saved, so the row reads the saved status again (Reviewed calculation after Accept and save).
 // D-uae-06: `listed` is the use case list the page shows; the count and the rows come from it, so the header never counts a different pass.
 export function useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, showcase = false, listed = null, refreshKey = 0) {
@@ -49,8 +49,8 @@ export function useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, 
     if (!sessionId || !inspireDatabase || !warehouseId) return undefined;
     let cancelled = false;
     const q = new URLSearchParams({ inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId) });
-    const estimates = showcase ? Promise.resolve({ use_cases: {} }) : apiFetch(`/api/inspire/value/estimates?${q}`);
-    const totals = showcase ? Promise.resolve({ use_cases: {} }) : apiFetch(`/api/inspire/value/totals?${q}`).catch(() => ({ use_cases: {} }));
+    const estimates = showcase ? apiFetch(`/api/inspire/value/estimates?${q}`).catch(() => ({ use_cases: {} })) : apiFetch(`/api/inspire/value/estimates?${q}`);
+    const totals = apiFetch(`/api/inspire/value/totals?${q}`).catch(() => ({ use_cases: {} }));
     Promise.all([apiFetch(`/api/inspire/usecases?${q}`), apiFetch(`/api/inspire/implement/history?${q}`), estimates, totals])
       .then(([cases, history, estimates, totals]) => {
         if (!cancelled) setState({ got: { cases, history, estimates, totals }, error: '' });

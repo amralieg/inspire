@@ -191,7 +191,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   const [showValue, setShowValue] = useState(false);
   const apiFetch = useMemo(() => makeApiFetch({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
   const { portfolio, error: portfolioError } = usePortfolio(apiFetch, inspireDatabase, warehouseId);
-  const valueReady = Boolean(inspireDatabase && warehouseId && !showcase);
+  const valueReady = Boolean(inspireDatabase && warehouseId);
   // FX-34 (REQ-448, W16 D2/D3): one read, the run value of every run and of all runs; the panel, its bars and the run cards render it.
   const allTotals = useValueRead(apiFetch, valueReady ? `/api/inspire/value/totals?${valueQuery(inspireDatabase, warehouseId)}` : '');
   const runValueOf = (sid) => (allTotals?.runs || []).find((r) => String(r.session_id) === sid)?.run_value || null;
