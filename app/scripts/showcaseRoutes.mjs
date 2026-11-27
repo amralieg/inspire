@@ -42,7 +42,6 @@ export function demoReads(withMvps, walk = null) {
 
 export const NOT_IN_DEMO = {
   'GET /api/inspire/macro/sources': 'the Calculate value dialog lists public economic data sources only outside the demo; the demo is read only, has no ledger to save a calculation to, and reaches no outside host (REQ-507)',
-  'POST /api/inspire/macro/series': 'the Calculate value dialog reads a public economic series from the cache in the Inspire database or an outside host only outside the demo; the demo has neither (REQ-507)',
   'GET /api/inspire/value/answers': 'the Review cards read the saved Calculate answers of a workspace run from its answers table; the demo has no such table, so the pages send no answers read while the demo is open (REQ-435)',
   'GET /api/defaults': 'the App reads its workspace settings when it starts, before the demo opens, and never with the demo header',
   'GET /api/showcase': 'this is the list of demos itself, read from the demo files the App carries',
