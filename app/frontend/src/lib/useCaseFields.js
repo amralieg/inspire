@@ -1,4 +1,4 @@
-import { storedForms } from '../../../shared/useCaseId.mjs';
+import { pickStoredId, storedForms } from '../../../shared/useCaseId.mjs';
 import { normalizeDatabricksFsPath } from './workspaceLinks.js';
 import { aiWording } from './aiWording.js';
 import { placeholderWords } from './placeholderWords.js';
@@ -149,6 +149,14 @@ export function notebookPathOf(uc, files) {
 export function trackingIdOf(uc) {
   if (!uc || typeof uc !== 'object') return '';
   return String(uc.id ?? uc.No ?? uc['No'] ?? '').trim();
+}
+
+// REQ-569: the use case a deep link names, by either id form (old sessions saved Nx-Ux, links print AIx-UCx); the exact id wins.
+// The caller then sends the saved id, so the backend reads the row it holds.
+export function linkedUseCase(useCases, asked) {
+  const list = Array.isArray(useCases) ? useCases : [];
+  const id = pickStoredId(asked, list.map(trackingIdOf));
+  return id ? list.find((uc) => trackingIdOf(uc) === id) || null : null;
 }
 
 function selectionFlagsOf(uc) {

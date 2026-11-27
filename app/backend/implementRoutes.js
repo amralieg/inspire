@@ -17,6 +17,7 @@ const { appShellCatalog, bundledBuildStamp, lakebaseCatalogOf } = require('./lib
 const { heldOn } = require('./lib/spCatalogs');
 const { moneyStatements, moneyView, moneyWithheld } = require('./lib/implementMoney');
 const FB = require('./lib/appFeedback');
+const { eitherIdFound, eitherIdRows, savedIdOf } = require('./lib/useCaseLookup');
 const { specVibeAsks } = require('../frontend/src/lib/vibeLimits.js');
 const { chosenTableScopes } = require('../frontend/src/lib/tableScope.js');
 const { HOSTED_NO_TOKEN } = require('./lib/hostedRun');
@@ -349,7 +350,9 @@ function registerImplementRoutes(app, deps) {
 
   async function loadHistory(host, token, warehouseId, catalog, schema, sid, useCaseId) {
     const table = I.implementTableName(catalog, schema);
-    return implementRows(host, token, warehouseId, table, (existing) => I.implementHistoryStatement(table, sid, useCaseId || null, existing));
+    // REQ-569: one use case is read by the asked id, then by its other form when the session saved that one.
+    if (!useCaseId) return implementRows(host, token, warehouseId, table, (existing) => I.implementHistoryStatement(table, sid, null, existing));
+    return eitherIdRows(useCaseId, (id) => implementRows(host, token, warehouseId, table, (existing) => I.implementHistoryStatement(table, sid, id, existing)));
   }
 
   // The build record is the App's own tracking table, so it is read as the App, as the Build page's status and history read it. The
@@ -2210,15 +2213,16 @@ function registerImplementRoutes(app, deps) {
       const sid = sessionIdOf(req);
       const warehouseId = warehouseOf(req);
       const { catalog, schema } = dbOf(req, splitInspireDatabase);
-      const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
-      const history = await loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId);
+      const asked = I.validateUseCaseId(q(req, 'use_case_id'));
+      const history = await loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, asked);
       const table = String(history[0]?.spec_json?.config?.result_table || '').trim();
       if (!table) return res.json({ run: null, model: null, history: [], result_table: '' });
       const withheld = moneyWithheld(history[0], table);
       if (withheld) return res.json({ run: null, model: null, history: [], result_table: table, withheld });
-      const statements = moneyStatements(table, useCaseId);
-      const summary = (await optionalRows(req, warehouseId, statements.summary))[0] || null;
-      const edits = summary && summary.value_assumptions ? await optionalRows(req, warehouseId, statements.edits) : [];
+      // REQ-569: the run tables hold the id the build saved; the edits are read by the form that found the summary.
+      const found = await eitherIdFound(savedIdOf(history, asked), (id) => optionalRows(req, warehouseId, moneyStatements(table, id).summary));
+      const summary = found.rows[0] || null;
+      const edits = summary && summary.value_assumptions ? await optionalRows(req, warehouseId, moneyStatements(table, found.id).edits) : [];
       return res.json({ ...moneyView(summary, edits), result_table: table });
     } catch (err) {
       return sendError(res, err);
@@ -2245,8 +2249,9 @@ function registerImplementRoutes(app, deps) {
     const sid = sessionIdOf(req);
     const warehouseId = warehouseOf(req);
     const { catalog, schema } = dbOf(req, splitInspireDatabase);
-    const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
-    const [history, person] = await Promise.all([loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId), personOf(req)]);
+    const asked = I.validateUseCaseId(q(req, 'use_case_id'));
+    const [history, person] = await Promise.all([loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, asked), personOf(req)]);
+    const useCaseId = savedIdOf(history, asked); // REQ-569: the issue tables and the App's own table name hold the saved id
     const table = String(history[0]?.spec_json?.config?.result_table || '').trim();
     const appTable = FB.appFeedbackTable({ database: `${catalog}.${schema}`, appName: I.liveAppOf(history)?.name, useCaseId });
     const before = I.previousBuilt(history);
@@ -2266,7 +2271,7 @@ function registerImplementRoutes(app, deps) {
     // c29_history: the feedback tables are read together; a missing table is skipped and the others keep their order.
     const got = await Promise.all(feedbackTables(ctx).map(async (table) => {
       try {
-        return await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, statementOf(table));
+        return await eitherIdRows(ctx.useCaseId, (id) => sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, statementOf(table, id)));
       } catch (err) {
         if (!isMissingTableError(err)) throw err;
         return null;
@@ -2280,7 +2285,7 @@ function registerImplementRoutes(app, deps) {
     try {
       const ctx = await feedbackContext(req);
       const owner = { editable: !ctx.refused, why: ctx.refused ? ctx.refused.message : '' };
-      const { lists, missing } = await feedbackLists(req, ctx, (t) => FB.feedbackListStatement(t, ctx.useCaseId));
+      const { lists, missing } = await feedbackLists(req, ctx, (t, id) => FB.feedbackListStatement(t, id));
       return res.json({ ...FB.feedbackView(FB.feedbackRowsAcross(lists), owner), result_table: ctx.table || '', missing });
     } catch (err) {
       return sendError(res, err);
@@ -2290,8 +2295,8 @@ function registerImplementRoutes(app, deps) {
   async function oneFeedback(req, ctx, id) {
     for (const table of feedbackTables(ctx)) {
       try {
-        const rows = await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, FB.feedbackOneStatement(table, ctx.useCaseId, id));
-        if (rows[0]) return { row: rows[0], table };
+        const found = await eitherIdFound(ctx.useCaseId, (uc) => sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, FB.feedbackOneStatement(table, uc, id)));
+        if (found.rows[0]) return { row: found.rows[0], table, useCaseId: found.id };
       } catch (err) {
         if (!isMissingTableError(err)) throw err;
       }
@@ -2304,9 +2309,9 @@ function registerImplementRoutes(app, deps) {
       const change = FB.feedbackStatusChange(req.body);
       const ctx = await feedbackContext(req);
       feedbackOwnerOnly(ctx);
-      const { table } = await oneFeedback(req, ctx, change.feedback_id);
-      await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, FB.feedbackStatusStatement(table, ctx.useCaseId, change, ctx.person.username));
-      const { lists } = await feedbackLists(req, ctx, (t) => FB.feedbackListStatement(t, ctx.useCaseId));
+      const { table, useCaseId } = await oneFeedback(req, ctx, change.feedback_id);
+      await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, FB.feedbackStatusStatement(table, useCaseId, change, ctx.person.username));
+      const { lists } = await feedbackLists(req, ctx, (t, id) => FB.feedbackListStatement(t, id));
       return res.json({ ...FB.feedbackView(FB.feedbackRowsAcross(lists), { editable: true }), result_table: ctx.table || '', missing: false,
         changed: change.feedback_id });
     } catch (err) {
@@ -3011,10 +3016,11 @@ function registerImplementRoutes(app, deps) {
     const made = VA.insertSql(table, row);
     await executeSql(req.dbHost, await appTokenOf(req), warehouseId, made.sql, made.parameters);
   };
-  const nextVersion = async (req, warehouseId, table, sid, useCaseId) => {
-    const made = VA.latestVersionSql(table, sid, useCaseId);
-    const row = (await readAnswers(req, warehouseId, made))[0];
-    return (row && row.latest !== null && row.latest !== undefined ? Number(row.latest) : 0) + 1;
+  // REQ-569: { version, useCaseId }: the next version of the answers the session saved under either id form, and the form to append under.
+  const savedVersion = (rows) => rows[0] && rows[0].latest !== null && rows[0].latest !== undefined;
+  const nextVersion = async (req, warehouseId, table, sid, asked) => {
+    const found = await eitherIdFound(asked, (id) => readAnswers(req, warehouseId, VA.latestVersionSql(table, sid, id)), savedVersion);
+    return { version: (savedVersion(found.rows) ? Number(found.rows[0].latest) : 0) + 1, useCaseId: found.id };
   };
 
   // REQ-436 (C5): a shape-2 entry is stale when the table's records per year under the same filter differ from the saved plan's by more than
@@ -3071,7 +3077,7 @@ function registerImplementRoutes(app, deps) {
         ask: async (messages) => { const asked = await askChatModel(req, messages, FB.JSON_ANSWER_MAX_TOKENS); return asked.got ? asked.got.data : null; } });
       const saved = { ai_checked: review.ai_checked, reason: review.reason, scales: review.scales };
       await executeSql(req.dbHost, await appTokenOf(req), warehouseId, VA.createSql(table));
-      const version = await nextVersion(req, warehouseId, table, sid, VR.RUN_REVIEW_ID);
+      const { version } = await nextVersion(req, warehouseId, table, sid, VR.RUN_REVIEW_ID);
       await appendAnswers(req, warehouseId, table, { sessionId: sid, useCaseId: VR.RUN_REVIEW_ID, version, answers: { review: saved }, yearly: {}, savedBy: savedBy(req), note: 'run review' });
       return res.json({ review: { ...saved, counted_total: review.counted_total, limit: review.limit }, version });
     } catch (err) {
@@ -3104,8 +3110,8 @@ function registerImplementRoutes(app, deps) {
       const yearly = answers.shape === 2 ? shape2Yearly(answers.plan, answers)
         : await estimateYearly(req, warehouseId, asked, answers).catch((err) => { throw estimateFailure(err, asked); });
       await executeSql(req.dbHost, await appTokenOf(req), warehouseId, VA.createSql(table));
-      const version = await nextVersion(req, warehouseId, table, sid, useCaseId);
-      await appendAnswers(req, warehouseId, table, { sessionId: sid, useCaseId, version, answers, yearly, savedBy: savedBy(req), note: '' });
+      const { version, useCaseId: saved } = await nextVersion(req, warehouseId, table, sid, useCaseId);
+      await appendAnswers(req, warehouseId, table, { sessionId: sid, useCaseId: saved, version, answers, yearly, savedBy: savedBy(req), note: '' });
       return res.json({ version, yearly, disclaimer: VALUE_DISCLAIMER.full });
     } catch (err) {
       return sendShape2Error(res, err);
@@ -3118,7 +3124,7 @@ function registerImplementRoutes(app, deps) {
       const sid = String(sessionIdOf(req));
       const useCaseId = q(req, 'use_case_id');
       I.validateUseCaseId(useCaseId);
-      const rows = await readAnswers(req, warehouseId, VA.historySql(answersTable(req), sid, useCaseId));
+      const rows = await eitherIdRows(useCaseId, (id) => readAnswers(req, warehouseId, VA.historySql(answersTable(req), sid, id)));
       return res.json({ history: rows.map((r) => ({ ...VA.versionOf(r), note: r.note ?? '' })) });
     } catch (err) {
       return sendError(res, err);
@@ -3132,10 +3138,11 @@ function registerImplementRoutes(app, deps) {
       const table = answersTable(req);
       const useCaseId = q(req, 'use_case_id');
       I.validateUseCaseId(useCaseId);
-      const [latest, previous] = (await readAnswers(req, warehouseId, VA.historySql(table, sid, useCaseId, 2))).map(VA.versionOf);
+      const found = await eitherIdFound(useCaseId, (id) => readAnswers(req, warehouseId, VA.historySql(table, sid, id, 2)));
+      const [latest, previous] = found.rows.map(VA.versionOf);
       if (!previous) throw I.badRequest('There is no earlier version of these answers to go back to.', 409);
       const version = latest.version + 1;
-      await appendAnswers(req, warehouseId, table, { sessionId: sid, useCaseId, version, answers: previous.answers, yearly: previous.yearly, savedBy: savedBy(req), note: `undo of v${latest.version}` });
+      await appendAnswers(req, warehouseId, table, { sessionId: sid, useCaseId: found.id, version, answers: previous.answers, yearly: previous.yearly, savedBy: savedBy(req), note: `undo of v${latest.version}` });
       return res.json({ version, answers: previous.answers, yearly: previous.yearly });
     } catch (err) {
       return sendError(res, err);
@@ -3436,8 +3443,9 @@ function registerImplementRoutes(app, deps) {
     const sid = sessionIdOf(req);
     const warehouseId = warehouseOf(req);
     const { catalog, schema } = dbOf(req, splitInspireDatabase);
-    const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
-    const history = await loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId);
+    const asked = I.validateUseCaseId(q(req, 'use_case_id'));
+    const history = await loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, asked);
+    const useCaseId = savedIdOf(history, asked); // REQ-569: the control log, the cache key and the asset tags hold the saved id
     const stalled = await stalledOf(req, C.newestVersions(history)[0]);
     const targets = C.controlTargets(history, stalled);
     return {
@@ -3469,8 +3477,10 @@ function registerImplementRoutes(app, deps) {
         let actions = [];
         if (!((missingControlLogs.get(ctx.logTable) || 0) > Date.now())) {
           try {
-            actions = await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId,
-              C.controlLogSelect(ctx.logTable, { sessionId: ctx.sid, useCaseId: ctx.useCaseId }));
+            // REQ-569: actions are logged under the id the build history holds; only an id the history does not hold tries the other form.
+            const readLog = (id) => sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, C.controlLogSelect(ctx.logTable, { sessionId: ctx.sid, useCaseId: id }));
+            const held = (ctx.history || []).some((r) => String((r && r.use_case_id) ?? '').trim() === ctx.useCaseId);
+            actions = held ? await readLog(ctx.useCaseId) : await eitherIdRows(ctx.useCaseId, readLog);
             missingControlLogs.delete(ctx.logTable);
           } catch (err) {
             if (!isMissingTableError(err)) throw err;
