@@ -3,6 +3,7 @@
 // for the App's use cases, plus the value of each use case (docValues contract) and the value page totals.
 import disclaimer from '../../../../backend/lib/valueDisclaimer.json' with { type: 'json' };
 import { aiWording } from '../aiWording.js';
+import { qualityBarCountText } from '../qualityBarWording.js';
 import { fieldOf, trackingIdOf, inspireScoreFromUc, scoreOf, belowBarReasonOf, nameOfUseCase, hasShippedGenieCode } from '../useCaseFields.js';
 import { v130View, strategyGoals } from '../v130UseCase.js';
 import { useCaseKindView, KIND_INFORMATIONAL_LABEL } from '../useCaseKind.js';
@@ -55,7 +56,7 @@ export const AGENT_EN = {
   "doc_elite_use_cases": "Elite use cases",
   "doc_exec_kicker": "The opportunity",
   "doc_fallback_notice": "0 of {total} use cases meet the {mode} quality bar. Here is what we found, each marked with its reason.",
-  "doc_fallback_notice_one": "0 of 1 use case meets the {mode} quality bar. Here is what we found, each marked with its reason.",
+  "doc_fallback_notice_one": "{count}. Here is what we found, each marked with its reason.",
   "doc_fallback_pick": "Below bar",
   "doc_foundation_tables": "Tables",
   "doc_foundation_unlocks": "Use cases unlocked",
@@ -423,7 +424,7 @@ export function buildAgentModel({ businessName, useCases, values, summary, found
   let executive = docModel.summary.length ? [...docModel.summary] : [T('pdf_fallback_summary_p1', { total_cases: ranked.length, business_name: docModel.businessName }), T('pdf_fallback_summary_p2')];
   if (ranked.length && meets !== ranked.length) {
     const key = meets ? 'doc_bar_partial_notice' : ranked.length === 1 ? 'doc_fallback_notice_one' : 'doc_fallback_notice';
-    executive = [T(key, { mode: modeLabel || T('value_mode_good'), total: ranked.length, meets }), ...executive];
+    executive = [T(key, { mode: modeLabel || T('value_mode_good'), total: ranked.length, meets, count: qualityBarCountText(ranked.length, meets, modeLabel || T('value_mode_good')) }), ...executive];
   }
   if (translated) executive = executive.map((p, i) => translated[`summary|${i - (executive.length - docModel.summary.length)}`] || p);
   const elite = ranked.filter((u) => eliteStatus(u) === 'ELITE');
