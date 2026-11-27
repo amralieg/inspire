@@ -73,9 +73,9 @@ test('H1: the Style and color step offers Light (checked) and Dark; Dark shows o
     assert.equal(await group.getByRole('radio', { name: 'Light' }).getAttribute('aria-checked'), 'true');
     assert.equal(await group.getByRole('radio', { name: 'Dark' }).getAttribute('aria-checked'), 'false');
     assert.match(await dialog.innerText(), /Applies to PDF and PowerPoint files; Word is always white\. Excel sheets stay light\./);
-    const lightSvg = await dialog.locator('[data-docs-preview] svg').evaluate((el) => el.outerHTML);
+    const lightSvg = await dialog.locator('[data-docs-preview] svg').first().evaluate((el) => el.outerHTML);
     await group.getByRole('radio', { name: 'Dark' }).click();
-    await poll(async () => (await dialog.locator('[data-docs-preview] svg').evaluate((el) => el.outerHTML)) !== lightSvg, 'the preview follows the theme', 5000);
+    await poll(async () => (await dialog.locator('[data-docs-preview] svg').first().evaluate((el) => el.outerHTML)) !== lightSvg, 'the preview follows the theme', 5000);
     await toStep(dialog, 'review');
     assert.match(await dialog.innerText(), /Theme:?\s*Dark/);
     assert.deepEqual(ui.pageErrors, []);
