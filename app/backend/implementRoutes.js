@@ -43,6 +43,9 @@ const { fsApiPath } = require('./lib/workspacePaths');
 const { int64Id, isInt64Id, requireInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const { parseExactJson } = require('./lib/exactJson');
 const DT = require('./lib/docTranslate');
+// C28: the shared ES module of the infographic pick (also imported by the browser), loaded on first use.
+let infographicPickModule = null;
+const infographicPick = () => { infographicPickModule = infographicPickModule || import('./lib/infographicPick.mjs'); return infographicPickModule; };
 const { grantJobViewer, rememberViewer } = require('./lib/jobViewer');
 const PM = require('./lib/permissions');
 const UA = require('./lib/useCaseAssets');
@@ -3738,6 +3741,44 @@ function registerImplementRoutes(app, deps) {
         }
       }
       return res.json({ language, texts: out, ...(untranslated.length ? { untranslated } : {}) });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  // C28 (REQ-571): the story of one use case as an infographic. The model picks the scenario and writes the slot text; the reply is validated
+  // (lib/infographicPick.mjs, shared with the browser), junk is asked once more, then refused with 502 and the browser draws its own fallback.
+  app.post('/api/inspire/docs/infographic-pick', requireToken, async (req, res) => {
+    try {
+      appReadToken(req);
+      sessionIdOf(req);
+      const IG = await infographicPick();
+      const useCase = req.body?.use_case;
+      if (!useCase || typeof useCase !== 'object' || Array.isArray(useCase)) throw I.badRequest('use_case must be an object.');
+      if (typeof useCase.Name !== 'string' || !useCase.Name.trim()) throw I.badRequest('use_case needs a Name.');
+      if (IG.STORY_FIELDS.some((k) => useCase[k] != null && (typeof useCase[k] !== 'string' || useCase[k].length > DOC_TEXT_CHARS))) throw I.badRequest('use_case fields must be short texts.');
+      const vibe = req.body?.vibe;
+      if (vibe != null && (typeof vibe !== 'string' || vibe.length > 2000)) throw I.badRequest('vibe must be text of at most 2000 characters.');
+      const scenario = req.body?.scenario || '';
+      if (scenario && !IG.SCENARIO_IDS.includes(scenario)) throw I.badRequest(`scenario must be one of ${IG.SCENARIO_IDS.join(', ')}.`);
+      const orientation = req.body?.orientation || '';
+      if (orientation && !['landscape', 'portrait'].includes(orientation)) throw I.badRequest('orientation must be landscape or portrait.');
+      const messages = IG.buildMessages({ useCase, vibe: (vibe || '').trim(), scenario, orientation });
+      let reached = false;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const asked = await askChatModel(req, messages, FB.JSON_ANSWER_MAX_TOKENS);
+        if (!asked.got) {
+          if (!reached) throw I.badRequest(`No model could design the infographic: ${asked.reason}`, 503);
+          continue;
+        }
+        reached = true;
+        const reply = asked.got.data && asked.got.data.choices && asked.got.data.choices[0] && asked.got.data.choices[0].message;
+        for (const obj of DT.objectsIn((reply && reply.content) || '')) {
+          const pick = IG.validatePick(obj, scenario);
+          if (pick) return res.json({ pick });
+        }
+      }
+      throw I.badRequest('The model did not return a usable infographic.', 502);
     } catch (err) {
       return sendError(res, err);
     }

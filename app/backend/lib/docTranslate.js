@@ -78,4 +78,4 @@ function vibeLine(vibe) {
   return text ? ` The person asked for this tone and style in the wording (it guides word choice only; it never changes the keys, names or numbers): "${text}".` : '';
 }
 
-module.exports = { vibeLine, chunkTexts, readTranslations, CHUNK_CHARS };
+module.exports = { vibeLine, chunkTexts, readTranslations, objectsIn, CHUNK_CHARS };

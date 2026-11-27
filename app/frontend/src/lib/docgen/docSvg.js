@@ -8,6 +8,10 @@ import { withPanelTiles, splitInfographic } from './designs/panelTiles.js';
 import { LB, withLabels } from './docLabels.js';
 import { extraParts, partLines } from './docModel.js';
 
+// C28 (REQ-571): the per use case infographic library, the picker and the styles list.
+export { infographicFor, renderInfographic, infographicStyles, SCENARIO_IDS } from './designs/infographic.js';
+export { pickInfographic, fallbackPick } from './designs/infographicPick.js';
+
 const NS = 'xmlns="http://www.w3.org/2000/svg"';
 export const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 const has = (m, id) => m.blocks.includes(id);

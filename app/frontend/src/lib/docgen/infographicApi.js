@@ -1,17 +1,11 @@
-// C28 (REQ-570): the interface the dialog codes against for the per use case infographic. The c28_infog lane replaces this stub with the real
-// layouts: infographicFor(useCase, { orientation, scenario, content, theme, logo, ... }) returns an SVG string; INFOGRAPHIC_STYLES is [{ id, name, thumbnail }].
-import { buildDocModel } from './docModel.js';
-import { infographicSvg } from './docSvg.js';
-import { buildAgentModel } from './agentModel.js';
-import { DOC_STYLES, resolveTheme } from './docStyles.js';
+// C28 (REQ-571): the two names the Generate docs dialog codes against. infographicFor draws one use case as an SVG (the style, palette and
+// custom colour pick the theme when no theme is given); INFOGRAPHIC_STYLES lists the scenario layouts with a thumbnail each.
+import { infographicFor as draw, infographicStyles } from './designs/infographic.js';
+import { resolveTheme } from './docStyles.js';
 
-// STUB until c28_infog merges: the styles are the existing designs, with no thumbnail yet (the dialog draws one when it is empty).
-export const INFOGRAPHIC_STYLES = DOC_STYLES.map((s) => ({ id: s.id, name: s.label, thumbnail: '' }));
-
-// STUB: the existing infographic of one use case; orientation is not applied until c28_infog merges.
-export function infographicFor(useCase, { businessName = '', values = {}, theme = 'light', style = 'original', palette = 'databricks', customColor = '', content } = {}) {
-  const options = content ? { blocks: content } : {};
-  const m = buildDocModel({ businessName, useCases: [useCase], values, options });
-  const views = buildAgentModel({ businessName, useCases: [useCase], values }).ranked;
-  return infographicSvg(m, resolveTheme(style, palette, customColor, theme), views);
+export function infographicFor(useCase, { orientation = 'landscape', scenario = '', content = null, theme = null, logo = '', style = '', palette = '', customColor = '', rtl = false } = {}) {
+  const t = theme || (style || palette || customColor ? resolveTheme(style, palette, customColor, 'light') : null);
+  return draw(useCase, { orientation, scenario, content, theme: t, logo, rtl });
 }
+
+export const INFOGRAPHIC_STYLES = infographicStyles(null).map((s) => ({ id: s.id, name: s.name, description: s.description, thumbnail: s.thumbnails.landscape, thumbnails: s.thumbnails }));
