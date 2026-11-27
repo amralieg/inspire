@@ -33,7 +33,7 @@ export function whoBlock(x, y, s, colors = [P.blue, P.lava, P.green], o = {}) {
   const tx = x + ph * 1.1 + 18; const tw = o.w || 300;
   svg += icon('users', tx, y + 3, 24, o.accent || P.lava, 2) + label(tx + 32, y + 24, 'WHO USES IT', { size: 20, weight: 700, color: P.grey, spacing: 1.5 });
   const t = textBlock(tx, y + 36, tw, s.who, { size: o.size || 26, weight: 800, color: o.ink || P.ink, maxLines: 2 });
-  svg += t.svg + icon('calendar', tx, y + 46 + t.h, 26, o.accent || P.lava, 2) + label(tx + 36, y + 68 + t.h, s.cadence, { size: 22, weight: 600, color: o.muted || P.body });
+  svg += t.svg + icon('calendar', tx, y + 46 + t.h, 26, o.accent || P.lava, 2) + textBlock(tx + 36, y + 68 + t.h - 22 * 0.92, tw - 36, s.cadence, { size: 22, weight: 600, color: o.muted || P.body, maxLines: 1 }).svg;
   return { svg: `<g data-part="who">${svg}</g>`, h: Math.max(ph, 80 + t.h) };
 }
 

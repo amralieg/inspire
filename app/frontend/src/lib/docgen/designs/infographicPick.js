@@ -2,6 +2,8 @@
 // slots (POST /api/inspire/docs/infographic-pick); when the model is unavailable or returns junk, a deterministic pick is made from the use case fields.
 import { validatePick, SCENARIO_IDS, STORY_FIELDS } from '../../../../../backend/lib/infographicPick.mjs';
 import { baseContent, contentFor } from './infog/content.js';
+import { drawConcept } from './infog/concepts.js';
+import { textBlock } from './infog/text.js';
 
 export { validatePick, SCENARIO_IDS };
 const ROUTE = '/api/inspire/docs/infographic-pick';
@@ -38,7 +40,15 @@ export function fallbackPick(uc = {}) {
   const text = ['Analytics Technique', 'kind_label', 'Name'].map((k) => String(row[k] ?? '')).join(' | ');
   const base = baseContent(row);
   const rule = RULES.find(([, re, ok]) => re.test(text) && (!ok || ok(base)));
-  for (const id of [rule ? rule[0] : 'isometric', 'isometric']) { const p = validatePick(asPick(id, contentFor(row, id))); if (p) return p; }
+  // The concept the rules give, else the two that fit any story (data to decision, today against the new way). A concept whose slots are too
+  // small for this use case's text (a text no whole phrase of which fits, so it would be left out) gives way to the next one that fits it.
+  const ids = [...new Set([rule ? rule[0] : 'isometric', 'isometric', 'beforeafter'])]; let best = null;
+  for (const id of ids) {
+    const c = contentFor(row, id); const p = validatePick(asPick(id, c)); if (!p) continue;
+    const before = textBlock.dropped; drawConcept(id, c, 'landscape'); drawConcept(id, c, 'portrait'); const lost = textBlock.dropped - before;
+    if (!lost) return p; if (!best || lost < best.lost) best = { p, lost };
+  }
+  if (best) return best.p;
   // A use case too thin for any concept's fields still keeps the concept its kind fits when that concept needs only steps.
   const id = rule && validatePick({ scenario: rule[0], title: 't', steps: ['a', 'b'] }) ? rule[0] : 'isometric';
   return { scenario: id, title: base.title || 'Use case', steps: ['Read the data', 'Show the decision'], ...(base.hero ? { hero: { value: base.hero.value, label: base.hero.label || '' } } : {}) };

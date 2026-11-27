@@ -21,7 +21,8 @@ export const SCENARIOS = [
 export const SCENARIO_IDS = SCENARIOS.map((s) => s.id);
 // Max characters per slot. Each slot sits in a small space of the page, so a longer text is refused (the route asks the model once more),
 // never cut: a cut sentence has no place on an executive page.
-export const LIMITS = { steps: [2, 5], title: 90, problem: 160, value: 18, label: 70, line: 80, step: 80, who: 48, cadence: 28, center: 40, spoke: 40, group: 48, list: [2, 6] };
+// The title is the use case name, a user-named item kept whole (never cut), so its cap only refuses junk.
+export const LIMITS = { steps: [2, 5], title: 240, problem: 160, value: 18, label: 70, line: 80, step: 80, who: 48, cadence: 28, center: 40, spoke: 40, group: 48, list: [2, 6] };
 class TooLong extends Error {}
 
 const clean = (v, max) => { const t = String(v ?? '').replace(/\s+/g, ' ').trim(); if (t.length > max) throw new TooLong(); return t; };

@@ -18,13 +18,17 @@ export function facts(text) {
   return out;
 }
 
+// A leading subject of one to four capitalised words followed by a verb in the third person (a lower-case word ending in s).
+const SUBJECT = /^(?:[A-Z][\w'-]*\s+){1,4}(?=[a-z]+s\s)/;
+
 // The steps of how it works: clauses of the method (after its "Technique:" lead), then the screen the team uses.
 export function stepsOf(row, max = 4) {
   const method = clean(row.method_summary || row.Solution || ''); const body = method.includes(':') ? method.slice(method.indexOf(':') + 1).trim() : method;
   const VERB = '(?:learns|scores|gives|flags|measures|picks|builds|turns|finds|compares|splits|adjusts|rebuilds|matches|checks|ranks|sends|writes|answers|estimates|allocates)';
   const cut = new RegExp(`,\\s+and\\s+|;\\s+|,\\s+(?=(?:and\\s+)?(?:a|an|each|every|so|which|then)\\b)|(?:,\\s+(?:and\\s+)?|\\s+and\\s+)(?=${VERB}\\b)`);
   let parts = sentences(body).flatMap((s) => s.split(cut)).map(trimEnd).filter((p) => p.split(' ').length >= 3);
-  parts = parts.map((p) => cap(p.replace(/^(and|then)\s+/i, '')));
+  // A step reads as an action: a named subject in front of the verb ("The Planning Tool builds ...") is dropped ("Builds ...").
+  parts = parts.map((p) => cap(p.replace(/^(and|then)\s+/i, '').replace(SUBJECT, '')));
   const serve = clean(row.serving_summary || ''); const screen = trimEnd(serve.split(':')[0] || '');
   const out = parts.slice(0, Math.max(1, max - 1));
   if (screen) out.push(cap(screen));

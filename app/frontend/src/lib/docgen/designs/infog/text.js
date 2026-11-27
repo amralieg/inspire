@@ -20,35 +20,53 @@ export function wrap(s, width, size, weight = 400) {
   return lines;
 }
 
-// A phrase cut to what fits, never mid-thought and never with an ellipsis: the longest run of whole words that fits, ended at the last clause
-// boundary (comma, semicolon, colon, dash, full stop or a closed bracket) when that keeps most of it, never on a connecting word or an open bracket.
+// A phrase cut to what fits, never mid-thought and never with an ellipsis: the longest lead of the text that ends at a clause boundary and fits.
+// A boundary is punctuation (comma, semicolon, colon, full stop, a bracket, a spaced dash), or the start of a clause (who, which, that, when,
+// where, while, because, so, then, but, and, or, unless, since) or of a prepositional phrase (to, for, with, by, from, in, on, at, ...).
+// When no lead ends at a boundary and fits, the result is '' (clip.none is set): the caller shows the whole text another way or leaves it out.
 const DANGLE = /^(and|or|the|a|an|of|to|for|with|in|on|at|by|from|that|which|is|are|was|were|than|as|per|into|its|their|this|these|but|so|if|when|while|between|across|over|under|against|about|before|after|until|each|every|then|who|whose|not|worth|up|down|around|among|within|without|through|toward|towards|near|unless|since|using|because|where|while|how|what|why|whether|above|below|beyond|against|about|via|instead)$/i;
 export const tidy = (x) => { let w = x.trim().replace(/[\s,;:–—-]+$/, ''); const o = w.lastIndexOf('('); if (o > w.lastIndexOf(')')) w = w.slice(0, o).trim();
   const ws = w.split(' '); while (ws.length > 1 && DANGLE.test(ws[ws.length - 1].replace(/[^\w]/g, ''))) ws.pop(); return ws.join(' ').replace(/[\s,;:–—-]+$/, ''); };
+export const BOUNDARY = /[,;:.!?)]\s|\s[–—-]\s|\s\(|\s(?=(?:who|which|that|when|where|while|because|so|then|but|and|or|unless|since|to|for|with|by|from|in|on|at|across|before|after|until|using|through|into|over|under|between|within|without|via|toward|towards|around|among|near|instead|above|below|beyond|against|about)\s)/gi;
 export function clip(s, fits) {
-  const t = String(s ?? '').replace(/\s+/g, ' ').trim();
+  const t = String(s ?? '').replace(/\s+/g, ' ').trim(); clip.none = false;
   if (!t || fits(t)) return t;
-  const ws = t.split(' '); let k = ws.length - 1; while (k > 1 && !fits(ws.slice(0, k).join(' '))) k -= 1;
-  const byWord = tidy(ws.slice(0, k).join(' ')); let best = '';
-  for (const m of t.matchAll(/[,;:.!?]\s|\s[–—-]\s|\)\s|\s\(|\s(?=(?:who|which|that|when|where|while|because|and|but|or|so|then|for|to|with|by|from|in|on|at|per|of|across|before|after|until|unless|since|using|than|around|among|within|without|through|into|over|under|between|toward|towards|near|instead|how|what|why|whether|above|below|beyond|against|about|via|weighted|based|ranked|sorted|measured|grouped|scored)\s)/g)) { const c = tidy(t.slice(0, m.index + (m[0][0] === ')' || m[0][0] === ',' || /[;:.!?]/.test(m[0][0]) ? 1 : 0))); if (c && fits(c) && c.length > best.length) best = c; }
-  for (const m of t.matchAll(/(?:\d[\d,]*(?:\.\d+)?\s?[%MKB]?|\b(?:a|per|each|every|this|next|last)\s(?:year|week|month|day|quarter|hour|cycle|run))(?=\s)/g)) { const c = tidy(t.slice(0, m.index + m[0].length)); if (c && fits(c) && c.length > best.length) best = c; }
-  return best && best.length >= 0.3 * byWord.length ? best : (clip.lastByWord = true, byWord);
+  let best = '';
+  for (const m of t.matchAll(BOUNDARY)) { const c = t.slice(0, m.index + (/[,;:.!?)]/.test(m[0][0]) ? 1 : 0)).replace(/[\s,;:–—-]+$/, '').trim(); if (c && c.length > best.length && fits(c) && c === tidy(c)) best = c; }
+  if (!best) clip.none = true;
+  return best;
 }
-// A character cap is a guide, not a cut point: a clause with no boundary that is a few characters over keeps its last words (the slot wraps it).
-export const phrase = (s, max) => { clip.lastByWord = false; const r = clip(s, (x) => x.length <= max); const t = String(s ?? '').replace(/\s+/g, ' ').trim(); return clip.lastByWord && t.length <= max * 1.2 ? t : r; };
+// A character cap is a guide, not a cut point: a text is kept whole unless a lead of it that ends at a clause boundary fits the cap.
+// A text with no such lead stays whole; the drawing wraps it (textBlock), and the pick validator refuses it for a slot it does not fit.
+export const phrase = (s, max) => { const r = clip(s, (x) => x.length <= max); return clip.none ? String(s ?? '').replace(/\s+/g, ' ').trim() : r; };
 
 // A wrapped block. Returns { svg, h, lines, w }. y is the top of the block; anchor start|middle|end.
 export function textBlock(x, y, width, s, o = {}) {
   const size = Math.max(MIN_PX, o.size || MIN_PX); const weight = o.weight || 400; const lh = o.lh || 1.22;
-  let lines = wrap(s, width, size, weight);
-  if (o.maxLines && lines.length > o.maxLines) { const kept = clip(s, (x) => wrap(x, width, size, weight).length <= o.maxLines); if (globalThis.__INFOG_CLIPS) globalThis.__INFOG_CLIPS.push({ s, kept, width, size, maxLines: o.maxLines }); lines = wrap(kept, width, size, weight).slice(0, o.maxLines); }
+  let lines = wrap(s, width, size, weight); let sz = size;
+  if (o.maxLines && lines.length > o.maxLines) {
+    // A text that does not fit first takes a smaller size (down to the 20 px floor) and the extra lines that fit the same height; only then
+    // is it cut, at a clause boundary, and when no boundary fits it is left out (never a cut phrase).
+    const room = size + (o.maxLines - 1) * size * lh; const tries = [];
+    const sizes = []; for (let z = size; z > MIN_PX; z -= 2) sizes.push(z); sizes.push(MIN_PX);
+    for (const z of sizes) tries.push([z, Math.max(1, Math.floor((room - z) / (z * lh) + 1e-6) + 1)]);
+    const whole = tries.find(([z, ml]) => wrap(s, width, z, weight).length <= ml);
+    if (whole) { sz = whole[0]; lines = wrap(s, width, sz, weight); } else {
+      let kept = ''; for (const [z, ml] of tries) { const k = clip(s, (x) => wrap(x, width, z, weight).length <= ml); if (k.length > kept.length) { kept = k; sz = z; } }
+      if (globalThis.__INFOG_CLIPS) globalThis.__INFOG_CLIPS.push({ s, kept, width, size, maxLines: o.maxLines });
+      if (!kept) textBlock.dropped += 1; lines = kept ? wrap(kept, width, sz, weight) : [];
+    }
+  }
   const anchor = o.anchor || 'start'; const fill = o.color || '#14263A';
-  const tsp = lines.map((l, i) => `<tspan x="${x}" y="${(y + size * 0.92 + i * size * lh).toFixed(1)}">${esc(l)}</tspan>`).join('');
+  const tsp = lines.map((l, i) => `<tspan x="${x}" y="${(y + sz * 0.92 + i * sz * lh).toFixed(1)}">${esc(l)}</tspan>`).join('');
   const ls = o.spacing ? ` letter-spacing="${o.spacing}"` : '';
-  const svg = lines.length ? `<text x="${x}" font-family="${FONT}" font-size="${size}" font-weight="${weight}" fill="${fill}" text-anchor="${anchor}"${ls}>${tsp}</text>` : '';
-  const w = Math.max(0, ...lines.map((l) => measure(l, size, weight)));
-  return { svg, h: lines.length ? size + (lines.length - 1) * size * lh : 0, lines, w };
+  const svg = lines.length ? `<text x="${x}" font-family="${FONT}" font-size="${sz}" font-weight="${weight}" fill="${fill}" text-anchor="${anchor}"${ls}>${tsp}</text>` : '';
+  const w = Math.max(0, ...lines.map((l) => measure(l, sz, weight)));
+  return { svg, h: lines.length ? sz + (lines.length - 1) * sz * lh : 0, lines, w, size: sz };
 }
+
+// How many texts were left out because no whole phrase of them fits their slot (the picker reads it to prefer a concept that fits).
+textBlock.dropped = 0;
 
 // One line of text at a baseline.
 export function label(x, y, s, o = {}) {

@@ -61,10 +61,11 @@ function page(c, orient, concept, draw, o = {}) {
   const pic = draw(c, box, land, k);
   if (land) {
     const hStart = b.length;
-    b += pill(48, 28, tag, dark ? P.lava : P.ink, '#fff', 20).svg;
-    const ts = [38, 32, 28, 24].find((z) => wrap(c.title, 700, z, 800).length <= 2) || 24;
-    const t = textBlock(48, 76, 700, c.title, { size: ts, weight: 800, color: ink, lh: 1.08, maxLines: 2 }); b += t.svg;
-    const prL = textBlock(48, 76 + t.h + 12, 700, c.problem, { size: 21, color: muted, maxLines: 2 }); b += prL.svg;
+    if (tag) b += pill(48, 28, tag, dark ? P.lava : P.ink, '#fff', 20).svg;
+    // A title too long for two lines takes up to four (the use case name is never cut) and the problem keeps the line left under it.
+    const ts = [38, 32, 28, 24].find((z) => wrap(c.title, 700, z, 800).length <= 2) || 24; const long = wrap(c.title, 700, 24, 800).length > 2;
+    const t = textBlock(48, 76, 700, c.title, { size: ts, weight: 800, color: ink, lh: 1.08, maxLines: long ? 4 : 2 }); b += t.svg;
+    const prL = textBlock(48, 76 + t.h + 12, 700, c.problem, { size: 21, color: muted, maxLines: long ? 1 : 2 }); b += prL.svg;
     if (c.hero) {
       b += hero(1192, 110, c.hero.value, fitSize(c.hero.value, 84, 400), 'url(#gHot)', 'end');
       if (c.hero.label) b += textBlock(1192, 124, 400, c.hero.label, { size: 22, weight: 700, color: ink, anchor: 'end', maxLines: 1 }).svg;
@@ -80,7 +81,7 @@ function page(c, orient, concept, draw, o = {}) {
     if (c.screen) b += icon('monitor', 932, 588, 30, P.lava, 2) + label(972, 611, 'ON SCREEN', { size: 20, weight: 700, color: P.grey, spacing: 1.5 }) + textBlock(932, 628, 262, c.screen, { size: 21, weight: 700, color: ink, maxLines: 2 }).svg;
   } else {
     const hStart = b.length;
-    b += pill(64, 60, tag, dark ? P.lava : P.ink, '#fff', 22).svg;
+    if (tag) b += pill(64, 60, tag, dark ? P.lava : P.ink, '#fff', 22).svg;
     const ts = (c.hero ? [56, 46, 40, 34] : c.problem ? [72, 64, 56, 46, 40, 34] : [104, 88, 72, 64, 56, 46, 40, 34]).find((z) => wrap(c.title, 1112, z, 800).length <= 2) || 34;
     const t = textBlock(64, 124, 1112, c.title, { size: ts, weight: 800, color: ink, lh: 1.08, maxLines: 2 }); b += t.svg;
     const pr = textBlock(64, 124 + t.h + 18, 1112, c.problem, { size: c.hero ? 28 : 32, color: muted, maxLines: 3 }); b += pr.svg;
@@ -137,6 +138,9 @@ function journey(c, b, land, k) {
   return { svg: s };
 }
 
+// The loop's heading names its cadence when that fits the line.
+const loopLine = (cad, w) => { const t = `A LOOP THAT RUNS ${String(cad || '').toUpperCase()}`; return cad && measure(t, 22, 800) + 60 <= w ? t : 'A LOOP THAT RUNS AGAIN'; };
+
 // 2. Loop wheel: the steps run around a wheel that holds the headline result.
 function cycleConcept(c, b, land, k) {
   const st = c.steps; const n = st.length; const cs = [P.purple, P.pink, P.amber, P.cyan, P.blue]; let s = '';
@@ -145,9 +149,10 @@ function cycleConcept(c, b, land, k) {
     const cx = b.x + 190; const cy = b.y + 165;
     const cyc = cycle(cx, cy, 120, st, cs, { nodeR: 32, w: 10 }); s += cyc.svg;
     s += `<circle cx="${cx}" cy="${cy}" r="76" fill="#fff" filter="url(#sh)"/>${ring(cx, cy, 66, 10, 0.7, P.purple, tint(P.purple))}`;
-    if (hubv) s += hero(cx, cy + 16, hubv.value, fitSize(hubv.value, 46, 110), 'url(#gViolet)', 'middle');
+    // With no headline value the hub shows the loop icon, so the wheel never has an empty centre.
+    s += hubv ? hero(cx, cy + 16, hubv.value, fitSize(hubv.value, 46, 110), 'url(#gViolet)', 'middle') : icon('refresh', cx - 32, cy - 32, 64, P.purple, 2);
     cyc.nodes.forEach((nd, i) => { s += badge(+f1(nd.x + nd.dx * 44), +f1(nd.y + nd.dy * 44), 16, String(i + 1), nd.color); });
-    s += tagline(440, b.y + 30, 'refresh', `A LOOP THAT RUNS ${String(c.cadence || 'again').toUpperCase()}`, P.purple);
+    s += tagline(440, b.y + 30, 'refresh', loopLine(c.cadence, land ? 700 : 1100), P.purple);
     const per = (b.h - 64) / n; const ml = per >= 58 ? 2 : 1; let y = b.y + 56;
     st.forEach((x, i) => { s += badge(456, y + 16, 16, String(i + 1), cs[i % cs.length]); const t = textBlock(486, y + 2, 706, x.label, { size: 22, weight: 600, color: P.ink, maxLines: ml }); s += t.svg; y += per; });
     return { svg: s, foot: hubv ? (x, y, w) => `${iconDisc('target', x + 30, y + 40, 30, P.purple)}${label(x + 74, y + 30, hubv.value, { size: 28, weight: 800, color: P.purple })}${textBlock(x + 74, y + 42, w - 74, hubv.label, { size: 20, color: P.body, maxLines: 2 }).svg}` : null };
@@ -155,10 +160,12 @@ function cycleConcept(c, b, land, k) {
   const cx = 620; const cy = b.y + 330;
   const cyc = cycle(cx, cy, 250, st, cs, { nodeR: 52, w: 16 }); s += cyc.svg;
   s += `<circle cx="${cx}" cy="${cy}" r="150" fill="#fff" filter="url(#sh)"/>${ring(cx, cy, 134, 16, 0.7, P.purple, tint(P.purple))}`;
-  if (hubv) { s += hero(cx, cy + 18, hubv.value, fitSize(hubv.value, 96, 210), 'url(#gViolet)', 'middle');
-    if (hubv.label && hubv !== c.hero) s += textBlock(cx, cy + 36, 230, hubv.label, { size: 20, color: P.body, anchor: 'middle', maxLines: 3 }).svg; }
+  // With a label under it the value sits higher and the label narrower, so both stay inside the ring.
+  if (hubv) { const lab = hubv.label && hubv !== c.hero; s += hero(cx, cy + (lab ? -4 : 18), hubv.value, fitSize(hubv.value, lab ? 84 : 96, 200), 'url(#gViolet)', 'middle');
+    if (lab) s += textBlock(cx, cy + 16, 196, hubv.label, { size: 20, color: P.body, anchor: 'middle', maxLines: 3 }).svg; }
+  else s += icon('refresh', cx - 60, cy - 60, 120, P.purple, 2);
   cyc.nodes.forEach((nd, i) => { s += badge(+f1(nd.x + nd.dx * 70), +f1(nd.y + nd.dy * 70), 18, String(i + 1), nd.color); });
-  s += tagline(b.x, b.y + 680, 'refresh', `A LOOP THAT RUNS ${String(c.cadence || 'again').toUpperCase()}`, P.purple);
+  s += tagline(b.x, b.y + 680, 'refresh', loopLine(c.cadence, land ? 700 : 1100), P.purple);
   const rows = Math.ceil(n / 2); const rh = 190 / rows;
   st.forEach((x, i) => { const col = i % 2; const row = Math.floor(i / 2); const x0 = b.x + col * 580; const y0 = b.y + 706 + row * rh;
     s += badge(x0 + 18, y0 + 18, 18, String(i + 1), cs[i % cs.length]) + textBlock(x0 + 50, y0 + 2, 510, x.label, { size: 22, weight: 600, color: P.ink, maxLines: rh >= 60 ? 2 : 1 }).svg; });
@@ -182,7 +189,7 @@ function isometric(c, b, land, k) {
     s += '<g data-process="iso-flow">';
     xs.forEach((x, i) => { s += station(i, x, i === 0 ? y - 10 : y, 1); if (i < 3) s += curve([x + 90, y], [x + 140, y - 30], [xs[i + 1] - 150, y - 30], [xs[i + 1] - 100, y], P.grey, 5, { head: 18 });
       s += iconDisc(icons[i] || 'sparkles', x - 104, b.y + 54, 22, cs[i]) + badge(x - 82, b.y + 34, 14, String(i + 1), P.ink);
-      s += textBlock(x, b.y + 262, 266, labels[i], { size: 20, weight: 600, color: P.ink, anchor: 'middle', maxLines: 3 }).svg; });
+      s += textBlock(x, b.y + 246, 266, labels[i], { size: 20, weight: 600, color: P.ink, anchor: 'middle', maxLines: 4, lh: 1.15 }).svg; });
     s += '</g>' + person(b.x + 1140, b.y + 236, 120, P.lava);
     const r = c.ring;
     return { svg: s, foot: r ? (x, y, w) => `${ring(x + 40, y + 44, 38, 12, r.value / 100, P.green, tint(P.green))}${label(x + 40, y + 51, r.raw, { size: 20, weight: 800, color: P.green, anchor: 'middle' })}${textBlock(x + 92, y + 4, w - 92, r.label, { size: 20, color: P.body, maxLines: 3 }).svg}` : null };
@@ -193,7 +200,7 @@ function isometric(c, b, land, k) {
   pos.forEach(([x, y], i) => { s += station(i, x, i === 0 ? y - 14 : y, 1.3);
     if (i < 3) { const [nx, ny] = pos[i + 1]; const dir = nx > x ? 1 : -1; s += curve([x + dir * 150, y + 10], [x + dir * 300, y + 40], [nx - dir * 300, ny - 40], [nx - dir * 160, ny - 10], P.grey, 6, { head: 22 }); }
     s += iconDisc(icons[i] || 'sparkles', x - dir0(i) * 170, y - 90, 28, cs[i]) + badge(x - dir0(i) * 170 + 26, y - 116, 16, String(i + 1), P.ink);
-    s += textBlock(x, y + (i === 3 ? 150 : 112), 440, labels[i], { size: 22, weight: 600, color: P.ink, anchor: 'middle', maxLines: 2 }).svg; });
+    s += textBlock(x, y + (i === 3 ? 150 : 112), 440, labels[i], { size: 22, weight: 600, color: P.ink, anchor: 'middle', maxLines: 3 }).svg; });
   s += '</g>';
   if (c.ring) { const r = c.ring; s += ring(b.x + 1040, b.y + 70, 62, 18, r.value / 100, P.green, tint(P.green)) + label(b.x + 1040, b.y + 82, r.raw, { size: 32, weight: 800, color: P.green, anchor: 'middle' });
     s += textBlock(b.x + 950, b.y + 2, 470, r.label, { size: 22, color: P.body, anchor: 'end', maxLines: 3 }).svg; }
@@ -205,13 +212,14 @@ const dir0 = (i) => (i % 2 ? -1 : 1);
 function pictogram(c, b, land, k) {
   const sh = c.share; const on = sh ? Math.round(sh.value) : 100; const unit = sh ? sh.unit : 'square';
   const big = sh ? `${sh.value}%` : (c.hero ? c.hero.value : ''); const what = sh ? sh.label : (c.hero ? c.hero.label : '');
-  const legend = c.hero ? `One square = 1% of ${c.hero.value} ${c.hero.label}`.trim() : 'One square = 1%';
+  // The legend names what the squares are a share of; when the stake's label does not fit the line, the number alone does.
+  const legendOf = (w, size) => [c.hero && `One square = 1% of ${c.hero.value} ${c.hero.label}`.trim(), c.hero && `One square = 1% of ${c.hero.value}`, 'One square = 1%'].find((t) => t && wrap(t, w, size).length <= (land ? 1 : 3));
   let s = '';
   if (land) {
     const g = unitGrid(b.x + 20, b.y + 14, 10, 100, on, unit, 24, 6, P.green, '#DDE3E8'); s += g.svg;
     const rx = b.x + 360;
     s += hero(rx, b.y + 80, big, fitSize(big, 88, 300), 'url(#gGreen)') + textBlock(rx + 320, b.y + 14, b.x + b.w - rx - 320, what, { size: 22, weight: 600, color: P.ink, maxLines: 3 }).svg;
-    s += `<rect x="${rx}" y="${b.y + 112}" width="22" height="22" rx="5" fill="${P.green}"/>` + label(rx + 34, b.y + 131, legend, { size: 20, color: P.body });
+    s += `<rect x="${rx}" y="${b.y + 112}" width="22" height="22" rx="5" fill="${P.green}"/>` + label(rx + 34, b.y + 131, legendOf(b.x + b.w - rx - 34, 20), { size: 20, color: P.body });
     s += tagline(rx, b.y + 162, 'route', 'HOW IT WORKS', P.green);
     s += chevronSteps(rx, b.y + 174, b.x + b.w - rx, 52, c.steps, [P.cyan, P.blue, P.green, P.purple, P.amber], { size: 20, maxLines: 3 }).svg;
     return { svg: s };
@@ -219,7 +227,7 @@ function pictogram(c, b, land, k) {
   const g = unitGrid(b.x + 10, b.y + 10, 10, 100, on, unit, 48, 14, P.green, '#DDE3E8'); s += g.svg;
   const rx = b.x + g.w + 60; const rw = b.x + b.w - rx;
   s += hero(rx, b.y + 120, big, fitSize(big, 130, rw), 'url(#gGreen)') + textBlock(rx, b.y + 150, rw, what, { size: 28, weight: 600, color: P.ink, maxLines: 4 }).svg;
-  s += `<rect x="${rx}" y="${b.y + 330}" width="28" height="28" rx="6" fill="${P.green}"/>` + textBlock(rx + 42, b.y + 330, rw - 42, legend, { size: 22, color: P.body, maxLines: 3 }).svg;
+  s += `<rect x="${rx}" y="${b.y + 330}" width="28" height="28" rx="6" fill="${P.green}"/>` + textBlock(rx + 42, b.y + 330, rw - 42, legendOf(rw - 42, 22), { size: 22, color: P.body, maxLines: 3 }).svg;
   s += tagline(b.x, b.y + 676, 'route', 'HOW IT WORKS', P.green);
   s += chevronSteps(b.x, b.y + 700, b.w, 80, c.steps, [P.cyan, P.blue, P.green, P.purple, P.amber], { size: 22, maxLines: 3 }).svg;
   return { svg: s };
@@ -238,6 +246,21 @@ function beforeafter(c, b, land, k) {
     lines.forEach((t, i) => { p += icon(icons[i % icons.length], x + 26, yy + (hh[i] - size - 6) / 2, size + 6, col, 2.2); p += textBlock(x + 40 + size + 6, yy, tw, t, { size, weight: 600, color: P.ink, maxLines: L }).svg; yy += hh[i] + gap; });
     return p;
   };
+  // A list left empty gets no panel: with neither list the steps fill the box, with one list its panel takes the whole width or height.
+  const TODAY = (x, y, w, h, z) => panel(x, y, w, h, 'TODAY', 'alert', P.red, before, ['clock', 'alert', 'document'], z);
+  const AFTER = (x, y, w, h, z) => panel(x, y, w, h, 'AFTER', 'check', P.green, after, ['check', 'shield', 'sparkles'], z);
+  // The steps spread down the room left under y (a big numbered list, so no band of the box is left empty).
+  const spread = (y0) => { const steps = c.steps.slice(0, 5); const r = land ? 30 : 46; const size = land ? 24 : 32; const top = y0 + (land ? 56 : 80);
+    const rowH = steps.length ? (b.y + b.h - top) / steps.length : 0;
+    let t = tagline(b.x, y0 + (land ? 26 : 40), 'route', 'HOW IT WORKS', P.lava, { size: land ? 22 : 28 });
+    steps.forEach((st, i) => { t += stepList(b.x, top + i * rowH + Math.max(0, (rowH - 2 * r) / 2), b.w, [st], { r, size, maxLines: 2, colors: [cols()[i % 6]] }).svg; });
+    return t; };
+  if (!before.length && !after.length) return { svg: spread(b.y) };
+  if (!before.length || !after.length) {
+    const one = before.length ? TODAY : AFTER;
+    if (land) { s += one(b.x, b.y, b.w, 240, 21); s += inlineFlow(b.x, b.y + 256, b.w, c.steps); return { svg: s }; }
+    return { svg: one(b.x, b.y, b.w, 300, 26) + spread(b.y + 340) };
+  }
   if (land) {
     s += panel(b.x, b.y, 540, 240, 'TODAY', 'alert', P.red, before, ['clock', 'alert', 'document'], 21);
     s += panel(b.x + 620, b.y, 540, 240, 'AFTER', 'check', P.green, after, ['check', 'shield', 'sparkles'], 21);
@@ -369,7 +392,9 @@ function map(c, b, land, k) {
 // 10. Network clusters (a dark page): the groups found among linked entities, the new ones glowing.
 function network(c, b, land, k) {
   const groups = (c.groups || []).slice(0, 4); const ics = distinctIcons(groups, ['network', 'users', 'link', 'alert']); const cs = [P.cyan, P.lava, P.purple, P.amber]; let s = '';
-  const card = (x, y, w, h, t, i, size) => { const r = Math.min(32, Math.max(20, h * 0.28)); const tx = 2 * r + 28; return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="16" fill="#22364C"/>${iconDisc(ics[i], x + r + 14, y + h / 2, r, cs[i])}${textBlock(x + tx, y + h / 2 - size * (wrap(t, w - tx - 20, size, 600).length > 1 ? 1.1 : 0.55), w - tx - 20, t, { size, weight: 600, color: '#fff', maxLines: 2 }).svg}`; };
+  const card = (x, y, w, h, t, i, size) => { const r = Math.min(32, Math.max(20, h * 0.28)); const tx = 2 * r + 28;
+    // As many lines as the card holds (up to 3), so a long group keeps its whole phrase.
+    const ml = Math.max(2, Math.min(3, Math.floor((h - 6 - size) / (size * 1.22)) + 1)); return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="16" fill="#22364C"/>${iconDisc(ics[i], x + r + 14, y + h / 2, r, cs[i])}${textBlock(x + tx, y + h / 2 - size * 0.55 * Math.min(wrap(t, w - tx - 20, size, 600).length, ml), w - tx - 20, t, { size, weight: 600, color: '#fff', maxLines: ml }).svg}`; };
   if (land) {
     s += '<g data-process="links">' + constellation([{ cx: b.x + 130, cy: b.y + 110, r: 80, n: 7, color: P.cyan }, { cx: b.x + 360, cy: b.y + 210, r: 88, n: 8, color: P.lava, hot: true }, { cx: b.x + 570, cy: b.y + 96, r: 66, n: 6, color: P.purple }, { cx: b.x + 600, cy: b.y + 262, r: 50, n: 5, color: P.amber, hot: true }], { bridges: [[0, 1], [1, 2], [1, 3]] }) + '</g>';
     if (c.count) s += `<circle cx="${b.x + 130}" cy="${b.y + 270}" r="44" fill="${P.lava}"/>` + label(b.x + 130, b.y + 282, c.count, { size: fitSize(c.count, 34, 70), weight: 800, color: '#fff', anchor: 'middle' });
@@ -436,7 +461,7 @@ function balance(c, b, land, k) {
     let p = d.svg; d.nodes.slice(1).forEach((nd, i) => { p += textBlock(nd.x + 72, nd.y - 4 - vs * 0.92, Math.max(120, 1200 - nd.x - 72), VERB(opts[i], (v) => measure(v, vs, 800) <= Math.max(120, 1200 - nd.x - 72)), { size: vs, weight: 800, color: nd.color, maxLines: 1 }).svg + (opts[i].value ? label(nd.x + 72, nd.y + ls + 6, opts[i].value, { size: ls, weight: 600, color: P.ink }) : ''); });
     return p; };
   if (land) {
-    const s = scale(b.x + 300, b.y + 120, 170, b.y + 300, 150, 24, 20, 220, 2) + split(b.x + 630, b.y + 10, 360, 310, 24, 22);
+    const s = scale(b.x + 300, b.y + 120, 170, b.y + 300, 150, 24, 20, 300, 3) + split(b.x + 630, b.y + 10, 360, 310, 24, 22);
     return { svg: s, foot: (x, y, w) => stepList(x, y, w, c.steps.slice(0, 3), { r: 16, size: 20, adapt: true, maxH: 112, gap: 4 }).svg };
   }
   let s = scale(620, b.y + 150, 330, b.y + 440, 220, 34, 24, 420, 3);
