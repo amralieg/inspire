@@ -1426,7 +1426,7 @@ test('the result table write check re-runs after Next when the table changes or 
 });
 
 test('a result table the person cannot write says why on Data, with the reason the write check gives', async () => {
-  const ui = await openUi('wizard', { ...MERGE_STATE, me: { userName: OWNER, displayName: 'Owner' },
+  const ui = await openUi('wizard', { ...MERGE_STATE, me: { userName: OWNER, displayName: 'Owner' }, forwardedToken: 'owner-token',
     statements: { ...CAN_CREATE_SCHEMA, 'SELECT level, privilege, principal': UNWRITABLE_RESULT } });
   const { page } = ui;
   try {
