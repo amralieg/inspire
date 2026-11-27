@@ -130,7 +130,8 @@ function PageHeader({ summary, loading, query, onQuery }) {
 function SummaryBanner({ summary, loading = false }) {
   const { building } = summary;
   // RC7-C-06: until the first build-status answer is in, the page does not know whether an MVP exists, so it never says "No MVP started yet".
-  if (loading) {
+  // REQ-323: a build the store already holds as queued shows at once, so the loading note never hides it.
+  if (loading && !building.length) {
     return (
       <section aria-label="Build summary" className={PANEL_CLASS}>
         {/* busy-ok: the spinner is the loading state itself, shown until the first build-status read returns */}
@@ -2010,9 +2011,9 @@ function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch
               <Sparkles size={14} /> {START_MVP_LABEL}
             </Button>
           )}
-          {/* RC7-C-05: right-aligned so its menu (anchored to the button's right edge) stays inside a narrow pane when the button wraps to a new line. */}
+          {/* REQ-545: the More menu sits in the same row as the other actions. */}
           {item.uc && (
-            <div className="ms-auto"><MoreMenu items={[{ label: 'Use case details', onSelect: () => setDetailsOpen(true) }]} /></div>
+            <div><MoreMenu items={[{ label: 'Use case details', onSelect: () => setDetailsOpen(true) }]} /></div>
           )}
         </div>
         {item.uc && (valuedLine(valueTotal)
