@@ -5,10 +5,10 @@
 import { ucFacts } from './designs/ucCharts.js';
 import { moneyText } from '../valueWizard.js';
 import { plainBusiness } from './docText.js';
+import { joinWords } from '../implementWizard.js';
 
 const HIGH = ['Ultra High', 'Very High', 'High'];
 const listOf = (model) => (Array.isArray(model?.useCases) ? model.useCases : Array.isArray(model?.ranked) ? model.ranked : []);
-const joinAnd = (items) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
 const fmt = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
 const firstSentence = (t) => { const x = plainBusiness(String(t ?? '').trim()).split(/(?<=[.!?])\s/)[0].trim(); return x && !/[.!?]$/.test(x) ? `${x}.` : x; };
 const statementOf = (u) => u?.statement || (Array.isArray(u?.narrative) ? (u.narrative.find((n) => n[0] === 'statement') || [])[2] : '') || '';
@@ -31,7 +31,7 @@ export function domainsListOf(useCases) {
     const lead = [...r.items].sort(byScore)[0];
     const subs = [...r.subs].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n]) => n);
     const techniques = [...new Set(r.items.map((x) => x.f.technique).filter(Boolean))].slice(0, 2);
-    const description = [subs.length ? `Covers ${joinAnd(subs)}` : '', techniques.length ? `with ${joinAnd(techniques.map((t) => t.toLowerCase()))}` : '']
+    const description = [subs.length ? `Covers ${joinWords(subs)}` : '', techniques.length ? `with ${joinWords(techniques.map((t) => t.toLowerCase()))}` : '']
       .filter(Boolean).join(' ') + (lead?.f.name ? `${subs.length || techniques.length ? '; ' : ''}leads with ${lead.f.name}.` : '.');
     return { domain: r.domain, count: r.count, value: r.nWithValue ? { amount: r.amount, currency: r.currency, text: moneyText(r.currency, r.amount), n: r.nWithValue } : null,
       bestScore: r.bestScore, description: description.replace(/^./, (c) => c.toUpperCase()) };
@@ -51,8 +51,8 @@ export function execSummaryParas(model) {
   const techniques = [...new Set(list.map((x) => x.f.technique).filter(Boolean))];
   out.push(`${summary.length ? `${summary.join(' ')} ` : ''}Inspire found ${plural(n, 'AI use case', 'AI use cases')} for ${name} across ${plural(domains.length, 'business domain', 'business domains')}`
     + `${techniques.length ? `, using ${plural(techniques.length, 'analytics technique', 'analytics techniques')}` : ''}.${high ? ` ${high} of ${n} are rated High quality or better.` : ''}`
-    + `${techniques.length > 2 ? ` The methods range from ${joinAnd(techniques.slice(0, 4).map((t) => t.toLowerCase()))} to the rest of the mix.` : ''}`
-    + ` The largest domains are ${joinAnd(domains.slice(0, 3).map((d) => `${d.domain} (${d.count})`))}.`);
+    + `${techniques.length > 2 ? ` The methods range from ${joinWords(techniques.slice(0, 4).map((t) => t.toLowerCase()))} to the rest of the mix.` : ''}`
+    + ` The largest domains are ${joinWords(domains.slice(0, 3).map((d) => `${d.domain} (${d.count})`))}.`);
   const valued = list.filter((x) => x.f.amount !== null);
   if (valued.length) {
     const cur = valued[0].f.currency; const same = valued.filter((x) => x.f.currency === cur);
@@ -70,8 +70,8 @@ export function execSummaryParas(model) {
   const quick = feas.length ? [...feas].sort((a, b) => b.f.feasibility - a.f.feasibility || byScore(a, b)).filter((x) => !top.includes(x)).slice(0, 3)
     : list.filter((x) => HIGH.includes(x.f.quality) && !top.includes(x)).sort(byScore).slice(0, 3);
   if (quick.length) {
-    out.push(feas.length ? `Quick wins, the most feasible next: ${joinAnd(quick.map((x) => `${x.f.name} (feasibility ${fmt(x.f.feasibility)} / 5)`))}. Start with one quick win and one top opportunity, so the team learns fast while the bigger value is built.`
-      : `Next in line: ${joinAnd(quick.map((x) => `${x.f.name} (${x.f.quality} quality)`))}. Start with one of the top three and one of these, so the team learns fast while the bigger value is built.`);
+    out.push(feas.length ? `Quick wins, the most feasible next: ${joinWords(quick.map((x) => `${x.f.name} (feasibility ${fmt(x.f.feasibility)} / 5)`))}. Start with one quick win and one top opportunity, so the team learns fast while the bigger value is built.`
+      : `Next in line: ${joinWords(quick.map((x) => `${x.f.name} (${x.f.quality} quality)`))}. Start with one of the top three and one of these, so the team learns fast while the bigger value is built.`);
   }
   // Keep the summary to 300 words: the top three lose their statements first.
   if (wordCount(out.join(' ')) > 300) out[out.findIndex((p) => p.startsWith('The top three'))] = `The top three opportunities: ${top.map((x, i) => `${i + 1}. ${x.f.name} (${x.f.domain || 'Other'}${x.f.score !== null ? `, Inspire Score ${fmt(x.f.score)}` : ''}).`).join(' ')}`;
