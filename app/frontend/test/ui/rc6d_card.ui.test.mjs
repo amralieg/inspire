@@ -61,7 +61,8 @@ test('the uninstall dialog names the use case, and the card after the uninstall 
     const dialog = page.getByRole('dialog', { name: 'Uninstall everything Predict churn built', exact: true });
     await dialog.waitFor({ timeout: 15000 });
     assert.equal(await dialog.getByRole('button', { name: 'Uninstall Predict churn', exact: true }).count(), 1, 'the button names the use case');
-    assert.match(await dialog.textContent(), /N01-U01/, 'the id stays as the thing to type');
+    // REQ-569 (77ff9abfd): the thing to type is the display id AI01-UC01, no longer the stored N01-U01.
+    assert.match(await dialog.textContent(), /AI01-UC01/, 'the id stays as the thing to type');
   } finally {
     await ui.close();
   }

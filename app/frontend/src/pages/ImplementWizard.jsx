@@ -1525,7 +1525,8 @@ export default function ImplementWizard({
   // SEC-01 W1: Inspire never grants on the person's behalf, so a source the new App cannot read always shows the table-level request.
   const appReadsBlocked = appReadsOthers;
   const sourceRefused = accessVerdict === 'refused';
-  const sourceAccessRefused = sourceRefused && !preflight?.checks?.sources?.missing;
+  // REQ-042: an App that cannot read a source is always an access refusal, even when the preflight also lists the table as missing for the App.
+  const sourceAccessRefused = sourceRefused && (Boolean(appUnreadable) || !preflight?.checks?.sources?.missing);
   const storagePending = storageChecking(spec, lakebase);
   const implementBlocked = busy || checksBusy || storagePending || !placeSettled || dataMinimumBlocks(readCounted) || schemaJob?.state === 'running' || schemaJob?.state === 'failed' || rebuildNeedsChoice(plan, rebuildAsIs) || sourceRefused
     || (!ownErrors.length && (!preflight || !checkEntries.every(([, c]) => c.ok) || (lastStep && (!plan || Boolean(planError)))))
