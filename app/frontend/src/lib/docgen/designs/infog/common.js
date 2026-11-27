@@ -33,7 +33,11 @@ export function whoBlock(x, y, s, colors = [P.blue, P.lava, P.green], o = {}) {
   const tx = x + ph * 1.1 + 18; const tw = o.w || 300;
   svg += icon('users', tx, y + 3, 24, o.accent || P.lava, 2) + label(tx + 32, y + 24, 'WHO USES IT', { size: 20, weight: 700, color: P.grey, spacing: 1.5 });
   const t = textBlock(tx, y + 36, tw, s.who, { size: o.size || 26, weight: 800, color: o.ink || P.ink, maxLines: 2 });
-  svg += t.svg + icon('calendar', tx, y + 46 + t.h, 26, o.accent || P.lava, 2) + textBlock(tx + 36, y + 68 + t.h - 22 * 0.92, tw - 36, s.cadence, { size: 22, weight: 600, color: o.muted || P.body, maxLines: 1 }).svg;
+  // The second line is the cadence with a calendar; a use case that states no cadence names its sponsor there instead. An icon goes only
+  // with a text that shows: with neither (or none that fits) the line is left out, icon and all.
+  const two = (ic, text) => { const l = textBlock(tx + 36, y + 68 + t.h - 22 * 0.92, tw - 36, text, { size: 22, weight: 600, color: o.muted || P.body, maxLines: 1 });
+    return l.svg ? icon(ic, tx, y + 46 + t.h, 26, o.accent || P.lava, 2) + l.svg : ''; };
+  svg += t.svg + (s.cadence ? two('calendar', s.cadence) : s.sponsor ? two('briefcase', `Sponsor: ${s.sponsor}`) : '');
   return { svg: `<g data-part="who">${svg}</g>`, h: Math.max(ph, 80 + t.h) };
 }
 

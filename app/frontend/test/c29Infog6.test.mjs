@@ -39,13 +39,16 @@ const CLAUSE = /^\s(who|which|that|when|where|while|because|so|then|but|unless|s
 const LINK = /^\s(and|or|to|for|with|by|from|in|on|at|across|into|over|under|between|within|without|toward|towards|around|among|near|above|below|beyond|against|about)\s/;
 const SUBORD = new Set(['what', 'when', 'where', 'whether', 'if', 'than', 'which', 'that', 'who', 'whose', 'because', 'unless', 'while', 'until']);
 const VERBISH = /^(is|are|was|were|be|been|has|have|had|do|does|did|can|could|will|would|may|might|must|should|come|go|run|make|take|give|show|get|need|allow|[a-z'-]+(s|ed))$/;
-// A cut before "and"/"or"/a preposition leaves a closed phrase: it does not end on a verb in -ed (that wants what follows) and the clause its last
-// subordinating word opens has reached a verb.
+// A cut before "and"/"or"/a preposition leaves a closed phrase: it does not end on a bare verb in -ed that wants what follows ("... or charged",
+// "... $412K billed"; "is not matched" is a closed clause), and a clause its last subordinating word opens with a subject of its own ("what the
+// contract") has reached a verb.
+const DET = new Set(['the', 'a', 'an', 'their', 'its', 'his', 'her', 'our', 'your', 'this', 'these', 'those', 'each', 'every']);
+const AUX = new Set(['is', 'are', 'was', 'were', 'be', 'been', 'being', 'not', 'never', 'get', 'gets', 'got', 'has', 'have', 'had']);
 function closedAt(prefix) {
-  const w = prefix.replace(/[^\w\s'-]/g, ' ').split(/\s+/).filter(Boolean);
-  if (/[a-z]ed$/.test(w[w.length - 1] || '')) return false;
+  const w = prefix.replace(/[^\w\s'-]/g, ' ').split(/\s+/).filter(Boolean); const n = w.length;
+  if (/[a-z]ed$/.test(w[n - 1] || '') && !AUX.has(w[n - 2] || '')) return false;
   let k = -1; w.forEach((x, i) => { if (SUBORD.has(x)) k = i; });
-  return k < 0 || w.slice(k + 1).some((x) => VERBISH.test(x));
+  return k < 0 || !DET.has(w[k + 1] || '') || w.slice(k + 2).some((x) => VERBISH.test(x));
 }
 function strictCuts(svg, sources) {
   const bad = [];

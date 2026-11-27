@@ -14,6 +14,8 @@ const POS = /\b(added|adds?|gained|gains?|saved|saves?|rose|rises?|up|grew|grows
 const FILLER = /(?<![\w-])(and|the|of|a|an|by|took|lost|fell|added|adds|gained|saved|moved|is|are|was|were|with|this|that|at|in|for|to|its|it)(?![\w-])/gi;
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
 const words = (s, n) => String(s || '').split(/\s+/).filter(Boolean).slice(0, n).join(' ');
+// A phrase that cannot stand alone as a label: it starts with a preposition or a link word ("of that value", "of it").
+const FRAGMENT = /^(of|to|for|with|by|from|in|on|at|into|over|under|between|within|without|than|per|about|across|and|or|but|that|which|who)\b/i;
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 // A fact as the reader sees it: the number with a time unit when one follows ("14.6 hours").
@@ -48,7 +50,7 @@ export function baseContent(row, pick = null) {
   const icons = distinctIcons(steps);
   return {
     no: displayId(row && row.No), title: str(p.title) || s.title || 'Use case', technique: s.technique || s.kind, problem: str(p.problem) || s.problem,
-    hero, heroNote: s.valueWhat, who: str(p.who) || s.who, cadence: str(p.cadence) || s.cadence, screen: s.screen,
+    hero, heroNote: s.valueWhat, who: str(p.who) || s.who, cadence: str(p.cadence) || s.cadence, sponsor: s.sponsor, screen: s.screen,
     steps: steps.slice(0, 5).map((label, i) => ({ label, icon: icons[i] })), facts, story: s,
   };
 }
@@ -80,9 +82,11 @@ const FIELDS = {
   funnel: (c, p) => {
     if (p.stages) return { stages: p.stages };
     const o = others(c); const plain = o.filter((f) => f.unit !== '$'); const list = uniq(plain.length >= 2 ? plain : o, (f) => f.raw).slice(0, 4);
-    // Two numbers of one sentence: the later one is labelled by the words after it ("reaches 41% of that value" -> "Of that value").
+    // Two numbers of one sentence: the later one is labelled by the words after it ("12 stores and 40 depots" -> "Depots"). A tier
+    // label reads as a whole phrase alone, so a later number whose words after it start with a preposition or a link word ("41% of that value") gets no tier of its own; the stage list is padded from the method steps instead.
     const used = new Set(); const stages = list.map((f) => { if (!used.has(f.clause)) { used.add(f.clause); return { value: shown(f), label: f.clause }; }
-      const after = f.clause.slice(f.clause.indexOf(f.raw) + f.raw.length).split(/\d/)[0].replace(/^[\s%]+|[\s,;:.]+$/g, ''); return { value: shown(f), label: cap(after) || f.clause }; });
+      const after = f.clause.slice(f.clause.indexOf(f.raw) + f.raw.length).split(/\d/)[0].replace(/^[\s%]+|[\s,;:.]+$/g, '');
+      if (FRAGMENT.test(after)) return null; return { value: shown(f), label: cap(after) || f.clause }; }).filter(Boolean);
     for (const t of stepLabels(c)) { if (stages.length >= 3) break; stages.push({ value: '', label: t }); }
     return { stages };
   },
@@ -115,7 +119,7 @@ const FIELDS = {
 
 // Every text slot holds a short whole phrase: a longer text is cut at its last clause (or whole word), never mid-thought and never with an ellipsis.
 // The caps are the ones the AI pick must keep (LIMITS), so the drawing of a pick and of the use case itself read the same.
-const CAP = { title: LIMITS.title, problem: LIMITS.problem, who: LIMITS.who, cadence: LIMITS.cadence, screen: LIMITS.step, heroNote: LIMITS.label, technique: 40, label: LIMITS.label, center: LIMITS.center };
+const CAP = { title: LIMITS.title, problem: LIMITS.problem, who: LIMITS.who, cadence: LIMITS.cadence, sponsor: LIMITS.who, screen: LIMITS.step, heroNote: LIMITS.label, technique: 40, label: LIMITS.label, center: LIMITS.center };
 const LIST_CAP = { before: LIMITS.line, after: LIMITS.line, places: LIMITS.line, spokes: LIMITS.spoke, groups: LIMITS.group };
 const SKIP = new Set(['facts', 'story', 'icon', 'value', 'raw', 'count']);
 function fit(v, key, listCap) {

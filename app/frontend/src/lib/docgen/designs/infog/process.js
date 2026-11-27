@@ -2,10 +2,13 @@
 // anchor points a concept uses to place its own labels. Every diagram root carries data-process="<kind>".
 import { P, f1, chevron, arrow, curve, arcPath, head, hex, isoBlock } from './shapes.js';
 import { iconDisc, icon } from './icons.js';
-import { textBlock } from './text.js';
+import { textBlock, keepShown, shows } from './text.js';
 
 // Linear N-step chevrons with an icon on each band; labels go under each chevron.
-export function chevronSteps(x, y, w, h, steps, colors, o = {}) {
+export function chevronSteps(x, y, w, h, steps0, colors, o = {}) {
+  // A step whose label does not show under its chevron goes, chevron and icon too; the rest share the row.
+  const tw = (n) => (w - 6 * (n - 1)) / n - 12; const lo = { size: o.size || 20, maxLines: o.maxLines || 4 };
+  const steps = o.labels === false ? steps0 : keepShown(steps0, (s, n) => !s.label || shows(tw(n), s.label, lo));
   const n = steps.length; const gap = 6; const cw = (w - gap * (n - 1)) / n; let svg = ''; const nodes = [];
   steps.forEach((s, i) => {
     const cx = x + i * (cw + gap); svg += chevron(cx, y, cw + (i < n - 1 ? h * 0.28 : 0), h, colors[i % colors.length], i === 0);
