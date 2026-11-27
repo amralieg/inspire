@@ -77,7 +77,7 @@ async function makeFile(file, m, theme, options, agent) {
     return buildAgentPdf(agent, svgToPng);
   }
   if (file.kind === 'docx') { const { buildDocx } = await import('./docgen/docxDoc.js'); return buildDocx(m, theme); }
-  if (file.kind === 'pptx') { const { buildPptx } = await import('./docgen/pptxDoc.js'); return buildPptx(m, theme); }
+  if (file.kind === 'pptx') { const { buildAgentPptx } = await import('./docgen/agentPptx.js'); return buildAgentPptx(agent); } // C25 (REQ-559): the agent's deck plus value
   const { buildXlsx } = await import('./docgen/xlsxDoc.js');
   return toBytes(await buildXlsx(m, orderedColumns(options.columns), theme));
 }
