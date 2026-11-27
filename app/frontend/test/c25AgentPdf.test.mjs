@@ -65,7 +65,7 @@ const articleOf = (id) => pages.filter((p) => p.kind === 'cards').map((p) => p.s
 
 test('(a) the page sequence is the agent PDF order, with the value page after the last domain and before the index', () => {
   const seq = collapse(pages.map((p) => (p.kind === 'domain' || p.kind === 'cards' ? `${p.kind}${p.domain}` : p.kind)));
-  assert.deepEqual(seq, ['cover', 'contents', 'exec', 'guide', 'portfolio', 'domain1', 'cards1', 'story', 'cards1', 'story', 'domain2', 'cards2', 'story', 'cards2', 'value', 'index',
+  assert.deepEqual(seq, ['cover', 'contents', 'exec', 'purpose', 'domainslist', 'guide', 'portfolio', 'domain1', 'cards1', 'story', 'cards1', 'story', 'domain2', 'cards2', 'story', 'cards2', 'value', 'index',
     'methodology', 'foundations', 'roadmap', 'disclaimer', 'closing']);
   // Domain 1 (Sales, best rank) holds its use cases; domain 2 holds the other two.
   const ids = (d) => pages.filter((p) => p.kind === 'cards' && p.domain === d).map((p) => p.svg).join('').match(/data-uc="[^"]+"/g);

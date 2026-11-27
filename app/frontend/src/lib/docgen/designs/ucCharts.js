@@ -81,7 +81,7 @@ export function chartTypesFor(uc) {
 
 // ---- drawing helpers (plain SVG strings) ----
 const r1 = (n) => Math.round(n * 10) / 10;
-const txt = (x, y, s, { size = 11, fill, weight = 400, anchor = 'start', op } = {}) => `<text x="${r1(x)}" y="${r1(y)}" font-size="${size}" font-weight="${weight}" fill="${fill}" text-anchor="${anchor}"${op != null ? ` fill-opacity="${op}"` : ''}>${esc(s)}</text>`;
+const txt = (x, y, s, { size = 11, fill, weight = 400, anchor = 'start', op } = {}) => `<text x="${r1(x)}" y="${r1(y)}" font-size="${Math.max(12, size)}" font-weight="${weight}" fill="${fill}" text-anchor="${anchor}"${op != null ? ` fill-opacity="${op}"` : ''}>${esc(s)}</text>`;
 const box = (x, y, w, h, fill, o = {}) => `<rect x="${r1(x)}" y="${r1(y)}" width="${r1(Math.max(0, w))}" height="${r1(Math.max(0, h))}"${o.rx ? ` rx="${o.rx}"` : ''} fill="${fill}"${o.op != null ? ` fill-opacity="${o.op}"` : ''}${o.stroke ? ` stroke="${o.stroke}" stroke-width="${o.sw || 1}"` : ''}/>`;
 const seg = (x1, y1, x2, y2, c, w = 1, dash = '') => `<line x1="${r1(x1)}" y1="${r1(y1)}" x2="${r1(x2)}" y2="${r1(y2)}" stroke="${c}" stroke-width="${w}"${dash ? ` stroke-dasharray="${dash}"` : ''} stroke-linecap="round"/>`;
 const dot = (cx, cy, r, fill, o = {}) => `<circle cx="${r1(cx)}" cy="${r1(cy)}" r="${r1(r)}" fill="${fill}"${o.op != null ? ` fill-opacity="${o.op}"` : ''}${o.stroke ? ` stroke="${o.stroke}" stroke-width="${o.sw || 1.5}"` : ''}/>`;
@@ -99,9 +99,9 @@ const fmt = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
 // The frame every chart shares: a white card, a colored top rule, the title, the "Illustrative" tag, the plot area and a footnote.
 function frame(type, { w, h, P, uc, title, tag, note, accent }, body) {
   const ink = P.ink; const a = accent || P.cats[0];
-  const head = `${box(0, 0, w, h, P.bg, { rx: 10, stroke: P.grid })}${box(0, 0, w, 5, a, { rx: 2 })}${txt(14, 24, clip(title, Math.floor((w - (tag ? 120 : 28)) / 6.1)), { size: 12.5, fill: ink, weight: 700 })}`
-    + (tag ? `${box(w - 108, 12, 94, 17, P.soft, { rx: 8.5 })}${txt(w - 61, 24, tag, { size: 9.5, fill: P.muted, anchor: 'middle' })}` : '')
-    + (note ? txt(14, h - 10, clip(note, Math.floor((w - 28) / 5.6)), { size: 10, fill: P.muted }) : '');
+  const head = `${box(0, 0, w, h, P.bg, { rx: 10, stroke: P.grid })}${box(0, 0, w, 5, a, { rx: 2 })}${txt(14, 24, clip(title, Math.floor((w - (tag ? 146 : 28)) / 6.6)), { size: 12.5, fill: ink, weight: 700 })}`
+    + (tag ? `${box(w - 132, 11, 118, 19, P.soft, { rx: 9.5 })}${txt(w - 73, 25, tag, { size: 12, fill: P.muted, anchor: 'middle' })}` : '')
+    + (note ? txt(14, h - 10, clip(note, Math.floor((w - 28) / 6.4)), { size: 12, fill: P.muted }) : '');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" font-family="${FONT}" data-chart="${type}"${uc ? ` data-uc="${esc(uc)}"` : ''} role="img" aria-label="${esc(title)}">${head}${body}</svg>`;
 }
 // The plot box inside the frame.
@@ -122,7 +122,7 @@ const LEAD = {
     return `${grid}<path d="${poly(band)} Z" fill="${P.cats[2]}" fill-opacity=".28" stroke="none"/>${path(poly(hist), P.cats[0], 2.6)}${path(poly(fc), P.cats[1], 2.6, { dash: '6 4' })}`
       + `${seg(split, p.y, split, p.y + p.h - 12, P.muted, 1, '2 3')}${dot(...hist[n - 1], 4, P.cats[0])}${txt(p.x, p.y + p.h, 'History', { size: 10, fill: P.muted })}${txt(p.x + p.w, p.y + p.h, 'Forecast', { size: 10, fill: P.cats[1], anchor: 'end', weight: 700 })}`;
   } },
-  survival: { title: 'Survival, with and without action', draw(p, P, rnd) {
+  survival: { title: 'Survival with action', draw(p, P, rnd) {
     const steps = 10; const sw = p.w / steps; const top = p.y + 6; const span = p.h - 30;
     const curve = (drop) => { const pts = [[p.x, top]]; let y = top; for (let i = 1; i <= steps; i += 1) { y += span * drop * (0.6 + rnd() * 0.8) / steps; pts.push([p.x + (i - 1) * sw + sw, pts[pts.length - 1][1]]); pts.push([p.x + i * sw, Math.min(top + span, y)]); } return pts; };
     const a = curve(0.75); const b = curve(0.38);
@@ -163,7 +163,8 @@ const LEAD = {
     const n = 5; const parts = Array.from({ length: n }, () => 0.4 + rnd()); const tot = parts.reduce((a, b) => a + b, 0);
     const r = Math.min(p.h / 2 - 4, p.w / 4); const cx = p.x + r + 8; const cy = p.y + p.h / 2; let a = -Math.PI / 2;
     const arcs = parts.map((v, i) => { const b = a + (v / tot) * Math.PI * 2; const d = arcPath(cx, cy, r * 0.58, r, a, b - 0.02); a = b; return `<path d="${d}" fill="${P.cats[i]}"/>`; }).join('');
-    const leg = parts.map((_, i) => `${box(cx + r + 22, p.y + 8 + i * 20, 12, 12, P.cats[i], { rx: 3 })}${txt(cx + r + 40, p.y + 18 + i * 20, `Segment ${String.fromCharCode(65 + i)}`, { size: 10.5, fill: P.ink })}`).join('');
+    const step = Math.min(20, (p.h - 4) / n); // the legend stays inside the plot, clear of the caption line
+    const leg = parts.map((_, i) => `${box(cx + r + 22, p.y + 2 + i * step, 11, 11, P.cats[i], { rx: 3 })}${txt(cx + r + 40, p.y + 12 + i * step, `Segment ${String.fromCharCode(65 + i)}`, { size: 10.5, fill: P.ink })}`).join('');
     return `${arcs}${txt(cx, cy + 4, `${n} segments`, { size: 11, fill: P.ink, weight: 700, anchor: 'middle' })}${leg}`;
   } },
   treemap: { title: 'Clusters by size', draw(p, P, rnd) {
@@ -263,10 +264,10 @@ const SCORE = {
         + `${txt(cx, cy + 5, fmt(v), { size: Math.max(11, r * 0.5), fill: P.ink, weight: 800, anchor: 'middle' })}${txt(cx, cy + r + 18, `${l} / ${max}`, { size: 10, fill: P.muted, anchor: 'middle' })}`; }).join('');
   } },
   'value-years': { title: 'Value by year', draw(p, P, f) {
-    const ys = f.yearly; const top = Math.max(1, ...ys.map((y) => y.high ?? y.likely)); const gw = p.w / ys.length; const H = p.h - 34;
+    const ys = f.yearly; const top = Math.max(1, ...ys.map((y) => y.high ?? y.likely)); const gw = p.w / ys.length; const H = p.h - 40;
     return ys.map((y, i) => { const x = p.x + i * gw + gw * 0.2; const bw = gw * 0.6; const hl = (H * y.likely) / top; const hh = y.high !== null ? (H * y.high) / top : hl; const hlw = y.low !== null ? (H * y.low) / top : hl;
-      return `${box(x, p.y + 14 + H - hh, bw, hh, P.cats[2], { rx: 4, op: 0.3 })}${box(x, p.y + 14 + H - hl, bw, hl, P.cats[i % 2 ? 3 : 0], { rx: 4 })}${seg(x, p.y + 14 + H - hlw, x + bw, p.y + 14 + H - hlw, P.cats[1], 2, '3 2')}`
-        + `${txt(x + bw / 2, p.y + 10 + H - hh, moneyText(f.currency, y.likely), { size: 10, fill: P.ink, weight: 700, anchor: 'middle' })}${txt(x + bw / 2, p.y + p.h, `Year ${y.year}`, { size: 10, fill: P.muted, anchor: 'middle' })}`; }).join('');
+      return `${box(x, p.y + 20 + H - hh, bw, hh, P.cats[2], { rx: 4, op: 0.3 })}${box(x, p.y + 20 + H - hl, bw, hl, P.cats[i % 2 ? 3 : 0], { rx: 4 })}${seg(x, p.y + 20 + H - hlw, x + bw, p.y + 20 + H - hlw, P.cats[1], 2, '3 2')}`
+        + `${txt(x + bw / 2, p.y + 16 + H - hh, moneyText(f.currency, y.likely), { size: 10, fill: P.ink, weight: 700, anchor: 'middle' })}${txt(x + bw / 2, p.y + p.h, `Year ${y.year}`, { size: 10, fill: P.muted, anchor: 'middle' })}`; }).join('');
   } },
 };
 
@@ -300,18 +301,19 @@ export function portfolioChartSvg(type, useCases, { w = 520, h = 260, palette } 
   const note = `${list.length} use cases · ${doms.length} business domains`;
   const p = plotOf(w, h, note);
   if (type === 'domain-value') {
-    const rows = [...doms].sort((a, b) => (withValue ? b.amount - a.amount : b.n - a.n) || a.name.localeCompare(b.name)).slice(0, 12);
+    // Rows of at least 17 px so 12 px labels never touch; with values, only the domains that have one.
+    const rows = [...doms].filter((d) => !withValue || d.amount > 0).sort((a, b) => (withValue ? b.amount - a.amount : b.n - a.n) || a.name.localeCompare(b.name)).slice(0, Math.max(1, Math.min(12, Math.floor(p.h / 17))));
     const max = Math.max(1, ...rows.map((d) => (withValue ? d.amount : d.n))); const rh = p.h / Math.max(rows.length, 1); const lw = Math.min(170, p.w * 0.36);
     const body = rows.map((d, i) => { const v = withValue ? d.amount : d.n; const y = p.y + i * rh; const bw = (p.w - lw - 70) * (v / max);
-      return `${txt(p.x, y + rh * 0.66, clip(d.name, Math.floor(lw / 6)), { size: Math.min(11, rh * 0.6), fill: P.ink })}${box(p.x + lw, y + rh * 0.18, p.w - lw - 70, rh * 0.64, P.track, { rx: 3 })}${box(p.x + lw, y + rh * 0.18, Math.max(3, bw), rh * 0.64, P.cats[i % P.cats.length], { rx: 3 })}`
-        + txt(p.x + p.w, y + rh * 0.66, withValue ? moneyText(cur, v) : String(v), { size: Math.min(11, rh * 0.6), fill: P.ink, weight: 700, anchor: 'end' }); }).join('');
+      return `${txt(p.x, y + rh * 0.66, clip(d.name, Math.floor(lw / 6.6)), { size: 12, fill: P.ink })}${box(p.x + lw, y + rh * 0.18, p.w - lw - 70, rh * 0.64, P.track, { rx: 3 })}${box(p.x + lw, y + rh * 0.18, Math.max(3, bw), rh * 0.64, P.cats[i % P.cats.length], { rx: 3 })}`
+        + txt(p.x + p.w, y + rh * 0.66, withValue ? moneyText(cur, v) : String(v), { size: 12, fill: P.ink, weight: 700, anchor: 'end' }); }).join('');
     return frame('domain-value', { w, h, P, title: withValue ? 'Value at stake by business domain' : 'Use cases by business domain', note }, body);
   }
   if (type === 'domain-donut') {
     const rows = [...doms].sort((a, b) => b.n - a.n); const tot = list.length || 1; const r = Math.min(p.h / 2 - 2, p.w / 4); const cx = p.x + r + 6; const cy = p.y + p.h / 2; let a = -Math.PI / 2;
     const arcs = rows.map((d, i) => { const b = a + (d.n / tot) * Math.PI * 2; const s = `<path d="${arcPath(cx, cy, r * 0.6, r, a, b - 0.015)}" fill="${P.cats[i % P.cats.length]}" fill-opacity="${i < P.cats.length ? 1 : 0.6}"/>`; a = b; return s; }).join('');
     const shown = rows.slice(0, Math.max(1, Math.floor(p.h / 16))); const lh = p.h / Math.max(shown.length, 1);
-    const leg = shown.map((d, i) => `${box(cx + r + 18, p.y + i * lh + lh / 2 - 6, 11, 11, P.cats[i % P.cats.length], { rx: 3, op: i < P.cats.length ? 1 : 0.6 })}${txt(cx + r + 34, p.y + i * lh + lh / 2 + 4, `${clip(d.name, Math.floor((w - cx - r - 70) / 5.8))} (${d.n})`, { size: 10.5, fill: P.ink })}`).join('');
+    const leg = shown.map((d, i) => `${box(cx + r + 18, p.y + i * lh + lh / 2 - 6, 11, 11, P.cats[i % P.cats.length], { rx: 3, op: i < P.cats.length ? 1 : 0.6 })}${txt(cx + r + 34, p.y + i * lh + lh / 2 + 4, `${clip(d.name, Math.floor((w - cx - r - 70) / 6.6))} (${d.n})`, { size: 10.5, fill: P.ink })}`).join('');
     return frame('domain-donut', { w, h, P, title: 'The portfolio by business domain', note }, `${arcs}${txt(cx, cy, String(list.length), { size: 22, fill: P.ink, weight: 800, anchor: 'middle' })}${txt(cx, cy + 15, 'use cases', { size: 10, fill: P.muted, anchor: 'middle' })}${leg}`);
   }
   if (type === 'quality-mix') {
@@ -330,16 +332,17 @@ export function portfolioChartSvg(type, useCases, { w = 520, h = 260, palette } 
     const X = (v) => p.x + 30 + ((v - x0) / Math.max(0.1, x1 - x0)) * (p.w - 40); const Y = (v) => p.y + p.h - 16 - ((v - y0) / Math.max(0.1, y1 - y0)) * (p.h - 26);
     const mx = (x0 + x1) / 2; const my = (y0 + y1) / 2;
     const quad = `${box(X(mx), p.y, p.x + p.w - 10 - X(mx), Y(my) - p.y, P.soft, { op: 0.7 })}${txt(p.x + p.w - 14, p.y + 13, 'Quick wins', { size: 10.5, fill: P.cats[0], weight: 700, anchor: 'end' })}`;
-    const axes = `${seg(p.x + 30, p.y + p.h - 16, p.x + p.w - 10, p.y + p.h - 16, P.muted, 1)}${seg(p.x + 30, p.y, p.x + 30, p.y + p.h - 16, P.muted, 1)}${txt(p.x + p.w - 10, p.y + p.h - 2, 'Priority score', { size: 10, fill: P.muted, anchor: 'end' })}${txt(p.x, p.y + 8, yKey[1], { size: 10, fill: P.muted })}`;
+    const axes = `${seg(p.x + 30, p.y + p.h - 16, p.x + p.w - 10, p.y + p.h - 16, P.muted, 1)}${seg(p.x + 30, p.y, p.x + 30, p.y + p.h - 16, P.muted, 1)}${txt(p.x + 30 + (p.w - 40) / 2, p.y + p.h - 2, 'Priority score', { size: 10, fill: P.muted, anchor: 'middle' })}${txt(p.x, p.y + 8, yKey[1], { size: 10, fill: P.muted })}`;
     const dots = pts.map((f, i) => `${dot(X(f.priority), Y(f[yKey[0]]), 7, P.cats[i % P.cats.length], { op: 0.85 })}`).join('');
     const ticks = [x0 + 0.5, x1 - 0.5].map((v) => txt(X(v), p.y + p.h - 4, fmt(v), { size: 9.5, fill: P.muted, anchor: 'middle' })).join('');
     return frame('matrix', { w, h, P, title: `Priority against ${yKey[1].toLowerCase()}`, note }, quad + axes + ticks + dots);
   }
   // top: the strongest use cases by Inspire score.
   const top = list.filter((f) => f.score !== null).sort((a, b) => b.score - a.score || a.id.localeCompare(b.id)).slice(0, 6);
-  const rh = p.h / Math.max(top.length, 1); const lw = Math.min(250, p.w * 0.55);
-  const body = top.map((f, i) => { const y = p.y + i * rh; const bw = (p.w - lw - 50) * (f.score / 10);
-    return `${txt(p.x, y + rh * 0.64, clip(f.name, Math.floor(lw / 5.9)), { size: Math.min(11, rh * 0.55), fill: P.ink })}${box(p.x + lw, y + rh * 0.2, p.w - lw - 50, rh * 0.6, P.track, { rx: rh * 0.3 })}${box(p.x + lw, y + rh * 0.2, bw, rh * 0.6, P.cats[i % P.cats.length], { rx: rh * 0.3 })}`
-      + txt(p.x + p.w, y + rh * 0.64, fmt(f.score), { size: 11, fill: P.ink, weight: 800, anchor: 'end' }); }).join('');
+  // Each row: the name over its bar (the full name fits), the score at the end of the bar.
+  const rows = top.slice(0, Math.max(1, Math.floor(p.h / 26))); const rh = p.h / Math.max(rows.length, 1); const bh = Math.max(6, Math.min(10, rh - 18));
+  const body = rows.map((f, i) => { const y = p.y + i * rh; const bw = (p.w - 40) * (f.score / 10);
+    return `${txt(p.x, y + 12, clip(f.name, Math.floor((p.w - 40) / 6.6)), { size: 12, fill: P.ink })}${box(p.x, y + 16, p.w - 40, bh, P.track, { rx: bh / 2 })}${box(p.x, y + 16, bw, bh, P.cats[i % P.cats.length], { rx: bh / 2 })}`
+      + txt(p.x + p.w, y + 16 + bh, fmt(f.score), { size: 12, fill: P.ink, weight: 800, anchor: 'end' }); }).join('');
   return frame('top', { w, h, P, title: 'Top opportunities by Inspire Score', note }, body);
 }

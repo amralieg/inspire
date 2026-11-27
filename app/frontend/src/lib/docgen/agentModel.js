@@ -185,6 +185,8 @@ export const AGENT_VALUE_EN = {
   value_total: 'Total value per year', value_with: 'Use cases with a value', value_domains: 'Domains with a value', value_per_domain: 'Value per domain',
   value_top: 'Top use cases by value', value_without: 'Use cases without a value', value_year: 'Value a year', value_status: 'Basis',
   value_calculated_short: 'Calculated', value_estimated_short: 'Estimated', value_other_currency: 'Values in another currency are not added to the total: {list}.',
+  doc_purpose_kicker: 'About this catalog', doc_purpose_title: 'What this catalog is for', doc_domains_list_kicker: 'The portfolio', doc_domains_list_title: 'Business domains',
+  doc_domains_list_lead: 'Every business domain in this catalog, with its use cases, its value and its best score.', doc_dl_count: 'Use cases', doc_dl_best: 'Best score',
   what_we_serve: 'What we serve', how_it_works: 'How it works', value_source: 'Where the value comes from', objective_label: 'Objective',
   value_disclaimer: disclaimer.full,
   strategy: 'Strategy', strategy_serves: 'Serves {goal}', strategy_part_of: 'part of {under}', strategy_priorities: 'Business priorities', strategy_measured: 'Measured by',
@@ -288,7 +290,7 @@ function valueView(v, T) {
   // REQ-561: what the value story page holds beside the card's block: the factors with their share and formula, and the projection.
   const factors = (v.factors || []).filter((f) => f && f.name && Number(f.share) > 0).map((f) => ({ name: display(f.name), share: Math.round(f.share * 100), formula: display(f.formula) }));
   const projection = (v.yearly || []).filter((y) => y && Number.isFinite(Number(y.likely))).map((y) => ({ year: y.year, low: moneyText(v.currency, Number(y.low)), likely: moneyText(v.currency, Number(y.likely)), high: moneyText(v.currency, Number(y.high)) }));
-  return { amount: v.amount, currency: v.currency, status: v.status, text: v.text, basis, note: v.status === 'calculated' ? '' : T('value_note_body'), story, factors, projection };
+  return { amount: v.amount, currency: v.currency, status: v.status, text: v.text, yearly: v.yearly || [], basis, note: v.status === 'calculated' ? '' : T('value_note_body'), story, factors, projection };
 }
 
 // _use_case_view: everything one use case card prints, in the agent's order, plus its value.
@@ -446,7 +448,7 @@ export function buildAgentModel({ businessName, useCases, values, summary, found
   const valueTop = [...withValue].filter((u) => docOf.get(u).value.currency === currency).sort((a, b) => amountOf(b) - amountOf(a) || compareFinalRank(a, b)).slice(0, TOP_LIMIT.value).map((u) => views.get(u));
   const model = {
     language, lang: LOCALES[language] || 'en', rtl: isRtl(language), latinDisplay: !NON_LATIN_LANGUAGES.includes(language), T, labels,
-    businessName: docModel.businessName, date: day, mode, ultra, modeLabel, total: ranked.length, domains, groupLabelKey,
+    businessName: docModel.businessName, summary: docModel.summary, date: day, mode, ultra, modeLabel, total: ranked.length, domains, groupLabelKey,
     ranked: ranked.map((u) => views.get(u)), qualityCounts, qualityRows, unscored, executive, top, foundations: foundationList,
     headline: [[String(ranked.length), T('doc_use_cases')], [String(domains.length), T('doc_domains')],
       ultra ? [String(elite.length), T('doc_elite_use_cases')] : [String(highOrBetter), T('doc_high_or_better')], [scoreText(bestScore, 10, T), T('doc_best_score')]],

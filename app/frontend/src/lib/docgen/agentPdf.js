@@ -6,6 +6,8 @@ import {
   buildAgentModel, agentOutline, DOC_COLORS, DOC_BRAND, DOC_QUALITY_ORDER, DOC_INDEX_COLUMNS, DOC_VALUE_LEFT,
   qualityColor, docJoin,
 } from './agentModel.js';
+import { chartTypesFor, ucChartSvg, portfolioChartSvg } from './designs/ucCharts.js';
+import { execSummaryParas, purposeParas, domainsListOf } from './storyParts.js';
 
 // The agent's _PDF_CSS (6a7361a39) without the @page rules, which the page box below replaces; html is the page root .ap.
 const AGENT_PDF_CSS = `
@@ -30,6 +32,21 @@ a { color: #__C_teal__; text-decoration: none; }
 .eyebrow { color: #__C_coral__; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; font-size: __F_label__; }
 .title { font-size: __F_title__; margin: 5px 0 0; }
 .rule { height: 3px; width: 54px; background: #__C_gold__; margin: 9px 0 13px; border-radius: 2px; }
+.eyebrow.pillb { display: inline-block; color: #__C_white__; border-radius: 20px; padding: 3px 12px; letter-spacing: 1.6px; }
+.rule.wide { width: 140px; height: 5px; border-radius: 3px; }
+.ucharts { display: flex; justify-content: space-between; margin: 2px 0 12px; }
+.ucharts svg, .pcharts svg { display: block; flex: none; height: auto; max-width: 100%; }
+.ucharts svg:not(:only-child), .pcharts svg:not(:only-child) { width: calc(50% - 7px); }
+.pcharts svg:only-child { width: 100%; }
+.pcharts { display: flex; justify-content: space-between; margin: 4px 0 14px; }
+.dlrow { display: flex; align-items: center; gap: 12px; padding: 7px 10px; border-radius: 10px; margin-bottom: 5px; background: #__C_sand__; }
+.dlrow .sw { flex: none; width: 10px; align-self: stretch; border-radius: 5px; }
+.dlrow .dn { flex: 0 0 150px; font-weight: 700; font-size: __F_body__; color: #__C_ink__; }
+.dlrow .dd { flex: 1; font-size: __F_small__; color: #__C_body__; line-height: 1.4; }
+.dlrow .dk { flex: 0 0 64px; white-space: nowrap; text-align: center; font-size: __F_label__; color: #__C_muted__; line-height: 1.25; }
+.dlrow .dk b { display: block; font-family: __DISPLAY__; font-size: __F_heading__; color: #__C_teal__; }
+.purp p { font-size: __F_lead__; line-height: 1.6; }
+.purp p.first::first-line { font-weight: 700; }
 .lead { font-size: __F_lead__; color: #__C_body__; margin-bottom: 12px; }
 .grid2 { display: table; width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 12px 0; margin-left: -12px; margin-right: -12px; }
 .grid2 > * { display: table-cell; vertical-align: top; }
@@ -488,10 +505,18 @@ const CARD_CAL = 0.84;
 
 // ---- the shared pieces of the agent sheet (_pdf_wordmark, heading, stats_table, _pdf_index_table) ----
 const wordmark = (extra = '') => `<span class="wordmark ${extra}" dir="ltr"><i class="mark"></i>${esc(DOC_BRAND.maker)} <b>${esc(DOC_BRAND.product)}</b></span>`;
-const heading = (section, eyebrow, title) => ({
-  html: `<div class="eyebrow">${esc(eyebrow)}</div><h2 class="title" id="sec-${section}">${esc(title)}</h2><div class="rule"></div>`,
-  h: F.label * 1.5 + 5 + textH(title, F.title, CW, 1.16, { bold: true }) + 25,
-});
+// C27 (REQ-564): each section header carries its own deck colour: the eyebrow as a coloured pill and a two-colour rule under the title.
+const SECTION_TONES = { contents: ['teal', 'gold'], executive: ['coral', 'gold'], purpose: ['teal_mid', 'green'], domainslist: ['gold', 'coral'], guide: ['green', 'teal_mid'],
+  portfolio: ['amber', 'coral'], value: ['green', 'gold'], index: ['teal', 'teal_mid'], methodology: ['teal_mid', 'gold'], foundations: ['amber', 'teal'], roadmap: ['coral', 'amber'], disclaimer: ['teal', 'coral'] };
+const toneOf = (section) => (SECTION_TONES[section] || ['teal', 'gold']).map((k) => `#${DOC_COLORS[k].toLowerCase()}`);
+const heading = (section, eyebrow, title) => {
+  const [c1, c2] = toneOf(section);
+  return {
+    html: `<div class="sechd" data-section="${section === 'domainslist' ? 'domains-list' : section}"><div class="eyebrow pillb" style="background:${c1}">${esc(eyebrow)}</div>`
+      + `<h2 class="title" id="sec-${section}">${esc(title)}</h2><div class="rule wide" style="background:linear-gradient(90deg, ${c1} 0 45%, ${c2} 45% 100%)"></div></div>`,
+    h: F.label * 1.5 + 11 + textH(title, F.title, CW, 1.16, { bold: true }) + 25,
+  };
+};
 function statsTable(items, b, extra = '', width = CW, big = extra === 'big') {
   const cells = items.map(([v, l]) => `<td><div class="v">${b.html(v)}</div><div class="l">${esc(l)}</div></td>`).join('');
   const cw = width / Math.max(1, items.length) - 20;
@@ -642,7 +667,10 @@ function cardPieces(v, m, b) {
   const valLeft = valAll.slice(0, cut); const valRight = valAll.slice(cut);
   const val = v.valueFacts.length ? { left: valLeft, right: valRight, render: (l, r) => `<div class="val"><div>${valueBlock(l)}</div><div>${valueBlock(r)}</div></div>`, pad: 26 } : null;
   const foot = v.notebook ? { html: `<div class="foot"><span class="btn">${esc(T('doc_open_notebook'))} ↗</span></div>`, h: 10 + F.label * 1.5 + 10 } : { html: '', h: 0 };
-  const segs = [top, cols, ...(val ? [val] : []), foot];
+  // C27 (REQ-564): two charts under the head: the lead one shows the kind of result its technique gives, the second its scores or value years.
+  const chartW = Math.floor((CARD_IN - 14) / 2); const chartH = 188;
+  const charts = { html: `<div class="ucharts">${chartTypesFor(v).slice(0, 2).map((t) => ucChartSvg(t, v, { w: chartW, h: chartH })).join('')}</div>`, h: chartH + 14 };
+  const segs = [top, charts, cols, ...(val ? [val] : []), foot];
   const segH = (seg) => (seg.render ? seg.pad + (seg.extra ? seg.extra(seg.right) : 0) + Math.max(seg.left.reduce((a, x) => a + x.h, 0), seg.right.reduce((a, x) => a + x.h, 0)) : seg.h);
   const shell = 38 + 14; // border, padding and the gap below the card
   const total = shell + segs.reduce((a, seg) => a + segH(seg), 0);
@@ -750,7 +778,10 @@ function sections(m) {
     + `${m.mode ? `<div class="modepill">${esc(T('doc_quality_mode'))}: ${esc(m.modeLabel)}</div>` : ''}<table class="glass"><tr>${glass}</tr></table></div>`
     + `<div class="foot"><div class="meta">${b.html(m.generatedBy)}</div></div></section>`] });
   // Contents: the page numbers are filled in once every page is cut.
-  const outline = agentOutline(m);
+  // C27: the PDF's contents add the purpose and domains list pages after the executive summary (the deck keeps agentOutline as is).
+  const base = agentOutline(m); const at = base.findIndex((o) => o[0] === 'executive') + 1;
+  const outline = [...base.slice(0, at), ...(m.language === 'English' ? [['purpose', T('doc_purpose_title'), T('doc_purpose_kicker')]] : []),
+    ['domainslist', T('doc_domains_list_title'), `${m.domains.length} ${T('doc_domains')}`], ...base.slice(at)];
   const tile = ([key, title, sub], i) => `<div class="it"><span class="n" style="background:#${ACCENTS[i % ACCENTS.length]}">${String(i + 1).padStart(2, '0')}</span>`
     + `<span class="tx"><span class="t">${esc(title)}</span><div class="s"${b.dir(sub)}>${b.text(sub)}</div></span><a class="pgn">@@PG:${key}@@</a></div>`;
   const tw = CW / 2 - 28 - 40;
@@ -762,10 +793,45 @@ function sections(m) {
   }
   flow(out, 'contents', { head: heading('contents', m.businessName, T('doc_contents')), blocks: [{ html: `<div class="toc">${rows.join('')}</div>`, h: tocH }] });
   // Executive summary
-  const exec = para(m.executive, F.lead, CW, 1.62);
+  // C27 (REQ-564): the executive summary is its own page: the headline numbers, two portfolio charts and 180 to 300 words built from the data
+  // (English; another language keeps the translated session summary). A bar notice stays first.
+  const notices = m.executive.slice(0, Math.max(0, m.executive.length - (m.summary?.length || 2)));
+  const english = m.language === 'English';
+  const exec = para([...notices, ...(english ? execSummaryParas(m) : m.executive.slice(notices.length))], F.body + 1, CW, 1.55);
   const stats = statsTable(m.headline, b, 'big');
+  const pw = Math.floor((CW - 14) / 2); const ph = 220;
+  const valued = m.ranked.some((u) => u.value.amount !== null);
+  const pcharts = { html: `<div class="pcharts">${[valued ? 'domain-value' : 'domain-donut', 'top'].map((t) => portfolioChartSvg(t, m.ranked, { w: pw, h: ph })).join('')}</div>`, h: ph + 18 };
   flow(out, 'exec', { head: { html: heading('executive', T('doc_exec_kicker'), T('pdf_exec_summary')).html + stats.html, h: heading('executive', '', T('pdf_exec_summary')).h + stats.h + 13 },
-    blocks: exec.map((p) => ({ html: `<div class="txt exec">${p.html}</div>`, h: p.h })), extra: { section: 'executive', cls: 'exec' } });
+    blocks: [pcharts, ...exec.map((p) => ({ html: `<div class="txt exec">${p.html}</div>`, h: p.h }))], extra: { section: 'executive', cls: 'exec' } });
+  // C27: what this catalog is for (data-section="purpose"), with the priority matrix and the quality mix.
+  if (english) {
+    const pp = para(purposeParas(m), F.lead, CW, 1.6);
+    const ph2 = 230;
+    flow(out, 'purpose', { head: heading('purpose', T('doc_purpose_kicker'), T('doc_purpose_title')), extra: { section: 'purpose' },
+      blocks: [...pp.map((p) => ({ html: `<div class="txt purp">${p.html}</div>`, h: p.h + 2 })),
+        { html: `<div class="pcharts">${['matrix', 'quality-mix'].map((t) => portfolioChartSvg(t, m.ranked, { w: pw, h: ph2 })).join('')}</div>`, h: ph2 + 18 }] });
+  }
+  // C27: the business domains list (data-section="domains-list"): every domain with its use cases, value, best score and what it covers.
+  const dl = domainsListOf(m.ranked);
+  const dlValue = dl.some((d) => d.value);
+  const dlW = CW - 20 - 10 - 150 - (dlValue ? 3 : 2) * (64 + 12) - 12;
+  const dlRows = dl.map((d, i) => {
+    const desc = english ? d.description.replace(/;.*$/, '.') : '';
+    const c = ACCENTS[i % ACCENTS.length];
+    return { html: `<div class="dlrow"><i class="sw" style="background:#${c}"></i><div class="dn"${b.dir(d.domain)}>${b.text(d.domain)}</div><div class="dd"${b.dir(desc)}>${b.text(desc)}</div>`
+      + `<div class="dk"><b>${d.count}</b>${esc(T('doc_dl_count'))}</div>${dlValue ? `<div class="dk"><b dir="ltr">${d.value ? esc(d.value.text) : '\u2013'}</b>${esc(T('value_year'))}</div>` : ''}`
+      + `<div class="dk"><b dir="ltr">${d.bestScore === null ? '\u2013' : esc(d.bestScore.toFixed(1))}</b>${esc(T('doc_dl_best'))}</div></div>`,
+    h: 5 + 14 + Math.max(textH(d.domain, F.body, 150, 1.5, { bold: true }), textH(desc, F.small, dlW, 1.4), F.heading * 1.2 + F.label * 1.25) };
+  });
+  const dlLead = T('doc_domains_list_lead');
+  // The domain chart takes the room the rows leave (up to 250 px); with too little room it is left out, so the list stays on one page when it can.
+  const dlHead = heading('domainslist', '', T('doc_domains_list_title')).h + textH(dlLead, F.lead, CW) + 12;
+  const dlFree = ROOM - dlHead - dlRows.reduce((a, r) => a + r.h, 0) - 18 - 8;
+  const dlChartH = Math.min(250, dlFree >= 140 ? dlFree : 250);
+  flow(out, 'domainslist', { head: { html: heading('domainslist', T('doc_domains_list_kicker'), T('doc_domains_list_title')).html + `<p class="lead">${esc(dlLead)}</p>`,
+    h: dlHead }, extra: { section: 'domainslist' },
+    blocks: [...dlRows, ...(dlFree >= 140 || dlFree < 0 ? [{ html: `<div class="pcharts">${portfolioChartSvg(valued ? 'domain-value' : 'domain-donut', m.ranked, { w: CW, h: dlChartH })}</div>`, h: dlChartH + 18 }] : [])] });
   // How to read
   const half = CW / 2 - 6 - 28;
   const legend = DOC_QUALITY_ORDER.map((l) => `<span><i class="dot" style="background:#${qualityColor(l).toLowerCase()}"></i>${esc(l)} <b>${m.qualityCounts[l]}</b></span>`).join('');
