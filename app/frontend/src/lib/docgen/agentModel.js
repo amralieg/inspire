@@ -249,6 +249,11 @@ export const display = (value) => {
   const text = plainDocText(aiWording(Array.isArray(value) ? value.join(', ') : value)).replace(/\u2014/g, ', ').replace(/\s+/g, ' ').trim();
   return ['N/A', 'NA', 'NONE', 'NULL', '-'].includes(text.toUpperCase()) ? '' : text;
 };
+// REQ-561 (c27): a business line never prints a column or table identifier. "table.column" keeps the column, snake_case words become plain words ("on_hand" -> "on hand").
+const SNAKE_ID = /\b[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+\b/g;
+export const plainBusiness = (text) => String(text ?? '').replace(/`/g, '')
+  .replace(/\b([A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)*)\.([A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)*)\b/g, (all, l, r) => (all.includes('_') ? r : all))
+  .replace(SNAKE_ID, (id) => id.replace(/_/g, ' '));
 const finite = (v) => (v === null || v === undefined || v === '' ? null : Number.isFinite(Number(v)) ? Number(v) : null);
 export const scoreText = (value, scale, T) => { const n = finite(value); return n === null ? T('doc_not_scored') : `${n.toFixed(1)} / ${scale}`; };
 export const canonicalQuality = (v) => DOC_QUALITY_ORDER.find((l) => l.toLowerCase() === String(v ?? '').trim().toLowerCase()) || '';
@@ -345,9 +350,10 @@ function useCaseView(uc, d, ctx) {
   const star = String(uc.best_of_best ?? '').trim().toUpperCase() === 'Y'
     ? [`\u2605 ${T('doc_best_of_best')} #${uc.best_of_best_rank ?? ''}`, finite(uc.best_of_best_score) === null ? '' : `${T('doc_elite_score')} ${scoreText(uc.best_of_best_score, 10, T)}`].filter(Boolean).join(' \u00B7 ') : '';
   const coverage = coverageKind ? [T(status === 'DOMAIN_COVERAGE_PICK' ? 'doc_coverage_pick' : 'doc_fallback_pick'), T('elite_reason'), belowBarReasonOf(uc) || missing] : null;
+  const biz = (rows) => rows.map(([k, label, value]) => [k, label, Array.isArray(value) ? value.map(plainBusiness) : plainBusiness(value)]);
   return {
-    uc, id: d.id, rank: rankOf.get(uc) ?? '', title: d.name || missing, subtitle, domain: domainOf(uc), subdomain: d.subdomain, kind, quality, metrics, narrative, facts,
-    valueFacts, panelKeys: PANEL_BUSINESS.map((p) => p.key).filter((k) => [...metrics, ...narrative, ...facts, ...valueFacts].some((e) => e[0] === k)), coverage, star, meetsBar: meetsBar(uc) ? T('doc_meets_bar') : '', notebook: Boolean(String(uc.notebook_path ?? '').trim() || hasShippedGenieCode(uc)),
+    uc, id: d.id, rank: rankOf.get(uc) ?? '', title: d.name || missing, subtitle: plainBusiness(subtitle), domain: domainOf(uc), subdomain: d.subdomain, kind, quality, metrics, narrative: biz(narrative), facts: biz(facts),
+    valueFacts: biz(valueFacts), panelKeys: PANEL_BUSINESS.map((p) => p.key).filter((k) => [...metrics, ...narrative, ...facts, ...valueFacts].some((e) => e[0] === k)), coverage, star, meetsBar: meetsBar(uc) ? T('doc_meets_bar') : '', notebook: Boolean(String(uc.notebook_path ?? '').trim() || hasShippedGenieCode(uc)),
     value: valueView(d.value, T),
   };
 }
