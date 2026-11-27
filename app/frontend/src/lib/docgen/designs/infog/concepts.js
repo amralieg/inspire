@@ -81,8 +81,12 @@ function page(c, orient, concept, draw, o = {}) {
     if (!c.hero) { const dy = Math.round((218 - (76 + t.h + 12 + prL.h) - 8) / 2); if (dy > 8) b = b.slice(0, hStart) + `<g transform="translate(0 ${dy})">${b.slice(hStart)}</g>`; }
     b += pic.svg;
     b += `<rect x="40" y="564" width="1160" height="2" fill="${rule}"/>`;
-    b += whoBlock(48, 572, c, [P.blue, P.lava, P.green], { ph: 90, w: 320, size: 22, ink, muted, accent: P.lava }).svg;
-    if (pic.foot) b += pic.foot(500, 580, 410);
+    b += whoBlock(48, 572, c, [P.blue, P.lava, P.green], { ph: 90, w: 320, size: 22, ink, muted, accent: P.lava, maxH: h - 572 }).svg;
+    // The middle of the footer: the picture's own footer, else (no value in the header to carry it) what changes for the person, else nothing.
+    const foot = pic.foot ? pic.foot(500, 580, 410) : '';
+    if (/<text/.test(foot)) b += foot;
+    else if (!c.hero && c.heroNote) { const nt = textBlock(500, 616, 410, c.heroNote, { size: 22, weight: 700, color: ink, maxLines: 3 });
+      if (nt.svg) b += icon('target', 500, 583, 24, P.lava, 2) + label(532, 604, 'WHAT CHANGES', { size: 20, weight: 700, color: P.grey, spacing: 1.5 }) + nt.svg; }
     if (o.logo) b += `<image href="${esc(o.logo)}" x="1012" y="4" width="180" height="40" preserveAspectRatio="xMaxYMid meet"/>`;
     if (c.screen) b += icon('monitor', 932, 588, 30, P.lava, 2) + label(972, 611, 'ON SCREEN', { size: 20, weight: 700, color: P.grey, spacing: 1.5 }) + textBlock(932, 628, 262, c.screen, { size: 21, weight: 700, color: ink, maxLines: 2 }).svg;
   } else {
@@ -108,7 +112,7 @@ function page(c, orient, concept, draw, o = {}) {
     b += `<rect x="48" y="574" width="1144" height="2" fill="${rule}"/>`;
     b += pic.svg;
     b += `<rect x="48" y="1524" width="1144" height="2" fill="${rule}"/>`;
-    b += whoBlock(64, 1548, c, [P.blue, P.lava, P.green], { ph: 130, w: 400, size: 28, ink, muted, accent: P.lava }).svg;
+    b += whoBlock(64, 1548, c, [P.blue, P.lava, P.green], { ph: 130, w: 400, size: 28, ink, muted, accent: P.lava, maxH: h - 1548 - 24 }).svg;
     const sw = o.logo ? 250 : 496;
     if (c.screen) b += icon('monitor', 680, 1572, 34, P.lava, 2) + label(724, 1598, 'ON SCREEN', { size: 22, weight: 700, color: P.grey, spacing: 1.5 }) + textBlock(680, 1620, sw, c.screen, { size: 26, weight: 700, color: ink, maxLines: 2 }).svg;
     if (o.logo) b += `<image href="${esc(o.logo)}" x="956" y="1566" width="220" height="110" preserveAspectRatio="xMaxYMid meet"/>`;
@@ -244,14 +248,18 @@ function pictogram(c, b, land, k) {
 // 5. Before and after: today's way against the new way, the steps that make the change underneath.
 function beforeafter(c, b, land, k) {
   const before = (c.before || []).slice(0, 3); const after = (c.after || []).slice(0, 3); let s = '';
-  const panel = (x, y, w, h, title, ic, col, lines, icons, size) => {
+  const panel = (x, y, w, h, title, ic, col, lines0, icons, size) => {
     let p = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="24" fill="${tint(col)}"/>${iconDisc(ic, x + 40, y + 38, 22, col)}${label(x + 74, y + 46, title, { size: size + 2, weight: 800, color: col, spacing: 1.5 })}`;
-    // Each line gets as many text lines as the panel can hold (never a cut phrase), then the spare room is spread between the lines.
-    const tw = w - 80 - size; const avail = h - 90; const lh = size * 1.22; const need = lines.map((t) => wrap(t, tw, size, 600).length);
-    const hs = (L) => need.map((n) => Math.max(size + 10, (Math.min(n, L) - 1) * lh + size)); const sum = (a) => a.reduce((x, y) => x + y, 0);
-    let L = 4; while (L > 1 && sum(hs(L)) + 14 * (lines.length - 1) > avail) L -= 1;
-    const hh = hs(L); const gap = lines.length > 1 ? Math.min(44, Math.max(14, (avail - sum(hh)) / lines.length)) : 0; let yy = y + 76 + Math.max(0, (avail - sum(hh) - gap * (lines.length - 1)) / 2);
-    lines.forEach((t, i) => { p += icon(icons[i % icons.length], x + 26, yy + (hh[i] - size - 6) / 2, size + 6, col, 2.2); p += textBlock(x + 40 + size + 6, yy, tw, t, { size, weight: 600, color: P.ink, maxLines: L }).svg; yy += hh[i] + gap; });
+    // Each line first gets the fewest text lines that show a whole phrase of it; a line with none, or one the panel has no room left for,
+    // goes with its icon. The room left then lets lines grow toward their whole text, and the spare room is spread between the lines.
+    const tw = w - 80 - size; const avail = h - 90; const lh = size * 1.22; const hOf = (n) => Math.max(size + 10, (n - 1) * lh + size); const sum = (a) => a.reduce((q, z) => q + z, 0);
+    const minL = (t) => [1, 2, 3, 4].find((m) => shows(tw, t, { size, weight: 600, maxLines: m })) || 0;
+    let lines = lines0.filter((t) => minL(t)); while (lines.length && sum(lines.map((t) => hOf(minL(t)))) + 14 * (lines.length - 1) > avail) lines = lines.slice(0, -1);
+    textBlock.dropped += lines0.length - lines.length;
+    const al = lines.map(minL); const full = lines.map((t) => Math.min(4, wrap(t, tw, size, 600).length));
+    for (let grew = true; grew;) { grew = false; al.forEach((n, i) => { if (n < full[i] && sum(al.map(hOf)) - hOf(n) + hOf(n + 1) + 14 * (lines.length - 1) <= avail) { al[i] = n + 1; grew = true; } }); }
+    const hh = al.map(hOf); const gap = lines.length > 1 ? Math.min(44, Math.max(14, (avail - sum(hh)) / lines.length)) : 0; let yy = y + 76 + Math.max(0, (avail - sum(hh) - gap * (lines.length - 1)) / 2);
+    lines.forEach((t, i) => { p += icon(icons[i % icons.length], x + 26, yy + (hh[i] - size - 6) / 2, size + 6, col, 2.2); p += textBlock(x + 40 + size + 6, yy, tw, t, { size, weight: 600, color: P.ink, maxLines: al[i] }).svg; yy += hh[i] + gap; });
     return p;
   };
   // A list left empty gets no panel: with neither list the steps fill the box, with one list its panel takes the whole width or height.
@@ -346,7 +354,7 @@ function funnelConcept(c, b, land, k) {
 function hub(c, b, land, k) {
   // A spoke whose text does not show in its row goes with its icon; the others share the room.
   const sx0 = b.x + 850; const spokeML = (n) => (land ? (n <= 1 || 280 / (n - 1) >= 76 ? 3 : 2) : (170 / Math.max(1, Math.ceil(n / 2)) >= 56 ? 2 : 1));
-  const spokes = keepShown((c.spokes || []).slice(0, land ? 5 : 6), (t, n) => shows(land ? 1192 - sx0 - 40 : 520, t, { size: land ? 20 : 21, weight: 600, maxLines: spokeML(n) }));
+  const spokes = keepShown(c.spokes || [], (t, n) => shows(land ? 1192 - sx0 - 40 : 520, t, { size: land ? 20 : 21, weight: 600, maxLines: spokeML(n) }), land ? 5 : 6);
   const ics = distinctIcons(spokes); const cs = [P.blue, P.green, P.amber, P.pink, P.purple, P.cyan];
   const ask = c.steps[0] ? c.steps[0].label : c.problem; const rest = unused(c.steps.slice(1), spokes, c.center); let s = '';
   if (land) {
@@ -381,7 +389,7 @@ function map(c, b, land, k) {
   // A place whose text does not show in its row goes with its pin and icon; the others share the room.
   const placeOK = (t, n) => (land ? shows(b.w - 778, t, { size: 21, weight: 600, maxLines: 280 / Math.max(1, n) >= 56 ? 2 : 1 })
     : shows(484, t, { size: 22, weight: 600, maxLines: 170 / Math.max(1, Math.ceil(n / 2)) >= 60 ? 2 : 1 }));
-  const places = keepShown((c.places || []).slice(0, land ? 4 : 5), placeOK); const ics = distinctIcons(places, ['pin', 'route', 'target', 'flag', 'users']); const cs = [P.lava, P.blue, P.purple, P.amber, P.green]; let s = '';
+  const places = keepShown(c.places || [], placeOK, land ? 4 : 5); const ics = distinctIcons(places, ['pin', 'route', 'target', 'flag', 'users']); const cs = [P.lava, P.blue, P.purple, P.amber, P.green]; let s = '';
   const field = (x, y, w, h, sz, id) => { const m = mapField(x, y, w, h, places.map((_, i) => [...PINS[i], cs[i], sz]), { id });
     let p = m.svg; const pts = m.pins.map((q) => [q.x, q.y]);
     if (pts.length > 1) p += `<g data-process="route"><path d="${spline(pts)}" stroke="${P.ink}" stroke-width="4" fill="none" stroke-dasharray="2 10" stroke-linecap="round"/></g>`;
@@ -394,12 +402,15 @@ function map(c, b, land, k) {
     places.forEach((t, i) => { const y = b.y + 50 + i * per; s += badge(b.x + 706, y + 16, 16, String(i + 1), cs[i]) + icon(ics[i], b.x + 734, y + 2, 28, cs[i], 2) + textBlock(b.x + 778, y + 2, b.w - 778, t, { size: 21, weight: 600, color: P.ink, maxLines: per >= 56 ? 2 : 1 }).svg; });
     return { svg: s, foot: footSteps(unused(c.steps, places)) };
   }
-  const more = unused(c.steps, places); const mh = more.length ? 520 : 680;
+  // The steps left for the row under the places, when one of them shows; else the map takes their room (never an empty band).
+  const more = unused(c.steps, places); const d0 = textBlock.dropped; const hasMore = more.length > 0 && /<text/.test(miniFlow(b.x, 0, b.w, more, { r: 30, size: 20, maxLines: 2 })); textBlock.dropped = d0;
+  const mh = hasMore ? 500 : 660;
   s += field(b.x, b.y, b.w, mh, 1.7, 'mapP');
+  if (places.length) s += tagline(b.x, b.y + mh + 34, 'pin', 'THE PLACES', P.lava);
   const rows = Math.ceil(places.length / 2); const rh = 170 / Math.max(1, rows);
-  places.forEach((t, i) => { const x0 = b.x + (i % 2) * 580; const y0 = b.y + mh + 30 + Math.floor(i / 2) * rh;
+  places.forEach((t, i) => { const x0 = b.x + (i % 2) * 580; const y0 = b.y + mh + 52 + Math.floor(i / 2) * rh;
     s += badge(x0 + 18, y0 + 16, 16, String(i + 1), cs[i]) + icon(ics[i], x0 + 44, y0 + 2, 28, cs[i], 2) + textBlock(x0 + 84, y0 + 2, 484, t, { size: 22, weight: 600, color: P.ink, maxLines: rh >= 60 ? 2 : 1 }).svg; });
-  if (more.length) s += miniFlow(b.x, b.y + 744, b.w, more, { r: 30, size: 20, maxLines: 2 });
+  if (hasMore) s += miniFlow(b.x, b.y + 744, b.w, more, { r: 30, size: 20, maxLines: 2 });
   return { svg: s };
 }
 
@@ -408,16 +419,20 @@ function network(c, b, land, k) {
   // A card's text area: as many lines as the card holds (up to 3), so a long group keeps its whole phrase.
   const cardText = (w, h, size) => { const r = Math.min(32, Math.max(20, h * 0.28)); const tx = 2 * r + 28; return { r, tx, tw: w - tx - 20, ml: Math.max(2, Math.min(3, Math.floor((h - 6 - size) / (size * 1.22)) + 1)) }; };
   // The card size for n groups (portrait cards grow when no step is left for the footer).
-  const cardOf = (n, k) => (land ? { w: b.w - 720, h: (330 - 10 * (n - 1)) / Math.max(1, n), size: 20 } : { w: 562, h: 88 + (unused(c.steps, k).length ? 0 : 20), size: 22 });
+  // Landscape cards share the column up to 110 px each (a taller card would be a half-empty box); the stack sits in the column's middle.
+  const cardOf = (n, k) => (land ? { w: b.w - 720, h: Math.min(110, (330 - 10 * (n - 1)) / Math.max(1, n)), size: 20 } : { w: 562, h: 88 + (unused(c.steps, k).length ? 0 : 20), size: 22 });
   // A group whose text does not show in its card goes, card and icon too; the others re-flow.
-  const groups = keepShown((c.groups || []).slice(0, 4), (t, n, k) => { const q = cardOf(n, k); const a = cardText(q.w, q.h, q.size); return shows(a.tw, t, { size: q.size, weight: 600, maxLines: a.ml }); });
+  const groups = keepShown(c.groups || [], (t, n, k) => { const q = cardOf(n, k); const a = cardText(q.w, q.h, q.size); return shows(a.tw, t, { size: q.size, weight: 600, maxLines: a.ml }); }, 4);
   const ics = distinctIcons(groups, ['network', 'users', 'link', 'alert']); const cs = [P.cyan, P.lava, P.purple, P.amber]; let s = '';
   const card = (x, y, w, h, t, i, size) => { const { r, tx, ml } = cardText(w, h, size); return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="16" fill="#22364C"/>${iconDisc(ics[i], x + r + 14, y + h / 2, r, cs[i])}${textBlock(x + tx, y + h / 2 - size * 0.55 * Math.min(wrap(t, w - tx - 20, size, 600).length, ml), w - tx - 20, t, { size, weight: 600, color: '#fff', maxLines: ml }).svg}`; };
   if (land) {
     s += '<g data-process="links">' + constellation([{ cx: b.x + 130, cy: b.y + 110, r: 80, n: 7, color: P.cyan }, { cx: b.x + 360, cy: b.y + 210, r: 88, n: 8, color: P.lava, hot: true }, { cx: b.x + 570, cy: b.y + 96, r: 66, n: 6, color: P.purple }, { cx: b.x + 600, cy: b.y + 262, r: 50, n: 5, color: P.amber, hot: true }], { bridges: [[0, 1], [1, 2], [1, 3]] }) + '</g>';
     if (c.count) s += `<circle cx="${b.x + 130}" cy="${b.y + 270}" r="44" fill="${P.lava}"/>` + label(b.x + 130, b.y + 282, c.count, { size: fitSize(c.count, 34, 70), weight: 800, color: '#fff', anchor: 'middle' });
-    const ch = (330 - 10 * (groups.length - 1)) / Math.max(1, groups.length);
-    groups.forEach((t, i) => { s += card(b.x + 720, b.y + i * (ch + 10), b.w - 720, ch, t, i, 20); });
+    // A column with room over its cards names them.
+    const ch = cardOf(groups.length).h; const sh = groups.length * (ch + 10) - 10; const room = groups.length && 330 - sh >= 60;
+    const gy = room ? b.y + 44 + (286 - sh) / 2 : b.y + (330 - sh) / 2;
+    if (room) s += tagline(b.x + 720, b.y + 28, 'network', 'THE GROUPS FOUND', P.cyan);
+    groups.forEach((t, i) => { s += card(b.x + 720, gy + i * (ch + 10), b.w - 720, ch, t, i, 20); });
     return { svg: s, foot: footSteps(unused(c.steps, groups), '#fff') };
   }
   // With no step left to show, the picture and the cards share the space the steps would take.

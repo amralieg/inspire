@@ -33,12 +33,17 @@ export function whoBlock(x, y, s, colors = [P.blue, P.lava, P.green], o = {}) {
   const tx = x + ph * 1.1 + 18; const tw = o.w || 300;
   svg += icon('users', tx, y + 3, 24, o.accent || P.lava, 2) + label(tx + 32, y + 24, 'WHO USES IT', { size: 20, weight: 700, color: P.grey, spacing: 1.5 });
   const t = textBlock(tx, y + 36, tw, s.who, { size: o.size || 26, weight: 800, color: o.ink || P.ink, maxLines: 2 });
-  // The second line is the cadence with a calendar; a use case that states no cadence names its sponsor there instead. An icon goes only
-  // with a text that shows: with neither (or none that fits) the line is left out, icon and all.
-  const two = (ic, text) => { const l = textBlock(tx + 36, y + 68 + t.h - 22 * 0.92, tw - 36, text, { size: 22, weight: 600, color: o.muted || P.body, maxLines: 1 });
-    return l.svg ? icon(ic, tx, y + 46 + t.h, 26, o.accent || P.lava, 2) + l.svg : ''; };
-  svg += t.svg + (s.cadence ? two('calendar', s.cadence) : s.sponsor ? two('briefcase', `Sponsor: ${s.sponsor}`) : '');
-  return { svg: `<g data-part="who">${svg}</g>`, h: Math.max(ph, 80 + t.h) };
+  // The second line is the cadence with a calendar; a use case that states no cadence (or one that does not fit the line) names its sponsor
+  // there instead. An icon goes only with a text that shows: with neither the line is left out, icon and all. A "Label: value" line shows
+  // whole or not at all (a cut leaves the bare label, or a label over half a name): it takes a second line when the block has the height
+  // (o.maxH), else the sponsor's name alone by the briefcase, and only a name that does not fit whole either is left out.
+  const top = y + 68 + t.h - 22 * 0.92; let lh2 = 0;
+  const two = (ic, text, whole, lines = 1) => { const l = textBlock(tx + 36, top, tw - 36, text, { size: lines > 1 ? 20 : 22, weight: 600, color: o.muted || P.body, maxLines: lines });
+    if (!l.svg || (whole && l.lines.join(' ') !== text) || top + l.h + 6 - y > (o.maxH || 1e9)) return '';
+    lh2 = l.h; return icon(ic, tx, y + 46 + t.h, 26, o.accent || P.lava, 2) + l.svg; };
+  const sp = s.sponsor && `Sponsor: ${s.sponsor}`;
+  svg += t.svg + ((s.cadence && two('calendar', s.cadence)) || (sp && (two('briefcase', sp, true) || two('briefcase', sp, true, 2) || two('briefcase', s.sponsor, true))) || '');
+  return { svg: `<g data-part="who">${svg}</g>`, h: Math.max(ph, 80 + t.h, top + lh2 + 6 - y) };
 }
 
 // A small heading with an icon (section label inside the drawing).
