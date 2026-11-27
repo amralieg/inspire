@@ -1,12 +1,11 @@
 import { plural } from '../lib/plural';
 import { valueChips } from '../lib/valueLedger';
-import ValueDisclaimer from './ValueDisclaimer';
 
 const isCount = (entry) => entry?.kind === 'count';
 const amountsOf = (entries) => (Array.isArray(entries) ? entries : []).filter((entry) => !isCount(entry));
 const countsOf = (entries) => (Array.isArray(entries) ? entries : []).filter(isCount);
 
-export default function ValueBadge({ atStake, saved, measured = true, mvps = null, className = '', compact = false }) {
+export default function ValueBadge({ atStake, saved, measured = true, mvps = null, className = '' }) {
   if (!measured) {
     return <p data-value-state="not-measured" className={`text-xs leading-snug text-text-secondary ${className}`}>Not measured yet</p>;
   }
@@ -47,7 +46,6 @@ export default function ValueBadge({ atStake, saved, measured = true, mvps = nul
         </ul>
       )}
       {meta && <p data-value-mvps="" className="mt-2 text-caption text-text-secondary">{meta}</p>}
-      <ValueDisclaimer short={compact} className="mt-2 block" />
     </div>
   );
 }

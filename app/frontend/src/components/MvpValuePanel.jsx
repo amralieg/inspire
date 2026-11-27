@@ -1,4 +1,3 @@
-import ValueDisclaimer from './ValueDisclaimer';
 import { useEffect, useMemo, useState } from 'react';
 import CalculateValueDialog from './CalculateValueDialog';
 import ValueBox from './ValueBox';
@@ -44,7 +43,6 @@ export default function MvpValuePanel({ uc, sessionId, settings, apiFetch, apiPo
         {editable && <button type="button" className={btn} onClick={() => setCalc(true)}>Edit</button>}
         {status === 'measured' && <p className="min-w-0 flex-1 text-[12px] text-text-secondary">This amount is measured by the MVP, so it cannot be edited here.</p>}
       </div>
-      {!none && <ValueDisclaimer className="mt-2" />}
       {status === 'measured' && measure && <div className="mt-3"><MeasureSettings measure={measure} /></div>}
       {calc && (
         <CalculateValueDialog uc={uc} table={tableOfUseCase(uc)} apiPostJson={apiPostJson} apiFetch={apiFetch} inspireDatabase={inspireDatabase} warehouseId={warehouseId}

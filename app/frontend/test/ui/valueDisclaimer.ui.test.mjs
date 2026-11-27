@@ -53,7 +53,8 @@ test('the run value in the Review header, the value across runs and each run car
   try {
     const header = results.page.locator('[data-run-header-value]');
     await header.locator('[data-run-value-total]').waitFor({ timeout: 15000 });
-    assert.equal(await header.locator('[data-value-disclaimer]').getAttribute('title'), FULL, 'the header run value carries the disclaimer');
+    assert.equal(await header.locator('[data-value-disclaimer]').count(), 0, 'the header does not repeat the disclaimer (REQ-576)');
+    assert.equal((await results.page.locator('[data-value-disclaimer]').innerText()).trim(), FULL, 'the page carries it once at the top');
   } finally {
     await results.close();
   }
@@ -66,11 +67,12 @@ test('the run value in the Review header, the value across runs and each run car
     await choose.page.getByRole('menuitem', { name: 'Value across all runs' }).click();
     const overall = choose.page.locator('[data-value-overall]');
     await overall.waitFor({ timeout: 20000 });
-    await overall.locator('[data-value-disclaimer]').waitFor({ timeout: 15000 });
-    assert.ok((await overall.innerText()).includes(FULL), 'value across runs carries the full text');
+    // REQ-576: the panel does not repeat the disclaimer; the page carries it once at the top.
+    assert.equal(await overall.locator('[data-value-disclaimer]').count(), 0, 'value across runs does not repeat the text');
+    assert.equal((await choose.page.locator('[data-value-disclaimer]').innerText()).trim(), FULL, 'the page carries the full text once');
     const runValue = choose.page.locator('[data-run="42"] [data-run-value]');
     await runValue.locator('[data-run-value-total]').waitFor({ timeout: 15000 });
-    assert.equal(await runValue.locator('[data-value-disclaimer]').getAttribute('title'), FULL, 'a run value carries the disclaimer');
+    assert.equal(await runValue.locator('[data-value-disclaimer]').count(), 0, 'a run value does not repeat the disclaimer (REQ-576)');
   } finally {
     await choose.close();
   }
@@ -78,8 +80,8 @@ test('the run value in the Review header, the value across runs and each run car
 
 test('the rule estimate line and the drawer carry the disclaimer', () => {
   const read = (p) => readFileSync(new URL(`../../src/${p}`, import.meta.url), 'utf8');
-  assert.match(read('components/ValueEstimateLine.jsx'), /ValueDisclaimer|VALUE_DISCLAIMER/, 'the rule estimate line renders it');
+  assert.doesNotMatch(read('components/ValueEstimateLine.jsx'), /ValueDisclaimer/, 'REQ-576: the rule estimate line no longer repeats it');
   assert.match(read('components/ValueBox.jsx'), /VALUE_DISCLAIMER/, 'the card and drawer value box render it');
-  assert.match(read('components/ValueHow.jsx'), /ValueDisclaimer/, 'How we got this number renders the short line');
+  assert.doesNotMatch(read('components/ValueHow.jsx'), /ValueDisclaimer/, 'REQ-576: How we got this number no longer repeats it');
   assert.match(read('components/CalculateValueDialog.jsx') + read('components/valueWizard/StepSave.jsx') + read('pages/ResultsPage.jsx'), /ValueDisclaimer|VALUE_DISCLAIMER/, 'the Calculate result renders it');
 });

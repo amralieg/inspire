@@ -1,4 +1,4 @@
-// REQ-481 (FX-76): a page that shows a calculated dollar amount ends with the full disclaimer; a page without one does not.
+// REQ-481 (FX-76), REQ-576: a page that shows a calculated dollar amount carries the full disclaimer once, at the top; a page without one does not.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -18,7 +18,7 @@ const base = (app) => {
 };
 const UC = { status: 'calculated', amount: 3100000, currency: 'USD', verb: 'Value at stake' };
 
-test('Choose: with a calculated run value the footer carries the full text; with none it is absent', async () => {
+test('Choose: with a calculated run value the top disclaimer carries the full text; with none it is absent', async () => {
   for (const [value, expected] of [[RUN_VALUE, true], [EMPTY, false]]) {
     const mount = (app) => {
       base(app);
@@ -29,13 +29,14 @@ test('Choose: with a calculated run value the footer carries the full text; with
       await ui.page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
       await ui.page.locator('[data-run="42"]').waitFor({ timeout: 20000 });
       await ui.page.waitForTimeout(500);
-      assert.equal(await ui.page.locator('[data-value-footer]').count(), expected ? 1 : 0);
-      if (expected) assert.equal((await ui.page.locator('[data-value-footer]').innerText()).trim(), FULL);
+      // REQ-576: one node at the top instead of the footer (data-value-footer is gone).
+      assert.equal(await ui.page.locator('[data-value-disclaimer], [data-value-footer]').count(), expected ? 1 : 0);
+      if (expected) assert.equal((await ui.page.locator('[data-value-disclaimer]').innerText()).trim(), FULL);
     } finally { await ui.close(); }
   }
 });
 
-test('Build: a valued use case shows the short label by its amount and the footer; a page with no value has no footer', async () => {
+test('Build: a valued use case page shows the full disclaimer once, above the amount, and no short label (REQ-576)', async () => {
   const mount = (app) => {
     base(app);
     app.get('/api/inspire/value/estimates', (_req, res) => res.json({ use_cases: { 'N01-U01': { status: 'set_rule' } } }));
@@ -48,8 +49,10 @@ test('Build: a valued use case shows the short label by its amount and the foote
     await ui.page.evaluate(() => { window.location.hash = '#/build/42/N01-U01'; });
     await ui.page.locator('[data-value-line-amount]').first().waitFor({ timeout: 20000 });
     const page = ui.page.locator('[data-implement-page]');
-    assert.ok((await page.locator('[data-value-disclaimer]').first().innerText()).includes(SHORT), 'the short label by the amount');
-    assert.equal((await page.locator('[data-value-footer]').innerText()).trim(), FULL);
+    assert.equal(await page.locator('[data-value-disclaimer], [data-value-footer]').count(), 1, 'one disclaimer node on the page');
+    assert.equal((await page.locator('[data-value-disclaimer]').innerText()).trim(), FULL);
+    assert.ok(!(await page.innerText()).includes(SHORT), 'no short label by the amount');
+    assert.ok((await page.locator('[data-value-disclaimer]').boundingBox()).y < (await page.locator('[data-value-line-amount]').first().boundingBox()).y, 'the disclaimer sits above the first amount');
   } finally { await ui.close(); }
 });
 

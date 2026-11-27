@@ -96,7 +96,7 @@ test('the use case card headlines the largest at stake amount, the saved amount 
 
 // FX-34 (REQ-448, W16 D2/D3/D9) replaced the header MVP badge and the Start "reported by owners" banner: the Review header and the Start
 // page render the one run value from /value/totals, so they cannot disagree with the Business panel.
-test('the run header shows the run value from the totals, with its counts and the short disclaimer', async () => {
+test('the run header shows the run value from the totals, with its counts; the page carries the one disclaimer (REQ-576)', async () => {
   const ui = await openUi('results', withValue(REVIEW_RESULTS, {}), '', { mount: mountValue });
   const { page } = ui;
   try {
@@ -104,7 +104,9 @@ test('the run header shows the run value from the totals, with its counts and th
     await header.locator('[data-run-value-total]').waitFor({ timeout: 15000 });
     assert.equal((await header.locator('[data-run-value-total]').innerText()).trim(), 'AED 12K');
     assert.match(await header.innerText(), /1 reviewed calculation · 1 provisional estimate/);
-    assert.equal(await header.locator('[data-value-disclaimer]').count(), 1);
+    // REQ-576: the header no longer repeats it; the page shows it once at the top.
+    assert.equal(await header.locator('[data-value-disclaimer]').count(), 0);
+    assert.equal(await page.locator('[data-value-disclaimer]').count(), 1);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

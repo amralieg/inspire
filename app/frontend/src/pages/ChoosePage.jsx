@@ -394,6 +394,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
 
         <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
 
+        {anyRunValue(allTotals) && <ValueDisclaimer />}
         {allTotals?.all && showValue && <AllRunsValuePanel reply={allTotals} />}
         {inspireDatabase && warehouseId && (
           <PortfolioCards portfolio={portfolio} error={portfolioError} sessions={sessions} active={runFilter} onCard={openCard} />
@@ -742,7 +743,6 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
             </div>
           </div>
         )}
-        {anyRunValue(allTotals) && <ValueDisclaimer footer />}
       </div>
     </div>
   );

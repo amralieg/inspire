@@ -1,7 +1,6 @@
 import { VALUE_LABELS, statusLabel, yearlyHeadline } from '../lib/valueLabels';
 import { DATA_TAG, DRIVER_TAG, totalTextOf } from '../lib/valueDrivers';
 import { valueChips } from '../lib/valueLedger.js';
-import ValueDisclaimer from './ValueDisclaimer';
 
 // REQ-435: what a value is made of, one row per part with where it comes from. An answer with no parts (data only, full share)
 // shows the plain value line the card shows.
@@ -15,7 +14,6 @@ export default function ValueSplit({ yearly }) {
       <section data-value-line="" aria-label="Value" className="space-y-1 rounded-md border border-border px-3 py-2">
         <p className="text-sm text-text-primary"><span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-secondary">{yearly.verb}</span>{' '}
           <span className="font-bold tabular-nums">{head?.text}</span> <span className="text-text-secondary">{yearly.period || VALUE_LABELS.perYear}</span></p>
-        <ValueDisclaimer />
       </section>
     );
   }
@@ -32,7 +30,6 @@ export default function ValueSplit({ yearly }) {
       </ul>
       <p data-split-share="" className="text-[12px] text-text-secondary">{`Share of this value the use case earns: ${yearly.attribution_pct ?? 100}%`}</p>
       <p data-split-total="" className="flex justify-between text-sm font-bold text-text-primary"><span>{`Total per year (${statusLabel(yearly.calculated)})`}</span><span className="tabular-nums">{totalTextOf(yearly)}</span></p>
-      <ValueDisclaimer />
     </section>
   );
 }

@@ -54,7 +54,8 @@ test('REQ-575 a: each run card holds its average Inspire score and its value at 
       await aside.waitFor({ timeout: 10000 });
       assert.equal((await aside.locator('[data-score-box]').innerText()).includes(mean(RUNS[sid].ucs).toFixed(1)), true, `run ${sid} average score ${mean(RUNS[sid].ucs).toFixed(1)}`);
       assert.equal(await aside.locator('[data-run-value-box]').count(), 1, `run ${sid} value box sits in the same column`);
-      assert.match(await aside.innerText(), /Estimated/, `run ${sid} keeps the estimate warning`);
+      // REQ-576: the one disclaimer moved to the top of the page; the card keeps its own provisional status word.
+      assert.match(await aside.innerText(), /provisional/, `run ${sid} keeps the provisional status`);
     }
     assert.deepEqual(ui.pageErrors, []);
   } finally { await ui.close(); }

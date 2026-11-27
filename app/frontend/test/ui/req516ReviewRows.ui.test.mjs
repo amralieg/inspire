@@ -68,7 +68,7 @@ test('1: a row with a 2-line statement is 140-180px tall at 1440', async () => {
   } finally { await ui.close(); }
 });
 
-test('2: the score box is uncoloured, the value box is filled with the primary token, white value text >= 4.5:1 in light and dark', async () => {
+test('2: the score box is uncoloured, the value box is a neutral card (REQ-576), value text >= 4.5:1 in light and dark', async () => {
   const { ui, page, row } = await openReview();
   try {
     for (const dark of [false, true]) {
@@ -76,11 +76,11 @@ test('2: the score box is uncoloured, the value box is filled with the primary t
       const score = await paints(row('N01-U01').locator('[data-score-box]'));
       const value = await paints(row('N01-U01').locator('[data-value-box]'));
       assert.notEqual(score.bg, score.primary, `score box is not the primary colour (dark=${dark})`);
-      assert.notEqual(value.bg, score.bg, `value box differs from the score box (dark=${dark})`);
-      if (!dark) assert.equal(value.bg, value.primary, 'light: the value box is the primary token');
-      assert.deepEqual(rgb(value.text), [255, 255, 255], `value amount is white (dark=${dark})`);
+      // REQ-576 (supersedes the REQ-516 red fill): the value box is a neutral card like the score box, never the primary token, with a strong-ink amount.
+      assert.notEqual(value.bg, value.primary, `value box is not the primary token (dark=${dark})`);
+      assert.notDeepEqual(rgb(value.text), [255, 255, 255], `value amount is ink, not white (dark=${dark})`);
       const c = contrast(rgb(value.text), rgb(value.bg));
-      assert.ok(c >= 4.5, `white on the value box ${c.toFixed(2)}:1 >= 4.5 (dark=${dark})`);
+      assert.ok(c >= 4.5, `ink on the value box ${c.toFixed(2)}:1 >= 4.5 (dark=${dark})`);
     }
   } finally { await ui.close(); }
 });

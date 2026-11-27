@@ -22,7 +22,8 @@ const mountWith = (runValue) => (app) => {
 test('Results with a calculated run total shows the footer text from the one disclaimer source', async () => {
   const ui = await openUi('results', { ...REVIEW_STATE, results: REVIEW_RESULTS }, '', { mount: mountWith(RUN_VALUE) });
   try {
-    const footer = ui.page.locator('[data-value-footer]');
+    // REQ-576: the one disclaimer moved from the footer to the top of the page.
+    const footer = ui.page.locator('[data-value-disclaimer]');
     await footer.waitFor({ timeout: 15000 });
     assert.equal((await footer.innerText()).trim(), FULL);
   } finally { await ui.close(); }
@@ -33,7 +34,7 @@ test('Results with no value at all shows no footer', async () => {
   try {
     await ui.page.getByRole('region', { name: 'Use case list' }).waitFor({ timeout: 15000 });
     await ui.page.waitForTimeout(800);
-    assert.equal(await ui.page.locator('[data-value-footer]').count(), 0);
+    assert.equal(await ui.page.locator('[data-value-disclaimer], [data-value-footer]').count(), 0);
   } finally { await ui.close(); }
 });
 

@@ -34,7 +34,8 @@ test('F24: a run with no value shows "Not calculated" as a neutral grey badge wi
     const red = page.locator('[data-run="42"] [data-run-value-box]');
     await red.waitFor({ timeout: 20000 });
     const [r, g, b] = rgb(await red.evaluate((el) => getComputedStyle(el).backgroundColor));
-    assert.ok(r >= 180 && g <= 90 && b <= 90, `run 42 keeps its solid red value box (must-keep), got rgb(${r},${g},${b})`);
+    // REQ-576 (supersedes the REQ-505 red fill): the run's value box stays, as a neutral card.
+    assert.ok(!(r > g + 60 && r > b + 60), `run 42 keeps its value box, not red (REQ-576), got rgb(${r},${g},${b})`);
     const badge = page.locator('[data-run="51"]').getByText('Not calculated', { exact: true }).first();
     await badge.waitFor({ timeout: 20000 });
     const facts = await badge.evaluate((el) => {
