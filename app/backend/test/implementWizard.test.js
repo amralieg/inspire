@@ -1857,10 +1857,10 @@ test('the shared holding names the asset from the live check when it can, names 
   assert.equal(w.sharedHolding('alert', SHARED), null, 'an alert is never shared');
   assert.equal(w.sharedHolding('app', { app: { id: 'churn-desk', use_cases: [] } }), null, 'nobody else holds it');
   assert.equal(w.takeOutText(w.sharedHolding('app', SHARED)), TAKE_OUT);
-  assert.equal(w.takeOutText(w.sharedHolding('genie_space', SHARED)), "Take this use case's part out of g1; it stays for N03-U04 and Plan stock",
-    'a use case without a name is named by its id');
+  assert.equal(w.takeOutText(w.sharedHolding('genie_space', SHARED)), "Take this use case's part out of g1; it stays for AI03-UC04 and Plan stock",
+    'a use case without a name is named by its display id (REQ-569, c19b698c9: AIx-UCx)');
   const live = { assets: { genie_space: { ok: true, title: 'Churn agent' }, app: { ok: true, name: 'churn-desk' } } };
-  assert.equal(w.takeOutText(w.sharedHolding('genie_space', SHARED, live)), "Take this use case's part out of Churn agent; it stays for N03-U04 and Plan stock");
+  assert.equal(w.takeOutText(w.sharedHolding('genie_space', SHARED, live)), "Take this use case's part out of Churn agent; it stays for AI03-UC04 and Plan stock");
   const many = (n) => ({ app: { id: 'hub', use_cases: Array.from({ length: n }, (_, i) => ({ use_case_id: `N0${i + 1}-U01`, name: `Use case ${i + 1}` })) } });
   assert.equal(w.takeOutText(w.sharedHolding('app', many(3))), "Take this use case's part out of hub; it stays for Use case 1, Use case 2 and Use case 3");
   assert.equal(w.takeOutText(w.sharedHolding('app', many(5))), "Take this use case's part out of hub; it stays for Use case 1, Use case 2 and 3 more use cases");
