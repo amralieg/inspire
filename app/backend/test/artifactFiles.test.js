@@ -83,14 +83,17 @@ test('a preview grid gives every column a unique key, names blank headers, keeps
   assert.deepEqual(A.previewGrid(undefined), { columns: [], rows: [] });
 });
 
-test('the Results page builds Quick access from quickAccessFiles and keeps no extension list of its own', () => {
+test('REQ-568 dropped the Assets Quick access: no Results page keeps an extension list of its own, a table of its own or a CSV parser of its own', () => {
   const fs = require('node:fs');
-  const src = fs.readFileSync(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'components', 'results', 'ResultsAssets.jsx'), 'utf8');
-  assert.match(src, /const listed = quickAccessFiles\(artifactFiles\);/);
-  assert.doesNotMatch(src, /\['pdf', 'csv', 'xlsx', 'xls'\]\.includes/);
-  assert.equal((src.match(/<table/g) || []).length, 0, 'both file previews draw through FilePreview, never a table of their own');
-  assert.equal((src.match(/<FilePreview /g) || []).length, 2);
-  assert.doesNotMatch(src, /parseCsvLine/);
+  const dir = path.resolve(__dirname, '..', '..', 'frontend', 'src');
+  assert.equal(fs.existsSync(path.join(dir, 'components', 'results', 'ResultsAssets.jsx')), false, 'the Assets page is gone (REQ-568, 0ffbc88f2)');
+  for (const file of ['components/results/ResultsOverview.jsx', 'pages/ResultsPage.jsx']) {
+    const src = fs.readFileSync(path.join(dir, file), 'utf8');
+    assert.doesNotMatch(src, /\['pdf', 'csv', 'xlsx', 'xls'\]\.includes/, file);
+    assert.equal((src.match(/<table/g) || []).length, 0, `${file}: file previews draw through FilePreview, never a table of their own`);
+    assert.doesNotMatch(src, /parseCsvLine/, file);
+  }
+  assert.equal((fs.readFileSync(path.join(dir, 'components', 'DocViewer.jsx'), 'utf8').match(/<FilePreview /g) || []).length, 1, 'the one document viewer draws the preview');
 });
 
 test('a failed download or preview says why in the words the workspace or the App answered with', async () => {
