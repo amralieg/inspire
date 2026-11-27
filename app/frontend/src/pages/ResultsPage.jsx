@@ -129,6 +129,7 @@ import { DEFAULT_RESULTS_VIEW, searchWithView, viewOfSearch } from '../lib/resul
 import ResultsBusiness from '../components/results/ResultsBusiness';
 import RunStepper from '../components/RunStepper';
 import ResultsAssets from '../components/results/ResultsAssets';
+import DocViewer from '../components/DocViewer';
 import { sessionFailed, sessionFinished, sessionSucceeded } from '../lib/monitorState';
 import { useStrategyDocument } from '../lib/strategyDoc';
 import { placeholderWords } from '../lib/placeholderWords';
@@ -1106,6 +1107,12 @@ export default function ResultsPage({
     const blob = await exportedFile(filePath, fileName, 'download');
     if (blob) saveBlob(blob, fileName);
   }, [exportedFile]);
+
+  // C25 (REQ-559): View opens a document in a modal over the page (DocViewer); Go to asset marks a file in Assets and switches to it.
+  const [docView, setDocView] = useState(null);
+  const [assetFocus, setAssetFocus] = useState('');
+  const viewFile = useCallback((path, name) => setDocView({ path, name }), []);
+  const goToAsset = useCallback((path) => { setAssetFocus(typeof path === 'string' ? path : ''); showView('assets'); }, [showView]);
 
   const openFileInTab = useCallback(async (filePath, fileName) => {
     const tab = window.open('', '_blank');
@@ -2309,6 +2316,9 @@ export default function ResultsPage({
                 artifactsRootFiles={artifactsRootFiles}
                 databricksHost={databricksHost}
                 downloadFile={downloadFile}
+                viewFile={viewFile}
+                assetFocus={assetFocus}
+                goToAsset={goToAsset}
                 error={error}
                 expandedFolders={expandedFolders}
                 generationPath={generationPath}
@@ -2376,7 +2386,8 @@ export default function ResultsPage({
           <UseCaseCard {...cardPropsFor(filteredUseCases[readerIndex], readerIndex)} expanded onToggle={() => setExpandedUseCase(null)} />
         </ReviewReader>
       )}
-      {docsRun.run?.open && docsRun.run.sessionId === String(selectedSessionId ?? '') && <GenerateDocsPanel onGoToAssets={() => showView('assets')} />}
+      {docsRun.run?.open && docsRun.run.sessionId === String(selectedSessionId ?? '') && <GenerateDocsPanel onGoToAssets={goToAsset} onView={viewFile} onDownload={downloadFile} />}
+      {docView && <DocViewer name={docView.name} load={() => exportedFile(docView.path, docView.name, 'view')} onDownload={() => downloadFile(docView.path, docView.name)} onClose={() => setDocView(null)} />}
       {bulkHere?.open && <ValueBulkPanel onEdit={(id) => { const uc = builtUseCases.find((u) => trackingIdOf(u) === id); if (uc) openCalc(uc); }} />}
       {implementUc && selectedSessionId && inspireDb && warehouseId && (
         <ImplementWizard
