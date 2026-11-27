@@ -104,7 +104,7 @@ function CountNotes({ run }) {
 
 // RC6-B-07: the provisional values the total leaves out, each with its plain reason, and their sum per currency.
 // RC7-B-14: every amount a use case adds less than it is worth (counted once, outside the range, scaled by the run review) is left out of the
-// total, so the split names the raw sums and one line names the left-out sum: Reviewed + Provisional - left out = the header total.
+// total, so the split names the raw sums and one line names the sum not counted: Reviewed + Provisional - not counted = the header total.
 export function provisionalOf(useCases, nameOf) {
   const sums = { estimated: {}, calculated: {} };
   const leftOut = {};
