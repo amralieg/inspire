@@ -170,7 +170,9 @@ test('W4: Generate saves one real file per planned file into the Assets folder, 
     assert.equal(await dialog.locator('[data-doc-plan-file]').count(), plan.length, 'the review lists the planned files');
     await dialog.getByRole('button', { name: new RegExp(`^✦?\\s*Generate ${plan.length} files$`) }).click();
     await poll(async () => (await dialog.innerText()).includes(`${plan.length} files ready`), `${plan.length} files ready`, 90000);
-    assert.deepEqual(be.calls.saves.map((s) => s.name).sort(), plan.map((f) => f.name).sort(), 'one save per planned file, named as planned');
+    // REQ-121: the run also saves the auto-built strategy PDF (strategyDoc.js:41), exactly once.
+    assert.equal(be.calls.saves.filter((s) => s.name === 'Acme_strategy.pdf').length, 1, 'the strategy PDF saves exactly once');
+    assert.deepEqual(be.calls.saves.map((s) => s.name).sort(), [...plan.map((f) => f.name), 'Acme_strategy.pdf'].sort(), 'one save per planned file plus the strategy PDF, named as planned');
     for (const s of be.calls.saves) {
       assert.equal(s.session_id, '42');
       assert.equal(s.inspire_database, 'main.inspire');
@@ -179,11 +181,12 @@ test('W4: Generate saves one real file per planned file into the Assets folder, 
       const ext = s.name.split('.').pop();
       assert.ok(bytes.length > 200, `${s.name} has content`);
       assert.deepEqual([...bytes.subarray(0, MAGIC[ext].length)], MAGIC[ext], `${s.name} is a real .${ext}`);
+      if (s.name === 'Acme_strategy.pdf') continue; // saved silently, it has no row in the dialog
       assert.equal(await dialog.locator(`[data-doc-file="${s.name}"]`).getAttribute('data-doc-file-state'), 'done');
     }
     assert.equal(be.calls.translates.length, 0, 'English needs no translation');
     const marked = await page.evaluate(() => JSON.parse(sessionStorage.getItem('inspire:new-docs:42') || '[]'));
-    assert.deepEqual([...marked].sort(), be.calls.saves.map((s) => `${s.folder}/${s.name}`).sort(), 'the saved paths are marked new for Assets');
+    assert.deepEqual([...marked].sort(), be.calls.saves.filter((s) => s.name !== 'Acme_strategy.pdf').map((s) => `${s.folder}/${s.name}`).sort(), 'the saved paths are marked new for Assets');
     await dialog.getByRole('button', { name: 'Go to Assets' }).click();
     await dialog.waitFor({ state: 'hidden' });
     assert.equal(await page.locator('[data-results-nav-item="assets"]').getAttribute('aria-selected'), 'true');
@@ -218,7 +221,8 @@ test('W5: a second language is translated through the App once and adds a file s
     assert.equal(await failed.getAttribute('data-doc-file-state'), 'failed');
     assert.match(await failed.innerText(), /The workspace refused the write/);
     assert.ok((await dialog.innerText()).includes(`${plan.length - 1} files ready`));
-    assert.deepEqual(be.calls.saves.map((s) => s.name).sort(), plan.map((f) => f.name).sort());
+    assert.equal(be.calls.saves.filter((s) => s.name === 'Acme_strategy.pdf').length, 1, 'the strategy PDF saves exactly once');
+    assert.deepEqual(be.calls.saves.map((s) => s.name).sort(), [...plan.map((f) => f.name), 'Acme_strategy.pdf'].sort());
   } finally {
     await ui.close();
   }
