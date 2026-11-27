@@ -33,8 +33,8 @@ const stylesXml = (face, accent, ink) => `<?xml version="1.0" encoding="UTF-8" s
 
 const TEAL = K.teal; const DARK = K.teal_dark;
 const DOMAIN_FILLS = [K.teal, K.coral, K.gold_dark, K.teal_mid, K.green, K.wine, '2E6F9E', '6B4E9B'];
-const chartH = (u, i) => (u.value ? UC_CHART_H[i] ?? UC_CHART_H[1] : UC_CHART_H_NO_VALUE);
-const IN = 914400; const PAGE_IN = 6.5; const UC_CHART_IN = PAGE_IN; const UC_CHART_H = [290, 190]; const UC_CHART_H_NO_VALUE = 390; // C29: the second chart starts page 2 (a use case is two pages), so the charts are sized to leave both pages more than 60% full: the first is the tall one on a page with the head, the second is shorter on a page with all the words; a use case with no value band or projection has taller charts
+const chartH = (u, i) => ((u.value ? UC_CHART_H : UC_CHART_H_NO_VALUE)[i] ?? 190);
+const IN = 914400; const PAGE_IN = 6.5; const UC_CHART_IN = PAGE_IN; const UC_CHART_H = [495, 190]; const UC_CHART_H_NO_VALUE = [570, 390]; // C29: the second chart starts page 2 (a use case is two pages). Measured on the real LibreOffice render (c29PageFill2): page 1 is the head plus the tall first chart, page 2 the short second chart plus all the words; a use case with no value band or projection has a taller first chart and a shorter second one (its head is smaller, its words are the same).
 const bytesOf = (r) => (r && r.bytes ? r.bytes : r);
 const dims = (svg, w, h) => { const m = /<svg[^>]*\bwidth="(\d+(?:\.\d+)?)"[^>]*\bheight="(\d+(?:\.\d+)?)"/.exec(svg); return m ? { w: Number(m[1]), h: Number(m[2]) } : { w, h }; };
 const fmt1 = (v) => (Number.isFinite(Number(v)) && v !== null ? Number(v).toFixed(1) : '');
