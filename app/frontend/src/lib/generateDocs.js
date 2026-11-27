@@ -1,7 +1,9 @@
 // FX-114 (REQ-503): makes each planned document in the browser and saves it into the run's Assets folder through the App.
 // The PowerPoint, Excel and PDF writers load here with import(), only when a person generates, so the main bundle does not carry them.
 import { buildDocModel } from './docgen/docModel.js';
-import { infographicSvg, briefPagesSvg } from './docgen/docSvg.js';
+import { infographicSvg } from './docgen/docSvg.js';
+import { buildAgentPdf } from './docgen/agentPdf.js';
+import { agentLabelTexts } from './docgen/agentModel.js';
 import { resolveTheme } from './docgen/docStyles.js';
 import { trackingIdOf } from './useCaseFields.js';
 import { summaryOf } from './docgen/docModel.js';
@@ -37,6 +39,7 @@ export const textsToTranslate = (useCases, values, summary = []) => {
   const texts = {};
   summaryOf(summary).forEach((p, i) => { texts[`summary|${i}`] = p; });
   Object.assign(texts, labelTexts()); // RC6-B-11: the fixed labels of every document are translated with the data, never printed in English
+  Object.assign(texts, agentLabelTexts()); // C25 (REQ-559): the agent PDF's labels, under agent|<key>
   for (const uc of useCases) {
     const id = trackingIdOf(uc);
     const m = buildDocModel({ useCases: [uc], values, options: {} }).useCases[0];
@@ -60,7 +63,7 @@ export function modelFor({ businessName, useCases, values, options, language, id
   return m;
 }
 
-async function makeFile(file, m, theme, options) {
+async function makeFile(file, m, theme, options, agent) {
   const scale = theme.design ? 2 : 1; // REQ-526: the A4 design pages (794x1123) are drawn at twice the size so the PDF text stays sharp
   if (file.kind === 'infographic') {
     const svg = infographicSvg(m, theme);
@@ -70,9 +73,8 @@ async function makeFile(file, m, theme, options) {
     return pdfFromImages([png]);
   }
   if (file.kind === 'pdf') {
-    const pages = await Promise.all(briefPagesSvg(m, theme).map((s) => svgToPng(s, scale)));
-    const { pdfFromImages } = await import('./docgen/pdfDoc.js');
-    return pdfFromImages(pages);
+    // C25 (REQ-559): the PDF is the agent's catalog PDF plus value, in every style (the style still shapes the other kinds).
+    return buildAgentPdf(agent, svgToPng);
   }
   if (file.kind === 'docx') { const { buildDocx } = await import('./docgen/docxDoc.js'); return buildDocx(m, theme); }
   if (file.kind === 'pptx') { const { buildPptx } = await import('./docgen/pptxDoc.js'); return buildPptx(m, theme); }
@@ -107,7 +109,8 @@ export async function generateDocs({ plan, options, useCases, values, businessNa
         const m = modelFor({ businessName, useCases, values, options, language, ids: file.useCaseIds, translated, summary, foundations });
         m.sessionId = String(sessionId ?? '');
         m.appUrl = typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}`.replace(/\/+$/, '') : '';
-        const bytes = await toBytes(await makeFile(file, m, theme, options));
+        const agent = { businessName, useCases: useCases.filter((uc) => file.useCaseIds.includes(trackingIdOf(uc))), values, summary, foundations, language, translated };
+        const bytes = await toBytes(await makeFile(file, m, theme, options, agent));
         await post('/api/inspire/docs/save', { ...where, folder, name: file.name, content_base64: toBase64(bytes), use_case_ids: file.useCaseIds });
         saved.push(`${folder}/${file.name}`);
         onFile(file.name, 'done');
