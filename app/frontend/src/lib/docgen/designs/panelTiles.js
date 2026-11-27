@@ -1,6 +1,7 @@
 // REQ-561: one tile per use case under the infographic, with every business section of the side panel (the agent card view) and the value with a one-line story.
 // No table, filter, SQL, notebook path or foundation is ever drawn here. Pure SVG strings; works for the design and the older themes alike.
 import { esc, wrap, textW, mix } from './core.js';
+import { ucChartSvg, chartTypesFor } from './ucCharts.js';
 
 // C27 (REQ-564): one colour per domain, shared by the infographic charts and the tiles: the design's own colours first, then the deck's amber, wine, blue and purple.
 const EXTRA = ['#D9922E', '#9B2C3B', '#2F6DB5', '#7B52C9', '#C9A24B', '#1F9D55'];
@@ -69,6 +70,13 @@ function tile(v, pal, cw, rtl, color) {
       });
     }
     y += (row + 1) * (CH + 6) - 6;
+  }
+  // C27 (REQ-564): the use case's own chart (its lead type follows its analytics technique), in the deck palette.
+  {
+    const ch = 150; const cy0 = y + 12; // The infographic keeps every text at 12px or more: a smaller chart text is raised to 12.
+    const svg = ucChartSvg(chartTypesFor(v)[0], v, { w: inW, h: ch, palette: { cats: [color, ...(pal.cats || []).filter((c) => c !== color)] } }).replace(/font-size="(\d+(?:\.\d+)?)"/g, (a, n) => (Number(n) < 12 ? 'font-size="12"' : a));
+    ops.push((x, yt) => svg.replace(/^<svg /, `<svg x="${x + IN}" y="${yt + cy0}" `));
+    y += ch + 12;
   }
   y += 12;
   const ly = y - 4;
