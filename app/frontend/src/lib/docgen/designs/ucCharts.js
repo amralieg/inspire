@@ -4,6 +4,7 @@
 // shows its real scores or its value by year. Shapes that only show the kind of result are labeled "Illustrative"; every number printed is real.
 // Contract: each chart is a standalone <svg> string whose root carries data-chart="<type>" and, for one use case, data-uc="<id>".
 import { esc } from './core.js';
+import { LB } from '../docLabels.js';
 import { fieldOf, inspireScoreFromUc, scoreOf, trackingIdOf } from '../../useCaseFields.js';
 import { moneyText } from '../../valueWizard.js';
 
@@ -64,7 +65,7 @@ const FAMILIES = [
 export const LEAD_TYPES = ['trend', 'survival', 'risk', 'gauge', 'before-after', 'waterfall', 'donut', 'treemap', 'ranked', 'scatter', 'network', 'impact', 'bridge', 'peers', 'grid-map', 'funnel', 'agent-flow'];
 export const SCORE_TYPES = ['score-bars', 'radar', 'score-rings'];
 export const PORTFOLIO_TYPES = ['domain-value', 'domain-donut', 'quality-mix', 'matrix', 'top'];
-const scoreAxes = (f) => [['Inspire Score', f.score, 10], ['Priority', f.priority, 10], ['Value', f.valueScore, 5], ['Feasibility', f.feasibility, 5], ['Quality', f.qualityScore, 5]]
+const scoreAxes = (f) => [[LB('Inspire Score'), f.score, 10], [LB('Priority'), f.priority, 10], [LB('Value'), f.valueScore, 5], [LB('Feasibility'), f.feasibility, 5], [LB('Quality'), f.qualityScore, 5]]
   .filter(([, v]) => v !== null);
 
 // The chart types of one use case, lead first: [lead (by technique), second (scores or value by year), alternative of the family].
@@ -81,7 +82,7 @@ export function chartTypesFor(uc) {
 
 // ---- drawing helpers (plain SVG strings) ----
 const r1 = (n) => Math.round(n * 10) / 10;
-const txt = (x, y, s, { size = 11, fill, weight = 400, anchor = 'start', op } = {}) => `<text x="${r1(x)}" y="${r1(y)}" font-size="${Math.max(12, size)}" font-weight="${weight}" fill="${fill}" text-anchor="${anchor}"${op != null ? ` fill-opacity="${op}"` : ''}>${esc(s)}</text>`;
+const txt = (x, y, s, { size = 11, fill, weight = 400, anchor = 'start', op } = {}) => `<text x="${r1(x)}" y="${r1(y)}" font-size="${Math.max(12, size)}" font-weight="${weight}" fill="${fill}" text-anchor="${anchor}"${op != null ? ` fill-opacity="${op}"` : ''}>${esc(LB(s))}</text>`;
 const box = (x, y, w, h, fill, o = {}) => `<rect x="${r1(x)}" y="${r1(y)}" width="${r1(Math.max(0, w))}" height="${r1(Math.max(0, h))}"${o.rx ? ` rx="${o.rx}"` : ''} fill="${fill}"${o.op != null ? ` fill-opacity="${o.op}"` : ''}${o.stroke ? ` stroke="${o.stroke}" stroke-width="${o.sw || 1}"` : ''}/>`;
 const seg = (x1, y1, x2, y2, c, w = 1, dash = '') => `<line x1="${r1(x1)}" y1="${r1(y1)}" x2="${r1(x2)}" y2="${r1(y2)}" stroke="${c}" stroke-width="${w}"${dash ? ` stroke-dasharray="${dash}"` : ''} stroke-linecap="round"/>`;
 const dot = (cx, cy, r, fill, o = {}) => `<circle cx="${r1(cx)}" cy="${r1(cy)}" r="${r1(r)}" fill="${fill}"${o.op != null ? ` fill-opacity="${o.op}"` : ''}${o.stroke ? ` stroke="${o.stroke}" stroke-width="${o.sw || 1.5}"` : ''}/>`;
@@ -98,6 +99,7 @@ const fmt = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
 
 // The frame every chart shares: a white card, a colored top rule, the title, the "Illustrative" tag, the plot area and a footnote.
 function frame(type, { w, h, P, uc, title, tag, note, accent }, body) {
+  title = LB(title); tag = LB(tag); // a fixed text is translated before it is clipped
   const ink = P.ink; const a = accent || P.cats[0];
   const head = `${box(0, 0, w, h, P.bg, { rx: 10, stroke: P.grid })}${box(0, 0, w, 5, a, { rx: 2 })}${txt(14, 24, clip(title, Math.floor((w - (tag ? 146 : 28)) / 6.6)), { size: 12.5, fill: ink, weight: 700 })}`
     + (tag ? `${box(w - 132, 11, 118, 19, P.soft, { rx: 9.5 })}${txt(w - 73, 25, tag, { size: 12, fill: P.muted, anchor: 'middle' })}` : '')
@@ -106,7 +108,9 @@ function frame(type, { w, h, P, uc, title, tag, note, accent }, body) {
 }
 // The plot box inside the frame.
 const plotOf = (w, h, note) => ({ x: 16, y: 38, w: w - 32, h: h - 38 - (note ? 26 : 12) });
-const scoreNote = (f) => (f.amount !== null ? `Value at stake: ${f.valueText} a year` : f.score !== null ? `Inspire Score ${fmt(f.score)} / 10${f.quality ? ` · ${f.quality} quality` : ''}` : f.quality ? `${f.quality} quality` : '');
+const valueNote = (f) => `${LB('Value at stake')}: ${f.valueText} ${LB('a year')}`;
+const qualityNote = (f) => `${f.quality} ${LB('quality')}`;
+const scoreNote = (f) => (f.amount !== null ? valueNote(f) : f.score !== null ? `${LB('Inspire Score')} ${fmt(f.score)} / 10${f.quality ? ` · ${qualityNote(f)}` : ''}` : f.quality ? qualityNote(f) : '');
 
 // ---- the lead charts (one per technique family) ----
 const LEAD = {
@@ -164,15 +168,15 @@ const LEAD = {
     const r = Math.min(p.h / 2 - 4, p.w / 4); const cx = p.x + r + 8; const cy = p.y + p.h / 2; let a = -Math.PI / 2;
     const arcs = parts.map((v, i) => { const b = a + (v / tot) * Math.PI * 2; const d = arcPath(cx, cy, r * 0.58, r, a, b - 0.02); a = b; return `<path d="${d}" fill="${P.cats[i]}"/>`; }).join('');
     const step = Math.min(20, (p.h - 4) / n); // the legend stays inside the plot, clear of the caption line
-    const leg = parts.map((_, i) => `${box(cx + r + 22, p.y + 2 + i * step, 11, 11, P.cats[i], { rx: 3 })}${txt(cx + r + 40, p.y + 12 + i * step, `Segment ${String.fromCharCode(65 + i)}`, { size: 10.5, fill: P.ink })}`).join('');
-    return `${arcs}${txt(cx, cy + 4, `${n} segments`, { size: 11, fill: P.ink, weight: 700, anchor: 'middle' })}${leg}`;
+    const leg = parts.map((_, i) => `${box(cx + r + 22, p.y + 2 + i * step, 11, 11, P.cats[i], { rx: 3 })}${txt(cx + r + 40, p.y + 12 + i * step, LB(`Segment ${String.fromCharCode(65 + i)}`), { size: 10.5, fill: P.ink })}`).join('');
+    return `${arcs}${txt(cx, cy + 4, LB(`${n} segments`), { size: 11, fill: P.ink, weight: 700, anchor: 'middle' })}${leg}`;
   } },
   treemap: { title: 'Clusters by size', draw(p, P, rnd) {
     const parts = Array.from({ length: 6 }, () => 0.3 + rnd()).sort((a, b) => b - a); const tot = parts.reduce((a, b) => a + b, 0);
     let x = p.x; let y = p.y; let w = p.w; let h = p.h; let out = '';
     parts.forEach((v, i) => { const share = v / parts.slice(i).reduce((a, b) => a + b, 0); const horiz = w >= h;
       const cw = horiz ? w * share : w; const ch = horiz ? h : h * share; out += box(x + 1.5, y + 1.5, cw - 3, ch - 3, P.cats[i], { rx: 4, op: 0.9 });
-      if (cw > 52 && ch > 20) out += txt(x + 8, y + 17, `Cluster ${i + 1}`, { size: 10, fill: '#ffffff', weight: 700 });
+      if (cw > 52 && ch > 20) out += txt(x + 8, y + 17, LB(`Cluster ${i + 1}`), { size: 10, fill: '#ffffff', weight: 700 });
       if (horiz) { x += cw; w -= cw; } else { y += ch; h -= ch; } });
     void tot; return out;
   } },
@@ -207,7 +211,7 @@ const LEAD = {
   bridge: { title: 'What drives the change', draw(p, P, rnd) {
     const parts = Array.from({ length: 5 }, () => 0.3 + rnd()); const tot = parts.reduce((a, b) => a + b, 0); const rh = (p.h - 16) / 6; let x = p.x + 70; const W2 = p.w - 76; let out = '';
     out += `${txt(p.x, p.y + rh * 0.7, 'Total', { size: 10.5, fill: P.ink, weight: 700 })}${box(p.x + 70, p.y + rh * 0.15, W2, rh * 0.7, P.cats[0], { rx: 3 })}`;
-    parts.forEach((v, i) => { const bw = (v / tot) * W2; const y = p.y + (i + 1) * rh; out += `${txt(p.x, y + rh * 0.7, `Driver ${i + 1}`, { size: 10, fill: P.muted })}${box(x, y + rh * 0.15, bw, rh * 0.7, P.cats[(i % 5) + 1], { rx: 3 })}${seg(x, y - rh * 0.15, x, y + rh * 0.15, P.muted, 1, '2 2')}`; x += bw; });
+    parts.forEach((v, i) => { const bw = (v / tot) * W2; const y = p.y + (i + 1) * rh; out += `${txt(p.x, y + rh * 0.7, LB(`Driver ${i + 1}`), { size: 10, fill: P.muted })}${box(x, y + rh * 0.15, bw, rh * 0.7, P.cats[(i % 5) + 1], { rx: 3 })}${seg(x, y - rh * 0.15, x, y + rh * 0.15, P.muted, 1, '2 2')}`; x += bw; });
     return out;
   } },
   peers: { title: 'Against its peers', draw(p, P, rnd) {
@@ -227,7 +231,7 @@ const LEAD = {
     const n = 5; const rh = p.h / n; let v = 1;
     return Array.from({ length: n }, (_, i) => { const w = p.w * v; const x = p.x + (p.w - w) / 2; const y = p.y + i * rh; const nv = v * (0.68 + rnd() * 0.2); const w2 = p.w * nv; const x2 = p.x + (p.w - w2) / 2;
       const d = `M${r1(x)} ${r1(y + 2)} L${r1(x + w)} ${r1(y + 2)} L${r1(x2 + w2)} ${r1(y + rh - 2)} L${r1(x2)} ${r1(y + rh - 2)} Z`; v = nv;
-      return `<path d="${d}" fill="${P.cats[i % P.cats.length]}" fill-opacity=".9"/>${txt(p.x + p.w / 2, y + rh / 2 + 4, `Step ${i + 1}`, { size: 10.5, fill: '#ffffff', weight: 700, anchor: 'middle' })}`; }).join('');
+      return `<path d="${d}" fill="${P.cats[i % P.cats.length]}" fill-opacity=".9"/>${txt(p.x + p.w / 2, y + rh / 2 + 4, LB(`Step ${i + 1}`), { size: 10.5, fill: '#ffffff', weight: 700, anchor: 'middle' })}`; }).join('');
   } },
   'agent-flow': { title: 'Ask, reason, answer', real: true, draw(p, P, rnd, f) {
     const bw = (p.w - 40) / 3; const bh = Math.min(54, p.h - 40); const y = p.y + 6;
@@ -277,11 +281,11 @@ export function ucChartSvg(type, uc, { w = 320, h = 200, palette } = {}) {
   const f = ucFacts(uc);
   const rnd = seeded(`${f.id}|${type}`);
   if (SCORE[type]) {
-    const s = SCORE[type]; const note = type === 'value-years' ? `Likely value a year, ${f.valueText} in total` : f.quality ? `${f.quality} quality` : '';
+    const s = SCORE[type]; const note = type === 'value-years' ? `${LB('Likely value a year')}, ${f.valueText} ${LB('in total')}` : f.quality ? qualityNote(f) : '';
     return frame(type, { w, h, P, uc: f.id, title: s.title, note, accent: P.cats[2] }, s.draw(plotOf(w, h, note), P, f));
   }
   const d = LEAD[type] || LEAD.gauge;
-  const note = d.real ? (f.amount !== null ? `Value at stake: ${f.valueText} a year` : f.technique) : [f.technique, scoreNote(f)].filter(Boolean).join(' · ');
+  const note = d.real ? (f.amount !== null ? valueNote(f) : f.technique) : [f.technique, scoreNote(f)].filter(Boolean).join(' · ');
   const accent = P.cats[hashOf(type) % 6];
   return frame(LEAD[type] ? type : 'gauge', { w, h, P, uc: f.id, title: d.title, tag: d.real ? '' : ILLUSTRATIVE, note, accent }, d.draw(plotOf(w, h, note), P, rnd, f));
 }
@@ -298,7 +302,7 @@ export function portfolioChartSvg(type, useCases, { w = 520, h = 260, palette } 
   const doms = byDomain(list);
   const withValue = doms.some((d) => d.amount > 0);
   const cur = list.find((f) => f.amount !== null)?.currency || 'USD';
-  const note = `${list.length} use cases · ${doms.length} business domains`;
+  const note = `${list.length} ${LB('use cases')} · ${doms.length} ${LB('business domains')}`;
   const p = plotOf(w, h, note);
   if (type === 'domain-value') {
     // Rows of at least 17 px so 12 px labels never touch; with values, only the domains that have one.
@@ -321,11 +325,11 @@ export function portfolioChartSvg(type, useCases, { w = 520, h = 260, palette } 
     const counts = [...QUALITY_ORDER, ''].map((q) => [q, list.filter((f) => f.quality === q).length]).filter(([, n]) => n);
     const tot = list.length || 1; let x = p.x; const bh = Math.min(40, p.h * 0.32);
     const bar = counts.map(([q, n]) => { const bw = (p.w * n) / tot; const s = `${box(x, p.y + 8, bw - 2, bh, colors[q], { rx: 4 })}${bw > 26 ? txt(x + bw / 2, p.y + 8 + bh / 2 + 5, String(n), { size: 13, fill: '#ffffff', weight: 800, anchor: 'middle' }) : ''}`; x += bw; return s; }).join('');
-    const leg = counts.map(([q, n], i) => `${box(p.x + (i % 3) * (p.w / 3), p.y + bh + 26 + Math.floor(i / 3) * 20, 11, 11, colors[q], { rx: 3 })}${txt(p.x + (i % 3) * (p.w / 3) + 16, p.y + bh + 36 + Math.floor(i / 3) * 20, `${q || 'Not scored'}: ${n}`, { size: 10.5, fill: P.ink })}`).join('');
+    const leg = counts.map(([q, n], i) => `${box(p.x + (i % 3) * (p.w / 3), p.y + bh + 26 + Math.floor(i / 3) * 20, 11, 11, colors[q], { rx: 3 })}${txt(p.x + (i % 3) * (p.w / 3) + 16, p.y + bh + 36 + Math.floor(i / 3) * 20, `${q || LB('Not scored')}: ${n}`, { size: 10.5, fill: P.ink })}`).join('');
     return frame('quality-mix', { w, h, P, title: 'Quality mix', note }, bar + leg);
   }
   if (type === 'matrix') {
-    const yKey = list.some((f) => f.feasibility !== null) ? ['feasibility', 'Feasibility', 5] : ['qualityScore', 'Quality score', 5];
+    const yKey = list.some((f) => f.feasibility !== null) ? ['feasibility', LB('Feasibility'), 5] : ['qualityScore', LB('Quality score'), 5];
     const pts = list.filter((f) => f.priority !== null && f[yKey[0]] !== null);
     const xs = pts.map((f) => f.priority); const ys = pts.map((f) => f[yKey[0]]);
     const [x0, x1] = [Math.floor(Math.min(...xs, 10)) - 0.5, Math.ceil(Math.max(...xs, 0)) + 0.5]; const [y0, y1] = [Math.max(0, Math.min(...ys, 5) - 0.5), Math.min(yKey[2], Math.max(...ys, 0) + 0.5)];
@@ -335,7 +339,7 @@ export function portfolioChartSvg(type, useCases, { w = 520, h = 260, palette } 
     const axes = `${seg(p.x + 30, p.y + p.h - 16, p.x + p.w - 10, p.y + p.h - 16, P.muted, 1)}${seg(p.x + 30, p.y, p.x + 30, p.y + p.h - 16, P.muted, 1)}${txt(p.x + 30 + (p.w - 40) / 2, p.y + p.h - 2, 'Priority score', { size: 10, fill: P.muted, anchor: 'middle' })}${txt(p.x, p.y + 8, yKey[1], { size: 10, fill: P.muted })}`;
     const dots = pts.map((f, i) => `${dot(X(f.priority), Y(f[yKey[0]]), 7, P.cats[i % P.cats.length], { op: 0.85 })}`).join('');
     const ticks = [x0 + 0.5, x1 - 0.5].map((v) => txt(X(v), p.y + p.h - 4, fmt(v), { size: 9.5, fill: P.muted, anchor: 'middle' })).join('');
-    return frame('matrix', { w, h, P, title: `Priority against ${yKey[1].toLowerCase()}`, note }, quad + axes + ticks + dots);
+    return frame('matrix', { w, h, P, title: yKey[0] === 'feasibility' ? 'Priority against feasibility' : 'Priority against quality score', note }, quad + axes + ticks + dots);
   }
   // top: the strongest use cases by Inspire score.
   const top = list.filter((f) => f.score !== null).sort((a, b) => b.score - a.score || a.id.localeCompare(b.id)).slice(0, 6);

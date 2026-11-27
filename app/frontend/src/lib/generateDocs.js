@@ -6,6 +6,7 @@ import { buildAgentPdf, PDF_RASTER } from './docgen/agentPdf.js';
 import { splitInfographic } from './docgen/designs/panelTiles.js';
 import { agentLabelTexts, buildAgentModel } from './docgen/agentModel.js';
 import { resolveTheme } from './docgen/docStyles.js';
+import { storyTexts } from './docgen/storyParts.js';
 import { trackingIdOf } from './useCaseFields.js';
 import { summaryOf } from './docgen/docModel.js';
 import { orderedColumns } from './docgen/docOptions.js';
@@ -38,11 +39,13 @@ export async function svgToPng(svg, scale = 1, { type = 'image/png', quality } =
 }
 
 // The texts a second language needs: per use case, its name, statement, solution and value story.
-export const textsToTranslate = (useCases, values, summary = []) => {
+export const textsToTranslate = (useCases, values, summary = [], businessName = '') => {
   const texts = {};
   summaryOf(summary).forEach((p, i) => { texts[`summary|${i}`] = p; });
   Object.assign(texts, labelTexts()); // RC6-B-11: the fixed labels of every document are translated with the data, never printed in English
   Object.assign(texts, agentLabelTexts()); // C25 (REQ-559): the agent PDF's labels, under agent|<key>
+  // C28 (REQ-564): the story pages (executive summary, purpose, domains list) are built from the data once and translated under story|<part>|<key>.
+  Object.assign(texts, storyTexts(buildAgentModel({ businessName, useCases, values, summary })));
   for (const uc of useCases) {
     const id = trackingIdOf(uc);
     const m = buildDocModel({ useCases: [uc], values, options: {} }).useCases[0];
@@ -100,7 +103,7 @@ export async function generateDocs({ plan, options, useCases, values, businessNa
     let translated = null;
     if (language !== 'English') {
       try {
-        const res = await post('/api/inspire/docs/translate', { ...where, language, texts: textsToTranslate(useCases, values, summary) });
+        const res = await post('/api/inspire/docs/translate', { ...where, language, texts: textsToTranslate(useCases, values, summary, businessName) });
         translated = res?.texts || {};
       } catch (e) {
         files.forEach((f) => onFile(f.name, 'failed', e?.message || 'The translation failed.'));

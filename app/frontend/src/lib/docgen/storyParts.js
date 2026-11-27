@@ -89,3 +89,16 @@ export function purposeParas(model) {
     'A good way to start: pick one top opportunity and one quick win, confirm the data with its owners, then build the first version with Genie Code and measure the value it delivers.',
   ];
 }
+
+// C28 (REQ-564): the story texts a non-English document translates with the data, under stable keys (no per-use-case duplicates):
+// story|exec|<i>, story|purpose|<i>, story|domain|<domain>. storyOf reads them back; with no translation the English stays.
+export const STORY_PREFIX = 'story|';
+export function storyTexts(model) {
+  const out = {};
+  execSummaryParas(model).forEach((p, i) => { out[`${STORY_PREFIX}exec|${i}`] = p; });
+  purposeParas(model).forEach((p, i) => { out[`${STORY_PREFIX}purpose|${i}`] = p; });
+  domainsListOf(listOf(model)).forEach((d) => { out[`${STORY_PREFIX}domain|${d.domain}`] = d.description.replace(/;.*$/, '.'); });
+  return out;
+}
+export const storyFrom = (translated) => Object.fromEntries(Object.entries(translated || {}).filter(([k, v]) => k.startsWith(STORY_PREFIX) && typeof v === 'string' && v.trim()));
+export const storyPick = (story, key, english) => story?.[`${STORY_PREFIX}${key}`] || english;

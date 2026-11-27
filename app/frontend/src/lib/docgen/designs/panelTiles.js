@@ -73,8 +73,8 @@ function tile(v, pal, cw, rtl, color) {
   }
   // C27 (REQ-564): the use case's own chart (its lead type follows its analytics technique), in the deck palette.
   {
-    const ch = 150; const cy0 = y + 12; // The infographic keeps every text at 12px or more: a smaller chart text is raised to 12.
-    const svg = ucChartSvg(chartTypesFor(v)[0], v, { w: inW, h: ch, palette: { cats: [color, ...(pal.cats || []).filter((c) => c !== color)] } }).replace(/font-size="(\d+(?:\.\d+)?)"/g, (a, n) => (Number(n) < 12 ? 'font-size="12"' : a));
+    const ch = 150; const cy0 = y + 12;
+    const svg = ucChartSvg(chartTypesFor(v)[0], v, { w: inW, h: ch, palette: { cats: [color, ...(pal.cats || []).filter((c) => c !== color)] } });
     ops.push((x, yt) => svg.replace(/^<svg /, `<svg x="${x + IN}" y="${yt + cy0}" `));
     y += ch + 12;
   }

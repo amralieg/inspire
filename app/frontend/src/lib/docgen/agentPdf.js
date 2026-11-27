@@ -7,7 +7,8 @@ import {
   qualityColor, docJoin,
 } from './agentModel.js';
 import { chartTypesFor, ucChartSvg, portfolioChartSvg } from './designs/ucCharts.js';
-import { execSummaryParas, purposeParas, domainsListOf } from './storyParts.js';
+import { execSummaryParas, purposeParas, domainsListOf, storyPick } from './storyParts.js';
+import { withLabels } from './docLabels.js';
 
 // The agent's _PDF_CSS (6a7361a39) without the @page rules, which the page box below replaces; html is the page root .ap.
 const AGENT_PDF_CSS = `
@@ -767,6 +768,11 @@ function shares(counts) {
   return hundredths.map((h) => h / 100);
 }
 
+// C28: a non-English executive summary is the translated story paragraphs when they came back, else the translated session summary.
+const execFor = (m, skip) => {
+  const ps = execSummaryParas(m).map((p, i) => m.story?.[`story|exec|${i}`]).filter(Boolean);
+  return ps.length ? ps : m.executive.slice(skip);
+};
 function sections(m) {
   const T = m.T; const b = bidiFor(m); const out = [];
   const para = (ps, size, width, lh) => ps.map((p, i) => ({ html: `<p class="${i === 0 ? 'first' : ''}"${b.dir(p)}>${b.text(p)}</p>`, h: textH(p, size, width, lh) + 9 }));
@@ -779,8 +785,10 @@ function sections(m) {
     + `<div class="foot"><div class="meta">${b.html(m.generatedBy)}</div></div></section>`] });
   // Contents: the page numbers are filled in once every page is cut.
   // C27: the PDF's contents add the purpose and domains list pages after the executive summary (the deck keeps agentOutline as is).
+  // C28: the purpose page stays in every language; another language prints its translation (and drops the page when none came back).
+  const hasPurpose = m.language === 'English' || purposeParas(m).some((_, i) => m.story?.[`story|purpose|${i}`]);
   const base = agentOutline(m); const at = base.findIndex((o) => o[0] === 'executive') + 1;
-  const outline = [...base.slice(0, at), ...(m.language === 'English' ? [['purpose', T('doc_purpose_title'), T('doc_purpose_kicker')]] : []),
+  const outline = [...base.slice(0, at), ...(hasPurpose ? [['purpose', T('doc_purpose_title'), T('doc_purpose_kicker')]] : []),
     ['domainslist', T('doc_domains_list_title'), `${m.domains.length} ${T('doc_domains')}`], ...base.slice(at)];
   const tile = ([key, title, sub], i) => `<div class="it"><span class="n" style="background:#${ACCENTS[i % ACCENTS.length]}">${String(i + 1).padStart(2, '0')}</span>`
     + `<span class="tx"><span class="t">${esc(title)}</span><div class="s"${b.dir(sub)}>${b.text(sub)}</div></span><a class="pgn">@@PG:${key}@@</a></div>`;
@@ -797,7 +805,7 @@ function sections(m) {
   // (English; another language keeps the translated session summary). A bar notice stays first.
   const notices = m.executive.slice(0, Math.max(0, m.executive.length - (m.summary?.length || 2)));
   const english = m.language === 'English';
-  const exec = para([...notices, ...(english ? execSummaryParas(m) : m.executive.slice(notices.length))], F.body + 1, CW, 1.55);
+  const exec = para([...notices, ...(english ? execSummaryParas(m) : execFor(m, notices.length))], F.body + 1, CW, 1.55);
   const stats = statsTable(m.headline, b, 'big');
   const pw = Math.floor((CW - 14) / 2); const ph = 220;
   const valued = m.ranked.some((u) => u.value.amount !== null);
@@ -805,8 +813,8 @@ function sections(m) {
   flow(out, 'exec', { head: { html: heading('executive', T('doc_exec_kicker'), T('pdf_exec_summary')).html + stats.html, h: heading('executive', '', T('pdf_exec_summary')).h + stats.h + 13 },
     blocks: [pcharts, ...exec.map((p) => ({ html: `<div class="txt exec">${p.html}</div>`, h: p.h }))], extra: { section: 'executive', cls: 'exec' } });
   // C27: what this catalog is for (data-section="purpose"), with the priority matrix and the quality mix.
-  if (english) {
-    const pp = para(purposeParas(m), F.lead, CW, 1.6);
+  if (hasPurpose) {
+    const pp = para(purposeParas(m).map((p, i) => storyPick(m.story, `purpose|${i}`, p)), F.lead, CW, 1.6);
     const ph2 = 230;
     flow(out, 'purpose', { head: heading('purpose', T('doc_purpose_kicker'), T('doc_purpose_title')), extra: { section: 'purpose' },
       blocks: [...pp.map((p) => ({ html: `<div class="txt purp">${p.html}</div>`, h: p.h + 2 })),
@@ -817,7 +825,7 @@ function sections(m) {
   const dlValue = dl.some((d) => d.value);
   const dlW = CW - 20 - 10 - 150 - (dlValue ? 3 : 2) * (64 + 12) - 12;
   const dlRows = dl.map((d, i) => {
-    const desc = english ? d.description.replace(/;.*$/, '.') : '';
+    const desc = storyPick(m.story, `domain|${d.domain}`, d.description.replace(/;.*$/, '.'));
     const c = ACCENTS[i % ACCENTS.length];
     return { html: `<div class="dlrow"><i class="sw" style="background:#${c}"></i><div class="dn"${b.dir(d.domain)}>${b.text(d.domain)}</div><div class="dd"${b.dir(desc)}>${b.text(desc)}</div>`
       + `<div class="dk"><b>${d.count}</b>${esc(T('doc_dl_count'))}</div>${dlValue ? `<div class="dk"><b dir="ltr">${d.value ? esc(d.value.text) : '\u2013'}</b>${esc(T('value_year'))}</div>` : ''}`
@@ -1029,6 +1037,10 @@ export function agentPdfPages(args) {
   return pagesOf(m);
 }
 export function pagesOf(m) {
+  // C28: the document's labels are in force while its pages are drawn, so the chart texts speak its language.
+  return withLabels(m.docLabels, () => pagesIn(m));
+}
+function pagesIn(m) {
   const pages = sections(m);
   const css = agentPdfCss(m);
   const n = pages.length;

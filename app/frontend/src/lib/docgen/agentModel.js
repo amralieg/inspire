@@ -7,6 +7,8 @@ import { fieldOf, trackingIdOf, inspireScoreFromUc, scoreOf, belowBarReasonOf, n
 import { v130View, strategyGoals } from '../v130UseCase.js';
 import { useCaseKindView, KIND_INFORMATIONAL_LABEL } from '../useCaseKind.js';
 import { moneyText } from '../valueWizard.js';
+import { labelsFrom } from './docLabels.js';
+import { storyFrom } from './storyParts.js';
 import { buildDocModel, isRtl, STORY_NOT_APPROVED } from './docModel.js';
 import { plainDocText, plainBusiness } from './docText.js';
 
@@ -448,6 +450,7 @@ export function buildAgentModel({ businessName, useCases, values, summary, found
   const valueTop = [...withValue].filter((u) => docOf.get(u).value.currency === currency).sort((a, b) => amountOf(b) - amountOf(a) || compareFinalRank(a, b)).slice(0, TOP_LIMIT.value).map((u) => views.get(u));
   const model = {
     language, lang: LOCALES[language] || 'en', rtl: isRtl(language), latinDisplay: !NON_LATIN_LANGUAGES.includes(language), T, labels,
+    docLabels: translated ? labelsFrom(translated) : {}, story: translated ? storyFrom(translated) : {},
     businessName: docModel.businessName, summary: docModel.summary, date: day, mode, ultra, modeLabel, total: ranked.length, domains, groupLabelKey,
     ranked: ranked.map((u) => views.get(u)), qualityCounts, qualityRows, unscored, executive, top, foundations: foundationList,
     headline: [[String(ranked.length), T('doc_use_cases')], [String(domains.length), T('doc_domains')],
