@@ -109,3 +109,9 @@ test('(e) Word: body text at least 11pt, a Heading 1 and a page break per use ca
   const tables = (xml.match(/<w:tbl>/g) || []).length;
   assert.ok(tables >= a.useCases.length, `${tables} tables for ${a.useCases.length} use cases`);
 });
+
+test('(f) the document model names the business domain, not the subdomain', () => {
+  const a = argsOf(3);
+  const m = docModelOf(a);
+  assert.deepEqual(m.useCases.map((u) => u.domain).sort(), ['Finance', 'Marketing', 'Supply chain']);
+});
