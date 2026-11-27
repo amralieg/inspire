@@ -5,7 +5,8 @@ import { resolveTheme } from './docStyles.js';
 
 export function infographicFor(useCase, { orientation = 'landscape', scenario = '', content = null, theme = null, logo = '', style = '', palette = '', customColor = '', rtl = false } = {}) {
   const t = theme || (style || palette || customColor ? resolveTheme(style, palette, customColor, 'light') : null);
-  return draw(useCase, { orientation, scenario, content, theme: t, logo, rtl });
+  const logoHref = logo && typeof logo === 'object' ? String(logo.dataUrl || '') : logo; // the dialog keeps the logo as { name, type, size, dataUrl }
+  return draw(useCase, { orientation, scenario, content, theme: t, logo: logoHref, rtl });
 }
 
 export const INFOGRAPHIC_STYLES = infographicStyles(null).map((s) => ({ id: s.id, name: s.name, description: s.description, thumbnail: s.thumbnails.landscape, thumbnails: s.thumbnails }));

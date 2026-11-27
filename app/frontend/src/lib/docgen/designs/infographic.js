@@ -3,6 +3,7 @@
 // and an icon cluster as the illustration. Text scales with the page (portrait is read printed on A4).
 // infographicFor(useCase, {orientation, scenario, content, theme, logo, rtl}) -> svg. The content comes from the picker (infographicPick.js).
 // Every text sits in a measured box (shrunk to fit, then cut with an ellipsis), and every box is logged, so nothing overflows or overlaps.
+import { displayId } from '../../../../../shared/useCaseId.mjs';
 import { SCENARIOS, SCENARIO_IDS } from '../../../../../backend/lib/infographicPick.mjs';
 import { LB } from '../docLabels.js';
 import { esc, textW, rect, circle, line, mix, bestInk, svgDoc, rtlSvg } from './core.js';
@@ -404,7 +405,7 @@ export function renderInfographic(useCase, { orientation = 'landscape', scenario
   if (logo) parts.push(`<image href="${esc(logo)}" x="${W - M - logoW}" y="30" width="${logoW}" height="72" preserveAspectRatio="xMaxYMid meet"/>`);
   const by = L ? 236 : 330; const body = { x: M, y: by, w: W - 2 * M, h: H - by - 72 };
   SC[id](c, body, d, L);
-  const foot = [useCase && useCase.No, useCase && useCase.Name].filter(Boolean).join(' · ');
+  const foot = [useCase && useCase.No && displayId(useCase.No), useCase && useCase.Name].filter(Boolean).join(' · ');
   if (foot) fit(c, foot, M, H - 50, W - 2 * M, S(26), { size: 15, min: 12, fill: P.muted, maxLines: 1 });
   const deco = `<circle cx="${W - 40}" cy="${L ? 80 : 120}" r="${L ? 150 : 190}" fill="${P.acc[0]}" fill-opacity="0.07"/><circle cx="30" cy="${H - 30}" r="${L ? 160 : 210}" fill="${P.acc[2]}" fill-opacity="0.07"/>`;
   const inner = `<rect width="${W}" height="${H}" fill="${P.bg}"/>${deco}<g data-scenario="${id}">${unders.join('')}${parts.join('')}</g>`;

@@ -3,6 +3,7 @@
 import { buildDocModel } from './docgen/docModel.js';
 import { infographicSvg } from './docgen/docSvg.js';
 import { infographicFor } from './docgen/infographicApi.js';
+import { pickInfographic, SCENARIO_IDS } from './docgen/designs/infographicPick.js';
 import { buildAgentPdf, PDF_RASTER } from './docgen/agentPdf.js';
 import { rasterPage } from './docgen/pngIndexed.js';
 import { splitInfographic } from './docgen/designs/panelTiles.js';
@@ -105,11 +106,19 @@ export async function infographicPdf(m, theme, agent, rasterize, drawn = null) {
   return pdfFromImages(pages, PDF_RASTER.scale);
 }
 
-async function makeFile(file, m, theme, options, agent) {
+// C28 (REQ-571): the SVG of one use case's infographic. The pick route chooses the scenario and writes the story (the vibe text guides it); any failure
+// (503, 502, junk, network) falls back to the local picker, so the file is always drawn. An explicitly chosen layout is sent as the scenario.
+export async function drawInfographic(useCase, { options = {}, theme = null, post = null, where = {} } = {}) {
+  const forced = SCENARIO_IDS.includes(options.infographicStyle) ? options.infographicStyle : '';
+  const orientation = options.orientation || 'landscape';
+  const { pick } = await pickInfographic(useCase, { post, vibe: String(options.vibe ?? '').trim(), scenario: forced, orientation, where });
+  return infographicFor(useCase, { orientation, scenario: pick.scenario, content: pick, theme: theme || resolveTheme(options.style, options.palette, options.customColor, options.theme), logo: options.logo || '' });
+}
+
+async function makeFile(file, m, theme, options, agent, net = {}) {
   if (file.kind === 'infographic') {
-    // C28 (REQ-570): one infographic per use case, drawn by the infographic interface with the dialog's orientation, style, content, theme and logo.
-    const drawn = infographicFor(agent.useCases[0], { orientation: file.orientation || options.orientation, style: options.infographicStyle || options.style, palette: options.palette,
-      customColor: options.customColor, theme: options.theme, content: options.blocks, logo: agent.logo, businessName: agent.businessName, values: agent.values, scenario: 'likely' });
+    // C28 (REQ-570): one infographic per use case, picked by the model (or the local picker), drawn with the dialog's orientation, style, theme, vibe and logo.
+    const drawn = await drawInfographic(agent.useCases[0], { options: { ...options, vibe: agent.vibe, logo: agent.logo }, theme, post: net.post, where: net.where });
     return infographicPdf(m, theme, agent, svgToPng, drawn);
   }
   if (file.kind === 'pdf') {
@@ -158,7 +167,7 @@ export async function generateDocs({ plan, options, useCases, values, businessNa
         m.vibe = ctx.vibe; m.logo = ctx.logo ? { ...ctx.logo, png: file.kind === 'docx' ? await logoPng(ctx.logo) : null } : null;
         m.appUrl = typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}`.replace(/\/+$/, '') : '';
         const agent = { businessName, useCases: useCases.filter((uc) => file.useCaseIds.includes(trackingIdOf(uc))), values, summary, foundations, language, translated, logo: ctx.logo, vibe: ctx.vibe };
-        const bytes = await toBytes(await makeFile(file, m, theme, options, agent));
+        const bytes = await toBytes(await makeFile(file, m, theme, { ...options, orientation: file.orientation || options.orientation }, agent, { post, where }));
         await post('/api/inspire/docs/save', { ...where, folder, name: file.name, content_base64: toBase64(bytes), use_case_ids: file.useCaseIds });
         saved.push(`${folder}/${file.name}`);
         onFile(file.name, 'done');

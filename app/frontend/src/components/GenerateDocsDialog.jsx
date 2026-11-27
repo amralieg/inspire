@@ -32,7 +32,7 @@ export default function GenerateDocsDialog({ useCases, values, businessName, sum
   const plan = useMemo(() => planFiles(planOptions, useCases), [options, businessName, useCases]); // eslint-disable-line react-hooks/exhaustive-deps
   const svg = useMemo(() => {
     if (pageId !== 'style') return '';
-    if (withInfographic) return infographicFor(useCases[0], { orientation: options.orientation, style: options.infographicStyle || options.style, palette: options.palette, customColor: options.customColor, theme: options.theme, content: options.blocks, logo: options.logo, businessName, values, scenario: 'likely' });
+    if (withInfographic) return infographicFor(useCases[0], { orientation: options.orientation, scenario: options.infographicStyle || '', theme: resolveTheme(options.style, options.palette, options.customColor, options.theme), logo: options.logo });
     const m = buildDocModel({ businessName, useCases, values, options });
     const views = buildAgentModel({ businessName, useCases, values, summary, foundations }).ranked; // the use case views, as generateDocs draws the file
     return infographicSvg(m, resolveTheme(options.style, options.palette, options.customColor, options.theme), views);

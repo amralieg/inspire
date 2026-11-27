@@ -31,7 +31,7 @@ test('B-12 the doc model prints plain words: no bracket markers, no backticks, a
   for (const [field, text] of [['statement', u.statement], ['solution', u.solution], ['businessValue', u.businessValue], ['foundations', u.foundations.join(' | ')]]) {
     assert.ok(!MARKERS.test(text), `${field} is plain: ${text}`);
   }
-  assert.match(u.businessValue, /depends on totalPrice, order_count/, 'the dependency stays as words');
+  assert.match(u.businessValue, /depends on totalPrice, order count/, 'the dependency stays as business words (REQ-561 wording)');
   assert.match(u.businessValue, /baseline/i, 'another marker keeps its meaning as a word');
   assert.deepEqual(u.foundations, ['Orders and customers'], 'F1 is its name; F9 has no known name so it is left out, not printed as a code');
   assert.match(u.statement, /customer_id/, 'the column name stays, without backticks');
