@@ -224,7 +224,7 @@ export function VibePage({ options, set }) {
     <div className="space-y-4" data-docs-vibe="">
       <div className="space-y-2">
         <label htmlFor="docs-vibe-text" className="block text-sm font-bold text-text-primary">Tell the documents how to sound</label>
-        <textarea id="docs-vibe-text" data-docs-vibe-text="" rows={4} maxLength={1000} value={options.vibe || ''} onChange={(e) => set({ vibe: e.target.value })}
+        <textarea dir="auto" id="docs-vibe-text" data-docs-vibe-text="" rows={4} maxLength={1000} value={options.vibe || ''} onChange={(e) => set({ vibe: e.target.value })}
           placeholder="For example: board-level tone, lead with value, keep each page to one idea." className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary" />
         <p className="text-xs text-text-secondary">Optional. Your words guide the wording of the documents. Click an example to use it.</p>
         <div className="flex flex-wrap gap-2">

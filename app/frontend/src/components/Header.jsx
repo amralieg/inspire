@@ -92,7 +92,7 @@ export default function Header({
             <span data-ai-status={aiState} role="status"
               title={aiState === 'unavailable' ? `The last AI call failed: ${ai.error}` : aiState === 'working' ? 'An AI call is running' : 'AI calls from this App are going through'}
               className={`hidden sm:inline-flex items-center gap-1.5 whitespace-nowrap text-caption font-medium ${aiState === 'unavailable' ? 'text-error-fg' : 'text-text-secondary'}`}>
-              {aiState === 'working' && <Loader2 size={12} className="animate-spin" aria-hidden />}
+              {aiState === 'working' && <Loader2 size={14} className="animate-spin" aria-hidden />}
               {`AI: ${aiState}`}
             </span>
             <button
