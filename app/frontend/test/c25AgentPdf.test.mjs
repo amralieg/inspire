@@ -18,7 +18,7 @@ const OLD_UC_CARD_LABELS = [
   'Statement', 'Solution', 'Business Value',
   // _USE_CASE_VIEW_FACTS, plus data_filters, kind and key_measure_note inserted by _use_case_view
   'Sponsor', 'Beneficiary', 'Business Priority Alignment', 'Strategic Goals Alignment', 'Analytics Technique', 'Type',
-  'Tables Involved', 'Data Foundations', 'Data Filters', 'Use Case Kind', 'Key measure',
+  'Use Case Kind', 'Key measure', // REQ-561: Tables Involved, Data Foundations and Data Filters are technical and no longer on the card
   // value facts: what_you_get (INSPIRE_KIND_LINES) and _USE_CASE_VIEW_VALUE
   'What you get', 'KPIs', 'Expected Key Results', 'Value estimate', 'Measures of Success', 'Financial Benefits', 'Non-Financial Benefits',
   // metrics: quality, then _USE_CASE_VIEW_SCORES
@@ -65,7 +65,7 @@ const articleOf = (id) => pages.filter((p) => p.kind === 'cards').map((p) => p.s
 
 test('(a) the page sequence is the agent PDF order, with the value page after the last domain and before the index', () => {
   const seq = collapse(pages.map((p) => (p.kind === 'domain' || p.kind === 'cards' ? `${p.kind}${p.domain}` : p.kind)));
-  assert.deepEqual(seq, ['cover', 'contents', 'exec', 'guide', 'portfolio', 'domain1', 'cards1', 'domain2', 'cards2', 'value', 'index',
+  assert.deepEqual(seq, ['cover', 'contents', 'exec', 'guide', 'portfolio', 'domain1', 'cards1', 'story', 'cards1', 'story', 'domain2', 'cards2', 'story', 'cards2', 'value', 'index',
     'methodology', 'foundations', 'roadmap', 'disclaimer', 'closing']);
   // Domain 1 (Sales, best rank) holds its use cases; domain 2 holds the other two.
   const ids = (d) => pages.filter((p) => p.kind === 'cards' && p.domain === d).map((p) => p.svg).join('').match(/data-uc="[^"]+"/g);

@@ -13,7 +13,7 @@ import { moneyText } from '../src/lib/valueWizard.js';
 const OLD_UC_CARD_LABELS = [
   'Statement', 'Solution', 'Business Value',
   'Sponsor', 'Beneficiary', 'Business Priority Alignment', 'Strategic Goals Alignment', 'Analytics Technique', 'Type',
-  'Tables Involved', 'Data Foundations', 'Data Filters', 'Use Case Kind', 'Key measure',
+  'Use Case Kind', 'Key measure', // REQ-561: Tables Involved, Data Foundations and Data Filters are technical and no longer on the slides
   'What you get', 'KPIs', 'Expected Key Results', 'Value estimate', 'Measures of Success', 'Financial Benefits', 'Non-Financial Benefits',
   'Quality', 'Inspire Score', 'Elite Score', 'Quality Score', 'Best-of-Best Score', 'Priority', 'Value', 'Feasibility',
 ];
@@ -76,8 +76,8 @@ test('(a) the slide sequence is the agent deck order, with the value slide after
   assert.ok(bytes instanceof Uint8Array && bytes.length > 1000, 'a pptx file');
   const seq = slides.map((s) => (s.key ? `${s.kind}:${s.key}` : s.kind));
   assert.deepEqual(seq, ['cover', 'contents', 'summary', 'guide', 'portfolio', 'top_index',
-    'domain:1', 'uc_card:N01-U01', 'uc_value:N01-U01', 'uc_card:N01-U02', 'uc_value:N01-U02',
-    'domain:2', 'uc_card:N02-U01', 'uc_value:N02-U01', 'uc_card:N02-U02', 'uc_value:N02-U02',
+    'domain:1', 'uc_card:N01-U01', 'uc_value:N01-U01', 'uc_story:N01-U01', 'uc_card:N01-U02', 'uc_value:N01-U02', 'uc_story:N01-U02',
+    'domain:2', 'uc_card:N02-U01', 'uc_value:N02-U01', 'uc_story:N02-U01', 'uc_card:N02-U02', 'uc_value:N02-U02',
     'value', 'index', 'methodology', 'glossary', 'foundations', 'roadmap', 'disclaimer', 'closing']);
   assert.ok(slides[0].text.includes('Acme') && slides[0].text.includes('Strategic AI Use Cases Powered by Databricks AI'), 'the cover');
   assert.ok(slides.find((s) => s.kind === 'summary').text.includes(SUMMARY[0]), 'the executive summary');

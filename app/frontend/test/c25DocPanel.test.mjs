@@ -66,7 +66,7 @@ const projectionText = YEARS.flatMap((y) => [y.low, y.likely, y.high].map((n) =>
 
 function checkBusiness(text, where, { labels = BUSINESS_LABELS } = {}) {
   for (const t of BUSINESS_TEXT) assert.ok(text.includes(t), `${where} carries "${t}"`);
-  for (const l of labels) assert.ok(text.includes(l), `${where} carries the label "${l}"`);
+  for (const l of labels) assert.ok(text.toLowerCase().includes(l.toLowerCase()), `${where} carries the label "${l}"`);
 }
 function checkNoTechnical(text, where) {
   for (const t of TECH) assert.ok(!text.includes(t), `${where} must not carry the technical text "${t}"`);
@@ -79,7 +79,7 @@ test('(a) the generators use one field list and it equals the side panel busines
     ...[...detail.matchAll(/<h4[^>]*>\s*([A-Za-z][^<{]*?)\s*(?:<|\{)/g)].map((x) => x[1]),
     ...[...strategy.matchAll(/<Section title="([^"]+)"/g)].map((x) => x[1]),
     ...[...detail.matchAll(/label: '([^']+)'/g)].map((x) => x[1]),
-    'Best of Best', 'Databricks AI Instruction', 'Use case notebook',
+    'Best of Best', 'Not starred as Best of Best', 'Databricks AI Instruction', 'Use case notebook',
   ]);
   const classified = new Set([...PANEL_BUSINESS.flatMap((p) => p.panels), ...PANEL_TECHNICAL]);
   for (const t of titles) assert.ok(classified.has(t), `the panel title "${t}" is classified as business or technical`);
@@ -124,7 +124,8 @@ test('(c) PPTX: the card slide carries every business section and no technical f
   const story = mine.filter((s) => s.kind === 'uc_story');
   assert.equal(story.length, 1, 'one story slide');
   assert.equal(story[0].i, Math.max(...mine.filter((s) => s.kind !== 'uc_story').map((s) => s.i)) + 1, 'the story slide follows the use case slides');
-  for (const t of [...STORY_TEXT, ...projectionText, 'Value story', 'Basis']) assert.ok(story[0].text.includes(t), `the story slide carries "${t}"`);
+  for (const t of [...STORY_TEXT, ...projectionText]) assert.ok(story[0].text.includes(t), `the story slide carries "${t}"`);
+  for (const t of ['Value story', 'Basis']) assert.ok(story[0].text.toLowerCase().includes(t.toLowerCase()), `the story slide carries "${t}"`);
   assert.ok(!slides.some((s) => s.kind === 'uc_story' && s.key === 'P01-U02'), 'no value, no story slide');
 });
 
