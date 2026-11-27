@@ -10,6 +10,7 @@ import { kpiTargetOf, kpiTargetProblems, stakeWords, withKpiTarget } from './tar
 import { FIRST_RUN_LABEL, firstRunSent, latestRunScope, scopeProblems, scopeValues } from './runScope.js';
 import { normalizeTableScope, tableScopeOf } from './tableScope.js';
 import { PLACE_NAME_RE } from './tableName.js';
+import { displayId } from '../../../shared/useCaseId.mjs';
 import {
   allowedRule, allowedText, isSettingWidget, numberText, settingsModelOf, settingsProblems, widgetProblems, widgetSetProblems, widgetValueProblem,
   wizardSettings, withSettingsNote,
@@ -1158,7 +1159,7 @@ export function sharedSource(planShared, live) {
   return live?.shared && typeof live.shared === 'object' ? live.shared : null;
 }
 
-export const holderNames = (list) => (Array.isArray(list) ? list : []).map((u) => String(u?.name || u?.use_case_id || '').trim()).filter(Boolean);
+export const holderNames = (list) => (Array.isArray(list) ? list : []).map((u) => String(u?.name || displayId(u?.use_case_id) || '').trim()).filter(Boolean);
 
 export function sharedHolding(id, shared, live = null) {
   const entry = shared?.[id];
@@ -2503,7 +2504,7 @@ export function withPlacementDefault(spec, targets, { held = {}, saved = '', sav
 }
 
 export function mergeTargetText(target) {
-  return briefList((target?.use_cases || []).map((u) => u.name || u.use_case_id));
+  return briefList((target?.use_cases || []).map((u) => u.name || displayId(u.use_case_id)));
 }
 
 export function splitList(text, separator) {
@@ -3341,7 +3342,7 @@ export function implementGroups(useCases, latestRows, notebookRun, query = '') {
   const listedIds = new Set(listed.map(caseIdOf));
   const orphans = [...latestById.entries()]
     .filter(([id]) => id && !listedIds.has(id))
-    .map(([id, row]) => ({ id, Name: String(row.use_case_name || id) }));
+    .map(([id, row]) => ({ id, Name: String(row.use_case_name || displayId(id)) }));
   const terms = String(query || '').toLowerCase().split(/\s+/).filter(Boolean);
   const items = [...listed, ...orphans].map((uc) => {
     const id = caseIdOf(uc);
@@ -3349,7 +3350,7 @@ export function implementGroups(useCases, latestRows, notebookRun, query = '') {
     const notebook = notebookStatus(uc, notebookRun);
     return { id, name: nameOfUseCase(uc) || id, domain: domainOf(uc), uc, latest, notebook, state: implementState(latest, notebook) };
   }).filter((item) => {
-    const text = `${item.id} ${item.name} ${subtitleOfUseCase(item.uc, item.name)} ${item.domain}`.toLowerCase();
+    const text = `${item.id} ${displayId(item.id)} ${item.name} ${subtitleOfUseCase(item.uc, item.name)} ${item.domain}`.toLowerCase();
     return terms.every((t) => text.includes(t));
   }).sort((a, b) => compareMeetsQualityBarFirst(a.uc, b.uc));
   return IMPLEMENT_GROUPS.map(({ states, ...group }) => ({ ...group, items: items.filter((item) => states.includes(item.state.group)) }));

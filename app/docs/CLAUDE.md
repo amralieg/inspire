@@ -642,7 +642,7 @@ SELECT id, business_domain, subdomain, use_case, statement, solution, business_v
        idea_theme,
        genie_instruction
 FROM feip_eastus_01._inspire.__inspire_usecases
-WHERE session_id = :sid AND id IN ('N01-U03', 'N02-U01', 'N03-U05', 'N04-U08', 'N05-U02');
+WHERE session_id = :sid AND id IN ('AI01-UC03', 'AI02-UC01', 'AI03-UC05', 'AI04-UC08', 'AI05-UC02');
 ```
 
 #### 10.4.2 The 19-gate PBA grid
@@ -662,7 +662,7 @@ Document the score per gate per UC in a markdown table. Flag any gate scored ≤
 Example grid entry:
 
 ```
-UC: N01-U03 "Forecast Demand by Zone to Reduce Idle Time"
+UC: AI01-UC03 "Forecast Demand by Zone to Reduce Idle Time"
  D1 Causal Signal           9   ws_quantity, ws_date_sk + zone_id → demand forecast
  D2 Cause-Effect Validity   9   standard industry pattern
  D3 Data Granularity        9   zone-day
@@ -670,7 +670,7 @@ UC: N01-U03 "Forecast Demand by Zone to Reduce Idle Time"
  D5 Logical Possibility     10  Prophet on date+quantity is standard
  D6 Metric Validity         9
  D7 Design-Schema Match     9
- D8 Semantic Uniqueness     7   similar to N02-U01 but different scope
+ D8 Semantic Uniqueness     7   similar to AI02-UC01 but different scope
  D9 Analytical Depth        7   Prophet is substantive
  D10 Activation Quality     10  "reduce idle time" = concrete deliverable
  D11 Domain Balance         8

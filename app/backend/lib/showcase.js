@@ -6,6 +6,7 @@ const { assetType, encodedCache, sendAsset } = require('./assetTypes');
 const { parseExactJson } = require('./exactJson');
 const { sameOriginCsp } = require('./hostedRun');
 const { BACKEND_DIR } = require('./appPaths');
+const { displayText } = require('../../shared/useCaseId.mjs');
 
 const SHOWCASE_VERSION = 1;
 const SHOWCASE_HEADER = 'x-inspire-showcase';
@@ -225,6 +226,17 @@ function recordedList(answers, body) {
   return same.length ? answers[same[0].k] : undefined;
 }
 
+// REQ-569: the demo files keep the ids as recorded (Nx-Ux) and are never rewritten; a sentence a person reads prints AIx-UCx. An id on its
+// own and a URL or path holding one stay as recorded, because the shell sends them back as lookups.
+const STORED_ID_ONLY = /^N\d+-U\d+$/;
+const ID_IN_PATH = /\/N\d+-U\d+(\/|$)/;
+function showcaseDisplay(value) {
+  if (typeof value === 'string') return STORED_ID_ONLY.test(value) || ID_IN_PATH.test(value) ? value : displayText(value);
+  if (Array.isArray(value)) return value.map(showcaseDisplay);
+  if (isObject(value)) return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, showcaseDisplay(v)]));
+  return value;
+}
+
 function replay(res, answers, method, pathname, query, body) {
   const key = showcaseKey(method, pathname, query, body);
   const recorded = answers[key];
@@ -234,8 +246,8 @@ function replay(res, answers, method, pathname, query, body) {
   const answer = found && key === 'GET /api/app' && isObject(found.body) ? { ...found, body: gatedApp(found.body, answers) } : found;
   res.set('Cache-Control', 'no-store');
   if (answer && answer.base64) return res.status(answer.status).set('X-Content-Type-Options', 'nosniff').type(answer.type).send(Buffer.from(answer.body, 'base64'));
-  if (answer && answer.text) return res.status(answer.status).set('X-Content-Type-Options', 'nosniff').type('text/plain; charset=utf-8').send(answer.body);
-  if (answer) return res.status(answer.status).json(answer.body);
+  if (answer && answer.text) return res.status(answer.status).set('X-Content-Type-Options', 'nosniff').type('text/plain; charset=utf-8').send(showcaseDisplay(answer.body));
+  if (answer) return res.status(answer.status).json(showcaseDisplay(answer.body));
   const miss = showcaseMiss(method, pathname);
   return res.status(miss.status).json({ error: miss.error, showcase: true });
 }
@@ -334,6 +346,7 @@ function registerShowcaseRoutes(app, { dir = SHOWCASE_DIR, shellFiles, log = con
 }
 
 module.exports = {
+  showcaseDisplay,
   SHOWCASE_GENIE_ASK,
   SHOWCASE_PLAN_DECIDE,
   SHOWCASE_PLAN_NOTE,

@@ -9,6 +9,7 @@ import { stepCategory } from '../../lib/monitorState';
 import { splitTechnical } from '../../lib/plainText';
 import { aiWording } from '../../lib/aiWording';
 import { nameOfUseCase } from '../../lib/useCaseFields';
+import { displayId } from '../../../../shared/useCaseId.mjs';
 
 // REQ-511: "Every step" replaces the inline Detailed Steps log. The same stage list, search, status filter and step rows, in a dialog.
 export const STATUS_FILTERS = [
@@ -435,7 +436,7 @@ function ResultJsonDisplay({ resultJson }) {
         <div className="flex flex-wrap gap-1">
           {rj.use_cases.slice(0, 10).map((uc, i) => (
             <span key={i} className="px-2 py-0.5 rounded-full bg-bg-subtle text-text-secondary text-caption border border-border">
-              {nameOfUseCase(uc) || `#${uc.id}`}
+              {nameOfUseCase(uc) || `#${displayId(uc.id)}`}
             </span>
           ))}
           {rj.use_cases.length > 10 && (
@@ -458,7 +459,7 @@ function ResultJsonDisplay({ resultJson }) {
         <div className="grid grid-cols-1 gap-0.5 max-h-28 overflow-y-auto">
           {rj.scored_use_cases.slice(0, 8).map((sc, i) => (
             <div key={i} className="flex items-center gap-2 text-caption py-0.5">
-              <span className="text-text-primary font-medium truncate flex-1">{nameOfUseCase(sc) || `#${sc.id}`}</span>
+              <span className="text-text-primary font-medium truncate flex-1">{nameOfUseCase(sc) || `#${displayId(sc.id)}`}</span>
               <span className={`px-1.5 py-0.5 rounded font-semibold ${
                 ['Ultra High', 'Very High', 'High'].includes(sc.priority) ? 'bg-db-red-50 text-db-red-fg' : 'bg-bg-subtle text-text-secondary'
               }`}>{sc.priority}</span>

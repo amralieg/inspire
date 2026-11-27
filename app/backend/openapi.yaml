@@ -2260,7 +2260,7 @@ paths:
                 inspire_database: {type: string, example: workspace._inspire}
                 warehouse_id: {type: string}
                 session_id: {type: string, description: Numeric session id, example: '3333333333333333333'}
-                use_case_id: {type: string, example: N01-U03}
+                use_case_id: {type: string, example: AI01-UC03}
                 use_case_key: {type: string, description: Copied from the use case row, maxLength: 300}
                 use_case_title: {type: string}
                 status: {type: string, enum: [accepted, rejected, planned, implemented]}

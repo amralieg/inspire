@@ -1,4 +1,5 @@
 import { APP_INSIDE } from './implementWizard.js';
+import { displayId } from '../../../shared/useCaseId.mjs';
 import { sessionFailed, sessionFinished } from './monitorState.js';
 import { SHOWCASE_BUTTON } from './showcase.js';
 import { HOME_TAB } from './tabs.js';
@@ -30,7 +31,7 @@ export function demoRunPages(showcase) {
   const mvps = Array.isArray(showcase?.mvps) ? showcase.mvps : [];
   return mvps
     .filter((m) => m && typeof m.id === 'string' && RUN_DEMO_PATH_RE.test(String(m.url || '')))
-    .map((m) => ({ kind: RUN_DEMO_KIND, id: m.id, use_case_id: m.id, name: String(m.title || m.id), domain: String(showcase.business || ''), path: m.url }));
+    .map((m) => ({ kind: RUN_DEMO_KIND, id: m.id, use_case_id: m.id, name: String(m.title || displayId(m.id)), domain: String(showcase.business || ''), path: m.url }));
 }
 
 const RUN_HASH_RE = /^#\/run\/([^/?#]*)$/;
@@ -152,7 +153,7 @@ export function reviewLinkText(link, inspireDatabase, outcome) {
   }
   if (outcome === 'missing') return `Inspire has no run ${link.sessionId} in ${where}. Here is every run.`;
   if (outcome === 'denied') return `The App cannot read run ${link.sessionId}: it has no read access to ${where}. Ask your data owner for SELECT on it.`;
-  if (outcome === 'no_use_case') return `Run ${link.sessionId} has no use case ${String(link.useCaseId).slice(0, 80)}, so Review shows every use case of the run.`;
+  if (outcome === 'no_use_case') return `Run ${link.sessionId} has no use case ${displayId(String(link.useCaseId).slice(0, 80))}, so Review shows every use case of the run.`;
   return '';
 }
 

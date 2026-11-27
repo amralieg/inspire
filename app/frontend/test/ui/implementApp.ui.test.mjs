@@ -1080,7 +1080,7 @@ const CAN_CREATE_SCHEMA = { 'information_schema.schema_tags': () => ({ rows: [{ 
 const UNWRITABLE_RESULT = { rows: [accessRow('catalog', 'OWNER', 'admins', false), accessRow('schema', 'OWNER', 'admins', false)] };
 
 test('every wizard step but the App steps, Deliver with the App and where it goes included, fits a 1440x900 screen with nothing to scroll, and every step reads at 4.5:1 in light and dark', async () => {
-  const ui = await openUi('wizard', { ...MERGE_STATE, me: { userName: OWNER, displayName: 'Owner' }, policies: POLICIED_SOURCE, // D-SL-11: the access choice shows for a row-filtered source
+  const ui = await openUi('wizard', { ...MERGE_STATE, me: { userName: OWNER, displayName: 'Owner' }, forwardedToken: 'owner-token', policies: POLICIED_SOURCE, // D-SL-11: the access choice shows for a row-filtered source
     warehousePermissions: { access_control_list: [{ service_principal_name: 'app-sp-id', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] }, // REQ-418: the App's principal manages it
     statements: { ...CAN_CREATE_SCHEMA, 'SELECT level, privilege, principal': WRITABLE_RESULT } });
   const { page } = ui;
@@ -1383,7 +1383,7 @@ test('a use case added to another use case\'s App shows that App\'s SQL warehous
     assert.deepEqual([await locked.locator('select').inputValue(), await locked.locator('select').isDisabled()], ['wh9', true]);
     assert.equal(await locked.locator('p').textContent(), 'Locked: the pages of this use case read with the SQL warehouse of ops-desk, the one Forecast '
       + 'demand chose when it built it; changing it would change the pages of the other use cases in it too.');
-    assert.equal(await locked.locator('[data-technical-details] pre').textContent(), 'Built by use case N01-U02', 'the use case id sits only under Details');
+    assert.equal(await locked.locator('[data-technical-details] pre').textContent(), 'Built by use case AI01-UC02', 'the use case id sits only under Details');
     await targetRadio(page, 'care-desk').check();
     assert.equal(await locked.count(), 0, 'an App whose warehouse Inspire cannot read shows no warehouse');
     await targetRadio(page, 'ops-desk').check();
@@ -1426,7 +1426,7 @@ test('the result table write check re-runs after Next when the table changes or 
 });
 
 test('a result table the person cannot write says why on Data, with the reason the write check gives', async () => {
-  const ui = await openUi('wizard', { ...MERGE_STATE, me: { userName: OWNER, displayName: 'Owner' },
+  const ui = await openUi('wizard', { ...MERGE_STATE, me: { userName: OWNER, displayName: 'Owner' }, forwardedToken: 'owner-token',
     statements: { ...CAN_CREATE_SCHEMA, 'SELECT level, privilege, principal': UNWRITABLE_RESULT } });
   const { page } = ui;
   try {

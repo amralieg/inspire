@@ -154,6 +154,7 @@ const PIPELINE_STAGES = ['Setup', 'Business Understanding', 'Use Case Design', '
 import ValueDisclaimer from '../components/ValueDisclaimer';
 import { FRAME } from '../lib/layout';
 import { anyValued } from '../lib/valueFooter';
+import { displayId } from '../../../shared/useCaseId.mjs';
 
 export default function ResultsPage({
   settings,
@@ -912,7 +913,7 @@ export default function ResultsPage({
   const describeUseCase = (id) => {
     const uc = useCaseById.get(String(id ?? '').trim());
     return uc
-      ? { name: nameOfUseCase(uc) || id, domain: String(uc._domain || ''), score: inspireScoreFromUc(uc), useCase: uc.No ? uc : null }
+      ? { name: nameOfUseCase(uc) || displayId(id), domain: String(uc._domain || ''), score: inspireScoreFromUc(uc), useCase: uc.No ? uc : null }
       : null;
   };
   const feedbackLatest = useMemo(() => latestFeedbackMap(feedbackState.latest), [feedbackState.latest]);

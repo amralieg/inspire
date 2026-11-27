@@ -1,5 +1,5 @@
 import OUTPUT_LABELS from '../../../backend/lib/implementOutputLabels.json' with { type: 'json' };
-import { sameUseCaseId } from '../../../shared/useCaseId.mjs';
+import { sameUseCaseId, displayId } from '../../../shared/useCaseId.mjs';
 import {
   BUILT_ASSET_STATES, IMPLEMENT_DONE_STATUSES, IMPLEMENT_OUTPUTS, IMPLEMENT_UNINSTALLED, IMPLEMENT_VIBE_NOT_MET, assetLabel, builtVersion, heldAsks,
   holderNames, holdersText, holdoutText, joinWords, partAsks, partLabel, partOf, rebuildableOutputs, statusChip, versionActive, vibesKey, VIBE_NOT_MET_FIRST,
@@ -522,7 +522,7 @@ export function sharedNote(id, uninstall, builtBy) {
   if (builtBy) {
     const rest = holderNames((uninstall.others || []).filter((u) => !(String(u?.use_case_id) === String(builtBy.use_case_id)
       && String(u?.session_id) === String(builtBy.session_id))));
-    return `This use case's ${part} are part of ${uninstall.target}, which ${builtBy.name || builtBy.use_case_id} built.${
+    return `This use case's ${part} are part of ${uninstall.target}, which ${builtBy.name || displayId(builtBy.use_case_id)} built.${
       rest.length ? ` It also holds the ${part} of ${holdersText(rest)}.` : ''}`;
   }
   const names = holderNames(uninstall.others);
