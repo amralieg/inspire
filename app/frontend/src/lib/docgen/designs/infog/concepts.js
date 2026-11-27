@@ -30,14 +30,19 @@ function stepList(x, y, w, steps0, o = {}) {
   }
   return { svg: svg && `<g data-process="steps">${svg}</g>`, h: svg ? yy - y - gap : 0 };
 }
-// Steps in one row: an icon disc, its label to the right, a small arrow to the next one.
+// Steps in one row: an icon disc, its label to the right, a small arrow to the next one. Each step takes the width its label needs and the
+// room left is shared as equal gaps (the arrow in the middle of each), so a short label never leaves a wide hole before the next step.
 function inlineFlow(x, y, w, steps0, o = {}) {
   const r0 = o.r || 22; const lo = { size: o.size || 20, weight: 600, maxLines: 3 };
   const steps = keepShown(steps0, (st, n) => shows(w / n - 2 * r0 - 40, st.label, lo));
-  const n = steps.length; const seg = w / n; const r = o.r || 22; const cs = o.colors || cols(); let svg = '';
-  steps.forEach((st, i) => { const sx = x + i * seg;
-    svg += slot(iconDisc(st.icon, sx + r, y + r, r, cs[i % cs.length]), textBlock(sx + 2 * r + 10, y + r - 23, seg - 2 * r - 40, st.label, { size: o.size || 20, weight: 600, color: o.ink || P.ink, maxLines: 3 }).svg);
-    if (i < n - 1) svg += chevron(sx + seg - 24, y + r - 10, 16, 20, o.arrow || P.grey, true, 0.5); });
+  const n = steps.length; const tw = w / Math.max(1, n) - 2 * r0 - 40; const r = r0; const cs = o.colors || cols(); let svg = '';
+  const tOpt = { size: o.size || 20, weight: 600, color: o.ink || P.ink, maxLines: 3 };
+  const d0 = textBlock.dropped; const cw = steps.map((st) => 2 * r + 10 + textBlock(0, 0, tw, st.label, tOpt).w); textBlock.dropped = d0;
+  const gap = n > 1 ? (w - cw.reduce((a, z) => a + z, 0)) / (n - 1) : 0; let sx = x;
+  steps.forEach((st, i) => {
+    svg += slot(iconDisc(st.icon, sx + r, y + r, r, cs[i % cs.length]), textBlock(sx + 2 * r + 10, y + r - 23, tw, st.label, tOpt).svg);
+    if (i < n - 1) svg += chevron(sx + cw[i] + gap / 2 - 8, y + r - 10, 16, 20, o.arrow || P.grey, true, 0.5);
+    sx += cw[i] + gap; });
   return n ? `<g data-process="flow">${svg}</g>` : '';
 }
 // Steps as discs joined by arrows, each label centred under its disc.
@@ -345,15 +350,26 @@ function timeline(c, b, land, k) {
 // 7. Funnel: a wide set narrowed to the few to act on; each stage's number inside, its meaning beside it.
 function funnelConcept(c, b, land, k) {
   // A stage whose meaning does not show beside it goes, its band, icon and number too; the stages left share the funnel.
-  const lw0 = land ? b.w - 610 : b.w - 700;
-  const stages = keepShown((c.stages || []).slice(0, 4), (x) => shows(lw0, x.label, { size: land ? 21 : 24, weight: 600, maxLines: land ? 2 : 3 }));
-  const n = Math.max(1, stages.length); const ics = distinctIcons(stages.map((x) => x.label));
+  // A side label that only repeats the subtitle is left out (the band keeps its number). Every band carries a text inside it: its number,
+  // else a short phrase of its label (that fits two lines in the band), else its stage number in a disc: no band shows an icon alone.
+  const lw0 = land ? b.w - 610 : b.w - 700; const FW = land ? 520 : 640; const FMIN = land ? 200 : 240; const VS = land ? 30 : 44; const IS = land ? 20 : 24;
+  const same = (a, z) => { const q = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ').replace(/[\s.,;:!?\u060C\u061B\u06D4]+$/, '').trim(); return !!q(a) && q(a) === q(z); };
+  const inW = (top, bot) => bot + (top - bot) * 0.25 - VS * 1.1 - 46; const inO = { size: IS, weight: 700, color: '#fff', anchor: 'middle', maxLines: 2 };
+  const side = (x) => shows(lw0, x.label, { size: land ? 21 : 24, weight: 600, maxLines: land ? 2 : 3 });
+  const stages = keepShown((c.stages || []).slice(0, 4).map((x) => (same(x.label, c.problem) ? { ...x, label: '', full: x.label } : x)),
+    (x) => (x.value ? !x.label || side(x) : !!x.label && side(x)));
+  const n = Math.max(1, stages.length); const ics = distinctIcons(stages.map((x) => x.full || x.label));
   const cs = [P.blue, P.purple, P.pink, P.lava]; let s = '';
   const draw = (x, y, w, sh, minW, vs, ls, lx, lw, ml) => {
     const f = funnel(x, y, w, sh, stages, cs, { minW }); let p = f.svg;
     f.nodes.forEach((nd, i) => { const st = stages[i]; const mid = nd.y + nd.h / 2; const half = (nd.top + nd.bot) / 4;
-      p += slot(icon(ics[i], nd.cx - nd.bot / 2 + 18, mid - vs * 0.55, vs * 1.1, '#fff', 2.2) + (st.value ? label(nd.cx + vs * 0.4, mid + vs * 0.36, st.value, { size: vs, weight: 800, color: '#fff', anchor: 'middle' }) : ''),
-        leader(nd.cx + half + 8, mid, lx - 16, mid) + textBlock(lx, mid - ls * (ml > 1 ? 1.1 : 0.55), lw, st.label, { size: ls, weight: 600, color: P.ink, maxLines: ml }).svg); });
+      const il = nd.cx - nd.bot / 2 + 18 + vs * 1.1 + 12; const ir = il + inW(nd.top, nd.bot);
+      const inner = st.value ? { svg: label(nd.cx + vs * 0.4, mid + vs * 0.36, st.value, { size: vs, weight: 800, color: '#fff', anchor: 'middle' }), whole: false }
+        : !shows(ir - il, st.label, inO) ? { svg: badge((il + ir) / 2, mid, Math.max(20, vs * 0.6), String(i + 1), '#fff', cs[i % cs.length]), whole: false }
+        : (() => { const d0 = textBlock.dropped; const t = textBlock((il + ir) / 2, 0, ir - il, st.label, inO); textBlock.dropped = d0; const tb = textBlock((il + ir) / 2, mid - t.h / 2 - IS * 0.1, ir - il, st.label, inO);
+          return { svg: tb.svg, whole: tb.lines.join(' ') === String(st.label).replace(/\s+/g, ' ').trim() }; })();
+      const sideT = st.label && !inner.whole ? leader(nd.cx + half + 8, mid, lx - 16, mid) + textBlock(lx, mid - ls * (ml > 1 ? 1.1 : 0.55), lw, st.label, { size: ls, weight: 600, color: P.ink, maxLines: ml }).svg : '';
+      p += slot(icon(ics[i], nd.cx - nd.bot / 2 + 18, mid - vs * 0.55, vs * 1.1, '#fff', 2.2), inner.svg + sideT); });
     return p;
   };
   if (land) {
