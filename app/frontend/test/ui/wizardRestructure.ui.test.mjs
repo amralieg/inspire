@@ -105,8 +105,9 @@ test('What to deliver is the first step, Data and results is one page, and Where
     await page.setViewportSize(viewports[0]);
     const picked = page.getByRole('region', { name: 'What Inspire picked' });
     const pickedStyle = await picked.evaluate((el) => ({ overflowY: getComputedStyle(el).overflowY, height: getComputedStyle(el).height }));
-    assert.equal(pickedStyle.overflowY, 'auto', 'the chosen options scroll inside their own area');
-    assert.equal(pickedStyle.height, '192px', 'the chosen options have a fixed height');
+    // RC7-C-03 (b7a49e0ff): the summary no longer scrolls in a fixed 192px box; it grows with its rows, the page scrolls.
+    assert.equal(pickedStyle.overflowY, 'visible', 'the chosen options do not scroll inside their own area');
+    assert.notEqual(pickedStyle.height, '192px', 'the chosen options have no fixed height');
     assert.ok(await picked.locator('[data-picked-change]').first().count(), 'Edit links stay');
     await snap(page, 'restructure-review');
     assert.deepEqual(ui.pageErrors, []);
