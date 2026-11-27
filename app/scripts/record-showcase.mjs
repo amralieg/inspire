@@ -13,6 +13,7 @@ redact.redactOutput();
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
 const { chromium } = require(path.join(root, 'frontend/node_modules/playwright'));
+const { showcaseStale } = require('../backend/lib/showcase.js');
 const { makeRecorder, mvpUrlsFrom, showcaseFile, showcaseLeaks, showcaseSizeProblem, showcaseSizes, showcaseText } = require('../backend/lib/showcaseRecord.js');
 
 const env = process.env;
@@ -25,6 +26,10 @@ const need = (name) => {
   return value;
 };
 
+if (!String(env.MVPS || '').trim()) {
+  console.error('Set MVPS=<use case ids of built MVPs>: a demo needs at least one MVP App (REQ-560)');
+  process.exit(2);
+}
 const profile = need('DATABRICKS_PROFILE');
 const cli = (...args) => JSON.parse(execFileSync('databricks', [...args, '-p', profile, '-o', 'json'], { encoding: 'utf8' }));
 const appName = (url) => new URL(url).hostname.split('.')[0].replace(/-\d+$/, '');
@@ -71,6 +76,7 @@ try {
   const walk = await walkInspireDemo(page, { settle, log, mvps: mvpIds.length > 0 });
   await page.unrouteAll({ behavior: 'ignoreErrors' });
   await page.close();
+  if (!walk.assets) throw new Error('the session has no generated PDF, PPTX, DOCX or XLSX in its Assets folder, so the demo would show no documents; generate documents for the run first (REQ-560)');
   const missed = unrecorded(inspire, demoReads(mvpIds.length > 0, walk));
   if (missed.length) throw new Error(`the walk did not record ${missed.join(', ')}, so the demo would show views with no saved answer; pick a session that has them`);
   for (const route of unrecorded(inspire, DEMO_READS_WHEN)) log(`the session has no ${route}: ${DEMO_READS_WHEN[route]}`);
@@ -104,11 +110,14 @@ try {
   };
   const recorder = makeRecorder({
     id, title, business: env.SHOWCASE_BUSINESS || title, summary: env.SHOWCASE_SUMMARY || '', sessionId, replace,
+    build: env.SHOWCASE_BUILD || require('../backend/lib/inspireJobParams.js').INSPIRE_AGENT_VERSION,
     mvps: mvpIds.map((m) => ({ id: m, title: titleOf(m), url: urls[m] })),
   });
   for (const x of inspire) recorder.addInspire(x);
   for (const m of mvpIds) for (const x of mvpExchanges[m]) recorder.addMvp(m, x);
   const bundle = recorder.bundle();
+  const stale = showcaseStale(bundle);
+  if (stale.length) throw new Error(`the recording is stale, so nothing was written: ${stale.join(', ')}`);
   const leaks = showcaseLeaks(bundle, [...Object.keys(replace), sessionId, new URL(inspireUrl).hostname]);
   const tooBig = showcaseSizeProblem(bundle);
   if (tooBig) {

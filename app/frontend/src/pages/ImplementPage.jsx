@@ -427,9 +427,9 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
   }).toString(), [settings.inspireDatabase, settings.warehouseId, sessionId]);
   // REQ-078: each card reads its rule estimate here, the same route Review and Build next read. A measured figure is never replaced.
   // A showcase or demo run makes no workspace call: its read is skipped, as ChoosePage and ResultsPage skip theirs.
-  const estimates = useValueRead(apiFetch, readOnly ? '' : `/api/inspire/value/estimates?${qBase}`, refreshKey);
+  const estimates = useValueRead(apiFetch, `/api/inspire/value/estimates?${qBase}`, refreshKey);
   // FX-39b (W16 D27): the value totals are what Review's card and Build next read; the list and the detail show that amount first.
-  const totals = useValueRead(apiFetch, readOnly ? '' : `/api/inspire/value/totals?${qBase}`, refreshKey);
+  const totals = useValueRead(apiFetch, `/api/inspire/value/totals?${qBase}`, refreshKey);
   const valued = totals?.use_cases || null;
   const [calcFor, setCalcFor] = useState(null);
   const calculated = useCalculatedValues({ apiFetch: readOnly ? null : apiFetch, apiPostJson, apiPutJson, inspireDatabase: settings.inspireDatabase, warehouseId: settings.warehouseId, sessionId });
@@ -927,7 +927,7 @@ const NO_STEPS = [];
 function UseCaseDetail({ item, builds = [], sessionId, settings, qBase, apiFetch, apiPostJson, databricksHost, notebookRunError, refreshKey, collectedKey, valueEstimate = null, valueTotal = null, onSetRule = null,
   onEdit, onOpenRun = null, onBuildQueued = null, onOpenDemoMvp = null, onProgress = null, readOnly = false }) {
   const useCaseId = item.id;
-  const yearlyRead = useValueRead(apiFetch, readOnly ? '' : `/api/inspire/value/yearly?${qBase}`, refreshKey);
+  const yearlyRead = useValueRead(apiFetch, `/api/inspire/value/yearly?${qBase}`, refreshKey);
   const hasMvp = Boolean(item.latest);
   const viewId = useId();
   const logRef = useRef(null);

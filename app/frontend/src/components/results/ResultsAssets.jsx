@@ -46,7 +46,7 @@ const NewTag = ({ path }) => (
 
 /** The Assets view of Results: everything the run generated (the run's outcome strip, its files and folders, the document actions, Quick access). Moved from ResultsPage unchanged. */
 export default function ResultsAssets({
-  allUseCases, apiFetch, apiPostJson, artifactTree, artifactsExpanded, artifactsLoading, artifactsRootFiles, databricksHost, assetFocus, downloadFile, expandedFolders, generationPath, genieQuickAccessExpanded, inspireDb, isProgressive, lastArtifactsLoadKeyRef, loadArtifacts, loadFolder, noneMeetsBar, openFileInTab, previewData, previewFile, previewFrom, previewLoading, qualityBarCounts, reviewBarStages, runOutcome, selectedSession, selectedSessionId, setArtifactsExpanded, setGenieQuickAccessExpanded, settings, settingsNotebookPath, showcase, toggleFolder, togglePreview, viewFile, goToAsset,
+  allUseCases, apiFetch, apiPostJson, artifactTree, artifactsExpanded, artifactsLoading, artifactsRootFiles, databricksHost, assetFocus, downloadFile, expandedFolders, generationPath, genieQuickAccessExpanded, inspireDb, isProgressive, lastArtifactsLoadKeyRef, loadArtifacts, loadFolder, noneMeetsBar, openFileInTab, previewData, previewFile, previewFrom, previewLoading, qualityBarCounts, reviewBarStages, runOutcome, selectedSession, selectedSessionId, setArtifactsExpanded, setGenieQuickAccessExpanded, settings, settingsNotebookPath, toggleFolder, togglePreview, viewFile, goToAsset,
 }) {
   const newDocs = useNewDocs(selectedSessionId, generationPath, loadArtifacts, loadFolder);
   // C25 (REQ-559): Go to asset marks the file and brings its row into view.
@@ -137,7 +137,7 @@ export default function ResultsAssets({
             )}
 
             {/* Artifacts Panel (feature 7) */}
-            {!isProgressive && generationPath && !showcase && (() => {
+            {!isProgressive && generationPath && (() => {
               // Recursive file tree renderer
               const renderFileTree = (files, depth = 0) => (
                 <div className={depth > 0 ? 'ms-4 border-s border-border/50 ps-2' : ''}>

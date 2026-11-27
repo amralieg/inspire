@@ -86,6 +86,8 @@ function answersProblem(answers, where) {
     if (!/^[A-Z]+ \/api\//.test(key)) return `${where} has the key ${JSON.stringify(key.slice(0, 80))}, which is not METHOD /api/...`;
     if (!isObject(answer) || !Number.isInteger(answer.status) || !('body' in answer)) return `${where} ${key.slice(0, 80)} has no status and body`;
     if ('text' in answer && (answer.text !== true || typeof answer.body !== 'string')) return `${where} ${key.slice(0, 80)} is a text answer without a text body`;
+    // REQ-560: a document the run saved is replayed byte for byte, so its answer is base64 with the content type it was served with.
+    if ('base64' in answer && (answer.base64 !== true || typeof answer.body !== 'string' || typeof answer.type !== 'string' || !answer.type)) return `${where} ${key.slice(0, 80)} is a base64 answer without a base64 string body and a content type`;
   }
   return '';
 }
@@ -129,6 +131,24 @@ function loadShowcases(dir = SHOWCASE_DIR) {
     found[bundle.id] = bundle;
   }
   return found;
+}
+
+// REQ-560: what a recording made by an older build lacks. A shipped demo must hold the value reads, the listing of the run's output
+// folder, the export of a generated document, an MVP App with data, and the build stamp it was recorded with.
+const DOCUMENT_EXPORT_RE = /^GET \/api\/workspace\/export\?(?:.*&)?path=[^&]*\.(?:pdf|pptx|docx|xlsx)(?:&|$)/i;
+
+function showcaseStale(bundle) {
+  const ok = (answers) => Object.entries(isObject(answers) ? answers : {}).filter(([, a]) => isObject(a) && a.status === 200).map(([k]) => k);
+  const keys = ok(bundle.inspire);
+  const stale = [];
+  const value = (name) => keys.some((k) => k === `GET /api/inspire/value/${name}` || k.startsWith(`GET /api/inspire/value/${name}?`));
+  if (!['totals', 'yearly', 'estimates'].every(value)) stale.push('no value reads');
+  if (!keys.some((k) => k.startsWith('GET /api/workspace/list?'))) stale.push('no listing of the output folder');
+  if (!keys.some((k) => DOCUMENT_EXPORT_RE.test(k))) stale.push('no export of a generated document');
+  const apps = Object.values(isObject(bundle.mvps) ? bundle.mvps : {});
+  if (!apps.some((m) => isObject(m) && ok(m.api).length >= 2 && ok(m.api).includes('GET /api/app'))) stale.push('no MVP App');
+  if (typeof bundle.build !== 'string' || !bundle.build.trim()) stale.push('no build stamp');
+  return stale;
 }
 
 function showcaseSummary(bundle) {
@@ -213,6 +233,7 @@ function replay(res, answers, method, pathname, query, body) {
   const found = builtin && (!recorded || recorded.status === 404) ? builtin : recorded || listed;
   const answer = found && key === 'GET /api/app' && isObject(found.body) ? { ...found, body: gatedApp(found.body, answers) } : found;
   res.set('Cache-Control', 'no-store');
+  if (answer && answer.base64) return res.status(answer.status).set('X-Content-Type-Options', 'nosniff').type(answer.type).send(Buffer.from(answer.body, 'base64'));
   if (answer && answer.text) return res.status(answer.status).set('X-Content-Type-Options', 'nosniff').type('text/plain; charset=utf-8').send(answer.body);
   if (answer) return res.status(answer.status).json(answer.body);
   const miss = showcaseMiss(method, pathname);
@@ -329,6 +350,7 @@ module.exports = {
   showcaseLocal,
   showcaseMiss,
   showcaseProblem,
+  showcaseStale,
   gatedApp,
   loadShowcases,
   showcaseSummary,

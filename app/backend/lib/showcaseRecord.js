@@ -225,7 +225,7 @@ function notJson({ method, type, unparsed, body }, pathname) {
   return '';
 }
 
-function makeRecorder({ id, title, business, summary = '', sessionId, replace = {}, mvps = [], recordedAt = null }) {
+function makeRecorder({ id, title, business, summary = '', sessionId, replace = {}, mvps = [], recordedAt = null, build = '' }) {
   if (!sessionId) throw new Error('a demo recording needs the session id');
   const hostedPaths = Object.fromEntries(mvps.map((m) => [m.id, showcaseMvpPath(id, m.id)]));
   const mvpUrls = Object.fromEntries(mvps.filter((m) => m.url).map((m) => [m.id, m.url]));
@@ -248,10 +248,15 @@ function makeRecorder({ id, title, business, summary = '', sessionId, replace = 
     if (!Number.isInteger(exchange.status) || exchange.status >= 500) return '';
     if (otherSession(exchange, sessionId)) return '';
     const key = keyOf(exchange);
-    const wrong = notJson(exchange, pathname);
+    const wrong = exchange.base64 ? '' : notJson(exchange, pathname);
     if (wrong) {
       notJsonAnswers.push(`${where}${key.slice(0, 160)} (${wrong})`);
       return '';
+    }
+    if (exchange.base64) {
+      // REQ-560: a saved document is kept byte for byte; its text is checked by showcaseLeaks (documentText), not rewritten.
+      answers[key] = { status: exchange.status, body: exchange.body, base64: true, type: exchange.type };
+      return key;
     }
     const body = exchange.body === undefined ? null : exchange.body;
     if (exchange.status < 300 && stepsAsText(body)) {
@@ -284,6 +289,8 @@ function makeRecorder({ id, title, business, summary = '', sessionId, replace = 
         business: clean.text(business),
         summary: clean.text(summary),
         session_id: clean.text(String(sessionId)),
+        // REQ-560: the build this recording was made with, so a demo recorded by an older build fails showcaseStale.
+        ...(build ? { build: String(build), recorded_at: new Date().toISOString() } : {}),
         inspire,
         mvps: Object.fromEntries(mvps.map((m) => [m.id, { title: clean.text(m.title || m.id), api: apps[m.id] }])),
       };
@@ -306,6 +313,33 @@ const LEAK_PATTERNS = [
   ['a home folder outside /Workspace', /(?<![A-Za-z0-9_-])(?<!\/Workspace)\/(?:Users|home)\/[A-Za-z0-9._-]+/],
 ];
 
+// REQ-560: the text a saved document carries (PDF streams, the XML parts of a PPTX/DOCX/XLSX zip), so the leak scan reads what a viewer would show.
+function inflated(buf) {
+  try { return zlib.inflateSync(buf).toString('latin1'); } catch { return ''; }
+}
+
+function documentText(bytes) {
+  const out = [bytes.toString('latin1')];
+  if (bytes.subarray(0, 4).toString('latin1') === '%PDF') {
+    const text = bytes.toString('latin1');
+    for (let at = text.indexOf('stream'); at >= 0; at = text.indexOf('stream', at + 6)) {
+      const start = text.startsWith('\r\n', at + 6) ? at + 8 : at + 7;
+      const end = text.indexOf('endstream', start);
+      if (end < 0) break;
+      out.push(inflated(bytes.subarray(start, end)));
+    }
+  } else if (bytes.subarray(0, 2).toString('latin1') === 'PK') {
+    for (let at = bytes.indexOf('PK\x03\x04', 0, 'latin1'); at >= 0 && at + 30 <= bytes.length; at = bytes.indexOf('PK\x03\x04', at + 4, 'latin1')) {
+      const method = bytes.readUInt16LE(at + 8);
+      const size = bytes.readUInt32LE(at + 18);
+      const start = at + 30 + bytes.readUInt16LE(at + 26) + bytes.readUInt16LE(at + 28);
+      if (!size || method !== 8) continue;
+      try { out.push(zlib.inflateRawSync(bytes.subarray(start, start + size)).toString('utf8')); } catch { /* a stored or spanned entry: the raw text above covers it */ }
+    }
+  }
+  return out.join('\n');
+}
+
 const escaped = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 function showcaseLeaks(bundle, banned = []) {
@@ -318,6 +352,10 @@ function showcaseLeaks(bundle, banned = []) {
     }
   };
   const walk = (v, key, where) => {
+    if (isObject(v) && v.base64 === true && typeof v.body === 'string') {
+      check(`${where} document`, documentText(Buffer.from(v.body, 'base64')));
+      return;
+    }
     if (typeof v === 'string' || typeof v === 'number') {
       if (!isTime(key, v)) check(where, String(v));
       return;
@@ -360,5 +398,5 @@ function showcaseSizeProblem(bundle, max = SHOWCASE_MAX_BYTES) {
 
 module.exports = {
   DEMO_HOST, SHOWCASE_FILE_ROUTES, SHOWCASE_MAX_BYTES, UNREAD_USE_CASE_FIELDS, demoView, makeSanitizer, makeRecorder, monitorStep, mvpUrlsFrom, onlySession,
-  showcaseFile, showcaseLeaks, showcaseSizeProblem, showcaseSizes, showcaseText,
+  documentText, showcaseFile, showcaseLeaks, showcaseSizeProblem, showcaseSizes, showcaseText,
 };
