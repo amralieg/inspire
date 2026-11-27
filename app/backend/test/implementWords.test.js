@@ -69,7 +69,7 @@ test('the Build page words a shared App or dashboard from the one part-word list
   const builder = { use_case_id: 'N01-U02', session_id: '42', name: 'Forecast demand' };
   assert.equal(W.sharedNote('app', two, builder), "This use case's pages are part of hub, which Forecast demand built. It also holds the pages of Score leads.");
   assert.equal(W.sharedNote('app', uninstallOf([['N01-U02', 'Forecast demand']]), builder), "This use case's pages are part of hub, which Forecast demand built.");
-  assert.equal(W.sharedNote('app', uninstallOf([]), { use_case_id: 'N01-U02', session_id: '42', name: '' }), "This use case's pages are part of hub, which N01-U02 built.");
+  assert.equal(W.sharedNote('app', uninstallOf([]), { use_case_id: 'N01-U02', session_id: '42', name: '' }), "This use case's pages are part of hub, which AI01-UC02 built.");
   assert.equal(W.sharedNote('dashboard', two, null), 'hub also holds the pages of Forecast demand and Score leads.');
   assert.equal(W.sharedNote('dashboard', uninstallOf([]), null), '');
   assert.equal(W.sharedNote('genie_space', two, null), '', 'a Genie Agent has no control to confirm, so its tab says nothing more');

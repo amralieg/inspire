@@ -46,7 +46,7 @@ test('the confirm text says what is deleted, what is taken out of a shared asset
     + 'If no other use case holds it by the time the job runs, Inspire deletes it instead.');
   const many = { ...hub, others: ['A', 'B', 'C', 'D'].map((name) => ({ name })) };
   assert.match(C.uninstallText(AGENT, { name: 'Agent' }, many), /tables, instructions and sample questions out of Agent .* stays for A, B and 2 more use cases\. If no other/);
-  assert.match(C.uninstallText(APP, { name: 'x' }, { ...hub, others: [{ name: 'A' }, { use_case_id: 'N09-U09' }, { name: '  ' }] }), /stays for A and N09-U09\. If no other/,
+  assert.match(C.uninstallText(APP, { name: 'x' }, { ...hub, others: [{ name: 'A' }, { use_case_id: 'N09-U09' }, { name: '  ' }] }), /stays for A and AI09-UC09\. If no other/,
     'a holder with no name is named by its id, and an empty one is dropped');
   const unknown = C.assetUninstall('app', latest({ app: true }), { shared: null, shared_error: 'no SELECT' }, 'churn-desk');
   assert.deepEqual([unknown.label, unknown.unknown], ['Uninstall', true]);

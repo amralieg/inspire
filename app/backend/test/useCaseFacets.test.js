@@ -36,7 +36,7 @@ test('a use case row carries the fields the drawer and the wizard header show', 
   assert.equal(churn.status, null, 'a use case without an MVP has no status');
   assert.equal(upsell.status.label, 'MVP ready');
   assert.equal(upsell.priority, '', 'a numeric priority is a score, not a tier');
-  assert.equal(stock.title, 'N02-U01', 'a use case without a name shows its ID');
+  assert.equal(stock.title, 'AI02-UC01', 'a use case without a name shows its ID');
   assert.equal(stock.bob, null);
   const tracked = f.catalogRow(withView(f, { id: 'T1', use_case: 'From tracking', business_domain: 'Ops', subdomain: 'Fleet', analytics_technique: 'Forecasting', quality: 'High', priority: 'Very High', Subdomain: ' ' }), 0, {});
   assert.deepEqual([tracked.domain, tracked.subdomain, tracked.technique, tracked.quality, tracked.priority], ['Ops', 'Fleet', 'Forecasting', 'High', 'Very High'], 'a tracking-table row reads its lowercase columns, and a blank display key falls back');
