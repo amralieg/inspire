@@ -24,7 +24,9 @@ test('Start shows the same quality-bar sentence that Review and Monitor show for
   try {
     const chip = ui.page.locator('[data-run="44"] [data-run-count="quality_bar"]');
     await chip.waitFor({ timeout: 10000 });
-    assert.equal((await chip.innerText()).replace(/\s+/g, ' ').trim(), qualityBarCountText(6, 3));
+    // REQ-575 (405c30335): the chip reads "3 good quality"; the one sentence is its title, so Start still shows the same wording as Review and Monitor.
+    assert.equal((await chip.innerText()).replace(/\s+/g, ' ').trim(), '3 good quality');
+    assert.equal(await chip.getAttribute('title'), qualityBarCountText(6, 3));
     assert.equal(await ui.page.locator('[data-run="44"] [data-run-count="high_quality"]').count(), 0, 'the old high quality / low quality chips are gone');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -45,9 +47,14 @@ test('every Start run row names the bar it was judged against, from the run list
   try {
     const row = (sid) => ui.page.locator(`[data-run="${sid}"] [data-run-count="quality_bar"]`);
     await row('51').waitFor({ timeout: 10000 });
-    assert.equal((await row('51').innerText()).replace(/\s+/g, ' ').trim(), qualityBarCountText(6, 3, 'High'));
-    assert.equal((await row('52').innerText()).replace(/\s+/g, ' ').trim(), qualityBarCountText(4, 1, 'Good'));
-    assert.equal((await row('53').innerText()).replace(/\s+/g, ' ').trim(), qualityBarCountText(2, 0), 'no bar, the plain sentence');
+    // REQ-575 (405c30335): chip text is "<n> <bar> quality", the sentence for that bar is the title.
+    const text = async (sid) => (await row(sid).innerText()).replace(/\s+/g, ' ').trim();
+    assert.equal(await text('51'), '3 high quality');
+    assert.equal(await row('51').getAttribute('title'), qualityBarCountText(6, 3, 'High'));
+    assert.equal(await text('52'), '1 good quality');
+    assert.equal(await row('52').getAttribute('title'), qualityBarCountText(4, 1, 'Good'));
+    assert.equal(await text('53'), '0 good quality');
+    assert.equal(await row('53').getAttribute('title'), qualityBarCountText(2, 0), 'no bar, the plain sentence');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

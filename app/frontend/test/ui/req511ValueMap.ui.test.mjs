@@ -20,6 +20,8 @@ const TOTALS = {
   use_cases: { 'N01-U01': entry('calculated', 'AVOID RISK', 3200000), 'N01-U02': entry('estimated', 'GROW REVENUE', 2400000),
     'N01-U03': entry('estimated', 'REDUCE COST', 1100000), 'N01-U04': entry('none'), 'N02-U01': entry('none'), 'N02-U02': entry('none') },
 };
+// REQ-569 (77ff9abfd): the map points carry the display id AIx-UCx; the saved ids in this fixture stay Nx-Ux (old sessions still read).
+const shown = (no) => no.replace(/^N(\d+)-U(\d+)$/, 'AI$1-UC$2');
 function mount(app) {
   app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
   app.get('/api/showcase', (_req, res) => res.json({}));
@@ -35,7 +37,7 @@ async function openMap() {
   await toView(ui.page, 'Overview');
   const map = ui.page.getByRole('region', { name: 'Value map' });
   await map.locator('[data-map-point]').first().waitFor({ timeout: 15000 });
-  return { ui, page: ui.page, map, point: (no) => map.locator(`[data-map-point][data-use-case-no="${no}"]`) };
+  return { ui, page: ui.page, map, point: (no) => map.locator(`[data-map-point][data-use-case-no="${shown(no)}"]`) };
 }
 
 test('1: the Overview shows the value map with one named point per use case, wide enough to read', async () => {
@@ -91,7 +93,7 @@ test('4: clicking a valued point opens that use case in the Use cases view; a po
     await list.locator('[data-use-case-no="N01-U02"]').first().waitFor({ state: 'visible', timeout: 10000 });
     await page.getByRole('button', { name: 'Close the reader' }).click(); // REQ-511 A6: the opened use case sits in the reader over the right of the page and covers the map
     await toView(page, 'Overview');
-    await page.getByRole('region', { name: 'Value map' }).locator('[data-map-point][data-use-case-no="N01-U04"]').click();
+    await page.getByRole('region', { name: 'Value map' }).locator(`[data-map-point][data-use-case-no="${shown('N01-U04')}"]`).click();
     const target = list.locator('[data-use-case-no="N01-U04"]').first();
     await target.waitFor({ state: 'visible', timeout: 10000 });
     await target.locator('[data-value-calculate]').waitFor({ state: 'visible', timeout: 10000 });

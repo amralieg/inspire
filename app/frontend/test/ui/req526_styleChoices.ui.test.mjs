@@ -58,10 +58,10 @@ test('S3: Bold data + Dark shows on Review and the preview is the bold dark desi
   try {
     await dialog.locator('[data-doc-style="bold"]').click();
     await dialog.getByRole('radiogroup', { name: 'Theme' }).getByRole('radio', { name: 'Dark' }).click();
-    assert.match(await dialog.locator('[data-docs-preview] svg').evaluate((el) => el.outerHTML), /#0E1A20/i);
+    assert.match(await dialog.locator('[data-docs-preview] svg').first().evaluate((el) => el.outerHTML), /#0E1A20/i);
     await dialog.locator('[data-doc-style="midnight"]').click();
     assert.equal(await dialog.locator('[data-doc-style="midnight"]').getAttribute('aria-checked'), 'true');
-    assert.doesNotMatch(await dialog.locator('[data-docs-preview] svg').evaluate((el) => el.outerHTML), /width="794"/);
+    assert.doesNotMatch(await dialog.locator('[data-docs-preview] svg').first().evaluate((el) => el.outerHTML), /width="794"/);
     await dialog.locator('[data-doc-style="bold"]').click();
     for (let i = 0; i < 4 && (await currentPage(dialog)) !== 'review'; i += 1) await dialog.getByRole('button', { name: /^Next/ }).click();
     assert.equal(await currentPage(dialog), 'review');

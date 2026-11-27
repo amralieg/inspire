@@ -81,9 +81,10 @@ test('Start counts a run where nothing meets the quality bar as all low quality,
     const counts = (sid) => ui.page.locator(`[data-run="${sid}"] [data-run-counts] [data-run-count]`)
       .evaluateAll((els) => els.map((el) => el.textContent.replace(/\s+/g, ' ').trim()));
     await ui.page.locator('[data-run="42"] [data-run-counts]').first().waitFor({ timeout: 10000 });
+    // REQ-575 (405c30335): the quality chip reads "<n> good quality" (the sentence is its title).
     const below = await counts('42');
-    assert.deepEqual(below.slice(0, 4), ['67 use cases', '0 of 67 use cases meet the quality bar', '0 high priority', '3 domains']);
-    assert.deepEqual((await counts('43')).slice(0, 4), ['20 use cases', '18 of 20 use cases meet the quality bar', '6 high priority', '2 domains']);
+    assert.deepEqual(below.slice(0, 4), ['67 use cases', '0 good quality', '0 high priority', '3 domains']);
+    assert.deepEqual((await counts('43')).slice(0, 4), ['20 use cases', '18 good quality', '6 high priority', '2 domains']);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

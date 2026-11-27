@@ -62,6 +62,8 @@ async function generateOnly(page, kind) {
   await dialog.waitFor();
   for (const k of DOC_KINDS) {
     const box = dialog.locator(`[data-doc-kind="${k}"]`);
+    // REQ-567/570 (ec0a7e63e): under "Overall" only Excel, PDF and PowerPoint are offered (no Word, no infographic); a kind that is not offered cannot be on.
+    if ((await box.count()) === 0) { assert.ok(['infographic', 'docx'].includes(k), 'only Word and the infographic may be absent'); continue; }
     if ((await box.getAttribute('aria-checked')) === (k === kind ? 'false' : 'true')) await box.click();
   }
   for (let i = 0; i < 6 && (await dialog.locator('[data-docs-page]:visible').first().getAttribute('data-docs-page')) !== 'review'; i += 1) await dialog.getByRole('button', { name: /^Next/ }).click();
