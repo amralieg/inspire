@@ -47,15 +47,17 @@ test('Calculate refuses a request with no answers (400) and runs no estimate', a
   }
 });
 
-test('Calculate never answers 0 for a value it could not measure: no rows or no date column is a refusal with a reason', async () => {
+test('Calculate never answers 0 for a value it could not measure: no rows is a refusal with a reason; no date column (REQ-558) answers one assumed year, said so', async () => {
   const none = await call(appWith({ 'AS sampled': { rows: [] } }), 'POST', '/api/inspire/value/estimate', { ...BODY, answers: ANSWERS });
   assert.ok(none.status >= 400 && none.status < 500, `got ${none.status}`);
   assert.equal(none.data.yearly, undefined);
   assert.ok(String(none.data.error || '').length > 10, 'the reason is one sentence');
+  // REQ-558 (lib/valueYearly.js periodOf, test/c25NoDate.test.js): no date column no longer refuses; the sample is scaled over one assumed year.
   const noDate = await call(appWith({ 'AS sampled': SAMPLE }, [COLUMNS[0]]), 'POST', '/api/inspire/value/estimate', { ...BODY, answers: ANSWERS });
-  assert.ok(noDate.status >= 400 && noDate.status < 500, `got ${noDate.status}`);
-  assert.equal(noDate.data.yearly, undefined);
-  assert.match(String(noDate.data.error), /date/i);
+  assert.equal(noDate.status, 200, JSON.stringify(noDate.data));
+  assert.deepEqual(noDate.data.yearly, { verb: 'INCREASE REVENUE', period: 'Per Year', estimated: true, entries: [{ kind: 'money', unit: 'USD', amount: 100000 }],
+    basis: { sampled_records: 100, eligible_records: 10000, days: 365 }, period_days: 365, period_assumed: true });
+  assert.equal(noDate.data.error, undefined);
 });
 
 test('the measured path scales the MVP value the same way: per scored record, to all eligible records, to a year', async () => {
