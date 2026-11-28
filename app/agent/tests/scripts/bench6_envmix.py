@@ -38,9 +38,9 @@ PLAN = [
         ("status_codes", "prod", "reference", "ref", 10),
         ("rate_card", "prod", "reference", "ref", 12),
         ("etl_run_log", "prod", "technical", "tech", 20),
-        ("orders_bkp_2023", "prod", None, "txn", 15),
-        ("test_customers", "prod", None, "master", 10),
-        ("tmp_orders_load", "prod", None, "txn", 12),
+        ("orders_bkp_2023", "dev", None, "txn", 15),
+        ("test_customers", "dev", None, "master", 10),
+        ("tmp_orders_load", "dev", None, "txn", 12),
     ]),
     ("ops", "prod", [
         ("stock_moves", "prod", "transactional", "txn", 30),
@@ -51,8 +51,8 @@ PLAN = [
         ("unit_codes", "prod", "reference", "ref", 10),
         ("audit_trail", "prod", "technical", "tech", 25),
         ("job_state", "prod", "technical", "tech", 10),
-        ("sites_copy_old", "prod", None, "master", 10),
-        ("tmp_shipments_load", "prod", None, "txn", 12),
+        ("sites_copy_old", "dev", None, "master", 10),
+        ("tmp_shipments_load", "dev", None, "txn", 12),
     ]),
     ("sales_dev", "dev", [
         ("orders", "dev", None, "txn", 15),
