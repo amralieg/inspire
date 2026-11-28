@@ -68,7 +68,7 @@ test('the demo job plants the kind tables unless the caller switches them off, a
 
 test('the demo job keeps the person\u2019s discovery choice, schema name and output folder, and its generator sits next to the agent notebook', async () => {
   const published = [];
-  const resolve = async (host, token, p) => (p.endsWith('/dbx_inspire_ai_agent') ? '/Shared/acme-inspire/dbx_inspire_ai_agent' : (published.push(p), p));
+  const resolve = async (host, token, p) => (p.endsWith('/inspire_discover') ? '/Shared/acme-inspire/inspire_discover' : (published.push(p), p));
   const chosen = await demoRun('', { discoveryType: 'Standard Discovery', demoSchema: 'retail_demo', generationPath: '/Workspace/Users/pat/out',
     resolveWorkspaceNotebookObjectPath: resolve });
   const [generate, discover] = chosen.payload.tasks;

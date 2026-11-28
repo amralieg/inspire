@@ -559,6 +559,15 @@ function normalizeV130UseCaseFields(row) {
 // The two agent notebooks. Discover and Match run on the discover notebook; Implement and Genie regeneration on the generate notebook.
 const AGENT_NOTEBOOKS = Object.freeze({ discover: 'inspire_discover', generate: 'inspire_generate' });
 
+/** The pre-split notebook, still shipped and still a name the installer may have written. */
+const LEGACY_AGENT_NOTEBOOK = 'dbx_inspire_ai_agent';
+
+/** True when the last segment of a notebook path is one of Inspire's own names; any other name was picked by a person. */
+function isInspireDefaultNotebook(notebookPath) {
+  const base = String(notebookPath || '').replace(/\/+$/, '').split('/').pop();
+  return base === LEGACY_AGENT_NOTEBOOK || base === AGENT_NOTEBOOKS.discover || base === AGENT_NOTEBOOKS.generate;
+}
+
 function agentNotebookFor({ jobType, operation } = {}) {
   if (jobType === 'discovery') return AGENT_NOTEBOOKS.discover;
   if (jobType === 'implement' || jobType === 'genie_regen') return AGENT_NOTEBOOKS.generate;
@@ -568,6 +577,7 @@ function agentNotebookFor({ jobType, operation } = {}) {
 module.exports = {
   AGENT_NOTEBOOKS,
   agentNotebookFor,
+  isInspireDefaultNotebook,
   INSPIRE_AGENT_VERSION,
   inspireReleaseLabel,
   parseTableScopeText,
