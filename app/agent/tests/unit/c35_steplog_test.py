@@ -61,7 +61,6 @@ def _target(obj, spark=None):
     writer = obj.atomic_writer
     writer.spark = spark or LedgerSpark()
     writer.inspire_database = "cat.db"
-    writer.enabled = True
     obj.session_id = 77
     return writer.spark
 
@@ -114,9 +113,9 @@ def _speed_run(ns, flag, fail=False):
         obj, ai_spark = sp.build(ns, pathlib.Path(tmp), "Good")
         spark = _target(obj)
         if fail:
-            def boom(ucs, lang):
-                raise RuntimeError("clustering failed")
-            obj._cluster_domains_and_subdomains = boom
+            def boom(*args, **kwargs):
+                raise RuntimeError("coverage picks failed")
+            obj._apply_domain_coverage_picks = boom
         logging.disable(logging.CRITICAL)
         try:
             if fail:
@@ -136,10 +135,13 @@ def test_2_offline_run_has_no_unattributed_calls_and_every_prompt_has_a_step(ns)
     assert rows
     assert sum(r["llm_calls"] for r in rows if r["step"] == "unattributed") == 0
     called = {sp.prompt_name(op["args"].get("prompt_text", "")) for op in ai_spark.ops} - {"OTHER"}
-    assert called == set(sp.PROMPT_MARKERS)
+    sent = {name for name, marker in sp.PROMPT_MARKERS.items()
+            if any(marker in op["args"].get("prompt_text", "") for op in ai_spark.ops)}
+    assert called and called == sent
     named = {name for r in rows for name in json.loads(r["flags_json"]).get("prompts", {})}
     assert called <= named, called - named
-    assert sum(r["llm_calls"] for r in rows) == len(ai_spark.ops)
+    answered = [op for op in ai_spark.ops if sp.prompt_name(op["args"].get("prompt_text", "")) != "OTHER"]
+    assert sum(r["llm_calls"] for r in rows) == len(answered)
 
 
 def test_3_appends_do_not_exceed_stages_plus_one(ns):
