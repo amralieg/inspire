@@ -52,8 +52,8 @@ def test_implement_job_params_are_notebook_widgets():
 
 
 def test_operation_enum_has_three_values_everywhere(agent_ns):
-    assert agent_ns["INSPIRE_OPERATIONS"] == ("Discover Use Cases", "Generate Use Cases", "Implement Use Cases")
-    assert agent_ns["INSPIRE_ATTACHING_OPERATIONS"] == ("Generate Use Cases", "Implement Use Cases")
+    assert agent_ns["INSPIRE_OPERATIONS"] == ("Discover Use Cases", "Match Use Cases", "Implement Use Cases")
+    assert agent_ns["INSPIRE_ATTACHING_OPERATIONS"] == ("Match Use Cases", "Implement Use Cases")
     widgets = ast.unparse(top_level_defs()["create_widgets"])
     assert "operation_options = list(INSPIRE_OPERATIONS)" in widgets
     main = ast.unparse(top_level_defs()["main"])
