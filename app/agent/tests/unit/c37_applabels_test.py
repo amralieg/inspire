@@ -188,7 +188,7 @@ def test_12_user_named_prod_scope_is_never_excluded_by_a_dev_label(agent_ns):
     for rows in ([row("catalog", "main", env="dev"), user("catalog", "main"), row("schema", "main.ops", env="dev"), user("schema", "main.ops")],
                  [user("catalog", "main"), row("catalog", "main", env="dev"), user("schema", "main.ops"), row("schema", "main.ops", env="dev")]):
         rows = rows + [row("table", ORDERS, label="transactional"), row("table", CUSTOMERS, label="master")]
-        obj, _ = build(agent_ns, rows, responder=classifier({LOGS: ("TECHNICAL", "TECHNICAL")}))
+        obj, _ = build(agent_ns, rows, responder=classifier({LOGS: ("TECHNICAL", "TECHNICAL"), TMP: ("TECHNICAL", "TECHNICAL")}))
         out = unpack(obj._filter_business_tables(FILTER_DETAILS))
         assert out["business"] == {ORDERS, CUSTOMERS}, out["business"]
         assert prompted(obj) == {LOGS, TMP}
