@@ -52,7 +52,7 @@ def test_gateway_429_counts_as_rate_limited():
     assert elt._is_rate_limited(Exception("REQUEST_LIMIT_EXCEEDED: slow down"))
     ws = _Ws(exc=Exception("REQUEST_LIMIT_EXCEEDED"))
     stats = elt.run_level(elt.make_call(ws, MODEL, "gateway"), 1, 5, max_calls=3)
-    assert stats["rate_limit_errors"] == 3 and stats["other_errors"] == 3
+    assert stats["rate_limit_errors"] == 3 and stats["other_errors"] == 0
 
 
 def test_default_route_is_gateway():
