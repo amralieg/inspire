@@ -13,8 +13,9 @@ redact.redactOutput();
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
 const { chromium } = require(path.join(root, 'frontend/node_modules/playwright'));
+const JSZip = require(path.join(root, 'frontend/node_modules/jszip'));
 const { showcaseStale } = require('../backend/lib/showcase.js');
-const { makeRecorder, mvpUrlsFrom, showcaseFile, showcaseLeaks, showcaseSizeProblem, showcaseSizes, showcaseText } = require('../backend/lib/showcaseRecord.js');
+const { makeRecorder, makeSanitizer, mvpUrlsFrom, showcaseFile, showcaseLeaks, showcaseSizeProblem, showcaseSizes, showcaseText } = require('../backend/lib/showcaseRecord.js');
 
 const env = process.env;
 const need = (name) => {
@@ -113,7 +114,30 @@ try {
     build: env.SHOWCASE_BUILD || require('../backend/lib/inspireJobParams.js').INSPIRE_AGENT_VERSION,
     mvps: mvpIds.map((m) => ({ id: m, title: titleOf(m), url: urls[m] })),
   });
-  for (const x of inspire) recorder.addInspire(x);
+  // REQ-560: a generated document names the real workspace, run, catalog and person. The recorder keeps document bytes as they are, so each
+  // PPTX/DOCX/XLSX is cleaned here with the same sanitizer as the answers; a PDF has compressed text and 100+ pages, so it is not kept.
+  const clean = makeSanitizer({ replace, sessionId, mvpUrls: Object.fromEntries(mvpIds.filter((m) => urls[m]).map((m) => [m, urls[m]])), hostedPaths: {} });
+  // A chart in a PPTX carries its data as an embedded XLSX, which is cleaned the same way.
+  const cleanZip = async (bytes) => {
+    const zip = await JSZip.loadAsync(bytes);
+    for (const [name, entry] of Object.entries(zip.files)) {
+      if (entry.dir) continue;
+      if (/\.(xml|rels)$/i.test(name)) zip.file(name, clean.text(await entry.async('string')).replace(/\s+panose="[0-9A-Fa-f]*"/g, ''));
+      else if (/\.(xlsx|docx|pptx)$/i.test(name)) zip.file(name, await cleanZip(await entry.async('nodebuffer')));
+    }
+    return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+  };
+  const cleanDocument = async (x) => {
+    const bytes = Buffer.from(x.body, 'base64');
+    if (bytes.subarray(0, 2).toString('latin1') !== 'PK') return null;
+    return { ...x, body: (await cleanZip(bytes)).toString('base64') };
+  };
+  for (const x of inspire) {
+    if (!x.base64) { recorder.addInspire(x); continue; }
+    const cleaned = await cleanDocument(x);
+    if (cleaned) recorder.addInspire(cleaned);
+    else log(`left out ${new URL(x.url).searchParams.get('path')}: a PDF is not kept in a demo`);
+  }
   for (const m of mvpIds) for (const x of mvpExchanges[m]) recorder.addMvp(m, x);
   const bundle = recorder.bundle();
   const stale = showcaseStale(bundle);

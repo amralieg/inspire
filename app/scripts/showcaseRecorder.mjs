@@ -715,6 +715,48 @@ export async function requestMyWork(page, { log, where }) {
   log(`${where}: no My work screen, so its ${PERIODS.length} periods were requested from the App's own route`);
 }
 
+const APP_PLACES = ['dashboard', 'work', 'plan', 'performance', 'runs', 'alerts', 'settings'];
+
+async function walkTopBarApp(page, settle, { rows, questions, log }) {
+  const pageIds = await page.evaluate(async () => ((await (await fetch('/api/app')).json()).pages || []).map((p) => p.id));
+  let walked = 0;
+  let performed = false;
+  for (const id of pageIds) {
+    for (const place of APP_PLACES) {
+      await page.evaluate((h) => { location.hash = h; }, `#/${encodeURIComponent(id)}/${place}`);
+      await settle();
+      if ((await page.evaluate(() => location.hash)).split('?')[0].split('/')[2] !== place) continue;
+      walked += 1;
+      const where = `${id} ${place}`;
+      await walkScreen(page, settle, { rows, questions: 0, log, where, home: await screenOf(page), goBack: () => page.evaluate((h) => { location.hash = h; }, `#/${encodeURIComponent(id)}/${place}`) });
+      performed = (await walkPerformance(page, settle, { log, where })) || performed;
+    }
+    const mode = page.locator('header.top [data-mode-switch] [data-mode="genie"]');
+    if (questions && (await mode.count())) {
+      await page.evaluate((h) => { location.hash = h; }, `#/${encodeURIComponent(id)}/work`);
+      await settle();
+      await mode.click();
+      await settle();
+      const chips = await page.locator('[data-question]').count();
+      const asked = chips ? await askEach(page, settle, '[data-question]', Math.min(chips, questions), log, `${id} chat`)
+        : await askEach(page, settle, '.genie .g-sugg button.sugg', questions, log, id);
+      if (!asked) throw new Error(`${id}: Genie offered no suggested question to record`);
+      // The Genie panel offers four suggestions; a use case with more has the rest typed into the composer, as a person would.
+      const rest = (await page.evaluate(async (pid) => ((await (await fetch('/api/app')).json()).pages || []).find((p) => p.id === pid)?.questions || [], id)).slice(asked, questions);
+      for (const q of rest) {
+        await page.locator('.g-in input').fill(q);
+        await page.locator('.g-in button[type="submit"]').click();
+        await page.waitForFunction(() => document.querySelectorAll('.msg--genie').length > 0 && !document.querySelector('.msg--genie .g-step'), null, { timeout: GENIE_WAIT_MS });
+        await settle();
+        log(`${id}: Genie answered "${q.slice(0, 80)}"`);
+        const fresh = page.locator('.genie .g-h button.link', { hasText: 'New chat' });
+        if (await fresh.count()) { await fresh.click(); await settle(); }
+      }
+    }
+  }
+  return { walked, performed };
+}
+
 export async function recordMvpApp(context, { url, authHeaders = {}, exchanges, blocked, log = () => {}, rows = 2, questions = 4, periods = false }) {
   const page = await context.newPage();
   const origin = new URL(url).origin;
@@ -736,6 +778,14 @@ export async function recordMvpApp(context, { url, authHeaders = {}, exchanges, 
     const nav = page.locator('nav.side button');
     const n = await nav.count();
     let performed = false;
+    // REQ-506: the App shell has no side rail; each use case opens at #/<use case>/<place>, and Genie is a mode of the top bar.
+    if (n === 0) {
+      const places = await walkTopBarApp(page, settle, { rows, questions, log });
+      performed = places.performed;
+      if (periods && !performed) await requestMyWork(page, { log, where: origin });
+      log(`MVP App ${origin}: walked ${places.walked} places`);
+      return;
+    }
     for (let i = 0; i < n; i += 1) {
       const title = (await nav.nth(i).innerText()).split('\n')[0].trim();
       const here = nav.nth(i);

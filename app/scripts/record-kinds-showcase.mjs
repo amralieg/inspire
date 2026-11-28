@@ -28,6 +28,7 @@ const { chromium } = require(path.join(root, 'frontend/node_modules/playwright')
 const { makeRecorder, showcaseFile, showcaseLeaks, showcaseSizeProblem, showcaseSizes } = require('../backend/lib/showcaseRecord.js');
 const { appShellFiles, appShellPayload, bundledAppShellText } = require('../backend/lib/appShell.js');
 const { assetType } = require('../backend/lib/assetTypes.js');
+const JSZip = require(path.join(root, 'frontend/node_modules/jszip'));
 
 const out = path.resolve(process.env.OUT || path.join(root, 'backend/showcase', `${KINDS_DEMO.id}.json.gz`));
 const log = (line) => console.log(`[kinds demo] ${line}`);
@@ -213,13 +214,49 @@ log(`${useCases.length} use cases: ${useCases.map((uc) => `${uc.No} ${uc.use_cas
 const infos = USE_CASES.map((u) => appInfo(mvpSettings(u), 1, mvpPage(u), exampleName(u)));
 const shell = appShellFiles(appShellPayload(bundledAppShellText()));
 
+// REQ-560: the made-up run carries the values and the documents a real current run shows, so the demo replays value reads, the Assets listing and a document export.
+const moneyOf = (stake) => {
+  const m = /^\$([\d.]+)([KM])?/.exec(String(stake));
+  return m ? Math.round(Number(m[1]) * (m[2] === 'M' ? 1e6 : m[2] === 'K' ? 1e3 : 1)) : null;
+};
+const VALUES = Object.fromEntries(USE_CASES.map((u) => [u.no, moneyOf(u.stake)]).filter(([, amount]) => amount));
+const valueOf = (amount, n) => ({ totals: [{ currency: 'USD', amount, calculated: 0, estimated: amount }], n, n_calculated: 0, n_estimated: n, n_measured: 0, n_none: 0, n_shared: 0 });
+const RUN_VALUE = valueOf(Object.values(VALUES).reduce((a, b) => a + b, 0), Object.keys(VALUES).length);
+const yearlyOf = (amount) => ({ verb: 'INCREASE REVENUE', period: 'Per Year', estimated: true, entries: [{ kind: 'money', unit: 'USD', amount }], basis: { sampled_records: 1200, eligible_records: 48000, days: 90 } });
+const zipBytes = async (files) => {
+  const zip = new JSZip();
+  for (const [name, text] of Object.entries(files)) zip.file(name, text);
+  return Buffer.from(await zip.generateAsync({ type: 'uint8array' }));
+};
+const slideXml = (title) => `<p:sld><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>${title}</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`;
+const DOCS = {
+  'retail_use_case_report.pdf': ['application/pdf', Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF')],
+  'retail_strategy.pptx': ['application/octet-stream', await zipBytes({ '[Content_Types].xml': '<Types/>', 'ppt/slides/slide1.xml': slideXml('Retail and supply chain: where to act first'), 'ppt/slides/slide2.xml': slideXml('Seventeen use cases, each with an App') })],
+  'retail_business_case.docx': ['application/octet-stream', await zipBytes({ '[Content_Types].xml': '<Types/>', 'word/document.xml': '<w:document><w:body><w:p><w:r><w:t>Retail and supply chain business case</w:t></w:r></w:p></w:body></w:document>' })],
+  'retail_use_cases.xlsx': ['application/octet-stream', await zipBytes({ '[Content_Types].xml': '<Types/>', 'xl/workbook.xml': '<workbook><sheets><sheet name="Use cases" sheetId="1"/></sheets></workbook>' })],
+};
+
 const walkStarted = new Date().toISOString();
 const inspire = [];
 const blocked = [];
 const ui = await openUi('app', inspireState(useCases), '', {
-  mount: (app) => app.get('/api/defaults', (_req, res) => res.json({
-    envSkipsSetupWizard: true, isDatabricksApp: true, databricksHost: WORKSPACE, warehouseId: WAREHOUSE, inspireDatabase: INSPIRE_DATABASE, notebookPath: '/Shared/inspire_ai',
-  })),
+  mount: (app) => {
+    app.get('/api/defaults', (_req, res) => res.json({
+      envSkipsSetupWizard: true, isDatabricksApp: true, hasServerPlatformAuth: true, databricksHost: WORKSPACE, warehouseId: WAREHOUSE, inspireDatabase: INSPIRE_DATABASE, notebookPath: '/Shared/inspire_ai',
+    }));
+    const useCaseValues = Object.fromEntries(Object.entries(VALUES).map(([no, amount]) => [no, { status: 'estimated', verb: 'INCREASE REVENUE', amount, currency: 'USD' }]));
+    app.get('/api/inspire/value', (_req, res) => res.json({ use_cases: {}, run: { at_stake: [], saved: [], mvps_measured: 0 } }));
+    app.get('/api/inspire/value/totals', (req, res) => res.json(req.query.session_id
+      ? { run: { ...RUN_VALUE, excluded: [], by_verb: [] }, use_cases: useCaseValues, run_value: RUN_VALUE }
+      : { runs: [{ session_id: sid, run_value: RUN_VALUE }], all: RUN_VALUE, truncated: false, cap: 20 }));
+    app.get('/api/inspire/value/yearly', (_req, res) => res.json({ use_cases: Object.fromEntries(Object.entries(VALUES).map(([no, amount]) => [no, yearlyOf(amount)])) }));
+    app.get('/api/inspire/value/estimates', (_req, res) => res.json({ use_cases: Object.fromEntries(Object.keys(VALUES).map((no) => [no, { status: 'set_rule' }])), totals: null }));
+    app.get('/api/workspace/list', (req, res) => res.json({ files: Object.keys(DOCS).map((name) => ({ name, path: `${String(req.query.path || '').replace(/\/$/, '')}/${name}`, is_directory: false, file_size: 90000 })) }));
+    app.get('/api/workspace/export', (req, res) => {
+      const [type, bytes] = DOCS[String(req.query.path || '').split('/').pop()] || [];
+      return bytes ? res.type(type).send(bytes) : res.status(404).json({ error: 'not found' });
+    });
+  },
   init: (page, origin) => routeInspireDemo(page, {
     origin, summary: { ...KINDS_DEMO, session_id: sid, mvps: [] }, real: { inspire_database: INSPIRE_DATABASE, warehouse_id: WAREHOUSE }, exchanges: inspire, blocked,
   }),
@@ -239,7 +276,7 @@ try {
   for (const [i, u] of USE_CASES.entries()) {
     const server = await serveMvp(u, infos[i], shell);
     servers.push(server);
-    await recordMvpApp(context, { url: `${server.url}/`, exchanges: mvpExchanges[u.no], blocked, periods: true, log: (line) => log(`${u.no} ${line.replace(server.url, u.app)}`) });
+    await recordMvpApp(context, { url: `${server.url}/`, exchanges: mvpExchanges[u.no], blocked, periods: true, questions: u.genie.length, log: (line) => log(`${u.no} ${line.replace(server.url, u.app)}`) });
     mvpExchanges[u.no].push(...scenarioAnswers(u, infos[i], server.url));
   }
 
@@ -255,12 +292,15 @@ try {
   const recorder = makeRecorder({
     id: KINDS_DEMO.id, title: KINDS_DEMO.title, business: KINDS_DEMO.business, summary: KINDS_DEMO.summary, sessionId: sid,
     replace: { 'amr@x': 'person@example.com', Amr: 'Demo User' },
+    build: require('../backend/lib/inspireJobParams.js').INSPIRE_AGENT_VERSION,
     recordedAt: { since: walkStarted, as: KINDS_DEMO.recordedAt },
     mvps: USE_CASES.map((u, i) => ({ id: u.no, title: infos[i].title, url: appUrlOf(u) })),
   });
   for (const x of inspire) recorder.addInspire(x);
   for (const u of USE_CASES) for (const x of mvpExchanges[u.no]) recorder.addMvp(u.no, x);
   const bundle = recorder.bundle();
+  // The walk pins every clock to KINDS_DEMO.recordedAt; the build stamp's own time is pinned the same way, so a regeneration writes the same bytes.
+  bundle.recorded_at = KINDS_DEMO.recordedAt;
   const leaks = showcaseLeaks(bundle, ['amr@x', '127.0.0.1', 'databricksapps.com']);
   const tooBig = showcaseSizeProblem(bundle);
   if (tooBig) throw new Error(`the demo is too large for the App: ${tooBig}`);
