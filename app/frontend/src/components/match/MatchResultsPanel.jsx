@@ -4,6 +4,7 @@
 // Props: { settings, sessionId, apiFetch }.
 import { useEffect, useRef, useState } from 'react';
 import { DECISION_TEXT, MATCH_ACCEPT, MATCH_DECISIONS, MATCH_DROPPED_TITLE, MATCH_REVIEW_TITLE, PIECE_STATUS_TEXT, VERDICT_TEXT } from '../../lib/startWizard';
+import Button from '../ui/Button';
 import { acceptMatch, postOf, readMatch, saveDecision } from '../../lib/matchClient';
 
 const POLL_MS = 15000;
@@ -123,7 +124,7 @@ export default function MatchResultsPanel({ settings, sessionId, apiFetch }) {
             {dropped.length > 0 && (
               <div data-match-dropped="" className="rounded-lg border border-border bg-surface p-3">
                 <h4 className="text-sm font-medium text-text-primary">{MATCH_DROPPED_TITLE}</h4>
-                <ul className="mt-1 list-disc pl-5 text-sm text-text-secondary">
+                <ul className="mt-1 list-disc ps-5 text-sm text-text-secondary">
                   {dropped.map((d) => <li key={d.piece_no}>{d.requirement}</li>)}
                 </ul>
               </div>
@@ -134,8 +135,7 @@ export default function MatchResultsPanel({ settings, sessionId, apiFetch }) {
       {problem && <p role="alert" className="text-sm text-db-red-fg">{problem}</p>}
       {accepted && <p className="text-sm text-success-fg">{accepted}</p>}
       {reports.length > 0 && (
-        <button type="button" disabled={saving || match.state === 'running'} onClick={accept}
-          className="rounded-lg bg-db-red-solid px-4 py-2 text-sm font-medium text-white hover:bg-db-red-solid-hover disabled:opacity-50">{MATCH_ACCEPT}</button>
+        <Button disabled={saving || match.state === 'running'} onClick={accept}>{MATCH_ACCEPT}</Button>
       )}
     </section>
   );
