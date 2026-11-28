@@ -979,7 +979,7 @@ export default function LaunchPage({ settings, update = NOOP, onLaunched, onOpen
   };
   if (wiz && wiz.api) {
     Object.assign(wiz.api, {
-      launchParams, start: wizStart, profileId: profileToStart, setBusinessName: (value) => updateParam('00_business_name', value),
+      launchParams, start: wizStart, profileId: profileToStart, setRelationships, setBusinessName: (value) => updateParam('00_business_name', value),
       finish: () => { clearWizardDraft(draftKey); update('inspireDatabase', params['02_inspire_database']); },
     });
   }
@@ -989,8 +989,8 @@ export default function LaunchPage({ settings, update = NOOP, onLaunched, onOpen
   const wizOnState = wiz?.onState;
   useEffect(() => {
     wizOnState?.({ business: wizBusiness, hasData: wizHasData, profileId: wizProfile, launching, launchError,
-      summary: { quality: params['05_use_cases_quality'], discovery: params['03_discovery_type'], scope: params['01_uc_metadata'] } });
-  }, [wizOnState, wizBusiness, wizHasData, wizProfile, launching, launchError, params['05_use_cases_quality'], params['03_discovery_type'], params['01_uc_metadata']]);
+      summary: { quality: params['05_use_cases_quality'], discovery: params['03_discovery_type'], scope: params['01_uc_metadata'] }, tables: scopeTables });
+  }, [wizOnState, scopeTables, wizBusiness, wizHasData, wizProfile, launching, launchError, params['05_use_cases_quality'], params['03_discovery_type'], params['01_uc_metadata']]);
 
   // Get Started asks to save the settings as a profile. A loaded profile whose settings are unchanged runs without asking.
   const handleLaunch = () => {
