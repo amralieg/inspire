@@ -49,13 +49,17 @@ test('W2: the vibe text goes in the pick body and the logo is drawn in the SVG',
 });
 
 test('W3: the infographic footer, the PDF pages and the Word XML print AIx-UCx and never an old id', async () => {
-  assert.match(UC.No, OLD, 'the fixture still holds an old id');
-  const svg = infographicFor(UC, { orientation: 'landscape' });
+  // REQ-569: the recorded rows now hold AIx-UCx; this test feeds the saved-before form (Nx-Ux) to prove it is never printed.
+  const oldNo = (no) => String(no).replace(/^AI(\d+)-UC(\d+)$/, 'N$1-U$2');
+  const oldUC = { ...UC, No: oldNo(UC.No) };
+  const OLD_ARGS = { ...ARGS, useCases: ROWS.map((r) => ({ ...r, No: oldNo(r.No) })) };
+  assert.match(oldUC.No, OLD, 'the row holds an old id');
+  const svg = infographicFor(oldUC, { orientation: 'landscape' });
   assert.ok(!OLD.test(flat(svg)), 'infographic footer');
   assert.match(flat(svg), /AI\d+-UC\d+/);
-  const pdf = agentPdfPages(ARGS).map((p) => flat(p.svg)).join(' ');
+  const pdf = agentPdfPages(OLD_ARGS).map((p) => flat(p.svg)).join(' ');
   assert.ok(!OLD.test(pdf), `PDF pages: ${(pdf.match(OLD) || [''])[0]}`);
-  const m = buildDocModel({ ...ARGS, options: defaultDocOptions('English') });
+  const m = buildDocModel({ ...OLD_ARGS, options: defaultDocOptions('English') });
   const zip = await JSZip.loadAsync(await buildDocx(m, THEME, { chartPng: async () => new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64')) }));
   const xml = flat(await zip.file('word/document.xml').async('string'));
   assert.ok(!OLD.test(xml), `Word XML: ${(xml.match(OLD) || [''])[0]}`);
