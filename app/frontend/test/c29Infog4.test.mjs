@@ -4,13 +4,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { ROWS, flat } from './c27x_fixture.mjs';
+import { ROWS, flat, byNoMap } from './c27x_fixture.mjs';
 import { bandOf, texts, sourcesOf, ellipsisProblems, cutPhraseProblems } from './tools/infogCheck.mjs';
 import { validatePick, SCENARIO_IDS, LIMITS } from '../../backend/lib/infographicPick.mjs';
 import { infographicFor } from '../src/lib/docgen/designs/infographic.js';
 
 const IDS = SCENARIO_IDS; const ORIENTS = ['landscape', 'portrait'];
-const byNo = new Map(ROWS.map((r) => [String(r.No), r]));
+const byNo = byNoMap(); // REQ-569: finds a row by either id form
 const SIX = ['N01-U01', 'N03-U01', 'N09-U01', 'N10-U01', 'N11-U01', 'N12-U01'];
 const LOGO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 const RUNS = []; for (const no of SIX) for (const id of IDS) for (const orientation of ORIENTS) RUNS.push({ no, id, orientation, tag: `${id}/${orientation}/${no}`, svg: infographicFor(byNo.get(no), { orientation, scenario: id }) });

@@ -2,6 +2,7 @@
 // orientation it was shown in. The drawing is the same one the documents use (concepts.js); content comes only from the use case.
 import { drawConcept } from './concepts.js';
 import { contentFor } from './content.js';
+import { pickStoredId } from '../../../../../../shared/useCaseId.mjs';
 
 const build = (pattern, orientation) => (row) => drawConcept(pattern, contentFor(row, pattern), orientation);
 export const CONCEPTS = [
@@ -20,6 +21,8 @@ export const CONCEPTS = [
 ].map((c) => ({ ...c, build: build(c.pattern, c.orientation) }));
 
 export function galleryFor(rows) {
+  // REQ-569: a concept is approved with an Nx-Ux id; the rows may hold either form.
   const byId = new Map(rows.map((r) => [String(r.No), r]));
-  return CONCEPTS.filter((c) => byId.has(c.uc)).map((c) => ({ ...c, file: `${String(c.n).padStart(2, '0')}_${c.pattern}_${c.orientation}`, svg: c.build(byId.get(c.uc)) }));
+  const rowFor = (uc) => byId.get(pickStoredId(uc, [...byId.keys()]));
+  return CONCEPTS.filter((c) => rowFor(c.uc)).map((c) => ({ ...c, file: `${String(c.n).padStart(2, '0')}_${c.pattern}_${c.orientation}`, svg: c.build(rowFor(c.uc)) }));
 }

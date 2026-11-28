@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { chromium } from 'playwright';
-import { ROWS, flat } from './c27x_fixture.mjs';
+import { ROWS, flat, byNoMap } from './c27x_fixture.mjs';
 import { checkSvg } from './tools/infogCheck.mjs';
 import { SCENARIO_IDS as SHARED_IDS, SCENARIOS, validatePick, buildMessages } from '../../backend/lib/infographicPick.mjs';
 import { SCENARIO_IDS, infographicFor } from '../src/lib/docgen/designs/infographic.js';
@@ -19,7 +19,7 @@ import { displayId } from '../../shared/useCaseId.mjs';
 
 const IDS = ['journey', 'cycle', 'isometric', 'pictogram', 'beforeafter', 'timeline', 'funnel', 'hub', 'map', 'network', 'waterfall', 'balance'];
 const ORIENTS = ['landscape', 'portrait'];
-const byNo = new Map(ROWS.map((r) => [String(r.No), r]));
+const byNo = byNoMap(); // REQ-569: finds a row by either id form
 // The row each concept was approved with in the gallery, plus one row whose story has a different shape (the concept must still re-flow).
 const HOME = { journey: 'N09-U01', cycle: 'N06-U04', isometric: 'N04-U02', pictogram: 'N01-U04', beforeafter: 'N02-U02', timeline: 'N03-U01', funnel: 'N01-U01', hub: 'N11-U01', map: 'N10-U01', network: 'N10-U03', waterfall: 'N12-U01', balance: 'N08-U01' };
 const OTHER = 'N05-U01';

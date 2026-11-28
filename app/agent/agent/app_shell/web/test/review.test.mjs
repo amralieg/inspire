@@ -35,8 +35,9 @@ test('an App of its own shows Open in Inspire Review on its page, and it opens t
 
 for (const layout of ['sidebar', 'home']) {
   test(`each use case of a shared App (${layout} layout) links to its own use case on its Settings and on its Performance section`, async () => {
+    // REQ-569: the example page now names itself AI01-UC05; its review link still carries the old N01-U05 id, which Inspire still reads.
     const info = appInfo({ layout }, 3, { ...TABLE, review: review('N01-U05') });
-    assert.deepEqual(info.pages.map((p) => [p.use_case_id, p.review]), [['N01-U05', review('N01-U05')], ['N02-U01', review('N02-U01')],
+    assert.deepEqual(info.pages.map((p) => [p.use_case_id, p.review]), [['AI01-UC05', review('N01-U05')], ['N02-U01', review('N02-U01')],
       ['N02-U02', review('N02-U02')]]);
     const { page, seen, context } = await openApp(browser, served.base, info, { routes: PERF_ROUTES, ready: '.kpi-v, .hcard, .pg-h h1' });
     for (const p of info.pages) {

@@ -198,3 +198,24 @@ export function calculateValue(spec) {
   return { ok: true, problems: [], flags: [...flags].sort(), bucket, unit, period, annual_exposure: annual, balance, one_percent: onePercent,
     scenarios, break_even_effect: breakEven, confidence, gate, cost };
 }
+
+// REQ-586a: the typed value drivers (valueDrivers.json) as one value spec each, so the user-edit path prices with calculateValue too.
+// One year, flow, full adoption and realization; the amount is scenarios.base.gross_annual. Saved time_saved answers with
+// hours_before / hours_after still price (before - after; a negative result is 0).
+const DRIVER_SHAPE = {
+  time_saved: { mechanism: 'cost', exposure: (i) => i.events_per_year * i.people * (i.hours_saved !== undefined && i.hours_saved !== null ? i.hours_saved : Math.max(0, i.hours_before - i.hours_after)) * i.cost_per_hour, effect: () => 1 },
+  productivity: { mechanism: 'cost', exposure: (i) => i.headcount * i.cost_per_person_year, effect: (i) => i.gain_pct / 100 },
+  revenue_uplift: { mechanism: 'revenue', exposure: (i) => i.base_revenue_per_year, effect: (i) => i.uplift_pct / 100 },
+  cost_cut: { mechanism: 'cost', exposure: (i) => i.spend_per_year, effect: (i) => i.cut_pct / 100 },
+  risk_avoided: { mechanism: 'risk', exposure: (i) => i.incidents_per_year * i.cost_per_incident, effect: (i) => i.reduction_pct / 100 },
+};
+export function driverSpec(id, inputs, currency = 'USD') {
+  const shape = DRIVER_SHAPE[id];
+  const i = inputs || {};
+  const full = (n) => ({ source: 'owner', low: n, base: n, high: n });
+  return {
+    mechanism: shape.mechanism, flow_or_stock: 'flow', horizon_years: 1, currency,
+    measured: { exposure: shape.exposure(i), period_days: 365 },
+    sourced: { effect: full(shape.effect(i)), adoption: full(1), realization: full(1), ...(shape.mechanism === 'revenue' ? { margin: full(1) } : {}) },
+  };
+}
