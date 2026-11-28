@@ -34,7 +34,8 @@ test('a notebook request launches an Implement version with outputs.notebook, ne
     const insert = sqlCalls.find((c) => String(c.sql).includes('INSERT INTO'));
     assert.ok(insert, 'a spec version row is written');
     const spec = JSON.parse(insert.parameters.find((p) => p.name === 'spec').value);
-    assert.deepEqual(spec.outputs, { notebook: true });
+    assert.equal(spec.outputs.notebook, true);
+    for (const name of ['dashboard', 'genie_space', 'app', 'alert']) assert.equal(spec.outputs[name], false, `${name} is not built`);
   } finally {
     await srv.close();
   }

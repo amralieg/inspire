@@ -23,7 +23,7 @@ function sourcesOf(dir) {
 test('the delivery output is labelled App in the one shared file, and the backend table reads it', () => {
   assert.equal(LABELS.app, 'App');
   assert.equal(I.IMPLEMENT_OUTPUT_LABELS.app, 'App');
-  assert.deepEqual(Object.keys(LABELS).sort(), ['alert', 'app', 'dashboard', 'genie_space']);
+  assert.deepEqual(Object.keys(LABELS).sort(), ['alert', 'app', 'dashboard', 'genie_space', 'notebook']);
 });
 
 test('no person-facing source writes a plain App label for the delivery output', () => {

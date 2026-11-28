@@ -25,7 +25,7 @@ test('a session re-run sends no generation option, whatever generate_choices an 
 
 test('Route 1 on a v1.2.1 session falls back to Standard Discovery and no strategy', () => {
   const params = notebookParamsFromSessionForGenerateRun({ ...v121Session }, '42');
-  assert.equal(params['15_operation'], 'Generate Use Cases');
+  assert.equal(params['15_operation'], 'Implement Use Cases');
   assert.equal(params['03_discovery_type'], 'Standard Discovery', 'older sessions never show aggregates to the AI');
   assert.equal(params['10_strategic_context'], '');
   assert.equal(params['05_use_cases_quality'], 'Good');

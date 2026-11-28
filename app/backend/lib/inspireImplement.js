@@ -552,6 +552,9 @@ function validateImplementSpec(input, { shell = null, legacyAccess = '', impact 
   const chosen = {};
   for (const name of IMPLEMENT_OUTPUTS) chosen[name] = flagField(outputs[name], `outputs.${name}`, errors);
   if (!ownKey(spec, 'outputs')) chosen.dashboard = true;
+  // REQ-578: the Genie code notebook is an Implement output of its own; it builds nothing else, so it is never ticked beside another output.
+  const notebookOnly = flagField(outputs[IMPLEMENT_NOTEBOOK], `outputs.${IMPLEMENT_NOTEBOOK}`, errors);
+  if (notebookOnly && Object.values(chosen).some(Boolean)) errors.push(`the ${IMPLEMENT_OUTPUT_LABELS[IMPLEMENT_NOTEBOOK]} is written on its own: untick the other outputs or the ${IMPLEMENT_OUTPUT_LABELS[IMPLEMENT_NOTEBOOK]}`);
   // A rebuild keeps the experience the App already has (appExperience, read from its live build); a new build starts classic.
   const experience = appExperience || (spec.based_on_version != null && spec.based_on_version !== '' ? IMPLEMENT_APP_EXPERIENCE_CLASSIC : IMPLEMENT_APP_EXPERIENCE_DEFAULT);
   const app = appSettings(outputs, chosen.app, shell, errors, legacyAccess, experience);
@@ -581,6 +584,7 @@ function validateImplementSpec(input, { shell = null, legacyAccess = '', impact 
   if (badFilters.length) errors.push(`dashboard filters must be widget names: ${badFilters.join(', ')}`);
   out.outputs = {
     ...chosen,
+    ...(notebookOnly ? { [IMPLEMENT_NOTEBOOK]: true } : {}),
     app_name: chosen.app ? appName : '',
     dashboard_name: chosen.dashboard ? clip(textField(outputs.dashboard_name, 'outputs.dashboard_name', errors), 200) : '',
     dashboard_filters: chosen.dashboard ? dashFilters : [],
@@ -2234,12 +2238,23 @@ function implementSettingsOwnerRefusal(before, requester) {
   return { status: 403, message: IMPLEMENT_SETTINGS_OWNERS.replace('{live}', String(before.spec_version)) };
 }
 
-function planSubmission(history, spec, stalled = null, { requester = null, tableChange = null } = {}) {
-  const rows = [...(history || [])].sort((a, b) => (b.spec_version || 0) - (a.spec_version || 0));
-  const latest = rows[0] || null;
-  if (latest && IMPLEMENT_ACTIVE_STATUSES.includes(latest.status) && !stalled) {
-    throw badRequest(`spec v${latest.spec_version} is still ${latest.status}; your edit applies after the current run`, 409);
+// REQ-578: a version whose only output is the Genie code notebook builds nothing else, so it is no built version to diff against.
+function implementNotebookOnlyRow(row) {
+  let spec = row && row.spec_json;
+  if (typeof spec === 'string') {
+    try { spec = JSON.parse(spec); } catch (e) { return false; }
   }
+  return Boolean(spec && isPlainObject(spec.outputs) && spec.outputs[IMPLEMENT_NOTEBOOK] === true);
+}
+
+function planSubmission(history, spec, stalled = null, { requester = null, tableChange = null } = {}) {
+  const everyRow = [...(history || [])].sort((a, b) => (b.spec_version || 0) - (a.spec_version || 0));
+  const newest = everyRow[0] || null;
+  if (newest && IMPLEMENT_ACTIVE_STATUSES.includes(newest.status) && !stalled) {
+    throw badRequest(`spec v${newest.spec_version} is still ${newest.status}; your edit applies after the current run`, 409);
+  }
+  const rows = everyRow.filter((r) => !implementNotebookOnlyRow(r));
+  const latest = rows[0] || null;
   const refused = appShellUpdateRefusal(rows, spec, requester);
   if (refused) throw badRequest(refused.message, refused.status);
   const unsafe = vibeRefusals(specVibeAsks(spec));
@@ -2267,7 +2282,18 @@ function planSubmission(history, spec, stalled = null, { requester = null, table
   }
   if (nextIsAppUpdate(rows, spec)) summary.update = ['app'];
   const unchanged = Boolean(summary.nothing_to_do && latest && IMPLEMENT_DONE_STATUSES.includes(latest.status));
-  return { nextVersion: latest ? latest.spec_version + 1 : 1, latest, built, summary, unchanged, spec };
+  return { nextVersion: newest ? newest.spec_version + 1 : 1, latest, built, summary, unchanged, spec };
+}
+
+// REQ-578: the plan of a notebook-only version. It builds no output, so it has nothing to diff or decide; it only waits for a run still active.
+function planNotebookOnly(history, stalled = null) {
+  const rows = [...(history || [])].sort((a, b) => (b.spec_version || 0) - (a.spec_version || 0));
+  const newest = rows[0] || null;
+  if (newest && IMPLEMENT_ACTIVE_STATUSES.includes(newest.status) && !stalled) {
+    throw badRequest(`spec v${newest.spec_version} is still ${newest.status}; the notebook is written after the current run`, 409);
+  }
+  return { nextVersion: newest ? newest.spec_version + 1 : 1, latest: newest, built: null, unchanged: false,
+    summary: { classes: [IMPLEMENT_NOTEBOOK], nothing_to_do: false, update: [], delete: [], undecided: [] } };
 }
 
 function refuseUnchanged(plan) {
@@ -4166,6 +4192,8 @@ module.exports = {
   appExperienceOf,
   IMPLEMENT_OUTPUTS,
   IMPLEMENT_OUTPUT_LABELS,
+  implementNotebookOnlyRow,
+  planNotebookOnly,
   IMPLEMENT_OUTPUT_ID_COLUMNS,
   IMPLEMENT_STOPPED_STATES,
   IMPLEMENT_RUN_ENDED_STATES,

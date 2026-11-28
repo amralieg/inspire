@@ -98,7 +98,7 @@ test('a Generate run rebuilt from a session carries the scope that session saved
   const session = { business_name: 'Acme', inspire_database_name: 'main.insp', tables_str: 'main.sales.orders', table_scope: JSON.stringify(SCOPE) };
   const kept = notebookParamsFromSessionForGenerateRun(session, '42');
   assert.equal(kept['17_table_scope'], JSON.stringify(SCOPE));
-  assert.equal(kept['15_operation'], 'Generate Use Cases');
+  assert.equal(kept['15_operation'], 'Implement Use Cases');
   const plain = notebookParamsFromSessionForGenerateRun({ business_name: 'Acme', tables_str: 'main.sales.orders' }, '42');
   assert.equal('17_table_scope' in plain, false);
 });

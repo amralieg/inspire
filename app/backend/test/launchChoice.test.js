@@ -46,7 +46,7 @@ test('Databricks AI regeneration and a build use the same rule, so no route lets
   const path = require('node:path');
   const sources = ['server.js', 'implementRoutes.js'].map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
   const calls = [...sources.matchAll(/await triggerInspireNotebookJob\([^)]*?\{([\s\S]*?)\}\);/g)].map((m) => m[1]);
-  assert.equal(calls.length, 3, 'discover, Databricks AI and build launch notebook jobs (REQ-503 removed the document rebuild)');
+  assert.equal(calls.length, 2, 'discover and build launch notebook jobs; the Genie code notebook is a build output (REQ-578)');
   for (const call of calls) assert.match(call, /asker: req/, call);
 });
 

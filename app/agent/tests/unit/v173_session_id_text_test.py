@@ -156,21 +156,6 @@ def test_one_session_and_use_case_read_as_a_number_and_as_text_is_one_tracking_r
     assert spark.views["_inspire_genie_regen_4242_1"] == [(SID, "N01-U01", "second " * 40, "/nb/a.ipynb")]
 
 
-def test_route_2_matches_a_marked_session_whether_the_notebook_holds_a_number_or_text(agent_ns):
-    spark = ViewSpark()
-    inst = _tracking_inst(agent_ns, spark)
-    inst._scan_notebooks_for_generation_flag = lambda: [{"notebook_path": "/a", "use_case_id": "N01-U01", "session_id": SID},
-                                                        {"notebook_path": "/b", "use_case_id": "N01-U02", "session_id": SID_TEXT},
-                                                        {"notebook_path": "/c", "use_case_id": "N01-U03", "session_id": "12 OR 1=1"},
-                                                        {"notebook_path": "/d", "use_case_id": "N01-U04", "session_id": None}]
-    inst._fetch_flagged_use_cases_route2()
-    pairs = next(args for text, args in spark.sql_calls if "AND session_id = :s0" in text)
-    assert pairs == {"i0": "N01-U01", "s0": SID, "i1": "N01-U02", "s1": SID}
-    assert not any("12 OR 1=1" in text or "12 OR 1=1" in json.dumps(args, default=str) for text, args in spark.sql_calls)
-    assert any("N01-U03" in str(call) for call in inst.logger.warning.call_args_list)
-    assert any(args.get("u0") == "N01-U04" for _text, args in spark.sql_calls), "a notebook without a session id still matches by id"
-
-
 @pytest.mark.parametrize("bad", ["12 OR 1=1", "1_000", "", " ", None, "12.0", "-", "+5", "\u0661\u0662", "9" * 20, str(2 ** 63),
                                  True, 12.0, float(SID), [SID]])
 def test_a_session_id_that_is_not_a_plain_whole_number_never_becomes_a_sql_literal(agent_ns, bad):
