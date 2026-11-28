@@ -100,3 +100,46 @@ def test_7_no_reference_tables_leaves_the_plan_unchanged(agent_ns):
     with_attr = _obj(agent_ns, _reference_details_last=[])._join_group_plan(tx, masters, details)
     without = _obj(agent_ns)._join_group_plan(tx, masters, details)
     assert with_attr == without
+
+
+# --- the guard: a reference table that now reaches generation as context is never a use case's subject (Primary Table) ---
+
+def _guard_obj(agent_ns):
+    ref = _fqtn("bakehouse", REF)
+    obj = _obj(agent_ns, _reference_details_last=[d for d in _bakehouse() if d[2] == REF],
+               data_category_map={ref: "REFERENCE", _fqtn("bakehouse", "sales_transactions"): "TRANSACTIONAL"})
+    return obj, ref
+
+
+def test_8_reference_table_named_first_is_moved_behind_the_subject(agent_ns):
+    obj, ref = _guard_obj(agent_ns)
+    tx = _fqtn("bakehouse", "sales_transactions")
+    ucs = [{"No": "AI01-UC01", "Name": "Spend by customer segment", "Tables Involved": f"{ref}, {tx}"}]
+    out = obj._keep_reference_out_of_subject(ucs)
+    assert [uc["No"] for uc in out] == ["AI01-UC01"]
+    assert out[0]["Tables Involved"] == f"{tx}, {ref}", "the reference table stays as join context, after the subject"
+    assert obj._extract_primary_table(out[0]["Tables Involved"]) == tx
+
+
+def test_9_use_case_on_reference_tables_only_is_dropped_and_logged(agent_ns, caplog):
+    obj, ref = _guard_obj(agent_ns)
+    keep = {"No": "AI01-UC02", "Name": "Basket size", "Tables Involved": _fqtn("bakehouse", "sales_transactions")}
+    only_ref = {"No": "AI01-UC03", "Name": "Customer list", "Tables Involved": f"`{ref.upper()}`"}
+    with caplog.at_level("INFO"):
+        out = obj._keep_reference_out_of_subject([keep, only_ref])
+    assert [uc["No"] for uc in out] == ["AI01-UC02"], "case and backticks do not hide a reference table"
+    assert any("AI01-UC03" in r.getMessage() for r in caplog.records)
+
+
+def test_10_no_reference_tables_changes_nothing(agent_ns):
+    obj = _obj(agent_ns, _reference_details_last=[], data_category_map={})
+    ucs = [{"No": "AI01-UC01", "Tables Involved": "a.b.c, a.b.d"}]
+    assert obj._keep_reference_out_of_subject([dict(u) for u in ucs]) == ucs
+
+
+def test_11_run_applies_the_guard_before_scoring():
+    run = method_node("DatabricksInspire", "run")
+    guard = _call_nodes(run, "_keep_reference_out_of_subject")
+    scoring = _call_nodes(run, "_score_combined_value_and_quality")
+    assert guard and scoring
+    assert min(n.lineno for n in guard) < min(n.lineno for n in scoring)
