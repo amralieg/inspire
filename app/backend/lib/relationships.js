@@ -132,6 +132,23 @@ const PAYLOAD_LIMIT_BYTES = 2 * 1024 * 1024;
  * Returns { tables, suggestions }: every picked table's columns and keys (the pickers), and the relationships that involve this table.
  */
 function relationshipsOfTable(table, { columns = [], keys = [], declared = [], into = [], focus = [] }) {
+  const byTable = scopeIndex(columns, keys);
+  const pCols = byTable.get(low(table))?.columns || [];
+  const { byKey, add } = collector();
+  // Declared keys first: a declared key is never repeated as a name match.
+  for (const fk of declared) addDeclared(add, byTable, table, fk);
+  for (const fk of into.filter((r) => r.child_table)) {
+    const childName = fullName(fk.child_catalog, fk.child_schema, fk.child_table);
+    if (!byTable.has(low(childName))) continue;
+    add({ table: byTable.get(low(childName)).name, column: String(fk.child_column) },
+      { table, column: findName(pCols, String(fk.ref_column)) || String(fk.ref_column) }, SOURCE_DECLARED);
+  }
+  addNameMatches(add, byTable, table);
+  return fitPayload({ tables: tablesOf(byTable), suggestions: sortedSuggestions(byKey) }, [table, ...focus]);
+}
+
+/** The scope's tables by lower-case full name: { name, columns, keys }. */
+function scopeIndex(columns, keys) {
   const byTable = new Map();
   for (const row of columns) {
     const key = low(row.table);
@@ -139,31 +156,37 @@ function relationshipsOfTable(table, { columns = [], keys = [], declared = [], i
     byTable.get(key).columns.push(String(row.column_name));
   }
   for (const row of keys) byTable.get(low(row.table))?.keys.push(String(row.column_name));
-  const pCols = byTable.get(low(table))?.columns || [];
-  const pKeys = byTable.get(low(table))?.keys || [];
+  return byTable;
+}
+const tablesOf = (byTable) => Object.fromEntries([...byTable.values()].map((t) => [t.name, { columns: t.columns, primary_keys: t.keys }]));
+
+function collector() {
   const byKey = new Map();
   const add = (from, to, source) => {
     const id = low(`${from.table}.${from.column}>${to.table}.${to.column}`);
     if (!byKey.has(id)) byKey.set(id, { from, to, source });
   };
-  const colsOf = (name) => byTable.get(low(name))?.columns || [];
+  return { byKey, add };
+}
+const sortedSuggestions = (byKey) => [...byKey.values()].sort((x, y) => (low(`${x.from.table}.${x.from.column}`) < low(`${y.from.table}.${y.from.column}`) ? -1 : 1));
+
+/** One declared foreign key of `table` (rows of declaredKeysStatement): added when the referenced table is in the scope. */
+function addDeclared(add, byTable, table, fk) {
+  if (!fk.ref_table) return;
+  const refName = fullName(fk.ref_catalog, fk.ref_schema, fk.ref_table);
+  if (!byTable.has(low(refName))) return;
+  const column = String(fk.column_name);
+  const refColumn = String(fk.ref_column);
+  if (low(table) === low(refName) && low(column) === low(refColumn)) return;
+  const refColumns = byTable.get(low(refName)).columns;
+  add({ table, column }, { table: byTable.get(low(refName)).name, column: findName(refColumns, refColumn) || refColumn }, SOURCE_DECLARED);
+}
+
+/** The name matches between `table` and every other table of the scope, both directions. */
+function addNameMatches(add, byTable, table) {
+  const pCols = byTable.get(low(table))?.columns || [];
   const keysOf = (name) => byTable.get(low(name))?.keys || [];
-  // Declared keys first: a declared key is never repeated as a name match.
-  for (const fk of declared.filter((r) => r.ref_table)) {
-    const refName = fullName(fk.ref_catalog, fk.ref_schema, fk.ref_table);
-    if (!byTable.has(low(refName))) continue;
-    const column = String(fk.column_name);
-    const refColumn = String(fk.ref_column);
-    if (low(table) === low(refName) && low(column) === low(refColumn)) continue;
-    add({ table, column }, { table: byTable.get(low(refName)).name, column: findName(colsOf(refName), refColumn) || refColumn }, SOURCE_DECLARED);
-  }
-  for (const fk of into.filter((r) => r.child_table)) {
-    const childName = fullName(fk.child_catalog, fk.child_schema, fk.child_table);
-    if (!byTable.has(low(childName))) continue;
-    add({ table: byTable.get(low(childName)).name, column: String(fk.child_column) },
-      { table, column: findName(pCols, String(fk.ref_column)) || String(fk.ref_column) }, SOURCE_DECLARED);
-  }
-  // Name matches, both directions. A <other>_id column names the other table's key: its same-name column, its id, or its single primary key.
+  // A <other>_id column names the other table's key: its same-name column, its id, or its single primary key.
   const singleKey = (name) => (keysOf(name).length === 1 ? keysOf(name)[0] : null);
   for (const other of byTable.values()) {
     if (low(other.name) === low(table)) continue;
@@ -184,9 +207,75 @@ function relationshipsOfTable(table, { columns = [], keys = [], declared = [], i
       else if (findName(keysOf(table), column) && findName(other.columns, column)) add({ table: other.name, column: findName(other.columns, column) }, { table, column }, SOURCE_NAME);
     }
   }
-  const suggestions = [...byKey.values()].sort((x, y) => (low(`${x.from.table}.${x.from.column}`) < low(`${y.from.table}.${y.from.column}`) ? -1 : 1));
-  const tables = Object.fromEntries([...byTable.values()].map((t) => [t.name, { columns: t.columns, primary_keys: t.keys }]));
-  return fitPayload({ tables, suggestions }, [table, ...focus]);
+}
+
+/**
+ * The joins across every pair of the picked tables (REQ-584), by name: the rules of relationshipsOfTable applied to each table.
+ * `declared` rows are each table's own foreign keys with a `table` field (scopeDeclaredStatement rows, child side). `labels` is
+ * { fqn: { env, label } } (REQ-583): a dev or technical table gets no suggestion and a reference table is only a target, never
+ * the foreign-key side. With no labels every table counts.
+ */
+function relationshipsAcross({ columns = [], keys = [], declared = [], labels = {} }) {
+  const byTable = scopeIndex(columns, keys);
+  const labelOf = (name) => labels?.[name] || Object.entries(labels || {}).find(([k]) => low(k) === low(name))?.[1] || {};
+  const excluded = (name) => labelOf(name).env === 'dev' || labelOf(name).label === 'technical';
+  const isReference = (name) => labelOf(name).label === 'reference';
+  const { byKey, add: addAny } = collector();
+  const add = (from, to, source) => {
+    if (excluded(from.table) || excluded(to.table) || isReference(from.table)) return;
+    addAny(from, to, source);
+  };
+  for (const fk of declared) if (fk.table && byTable.has(low(fk.table))) addDeclared(add, byTable, byTable.get(low(fk.table)).name, fk);
+  for (const t of byTable.values()) addNameMatches(add, byTable, t.name);
+  return { tables: tablesOf(byTable), suggestions: sortedSuggestions(byKey) };
+}
+
+/** Every table's own foreign keys in one catalog's part of the scope (child side): ONE query for the catalog. */
+function scopeDeclaredStatement(catalog, names) {
+  const { clause, parameters } = scopePredicate(names);
+  return {
+    sql: 'SELECT kcu.table_schema AS table_schema, kcu.table_name AS table_name, kcu.column_name AS column_name, '
+      + 'ccu.table_catalog AS ref_catalog, ccu.table_schema AS ref_schema, ccu.table_name AS ref_table, ccu.column_name AS ref_column '
+      + `FROM \`${catalog}\`.information_schema.key_column_usage kcu `
+      + `JOIN \`${catalog}\`.information_schema.table_constraints tc ON tc.constraint_catalog = kcu.constraint_catalog `
+      + 'AND tc.constraint_schema = kcu.constraint_schema AND tc.constraint_name = kcu.constraint_name '
+      + `JOIN \`${catalog}\`.information_schema.constraint_column_usage ccu ON ccu.constraint_catalog = tc.constraint_catalog `
+      + 'AND ccu.constraint_schema = tc.constraint_schema AND ccu.constraint_name = tc.constraint_name '
+      + "WHERE tc.constraint_type = 'FOREIGN KEY' "
+      + `AND (${clause.replace(/table_schema/g, 'kcu.table_schema').replace(/table_name/g, 'kcu.table_name')}) `
+      + 'ORDER BY kcu.table_schema, kcu.table_name, kcu.ordinal_position',
+    parameters,
+  };
+}
+
+/** The label rows of the scope's catalogs (U8 v2 __inspire_table_labels: level, object_fqn, env, label, labelled_at). Null when the name is not a schema name. */
+function tableLabelsStatement(inspireDatabase, catalogs) {
+  const db = plain(inspireDatabase);
+  if (!/^[\w-]+\.[\w-]+$/.test(db) || !catalogs.length) return null;
+  return {
+    sql: `SELECT level, object_fqn, env, label FROM \`${db.split('.')[0]}\`.\`${db.split('.')[1]}\`.__inspire_table_labels `
+      + `WHERE lower(split_part(object_fqn, '.', 1)) IN (${catalogs.map((_, i) => `lower(:c${i})`).join(', ')}) ORDER BY labelled_at`,
+    parameters: catalogs.map((value, i) => ({ name: `c${i}`, value, type: 'STRING' })),
+  };
+}
+
+/**
+ * { fqn: { env, label } } for the scope's tables from label rows (the latest row of an object wins). A table under a dev catalog or
+ * dev schema is dev. A table with no row has no entry (it counts as a plain table).
+ */
+function labelsOfRows(rows, tables) {
+  const latest = new Map();
+  for (const r of rows || []) latest.set(`${low(r.level)}|${low(r.object_fqn)}`, r);
+  const envOf = (key) => low(latest.get(key)?.env);
+  const out = {};
+  for (const t of tables) {
+    const [c, s] = t.split('.');
+    const row = latest.get(`table|${low(t)}`);
+    const dev = envOf(`catalog|${low(c)}`) === 'dev' || envOf(`schema|${low(`${c}.${s}`)}`) === 'dev' || envOf(`table|${low(t)}`) === 'dev';
+    if (dev) out[t] = { env: 'dev', label: row?.label || null };
+    else if (row) out[t] = { env: low(row.env) || 'prod', label: row.label ? low(row.label) : null };
+  }
+  return out;
 }
 
 /** The answer fits PAYLOAD_LIMIT_BYTES: the picked table, the focus tables and the tables the suggestions name come first, the rest follow while they fit. */
@@ -216,5 +305,5 @@ function fitPayload(result, focus) {
 
 module.exports = {
   SOURCE_DECLARED, SOURCE_NAME, pickedTableOf, pickedTablesOf, singularOf, declaredKeysStatement, declaredIntoStatement,
-  scopeColumnsStatement, scopeKeysStatement, relationshipsOfTable, fitPayload, PAYLOAD_LIMIT_BYTES,
+  scopeColumnsStatement, scopeKeysStatement, scopeDeclaredStatement, tableLabelsStatement, labelsOfRows, relationshipsOfTable, relationshipsAcross, fitPayload, PAYLOAD_LIMIT_BYTES,
 };

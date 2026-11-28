@@ -910,11 +910,38 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
+  // REQ-584: the suggested joins across every pair of the picked tables, by name and declared key; the label rows of the Inspire database
+  // (when it names them and they read) skip dev and technical tables and make reference tables targets only. No labels read is no labels.
+  async function relationshipsAcross(req, res, warehouseId) {
+    const scope = RL.pickedTablesOf(req.body.tables);
+    const token = appReadToken(req);
+    const byCatalog = new Map();
+    for (const name of scope) {
+      const catalog = name.split('.')[0];
+      byCatalog.set(catalog, [...(byCatalog.get(catalog) || []), name]);
+    }
+    const catalogs = [...byCatalog.keys()];
+    const per = (statement) => Promise.all(catalogs.map((catalog) => sqlRows(req.dbHost, token, warehouseId, statement(catalog, byCatalog.get(catalog)))));
+    const [catalogRows, keyRows, declaredRows] = await Promise.all([per(RL.scopeColumnsStatement), per(RL.scopeKeysStatement), per(RL.scopeDeclaredStatement)]);
+    const named = (rows, i) => rows.filter((r) => r.table_schema).map((r) => ({ ...r, table: `${catalogs[i]}.${r.table_schema}.${r.table_name}` }));
+    const columns = catalogRows.flatMap(named);
+    const keys = keyRows.flatMap(named);
+    const declared = declaredRows.flatMap(named);
+    const labelStatement = RL.tableLabelsStatement(req.body.inspire_database, catalogs);
+    let labels = {};
+    if (labelStatement) {
+      try { labels = RL.labelsOfRows(await sqlRows(req.dbHost, token, warehouseId, labelStatement), scope); } catch { labels = {}; }
+    }
+    res.json({ ...RL.relationshipsAcross({ columns, keys, declared, labels }), labels, metric_views: [] });
+  }
+
   // The relationships of one picked table (REQ-362, REQ-370): its declared keys in both directions, and the name matches across the
   // picked scope (one information_schema.columns query per catalog of the scope). A metric view is named back and read no further.
   app.post('/api/relationships', requireToken, async (req, res) => {
     try {
       const warehouseId = warehouseOf(req);
+      // REQ-584: with no `table`, the answer is the joins across every pair of `tables` (the wizard's suggested joins).
+      if (req.body?.table == null && Array.isArray(req.body?.tables)) return await relationshipsAcross(req, res, warehouseId);
       const table = RL.pickedTableOf(req.body?.table);
       const scope = RL.pickedTablesOf(req.body?.tables || []);
       if (!scope.some((t) => t.toLowerCase() === table.toLowerCase())) scope.push(table);
