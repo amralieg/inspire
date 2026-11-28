@@ -183,14 +183,28 @@ def test_8_adversarial_numbers_smuggled_into_a_proposal_never_reach_the_spec_or_
     spec, measured, entries = _revenue_inputs()
     build = fn(ns, "inspire_value_spec_from_proposal")
     clean = build(_revenue_proposal(), copy.deepcopy(measured), entries, "USD", 3, copy.deepcopy(spec["cost"]))
-    dirty_proposal = {**_revenue_proposal(), "exposure": 9e12, "effect": 0.9, "margin": 0.99, "horizon_years": 10, "currency": "XXX",
-                      "measured": {"exposure": 1.0, "period_days": 1}, "sourced": {"effect": {"low": 0.9, "base": 0.95, "high": 1.0, "source": "measured"}},
+    # sentinels are values the fixture spec never holds (it holds 0.9 and 1.0 itself), so any hit is a leak
+    dirty_proposal = {**_revenue_proposal(), "exposure": 9e12, "effect": 0.913, "margin": 0.991, "horizon_years": 10, "currency": "XXX",
+                      "measured": {"exposure": 1.0, "period_days": 1}, "sourced": {"effect": {"low": 0.913, "base": 0.957, "high": 0.977, "source": "measured"}},
                       "cost": {"source": "owner", "tiers": {t: {"implementation": 0, "recurring_per_year": 0} for t in "SML"}},
                       "columns": {"exposure": "c.s.orders.amount", "value": 777777.0}}
     dirty = build(dirty_proposal, copy.deepcopy(measured), entries, "USD", 3, copy.deepcopy(spec["cost"]))
     assert dirty == clean, "only text keys of the proposal may shape the spec"
-    assert not {9e12, 0.9, 0.95, 0.99, 777777.0} & set(numbers_in(dirty)), dirty
+    sentinels = {9e12, 0.913, 0.957, 0.977, 0.991, 777777.0}
+    assert not sentinels & set(numbers_in(spec)), "the sentinels must not collide with the fixture"
+    assert not sentinels & set(numbers_in(dirty)), dirty
     assert ns["inspire_value_calculate"](dirty) == ns["inspire_value_calculate"](clean)
+
+
+def _tree():
+    """The agent notebook plus the run-side source it execs and inlines into every generated notebook
+    (IMPLEMENT_RESULT_HISTORY_SOURCE): a function defined in that string is agent code too."""
+    tree = agent_ast()
+    held = [n.value.value for n in ast.walk(tree) if isinstance(n, ast.Assign) and isinstance(n.value, ast.Constant)
+            and isinstance(n.value.value, str) and any(getattr(t, "id", "") == "IMPLEMENT_RESULT_HISTORY_SOURCE" for t in n.targets)]
+    assert len(held) == 1, "the notebook defines IMPLEMENT_RESULT_HISTORY_SOURCE once, as a string"
+    tree.body.extend(ast.parse(held[0]).body)
+    return tree
 
 
 def _violations(tree, exempt=("inspire_value_proposal_problems",)):
@@ -231,7 +245,7 @@ def _violations(tree, exempt=("inspire_value_proposal_problems",)):
 def test_9_static_no_llm_returned_number_reaches_the_money_math_zero_violations():
     probe = ast.parse("def bad_value(proposal):\n    x = float(proposal['exposure'])\n    return inspire_value_calculate({**proposal, 'e': x * 2})\n")
     assert len(_violations(probe)) >= 3, "the static check must catch a planted leak (harder probe)"
-    tree = agent_ast()
+    tree = _tree()
     defs = {n.name: n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
     needed = {"inspire_value_propose", "inspire_value_proposal_problems", "inspire_value_spec_from_proposal", "inspire_value_formula_spec"}
     assert needed <= set(defs), f"R12.2: missing {sorted(needed - set(defs))}"
@@ -241,7 +255,7 @@ def test_9_static_no_llm_returned_number_reaches_the_money_math_zero_violations(
 
 
 def test_10_static_there_is_one_spec_builder():
-    tree = agent_ast()
+    tree = _tree()
     builders = sorted({func.name for func in ast.walk(tree) if isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef))
                        for node in ast.walk(func) if isinstance(node, ast.Dict)
                        and {"mechanism", "sourced"} <= {k.value for k in node.keys if isinstance(k, ast.Constant)}})
@@ -320,7 +334,7 @@ def test_15_the_run_profile_measures_the_total_at_stake_for_the_formula_spec(ns)
 
 
 def test_16_static_the_new_paths_have_call_sites():
-    tree = agent_ast()
+    tree = _tree()
     defs = {n.name: n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
     calls = lambda name: {(n.func.id if isinstance(n.func, ast.Name) else getattr(n.func, "attr", "")) for n in ast.walk(defs[name])
                           if isinstance(n, ast.Call)}
@@ -360,3 +374,44 @@ def test_18_only_a_realized_outcome_on_a_measured_effect_is_proven(ns):
     exploratory = _measured_effect_spec()
     exploratory["sourced"]["effect"]["source"] = "exploratory"
     assert status(exploratory, realized) == "exploratory"
+
+
+# --- R12.1: the generated notebook prices its run with the same calculator and spec builder as the agent ---
+
+SHARED = ("inspire_value_calculate", "inspire_value_spec_from_proposal", "inspire_value_formula_spec")
+
+
+def test_19_a_generated_notebook_has_the_one_calculator_and_spec_builder_the_agent_uses(ns):
+    from v207_app_reads_after_build_test import _inlined
+    generated = {"__name__": "generated"}
+    exec(compile(_inlined(ns), "<generated>", "exec"), generated)
+    for name in SHARED:
+        assert callable(generated.get(name)), f"R12.1: a generated notebook has no {name}, so inspire_merge_run never prices the run"
+        assert ns[name].__code__.co_filename == "<inspire_result_history>", \
+            f"R12.1: the agent's {name} is defined outside IMPLEMENT_RESULT_HISTORY_SOURCE, a second copy of the run-side one"
+    spec, measured, entries = _revenue_inputs()
+    built = generated["inspire_value_spec_from_proposal"](_revenue_proposal(), measured, entries, "USD", 3, copy.deepcopy(spec["cost"]))
+    assert built == spec and generated["inspire_value_calculate"](built) == ns["inspire_value_calculate"](built)
+
+
+def test_19b_static_each_shared_value_function_is_defined_exactly_once():
+    counts = {}
+    for node in ast.walk(_tree()):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in SHARED:
+            counts[node.name] = counts.get(node.name, 0) + 1
+    assert counts == {name: 1 for name in SHARED}, f"R12.1: one definition each, agent and run side: {counts}"
+
+
+# --- R12.3: a capacity or non-financial mechanism is never shown as money ---
+
+@pytest.mark.parametrize("mechanism,unit", [("capacity", "hours"), ("non_financial", "complaints")])
+def test_20_a_capacity_or_non_financial_proposal_card_never_reads_as_money(ns, mechanism, unit):
+    proposal = {"mechanism": mechanism, "flow_or_stock": "flow", "baseline_sql": "SELECT SUM(amount) FROM c.s.orders",
+                "columns": {"exposure": "c.s.orders.amount"}, "unit": unit, "assumptions": [], "rationale": "work the team no longer does"}
+    estimate = estimate_of(ns, money_uc(ns, kpi(ns, unit="USD"), **{"Value Proposal": proposal}), "", "predict")
+    shown = " ".join(str(estimate.get(key) or "") for key in ("text", "measure", "assumption"))
+    assert not estimate.get("value_proposal_problems"), estimate
+    assert estimate.get("currency") is None and estimate.get("net") is None and estimate.get("cost") is None, \
+        f"R12.3: a {mechanism} card carries no currency, net or cost: {estimate}"
+    assert "USD" not in shown and "$" not in shown, f"R12.3: a {mechanism} card reads as money: {shown}"
+    assert unit in shown, f"R12.3: a {mechanism} card states its change in {unit}: {shown}"
