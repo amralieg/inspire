@@ -7,8 +7,10 @@ the expected item keys, never read from a stored flag. R10.8: the ledger lists t
 generation may take. R11.2 (already built): a budget-hit run is partial; its unreached items are not_reached, never no_signal.
 
 Vocabulary (brief D1): covered_by:<uc No> | merged:<uc No> | excluded:<reason> | uncovered | no_signal | not_reached.
-Pools come from the sibling lane a04_loss_pools as a plain list of dicts on DatabricksInspire.loss_pools; this file never
-imports that lane's code.
+Pools come from the sibling lane a04_loss_pools as a plain list of dicts on DatabricksInspire.loss_pools, in that lane's pool
+contract (pool_id, table, money_column, split_column, split_values, loss_kind, material, ...). A pool row is keyed
+pool:<pool_id>, and whether a use case covers a pool is decided only by that lane's inspire_loss_pool_coverage (KPI on the
+pool's table + money column + split filter, or loss_pool_id; never free text: loss_pools brief D6). One matcher, no second one.
 
 Pure tests call inspire_coverage_ledger / inspire_coverage_expected / inspire_coverage_check. Run tests drive the real run()
 through the offline smoke harness (v120_run_offline_smoke_test._build) and read results["coverage_ledger"].
@@ -132,9 +134,18 @@ SCOPE = {
               {"kind": "anomaly", "family": "detect_protect", "anchor": "cat.sch.orders"}],
     "excluded_kinds": ["anomaly"],
 }
-POOLS = [{"table": "cat.sch.orders", "column": "amount", "kind": "status_split", "value": "cancelled", "amount": 1200.0},
-         {"table": "cat.ops.shifts", "column": "overtime_cost", "kind": "overtime", "amount": 300.0},
-         {"table": "cat.sch.items", "column": "list_price", "kind": "discount", "amount": 5.0, "material": False}]
+def _pool(pool_id, table, money_column, loss_kind, split_column=None, split_values=(), amount=100.0, material=True):
+    return {"pool_id": pool_id, "table": table, "money_column": money_column, "split_column": split_column,
+            "split_values": list(split_values), "loss_kind": loss_kind,
+            "source": "status_split" if split_column else "loss_column", "flow": "other", "currency": "USD", "unit": "money",
+            "amount": amount, "rows": 10, "measured_rows": 10, "share": 0.2, "material": material, "flags": []}
+
+
+POOLS = [_pool("lp01", "cat.sch.orders", "amount", "cancelled", "status", ["cancelled", "Canceled"], 1200.0),
+         _pool("lp02", "cat.ops.shifts", "overtime_cost", "overtime", amount=300.0),
+         _pool("lp03", "cat.sch.items", "list_price", "discounted", amount=5.0, material=False)]
+CANCELLED_KPI = {"name": "Cancelled order value", "table": "cat.sch.orders", "column": "amount", "aggregation": "SUM",
+                 "filter_column": "status", "filter_op": "=", "filter_value": "cancelled", "filter_type": "text"}
 
 
 def _uc(no, tables, technique="Forecasting", goals=(), priorities=(), text=""):
@@ -143,8 +154,8 @@ def _uc(no, tables, technique="Forecasting", goals=(), priorities=(), text=""):
             "Business Priority Alignment": ", ".join(priorities) or "General Improvement"}
 
 
-SELECTED = [_uc("AI01-UC01", "cat.sch.orders", goals=[("S1", "Lower spoilage")], priorities=["Cut waste"],
-                text="Cancelled `amount` on orders is the loss.")]
+SELECTED = [dict(_uc("AI01-UC01", "cat.sch.orders", goals=[("S1", "Lower spoilage")], priorities=["Cut waste"],
+                     text="Cancelled `amount` on orders is the loss."), KPIs=[dict(CANCELLED_KPI)])]
 DROPPED = [_uc("AI02-UC01", "cat.sch.items", technique="Clustering")]
 
 
@@ -169,8 +180,7 @@ def test_2_every_scope_item_gets_exactly_one_disposition(agent_ns):
             "table:cat.ops.shifts", "table_group:cat.sch", "table_group:cat.ops", "goal:S1", "goal:S2",
             "priority:Grow loyalty", "priority:Cut waste", "cell:predict x forecast",
             "cell:know_entities x segmentation", "cell:detect_protect x anomaly",
-            "pool:cat.sch.orders.amount=cancelled:status_split", "pool:cat.ops.shifts.overtime_cost:overtime",
-            "pool:cat.sch.items.list_price:discount"}
+            "pool:lp01", "pool:lp02", "pool:lp03"}
     assert set(expected) == want, sorted(set(expected) ^ want)
     items = [row["item"] for row in ledger["rows"]]
     assert sorted(items) == sorted(want), "each expected item needs exactly one row"
@@ -191,9 +201,9 @@ def test_3_dispositions_follow_precedence(agent_ns):
     assert got["goal:S1"] == "covered_by:AI01-UC01" and got["priority:Cut waste"] == "covered_by:AI01-UC01"
     assert got["cell:predict x forecast"] == "covered_by:AI01-UC01"
     assert got["cell:detect_protect x anomaly"] == "excluded:owner"
-    assert got["pool:cat.sch.orders.amount=cancelled:status_split"] == "covered_by:AI01-UC01"
-    assert got["pool:cat.ops.shifts.overtime_cost:overtime"] == "no_signal"
-    assert got["pool:cat.sch.items.list_price:discount"] == "excluded:immaterial"
+    assert got["pool:lp01"] == "covered_by:AI01-UC01", "a KPI on the pool's table, money column and split value covers it"
+    assert got["pool:lp02"] == "no_signal"
+    assert got["pool:lp03"] == "excluded:immaterial"
     assert rows["table:cat.sch.items"]["use_cases"] == [] and "AI02-UC01" in rows["table:cat.sch.items"]["reason"]
     for row in rows.values():
         if not row["disposition"].startswith("covered_by:"):
@@ -229,7 +239,7 @@ def test_7_partial_run_gives_not_reached_never_no_signal(agent_ns):
     rows = _by_item(ledger)
     assert ledger["status"] == "partial"
     assert rows["table:cat.ops.shifts"]["disposition"] == "not_reached"
-    assert rows["pool:cat.ops.shifts.overtime_cost:overtime"]["disposition"] == "not_reached"
+    assert rows["pool:lp02"]["disposition"] == "not_reached"
     assert rows["goal:S2"]["disposition"] == "not_reached"
     assert rows["table:cat.sch.items"]["disposition"] == "uncovered", "a reached table with a dropped candidate stays uncovered"
     assert not [r for r in ledger["rows"] if r["disposition"] == "no_signal"]
@@ -321,16 +331,58 @@ def test_15_run_lists_empty_pattern_cells_and_owner_exclusions(agent_ns, tmp_pat
     assert [c["item"] for c in ledger["empty_cells"]] == ["cell:measure_explain x variance_to_plan"]
 
 
-def test_16_run_takes_pools_as_a_plain_list(agent_ns, tmp_path, quiet_root_logger):
-    pools = [{"table": "cat.sch.orders", "column": "amount", "kind": "status_split", "value": "cancelled", "amount": 1200.0},
-             {"table": "cat.sch.stores", "column": "amount", "kind": "penalty", "amount": 40.0},
-             {"table": "cat.sch.orders", "column": "scrap_qty", "kind": "scrap", "amount": 9.0}]
+def test_16_run_takes_pools_in_the_loss_pools_contract(agent_ns, tmp_path, quiet_root_logger):
+    pools = [_pool("lpA", "cat.sch.orders", "amount", "cancelled", "status", ["cancelled"], 1200.0),
+             _pool("lpB", "cat.sch.stores", "amount", "penalty", amount=40.0),
+             _pool("lpC", "cat.sch.orders", "scrap_qty", "scrap", amount=9.0, material=False)]
     obj = _run(agent_ns, tmp_path, pools=pools)
-    rows = _by_item(_ledger(obj))
-    assert rows["pool:cat.sch.orders.amount=cancelled:status_split"]["disposition"].startswith("covered_by:AI01-")
-    assert rows["pool:cat.sch.stores.amount:penalty"]["disposition"] == "uncovered"
-    assert rows["pool:cat.sch.orders.scrap_qty:scrap"]["disposition"] == "uncovered", \
-        "candidates used the table but none named the column"
+    ledger = _ledger(obj)
+    rows = _by_item(ledger)
+    assert {"pool:lpA", "pool:lpB", "pool:lpC"} <= set(rows), sorted(k for k in rows if k.startswith("pool:"))
+    assert rows["pool:lpC"]["disposition"] == "excluded:immaterial", rows["pool:lpC"]
+    for key in ("pool:lpA", "pool:lpB"):
+        assert rows[key]["disposition"] in ("uncovered", "no_signal"), \
+            f"{key}: the smoke run's use cases carry no pool KPI or loss_pool_id, so nothing covers the pool: {rows[key]}"
+    assert ledger["check"]["complete"], ledger["check"]
+
+
+def test_19_pool_coverage_is_decided_by_the_loss_pools_matcher_only(agent_ns, monkeypatch):
+    real = _fn(agent_ns, "inspire_loss_pool_coverage")
+    calls = []
+
+    def spy(pools, use_cases):
+        calls.append(([p.get("pool_id") for p in pools], [str(uc.get("No")) for uc in use_cases]))
+        return real(pools, use_cases)
+
+    monkeypatch.setitem(agent_ns, "inspire_loss_pool_coverage", spy)
+    rows = _by_item(_pure(agent_ns))
+    assert calls, "the coverage ledger must reuse inspire_loss_pool_coverage, not a second pool matcher (DRY, D6)"
+    assert rows["pool:lp01"]["disposition"] == "covered_by:AI01-UC01"
+
+
+def test_20_free_text_naming_the_pool_column_never_covers_it(agent_ns):
+    text_only = [_uc("AI01-UC01", "cat.ops.shifts", text="Overtime `overtime_cost` on shifts is the loss we cut.")]
+    rows = _by_item(_pure(agent_ns, selected=text_only, candidates=text_only))
+    assert rows["pool:lp02"]["disposition"] == "no_signal", \
+        f"free text on the same table and column is not a pool candidate (D6): {rows['pool:lp02']}"
+    by_id = [dict(_uc("AI01-UC02", "cat.ops.shifts"), loss_pool_id="lp02")]
+    rows = _by_item(_pure(agent_ns, selected=by_id, candidates=by_id))
+    assert rows["pool:lp02"]["disposition"] == "covered_by:AI01-UC02", rows["pool:lp02"]
+
+
+def test_21_a_dropped_pool_candidate_makes_the_pool_uncovered_with_its_name(agent_ns):
+    dropped = dict(_uc("AI03-UC01", "cat.ops.shifts"), loss_pool_id="lp02")
+    rows = _by_item(_pure(agent_ns, candidates=SELECTED + DROPPED + [dropped]))
+    assert rows["pool:lp02"]["disposition"] == "uncovered", rows["pool:lp02"]
+    assert "AI03-UC01" in rows["pool:lp02"]["reason"], rows["pool:lp02"]
+
+
+def test_22_pool_rows_carry_the_pool_id_and_a_readable_label(agent_ns):
+    rows = _by_item(_pure(agent_ns))
+    row = rows["pool:lp01"]
+    assert row.get("pool_id") == "lp01", row
+    label = str(row.get("label") or "")
+    assert "cat.sch.orders" in label and "amount" in label and "cancelled" in label, row
 
 
 def test_17_budget_hit_run_is_partial_with_not_reached(agent_ns, tmp_path, budget, quiet_root_logger):
