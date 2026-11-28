@@ -469,8 +469,8 @@ test("every Run tab link line the agent writes in the weekly email, from the sha
 });
 
 test('parity: the App offers exactly the placements the bundled agent notebook validates', () => {
-  const cell = JSON.parse(bundledNotebookText()).cells[1].source;
-  const source = Array.isArray(cell) ? cell.join('') : String(cell);
+  // REQ-586: the placements live in inspire_lib.py, which bundledNotebookText reads as plain Python.
+  const source = bundledNotebookText();
   assert.deepEqual(pythonTuple(source, 'IMPLEMENT_APP_PLACEMENTS'), I.IMPLEMENT_APP_PLACEMENTS,
     'the bundled agent notebook must carry the inspire placement; re-bundle the agent notebook that adds it');
 });

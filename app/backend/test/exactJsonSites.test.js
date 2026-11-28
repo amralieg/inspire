@@ -37,6 +37,7 @@ const ALLOWED = [
   ['lib/hostedRun.js', 'JSON.parse(text)', 'answers of the hosted App process the App starts'],
   ['lib/showcaseRecord.js', 'JSON.parse(postData)', 'request bodies the recorder sees'],
   ['lib/inspireImplement.js', 'JSON.parse(`"${body}"`)', 'one JSON string literal'],
+  ['lib/agentPublish.js', 'JSON.parse(notebookBuf.toString', 'the cells of a split agent notebook (.ipynb), code text only, read to check its INSPIRE_LIB_SHA256 pin (REQ-586)'],
   ['lib/appShell.js', 'JSON.parse(literal.replace(', 'the App shell catalog literal'],
   ['lib/inspireJobParams.js', 'JSON.parse(source)', 'the table scope the person picked in Data selection, read once at launch'],
   ['lib/exactJson.js', 'JSON.parse(', 'the exact reader itself'],

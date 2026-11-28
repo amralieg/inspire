@@ -199,7 +199,8 @@ const { NOTEBOOK_CANDIDATES } = require('./lib/appShell');
 const { publishAgent, agentFingerprint, agentFolderOf } = require('./lib/agentPublish');
 const { AGENT_NOTEBOOKS } = require('./lib/inspireJobParams');
 // The App ships the split agent itself (no embedded copy); the preview routes read the Discover notebook. When it is missing they answer "not found" and name the path.
-const BUNDLED_NOTEBOOK_PATH = path.join(APP_DIR, `${AGENT_NOTEBOOKS.discover}.ipynb`);
+const BUNDLED_NOTEBOOK_FILE = 'inspire_discover.ipynb';
+const BUNDLED_NOTEBOOK_PATH = path.join(APP_DIR, BUNDLED_NOTEBOOK_FILE);
 const IS_IPYNB = true;
 
 // ═══════════════════════════════════════════════════
