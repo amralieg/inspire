@@ -5,7 +5,7 @@ import { useState } from 'react';
 import ModalDialog from '../ModalDialog';
 import Button from '../ui/Button';
 import { PlainMessage } from '../TechnicalDetails';
-import { stepCategory } from '../../lib/monitorState';
+import { stageProgressOf, stepCategory } from '../../lib/monitorState';
 import { splitTechnical } from '../../lib/plainText';
 import { aiWording } from '../../lib/aiWording';
 import { nameOfUseCase } from '../../lib/useCaseFields';
@@ -85,16 +85,15 @@ export default function EveryStepDialog({
             {/* Individual stages */}
             {stageNames.map((name) => {
               const allStageSteps = isStaleSession ? [] : steps.filter((s) => (s.stage_name || 'Pipeline') === name);
-              const done = allStageSteps.filter((s) => isStepDone(s.status)).length;
+              const { state, settled: done, total, percent: pct } = stageProgressOf(allStageSteps, stepsLive);
               const errors = allStageSteps.filter((s) => stepCategory(s.status, stepsLive) === 'error').length;
-              const running = allStageSteps.filter((s) => stepCategory(s.status, stepsLive) === 'running').length;
               const active = stageFilter === name;
-              const total = allStageSteps.length;
-              const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
               return (
                 <button
                   key={name}
+                  data-stage-filter={name}
+                  data-stage-state={state}
                   onClick={() => setStageFilter(active ? 'all' : name)}
                   className={`w-full flex items-start gap-2.5 px-3 py-2.5 rounded-lg text-start transition-smooth ${
                     active
@@ -103,17 +102,21 @@ export default function EveryStepDialog({
                   }`}
                 >
                   {/* Status indicator */}
-                  {errors > 0 ? (
+                  {state === 'error' ? (
                     <div className="w-5 h-5 rounded-full bg-error-bg flex items-center justify-center shrink-0 mt-0.5">
                       <XCircle size={14} className="text-error-fg" />
                     </div>
-                  ) : running > 0 ? (
+                  ) : state === 'running' ? (
                     <div className="w-5 h-5 rounded-full bg-info-bg flex items-center justify-center shrink-0 mt-0.5">
                       <Loader2 size={14} className="animate-spin text-info-fg" />
                     </div>
-                  ) : done === total && total > 0 ? (
+                  ) : state === 'done' ? (
                     <div className="w-5 h-5 rounded-full bg-success-bg flex items-center justify-center shrink-0 mt-0.5">
                       <CheckCircle2 size={14} className="text-success-fg" />
+                    </div>
+                  ) : state === 'skipped' ? (
+                    <div className="w-5 h-5 rounded-full bg-bg-subtle flex items-center justify-center shrink-0 mt-0.5">
+                      <MinusCircle size={14} className="text-text-tertiary" />
                     </div>
                   ) : (
                     <div className="w-5 h-5 rounded-full bg-bg-subtle flex items-center justify-center shrink-0 mt-0.5">
@@ -131,7 +134,7 @@ export default function EveryStepDialog({
                       <div className="flex-1 h-1 bg-bg rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-[width,background-color] duration-500 ${
-                            errors > 0 ? 'bg-error' : done === total && total > 0 ? 'bg-success' : 'bg-db-red'
+                            state === 'error' ? 'bg-error' : state === 'done' ? 'bg-success' : state === 'skipped' ? 'bg-border' : 'bg-db-red'
                           }`}
                           style={{ width: `${pct}%` }}
                         />
@@ -248,25 +251,28 @@ export default function EveryStepDialog({
           <div className="space-y-3">
             {Object.entries(stages).map(([stageName, stageSteps]) => {
               const collapsed = collapsedStages[stageName] !== false;
-              const doneCount = stageSteps.filter((s) => isStepDone(s.status)).length;
+              const { state, settled: doneCount, total: stageTotal, percent } = stageProgressOf(stageSteps, stepsLive);
               const errorCount = stageSteps.filter((s) => stepCategory(s.status, stepsLive) === 'error').length;
-              const runningCount = stageSteps.filter((s) => stepCategory(s.status, stepsLive) === 'running').length;
 
               return (
                 <div key={stageName} className="bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
                   <button
+                    data-stage-group={stageName}
+                    data-stage-state={state}
                     onClick={() => toggleStage(stageName)}
                     className="w-full px-4 py-3 border-b border-border bg-panel flex items-center gap-3 hover:bg-bg-subtle transition-smooth text-start"
                   >
                     <div className={`transition-transform duration-200 ${collapsed ? '' : 'rotate-180'}`}>
                       <ChevronDown size={14} className="text-text-tertiary" />
                     </div>
-                    {errorCount > 0 ? (
+                    {state === 'error' ? (
                       <div className="w-5 h-5 rounded-full bg-error-bg flex items-center justify-center"><XCircle size={14} className="text-error-fg" /></div>
-                    ) : runningCount > 0 ? (
+                    ) : state === 'running' ? (
                       <div className="w-5 h-5 rounded-full bg-info-bg flex items-center justify-center"><Loader2 size={14} className="animate-spin text-info-fg" /></div>
-                    ) : doneCount === stageSteps.length ? (
+                    ) : state === 'done' ? (
                       <div className="w-5 h-5 rounded-full bg-success-bg flex items-center justify-center"><CheckCircle2 size={14} className="text-success-fg" /></div>
+                    ) : state === 'skipped' ? (
+                      <div className="w-5 h-5 rounded-full bg-bg-subtle flex items-center justify-center"><MinusCircle size={14} className="text-text-tertiary" /></div>
                     ) : (
                       <div className="w-5 h-5 rounded-full bg-bg-subtle flex items-center justify-center"><Clock size={14} className="text-text-tertiary" /></div>
                     )}
@@ -277,13 +283,13 @@ export default function EveryStepDialog({
                           {errorCount} error{errorCount > 1 ? 's' : ''}
                         </span>
                       )}
-                      <span className="text-caption text-text-tertiary font-mono">{doneCount}/{stageSteps.length}</span>
+                      <span className="text-caption text-text-tertiary font-mono">{doneCount}/{stageTotal}</span>
                       <div className="w-16 h-1.5 bg-bg rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-[width,background-color] duration-500 ${
-                            errorCount > 0 ? 'bg-error' : doneCount === stageSteps.length ? 'bg-success' : 'bg-db-red'
+                            state === 'error' ? 'bg-error' : state === 'done' ? 'bg-success' : state === 'skipped' ? 'bg-border' : 'bg-db-red'
                           }`}
-                          style={{ width: `${stageSteps.length > 0 ? (doneCount / stageSteps.length) * 100 : 0}%` }}
+                          style={{ width: `${percent}%` }}
                         />
                       </div>
                     </div>
@@ -341,10 +347,6 @@ export function getStepStyle(category) {
     default:
       return { icon: <Clock size={14} className="text-text-tertiary" />, badge: 'bg-bg-subtle text-text-secondary', label: 'No end recorded' };
   }
-}
-
-export function isStepDone(status) {
-  return status === 'ended_success' || status === 'ended_warning' || status === 'completed';
 }
 
 function highlightMatch(text, query) {

@@ -14,6 +14,7 @@ import {
   isNumericPriorityString,
   priorityPillClass,
 } from '../lib/useCaseFields';
+import PendingChips from './results/PendingChips';
 import ValueEstimateLine from './ValueEstimateLine';
 import ValueBadge from './ValueBadge';
 import CardValueLine from './CardValueLine';
@@ -37,6 +38,7 @@ function UseCaseCardBody({
   onToggle,
   isFavorite,
   onToggleFavorite,
+  pendingKinds = [],
   implementStatus = null,
   onImplement,
   onOpenMvp,
@@ -190,6 +192,7 @@ function UseCaseCardBody({
                 </span>
               )}
             </div>
+            <PendingChips kinds={pendingKinds} className="mt-1.5" />
             <div data-use-case-meta="" className="text-caption text-text-tertiary mt-1.5 leading-snug break-words">
               {[domain || 'Unknown', subdomain, (kind ? '' : technique) || ucType].filter(Boolean).map((part, i) => (
                 <span key={i}>{i > 0 && ' · '}<bdi>{part}</bdi></span>

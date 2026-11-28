@@ -39,7 +39,7 @@ function useNewDocs(sessionId, generationPath, loadArtifacts, loadFolder) {
 
 const link = 'text-caption font-medium flex items-center gap-0.5 hover:underline';
 
-function OverallDoc({ format, newDocs, assetFocus, focusRef, viewFile, openFileInTab, downloadFile, onGenerate }) {
+function OverallDoc({ format, newDocs, assetFocus, focusRef, viewFile, openFileInTab, downloadFile, onGenerate, pending = false }) {
   return (
     <li data-overall-doc={format.id} className="rounded-lg border border-border bg-surface px-3 py-2">
       <div className="flex items-center gap-2">
@@ -47,7 +47,8 @@ function OverallDoc({ format, newDocs, assetFocus, focusRef, viewFile, openFileI
         <h4 className="text-xs font-bold text-text-primary">{format.label}</h4>
         {onGenerate && <button type="button" onClick={onGenerate} className={`${link} ms-auto text-db-red-fg`}><Plus size={14} aria-hidden /> Generate</button>}
       </div>
-      {format.files.length === 0 && <p className="mt-1 text-caption text-text-secondary">Not made yet.</p>}
+      {format.files.length === 0 && pending && <p data-pending-artifact="docs" className="mt-1 text-caption text-text-secondary">Documents {PENDING_TEXT}.</p>}
+      {format.files.length === 0 && !pending && <p className="mt-1 text-caption text-text-secondary">Not made yet.</p>}
       {format.files.map((f) => (
         <div key={f.path} data-doc-file={f.name} {...(assetFocus === f.path ? { 'data-asset-focus': f.path, ref: focusRef } : {})}
           className={`mt-1 flex flex-wrap items-center gap-2 rounded-md px-2 py-1 ${assetFocus === f.path ? 'ring-2 ring-info-fg bg-bg-subtle' : ''}`}>
@@ -91,7 +92,7 @@ function OverviewDocuments({
       <ul className="mb-6 grid gap-2">
         {formats.map((format) => (
           <OverallDoc key={format.id} format={format} newDocs={newDocs} assetFocus={assetFocus} focusRef={focusRef} viewFile={viewFile} openFileInTab={openFileInTab} downloadFile={downloadFile}
-            onGenerate={allUseCases.length > 0 ? onGenerateAll : undefined} />
+            onGenerate={allUseCases.length > 0 ? onGenerateAll : undefined} pending={docsPending} />
         ))}
       </ul>
       {!artifactsLoading && artifactsRootFiles && artifactsRootFiles.length > 0 && !hasStrategyDocument(files) && (
