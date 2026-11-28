@@ -169,7 +169,7 @@ def test_init_rejects_unknown_quality_instead_of_balanced_or_keep_all(fresh_ns, 
 @pytest.mark.parametrize("kwargs,attr,expected", [
     ({}, "operation", "Discover Use Cases"),
     ({"operation": ""}, "operation", "Discover Use Cases"),
-    ({"operation": "Generate Use Cases"}, "operation", "Generate Use Cases"),
+    ({"operation": "Match Use Cases"}, "operation", "Match Use Cases"),
     ({}, "table_election_mode", "Let Inspire Decides"),
     ({"table_election_mode": "Transactional Only"}, "table_election_mode", "Transactional Only"),
 ])
@@ -182,8 +182,8 @@ def test_init_keeps_valid_and_defaults_missing_run_settings(fresh_ns, tmp_path, 
 
 
 @pytest.mark.parametrize("kwargs,needle", [
-    ({"operation": "Generate use cases"}, "'Discover Use Cases', 'Generate Use Cases'"),
-    ({"operation": "Regenerate"}, "'Discover Use Cases', 'Generate Use Cases'"),
+    ({"operation": "Generate use cases"}, "'Discover Use Cases', 'Match Use Cases'"),
+    ({"operation": "Regenerate"}, "'Discover Use Cases', 'Match Use Cases'"),
     ({"table_election_mode": "Everything"}, "'Let Inspire Decides', 'All Tables', 'Transactional Only'"),
 ])
 def test_init_rejects_unknown_run_settings_instead_of_silently_defaulting(fresh_ns, tmp_path, restore_root_logger,

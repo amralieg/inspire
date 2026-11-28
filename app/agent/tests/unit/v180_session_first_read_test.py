@@ -42,7 +42,7 @@ def test_after_the_session_is_written_the_flush_reads_its_status(agent_ns, tmp_p
 
 def test_an_attached_session_is_ready_for_the_flush(agent_ns, tmp_path, monkeypatch):
     spark = FakeSpark(responder=lambda s: [{"session_id": 7007}] if s.startswith("SELECT session_id FROM") else [])
-    writer = _writer(agent_ns, spark, tmp_path, monkeypatch, operation="Generate Use Cases", business="Acme")
+    writer = _writer(agent_ns, spark, tmp_path, monkeypatch, operation="Implement Use Cases", business="Acme")
     try:
         writer.initialize_session()
         assert writer.attached_to_existing_session is True

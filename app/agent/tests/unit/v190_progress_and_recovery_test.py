@@ -137,9 +137,9 @@ def test_the_plan_is_logged_and_runtime_warnings_do_not_count_as_work(agent_ns, 
 
 
 def test_an_implement_run_is_planned_on_its_use_cases_only(agent_ns, tmp_path, monkeypatch):
-    writer = _writer(agent_ns, _ViewSpark(), tmp_path, monkeypatch, operation="Generate Use Cases")
+    writer = _writer(agent_ns, _ViewSpark(), tmp_path, monkeypatch, operation="Implement Use Cases")
     try:
-        _plan(writer, operation="Generate Use Cases")
+        _plan(writer, operation="Implement Use Cases")
         writer.plan_use_cases(4)
         assert set(writer.progress_plan.phases) == {"setup", "implementation"}
         _emit_rows(writer, "Generate Notebooks", 4, "UC")
