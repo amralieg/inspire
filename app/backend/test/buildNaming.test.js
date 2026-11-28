@@ -20,11 +20,17 @@ function files(dir, keep) {
 const ANY_POC = /PoC|(?<![A-Z])POC(?![A-Z])|Poc(?![a-z])|\bpocs?\b|\bpoc[A-Z_]/;
 const OLD_PAGE = /Implement page|Open in Implement|label: 'Implement'|>Implement</;
 
+// c39 (REQ-585 item 8): 'poc' in DEV_WORDS is a word read from a person's catalog names ("poc_area" looks dev), not App wording.
+// Only that quoted list word is set aside, only in that file; any other PoC word there still fails.
+const DATA_WORDS = { [path.join('src', 'lib', 'devNames.js')]: /'poc'/g };
+
 function hits(list, re) {
   const found = [];
   for (const file of list) {
+    const data = DATA_WORDS[path.relative(path.dirname(SRC), file)];
     fs.readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
       if (/^\s*(\/\/|import |\*)/.test(line)) return;
+      if (data) line = line.replace(data, "''");
       if (re.test(line)) found.push(`${path.relative(path.dirname(SRC), file)}:${i + 1}`);
     });
   }
@@ -36,6 +42,9 @@ test('the PoC pattern catches the old wording and code names, and passes the MVP
     'data-poc-progress', "mode === 'poc'", 'summary.pocs', 'START_POC_LABEL', 'hasPoc']) assert.ok(ANY_POC.test(bad), bad);
   for (const good of ["label: 'MVP ready'", 'MvpProgress', 'mvpStages', 'data-mvp-progress', 'MVP views', "mode === 'mvp'", 'START_MVP_LABEL', 'hasMvp', 'epoch',
     'Apocalypse', 'EPOCH_MS', 'Pocket']) assert.equal(ANY_POC.test(good), false, good);
+  const data = DATA_WORDS[path.join('src', 'lib', 'devNames.js')];
+  assert.equal(ANY_POC.test("'scratch', 'poc', 'playground'".replace(data, "''")), false);
+  for (const bad of ["'poc', 'Start PoC'", "'poc', pocArea", "'poc', hasPoc"]) assert.ok(ANY_POC.test(bad.replace(data, "''")), bad);
   assert.ok(OLD_PAGE.test('Follow it on the Implement page.'));
   assert.equal(OLD_PAGE.test("{ id: 'implement', label: 'Build', step: 4 }"), false);
 });
