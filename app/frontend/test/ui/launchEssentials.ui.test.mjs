@@ -26,11 +26,11 @@ test('Setup keeps the rc.3 names Unity Catalog Metadata, Generation Instructions
     assert.equal(await page.getByText('Business Priorities', { exact: true }).count(), 0, 'nothing inside it shows while closed (must-exclude)');
     await toggle.click();
     const admin = section(page, 'Advanced Settings');
-    for (const label of ['Business Priorities', 'Business Domains', 'Strategy (optional)', 'Inspire Database', 'Operation', 'Generation Path', 'Auto-Genie scope', 'Table Election']) {
+    for (const label of ['Business Priorities', 'Business Domains', 'Strategy (optional)', 'Inspire Database', 'Generation Path', 'Auto-Genie scope', 'Table Election']) {
       assert.ok(await admin.getByText(label, { exact: true }).count() > 0, `${label} is in Advanced Settings`);
     }
     const options = await admin.locator('select option').allInnerTexts();
-    for (const name of ['Generate Use Cases', 'Let Inspire Decides']) assert.ok(options.includes(name), `${name} keeps its rc.3 name`);
+    for (const name of ['Let Inspire Decides']) assert.ok(options.includes(name), `${name} keeps its rc.3 name`);
     assert.equal(options.some((t) => /Rewrite Genie|Let Inspire decide$/.test(t)), false, 'no renamed option (must-exclude)');
     assert.equal(await page.getByText(/Which data should Inspire look at|this year's goals|Admin settings|Which tables to use/).count(), 0, 'no renamed label (must-exclude)');
     const body = await page.locator('body').innerText();

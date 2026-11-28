@@ -93,7 +93,7 @@ function ReviewStep({ draft, lp, onEditStep }) {
 function SideCard({ draft, lp }) {
   return (
     <aside data-wiz-side="" className="rounded-lg border border-border bg-bg-subtle/50 p-4 text-sm">
-      <h4 className="text-xs font-bold uppercase tracking-wide text-text-secondary">Your discovery so far</h4>
+      <h4 className="text-xs font-bold text-text-secondary">Your discovery so far</h4>
       <p className="mt-2 break-words text-text-primary">{draft.businessName || lp.business || 'No business yet'}</p>
       <p className="mt-1 text-xs text-text-secondary">{PATH_TEXT[draft.path]}</p>
     </aside>

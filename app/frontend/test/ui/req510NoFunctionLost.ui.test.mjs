@@ -32,7 +32,7 @@ const SCREENS = [
     ['F012', b(/^Get Started$/), 'main'],
   ], []],
   ['Start', 'choose', { sessions: REVIEW_SESSIONS }, {}, '[data-run="42"]', [
-    ['F066', b(/I have data in Unity Catalog/), 'main'],
+    ['F066', b(/Start New Discovery/), 'main'],
   ], [
     ['F069', { role: 'menuitem', name: 'View all runs' }, 'more'],
     ['N-value-all-runs', { role: 'menuitem', name: 'Value across all runs' }, 'more'],

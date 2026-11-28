@@ -91,7 +91,7 @@ function DemoRow({ demo, onDemo }) {
     <div data-run="demo" className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-dashed border-border bg-bg-subtle/40 px-5 py-4">
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span data-run-demo-badge="" className="rounded-full border border-border bg-surface px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Demo</span>
+          <span data-run-demo-badge="" className="rounded-full border border-border bg-surface px-2 py-0.5 text-[11px] font-semibold text-text-secondary">Demo</span>
           <span className="truncate text-sm font-semibold text-text-primary">{name}</span>
         </div>
         {demo.summary && <p className="text-xs text-text-secondary">{demo.summary}</p>}
