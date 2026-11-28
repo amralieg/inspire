@@ -19,7 +19,7 @@ POSITIVE_ANCHORS = (
     "Databricks AI",
     "\u2318K",
     "Next step",
-    "Operation = Generate Use Cases",
+    "Operation = Implement Use Cases",
 )
 
 NEGATIVE_ANCHORS = (

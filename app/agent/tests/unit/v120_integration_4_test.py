@@ -424,13 +424,13 @@ def test_genie_prompt_carries_the_shared_assumed_context_rule_after_the_context_
     assert entry["ok"] and entry["error"] is None
 
 
-def _generate_run(ns, tmp_path, monkeypatch, failed=None):
+def _match_run(ns, tmp_path, monkeypatch, failed=None):
     obj = _build(ns, tmp_path, "Good", {"Medium", "High", "Very High", "Ultra High"}, lambda uc_id: None)
-    obj.operation = "Generate Use Cases"
-    obj.operation_mode = "Generate Use Cases"
+    obj.operation = "Match Use Cases"
+    obj.operation_mode = "Match Use Cases"
     uploads = []
     obj._upload_log_file = lambda: uploads.append(True)
-    obj._run_generate_mode = lambda: obj._record_failed_step("Generate Lock", "", failed) if failed else None
+    obj._run_match_mode = lambda: obj._record_failed_step("Match Lock", "", failed) if failed else None
     printed = []
     monkeypatch.setitem(ns["DatabricksInspire"].run.__globals__, "log_print",
                         lambda message, level="INFO", flush=True: printed.append((level, str(message))))
@@ -438,17 +438,17 @@ def _generate_run(ns, tmp_path, monkeypatch, failed=None):
     return obj, printed, uploads
 
 
-def test_generate_mode_ends_with_the_shared_completion_banner_and_uploads_the_log(fresh_ns, tmp_path, monkeypatch):
-    _obj, printed, uploads = _generate_run(fresh_ns, tmp_path, monkeypatch)
-    banners = [m for level, m in printed if "Databricks AI regeneration" in m]
+def test_match_mode_ends_with_the_shared_completion_banner_and_uploads_the_log(fresh_ns, tmp_path, monkeypatch):
+    _obj, printed, uploads = _match_run(fresh_ns, tmp_path, monkeypatch)
+    banners = [m for level, m in printed if "Match Use Cases for" in m]
     assert banners and banners[-1].startswith("✅ SUCCESS") and uploads == [True]
 
 
-def test_generate_mode_banner_reports_warnings(fresh_ns, tmp_path, monkeypatch):
-    obj, printed, uploads = _generate_run(fresh_ns, tmp_path, monkeypatch, failed=RuntimeError("lock unreadable"))
+def test_match_mode_banner_reports_warnings(fresh_ns, tmp_path, monkeypatch):
+    obj, printed, uploads = _match_run(fresh_ns, tmp_path, monkeypatch, failed=RuntimeError("lock unreadable"))
     warnings = [m for level, m in printed if level == "WARNING" and "COMPLETED WITH WARNINGS" in m]
-    assert len(warnings) == 1 and "Generate Lock" in warnings[0]
-    assert obj.final_inspire_results_json["failed_steps"][0]["step"] == "Generate Lock"
+    assert len(warnings) == 1 and "Match Lock" in warnings[0]
+    assert obj.final_inspire_results_json["failed_steps"][0]["step"] == "Match Lock"
     assert not [m for _, m in printed if m.startswith("✅ SUCCESS")] and uploads == [True]
 
 
