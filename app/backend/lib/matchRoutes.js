@@ -118,7 +118,7 @@ function registerMatchRoutes(app, deps) {
           throw err;
         }
       };
-      const none = { state: 'none', inputs: [], reports: [], decisions: [] };
+      const none = { state: 'none', inputs: [], reports: [], decisions: [], accepted: [] };
       const inputRows = await read('__inspire_match_input', 'session_id, input_no, name, description, event_at');
       if (!inputRows || !inputRows.length) return res.json(none);
       const inputs = latestBy(inputRows, (r) => Number(r.input_no)).map((r) => ({ input_no: Number(r.input_no), name: str(r.name), description: str(r.description) }))
@@ -131,6 +131,17 @@ function registerMatchRoutes(app, deps) {
       const decisions = latestBy(decisionRows, (r) => `${Number(r.input_no)}:${Number(r.piece_no)}`)
         .map((r) => ({ input_no: Number(r.input_no), piece_no: Number(r.piece_no), decision: str(r.decision), event_at: str(r.event_at) }))
         .sort((a, b) => a.input_no - b.input_no || a.piece_no - b.piece_no);
+      // REQ-585 item 3, REQ-579: the final verdict per input comes only from the latest Accept step's result_json.
+      const stepRows = (await read('__inspire_step', 'step_id, session_id, last_updated, stage_name, step_name, result_json')) || [];
+      const stampOf = (v) => { const t = Date.parse(str(v)); return Number.isFinite(t) ? t : 0; };
+      const acceptDocs = stepRows.filter((r) => str(r.stage_name) === 'Match Use Cases' && str(r.step_name) === 'Accept').map((r) => {
+        try { const doc = parseExactJson(r.result_json); return doc && typeof doc === 'object' && Array.isArray(doc.inputs) ? { doc, updated: stampOf(r.last_updated), at: stampOf(doc.event_at) } : null; } catch { return null; }
+      }).filter(Boolean).sort((a, b) => a.updated - b.updated || a.at - b.at);
+      const latestAccept = acceptDocs.length ? acceptDocs[acceptDocs.length - 1].doc : null;
+      const accepted = latestAccept ? latestAccept.inputs.filter((i) => i && Number.isSafeInteger(Number(i.input_no))).map((i) => ({
+        input_no: Number(i.input_no), verdict: str(i.verdict), confidence: Number(i.confidence) || 0,
+        dropped: (Array.isArray(i.dropped_pieces) ? i.dropped_pieces : []).filter(Boolean).map((p) => ({ piece_no: Number(p.piece_no), requirement: str(p.requirement) })),
+      })).sort((a, b) => a.input_no - b.input_no) : [];
       let state = 'running';
       const runId = str((req.query || {}).run_id);
       if (inputs.every((u) => reports.some((r) => r.input_no === u.input_no))) state = 'done';
@@ -140,7 +151,7 @@ function registerMatchRoutes(app, deps) {
         const result = str(got && got.data && got.data.state && got.data.state.result_state);
         if (['TERMINATED', 'INTERNAL_ERROR', 'SKIPPED'].includes(life)) state = life === 'TERMINATED' && result === 'SUCCESS' ? 'done' : 'failed';
       }
-      return res.json({ state, ...(runId ? { run_id: runId } : {}), inputs, reports, decisions });
+      return res.json({ state, ...(runId ? { run_id: runId } : {}), inputs, reports, decisions, accepted });
     } catch (err) {
       return fail(res, err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500, str(err.message) || 'Inspire could not read the match.');
     }
