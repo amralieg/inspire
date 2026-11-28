@@ -65,9 +65,9 @@ test('launch refuses a build or an operation it does not start, so the Build pag
   assert.equal((await S.request('POST', '/api/run', { body: body({}, { '15_operation': 'Discover Use Cases' }) })).status, 200);
 });
 
-test('a person cannot run Discover or Generate on a session somebody else launched, while its launcher and an App manager can', async () => {
+test('a person cannot run Discover or Match on a session somebody else launched, while its launcher and an App manager can', async () => {
   const seed = { notebookPresent: true, managers: [BOSS], knownSessions: ['7001'], ledgerSessions: ['7001'], sessionLaunchers: { 7001: 'owner@example.com' } };
-  for (const operation of ['Discover Use Cases', 'Generate Use Cases']) {
+  for (const operation of ['Discover Use Cases', 'Match Use Cases']) {
     S.reset(seed);
     const got = await S.request('POST', '/api/run', { person: 'taker@example.com', body: body({}, { '15_operation': operation }) });
     assert.equal(got.status, 403, `${operation}: ${got.text}`);
@@ -76,7 +76,7 @@ test('a person cannot run Discover or Generate on a session somebody else launch
   }
   for (const person of ['OWNER@example.com', BOSS]) {
     S.reset(seed);
-    const got = await S.request('POST', '/api/run', { person, body: body({}, { '15_operation': 'Generate Use Cases' }) });
+    const got = await S.request('POST', '/api/run', { person, body: body({}, { '15_operation': 'Match Use Cases' }) });
     assert.equal(got.status, 200, `${person}: ${got.text}`);
   }
   S.reset({ notebookPresent: true, knownSessions: ['7001'] });
@@ -91,7 +91,7 @@ test('the launch rules decide the same way in isolation', () => {
   assert.equal(LC.ownLaunch({ clusterId: 'c1' }, { clusters: ['c1'] }).clusterId, 'c1');
   assert.equal(LC.ownLaunch({ clusterId: 'c2' }, { clusters: ['c1', ''] }).clusterId, '');
   assert.equal(LC.ownLaunch({ clusterId: 'c2' }, { clusters: [undefined] }).clusterId, '', 'no configured cluster admits none (must-exclude)');
-  assert.equal(LC.launchParamsProblem({ '15_operation': 'Generate Use Cases' }), '');
+  assert.equal(LC.launchParamsProblem({ '15_operation': 'Match Use Cases' }), '');
   assert.equal(LC.sessionLaunchProblem('1', { fresh: false, launcher: 'a@b.c', person: 'A@B.C', manager: false }), '');
   assert.notEqual(LC.sessionLaunchProblem('1', { fresh: false, launcher: '', person: 'a@b.c', manager: false }), '');
 });
