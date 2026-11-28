@@ -77,6 +77,8 @@ def _failing_run(ns, store, where, flag=True, error=None, table_down_from=None):
 
             def regroup(*a, **kw):
                 store.at_failure = _states_when_failing(store)
+                if table_down_from == "eligible":
+                    store.fail = False  # the table comes back before the failure: the failure flush can write the buffered rows
                 raise error
             obj._regroup_themes_after_drops = regroup
         logging.disable(logging.CRITICAL)
