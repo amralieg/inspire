@@ -2679,7 +2679,8 @@ def create_widgets():
     deferred_widgets = []
 
     try:
-        operation_options = list(INSPIRE_NOTEBOOK_OPERATIONS)
+        operation_options = list(INSPIRE_OPERATIONS)
+        operation_options = [op for op in operation_options if op in INSPIRE_NOTEBOOK_OPERATIONS]  # REQ-586: only the operations this notebook owns
         dbutils.widgets.dropdown("15_operation", operation_options[0], operation_options, "00. Operation")
     except Exception as e:
         widget_errors.append(f"Operation: {redact_error(e)}")
