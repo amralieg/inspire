@@ -199,7 +199,7 @@ test('the demo keeps its own addresses: a reload stays in the demo on the same p
   const bar = page.getByRole('region', { name: 'Demo' });
   try {
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
-    await page.locator('[data-start-choice="demo"]').click();
+    await page.getByRole('button', { name: 'Open the demo' }).click();
     await bar.waitFor({ timeout: 20000 });
     await at(page, '#/demo/acme/review');
     await tab(page, 'Build').click();

@@ -328,25 +328,16 @@ test('Start offers three unmistakable ways in: your own data, sample data Inspir
     const { page } = ui;
     try {
       await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
-      const ways = page.getByRole('region', { name: 'How do you want to start?' });
-      await ways.waitFor({ timeout: 20000 });
-      assert.deepEqual(await ways.locator('[data-start-choice]').evaluateAll((els) => els.map((el) => el.getAttribute('data-start-choice'))), ['data', 'no-data', 'demo']);
-      assert.equal(await page.getByRole('button', { name: 'I have data in Unity Catalog', exact: true }).count(), 1);
-      assert.equal(await page.getByRole('button', { name: 'No data yet', exact: true }).count(), 1);
-      assert.match(await choice(page, 'no-data').innerText(), /creates sample tables for it and simulates a full run on them/);
-      assert.match(await choice(page, 'data').innerText(), /Inspire finds use cases in your own data/);
-      assert.match(await choice(page, 'demo').innerText(), /Nothing in your workspace changes/);
-      assert.equal(await choice(page, 'no-data').getAttribute('aria-describedby') !== null, true, 'each choice reads its explanation to screen readers');
-      for (const id of ['data', 'no-data', 'demo']) assert.doesNotMatch(await choice(page, id).innerText(), /[\u2013\u2014]/);
-      await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getTiming().iterations === Infinity));
-      const box = async (id) => choice(page, id).boundingBox();
-      const [data, noData, demo] = [await box('data'), await box('no-data'), await box('demo')];
-      assert.equal(Math.round(data.height), Math.round(noData.height), 'the two ways to run Inspire are the same size, side by side');
-      assert.equal(Math.round(data.y), Math.round(noData.y));
-      assert.ok(demo.y >= Math.max(data.y + data.height, noData.y + noData.height) - 1 && Math.abs(demo.x - data.x) < 2,
-        'the demo sits on its own row below the two options, as the third, lighter way in');
+      // REQ-577: the three start choices became one Start New Discovery button; sample tables are a wizard card, the demo a pinned row.
+      await page.locator('[data-start-new]').first().waitFor({ timeout: 20000 });
+      assert.equal(await page.locator('[data-start-choice]').count(), 0, 'the three start choices are gone');
+      assert.equal(await page.locator('[data-run="demo"]').count(), 1, 'the demo row is pinned');
+      await page.locator('[data-start-new]').first().click();
+      await page.getByText('Try it on sample tables').first().waitFor({ timeout: 20000 });
+      await page.keyboard.press('Escape');
+      await page.locator('[data-wiz-path]').first().waitFor({ state: 'detached', timeout: 20000 });
       assert.deepEqual(ui.pageErrors, []);
-      await choice(page, 'demo').click();
+      await page.getByRole('button', { name: 'Open the demo' }).click();
       await page.getByRole('region', { name: 'Demo' }).waitFor({ timeout: 20000 });
       assert.equal(await page.evaluate(() => window.location.hash), '#/demo/acme/review', 'the demo opens on its Review page');
     } finally {
@@ -357,14 +348,10 @@ test('Start offers three unmistakable ways in: your own data, sample data Inspir
   const { page } = ui;
   try {
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
-    await choice(page, 'data').waitFor({ timeout: 20000 });
-    assert.equal(await choice(page, 'demo').count(), 0, 'an App with no demo offers none (must-exclude)');
-    await choice(page, 'data').click();
-    await page.waitForFunction(() => window.location.hash === '#/launch', null, { timeout: 20000 });
-    await page.locator('h1').first().waitFor();
-    await page.goBack();
-    await page.waitForFunction(() => window.location.hash === '#/start', null, { timeout: 20000 });
-    await choice(page, 'no-data').click();
+    await page.locator('[data-start-new]').first().waitFor({ timeout: 20000 });
+    assert.equal(await page.locator('[data-run="demo"]').count(), 0, 'an App with no demo offers none (must-exclude)');
+    await page.locator('[data-start-new]').first().click();
+    await page.getByText('Try it on sample tables').first().click();
     await page.getByRole('heading', { level: 1, name: "I don't have data" }).waitFor({ timeout: 20000 });
     assert.equal(await page.evaluate(() => window.location.hash), '#/generate-data');
     assert.deepEqual(ui.pageErrors, []);
@@ -495,7 +482,7 @@ test('REQ-512 Start content is full width (w-full px-6, no cap) and centred, at 
   try {
     for (const size of VIEWPORTS) {
       await page.setViewportSize(size);
-      const box = await boxOf(page, '[data-start-choices]');
+      const box = await page.locator('[data-run="42"]').locator('xpath=..').boundingBox();
       assert.ok(Math.abs(box.width - (size.width - START_GUTTER_PX)) < 2, `${size.width}px: the Start column is ${Math.round(box.width)}px wide, expected ${size.width - START_GUTTER_PX}px (full width)`);
       assert.ok(Math.abs(box.x + box.width / 2 - size.width / 2) < 2, `${size.width}px: the Start column is not centred (left edge ${Math.round(box.x)}px)`);
     }
@@ -506,25 +493,20 @@ test('REQ-512 Start content is full width (w-full px-6, no cap) and centred, at 
 });
 
 // REQ-304 (Amr, 14:00 test): See Demo is its own row below No data yet and Generated data, not a third column beside them.
-test('REQ-304 See Demo has its own row below No data yet, at 1440x900 and 1280x800, and See Demo opens the demo', async () => {
+test('REQ-304 the demo is the first row of Previous runs, at 1440x900 and 1280x800, and Open the demo opens the demo', async () => {
   const ui = await openUi('app', REVIEW_STATE, '', { mount: rc10Mount });
   const { page } = ui;
   try {
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
-    await choice(page, 'demo').waitFor({ timeout: 20000 });
-    await page.waitForFunction(() => !document.querySelector('main')?.getAnimations({ subtree: true }).some((a) => a.animationName === 'pageEnter'), null, { timeout: 5000 });
+    // REQ-577: the demo is the first row of Previous runs (was its own row below the start choices).
+    await page.locator('[data-run="demo"]').waitFor({ timeout: 20000 });
     for (const size of VIEWPORTS) {
       await page.setViewportSize(size);
-      const [data, noData, demo] = await page.evaluate(() => ['data', 'no-data', 'demo'].map((id) => {
-        const { x, y, width, height } = document.querySelector(`[data-start-choice="${id}"]`).getBoundingClientRect();
-        return { x, y, width, height };
-      }));
-      const bottom = Math.max(data.y + data.height, noData.y + noData.height);
-      assert.ok(demo.y >= bottom - 1, `${size.width}px: See Demo (top ${Math.round(demo.y)}px) is not below the options (bottom ${Math.round(bottom)}px)`);
-      assert.ok(Math.abs(demo.x - data.x) < 2, `${size.width}px: See Demo starts at the left edge of the Start column, as its own row`);
+      const order = await page.locator('[data-run]').evaluateAll((els) => els.map((el) => el.getAttribute('data-run')));
+      assert.equal(order[0], 'demo', `${size.width}px: the demo row is first: ${order}`);
     }
-    assert.equal(await page.getByRole('button', { name: 'See Demo', exact: true }).count(), 1, 'one See Demo control, not a copy');
-    await choice(page, 'demo').click();
+    assert.equal(await page.getByRole('button', { name: 'Open the demo', exact: true }).count(), 1, 'one Open the demo control, not a copy');
+    await page.getByRole('button', { name: 'Open the demo', exact: true }).click();
     await page.getByRole('region', { name: 'Demo' }).waitFor({ timeout: 20000 });
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -606,7 +588,7 @@ test('REQ-096 every run card shows its value, and Not calculated where the run h
     const without = page.locator('[data-run="41"] [data-run-value]');
     assert.equal(await without.count(), 1, 'run 41 has a value line');
     assert.equal((await without.locator('[data-run-value-state="not-calculated"]').innerText()).trim(), 'Not calculated', 'run 41 says Not calculated');
-    const lines = await page.locator('[data-run]').evaluateAll((els) => els.map((el) => el.querySelectorAll('[data-run-value]').length));
+    const lines = await page.locator('[data-run]:not([data-run="demo"])').evaluateAll((els) => els.map((el) => el.querySelectorAll('[data-run-value]').length));
     assert.ok(lines.length >= 5 && lines.every((n) => n === 1), `every run card has one value line: ${lines.join(',')}`);
     assert.deepEqual(ui.pageErrors.filter((e) => !/status of 500/.test(e)), []);
   } finally {

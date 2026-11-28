@@ -38,7 +38,7 @@ function reset(overrides = {}) {
   Object.assign(state, {
     managers: [], managerGroups: [], personGroups: [], aclStatus: 200, personAppsScope: true, launchers: {}, sessionLaunchers: {}, history: [], calls: [],
     launches: [], profiles: [], profileLinks: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, holdFetch: null, createFailure: '', sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null, ucSchemas: null, ucTables: null,
-    createdJob: null, modelRateLimited: false, profileTablesMissing: false, presentPaths: [], statusErrors: {}, catalogPaths: {}, catalogReasons: {}, catalogColumnMissing: false, catalogQueryError: '', runJobs: {}, runStates: null, runViewDenied: null, exportDenied: false, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, tableColumns: {}, files: {}, sessionBusiness: {},
+    createdJob: null, sqlHook: null, modelReply: null, modelRateLimited: false, profileTablesMissing: false, presentPaths: [], statusErrors: {}, catalogPaths: {}, catalogReasons: {}, catalogColumnMissing: false, catalogQueryError: '', runJobs: {}, runStates: null, runViewDenied: null, exportDenied: false, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, tableColumns: {}, files: {}, sessionBusiness: {},
     ...folderModel({ folders: { '/Shared/demos': { id: 7, writers: '*' } } }),
   }, overrides);
 }
@@ -57,6 +57,9 @@ const HISTORY_COLUMNS = ['session_id', 'use_case_id', 'spec_version', 'status', 
 
 function answerSql(body) {
   const sql = String(body.statement || '');
+  // c33: sqlHook(sql, body) answers a statement a test owns (return a sqlResult(...) or a FAILED body); null falls through to the rules below.
+  const hooked = state.sqlHook ? state.sqlHook(sql, body) : null;
+  if (hooked) return hooked;
   const conflict = state.conflictOn ? state.conflictOn(sql) : '';
   if (conflict) return { statement_id: 's1', status: { state: 'FAILED', error: { message: conflict } } };
   // SEC-02: a session whose scope this test did not seed reads as one table the person can read, so the session check lets them in.
@@ -323,6 +326,9 @@ async function stubFetch(url, opts = {}) {
   // REQ-405: the launch check probes a chat model the App can query; state.modelDenied refuses every probe, as a workspace does when the App lacks CAN_QUERY.
   if (state.modelRateLimited && (u.pathname === '/api/2.0/serving-endpoints' || /^\/serving-endpoints\/[^/]+\/invocations$/.test(u.pathname))) return json({ error_code: 'REQUEST_LIMIT_EXCEEDED', message: 'rate limit exceeded' }, 429);
   if (u.pathname === '/api/2.0/serving-endpoints') return json({ endpoints: [{ name: 'databricks-claude-sonnet-4-6', id: 'ep-claude-46', task: 'llm/v1/chat', state: { ready: 'READY' } }] });
+  // c33: modelReply(body, endpoint) gives the chat model's answer text for a test (null falls through to the plain 'OK').
+  const modelText = state.modelReply && /^\/serving-endpoints\/[^/]+\/invocations$/.test(u.pathname) ? state.modelReply(body, u.pathname.split('/')[2]) : null;
+  if (modelText != null) return json({ choices: [{ message: { content: modelText } }] });
   if (/^\/serving-endpoints\/[^/]+\/invocations$/.test(u.pathname)) return state.modelDenied ? json({ error_code: 'PERMISSION_DENIED', message: 'the App cannot query this endpoint' }, 403) : json({ choices: [{ message: { content: 'OK' } }] });
   if (u.pathname === '/api/2.0/workspace/import') return json({ message: 'stubbed import refused' }, 400);
   if (u.pathname === '/api/2.0/workspace/export' && state.exportDenied) return json({ error_code: 'PERMISSION_DENIED', message: 'raw workspace detail' }, 403);
@@ -438,4 +444,4 @@ async function stopServer() {
   started = null;
 }
 
-module.exports = { APP_NAME, APP_SP, APP_TOKEN, APP_DB, APP_WAREHOUSE, PERSON_TOKEN, state, reset, request, startServer, stopServer };
+module.exports = { sqlResult, APP_NAME, APP_SP, APP_TOKEN, APP_DB, APP_WAREHOUSE, PERSON_TOKEN, state, reset, request, startServer, stopServer };

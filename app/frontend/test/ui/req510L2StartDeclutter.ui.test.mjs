@@ -33,7 +33,7 @@ test('Home: at most 60 words of body copy above the fold, and Get Started is the
   }
 });
 
-test('Start: at most 60 words above the fold and exactly one primary action, "I have data in Unity Catalog"', async () => {
+test('Start: at most 60 words above the fold and exactly one primary action, "Start New Discovery"', async () => {
   const ui = await open('choose', { sessions: REVIEW_SESSIONS });
   const { page } = ui;
   try {
@@ -42,7 +42,7 @@ test('Start: at most 60 words above the fold and exactly one primary action, "I 
     const f = await screenFacts(page);
     assert.ok(f.bodyWords <= 60, `Start body words ${f.bodyWords} > 60 (${describe(f)})`);
     assert.equal(f.primaries.length, 1, `exactly one primary on Start (${describe(f)})`);
-    assert.match(f.primaries[0], /^I have data in Unity Catalog/);
+    assert.match(f.primaries[0], /^Start New Discovery/);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

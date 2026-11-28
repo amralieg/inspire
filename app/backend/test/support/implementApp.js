@@ -466,6 +466,8 @@ function makeApp(overrides = {}, { mount } = {}) {
   app.get('/api/inspire/feedback', (_req, res) => res.json(state.feedback || { available: false, latest: [], message: '' }));
   app.get('/api/inspire/session', (_req, res) => res.json({ session: state.inspireSession || null }));
   app.get('/api/inspire/steps', (_req, res) => res.json({ steps: state.runSteps || [], count: (state.runSteps || []).length }));
+  // c33 (REQ-578, REQ-579): every Monitor and Results page asks whether its session is a Match run; a test's own mount answers first.
+  app.get('/api/inspire/match/result', (_req, res) => res.json(state.matchResult || { state: 'none', inputs: [], reports: [], decisions: [] }));
   app.get('/api/workspace/export', (req, res) => {
     const text = (state.notebooks || {})[req.query.path];
     if (text === undefined) return res.status(404).json({ error: 'not found', tried: [req.query.path] });

@@ -61,13 +61,15 @@ const { createSourceAccess } = require('./lib/sourceAccess');
 const { withBusyRetry } = require('./lib/busyRetry');
 const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase');
 const { registerMacroRoutes } = require('./macroRoutes');
+const { registerWizPlanRoutes } = require('./lib/wizPlanRoutes');
+const { registerMatchRoutes } = require('./lib/matchRoutes');
 const { loadSessionList, loadSessionOverviews, sessionListCap, SESSION_LIST_CAP } = require('./lib/reviewFigures');
 const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../frontend/src/lib/liveUseCases.js');
 const { isInspireOwnName, isInspireOwnSchema } = require('../frontend/src/lib/inspireOwnObjects.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
 const { appReadPermissions, permissionRequired, readStatementsFor } = require('./lib/permissions');
 const { spGrantedCatalogs, grantedCatalogList, inspireStateOf, schemaInspireStates, PICKER_PROBE_CAP, partialPermission, droppedCatalogs, pickableRows, heldWrites } = require('./lib/spCatalogs');
-const { planModelAccess, selfCheckRecord, MODEL_CHECK_ROUTE } = require('./lib/modelAccess');
+const { planModelAccess, selfCheckRecord, MODEL_CHECK_ROUTE, invokeChatModel, appChatModels } = require('./lib/modelAccess');
 const PM_ERROR = require('./lib/permissionError');
 const { apiRefusalText, logApiBody } = require('./lib/apiRefusal');
 const { tableProbeStatement, tableAccessReason, isReadDenied, liveLogPath, implementTableName, parseImplementRow, builtTableScopeOf, builtFramingOf, builtTextOf, latestBuiltRowsSql, resultTableNameError, quoteTable } = require('./lib/inspireImplement');
@@ -3658,6 +3660,45 @@ const implementApi = registerImplementRoutes(app, {
 });
 
 registerMacroRoutes(app, { requireToken, executeSql, sqlResultToObjects, fetchImpl: fetch, now: () => new Date() });
+
+// c33 (REQ-577, REQ-578): the adapters the wizard route modules use (lib/wizPlanRoutes.js lane B, lib/matchRoutes.js lane C). Base-owned.
+// launchRun: one POST /api/run launch (the same checks and job as the launch form) for a body { params, notebook_path, cluster_id, profile_id };
+// answers { status, body } instead of writing the response, so a route can launch and then record what it launched.
+async function wizLaunchRun(req, body = {}) {
+  let status = 200;
+  let sent = null;
+  const res = { status(code) { status = code; return res; }, json(data) { sent = data; return res; } };
+  const params = { ...(body.params || {}) };
+  await launchDiscover(req, res, { params, notebook_path: body.notebook_path, cluster_id: body.cluster_id, profileId: String(body.profile_id || '') });
+  return { status, body: sent, params };
+}
+// chatModel: the first chat model the App can call, at most WIZ_MODEL_TRIES tried in order. { endpoint, got } or { reason }.
+// The same loop as askChatModel in implementRoutes.js (owned by the agent lane, so it is not shared from there).
+const WIZ_MODEL_TRIES = 3;
+async function wizChatModel(req, messages, maxTokens) {
+  try {
+    const token = (await appOwnToken()) || req.dbToken;
+    const call = (method, apiPath, body) => jsonOf(dbFetch, req.dbHost, token, apiPath, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const { names, listed, reason } = await appChatModels(call, {});
+    if (!names.length) return { reason: listed.ok ? reason : `The list of model endpoints answered HTTP ${listed.status || 'error'}.` };
+    let first = '';
+    for (const name of names.slice(0, WIZ_MODEL_TRIES)) {
+      const tried = await invokeChatModel(call, name, { messages, max_tokens: maxTokens });
+      if (tried.ok) return { endpoint: name, got: tried };
+      first = first || `${name} answered HTTP ${tried.status || 'error'}.`;
+    }
+    return { reason: first };
+  } catch (err) {
+    return { reason: 'The model could not be reached.' };
+  }
+}
+// readRun: the job run as the App reads it (life_cycle_state, result_state). { ok, status, data }.
+async function wizReadRun(req, runId) {
+  return jsonOf(dbFetch, req.dbHost, (await appOwnToken()) || req.dbToken, `/api/2.1/jobs/runs/get?run_id=${encodeURIComponent(String(runId))}`);
+}
+const wizDeps = { requireToken, executeSql, sqlResultToObjects, chatModel: wizChatModel, launchRun: wizLaunchRun, readRun: wizReadRun, now: () => new Date() };
+registerWizPlanRoutes(app, wizDeps);
+registerMatchRoutes(app, wizDeps);
 
 /**
  * Sync Route 1 flags to Delta while selecting (debounced in UI). Same SQL as generate-genie minus the job.

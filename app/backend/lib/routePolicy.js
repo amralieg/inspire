@@ -184,6 +184,16 @@ const ROUTE_POLICY = {
   'GET /api/inspire/macro/sources': anyone('list the public economic data sources', 'lists the fixed set of sources Inspire can read; fetches nothing'),
   'POST /api/inspire/macro/series': tracked('read a public economic series, from the 7-day cache in the Inspire database or fetched from an allowed host, with its citation and optional factor',
     'fetches from a fixed host allowlist and caches in the Inspire database with the signed-in person\'s token'),
+  // c33 (REQ-577): Find suitable data for me. sort reads catalog metadata only; start and advance launch runs like POST /api/run.
+  'POST /api/inspire/plan/sort': reads('sort the tables of the picked catalogs into runs, from their names, columns and comments only'),
+  'POST /api/inspire/plan/start': tracked('save a plan of runs and launch its first run', 'launches the run as the App, which owns the job and its tracking tables, like POST /api/run'),
+  'POST /api/inspire/plan/advance': tracked('launch the next waiting run of a plan once the run before it ended', 'launches only runs a saved plan already lists, as the App, like POST /api/run'),
+  // c33 (REQ-578, REQ-579): Match existing use cases to data. start launches like POST /api/run; result reads like GET /api/inspire/results;
+  // decision and accept act on a Match session its launcher owns.
+  'POST /api/inspire/match/start': tracked('save the use cases to match and launch the match run', 'launches the run as the App, which owns the job and its tracking tables, like POST /api/run'),
+  'GET /api/inspire/match/result': tracked('read how the use cases of a Match session match the data'),
+  'POST /api/inspire/match/decision': { rule: 'launcher', action: 'save a choice for one piece of a matched use case', target: sessionTarget, identity: 'app', why: GATED },
+  'POST /api/inspire/match/accept': { rule: 'launcher', action: 'accept the match and launch the use case run', target: sessionTarget, identity: 'app', why: GATED },
   'POST /api/inspire/value/run-review': owners('have the model review the value of a whole run and save the review as one row of its Calculate value answers',
     { target: wholeRunTarget, runWide: true, appDatabase: true }),
   'POST /api/inspire/value/preview': tracked('work out the value per year of a case plan and typed answers, with no data read',

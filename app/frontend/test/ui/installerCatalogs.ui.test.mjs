@@ -30,7 +30,8 @@ async function openLaunch(installerDataCatalogs, init) {
   const ui = await openUi('app', { ...REVIEW_STATE, ...CATALOGS }, '', { mount: withInstaller(installerDataCatalogs), init });
   const { page } = ui;
   await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
-  await page.locator('[data-start-choice="data"]').click();
+  await page.locator('[data-start-new]').first().waitFor({ timeout: 20000 });
+  await page.evaluate(() => { window.location.hash = '#/launch'; }); // REQ-577: Start has one Start New Discovery button; the full form stays at #/launch
   await page.waitForFunction(() => window.location.hash === '#/launch', null, { timeout: 20000 });
   await page.locator('h1').first().waitFor();
   await idle(page);
@@ -98,7 +99,8 @@ test('the Discover launch page no longer offers "I don\'t have data" (REQ-360); 
     assert.equal(await ui.page.getByRole('button', { name: NO_DATA }).count(), 0, 'no demo-table button on the launch page (must-exclude)');
     await ui.page.goBack();
     await ui.page.waitForFunction(() => window.location.hash === '#/start', null, { timeout: 20000 });
-    await ui.page.locator('[data-start-choice="no-data"]').waitFor({ timeout: 20000 });
+    await ui.page.locator('[data-start-new]').first().click(); // REQ-577: the sample-table way in now lives in the wizard
+    await ui.page.getByText('Try it on sample tables').first().waitFor({ timeout: 20000 });
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

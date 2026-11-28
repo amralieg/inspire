@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { TABLE_ELECTION_BY_PLAN } from '../lib/startWizard';
 import {
   Play,
   Loader2,
@@ -110,7 +112,6 @@ const TABLE_ELECTION = ['Let Inspire Decides', 'All Tables', 'Transactional Only
 const TABLE_SELECTION_WARN_THRESHOLD = 10;
 /** Documented sweet spot for discovery quality and runtime. */
 const TABLE_SELECTION_IDEAL_MAX = 25;
-const OPERATION_WIDGET_OPTIONS = ['Discover Use Cases', 'Generate Use Cases'];
 const BUSINESS_PRIORITIES = [
   { key: 'Increase Revenue', icon: TrendingUp },
   { key: 'Reduce Cost', icon: DollarSign },
@@ -177,7 +178,7 @@ const defaultParams = (inspireDatabase) => ({
   '16_best_of_best_count': '',
 });
 const DRAFT_PARAMS = ['00_business_name', '03_discovery_type', '04_table_election', '05_use_cases_quality', '06_business_domains', '08_generation_instructions',
-  '11_generation_path', '13_generate_genie_code_for', '15_operation', '16_best_of_best_count'];
+  '11_generation_path', '13_generate_genie_code_for', '16_best_of_best_count'];
 const FORM_DEFAULTS = {
   priorityChecks: {}, customPriorities: [], strategyBase: '',
   selectedCatalogs: [], wholeCatalogs: [], selectedSchemas: [], selectedTables: [], tableScopes: {}, dataFilterLabel: { on: false, text: null }, relationships: [],
@@ -226,12 +227,18 @@ function restoredLabel(value) {
   return { on, text };
 }
 
-export default function LaunchPage({ settings, update, onLaunched, onOpenResults }) {
+// REQ-577: with a `step`, LaunchPage renders only that Start New Discovery step's part of the form, into wiz.slot, and the shell drives it
+// through the wiz controller { slot, findPath, api, onState }. Without a step it is the full form.
+const WIZ_PARAM_KEY = /^(0[2-9]|1[0-3]|16)_/;
+const NOOP = () => {};
+
+export default function LaunchPage({ settings, update = NOOP, onLaunched, onOpenResults, step, wiz }) {
+  const wizMode = Boolean(step);
   const { databricksHost, token, notebookPath, warehouseId, inspireDatabase, serverEnvHasPat } = settings;
   const canUseUcApi = !!(databricksHost && (token || serverEnvHasPat));
 
   const draftKey = useMemo(() => startDraftKey({ host: databricksHost }), [databricksHost]);
-  const [draft] = useState(() => restoredForm(readWizardDraft(draftKey, START_DRAFT_STAMP)));
+  const [draft] = useState(() => (wizMode ? null : restoredForm(readWizardDraft(draftKey, START_DRAFT_STAMP))));
   const [draftBack, setDraftBack] = useState(Boolean(draft));
   const start = draft || FORM_DEFAULTS;
   // The profile the form was loaded from, with its saved settings (REQ-364). Declared before the draft effect, which saves it.
@@ -283,6 +290,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const [tablesLeftOut, setTablesLeftOut] = useState([]);
   const [catalogsWhy, setCatalogsWhy] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   const [showStrategy, setShowStrategy] = useState(false);
   const [discoveryTouched, setDiscoveryTouched] = useState(start.discoveryTouched);
   const [electionTouched, setElectionTouched] = useState(start.electionTouched);
@@ -696,6 +704,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   }), [params, priorityChecks, customPriorities, strategyBase, selectedCatalogs, wholeCatalogs, selectedSchemas, selectedTables, tableScopes, dataFilterLabel, relationships,
     electionTouched, discoveryTouched, strategyTouched, prioritiesTouched]);
   useEffect(() => {
+    if (wizMode) return;
     if (JSON.stringify(draftForm) === PRISTINE_FORM && !loadedProfile) clearWizardDraft(draftKey);
     else writeWizardDraft(draftKey, { stamp: START_DRAFT_STAMP, spec: draftForm, step: START_DRAFT_STEP, profile: loadedProfile });
   }, [draftKey, draftForm, loadedProfile]);
@@ -948,8 +957,39 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
       setLaunching(false);
       return;
     }
-    startRun();
+    await startRun();
   };
+
+  // The wizard shell's handle on this form: the notebook params it holds, the start (no save-profile question) and the finish.
+  const profileToStart = loadedProfile && sameSettings(draftForm, loadedProfile.spec) ? loadedProfile.profile_id : '';
+  const launchParams = () => {
+    const out = {};
+    Object.entries(params).forEach(([key, value]) => {
+      if (WIZ_PARAM_KEY.test(key) && (key !== '04_table_election' || !wiz?.findPath)) out[key] = value;
+    });
+    if (!wiz?.findPath) out['01_uc_metadata'] = params['01_uc_metadata'];
+    return out;
+  };
+  const wizStart = async () => {
+    if (launchBlock) { setLaunchError(launchBlock); return false; }
+    if (!outputCheck.ready) { setLaunchError(outputCheck.text || 'Wait until Inspire has checked that you can write to the output folder.'); return false; }
+    await launchNow(profileToStart);
+    return true;
+  };
+  if (wiz && wiz.api) {
+    Object.assign(wiz.api, {
+      launchParams, start: wizStart, profileId: profileToStart, setBusinessName: (value) => updateParam('00_business_name', value),
+      finish: () => { clearWizardDraft(draftKey); update('inspireDatabase', params['02_inspire_database']); },
+    });
+  }
+  const wizBusiness = params['00_business_name'];
+  const wizHasData = Boolean(params['01_uc_metadata']);
+  const wizProfile = loadedProfile ? loadedProfile.profile_id : '';
+  const wizOnState = wiz?.onState;
+  useEffect(() => {
+    wizOnState?.({ business: wizBusiness, hasData: wizHasData, profileId: wizProfile, launching, launchError,
+      summary: { quality: params['05_use_cases_quality'], discovery: params['03_discovery_type'], scope: params['01_uc_metadata'] } });
+  }, [wizOnState, wizBusiness, wizHasData, wizProfile, launching, launchError, params['05_use_cases_quality'], params['03_discovery_type'], params['01_uc_metadata']]);
 
   // Get Started asks to save the settings as a profile. A loaded profile whose settings are unchanged runs without asking.
   const handleLaunch = () => {
@@ -1129,243 +1169,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     ? `Discovering use cases for ${headlineBusiness}`
     : 'Get Started';
 
-  return (
-    <>
-    <div className={`${WIZARD} py-8`}>
-      {/* Page Header */}
-      <div className="mb-8">
-        <PageHeader className="mb-2" icon={Rocket}
-          title={<span className="block line-clamp-2 wrap-break-word" title={headlineBusiness ? launchPageHeading : undefined} aria-live="polite">{launchPageHeading}</span>}
-          actions={<MoreMenu items={[
-            { label: 'Recent runs', onSelect: () => { setShowRecentRuns(true); setExperimentsOverviewExpanded(true); } },
-            { label: 'How Inspire keeps your data private', onSelect: () => setShowPrivacyNote(true) },
-          ]} />} />
-        {draftBack && (
-          <div role="note" aria-label="Your draft" data-launch-draft="" className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-info/20 bg-info-bg px-3 py-2 text-[12px] text-text-primary">
-            <span>{DRAFT_BACK_NOTE}</span>
-            <button type="button" data-launch-start-over="" onClick={startOver} className="text-[12px] font-medium text-db-red-fg underline-offset-2 hover:underline glow-focus">{DRAFT_START_OVER}</button>
-          </div>
-        )}
-      </div>
-
-
-      {showRecentRuns && (token || serverEnvHasPat) && warehouseId && previewDb && (
-        <section
-          className="mb-8 rounded-xl border border-border bg-surface/80 backdrop-blur-sm shadow-sm overflow-hidden"
-          aria-label="Discovery Overview"
-        >
-          <button
-            type="button"
-            onClick={() => setExperimentsOverviewExpanded((v) => !v)}
-            className="flex w-full items-center gap-3 px-5 py-3 border-b border-border bg-bg-subtle/50 text-start transition-colors hover:bg-bg-subtle/80"
-            aria-expanded={experimentsOverviewExpanded}
-          >
-            <Layers size={16} className="text-db-red-fg shrink-0" aria-hidden />
-            <div className="min-w-0 flex-1">
-              <h2 className="text-sm font-semibold text-text-primary">Discovery Overview</h2>
-              <p className="text-xs text-text-secondary truncate">
-                {overviewLoading
-                  // busy-ok: the list below this subtitle shows a spinning Loader2 while overviewLoading
-                  ? 'Loading your recent runs…'
-                  : overviewError
-                    ? 'Inspire could not read your runs, see the message below'
-                    : sessionsList.length > 0
-                    ? `${sessionsList.length} run${sessionsList.length === 1 ? '' : 's'} · use Quick view to see the use cases each run found`
-                    : 'No runs yet. Start one to see it listed here.'}
-              </p>
-            </div>
-            <ChevronDown
-              size={16}
-              className={`shrink-0 text-text-tertiary transition-transform duration-200 ${experimentsOverviewExpanded ? 'rotate-180' : ''}`}
-              aria-hidden
-            />
-          </button>
-          {(overviewError || allCreatedError) && (
-            <div className="space-y-2 border-b border-border bg-surface/60 px-5 py-2.5">
-              {overviewError && (
-                <div role="alert" data-overview-error="" className="flex items-start gap-1.5 text-xs text-error-fg">
-                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                  <div className="min-w-0 flex-1"><PlainMessage text={overviewError} /></div>
-                </div>
-              )}
-              {allCreatedError && !overviewError && (
-                <div role="alert" className="flex items-start gap-1.5 text-xs text-warning-fg">
-                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                  <div className="min-w-0 flex-1"><PlainMessage text={`Inspire could not count the use cases of your runs: ${allCreatedError}`} /></div>
-                </div>
-              )}
-            </div>
-          )}
-          {experimentsOverviewExpanded && (
-          <div className="px-5 py-4">
-            {overviewLoading && !overviewError && (
-              <div className="flex items-center gap-2 text-sm text-text-secondary py-2">
-                <Loader2 size={16} className="animate-spin text-db-red-fg" />
-                Loading runs…
-              </div>
-            )}
-            {!overviewLoading && !overviewError && sessionsList.length === 0 && (
-              <p className="text-sm text-text-secondary py-1">
-                No runs yet. The use cases of a run show under Quick view once it saves them.
-              </p>
-            )}
-            {!overviewLoading && sessionsList.length > 0 && (
-              <ul className="divide-y divide-border rounded-lg border border-border bg-bg-subtle/30 overflow-hidden">
-                {sessionsList.map((s) => {
-                  const sidStr = String(s.session_id);
-                  const expanded = quickViewSid === sidStr;
-                  const count = useCaseCountBySession.get(sidStr) ?? 0;
-                  const ucs = expanded ? getUcsForSession(s.session_id) : null;
-                  const loadingUc = quickViewLoading === sidStr;
-                  const business = runBusiness(s) || 'No business name';
-                  const pct = Number(s.completed_percent) || 0;
-                  return (
-                    <li key={sidStr} data-run={sidStr} className="bg-surface/60">
-                      <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0 flex-1 space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs font-semibold text-text-primary truncate">{business}</span>
-                            <LatestRunBadge session={s} />
-                            <span className="text-xs font-mono text-text-tertiary bg-bg-subtle px-1.5 py-0.5 rounded border border-border shrink-0">
-                              {sidStr}
-                            </span>
-                            {sessionFailed(s) ? (
-                              <span className="text-xs font-medium text-error-fg bg-error-bg px-1.5 py-0.5 rounded border border-error/20">
-                                Failed at {Math.round(pct)}%
-                              </span>
-                            ) : sessionFinished(s) ? (
-                              <span className="text-xs font-medium text-success-fg bg-success-bg px-1.5 py-0.5 rounded border border-success/20">
-                                Complete
-                              </span>
-                            ) : (
-                              <span className="text-xs font-medium text-text-secondary bg-bg-subtle px-1.5 py-0.5 rounded border border-border">
-                                {Math.round(pct)}% done
-                              </span>
-                            )}
-                            <span className="text-xs text-text-tertiary">
-                              {count > 0 ? `${count} in table` : 'none in table yet'}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-                            <Calendar size={14} className="shrink-0 text-text-tertiary" aria-hidden />
-                            <span>{formatWhen(s.create_at, 'Date unknown')}</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => onQuickViewToggle(s.session_id)}
-                            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                              expanded
-                                ? 'border-db-red bg-db-red-50 text-db-red-fg'
-                                : 'border-border bg-surface text-text-primary hover:border-db-red/40 hover:text-db-red-fg'
-                            }`}
-                            aria-expanded={expanded}
-                          >
-                            <Eye size={14} aria-hidden />
-                            Quick view
-                            <ChevronDown
-                              size={14}
-                              className={`transition-transform ${expanded ? 'rotate-180' : ''}`}
-                              aria-hidden
-                            />
-                          </button>
-                          {typeof onOpenResults === 'function' && (
-                            <button
-                              type="button"
-                              onClick={() => onOpenResults(sidStr)}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text-primary hover:border-db-red/40 hover:text-db-red-fg transition-colors"
-                            >
-                              <ExternalLink size={14} aria-hidden />
-                              Open in Review
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      {expanded && (
-                        <div className="border-t border-border bg-bg-subtle/50 px-4 py-3">
-                          {loadingUc && (
-                            <div className="flex items-center gap-2 text-sm text-text-secondary py-2">
-                              <Loader2 size={14} className="animate-spin text-db-red-fg" />
-                              Loading use cases for this session…
-                            </div>
-                          )}
-                          {!loadingUc && Array.isArray(ucs) && ucs.length === 0 && (
-                            <p className="text-sm text-text-secondary py-1">
-                              No use cases found for this session in the catalog or results yet.
-                            </p>
-                          )}
-                          {!loadingUc && Array.isArray(ucs) && ucs.length > 0 && (
-                            <ul className="max-h-72 overflow-y-auto space-y-2 pe-1">
-                              {ucs.map((uc, i) => {
-                                const title = nameOfUseCase(uc) || 'Use case';
-                                const blurb = blurbOfUseCase(uc);
-                                const score = inspireScoreFromUc(uc);
-                                return (
-                                  <li
-                                    key={`qv-${sidStr}-${uc.id ?? uc.No ?? i}-${keyOfUseCase(uc)}`}
-                                    className="rounded-lg border border-border bg-surface/80 px-3 py-2"
-                                  >
-                                    <div className="flex items-start justify-between gap-2">
-                                      <span className="text-xs font-semibold text-text-primary line-clamp-2 leading-snug">
-                                        {title}
-                                      </span>
-                                      {score != null && Number.isFinite(score) && (
-                                        <span className="shrink-0 text-xs font-bold tabular-nums text-db-red-fg bg-db-red-50 border border-db-red/20 px-1.5 py-0.5 rounded">
-                                          {score.toFixed(1)}
-                                        </span>
-                                      )}
-                                    </div>
-                                    {(uc._domain || uc['Business Domain'] || uc.domain) && (
-                                      <p className="text-xs text-text-tertiary mt-0.5 truncate">
-                                        {uc._domain || uc['Business Domain'] || uc.domain}
-                                      </p>
-                                    )}
-                                    {blurb && (
-                                      <p className="text-xs text-text-secondary mt-1 line-clamp-2 leading-relaxed">
-                                        {blurb}
-                                      </p>
-                                    )}
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          )}
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-          )}
-        </section>
-      )}
-
-      {/* Error banner */}
-      {launchErrorGuidance && <div id="launch-error"><UcPermissionErrorHelp guidance={launchErrorGuidance} /></div>}
-
-      <div className="space-y-6">
-
-        {/* ═══════════════════════════════════════════════
-            SECTION 1: ESSENTIALS
-           ═══════════════════════════════════════════════ */}
-        <section className="bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
-          <div className="flex items-center gap-3 px-6 py-4 border-b border-border bg-surface">
-            <div className="w-8 h-8 rounded-lg bg-db-red flex items-center justify-center shadow-sm">
-              <Zap size={16} className="text-white" />
-            </div>
-            <div className="flex-1">
-              <h2 className="text-sm font-bold text-text-primary">Essentials</h2>
-            </div>
-            <span className="text-xs font-semibold text-db-red-fg bg-db-red-50 border border-db-red/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
-              Required
-            </span>
-          </div>
-
-          <div className="px-6 py-6 space-y-6">
-            {/* Business Name */}
+  const nameField = (
             <Field label="Business Name" required icon={Building2} hint="The company or business unit to analyze">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <input dir="auto"
@@ -1377,7 +1181,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   className="min-w-0 flex-1 w-full ps-10 pe-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
                 />
                 <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-text-primary">
-                  <span className="whitespace-nowrap">Profile</span>
+                  <span className="whitespace-nowrap">{wizMode ? 'Load a saved profile' : 'Profile'}</span>
                   <select data-launch-profile="" aria-label="Business profile"
                     value={loadedProfile?.profile_id || ''}
                     disabled={profileBusy || launching}
@@ -1403,8 +1207,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               )}
               {profilesError && <PlainMessage text={profilesError} role="alert" data-launch-profile-error="" className="mt-2 text-xs text-error-fg" />}
             </Field>
-
-            {/* UC Metadata — Catalog/Schema/Table pickers with shopping basket */}
+  );
+  const ucField = (
             <Field label="Unity Catalog Metadata" required icon={Database} hint="Pick the catalogs, schemas or tables that hold your business data">
                 {catalogBrowseGuidance && <UcPermissionErrorHelp guidance={catalogBrowseGuidance} />}
                 {pickerReadGuidance && <UcPermissionErrorHelp guidance={pickerReadGuidance} />}
@@ -1650,8 +1454,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   </div>
                 )}
               </Field>
-
-            {/* Generation Instructions — optional */}
+  );
+  const instructionsField = (
             <FieldSection label="Generation Instructions" hint="Optional. What the business does, what it wants this year, and anything Inspire should focus on or leave out">
               <div className="relative">
                 <Target size={14} className="absolute start-3 top-3 text-text-tertiary" />
@@ -1664,8 +1468,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 />
               </div>
             </FieldSection>
-
-            {/* Discovery Type — v1.3.0 widget 03_discovery_type */}
+  );
+  const discoveryField = (
             <FieldSection label="Discovery Type" hint="Both modes count your data; only AI Enhanced Discovery shows the counts to the AI">
               <div className="grid grid-cols-1 gap-2.5">
                 {DISCOVERY_OPTIONS.map((opt) => {
@@ -1723,42 +1527,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               </div>
               {prefillNote && <p className="text-xs text-text-tertiary mt-1.5">{prefillNote}</p>}
             </FieldSection>
-
-          </div>
-        </section>
-
-        {/* ═══════════════════════════════════════════════
-            SECTION 2: ADVANCED (Collapsible)
-           ═══════════════════════════════════════════════ */}
-        <section className="bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
-          <button
-            type="button"
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            aria-expanded={showAdvanced}
-            data-launch-advanced-toggle=""
-            className="w-full flex items-center gap-3 px-6 py-4 text-start hover:bg-bg-subtle/50 transition-smooth"
-          >
-            <div className="w-8 h-8 rounded-lg bg-bg-subtle flex items-center justify-center">
-              <Settings2 size={16} className="text-text-secondary" />
-            </div>
-            <div className="flex-1">
-              <h2 className="text-sm font-bold text-text-primary">Advanced Settings</h2>
-              <p className="max-w-[75ch] text-xs text-text-secondary">
-                Business priorities, domains and strategy, where Inspire keeps its tables and files, run mode, documents and quality
-              </p>
-              {!showAdvanced && advancedProblem && (
-                <p data-launch-advanced-problem="" className="mt-1 text-xs text-error-fg">{advancedProblem}</p>
-              )}
-            </div>
-            <div className={`transition-transform duration-200 ${showAdvanced ? 'rotate-180' : ''}`}>
-              <ChevronDown size={16} className="text-text-tertiary" />
-            </div>
-          </button>
-
-          {showAdvanced && (
-            <div className="px-6 pb-6 pt-2 border-t border-border space-y-6">
-
-              {/* Business Priorities */}
+  );
+  const prioritiesField = (
               <FieldSection label="Business Priorities" hint="Pick what matters most, or add your own">
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                   {BUSINESS_PRIORITIES.map((bp) => {
@@ -1825,8 +1595,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   </button>
                 </div>
               </FieldSection>
-
-              {/* Business Domains */}
+  );
+  const domainsField = (
               <FieldSection label="Business Domains" hint="Leave empty to auto-infer from data">
                 <div className="relative">
                   <Layers size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
@@ -1839,7 +1609,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   />
                 </div>
               </FieldSection>
-
+  );
+  const strategyBlock = (
               <div className="border border-border rounded-xl overflow-hidden" data-testid="launch-strategy">
                 <button
                   type="button"
@@ -1877,7 +1648,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   </div>
                 )}
               </div>
-
+  );
+  const dataFilterBlock = (
               <div className="border border-border rounded-xl overflow-hidden" data-testid="launch-data-filters">
                 <button
                   type="button"
@@ -1919,8 +1691,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   </div>
                 )}
               </div>
-
-              {/* Inspire Database */}
+  );
+  const dbField = (
               <Field label="Inspire Database" icon={Database} hint="catalog.schema format: where Inspire keeps its record of each run">
                 <input dir="auto"
                   type="text"
@@ -1930,16 +1702,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   className="w-full ps-10 pe-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth font-mono"
                 />
               </Field>
-
-              <FieldSection label="Operation" hint="Discover finds use cases; Generate writes the Databricks AI instructions again for flagged use cases only">
-                <GlowSelect
-                  value={params['15_operation']}
-                  onChange={(v) => updateParam('15_operation', v)}
-                  options={OPERATION_WIDGET_OPTIONS}
-                />
-              </FieldSection>
-
-              {/* Generation Path */}
+  );
+  const pathField = (
               <Field label="Generation Path" icon={FileText} hint="Where to write output artifacts">
                 <input dir="auto"
                   type="text"
@@ -1952,18 +1716,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 />
                 <OutputFolderCheck check={outputCheck} id="output-folder-check-field" />
               </Field>
-
-              {/* Row: Table Election + Quality */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <FieldSection label="Table Election">
-                  <GlowSelect
-                    value={params['04_table_election']}
-                    onChange={(v) => updateParam('04_table_election', v)}
-                    options={TABLE_ELECTION}
-                  />
-                  <p className="text-xs text-text-tertiary mt-1">Which of the tables you picked Inspire reads</p>
-                </FieldSection>
-
+  );
+  const qualityField = (
                 <FieldSection label="Use Cases Quality">
                   <div className="flex gap-1.5">
                     {QUALITY_OPTIONS.map((q) => {
@@ -1985,8 +1739,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     })}
                   </div>
                 </FieldSection>
-              </div>
-
+  );
+  const genieRow = (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <Field
                   label="Auto-Genie scope"
@@ -2020,6 +1774,364 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   )}
                 </Field>
               </div>
+  );
+  const electionField = wiz?.findPath ? (
+    <FieldSection label="Table Election">
+      <p data-launch-election-by-plan="" className="text-sm text-text-primary">{TABLE_ELECTION_BY_PLAN}</p>
+    </FieldSection>
+  ) : (
+                <FieldSection label="Table Election">
+                  <GlowSelect
+                    value={params['04_table_election']}
+                    onChange={(v) => updateParam('04_table_election', v)}
+                    options={TABLE_ELECTION}
+                  />
+                  <p className="text-xs text-text-tertiary mt-1">Which of the tables you picked Inspire reads</p>
+                </FieldSection>
+  );
+
+  const selectionWarning = tableSelectionWarning.show ? (
+    <TableSelectionGuidanceWarning
+      heading={tableSelectionWarning.heading}
+      tableCount={tableSelectionWarning.tableCount}
+      scope={tableSelectionWarning.scope}
+      idealMax={TABLE_SELECTION_IDEAL_MAX}
+      compact
+    />
+  ) : null;
+  const wizParts = {
+    business: nameField,
+    data: <>{ucField}{selectionWarning}</>,
+    goals: <>{instructionsField}{prioritiesField}{domainsField}{strategyBlock}</>,
+    settings: (
+      <>
+        {discoveryField}
+        <button type="button" data-wiz-more-settings="" aria-expanded={showMore} onClick={() => setShowMore((v) => !v)}
+          className="text-sm font-semibold text-primary-fg hover:underline">
+          More settings
+        </button>
+        {showMore && (
+          <div className="space-y-6">
+            {dbField}
+            {pathField}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">{electionField}{qualityField}</div>
+            {genieRow}
+            {!wiz?.findPath && dataFilterBlock}
+          </div>
+        )}
+      </>
+    ),
+  };
+  if (step) {
+    const part = wizParts[step];
+    return <>{part && wiz?.slot ? createPortal(<div className="space-y-6">{part}</div>, wiz.slot) : null}</>;
+  }
+
+  return (
+    <>
+    <div className={`${WIZARD} py-8`}>
+      {/* Page Header */}
+      <div className="mb-8">
+        <PageHeader className="mb-2" icon={Rocket}
+          title={<span className="block line-clamp-2 wrap-break-word" title={headlineBusiness ? launchPageHeading : undefined} aria-live="polite">{launchPageHeading}</span>}
+          actions={<MoreMenu items={[
+            { label: 'Recent runs', onSelect: () => { setShowRecentRuns(true); setExperimentsOverviewExpanded(true); } },
+            { label: 'How Inspire keeps your data private', onSelect: () => setShowPrivacyNote(true) },
+          ]} />} />
+        {draftBack && (
+          <div role="note" aria-label="Your draft" data-launch-draft="" className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-info/20 bg-info-bg px-3 py-2 text-[12px] text-text-primary">
+            <span>{DRAFT_BACK_NOTE}</span>
+            <button type="button" data-launch-start-over="" onClick={startOver} className="text-[12px] font-medium text-db-red-fg underline-offset-2 hover:underline glow-focus">{DRAFT_START_OVER}</button>
+          </div>
+        )}
+      </div>
+
+
+      {showRecentRuns && (token || serverEnvHasPat) && warehouseId && previewDb && (
+        <section
+          className="mb-8 rounded-xl border border-border bg-surface/80 backdrop-blur-sm shadow-sm overflow-hidden"
+          aria-label="Discovery Overview"
+        >
+          <button
+            type="button"
+            onClick={() => setExperimentsOverviewExpanded((v) => !v)}
+            className="flex w-full items-center gap-3 px-5 py-3 border-b border-border bg-bg-subtle/50 text-start transition-colors hover:bg-bg-subtle/80"
+            aria-expanded={experimentsOverviewExpanded}
+          >
+            <Layers size={16} className="text-db-red-fg shrink-0" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-semibold text-text-primary">Discovery Overview</h2>
+              <p className="text-xs text-text-secondary truncate">
+                {overviewLoading
+                  // busy-ok: the list below this subtitle shows a spinning Loader2 while overviewLoading
+                  ? 'Loading your recent runs…'
+                  : overviewError
+                    ? 'Inspire could not read your runs, see the message below'
+                    : sessionsList.length > 0
+                    ? `${sessionsList.length} run${sessionsList.length === 1 ? '' : 's'} · use Quick view to see the use cases each run found`
+                    : 'No runs yet. Start one to see it listed here.'}
+              </p>
+            </div>
+            <ChevronDown
+              size={16}
+              className={`shrink-0 text-text-tertiary transition-transform duration-200 ${experimentsOverviewExpanded ? 'rotate-180' : ''}`}
+              aria-hidden
+            />
+          </button>
+          {(overviewError || allCreatedError) && (
+            <div className="space-y-2 border-b border-border bg-surface/60 px-5 py-2.5">
+              {overviewError && (
+                <div role="alert" data-overview-error="" className="flex items-start gap-1.5 text-xs text-error-fg">
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1"><PlainMessage text={overviewError} /></div>
+                </div>
+              )}
+              {allCreatedError && !overviewError && (
+                <div role="alert" className="flex items-start gap-1.5 text-xs text-warning-fg">
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1"><PlainMessage text={`Inspire could not count the use cases of your runs: ${allCreatedError}`} /></div>
+                </div>
+              )}
+            </div>
+          )}
+          {experimentsOverviewExpanded && (
+          <div className="px-5 py-4">
+            {overviewLoading && !overviewError && (
+              <div className="flex items-center gap-2 text-sm text-text-secondary py-2">
+                <Loader2 size={16} className="animate-spin text-db-red-fg" />
+                Loading runs…
+              </div>
+            )}
+            {!overviewLoading && !overviewError && sessionsList.length === 0 && (
+              <p className="text-sm text-text-secondary py-1">
+                No runs yet. The use cases of a run show under Quick view once it saves them.
+              </p>
+            )}
+            {!overviewLoading && sessionsList.length > 0 && (
+              <ul className="divide-y divide-border rounded-lg border border-border bg-bg-subtle/30 overflow-hidden">
+                {sessionsList.map((s) => {
+                  const sidStr = String(s.session_id);
+                  const expanded = quickViewSid === sidStr;
+                  const count = useCaseCountBySession.get(sidStr) ?? 0;
+                  const ucs = expanded ? getUcsForSession(s.session_id) : null;
+                  const loadingUc = quickViewLoading === sidStr;
+                  const business = runBusiness(s) || 'No business name';
+                  const pct = Number(s.completed_percent) || 0;
+                  return (
+                    <li key={sidStr} data-run={sidStr} className="bg-surface/60">
+                      <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-semibold text-text-primary truncate">{business}</span>
+                            <LatestRunBadge session={s} />
+                            <span className="text-xs font-mono text-text-tertiary bg-bg-subtle px-1.5 py-0.5 rounded border border-border shrink-0">
+                              {sidStr}
+                            </span>
+                            {sessionFailed(s) ? (
+                              <span className="text-xs font-medium text-error-fg bg-error-bg px-1.5 py-0.5 rounded border border-error/20">
+                                Failed at {Math.round(pct)}%
+                              </span>
+                            ) : sessionFinished(s) ? (
+                              <span className="text-xs font-medium text-success-fg bg-success-bg px-1.5 py-0.5 rounded border border-success/20">
+                                Complete
+                              </span>
+                            ) : (
+                              <span className="text-xs font-medium text-text-secondary bg-bg-subtle px-1.5 py-0.5 rounded border border-border">
+                                {Math.round(pct)}% done
+                              </span>
+                            )}
+                            <span className="text-xs text-text-tertiary">
+                              {count > 0 ? `${count} in table` : 'none in table yet'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-text-secondary">
+                            <Calendar size={14} className="shrink-0 text-text-tertiary" aria-hidden />
+                            <span>{formatWhen(s.create_at, 'Date unknown')}</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => onQuickViewToggle(s.session_id)}
+                            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                              expanded
+                                ? 'border-db-red bg-db-red-50 text-db-red-fg'
+                                : 'border-border bg-surface text-text-primary hover:border-db-red/40 hover:text-db-red-fg'
+                            }`}
+                            aria-expanded={expanded}
+                          >
+                            <Eye size={14} aria-hidden />
+                            Quick view
+                            <ChevronDown
+                              size={14}
+                              className={`transition-transform ${expanded ? 'rotate-180' : ''}`}
+                              aria-hidden
+                            />
+                          </button>
+                          {typeof onOpenResults === 'function' && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenResults(sidStr)}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text-primary hover:border-db-red/40 hover:text-db-red-fg transition-colors"
+                            >
+                              <ExternalLink size={14} aria-hidden />
+                              Open in Review
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {expanded && (
+                        <div className="border-t border-border bg-bg-subtle/50 px-4 py-3">
+                          {loadingUc && (
+                            <div className="flex items-center gap-2 text-sm text-text-secondary py-2">
+                              <Loader2 size={14} className="animate-spin text-db-red-fg" />
+                              Loading use cases for this session…
+                            </div>
+                          )}
+                          {!loadingUc && Array.isArray(ucs) && ucs.length === 0 && (
+                            <p className="text-sm text-text-secondary py-1">
+                              No use cases found for this session in the catalog or results yet.
+                            </p>
+                          )}
+                          {!loadingUc && Array.isArray(ucs) && ucs.length > 0 && (
+                            <ul className="max-h-72 overflow-y-auto space-y-2 pe-1">
+                              {ucs.map((uc, i) => {
+                                const title = nameOfUseCase(uc) || 'Use case';
+                                const blurb = blurbOfUseCase(uc);
+                                const score = inspireScoreFromUc(uc);
+                                return (
+                                  <li
+                                    key={`qv-${sidStr}-${uc.id ?? uc.No ?? i}-${keyOfUseCase(uc)}`}
+                                    className="rounded-lg border border-border bg-surface/80 px-3 py-2"
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <span className="text-xs font-semibold text-text-primary line-clamp-2 leading-snug">
+                                        {title}
+                                      </span>
+                                      {score != null && Number.isFinite(score) && (
+                                        <span className="shrink-0 text-xs font-bold tabular-nums text-db-red-fg bg-db-red-50 border border-db-red/20 px-1.5 py-0.5 rounded">
+                                          {score.toFixed(1)}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {(uc._domain || uc['Business Domain'] || uc.domain) && (
+                                      <p className="text-xs text-text-tertiary mt-0.5 truncate">
+                                        {uc._domain || uc['Business Domain'] || uc.domain}
+                                      </p>
+                                    )}
+                                    {blurb && (
+                                      <p className="text-xs text-text-secondary mt-1 line-clamp-2 leading-relaxed">
+                                        {blurb}
+                                      </p>
+                                    )}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+          )}
+        </section>
+      )}
+
+      {/* Error banner */}
+      {launchErrorGuidance && <div id="launch-error"><UcPermissionErrorHelp guidance={launchErrorGuidance} /></div>}
+
+      <div className="space-y-6">
+
+        {/* ═══════════════════════════════════════════════
+            SECTION 1: ESSENTIALS
+           ═══════════════════════════════════════════════ */}
+        <section className="bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
+          <div className="flex items-center gap-3 px-6 py-4 border-b border-border bg-surface">
+            <div className="w-8 h-8 rounded-lg bg-db-red flex items-center justify-center shadow-sm">
+              <Zap size={16} className="text-white" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-sm font-bold text-text-primary">Essentials</h2>
+            </div>
+            <span className="text-xs font-semibold text-db-red-fg bg-db-red-50 border border-db-red/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
+              Required
+            </span>
+          </div>
+
+          <div className="px-6 py-6 space-y-6">
+            {/* Business Name */}
+            {nameField}
+
+            {/* UC Metadata — Catalog/Schema/Table pickers with shopping basket */}
+            {ucField}
+
+            {/* Generation Instructions — optional */}
+            {instructionsField}
+
+            {/* Discovery Type — v1.3.0 widget 03_discovery_type */}
+            {discoveryField}
+
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════
+            SECTION 2: ADVANCED (Collapsible)
+           ═══════════════════════════════════════════════ */}
+        <section className="bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            aria-expanded={showAdvanced}
+            data-launch-advanced-toggle=""
+            className="w-full flex items-center gap-3 px-6 py-4 text-start hover:bg-bg-subtle/50 transition-smooth"
+          >
+            <div className="w-8 h-8 rounded-lg bg-bg-subtle flex items-center justify-center">
+              <Settings2 size={16} className="text-text-secondary" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-sm font-bold text-text-primary">Advanced Settings</h2>
+              <p className="max-w-[75ch] text-xs text-text-secondary">
+                Business priorities, domains and strategy, where Inspire keeps its tables and files, run mode, documents and quality
+              </p>
+              {!showAdvanced && advancedProblem && (
+                <p data-launch-advanced-problem="" className="mt-1 text-xs text-error-fg">{advancedProblem}</p>
+              )}
+            </div>
+            <div className={`transition-transform duration-200 ${showAdvanced ? 'rotate-180' : ''}`}>
+              <ChevronDown size={16} className="text-text-tertiary" />
+            </div>
+          </button>
+
+          {showAdvanced && (
+            <div className="px-6 pb-6 pt-2 border-t border-border space-y-6">
+
+              {prioritiesField}
+
+              {/* Business Domains */}
+              {domainsField}
+
+              {strategyBlock}
+
+              {dataFilterBlock}
+
+              {/* Inspire Database */}
+              {dbField}
+
+
+              {/* Generation Path */}
+              {pathField}
+
+              {/* Row: Table Election + Quality */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {electionField}
+                {qualityField}
+              </div>
+
+              {genieRow}
             </div>
           )}
         </section>

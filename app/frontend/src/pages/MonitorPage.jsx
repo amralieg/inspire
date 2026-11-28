@@ -36,6 +36,7 @@ import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
 import { qualityBarCountText } from '../lib/qualityBarWording';
 import { newSessionId, runResultText, runStateText } from '../lib/runState';
 import { liveUseCasesOf } from '../lib/liveUseCases';
+import MatchMonitorBoxes from '../components/match/MatchMonitorBoxes';
 import { useFollowEnd } from '../lib/followEnd';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
 import BusyNote from '../components/BusyNote';
@@ -588,6 +589,8 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
         </div>
       )}
 
+      {/* c33 (REQ-579): a Match run shows its input use cases and their match status; lane C owns the component. */}
+      {sessionId && <MatchMonitorBoxes settings={settings} sessionId={sessionId} runId={runId} apiFetch={apiFetch} steps={steps} />}
       {(totalCount > 0 || isRunning || isPending) && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <ArrivingNow useCases={liveUseCases} live={isRunning}
