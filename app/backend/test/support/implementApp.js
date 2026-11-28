@@ -468,6 +468,8 @@ function makeApp(overrides = {}, { mount } = {}) {
   app.get('/api/inspire/steps', (_req, res) => res.json({ steps: state.runSteps || [], count: (state.runSteps || []).length }));
   // c33 (REQ-578, REQ-579): every Monitor and Results page asks whether its session is a Match run; a test's own mount answers first.
   app.get('/api/inspire/match/result', (_req, res) => res.json(state.matchResult || { state: 'none', inputs: [], reports: [], decisions: [] }));
+  // c36 (REQ-581): a live Use Cases stage on the Monitor reads the provisional candidates; a test's own mount answers first.
+  app.get('/api/inspire/candidates', (_req, res) => res.json(state.candidates || { candidates: [] }));
   app.get('/api/workspace/export', (req, res) => {
     const text = (state.notebooks || {})[req.query.path];
     if (text === undefined) return res.status(404).json({ error: 'not found', tried: [req.query.path] });

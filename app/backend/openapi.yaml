@@ -1107,6 +1107,17 @@ paths:
       responses:
         '200': { description: The run state, one report per use case and the latest choice per piece }
         '403': { description: Refused by the route policy }
+  /api/inspire/candidates:
+    get:
+      tags: [Launch]
+      summary: Read the provisional use case candidates of a run (REQ-581)
+      parameters:
+        - { name: inspire_database, in: query, required: true, schema: { type: string } }
+        - { name: warehouse_id, in: query, required: true, schema: { type: string } }
+        - { name: session_id, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: One row per candidate, ranked first, with its latest state }
+        '403': { description: Refused by the route policy }
   /api/inspire/match/decision:
     post:
       tags: [Launch]

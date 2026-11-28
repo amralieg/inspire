@@ -50,9 +50,10 @@ const ROW_STATE = {
   ended_error: 'error', failed: 'error', error: 'error',
   ended_warning: 'warning',
   ended_success: 'done', completed: 'done',
+  skipped: 'skipped',
 };
 const rowState = (status) => ROW_STATE[String(status || '')] || 'active';
-const RANK = { error: 4, active: 3, warning: 2, done: 1 };
+const RANK = { error: 5, active: 4, warning: 3, done: 2, skipped: 1 };
 
 /** The eight phases with a state each: todo, active, done, warning, error or skipped. Skipped is never shown as done. */
 export function runPhasesOf(steps, { ended = false, failed: runFailed = false } = {}) {

@@ -3,6 +3,7 @@ import { BookOpen, Download, ExternalLink, Eye, FileText, Loader2, Plus } from '
 import { artifactTreeFiles, fileActions, fileDateText, fileSizeText, fileTypeText, hasStrategyDocument, overallDocsByFormat } from '../../lib/artifactFiles';
 import BusyNote from '../BusyNote';
 import { isViewable } from '../../lib/docView';
+import { PENDING_TEXT } from '../../lib/candidates';
 import { nameOfUseCase, trackingIdOf } from '../../lib/useCaseFields';
 
 const NEW_DOCS_EVENT = 'inspire:new-docs';
@@ -67,8 +68,9 @@ function OverallDoc({ format, newDocs, assetFocus, focusRef, viewFile, openFileI
 /** Documents: the overall documents (Excel, PDF, PowerPoint) with generate and download, then every use case that has documents. Reads the run's own file listing. */
 function OverviewDocuments({
   allUseCases, docsMadeIds, artifactsRootFiles, artifactTree, artifactsLoading, generationPath, selectedSessionId, loadArtifacts, loadFolder,
-  assetFocus, viewFile, openFileInTab, downloadFile, onGenerateAll, openUseCase, strategyDoc,
+  assetFocus, viewFile, openFileInTab, downloadFile, onGenerateAll, openUseCase, strategyDoc, pendingArtifacts = [],
 }) {
+  const docsPending = pendingArtifacts.some((p) => p && p.kind === 'docs');
   const newDocs = useNewDocs(selectedSessionId, generationPath, loadArtifacts, loadFolder);
   const focusRef = useRef(null);
   useEffect(() => { focusRef.current?.scrollIntoView?.({ block: 'center' }); }, [assetFocus, artifactsRootFiles, artifactTree]);
@@ -98,7 +100,8 @@ function OverviewDocuments({
         </p>
       )}
       <h3 className="mb-2 text-caption font-bold uppercase tracking-[0.18em] text-text-secondary">Use cases with documents ({withDocs.length})</h3>
-      {withDocs.length === 0 && <p className="text-xs text-text-secondary">No use case has documents yet. Tick use cases on the Use cases tab and choose Generate docs.</p>}
+      {withDocs.length === 0 && docsPending && <p data-pending-artifact="docs" className="text-xs text-text-secondary">Documents {PENDING_TEXT}.</p>}
+      {withDocs.length === 0 && !docsPending && <p className="text-xs text-text-secondary">No use case has documents yet. Tick use cases on the Use cases tab and choose Generate docs.</p>}
       <ul className="grid gap-1">
         {withDocs.map((uc) => {
           const id = trackingIdOf(uc);

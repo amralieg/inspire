@@ -192,6 +192,7 @@ const ROUTE_POLICY = {
   // decision and accept act on a Match session its launcher owns.
   'POST /api/inspire/match/start': tracked('save the use cases to match and launch the match run', 'launches the run as the App, which owns the job and its tracking tables, like POST /api/run'),
   'GET /api/inspire/match/result': tracked('read how the use cases of a Match session match the data'),
+  'GET /api/inspire/candidates': tracked('read the provisional use case candidates of a run'),
   'POST /api/inspire/match/decision': { rule: 'launcher', action: 'save a choice for one piece of a matched use case', target: sessionTarget, identity: 'app', why: GATED },
   'POST /api/inspire/match/accept': { rule: 'launcher', action: 'accept the match and launch the use case run', target: sessionTarget, identity: 'app', why: GATED },
   'POST /api/inspire/value/run-review': owners('have the model review the value of a whole run and save the review as one row of its Calculate value answers',

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { displayId } from '../../../../shared/useCaseId.mjs';
 import { liveCountText } from '../../lib/liveUseCases';
+import ProvisionalCards from './ProvisionalCards';
 
 // REQ-511 Monitor C: the live use cases as cards, with one chip per domain that filters them.
 const CARD_CAP = 60;
@@ -11,7 +12,7 @@ const PRIORITY_TONE = [
 ];
 const toneOf = (priority) => (PRIORITY_TONE.find(([re]) => re.test(priority || '')) || [null, 'text-text-secondary bg-bg-subtle'])[1];
 
-export default function ArrivingNow({ useCases, live, empty }) {
+export default function ArrivingNow({ useCases, live, empty, candidates = [] }) {
   const [domain, setDomain] = useState('');
   const domains = useMemo(() => {
     const counts = new Map();
@@ -40,6 +41,7 @@ export default function ArrivingNow({ useCases, live, empty }) {
           ))}
         </div>
       )}
+      <ProvisionalCards candidates={candidates} useCases={useCases} />
       {useCases.length === 0 ? (
         <p className="py-6 text-center text-sm text-text-secondary">{empty}</p>
       ) : (

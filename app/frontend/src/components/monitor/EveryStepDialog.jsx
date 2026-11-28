@@ -1,5 +1,5 @@
 import {
-  AlertCircle, ArrowDown, CheckCircle2, ChevronDown, Clock, Eye, EyeOff, Filter, Layers, Loader2, Search, XCircle,
+  AlertCircle, ArrowDown, CheckCircle2, ChevronDown, Clock, Eye, EyeOff, Filter, Layers, Loader2, MinusCircle, Search, XCircle,
 } from 'lucide-react';
 import { useState } from 'react';
 import ModalDialog from '../ModalDialog';
@@ -18,6 +18,7 @@ export const STATUS_FILTERS = [
   { key: 'success', label: 'Success', color: 'text-success-fg' },
   { key: 'warning', label: 'Warning', color: 'text-warning-fg' },
   { key: 'error', label: 'Error', color: 'text-error-fg' },
+  { key: 'skipped', label: 'Skipped', color: 'text-text-secondary' },
   { key: 'open', label: 'No end recorded', color: 'text-text-secondary' },
 ];
 
@@ -335,6 +336,8 @@ export function getStepStyle(category) {
       return { icon: <AlertCircle size={14} className="text-warning-fg" />, badge: 'bg-warning-bg text-warning-fg', label: 'Warning' };
     case 'error':
       return { icon: <XCircle size={14} className="text-error-fg" />, badge: 'bg-error-bg text-error-fg', label: 'Error' };
+    case 'skipped':
+      return { icon: <MinusCircle size={14} className="text-text-tertiary" />, badge: 'bg-bg-subtle text-text-secondary', label: 'Skipped' };
     default:
       return { icon: <Clock size={14} className="text-text-tertiary" />, badge: 'bg-bg-subtle text-text-secondary', label: 'No end recorded' };
   }
@@ -358,13 +361,14 @@ function highlightMatch(text, query) {
 }
 
 function StepRow({ step, live, searchQuery }) {
-  const style = getStepStyle(stepCategory(step.status, live));
+  const category = stepCategory(step.status, live);
+  const style = getStepStyle(category);
   const [expanded, setExpanded] = useState(false);
   const said = splitTechnical(step.message || '');
   const hasDetails = step.message || step.sub_step_name || (step.result_json && Object.keys(step.result_json).length > 0);
 
   return (
-    <div className="hover:bg-bg-subtle/50 transition-smooth">
+    <div className="hover:bg-bg-subtle/50 transition-smooth" data-step-row={String(step.step_id)} data-step-category={category}>
       <div
         className="flex items-center gap-3 px-4 py-2.5 cursor-pointer"
         onClick={() => hasDetails && setExpanded(!expanded)}

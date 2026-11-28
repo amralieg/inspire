@@ -131,6 +131,7 @@ import { DEFAULT_RESULTS_VIEW, searchWithView, viewOfSearch } from '../lib/resul
 import ResultsBusiness from '../components/results/ResultsBusiness';
 import RunStepper from '../components/RunStepper';
 import ResultsOverview from '../components/results/ResultsOverview';
+import { pendingKindsFor } from '../lib/candidates';
 import RunOutcomeBar from '../components/results/RunOutcomeBar';
 import DocViewer from '../components/DocViewer';
 import { sessionFailed, sessionFinished, sessionSucceeded } from '../lib/monitorState';
@@ -197,6 +198,7 @@ export default function ResultsPage({
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   const latestId = useMemo(() => latestRunId(sessions), [sessions]);
   const [results, setResults] = useState(null);
+  const [pendingArtifacts, setPendingArtifacts] = useState([]);
   // REQ-126: the steps the run recorded, the same rows the Monitor reads; the Review step bar is built from them.
   const [runSteps, setRunSteps] = useState({ session: '', steps: [] });
   const [loading, setLoading] = useState(false);
@@ -457,6 +459,7 @@ export default function ResultsPage({
         const data = await apiFetch(`/api/inspire/results?${q}`);
         if (!data?.results || typeof data.results !== 'object') return;
         setResults(data.results);
+        setPendingArtifacts(Array.isArray(data.pending_artifacts) ? data.pending_artifacts : []);
       } catch {
         /* ignore */
       }
@@ -612,6 +615,7 @@ export default function ResultsPage({
           if (ucData.usecases?.length > 0) loadedUsecases = ucData.usecases;
         } catch { /* silent */ }
         setResults(data.results);
+        setPendingArtifacts(Array.isArray(data.pending_artifacts) ? data.pending_artifacts : []);
         setUsecases(loadedUsecases);
         return 'found';
       }
@@ -2244,6 +2248,7 @@ export default function ResultsPage({
                         selection={bulkOn && tid ? { checked: bulkPicked.has(tid), onChange: (on) => setBulkPick(tid, on) } : null}
                         onGenerateDocs={tid ? () => setDocsUcs([uc]) : undefined}
                         docsMade={Boolean(uc.docs_generated_at) || docsMadeIds.has(tid)}
+                        pendingKinds={pendingKindsFor(pendingArtifacts, tid)}
                         {...cardProps}
                       />
                       );
@@ -2283,6 +2288,7 @@ export default function ResultsPage({
                 onPanel={setOverviewPanel}
                 outcomeBar={<RunOutcomeBar isProgressive={isProgressive} runOutcome={runOutcome} qualityBarCounts={qualityBarCounts} noneMeetsBar={noneMeetsBar} reviewBarStages={reviewBarStages} />}
                 allUseCases={builtUseCases}
+                pendingArtifacts={pendingArtifacts}
                 docsMadeIds={docsMadeIds}
                 artifactsRootFiles={artifactsRootFiles}
                 artifactTree={artifactTree}
