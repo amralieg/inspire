@@ -2,6 +2,7 @@
 // Discover path: find or choose cards. Find renders the Find suitable data step (lane B); choose renders the catalog and table picker
 // that the shell's LaunchPage draws into `slot`. Match path: the picker only.
 import { DATA_CHOOSE, DATA_FIND, DATA_TEXT, PATH_DISCOVER, PRODUCTION_CATALOG_ADVICE } from '../../lib/startWizard';
+import DevWarnings, { scopePicks } from './DevWarnings';
 import FindDataStep from './FindDataStep';
 
 const CHOICE_HINT = {
@@ -33,7 +34,12 @@ export default function DataStep({ draft, setDraft, settings, apiFetch, onReady,
       {choice === DATA_FIND
         ? <FindDataStep draft={draft} setDraft={setDraft} settings={settings} apiFetch={apiFetch} onReady={onReady}
           registerStart={registerStart} launchParams={launchParams} onEditStep={onEditStep} />
-        : <div ref={setSlot} data-wiz-picker="" />}
+        : (
+          <>
+            <DevWarnings picks={scopePicks(launchParams?.()['01_uc_metadata'])} />
+            <div ref={setSlot} data-wiz-picker="" />
+          </>
+        )}
     </section>
   );
 }

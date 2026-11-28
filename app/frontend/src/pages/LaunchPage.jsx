@@ -284,6 +284,7 @@ export default function LaunchPage({ settings, update = NOOP, onLaunched, onOpen
   // ── Launch state ──
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState('');
+  const [labelProgress, setLabelProgress] = useState(null); // REQ-585 9: { done, total } of the tables the App has labelled for the launch
   const [catalogBrowseError, setCatalogBrowseError] = useState('');
   const [schemasReadError, setSchemasReadError] = useState('');
   const [tablesReadError, setTablesReadError] = useState('');
@@ -919,6 +920,12 @@ export default function LaunchPage({ settings, update = NOOP, onLaunched, onOpen
     if (relationshipText) finalParams['18_table_relationships'] = relationshipText;
 
     const startRun = async () => {
+      // REQ-585 9: while the launch request is pending, ask how many tables the App has labelled so far.
+      const sessionId = finalParams['14_session_id'];
+      const poll = () => apiFetch(`/api/inspire/labels/progress?session_id=${encodeURIComponent(sessionId)}`, { raise: false })
+        .then((got) => { if (got && got.total > 0) setLabelProgress({ done: got.done, total: got.total }); }).catch(() => {});
+      poll();
+      const pollTimer = setInterval(poll, 1000);
       try {
         const data = await withStartDeadline((signal) => apiFetch('/api/run', {
           method: 'POST',
@@ -937,6 +944,8 @@ export default function LaunchPage({ settings, update = NOOP, onLaunched, onOpen
       } catch (err) {
         setLaunchError(parseApiErrorMessage(err.message));
       } finally {
+        clearInterval(pollTimer);
+        setLabelProgress(null);
         setLaunching(false);
       }
     };
@@ -988,9 +997,9 @@ export default function LaunchPage({ settings, update = NOOP, onLaunched, onOpen
   const wizProfile = loadedProfile ? loadedProfile.profile_id : '';
   const wizOnState = wiz?.onState;
   useEffect(() => {
-    wizOnState?.({ business: wizBusiness, hasData: wizHasData, profileId: wizProfile, launching, launchError,
+    wizOnState?.({ business: wizBusiness, hasData: wizHasData, profileId: wizProfile, launching, launchError, labelProgress,
       summary: { quality: params['05_use_cases_quality'], discovery: params['03_discovery_type'], scope: params['01_uc_metadata'] }, tables: scopeTables });
-  }, [wizOnState, scopeTables, wizBusiness, wizHasData, wizProfile, launching, launchError, params['05_use_cases_quality'], params['03_discovery_type'], params['01_uc_metadata']]);
+  }, [wizOnState, scopeTables, wizBusiness, wizHasData, wizProfile, launching, launchError, labelProgress, params['05_use_cases_quality'], params['03_discovery_type'], params['01_uc_metadata']]);
 
   // Get Started asks to save the settings as a profile. A loaded profile whose settings are unchanged runs without asking.
   const handleLaunch = () => {

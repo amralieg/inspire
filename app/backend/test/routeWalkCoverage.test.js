@@ -61,6 +61,7 @@ const NOT_WALKED = {
   'POST /api/inspire/match/start': 'any person who can use the App starts their own new Match run, which the launch records under their name; no non-owner harness row walks it yet, and c33WizC.test.js:38 proves the refusals (no use cases, over 50, a use case with no name) and that nothing is written or launched',
   'POST /api/inspire/match/decision': 'saves one choice of a Match session for its launcher or an App manager only; no non-owner harness row walks it yet, and routePolicy.test.js:20 proves a non-manager non-launcher gets a 403 with no Databricks call',
   'POST /api/inspire/match/accept': 'launches phase two of a Match session for its launcher or an App manager only; no non-owner harness row walks it yet, and routePolicy.test.js:20 proves a non-manager non-launcher gets a 403 with no Databricks call',
+  'GET /api/inspire/labels/progress': 'reads one in-memory labelling counter and answers only the person who launched that session, anyone else gets 0 of 0 with state none; no non-owner harness row walks it yet, and c39LabelsUx.test.js proves the launcher answer, the other person and unknown session answers, and the 400',
   'POST /api/inspire/plan/sort': 'reads table names, columns and comments only (never a data row) and changes nothing; no non-owner harness row walks it yet, and c33WizB.test.js:72 proves the no-catalog refusal',
   'POST /api/inspire/plan/start': 'any person who can use the App saves their own plan, stamped with their name, and launches run 1 only; no non-owner harness row walks it yet, and c33WizB.test.js:105 proves the run over 25 tables is refused and launches nothing',
   'POST /api/inspire/plan/advance': 'launches only the caller\u2019s own waiting runs, from the stored launch settings; no non-owner harness row walks it yet, and c33WizB2.test.js:109 proves another person\u2019s waiting run is never launched or touched',
@@ -74,7 +75,7 @@ function mountedFiles(serverPath) {
   for (const m of text.matchAll(/const \{([^}]*)\} = require\('(\.[^']+)'\)/g)) {
     const names = m[1].split(',').map((s) => s.split(':').pop().trim());
     for (const name of names) {
-      if (/^register\w*Routes$/.test(name) && new RegExp(`\\b${name}\\(app\\b`).test(text)) {
+      if (/^register\w*Routes?$/.test(name) && new RegExp(`\\b${name}\\(app\\b`).test(text)) {
         files.push(require.resolve(path.resolve(path.dirname(serverPath), m[2])));
       }
     }
@@ -110,7 +111,7 @@ function missingFromWalk(routes, walked, excluded) {
 
 test('the route list comes from the source of server.js and every route file it mounts', () => {
   const files = mountedFiles(SERVER).map((f) => path.relative(BACKEND, f));
-  assert.deepEqual(files, ['server.js', 'implementRoutes.js', path.join('lib', 'showcase.js'), 'macroRoutes.js', path.join('lib', 'wizPlanRoutes.js'), path.join('lib', 'matchRoutes.js'), path.join('lib', 'candidateRoutes.js')]);
+  assert.deepEqual(files, ['server.js', 'implementRoutes.js', path.join('lib', 'showcase.js'), 'macroRoutes.js', path.join('lib', 'wizPlanRoutes.js'), path.join('lib', 'matchRoutes.js'), path.join('lib', 'candidateRoutes.js'), path.join('lib', 'labelProgress.js')]);
   const routes = registeredRoutes(mountedFiles(SERVER));
   for (const key of ['GET /api/run/:runId/cancel', 'POST /api/inspire/implement/rerun', 'ALL /showcase/:id/mvp/:mvp/api/*rest', 'GET {*path}']) {
     assert.ok(routes.has(key), key);

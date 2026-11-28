@@ -242,6 +242,9 @@ export default function StartWizard({ settings, update, apiFetch, onClose, onNoD
   const footer = (
     <>
       {error && <p role="alert" data-wiz-error="" className="me-auto text-xs text-error-fg">{error}</p>}
+      {busy && lp.labelProgress?.total > 0 && (
+        <span data-wiz-label-progress="" role="status" className="text-xs text-text-secondary">Labelling tables: {lp.labelProgress.done} of {lp.labelProgress.total} tables</span>
+      )}
       <Button variant="secondary" onClick={() => setIndex((i) => Math.max(0, i - 1))} disabled={index === 0 || busy}>Back</Button>
       {last ? (
         <Button data-wiz-start="" onClick={start} disabled={busy || !startable}>

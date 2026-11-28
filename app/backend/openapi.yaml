@@ -1057,6 +1057,16 @@ paths:
       responses:
         '200': { description: OK }
         '403': { description: Refused by the route policy }
+  /api/inspire/labels/progress:
+    get:
+      tags: [Launch]
+      summary: Labelling progress of a launch (REQ-585)
+      description: How many tables the launch has labelled so far out of the tables sent to the classifier, for the person who launched it; anyone else gets 0 of 0.
+      parameters:
+        - { name: session_id, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: OK }
+        '400': { description: session_id is missing }
   /api/inspire/plan/start:
     post:
       tags: [Launch]

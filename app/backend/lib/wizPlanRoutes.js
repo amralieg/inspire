@@ -15,6 +15,7 @@
 const crypto = require('node:crypto');
 const { replyContent } = require('./appFeedback');
 const RP = require('./routePolicy');
+const { looksDev } = require('../../frontend/src/lib/devNames.js');
 
 const PLAN_RUN_MAX = 25;
 const PLAN_TABLE = '__inspire_plan';
@@ -26,6 +27,7 @@ const LEFT_OUT_REASONS = {
   copy: 'Copies of other tables',
   technical: 'Technical tables',
   empty: 'Tables with no useful columns',
+  dev: 'Dev, test or sandbox copies',
   other: 'Not placed in a run',
 };
 const NAME_PART = /^[A-Za-z0-9_-]+$/;
@@ -103,7 +105,8 @@ function parseModelPlan(raw) {
 }
 
 // Places each real table once, splits runs over PLAN_RUN_MAX, numbers the runs, groups what is left out.
-function buildPlan(model, real, catalogs, readCount) {
+// devTables: tables of dev-looking schemas, left out by name with reason "dev" (never given to the model).
+function buildPlan(model, real, catalogs, readCount, devTables = []) {
   const known = new Set(real.map((t) => t.table));
   const placed = new Set();
   const runs = [];
@@ -134,6 +137,7 @@ function buildPlan(model, real, catalogs, readCount) {
     if (known.has(table) && !placed.has(table)) { placed.add(table); leave(table, text(l.reason)); }
   }
   for (const t of real) if (!placed.has(t.table)) { placed.add(t.table); leave(t.table, 'other'); }
+  for (const t of devTables) leave(t.table, 'dev');
   const left_out = [...groups.entries()].map(([reason, tables]) => ({ reason, label: LEFT_OUT_REASONS[reason], count: tables.length, example: tables[0], tables }));
   return { catalogs, read_tables: readCount, runs: runs.map((r, i) => ({ run_no: i + 1, ...r })), left_out };
 }
@@ -154,7 +158,11 @@ async function sort(deps, req) {
     throw fail(502, 'Inspire could not read the table names of these catalogs. Check that the App can read them and try again.');
   }
   if (!all.length) throw fail(400, 'These catalogs hold no tables Inspire can read.');
-  const ordered = [...all].sort((a, b) => (a.table < b.table ? -1 : a.table > b.table ? 1 : 0));
+  // Find suitable data only: the ticked catalogs are kept; the tables of dev-looking schemas are left out by name, unless that leaves nothing.
+  const prod = all.filter((t) => !looksDev(t.table.split('.')[1]));
+  const useful = prod.length ? prod : all;
+  const devTables = prod.length ? all.filter((t) => looksDev(t.table.split('.')[1])) : [];
+  const ordered = [...useful].sort((a, b) => (a.table < b.table ? -1 : a.table > b.table ? 1 : 0));
   const merged = { runs: [], left_out: [] };
   const byName = new Map();
   for (let i = 0; i < ordered.length; i += PROMPT_TABLE_MAX) {
@@ -169,7 +177,7 @@ async function sort(deps, req) {
     }
     if (Array.isArray(part.left_out)) merged.left_out.push(...part.left_out);
   }
-  return buildPlan(merged, all, catalogs, all.length);
+  return buildPlan(merged, useful, catalogs, all.length, devTables);
 }
 
 // ---- store -----------------------------------------------------------------------------------------------------------------------

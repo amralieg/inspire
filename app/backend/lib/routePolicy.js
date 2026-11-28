@@ -188,6 +188,8 @@ const ROUTE_POLICY = {
   'POST /api/inspire/plan/sort': reads('sort the tables of the picked catalogs into runs, from their names, columns and comments only'),
   'POST /api/inspire/plan/start': tracked('save a plan of runs and launch its first run', 'launches the run as the App, which owns the job and its tracking tables, like POST /api/run'),
   'POST /api/inspire/plan/advance': tracked('launch the next waiting run of a plan once the run before it ended', 'launches only runs a saved plan already lists, as the App, like POST /api/run'),
+  // c39 (REQ-585): the labelling progress n of N of a launch; the route answers only the person who launched.
+  'GET /api/inspire/labels/progress': anyone('read how many tables the launch has labelled so far, for the person who launched it', 'reads one in-memory counter and answers only the launcher of that session, anyone else gets 0 of 0; no Databricks call'),
   // c33 (REQ-578, REQ-579): Match existing use cases to data. start launches like POST /api/run; result reads like GET /api/inspire/results;
   // decision and accept act on a Match session its launcher owns.
   'POST /api/inspire/match/start': tracked('save the use cases to match and launch the match run', 'launches the run as the App, which owns the job and its tracking tables, like POST /api/run'),
