@@ -32,7 +32,7 @@ WEB_INPUTS = ("index.html", "package.json", "package-lock.json", "vite.config.js
 # Files outside web/ that the build inlines (the boot guard and its Vite plugin, shared with the frontend). Listed here and in
 # web/test/freshDist.mjs; web/test/sharedInputs.test.mjs fails when a file in app/shared is missing from either list.
 SHARED = os.path.normpath(os.path.join(ROOT, "..", "shared"))
-SHARED_INPUTS = ("bootGuard.js", "bootGuardPlugin.mjs")
+SHARED_INPUTS = ("bootGuard.js", "bootGuardPlugin.mjs", "useCaseId.mjs", "value_assumption_library.json", "value_spec.schema.json", "value_spec_fixtures.json")
 BINARY_SUFFIXES = (".woff2",)
 CONSTANT = "INSPIRE_NOTEBOOK_ASSETS = "
 LEGACY_CONSTANTS = ("_INSPIRE_APP_SHELL = ", "_INSPIRE_KINDS = ")

@@ -16,6 +16,7 @@ const RELEASED_REASON = 'released main 4407364 text';
 const PARSED_RELEASED_TEXTS = [];
 const SOURCES = [
   ['app/backend', ['.js', '.py']],
+  ['app/installer', ['.py']],
   ['app/frontend', ['.js', '.jsx', '.mjs', '.html']],
   ['app/scripts', ['.js', '.mjs', '.sh']],
 ];

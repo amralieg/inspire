@@ -57,7 +57,7 @@ test('no message the backend sends or prints, and no API doc page, uses an em or
     hits.push(...dashLines(withoutComments(fs.readFileSync(file, 'utf8')), path.relative(BACKEND, file)));
   }
   for (const rel of ['openapi.yaml', 'api-docs.html']) hits.push(...dashLines(fs.readFileSync(path.join(BACKEND, rel), 'utf8'), rel));
-  for (const rel of ['dbx_generate_demo_data.py', 'backend/dbx_generate_demo_data.py', 'dbx_inspire_after_demo.py']) {
+  for (const rel of ['dbx_generate_demo_data.py', 'dbx_inspire_after_demo.py']) {
     const text = fs.readFileSync(path.join(APP, rel), 'utf8');
     const shown = text.split('\n').filter((line) => !DEMO_DATA_PROMPT.includes(line.trim())).join('\n');
     hits.push(...dashLines(shown, rel));
