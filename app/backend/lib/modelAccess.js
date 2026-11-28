@@ -217,4 +217,4 @@ async function modelAccessPermission(args) {
   return (await planModelAccess(args)).permission;
 }
 
-module.exports = { modelAccessPermission, planModelAccess, selfCheckRecord, MODEL_CHECK_ROUTE, MODEL_STOP_STEPS, invokeChatModel, appChatModels, systemModelService, CANDIDATE_LIMIT, GATEWAY_CHAT };
+module.exports = { gatewayModels, modelAccessPermission, planModelAccess, selfCheckRecord, MODEL_CHECK_ROUTE, MODEL_STOP_STEPS, invokeChatModel, appChatModels, systemModelService, CANDIDATE_LIMIT, GATEWAY_CHAT };

@@ -70,7 +70,9 @@ const { isInspireOwnName, isInspireOwnSchema } = require('../frontend/src/lib/in
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
 const { appReadPermissions, permissionRequired, readStatementsFor } = require('./lib/permissions');
 const { spGrantedCatalogs, grantedCatalogList, inspireStateOf, schemaInspireStates, PICKER_PROBE_CAP, partialPermission, droppedCatalogs, pickableRows, heldWrites } = require('./lib/spCatalogs');
-const { planModelAccess, selfCheckRecord, MODEL_CHECK_ROUTE, invokeChatModel, appChatModels } = require('./lib/modelAccess');
+const { planModelAccess, selfCheckRecord, MODEL_CHECK_ROUTE, invokeChatModel, appChatModels, gatewayModels } = require('./lib/modelAccess');
+const TL = require('./lib/appTableLabels');
+const { replyContent } = require('./lib/appFeedback');
 const PM_ERROR = require('./lib/permissionError');
 const { apiRefusalText, logApiBody } = require('./lib/apiRefusal');
 const { tableProbeStatement, tableAccessReason, isReadDenied, liveLogPath, implementTableName, parseImplementRow, builtTableScopeOf, builtFramingOf, builtTextOf, latestBuiltRowsSql, resultTableNameError, quoteTable } = require('./lib/inspireImplement');
@@ -2817,6 +2819,57 @@ function answeredWithin(work, ms, late) {
   return Promise.race([work, wait]).finally(() => clearTimeout(timer));
 }
 
+// c37 (REQ-582 REQ-583): before a Let Inspire Decides run is submitted, the App labels the scope (dev|prod, then the table role) with the cheapest
+// gateway Claude model and writes <inspire_db>.__inspire_table_labels. It never blocks a launch (see appTableLabels.labelBeforeLaunch).
+async function labelTablesBeforeLaunch(req, params) {
+  const token = (await appOwnToken()) || req.dbToken;
+  const call = (method, apiPath, body) => jsonOf(dbFetch, req.dbHost, token, apiPath, { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const tableOf = (cat, sch) => (t) => ({ fqn: String(t.full_name || `${cat}.${sch}.${t.name}`), comment: String(t.comment || ''),
+    columns: (t.columns || []).map((c) => ({ name: c.name, type: c.type_text || c.type_name || 'string' })) });
+  return TL.labelBeforeLaunch(params, {
+    log: (line) => console.warn(line),
+    modelNames: async () => (await gatewayModels(call)).names,
+    callModel: async ({ model, prompt }) => {
+      const got = await invokeChatModel(call, model, { messages: [{ role: 'user', content: prompt }], max_tokens: 8000 });
+      if (!got.ok) throw new Error(`${model} answered HTTP ${got.status || 'error'}`);
+      return replyContent(got.data);
+    },
+    run: async (sql, parameters) => executeSql(req.dbHost, token, DEFAULT_WAREHOUSE_ID, sql, parameters),
+    listScope: async () => {
+      const { path, catalogs, schemas, tables } = ucMetadataParts(params['01_uc_metadata']);
+      if (path) return null;
+      const named = { catalogs: [...catalogs], schemas: [] };
+      const schemaNames = {};
+      const tableNames = {};
+      const catNames = new Set(catalogs);
+      const addSchema = (cat, sch) => { (schemaNames[cat] = schemaNames[cat] || new Set()).add(sch); };
+      for (const s of schemas) { const [c, sch] = s.split('.'); catNames.add(c); named.catalogs.push(c); named.schemas.push(s); addSchema(c, sch); }
+      for (const t of tables) { const [c, sch] = t.split('.'); catNames.add(c); named.catalogs.push(c); named.schemas.push(`${c}.${sch}`); addSchema(c, sch); (tableNames[`${c}.${sch}`] = tableNames[`${c}.${sch}`] || []).push(t); }
+      named.catalogs = [...new Set(named.catalogs)];
+      named.schemas = [...new Set(named.schemas)];
+      const wholeCat = new Set(catalogs);
+      const catInfo = Object.fromEntries(((await listCatalogs(dbFetch, req.dbHost, token)).items || []).map((c) => [c.name, String(c.comment || '')]));
+      return {
+        userNamed: named,
+        catalogs: [...catNames].map((name) => ({ name, comment: catInfo[name] || '' })),
+        schemasOf: async (cat) => {
+          if (!wholeCat.has(cat)) return [...(schemaNames[cat] || [])].map((name) => ({ name }));
+          return (await listSchemas(dbFetch, req.dbHost, token, cat)).items.filter((s) => s.name && String(s.name).toLowerCase() !== 'information_schema')
+            .map((s) => ({ name: s.name, comment: String(s.comment || '') }));
+        },
+        tablesOf: async (cat, sch) => {
+          const picked = tableNames[`${cat}.${sch}`];
+          if (picked && !wholeCat.has(cat) && !schemas.includes(`${cat}.${sch}`)) {
+            const got = await Promise.all(picked.map((fqn) => call('GET', `/api/2.1/unity-catalog/tables/${encodeURIComponent(fqn)}`)));
+            return got.filter((g) => g.ok).map((g) => tableOf(cat, sch)(g.data));
+          }
+          return (await listTables(dbFetch, req.dbHost, token, cat, sch)).items.map(tableOf(cat, sch));
+        },
+      };
+    },
+  });
+}
+
 async function launchDiscover(req, res, { params, notebook_path, cluster_id, profileId = '' }) {
   try {
     const refused = LC.launchParamsProblem(params) || await launchSessionProblem(req, params);
@@ -2825,6 +2878,7 @@ async function launchDiscover(req, res, { params, notebook_path, cluster_id, pro
     if (reads.refusal) return PM_ERROR.sendFailure(res, reads.refusal.status, reads.refusal.message, refusalExtra(reads.refusal));
     if (model.length) return PM_ERROR.sendFailure(res, 403, MODEL_ACCESS_BLOCK, { permissions: model });
     if (reads.scope) params['01_uc_metadata'] = reads.scope;
+    await labelTablesBeforeLaunch(req, params).catch((err) => console.warn(`table labels: skipped (${err && err.message})`));
     const out = await triggerInspireNotebookJob(req.dbHost, req.dbToken, {
       params,
       notebook_path,
