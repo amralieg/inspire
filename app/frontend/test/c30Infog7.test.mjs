@@ -121,14 +121,14 @@ test('(b) the landscape footer has no empty middle: the gap between footer items
   try {
     const page = await browser.newPage();
     const land = RUNS.filter((r) => r.o === 'landscape');
-    assert.ok(land.some((r) => r.tag === 'N01-U04/pictogram/landscape'), 'the pictogram landscape of the gallery is checked');
+    assert.ok(land.some((r) => r.tag === 'AI01-UC04/pictogram/landscape'), 'the pictogram landscape of the gallery is checked');
     for (const r of land) { const f = await measure(page, r.svg, FOOT); if (f.gap >= 0.25 * f.W) bad.push(`${r.tag}: ${Math.round((100 * f.gap) / f.W)}% empty from x=${Math.round(f.at)}`); }
     assert.deepEqual(bad.slice(0, 20), [], `${bad.length} footers with an empty middle in ${land.length} drawings`);
   } finally { await browser.close(); }
 });
 
 test('(c) every before/after panel is at least half filled (holdouts N02-U02 and N04-U02 of tpcds-retail, and every fixture)', async () => {
-  const tp = A.filter((r) => ['tpcds-retail:N02-U02', 'tpcds-retail:N04-U02'].includes(r.__src));
+  const tp = A.filter((r) => ['tpcds-retail:AI02-UC02', 'tpcds-retail:AI04-UC02'].includes(r.__src));
   assert.equal(tp.length, 2);
   const runs = [...tp.flatMap((r) => ORIENTS.map((o) => ({ tag: `${r.__src}/${o}`, svg: infographicFor(r, { orientation: o, scenario: 'beforeafter' }) }))),
     ...RUNS.filter((r) => r.id === 'beforeafter')];

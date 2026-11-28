@@ -1,6 +1,7 @@
 // C27 (REQ-564): shared fixture for the exciting-docs tests: the recorded retail demo (17 use cases, 16 analytics techniques).
 import fs from 'node:fs';
 import zlib from 'node:zlib';
+import { sameUseCaseId } from '../../shared/useCaseId.mjs';
 
 const show = JSON.parse(zlib.brotliDecompressSync(fs.readFileSync(new URL('../../backend/showcase/kinds-retail.json.br', import.meta.url))));
 export const ROWS = show.inspire['GET /api/inspire/results?session_id=2001'].body.results.domains.flatMap((d) => d.use_cases);
@@ -13,3 +14,6 @@ export const words = (s) => flat(s).split(' ').filter((w) => /[A-Za-z]{2,}/.test
 // The chart contract: every chart is an element with data-chart="<type>", and data-uc="<use case id>" when it is about one use case.
 export const charts = (svg) => [...String(svg).matchAll(/<[^>]*\bdata-chart="([a-z0-9_-]+)"[^>]*>/g)].map((m) => ({ type: m[1], uc: (m[0].match(/\bdata-uc="([^"]+)"/) || [])[1] || '' }));
 export const fills = (svg) => new Set([...String(svg).matchAll(/(?:fill|background(?:-color)?)[=:]\s*"?(#[0-9a-fA-F]{6})/g)].map((m) => m[1].toLowerCase()).filter((c) => !['#ffffff', '#000000'].includes(c)));
+// REQ-569: the recorded rows hold AIx-UCx; tests that name a row by its old Nx-Ux id still find it.
+export const rowByNo = (no) => ROWS.find((r) => sameUseCaseId(r.No, no));
+export const byNoMap = () => ({ get: rowByNo });

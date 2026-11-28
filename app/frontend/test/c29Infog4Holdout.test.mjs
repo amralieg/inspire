@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 import { chromium } from 'playwright';
-import { ROWS } from './c27x_fixture.mjs';
+import { ROWS, rowByNo } from './c27x_fixture.mjs';
 import { checkSvg, bandOf, sourcesOf, ellipsisProblems, cutPhraseProblems, flatText } from './tools/infogCheck.mjs';
 import { validatePick, SCENARIO_IDS } from '../../backend/lib/infographicPick.mjs';
 import { infographicFor } from '../src/lib/docgen/designs/infographic.js';
@@ -57,7 +57,7 @@ test('holdout A: title, hero, 6+ icons, no overlap or small text, no empty band'
 });
 
 // ---------- holdout B: synthetic edge cases ----------
-const BASE = ROWS.find((r) => String(r.No) === 'N01-U01');
+const BASE = rowByNo('N01-U01');
 const words = (n, w = 'word') => Array.from({ length: n }, (_, i) => `${w}${i % 7}`).join(' ');
 const sentencesN = (n) => Array.from({ length: n }, (_, i) => `Step number ${i + 1} reads the data and shows the result to the team.`).join(' ');
 const CASES = {

@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 import { chromium } from 'playwright';
-import { ROWS } from './c27x_fixture.mjs';
+import { ROWS, rowByNo } from './c27x_fixture.mjs';
 import { texts, sourcesOf } from './tools/infogCheck.mjs';
 import { SCENARIO_IDS } from '../../backend/lib/infographicPick.mjs';
 import { infographicFor } from '../src/lib/docgen/designs/infographic.js';
@@ -62,12 +62,12 @@ function strictCuts(svg, sources) {
 }
 
 test('(c) the strict whole-phrase check catches the two cuts of the review, on the rewritten sources too', () => {
-  const row = ROWS.find((r) => String(r.No) === 'N02-U02'); const src = sourcesWithRewrites([row]);
+  const row = rowByNo('N02-U02'); const src = sourcesWithRewrites([row]);
   const fake = (t) => `<svg><text>${t}</text></svg>`;
   assert.equal(strictCuts(fake('A line is flagged when the amount falls outside what the contract'), src).length, 1, 'an open clause before "and" is a cut');
   assert.equal(strictCuts(fake('Freight invoices billed above the contract rate, duplicated, or charged'), src).length, 1, 'a verb without its complement is a cut');
   assert.equal(strictCuts(fake('Freight invoices billed above the contract rate'), src).length, 0, 'a lead that ends at a comma is whole');
-  const n1 = ROWS.find((r) => String(r.No) === 'N01-U01');
+  const n1 = rowByNo('N01-U01');
   assert.ok(sourcesWithRewrites([n1]).some((s) => s.startsWith('scores every active buyer')), 'a step rewritten without its lead word is a source');
 });
 

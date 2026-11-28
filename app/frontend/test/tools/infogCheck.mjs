@@ -65,7 +65,8 @@ const dec = (s) => s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt
 export const texts = (svg) => [...String(svg).matchAll(/<text\b[^>]*>([\s\S]*?)<\/text>/g)].map((m) => dec(m[1].replace(/<\/tspan>/g, ' </tspan>').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim());
 const norm = (s) => String(s).toLowerCase().replace(/\s+/g, ' ').trim();
 export const sourcesOf = (rows) => rows.map((r) => norm(Object.values(r).filter((v) => typeof v === 'string').join(' | ')));
-const DANGLING = /(?<![\w&'-])(and|or|the|a|an|of|to|for|with|in|on|at|by|from|that|which|is|are|than|as|per|into|its|their|this|these|but|so|if|when|while|between|across|over|under|against|about|before|after|until|each|every)$/i;
+// '/' joins a token (N/A, w/o, and/or): its last letter is not a dangling article.
+const DANGLING = /(?<![\w&'/-])(and|or|the|a|an|of|to|for|with|in|on|at|by|from|that|which|is|are|than|as|per|into|its|their|this|these|but|so|if|when|while|between|across|over|under|against|about|before|after|until|each|every)$/i;
 export const ellipsisProblems = (svg) => texts(svg).filter((t) => /…|\.\.\./.test(t) || /[,;:(-]$/.test(t) || (t.split(' ').length >= 3 && DANGLING.test(t))).map((t) => `"${t}"`);
 // A phrase of 4+ words that starts like a clause of the source and stops before the source does must stop at a clause boundary.
 export function cutPhraseProblems(svg, sources) {
