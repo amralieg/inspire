@@ -1,301 +1,340 @@
 {
- "problem_codes": [
-  "empty",
-  "spacing",
-  "characters",
-  "case",
-  "word_count",
-  "plural",
-  "user_kept"
- ],
- "cases": [
-  {
-   "name": "Finance",
-   "kind": "domain",
-   "user_named": false,
-   "valid": true,
-   "repaired": null,
-   "problems": []
-  },
-  {
-   "name": "Customers",
-   "kind": "domain",
-   "user_named": false,
-   "valid": false,
-   "repaired": "Customer",
-   "problems": [
-    "plural"
-   ]
-  },
-  {
-   "name": "Categories",
-   "kind": "domain",
-   "user_named": false,
-   "valid": false,
-   "repaired": "Category",
-   "problems": [
-    "plural"
-   ]
-  },
-  {
-   "name": "Branches",
-   "kind": "domain",
-   "user_named": false,
-   "valid": false,
-   "repaired": "Branch",
-   "problems": [
-    "plural"
-   ]
-  },
-  {
-   "name": "Business",
-   "kind": "domain",
-   "user_named": false,
-   "valid": true,
-   "repaired": null,
-   "problems": []
-  },
-  {
-   "name": "Analysis",
-   "kind": "domain",
-   "user_named": false,
-   "valid": true,
-   "repaired": null,
-   "problems": []
-  },
-  {
-   "name": "Status",
-   "kind": "domain",
-   "user_named": false,
-   "valid": true,
-   "repaired": null,
-   "problems": []
-  },
-  {
-   "name": "HR",
-   "kind": "domain",
-   "user_named": false,
-   "valid": true,
-   "repaired": null,
-   "problems": []
-  },
-  {
-   "name": "مالية",
-   "kind": "domain",
-   "user_named": false,
-   "valid": true,
-   "repaired": null,
-   "problems": []
-  },
-  {
-   "name": "Supply Chain",
-   "kind": "domain",
-   "user_named": false,
-   "valid": false,
-   "repaired": null,
-   "problems": [
-    "word_count"
-   ]
-  },
-  {
-   "name": "",
-   "kind": "domain",
-   "user_named": false,
-   "valid": false,
-   "repaired": null,
-   "problems": [
-    "empty"
-   ]
-  },
-  {
-   "name": "   ",
-   "kind": "subdomain",
-   "user_named": false,
-   "valid": false,
-   "repaired": null,
-   "problems": [
-    "empty"
-   ]
-  },
-  {
-   "name": "  Finance  ",
-   "kind": "domain",
-   "user_named": false,
-   "valid": false,
-   "repaired": "Finance",
-   "problems": [
-    "spacing"
-   ]
-  },
-  {
-   "name": "Customer    Insights",
-   "kind": "subdomain",
-   "user_named": false,
-   "valid": false,
-   "repaired": "Customer Insights",
-   "problems": [
-    "spacing"
-   ]
-  },
-  {
-   "name": "Finance!",
-   "kind": "domain",
-   "user_named": false,
-   "valid": false,
-   "repaired": "Finance",
-   "problems": [
-    "characters"
-   ]
-  },
-  {
-   "name": "R&D",
-   "kind": "domain",
-   "user_named": false,
-   "valid": false,
-   "repaired": null,
-   "problems": [
+  "problem_codes": [
+    "empty",
+    "spacing",
     "characters",
-    "word_count"
-   ]
-  },
-  {
-   "name": "Sales & Marketing",
-   "kind": "subdomain",
-   "user_named": false,
-   "valid": false,
-   "repaired": "Sales Marketing",
-   "problems": [
-    "characters"
-   ]
-  },
-  {
-   "name": "fINANCE",
-   "kind": "domain",
-   "user_named": false,
-   "valid": false,
-   "repaired": "Finance",
-   "problems": [
-    "case"
-   ]
-  },
-  {
-   "name": "customers",
-   "kind": "domain",
-   "user_named": false,
-   "valid": false,
-   "repaired": "Customer",
-   "problems": [
     "case",
-    "plural"
-   ]
-  },
-  {
-   "name": "customer insights",
-   "kind": "subdomain",
-   "user_named": false,
-   "valid": false,
-   "repaired": "Customer Insights",
-   "problems": [
-    "case"
-   ]
-  },
-  {
-   "name": "Customer Insights",
-   "kind": "subdomain",
-   "user_named": false,
-   "valid": true,
-   "repaired": null,
-   "problems": []
-  },
-  {
-   "name": "Order Returns",
-   "kind": "subdomain",
-   "user_named": false,
-   "valid": true,
-   "repaired": null,
-   "problems": []
-  },
-  {
-   "name": "Pricing",
-   "kind": "subdomain",
-   "user_named": false,
-   "valid": false,
-   "repaired": null,
-   "problems": [
-    "word_count"
-   ]
-  },
-  {
-   "name": "Demand Forecast Planning",
-   "kind": "subdomain",
-   "user_named": false,
-   "valid": false,
-   "repaired": null,
-   "problems": [
-    "word_count"
-   ]
-  },
-  {
-   "name": "Finance",
-   "kind": "domain",
-   "user_named": true,
-   "valid": true,
-   "repaired": null,
-   "problems": []
-  },
-  {
-   "name": "Supply Chain",
-   "kind": "domain",
-   "user_named": true,
-   "valid": true,
-   "repaired": null,
-   "problems": [
     "word_count",
-    "user_kept"
-   ]
-  },
-  {
-   "name": "Customers",
-   "kind": "domain",
-   "user_named": true,
-   "valid": true,
-   "repaired": null,
-   "problems": [
     "plural",
     "user_kept"
-   ]
-  },
-  {
-   "name": "Pricing",
-   "kind": "subdomain",
-   "user_named": true,
-   "valid": true,
-   "repaired": null,
-   "problems": [
-    "word_count",
-    "user_kept"
-   ]
-  },
-  {
-   "name": "Demand Forecast Planning",
-   "kind": "subdomain",
-   "user_named": true,
-   "valid": true,
-   "repaired": null,
-   "problems": [
-    "word_count",
-    "user_kept"
-   ]
-  },
-  {
-   "name": "",
-   "kind": "domain",
-   "user_named": true,
-   "valid": false,
-   "repaired": null,
-   "problems": [
-    "empty"
-   ]
-  }
- ]
+  ],
+  "cases": [
+    {
+      "name": "Finance",
+      "kind": "domain",
+      "user_named": false,
+      "valid": true,
+      "repaired": null,
+      "problems": []
+    },
+    {
+      "name": "Customers",
+      "kind": "domain",
+      "user_named": false,
+      "valid": false,
+      "repaired": "Customer",
+      "problems": [
+        "plural"
+      ]
+    },
+    {
+      "name": "Categories",
+      "kind": "domain",
+      "user_named": false,
+      "valid": false,
+      "repaired": "Category",
+      "problems": [
+        "plural"
+      ]
+    },
+    {
+      "name": "Branches",
+      "kind": "domain",
+      "user_named": false,
+      "valid": false,
+      "repaired": "Branch",
+      "problems": [
+        "plural"
+      ]
+    },
+    {
+      "name": "Business",
+      "kind": "domain",
+      "user_named": false,
+      "valid": true,
+      "repaired": null,
+      "problems": []
+    },
+    {
+      "name": "Analysis",
+      "kind": "domain",
+      "user_named": false,
+      "valid": true,
+      "repaired": null,
+      "problems": []
+    },
+    {
+      "name": "Status",
+      "kind": "domain",
+      "user_named": false,
+      "valid": true,
+      "repaired": null,
+      "problems": []
+    },
+    {
+      "name": "HR",
+      "kind": "domain",
+      "user_named": false,
+      "valid": true,
+      "repaired": null,
+      "problems": []
+    },
+    {
+      "name": "مالية",
+      "kind": "domain",
+      "user_named": false,
+      "valid": true,
+      "repaired": null,
+      "problems": []
+    },
+    {
+      "name": "Supply Chain",
+      "kind": "domain",
+      "user_named": false,
+      "valid": false,
+      "repaired": null,
+      "problems": [
+        "word_count"
+      ]
+    },
+    {
+      "name": "",
+      "kind": "domain",
+      "user_named": false,
+      "valid": false,
+      "repaired": null,
+      "problems": [
+        "empty"
+      ]
+    },
+    {
+      "name": "   ",
+      "kind": "subdomain",
+      "user_named": false,
+      "valid": false,
+      "repaired": null,
+      "problems": [
+        "empty"
+      ]
+    },
+    {
+      "name": "  Finance  ",
+      "kind": "domain",
+      "user_named": false,
+      "valid": false,
+      "repaired": "Finance",
+      "problems": [
+        "spacing"
+      ]
+    },
+    {
+      "name": "Customer    Insights",
+      "kind": "subdomain",
+      "user_named": false,
+      "valid": false,
+      "repaired": "Customer Insights",
+      "problems": [
+        "spacing"
+      ]
+    },
+    {
+      "name": "Finance!",
+      "kind": "domain",
+      "user_named": false,
+      "valid": false,
+      "repaired": "Finance",
+      "problems": [
+        "characters"
+      ]
+    },
+    {
+      "name": "R&D",
+      "kind": "domain",
+      "user_named": false,
+      "valid": true,
+      "repaired": null,
+      "problems": []
+    },
+    {
+      "name": "Sales & Marketing",
+      "kind": "subdomain",
+      "user_named": false,
+      "valid": false,
+      "repaired": "Sales Marketing",
+      "problems": [
+        "characters"
+      ]
+    },
+    {
+      "name": "fINANCE",
+      "kind": "domain",
+      "user_named": false,
+      "valid": false,
+      "repaired": "Finance",
+      "problems": [
+        "case"
+      ]
+    },
+    {
+      "name": "customers",
+      "kind": "domain",
+      "user_named": false,
+      "valid": false,
+      "repaired": "Customer",
+      "problems": [
+        "case",
+        "plural"
+      ]
+    },
+    {
+      "name": "customer insights",
+      "kind": "subdomain",
+      "user_named": false,
+      "valid": false,
+      "repaired": "Customer Insights",
+      "problems": [
+        "case"
+      ]
+    },
+    {
+      "name": "Customer Insights",
+      "kind": "subdomain",
+      "user_named": false,
+      "valid": true,
+      "repaired": null,
+      "problems": []
+    },
+    {
+      "name": "Order Returns",
+      "kind": "subdomain",
+      "user_named": false,
+      "valid": true,
+      "repaired": null,
+      "problems": []
+    },
+    {
+      "name": "Pricing",
+      "kind": "subdomain",
+      "user_named": false,
+      "valid": false,
+      "repaired": null,
+      "problems": [
+        "word_count"
+      ]
+    },
+    {
+      "name": "Demand Forecast Planning",
+      "kind": "subdomain",
+      "user_named": false,
+      "valid": false,
+      "repaired": null,
+      "problems": [
+        "word_count"
+      ]
+    },
+    {
+      "name": "Finance",
+      "kind": "domain",
+      "user_named": true,
+      "valid": true,
+      "repaired": null,
+      "problems": []
+    },
+    {
+      "name": "Supply Chain",
+      "kind": "domain",
+      "user_named": true,
+      "valid": true,
+      "repaired": null,
+      "problems": [
+        "word_count",
+        "user_kept"
+      ]
+    },
+    {
+      "name": "Customers",
+      "kind": "domain",
+      "user_named": true,
+      "valid": true,
+      "repaired": null,
+      "problems": [
+        "plural",
+        "user_kept"
+      ]
+    },
+    {
+      "name": "Pricing",
+      "kind": "subdomain",
+      "user_named": true,
+      "valid": true,
+      "repaired": null,
+      "problems": [
+        "word_count",
+        "user_kept"
+      ]
+    },
+    {
+      "name": "Demand Forecast Planning",
+      "kind": "subdomain",
+      "user_named": true,
+      "valid": true,
+      "repaired": null,
+      "problems": [
+        "word_count",
+        "user_kept"
+      ]
+    },
+    {
+      "name": "",
+      "kind": "domain",
+      "user_named": true,
+      "valid": false,
+      "repaired": null,
+      "problems": [
+        "empty"
+      ]
+    },
+    {
+      "name": "Sales",
+      "kind": "domain",
+      "user_named": false,
+      "valid": true,
+      "repaired": null,
+      "problems": []
+    },
+    {
+      "name": "Analytics",
+      "kind": "domain",
+      "user_named": false,
+      "valid": true,
+      "repaired": null,
+      "problems": []
+    },
+    {
+      "name": "Statistics",
+      "kind": "domain",
+      "user_named": false,
+      "valid": true,
+      "repaired": null,
+      "problems": []
+    },
+    {
+      "name": "Headquarters",
+      "kind": "domain",
+      "user_named": false,
+      "valid": true,
+      "repaired": null,
+      "problems": []
+    },
+    {
+      "name": "sales",
+      "kind": "domain",
+      "user_named": false,
+      "valid": false,
+      "repaired": "Sales",
+      "problems": [
+        "case"
+      ]
+    }
+  ]
 }

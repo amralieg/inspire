@@ -26,6 +26,8 @@ Check semantics (agent: inspire_domain_name_check(name, kind, user_named=False) 
   word_count  after repair, word count != rules[kind]["words"]; not repairable (repaired is null).
   plural      domain only, 1 word, _singular_token(word) != word.lower(); repair is the singular, capitalized
               (upper-case kept). _singular_token (inspire_lib.py) is the only singulariser.
+              (never for a word in domain.keep_as_is, compared case-insensitively: Amr 28 Nov, "by agree on keeping soeciali list", list aligned with Semunity)
+  R&D style   an & between two letters inside one token (R&D, M&A, P&L) is not a characters problem; the token is 1 word and valid (Amr 28 Nov)
   user_kept   added last when user_named and any other code applies; the name stays verbatim and valid.
 """
 import ast
