@@ -3,7 +3,7 @@ system.billing.usage x system.billing.list_prices (on usage_metadata.job_run_id)
 query_source.job_info.job_run_id, falling back to the step time window). Writes report.json and report.md.
 
     python3 tests/scripts/critical_path_report.py --profile P --inspire-db cat.schema --session-id N --out DIR
-        [--warehouse-id W] [--fixture rows.json]
+        [--warehouse-id W] [--fixture rows.json] [--budget-min M] [--submitted-at T]
 
 --fixture replaces all warehouse reads with {"ledger": [...], "steps": [names], "billing": [{job_run_id,
 usage_quantity, unit_price}], "queries": [{job_run_id, started_at, duration_ms}], "history_has_run_id": bool}.
@@ -25,6 +25,27 @@ def to_epoch(v):
     return (d if d.tzinfo else d.replace(tzinfo=timezone.utc)).timestamp()
 
 
+DOMAIN_STAGES = ("Domain Mapping", "Business Domain Clustering")
+
+
+def milestones(ledger, budget_s, submitted_at=None):
+    """Seconds from submission (else first ledger start) to the domain list, first valued card (Scoring) and the end."""
+    rows = [(r.get("stage"), to_epoch(r.get("started_at")), to_epoch(r.get("ended_at")), r.get("status")) for r in ledger]
+    starts = [s for _, s, _, _ in rows if s is not None]
+    ends = [(st, e) for st, _, e, _ in rows if e is not None]
+    t0 = to_epoch(submitted_at) if submitted_at is not None else (min(starts) if starts else None)
+
+    def first(pred):
+        v = [e for st, e in ends if pred(st)]
+        return min(v) - t0 if v and t0 is not None else None
+    final = max(e for _, e in ends) - t0 if ends and t0 is not None else None
+    over = final is not None and budget_s is not None and final > budget_s
+    flagged = any(str(r.get("status")).lower() == "partial" for r in ledger)
+    reason = ("run exceeded the time budget" if over else "a ledger step ended partial") if over or flagged else None
+    return {"domain_list_s": first(lambda st: st in DOMAIN_STAGES), "first_valued_card_s": first(lambda st: st == "Scoring"),
+            "final_s": final, "budget_s": budget_s, "partial": bool(over or flagged), "partial_reason": reason}
+
+
 def critical_path(steps):
     """Longest chain of non-overlapping steps by summed duration (parallel steps count once)."""
     order = sorted(steps, key=lambda s: (s["start"], s["end"]))
@@ -44,7 +65,7 @@ def critical_path(steps):
     return path[::-1]
 
 
-def build_report(ledger, step_names, billing, queries, history_has_run_id=True):
+def build_report(ledger, step_names, billing, queries, history_has_run_id=True, budget_s=None, submitted_at=None):
     rows = []
     for r in ledger:
         s, e = to_epoch(r["started_at"]), to_epoch(r["ended_at"])
@@ -76,11 +97,14 @@ def build_report(ledger, step_names, billing, queries, history_has_run_id=True):
             "rate_limit_errors": r.get("rate_limit_errors"), "sql_ms": sum(int(q.get("duration_ms") or 0) for q in qs) if queries else r.get("sql_ms"),
             "sql_ms_ledger": r.get("sql_ms"), "cost_share": round(share, 4)})
     ledger_steps = {x["step"] for x in rows}
-    return {"wall_s": wall, "critical_path": path, "off_path": [s["step"] for s in steps_out if not s["on_critical_path"]],
+    rep = {"wall_s": wall, "critical_path": path, "off_path": [s["step"] for s in steps_out if not s["on_critical_path"]],
             "steps": steps_out, "cost_by_run": cost_by_run, "total_cost": total_cost,
             "sql_source": "query_history.job_run_id" if history_has_run_id else "step time window (query_source.job_info.job_run_id absent)",
             "gaps": {"steps_missing_from_ledger": [n for n in step_names if n not in ledger_steps],
                      "runs_without_billing": [r for r in runs if r not in cost_by_run]}}
+    if budget_s is not None:
+        rep["milestones"] = milestones(ledger, budget_s, submitted_at)
+    return rep
 
 
 def render_md(rep):
@@ -91,6 +115,12 @@ def render_md(rep):
         tok = f"{s['tokens_in']}/{s['tokens_out']}" + (" estimated" if s["tokens_estimated"] else "")
         L.append(f"| {s['step']} | {s['duration_s']:g} | {'on' if s['on_critical_path'] else 'off'} | {s['llm_calls']} | {tok} | "
                  f"{s['retries']} | {s['rate_limit_errors']} | {s['sql_ms']} | {s['cost_share']:.1%} |")
+    m = rep.get("milestones")
+    if m:
+        f = lambda v: "not reached" if v is None else f"{v:g}"
+        L += ["", "## Milestones", "", "| Milestone | Seconds |", "|---|---|", f"| Domain list | {f(m['domain_list_s'])} |",
+              f"| First valued card | {f(m['first_valued_card_s'])} |", f"| Final | {f(m['final_s'])} |", f"| Budget | {f(m['budget_s'])} |",
+              "", f"Result: {'PARTIAL (' + m['partial_reason'] + ')' if m['partial'] else 'complete within budget'}"]
     g = rep["gaps"]
     L += ["", "## Gaps", f"- Steps in the step table with no ledger row: {', '.join(g['steps_missing_from_ledger']) or 'none'}",
           f"- Runs with no billing match: {', '.join(g['runs_without_billing']) or 'none'}", ""]
@@ -138,13 +168,15 @@ def main(argv=None):
     ap.add_argument("--out", required=True)
     ap.add_argument("--warehouse-id")
     ap.add_argument("--fixture")
+    ap.add_argument("--budget-min", type=float)
+    ap.add_argument("--submitted-at")
     a = ap.parse_args(argv)
     if a.fixture:
         fx = json.load(open(a.fixture))
         data = (fx["ledger"], fx.get("steps", []), fx.get("billing", []), fx.get("queries", []), fx.get("history_has_run_id", True))
     else:
         data = fetch_live(a)
-    rep = build_report(*data)
+    rep = build_report(*data, budget_s=a.budget_min * 60 if a.budget_min is not None else None, submitted_at=a.submitted_at)
     os.makedirs(a.out, exist_ok=True)
     with open(os.path.join(a.out, "report.json"), "w") as f:
         json.dump(rep, f, indent=2)
