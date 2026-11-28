@@ -16313,7 +16313,7 @@ def inspire_value_selection(use_cases, cap=INSPIRE_SELECTION_CAP, stop_share=INS
         card = _inspire_selection_card(uc)
         currency = card.get("currency")
         items.append({"uc": uc, "card": card, "key": str(uc.get("use_case_key") or use_case_key(uc)), "no": str(uc.get("No", "")),
-                      "currency": currency if isinstance(currency, str) and re.fullmatch(r"[A-Za-z]{3}", currency) else None,
+                      "currency": currency if isinstance(currency, str) and currency in INSPIRE_CURRENCY_CODES else None,
                       "must": bool(uc.get("user_named")) or uc.get("owner_must_have") is True})
     for item in items:
         item["sort"] = (item["key"], item["no"])
