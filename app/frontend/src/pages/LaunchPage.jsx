@@ -968,6 +968,7 @@ export default function LaunchPage({ settings, update = NOOP, onLaunched, onOpen
       if (WIZ_PARAM_KEY.test(key) && (key !== '04_table_election' || !wiz?.findPath)) out[key] = value;
     });
     if (!wiz?.findPath) out['01_uc_metadata'] = params['01_uc_metadata'];
+    out['15_operation'] = 'Discover Use Cases'; // REQ-578: the Discover path of the wizard has no Operation choice
     return out;
   };
   const wizStart = async () => {

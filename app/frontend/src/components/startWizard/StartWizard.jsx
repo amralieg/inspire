@@ -67,10 +67,16 @@ function SlotStep({ id, title, hint, setSlot }) {
   );
 }
 
+// c33 integration (REQ-577): the review names the plan the Find step made, so the person sees how many runs Start launches.
+const findText = (plan) => {
+  const n = plan && Array.isArray(plan.runs) ? plan.runs.length : 0;
+  return n ? `${DATA_TEXT[DATA_FIND]}: plan of ${n} run${n === 1 ? '' : 's'}` : DATA_TEXT[DATA_FIND];
+};
+
 function ReviewStep({ draft, lp, onEditStep }) {
   const rows = [
     ['business', 'Business', draft.businessName || lp.business || 'Not set'],
-    ['data', 'Data', draft.dataChoice === DATA_FIND ? DATA_TEXT[DATA_FIND] : (lp.summary.scope || 'Not set')],
+    ['data', 'Data', draft.dataChoice === DATA_FIND ? findText(draft.plan) : (lp.summary.scope || 'Not set')],
     ['goals', 'Goals', 'Instructions, priorities and domains'],
     ['settings', 'Settings', [lp.summary.discovery, lp.summary.quality].filter(Boolean).join(', ') || 'Default settings'],
   ];
