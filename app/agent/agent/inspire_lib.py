@@ -12570,12 +12570,61 @@ def inspire_notebook_asset(name: str) -> str:
     return _INSPIRE_NOTEBOOK_ASSET_TEXT[name]
 
 
-INSPIRE_NOTEBOOK_ASSETS = {"app_shell": {"file": "notebook/app_shell.b64", "repo": "agent/app_shell/app_shell.b64", "sha256": "9514259d19ce4befbb44773e96a26507c199b1c6924103cf780033654b054e59", "size": 2040320}, "fx_averages": {"file": "notebook/fx_averages.json", "repo": "../backend/lib/fxAverages.json", "sha256": "bc026444b4621f6a7e15d1f52618e6eea0623388ed8e217fa5741b76cc311322", "size": 1251}, "kinds": {"file": "notebook/kinds.json", "repo": "agent/app_shell/kinds.json", "sha256": "4eab51e84ee17fbb511ac35ff16a2dd58a53b081b5691d664df017605d36a83a", "size": 299040}, "prompts": {"file": "notebook/prompts.json", "repo": "agent/app_shell/prompts.json", "sha256": "fe176e8f58702433fc4aab28731fccafa067239d8daac60099ccf3ed1f8a8213", "size": 262016}, "result_history": {"file": "notebook/result_history.txt", "repo": "agent/app_shell/result_history.txt", "sha256": "b34a548ea75122a67c719adb2b6d90f60dfcc32e2358dabef860660759cf8dca", "size": 309648}, "translations": {"file": "notebook/translations.json", "repo": "agent/app_shell/translations.json", "sha256": "fb12911c7831dfa10f77c30686fd703b408be147c99b33129d3b364c3f03845d", "size": 510143}, "value_library": {"file": "notebook/value_library.json", "repo": "../shared/value_assumption_library.json", "sha256": "f74bc1bb47849c31765f79d78d7d05d0203f0bb02393417a2ceb3b24bd8dc470", "size": 4229}}
+INSPIRE_NOTEBOOK_ASSETS = {"app_shell": {"file": "notebook/app_shell.b64", "repo": "agent/app_shell/app_shell.b64", "sha256": "9514259d19ce4befbb44773e96a26507c199b1c6924103cf780033654b054e59", "size": 2040320}, "domain_rules": {"file": "notebook/domain_rules.json", "repo": "../shared/domain_rules.json", "sha256": "6b59a3906b011a583a092b1bb1fa911575b98d81f52784e2d55bf2d5d65b5ee0", "size": 556}, "fx_averages": {"file": "notebook/fx_averages.json", "repo": "../backend/lib/fxAverages.json", "sha256": "bc026444b4621f6a7e15d1f52618e6eea0623388ed8e217fa5741b76cc311322", "size": 1251}, "kinds": {"file": "notebook/kinds.json", "repo": "agent/app_shell/kinds.json", "sha256": "4eab51e84ee17fbb511ac35ff16a2dd58a53b081b5691d664df017605d36a83a", "size": 299040}, "prompts": {"file": "notebook/prompts.json", "repo": "agent/app_shell/prompts.json", "sha256": "fe176e8f58702433fc4aab28731fccafa067239d8daac60099ccf3ed1f8a8213", "size": 262016}, "result_history": {"file": "notebook/result_history.txt", "repo": "agent/app_shell/result_history.txt", "sha256": "b34a548ea75122a67c719adb2b6d90f60dfcc32e2358dabef860660759cf8dca", "size": 309648}, "translations": {"file": "notebook/translations.json", "repo": "agent/app_shell/translations.json", "sha256": "fb12911c7831dfa10f77c30686fd703b408be147c99b33129d3b364c3f03845d", "size": 510143}, "value_library": {"file": "notebook/value_library.json", "repo": "../shared/value_assumption_library.json", "sha256": "f74bc1bb47849c31765f79d78d7d05d0203f0bb02393417a2ceb3b24bd8dc470", "size": 4229}}
 # D-SIZE2 (REQ-298): the run-side source, exec'd here and inlined into every generated notebook, is the pinned result_history asset
 # (agent/app_shell/result_history.txt), so the notebook keeps its headroom under the size cap. The name is bound to text first.
 IMPLEMENT_RESULT_HISTORY_SOURCE = ""
 IMPLEMENT_RESULT_HISTORY_SOURCE = inspire_notebook_asset("result_history")
 exec(compile(IMPLEMENT_RESULT_HISTORY_SOURCE, "<inspire_result_history>", "exec"), globals())
+
+
+# REQ-587 G1 (T-587-A-01): the domain-name limits are the pinned shared asset (app/shared/domain_rules.json), the same file the App reads.
+INSPIRE_DOMAIN_RULES = json.loads(inspire_notebook_asset("domain_rules"))
+INSPIRE_DOMAIN_KINDS = ("domain", "subdomain")
+
+
+def inspire_domain_name_check(name, kind, user_named=False) -> dict:
+    """Check a domain or subdomain name against INSPIRE_DOMAIN_RULES. Codes: empty, spacing, characters, case, word_count, plural,
+    user_kept. A user-named name is kept verbatim (valid, repaired None) and carries user_kept when it breaks any other code."""
+    if kind not in INSPIRE_DOMAIN_KINDS:
+        raise ValueError(f"unknown name kind {kind!r}, expected one of {INSPIRE_DOMAIN_KINDS}")
+    rules = INSPIRE_DOMAIN_RULES[kind]
+    text = str(name or "")
+    if not text.strip():
+        return {"valid": False, "repaired": None, "problems": ["empty"]}
+    found = set()
+    if text != " ".join(text.split()):
+        found.add("spacing")
+    chars = []
+    for i, ch in enumerate(text):
+        if ch.isalnum() or ch.isspace():
+            chars.append(ch)
+        elif ch == "&" and 0 < i < len(text) - 1 and text[i - 1].isalpha() and text[i + 1].isalpha():
+            chars.append(ch)
+        else:
+            found.add("characters")
+            chars.append(" ")
+    words = "".join(chars).split()
+    if any(w != w.capitalize() and not w.isupper() for w in words):
+        found.add("case")
+        words = [w if w.isupper() else w.capitalize() for w in words]
+    if len(words) != rules["words"]:
+        found.add("word_count")
+    elif kind == "domain" and rules.get("singular") and len(words) == 1:
+        word = words[0]
+        keep = {k.lower() for k in rules.get("keep_as_is", ())}
+        singular = _singular_token(word)
+        if word.lower() not in keep and singular != word.lower():
+            found.add("plural")
+            words = [singular.upper() if word.isupper() else singular.capitalize()]
+    repaired = " ".join(words)
+    if "word_count" in found or user_named or repaired == text:
+        repaired = None
+    order = ("spacing", "characters", "case", "word_count", "plural")
+    problems = [c for c in order if c in found]
+    if user_named:
+        return {"valid": True, "repaired": None, "problems": problems + (["user_kept"] if problems else [])}
+    return {"valid": not problems, "repaired": repaired, "problems": problems}
 
 
 # REQ-573 R13.1, R13.2: deep calculation on the shortlist. It names the agent (DeepEvidence, DatabricksInspire), so it lives here,
@@ -47501,11 +47550,16 @@ Start your response with the CSV header line: use_case_id,domain
             hard_violations.append(f"Only {inspire_plural(total_domains, 'domain')}, minimum required: {min(3, total_use_cases)}")
         if total_domains > 25:
             hard_violations.append(f"🚨 CRITICAL: the domain count ({total_domains}) exceeds MAXIMUM 25 (HARD LIMIT) - THIS IS UNACCEPTABLE")
-        for domain in domain_usecases.keys():
-            word_count = len(str(domain).split())
-            if word_count != 1:
-                hard_violations.append(f"Domain '{domain}' has {inspire_plural(word_count, 'word')}, must be exactly 1 word")
         protected = self._protected_domains()
+        for domain in domain_usecases.keys():
+            if str(domain).strip().lower() in protected:
+                continue
+            problems = inspire_domain_name_check(str(domain), "domain")["problems"]
+            if "word_count" in problems or "empty" in problems:
+                word_count = len(str(domain).split())
+                hard_violations.append(f"Domain '{domain}' has {inspire_plural(word_count, 'word')}, must be exactly {inspire_plural(INSPIRE_DOMAIN_RULES['domain']['words'], 'word')}")
+            if "plural" in problems:
+                hard_violations.append(f"Domain '{domain}' is plural, must be singular")
         for domain, ucs in domain_usecases.items():
             count = len(ucs)
             if count < 4:
@@ -48155,8 +48209,8 @@ Only include entries for subdomains that need renaming. Start your response with
             for k, v in rename_mapping.items():
                 if isinstance(k, str) and isinstance(v, str) and ':::' in k:
                     new_name = " ".join(v.split())
-                    if len(new_name.split()) != 2:
-                        self.logger.warning(f"Subdomain merger: rejecting rename '{k}' → '{v}' (must be exactly 2 words)")
+                    if {"word_count", "empty"} & set(inspire_domain_name_check(new_name, "subdomain")["problems"]):
+                        self.logger.warning(f"Subdomain merger: rejecting rename '{k}' → '{v}' (must be exactly {inspire_plural(INSPIRE_DOMAIN_RULES['subdomain']['words'], 'word')})")
                         continue
                     sanitized[k] = new_name
                 else:
@@ -52632,9 +52686,9 @@ Only include entries for subdomains that need renaming. Start your response with
 
                     # Validate subdomain naming (must be 2 words)
                     for subdomain in subdomain_usecases.keys():
-                        word_count = len(subdomain.split())
-                        if word_count != 2:
-                            violations.append(f"Subdomain '{subdomain}' has {inspire_plural(word_count, 'word')}, must be exactly 2 words")
+                        if {"word_count", "empty"} & set(inspire_domain_name_check(subdomain, "subdomain")["problems"]):
+                            word_count = len(subdomain.split())
+                            violations.append(f"Subdomain '{subdomain}' has {inspire_plural(word_count, 'word')}, must be exactly {inspire_plural(INSPIRE_DOMAIN_RULES['subdomain']['words'], 'word')}")
 
                     # Validate use cases per subdomain (minimum 2)
                     for subdomain, ucs in subdomain_usecases.items():
