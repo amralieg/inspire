@@ -10,8 +10,8 @@
         "business_context": "",
         "priorities": "",
         "generation_instructions": "",
-        "04_table_election": "All Tables",
-        "quality_mode": "Balanced"
+        "04_table_election": "Let Inspire Decides",
+        "quality_mode": "Good"
       },
       "answer_key": "bench6/keys/bakehouse.json",
       "planted": []
@@ -24,8 +24,8 @@
         "business_context": "",
         "priorities": "",
         "generation_instructions": "",
-        "04_table_election": "All Tables",
-        "quality_mode": "Balanced"
+        "04_table_election": "Let Inspire Decides",
+        "quality_mode": "Good"
       },
       "answer_key": "bench6/keys/nyctaxi.json",
       "planted": []
@@ -38,8 +38,8 @@
         "business_context": "",
         "priorities": "",
         "generation_instructions": "",
-        "04_table_election": "All Tables",
-        "quality_mode": "Balanced"
+        "04_table_election": "Let Inspire Decides",
+        "quality_mode": "Good"
       },
       "answer_key": "bench6/keys/tpcds_sf1.json",
       "planted": []
@@ -52,8 +52,8 @@
         "business_context": "",
         "priorities": "",
         "generation_instructions": "",
-        "04_table_election": "All Tables",
-        "quality_mode": "Balanced"
+        "04_table_election": "Let Inspire Decides",
+        "quality_mode": "Good"
       },
       "answer_key": "bench6/keys/tpch.json",
       "planted": []
@@ -66,8 +66,8 @@
         "business_context": "",
         "priorities": "",
         "generation_instructions": "",
-        "04_table_election": "All Tables",
-        "quality_mode": "Balanced"
+        "04_table_election": "Let Inspire Decides",
+        "quality_mode": "Good"
       },
       "answer_key": "bench6/keys/bench6_adv_a.json",
       "planted": [
@@ -86,8 +86,8 @@
         "business_context": "",
         "priorities": "",
         "generation_instructions": "",
-        "04_table_election": "All Tables",
-        "quality_mode": "Balanced"
+        "04_table_election": "Let Inspire Decides",
+        "quality_mode": "Good"
       },
       "answer_key": "bench6/keys/bench6_adv_b.json",
       "planted": [

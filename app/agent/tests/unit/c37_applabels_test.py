@@ -63,7 +63,6 @@ def warnings(obj):
 
 
 def test_1_flag_off_reads_no_labels_and_prompts_as_today(agent_ns):
-    assert agent_ns["TECHNICAL_CONTEXT"]["runtime"]["app_table_labels"] is False
     obj, spark = build(agent_ns, [row("table", ORDERS, label="technical")], flag=False)
     out = unpack(obj._filter_business_tables(FILTER_DETAILS))
     assert spark.label_reads() == []
@@ -193,3 +192,8 @@ def test_12_user_named_prod_scope_is_never_excluded_by_a_dev_label(agent_ns):
         assert out["business"] == {ORDERS, CUSTOMERS}, out["business"]
         assert prompted(obj) == {LOGS, TMP}
         assert (obj.table_classification_status[LOGS], obj.table_classification_status[TMP]) == ("llm", "llm")
+
+
+def test_13_flag_is_on_by_default_after_ui_ready_u8(agent_ns):
+    """UI READY U8 16929b8ae (int/ui01): the App writes the labels, so the agent reads them by default (contract U8 v2, REQ-585 (1))."""
+    assert agent_ns["TECHNICAL_CONTEXT"]["runtime"]["app_table_labels"] is True
