@@ -2023,7 +2023,7 @@ test('with a Databricks AI route, the wizard walks the MVP steps and no note sho
   }
 });
 
-test('with no Databricks AI route, the notebook skips the MVP settings, flags only this use case, starts Generate Use Cases, and the Implement page follows the notebook run', async () => {
+test('with no Databricks AI route, the notebook skips the MVP settings, flags only this use case, starts Implement Use Cases, and the Implement page follows the notebook run', async () => {
   const notebookPath = '/Users/owner@example.com/inspire/Acme/N01-U01';
   const flaggedRow = { ...HARNESS_USE_CASE, generate_genie_code_instruction: 'Yes', has_genie_code: 'N' };
   const runUrl = 'https://workspace.example.com/#job/7/run/99';
@@ -2054,7 +2054,7 @@ test('with no Databricks AI route, the notebook skips the MVP settings, flags on
     assert.equal(made.jobs.length, 1);
     assert.equal(made.jobs[0].jobType, 'genie_regen');
     assert.equal(made.jobs[0].jobName, 'Inspire AI - Databricks AI - 42');
-    assert.equal(made.jobs[0].params['15_operation'], 'Generate Use Cases');
+    assert.equal(made.jobs[0].params['15_operation'], 'Implement Use Cases');
     assert.deepEqual(made.flagged.map((f) => [f.sid, f.ids]), [['42', ['N01-U01']]]);
     assert.equal(made.sqlCalls.some((c) => String(c.sql).includes('INSERT INTO')), false, 'I will build it myself writes no MVP version');
 

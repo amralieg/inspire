@@ -23,7 +23,7 @@ function mapSessionQualityToWidget(v) {
   return params['05_use_cases_quality'];
 }
 
-/** Rebuild notebook base_parameters for Operation = Generate Use Cases (Route 1). */
+/** Rebuild notebook base_parameters for Operation = Implement Use Cases (Route 1). */
 function notebookParamsFromSessionForGenerateRun(session, targetSessionIdStr) {
   const ucMeta = buildUcMetadataFromSessionRow(session);
   const genPath = String(session.generation_path || DEFAULT_GENERATION_PATH).trim() || DEFAULT_GENERATION_PATH;

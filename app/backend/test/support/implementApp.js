@@ -327,7 +327,7 @@ function makeApp(overrides = {}, { mount } = {}) {
     dbFetch: dbFetchImpl,
     fetchInspireSessionWidgetRow: async () => state.session,
     notebookParamsFromSessionForGenerateRun: (session, sid) => ({
-      '15_operation': 'Generate Use Cases',
+      '15_operation': 'Implement Use Cases',
       '00_business_name': session.business_name,
       '01_uc_metadata': state.ucMetadata === undefined ? 'main.s.orders' : state.ucMetadata,
       '02_inspire_database': 'main.inspire',

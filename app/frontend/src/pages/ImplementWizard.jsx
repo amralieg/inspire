@@ -1631,7 +1631,7 @@ export default function ImplementWizard({
           <section className="space-y-3 text-[12px] text-text-secondary" aria-label="Notebook">
             <h3 className="text-sm font-semibold text-text-primary">Write the Databricks AI notebook</h3>
             <p>
-              Inspire runs Generate Use Cases for this session with only {displayId(spec.use_case_id)} selected. It writes the Databricks AI instruction for this use case
+              Inspire runs Implement Use Cases for this session with only {displayId(spec.use_case_id)} selected. It writes the Databricks AI instruction for this use case
               and saves it as the use case notebook{notebookFolder ? ` under ${notebookFolder}` : ''}. Nothing else is built, and no other use case changes.
             </p>
             {ucRow.notebook_path && (

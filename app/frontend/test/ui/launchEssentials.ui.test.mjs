@@ -6,7 +6,7 @@ test.after(closeBrowser);
 
 const section = (page, title) => page.locator('section').filter({ has: page.getByRole('heading', { name: title, exact: true }) });
 
-test('Setup keeps the rc.3 names Unity Catalog Metadata, Generation Instructions, Advanced Settings, Table Election and Generate Use Cases, shows the notebook and warehouse without opening Advanced Settings, and never shows a notebook widget id', async () => {
+test('Setup keeps the rc.3 names Unity Catalog Metadata, Generation Instructions, Advanced Settings and Table Election, shows the notebook and warehouse without opening Advanced Settings, and never shows a notebook widget id', async () => {
   const ui = await openUi('launch', { catalogs: ['main', 'system', 'hive_metastore', 'samples'] });
   const { page, pageErrors } = ui;
   try {
