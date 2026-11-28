@@ -38,7 +38,7 @@ function reset(overrides = {}) {
   Object.assign(state, {
     managers: [], managerGroups: [], personGroups: [], aclStatus: 200, personAppsScope: true, launchers: {}, sessionLaunchers: {}, history: [], calls: [],
     launches: [], profiles: [], profileLinks: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, holdFetch: null, createFailure: '', sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null, ucSchemas: null, ucTables: null,
-    createdJob: null, sqlHook: null, modelReply: null, modelRateLimited: false, profileTablesMissing: false, presentPaths: [], statusErrors: {}, catalogPaths: {}, catalogReasons: {}, catalogColumnMissing: false, catalogQueryError: '', runJobs: {}, runStates: null, runViewDenied: null, exportDenied: false, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, tableColumns: {}, files: {}, sessionBusiness: {},
+    createdJob: null, sqlHook: null, modelReply: null, modelRateLimited: false, profileTablesMissing: false, presentPaths: [], notebookObjects: [], statusErrors: {}, catalogPaths: {}, catalogReasons: {}, catalogColumnMissing: false, catalogQueryError: '', runJobs: {}, runStates: null, runViewDenied: null, exportDenied: false, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, tableColumns: {}, files: {}, sessionBusiness: {},
     ...folderModel({ folders: { '/Shared/demos': { id: 7, writers: '*' } } }),
   }, overrides);
 }
@@ -346,6 +346,8 @@ async function stubFetch(url, opts = {}) {
   const statusFailure = state.statusErrors && state.statusErrors[u.searchParams.get('path')];
   if (u.pathname === '/api/2.0/workspace/get-status' && statusFailure === 'network') throw new Error('getaddrinfo ENOTFOUND workspace.internal.example');
   if (u.pathname === '/api/2.0/workspace/get-status' && statusFailure) return json({ error_code: 'INTERNAL_ERROR', message: 'raw workspace detail' }, statusFailure);
+  // c33 B2: notebookObjects lists workspace paths that answer as a NOTEBOOK object (a custom notebook a manager picked).
+  if (u.pathname === '/api/2.0/workspace/get-status' && (state.notebookObjects || []).includes(u.searchParams.get('path'))) return json({ object_type: 'NOTEBOOK', path: u.searchParams.get('path') });
   if (u.pathname === '/api/2.0/workspace/get-status' && (state.presentPaths || []).includes(u.searchParams.get('path'))) return json({ object_type: 'FILE', path: u.searchParams.get('path') });
   const folder = folderAnswer(state, { method, pathname: u.pathname, searchParams: u.searchParams, body, token }, writableBy);
   if (folder) return json(folder[1], folder[0]);
