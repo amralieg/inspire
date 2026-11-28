@@ -556,7 +556,18 @@ function normalizeV130UseCaseFields(row) {
   return row;
 }
 
+// The two agent notebooks. Discover and Match run on the discover notebook; Implement and Genie regeneration on the generate notebook.
+const AGENT_NOTEBOOKS = Object.freeze({ discover: 'inspire_discover', generate: 'inspire_generate' });
+
+function agentNotebookFor({ jobType, operation } = {}) {
+  if (jobType === 'discovery') return AGENT_NOTEBOOKS.discover;
+  if (jobType === 'implement' || jobType === 'genie_regen') return AGENT_NOTEBOOKS.generate;
+  throw new Error(`No agent notebook for jobType "${jobType}"`);
+}
+
 module.exports = {
+  AGENT_NOTEBOOKS,
+  agentNotebookFor,
   INSPIRE_AGENT_VERSION,
   inspireReleaseLabel,
   parseTableScopeText,
