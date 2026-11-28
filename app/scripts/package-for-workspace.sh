@@ -23,10 +23,8 @@ if [[ "$SKIP_BUILD" != "1" ]]; then
   (cd frontend && npm run build)
 fi
 
-echo "==> Bundling agent and demo notebooks for Databricks App runtime"
+echo "==> Copying the agent notebook into the App"
 node "$APP_ROOT/scripts/bundle-agent-notebook.mjs"
-node "$APP_ROOT/scripts/bundle-demo-notebook.mjs"
-cmp -s "$APP_ROOT/dbx_generate_demo_data.py" "$APP_ROOT/backend/dbx_generate_demo_data.py" || cp -f "$APP_ROOT/dbx_generate_demo_data.py" "$APP_ROOT/backend/dbx_generate_demo_data.py"
 
 echo "==> Bundling the backend into backend/build/server.js"
 node "$APP_ROOT/scripts/bundle-backend.mjs"

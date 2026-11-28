@@ -2,7 +2,7 @@
 // person it shows. The demo PDFs are drawn again here, with the App's own PDF writer (buildAgentPdf), from the cleaned answers already in the bundle,
 // the way the Review page builds them: the strategy PDF from every use case grouped by objective (strategyDoc.js), any other PDF from the use cases
 // that have documents (generateDocs.js). Each is drawn at the resolution that fits its share of the bundle size the App allows.
-// CLI: node scripts/showcasePdfs.mjs <bundle.json.gz> [banned words...]  rewrites the bundle with the PDFs it lists.
+// CLI: node scripts/showcasePdfs.mjs <bundle.json.br> [banned words...]  rewrites the bundle with the PDFs it lists.
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -13,7 +13,7 @@ const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { showcaseLeaks, showcaseSizes, showcaseFile, SHOWCASE_MAX_BYTES } = require(path.join(APP, 'backend/lib/showcaseRecord.js'));
 const lib = (p) => import(pathToFileURL(path.join(APP, 'frontend/src/lib', p)).href);
 
-// A PDF's bytes in the gzipped bundle: base64 text of compressed pages gzips back to about its own size, plus a few percent.
+// A PDF's bytes in the compressed bundle: base64 text of compressed pages compresses back to about its own size, plus a few percent.
 const GZ_BASE64 = 1.04;
 
 const answer = (bundle, re) => Object.entries(bundle.inspire).find(([k, v]) => re.test(k) && v.status === 200)?.[1]?.body;
@@ -73,7 +73,7 @@ export async function pdfArgs(bundle) {
 
 // Adds an export answer for each listed PDF, drawn to fit `room` bytes of the bundle in total, and sets each listing's file_size to the bytes kept.
 // rasterize: (svg, scale, opts) => image, as svgToPng; layout: (svg) => page operations, as pageLayout. Returns [{ name, bytes, use_cases }]. Throws when a page text names a banned word or a PDF does not fit.
-export async function addShowcasePdfs(bundle, rasterize, { layout = null, banned = [], room = Math.floor(SHOWCASE_MAX_BYTES * 0.97) - showcaseSizes(bundle).gzip, log = () => {} } = {}) {
+export async function addShowcasePdfs(bundle, rasterize, { layout = null, banned = [], room = Math.floor(SHOWCASE_MAX_BYTES * 0.97) - showcaseSizes(bundle).packed, log = () => {} } = {}) {
   const todo = missingPdfs(bundle);
   if (!todo.length) return [];
   const { buildAgentPdf, agentPdfSvgs } = await lib('docgen/agentPdf.js');
@@ -100,7 +100,7 @@ export async function addShowcasePdfs(bundle, rasterize, { layout = null, banned
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
   const [file, ...banned] = process.argv.slice(2);
   const zlib = await import('node:zlib');
-  const bundle = JSON.parse(zlib.gunzipSync(fs.readFileSync(file)));
+  const bundle = JSON.parse(zlib.brotliDecompressSync(fs.readFileSync(file)));
   const { chromium } = require(path.join(APP, 'frontend/node_modules/playwright'));
   const browser = await chromium.launch({ headless: true });
   try {
@@ -108,9 +108,9 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
     const made = await addShowcasePdfs(bundle, pageRasterize(page), { layout: await pageLayout(await browser.newPage()), banned, log: console.log });
     const leaks = showcaseLeaks(bundle, banned);
     if (leaks.length) throw new Error(`the bundle names private details, so nothing was written:\n${leaks.slice(0, 20).join('\n')}`);
-    const { gzip } = showcaseSizes(bundle);
-    if (gzip > SHOWCASE_MAX_BYTES) throw new Error(`the bundle is ${gzip} bytes compressed, over ${SHOWCASE_MAX_BYTES}, so nothing was written`);
+    const { packed } = showcaseSizes(bundle);
+    if (packed > SHOWCASE_MAX_BYTES) throw new Error(`the bundle is ${packed} bytes compressed, over ${SHOWCASE_MAX_BYTES}, so nothing was written`);
     if (made.length) fs.writeFileSync(file, showcaseFile(bundle));
-    console.log(JSON.stringify({ file: path.basename(file), made, gzip }));
+    console.log(JSON.stringify({ file: path.basename(file), made, packed }));
   } finally { await browser.close(); }
 }

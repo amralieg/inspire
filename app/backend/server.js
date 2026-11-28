@@ -193,22 +193,10 @@ function hasDatabricksPlatformAuth() {
 
 // Path to the bundled notebook file — try several candidate locations
 // v47: switched from DBC archive to direct JUPYTER (.ipynb) format
-const { NOTEBOOK_BUNDLE_FILE, NOTEBOOK_CANDIDATES } = require('./lib/appShell');
-let BUNDLED_NOTEBOOK_PATH = NOTEBOOK_CANDIDATES.find(p => fs.existsSync(p)) || '';
+const { NOTEBOOK_CANDIDATES } = require('./lib/appShell');
+// The App ships the .ipynb itself (no embedded copy); when it is missing the routes below answer "not found" and name the path.
+const BUNDLED_NOTEBOOK_PATH = NOTEBOOK_CANDIDATES.find(p => fs.existsSync(p)) || NOTEBOOK_CANDIDATES[0];
 const IS_IPYNB = BUNDLED_NOTEBOOK_PATH.endsWith('.ipynb');
-
-// If no physical notebook found, try to materialize from embedded base64 bundle
-if (!BUNDLED_NOTEBOOK_PATH) {
-  try {
-    const b64 = require(NOTEBOOK_BUNDLE_FILE);
-    const materializedPath = path.join(BACKEND_DIR, 'dbx_inspire_ai_agent.ipynb');
-    fs.writeFileSync(materializedPath, Buffer.from(b64, 'base64'));
-    BUNDLED_NOTEBOOK_PATH = materializedPath;
-    console.log('Notebook materialized from embedded bundle.');
-  } catch (_) {
-    BUNDLED_NOTEBOOK_PATH = NOTEBOOK_CANDIDATES[0]; // fallback path (will show "not found")
-  }
-}
 
 // ═══════════════════════════════════════════════════
 //  Middleware

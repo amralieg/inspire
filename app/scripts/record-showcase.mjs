@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import zlib from 'node:zlib';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -41,7 +42,7 @@ const sessionId = need('SESSION_ID');
 const id = need('SHOWCASE_ID');
 const title = need('SHOWCASE_TITLE');
 const mvpIds = String(env.MVPS || '').split(',').map((s) => s.trim()).filter(Boolean);
-const out = path.resolve(env.OUT || path.join(root, 'backend/showcase', `${id}.json.gz`));
+const out = path.resolve(env.OUT || path.join(root, 'backend/showcase', `${id}.json.br`));
 const distDir = path.resolve(env.DIST || path.join(root, 'frontend/dist'));
 if (!fs.existsSync(path.join(distDir, 'index.html'))) {
   console.error(`${distDir} has no index.html: run npm run build in app/frontend first`);
@@ -159,8 +160,8 @@ try {
   } else {
     fs.mkdirSync(path.dirname(out), { recursive: true });
     const sizes = showcaseSizes(bundle);
-    fs.writeFileSync(out, out.endsWith('.gz') ? showcaseFile(bundle) : showcaseText(bundle));
-    log(`wrote ${out}: ${Object.keys(bundle.inspire).length} Inspire answers, ${mvpIds.length ? `${mvpIds.map((m) => `${m} ${Object.keys(bundle.mvps[m].api).length}`).join(', ')} MVP answers` : 'no MVP'}, ${sizes.gzip} bytes compressed from ${sizes.json} bytes of JSON`);
+    fs.writeFileSync(out, out.endsWith('.br') ? showcaseFile(bundle) : out.endsWith('.gz') ? zlib.gzipSync(showcaseText(bundle), { level: 9 }) : showcaseText(bundle));
+    log(`wrote ${out}: ${Object.keys(bundle.inspire).length} Inspire answers, ${mvpIds.length ? `${mvpIds.map((m) => `${m} ${Object.keys(bundle.mvps[m].api).length}`).join(', ')} MVP answers` : 'no MVP'}, ${sizes.packed} bytes compressed from ${sizes.json} bytes of JSON`);
   }
   if (blocked.length) log(`refused ${blocked.length} writes during the walk: ${[...new Set(blocked)].join(', ')}`);
   if (outside.length) log(`fetched nothing from ${outside.length} requests to hosts outside the App and its MVP Apps: ${[...new Set(outside.map((u) => new URL(u).host))].join(', ')}`);

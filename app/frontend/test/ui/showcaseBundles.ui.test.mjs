@@ -17,7 +17,7 @@ const { appShellFiles, appShellPayload, bundledAppShellText } = require('../../.
 test.after(closeBrowser);
 
 const COMMITTED = loadShowcases();
-const FILES = fs.readdirSync(SHOWCASE_DIR, { withFileTypes: true }).filter((e) => e.isFile() && /\.json(\.gz)?$/.test(e.name)).map((e) => e.name).sort();
+const FILES = fs.readdirSync(SHOWCASE_DIR, { withFileTypes: true }).filter((e) => e.isFile() && /\.json(\.gz|\.br)?$/.test(e.name)).map((e) => e.name).sort();
 const DEFAULTS = {
   envSkipsSetupWizard: true, isDatabricksApp: true, databricksHost: 'https://workspace.example.com',
   warehouseId: 'wh1', inspireDatabase: 'main.inspire', notebookPath: '/Shared/inspire_ai',
@@ -60,7 +60,7 @@ async function openDemoApp(dir, shellFiles = SHELL) {
 }
 
 const WALK_BUDGET_MS = 60000;
-const KINDS_FILE = `${KINDS_DEMO.id}.json.gz`;
+const KINDS_FILE = `${KINDS_DEMO.id}.json.br`;
 const REAL_SHELL = appShellFiles(appShellPayload(bundledAppShellText()));
 
 async function openKindsDemo() {
@@ -113,7 +113,7 @@ const backToRun = async (page, settle) => {
 };
 
 test('the App carries the recorded demos: the kinds demo first with an MVP App for each use case, then NYC Taxi and TPC-DS Retail, each with at least one MVP App of its own use cases', () => {
-  assert.deepEqual(FILES, [KINDS_FILE, 'nyctaxi.json.gz', 'tpcds-retail.json.gz']);
+  assert.deepEqual(FILES, [KINDS_FILE, 'nyctaxi.json.br', 'tpcds-retail.json.br']);
   assert.deepEqual(Object.keys(COMMITTED), [KINDS_DEMO.id, 'nyctaxi', 'tpcds-retail']);
   for (const bundle of Object.values(COMMITTED)) {
     assert.ok(useCasesOf(bundle).length > 0, `${bundle.id} has use cases`);

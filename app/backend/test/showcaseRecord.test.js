@@ -289,11 +289,11 @@ test('a bundle over the size cap is refused with its largest answers named, and 
   const bundle = rec.bundle();
   const problem = R.showcaseSizeProblem(bundle);
   const sizes = R.showcaseSizes(bundle);
-  assert.deepEqual(sizes, { json: Buffer.byteLength(R.showcaseText(bundle)), gzip: R.showcaseFile(bundle).length });
-  assert.ok(sizes.gzip > R.SHOWCASE_MAX_BYTES && sizes.gzip < sizes.json, JSON.stringify(sizes));
-  assert.match(problem, new RegExp(`^the demo is ${sizes.gzip} bytes compressed \\(${sizes.json} bytes of JSON\\), over the cap of ${R.SHOWCASE_MAX_BYTES} bytes; the largest answers are `
+  assert.deepEqual(sizes, { json: Buffer.byteLength(R.showcaseText(bundle)), packed: R.showcaseFile(bundle).length });
+  assert.ok(sizes.packed > R.SHOWCASE_MAX_BYTES && sizes.packed < sizes.json, JSON.stringify(sizes));
+  assert.match(problem, new RegExp(`^the demo is ${sizes.packed} bytes compressed \\(${sizes.json} bytes of JSON\\), over the cap of ${R.SHOWCASE_MAX_BYTES} bytes; the largest answers are `
     + 'GET /api/inspire/results\\?session_id=1001 \\(\\d+ bytes\\), MVP N01-U01 GET /api/app \\(\\d+ bytes\\), GET /api/inspire/usecases'));
-  assert.equal(R.showcaseSizeProblem(bundle, sizes.gzip), '', 'a bundle exactly at the cap passes');
+  assert.equal(R.showcaseSizeProblem(bundle, sizes.packed), '', 'a bundle exactly at the cap passes');
   const repeated = recorder();
   repeated.addInspire({ method: 'GET', url: `/api/inspire/results?session_id=${SID}`, status: 200, body: { results: { text: 'q'.repeat(R.SHOWCASE_MAX_BYTES) } } });
   repeated.addMvp('N01-U01', { method: 'GET', url: `${MVP_URL}/api/app`, status: 200, body: { title: 'Fare desk' } });
@@ -503,10 +503,10 @@ test('every recorded answer replays byte for byte the same from the compressed d
   rec.addMvp('N01-U01', { method: 'POST', url: `${MVP_URL}/api/records`, postData: JSON.stringify({ page: 'home', filters: { zone: ['JFK'] } }), status: 200, body: { rows: [{ zone: 'JFK', fare: 61 }] } });
   const bundle = rec.bundle();
   const raw = fs.mkdtempSync(path.join(os.tmpdir(), 'showcase-raw-'));
-  const packed = fs.mkdtempSync(path.join(os.tmpdir(), 'showcase-gz-'));
+  const packed = fs.mkdtempSync(path.join(os.tmpdir(), 'showcase-br-'));
   fs.writeFileSync(path.join(raw, 'taxi.json'), R.showcaseText(bundle));
-  fs.writeFileSync(path.join(packed, 'taxi.json.gz'), R.showcaseFile(bundle));
-  assert.equal(zlib.gunzipSync(fs.readFileSync(path.join(packed, 'taxi.json.gz'))).toString('utf8'), R.showcaseText(bundle));
+  fs.writeFileSync(path.join(packed, 'taxi.json.br'), R.showcaseFile(bundle));
+  assert.equal(zlib.brotliDecompressSync(fs.readFileSync(path.join(packed, 'taxi.json.br'))).toString('utf8'), R.showcaseText(bundle));
   const serve = async (dir) => {
     const app = express();
     app.use(express.json());
@@ -542,10 +542,10 @@ test('every recorded answer replays byte for byte the same from the compressed d
   }
   const both = fs.mkdtempSync(path.join(os.tmpdir(), 'showcase-both-'));
   fs.writeFileSync(path.join(both, 'taxi.json'), R.showcaseText(bundle));
-  fs.writeFileSync(path.join(both, 'taxi.json.gz'), R.showcaseFile(bundle));
-  assert.throws(() => S.loadShowcases(both), /the demo taxi is saved twice, as taxi\.json and taxi\.json\.gz; keep one/);
-  fs.writeFileSync(path.join(packed, 'taxi.json.gz'), 'not gzip');
-  assert.throws(() => S.loadShowcases(packed), /the demo taxi\.json\.gz is not gzip-compressed JSON: /);
+  fs.writeFileSync(path.join(both, 'taxi.json.br'), R.showcaseFile(bundle));
+  assert.throws(() => S.loadShowcases(both), /the demo taxi is saved twice, as taxi\.json and taxi\.json\.br; keep one/);
+  fs.writeFileSync(path.join(packed, 'taxi.json.br'), 'not brotli');
+  assert.throws(() => S.loadShowcases(packed), /the demo taxi\.json\.br is not brotli-compressed JSON: /);
 });
 
 test('the refusal of API answers that are not JSON agrees with a count of 1 and of 2', () => {

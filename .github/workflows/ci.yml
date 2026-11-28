@@ -227,11 +227,11 @@ jobs:
             [ "$size" -lt 6000000 ] || { echo "::error::$nb is $size bytes, limit 6000000"; exit 1; }
           done
       - if: ${{ !cancelled() }}
-        name: notebook bundle is current
+        name: App notebook copy is current
         working-directory: app
         run: |
           node scripts/bundle-agent-notebook.mjs
-          git diff --exit-code --stat -- dbx_inspire_ai_agent.ipynb backend/notebook_bundle.js
+          git diff --exit-code --stat -- dbx_inspire_ai_agent.ipynb
       - if: ${{ !cancelled() }}
         run: npm ci --no-audit --no-fund
         working-directory: app/agent/agent/app_shell/web

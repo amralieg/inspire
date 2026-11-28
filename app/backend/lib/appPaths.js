@@ -12,9 +12,6 @@ const APP_FILES = [
   'backend/build',
   'backend/api-docs.html',
   'backend/openapi.yaml',
-  'backend/notebook_bundle.js',
-  'backend/demo_notebook_bundle.js',
-  'backend/dbx_generate_demo_data.py',
   'frontend/dist',
   'agent/agent/app_shell/app_shell.b64',
 ];

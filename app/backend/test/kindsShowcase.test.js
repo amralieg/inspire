@@ -9,7 +9,7 @@ const { SHOWCASE_MAX_BYTES, showcaseLeaks } = require('../lib/showcaseRecord');
 const { appShellFiles, appShellPayload, bundledAppShellText } = require('../lib/appShell');
 
 const kinds = () => import('../../scripts/kindsShowcase.mjs');
-const FILE = path.join(S.SHOWCASE_DIR, 'kinds-retail.json.gz');
+const FILE = path.join(S.SHOWCASE_DIR, 'kinds-retail.json.br');
 const bundle = () => S.loadShowcases()['kinds-retail'];
 const useCases = (b) => b.inspire[`GET /api/inspire/usecases?session_id=${b.session_id}`].body.usecases;
 const answersOf = (mvp) => Object.entries(mvp.api);

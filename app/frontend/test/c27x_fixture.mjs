@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 
-const show = JSON.parse(zlib.gunzipSync(fs.readFileSync(new URL('../../backend/showcase/kinds-retail.json.gz', import.meta.url))));
+const show = JSON.parse(zlib.brotliDecompressSync(fs.readFileSync(new URL('../../backend/showcase/kinds-retail.json.br', import.meta.url))));
 export const ROWS = show.inspire['GET /api/inspire/results?session_id=2001'].body.results.domains.flatMap((d) => d.use_cases);
 export const ARGS = { businessName: 'Retail', useCases: ROWS, values: {}, summary: ['Retail sells through stores and the web.'], foundations: [], language: 'English', date: '2026-11-27' };
 export const DOMAINS = [...new Set(ROWS.map((r) => String(r['Business Domain'] || r.domain || '').trim()).filter(Boolean))];

@@ -11,7 +11,6 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 APP = os.path.dirname(ROOT)
 NOTEBOOK = os.path.join(ROOT, "agent", "dbx_inspire_ai_agent.ipynb")
 BUNDLED = os.path.join(APP, "dbx_inspire_ai_agent.ipynb")
-BUNDLE_JS = os.path.join(APP, "backend", "notebook_bundle.js")
 LEGACY = ("_INSPIRE_APP_SHELL", "_INSPIRE_KINDS")
 NOTEBOOK_BYTES_CAP = 6_000_000
 # D-SIZE (REQ-298): the notebook must keep this much headroom under the cap, so the next lane that adds code does not fail the cap by surprise.
@@ -53,9 +52,7 @@ def _texts():
         agent = handle.read()
     with open(BUNDLED, encoding="utf-8") as handle:
         bundled = handle.read()
-    with open(BUNDLE_JS, encoding="utf-8") as handle:
-        encoded = json.loads(handle.read().split("=", 1)[1].strip().rstrip(";"))
-    return {"agent notebook": agent, "bundled notebook": bundled, "notebook_bundle.js": base64.b64decode(encoded).decode("utf-8")}
+    return {"agent notebook": agent, "bundled notebook": bundled}
 
 
 def _install(ns, root, name, data, pin=None, listed=True):

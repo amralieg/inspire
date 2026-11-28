@@ -10,7 +10,6 @@ const NOTEBOOK_CANDIDATES = [
   path.join(APP_DIR, NOTEBOOK_FILE),
   path.join(BACKEND_DIR, NOTEBOOK_FILE),
 ];
-const NOTEBOOK_BUNDLE_FILE = path.join(BACKEND_DIR, 'notebook_bundle.js');
 const APP_SHELL_CELL = 1;
 const ASSET_PINS_NAME = 'INSPIRE_NOTEBOOK_ASSETS';
 const ASSET_PINS_CONSTANT = `${ASSET_PINS_NAME} = `;
@@ -27,8 +26,8 @@ const UPDATE_HINT = 'update the Inspire App so it carries an agent notebook with
 
 function bundledNotebookText() {
   const found = NOTEBOOK_CANDIDATES.find((p) => fs.existsSync(p));
-  if (found) return fs.readFileSync(found, 'utf8');
-  return Buffer.from(require(NOTEBOOK_BUNDLE_FILE), 'base64').toString('utf8');
+  if (!found) throw new Error(`the agent notebook ${NOTEBOOK_FILE} is missing from the App; ${UPDATE_HINT}`);
+  return fs.readFileSync(found, 'utf8');
 }
 
 // The Lakebase catalog the build writes to is named once, in the agent notebook (IMPLEMENT_LAKEBASE_CATALOG); the offer reads it from there.
@@ -248,7 +247,6 @@ function appShellCatalog() {
 }
 
 module.exports = {
-  NOTEBOOK_BUNDLE_FILE,
   NOTEBOOK_CANDIDATES,
   ASSET_PINS_CONSTANT,
   APP_SHELL_FILE,

@@ -14,7 +14,7 @@ import * as agentPdf from '../src/lib/docgen/agentPdf.js';
 const { buildAgentPdf, agentPdfSvgs } = agentPdf;
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const require = createRequire(import.meta.url);
-const show = JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(ROOT, 'app/backend/showcase/kinds-retail.json.gz'))));
+const show = JSON.parse(zlib.brotliDecompressSync(fs.readFileSync(path.join(ROOT, 'app/backend/showcase/kinds-retail.json.br'))));
 const rows = Object.entries(show.inspire).find(([k]) => k.startsWith('GET /api/inspire/results?'))[1].body.results.domains.flatMap((d) => d.use_cases);
 const ARGS = { businessName: 'Retail', useCases: rows, values: {}, language: 'English', date: '2026-11-27', foundations: [], summary: ['Retail sells through stores and the web.'] };
 const CAP = 8 * 1024 * 1024;
@@ -82,7 +82,7 @@ test('C33 D5 (must-fail before): the recorded NYC Taxi strategy PDF, drawn by th
   const { chromium } = require('playwright');
   const { pdfArgs, pageRasterize, pageLayout } = await import('../../scripts/showcasePdfs.mjs');
   const { groupByObjective } = await import('../src/lib/strategyDoc.js');
-  const nyc = JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(ROOT, 'app/backend/showcase/nyctaxi.json.gz'))));
+  const nyc = JSON.parse(zlib.brotliDecompressSync(fs.readFileSync(path.join(ROOT, 'app/backend/showcase/nyctaxi.json.br'))));
   const args = { ...(await pdfArgs(nyc)), groups: groupByObjective, groupLabelKey: 'objective_label' };
   const browser = await chromium.launch({ headless: true });
   try {

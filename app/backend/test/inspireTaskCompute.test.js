@@ -149,8 +149,6 @@ test('an existing job changes only the version of each environment it has, keeps
 });
 
 test('the App runs jobs on the serverless environment version the bundled agent notebook is pinned to', () => {
-  const bundled = Buffer.from(require('../notebook_bundle.js'), 'base64').toString('utf8');
-  assert.equal(notebookEnvironmentVersion(bundled), INSPIRE_ENVIRONMENT_VERSION, 'notebook_bundle.js');
   const notebook = path.join(BACKEND, '..', 'dbx_inspire_ai_agent.ipynb');
   assert.equal(notebookEnvironmentVersion(fs.readFileSync(notebook, 'utf8')), INSPIRE_ENVIRONMENT_VERSION, notebook);
   const other = JSON.stringify({ metadata: { 'application/vnd.databricks.v1+notebook': { environmentMetadata: { environment_version: '3' } } } });

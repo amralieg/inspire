@@ -14,7 +14,7 @@ import { buildDocModel } from '../src/lib/docgen/docModel.js';
 import { defaultDocOptions } from '../src/lib/docgen/docOptions.js';
 import { resolveTheme } from '../src/lib/docgen/docStyles.js';
 
-const show = JSON.parse(zlib.gunzipSync(fs.readFileSync(new URL('../../backend/showcase/kinds-retail.json.gz', import.meta.url))));
+const show = JSON.parse(zlib.brotliDecompressSync(fs.readFileSync(new URL('../../backend/showcase/kinds-retail.json.br', import.meta.url))));
 const rows = show.inspire['GET /api/inspire/results?session_id=2001'].body.results.domains.flatMap((d) => d.use_cases);
 const ARGS = { businessName: 'Retail', useCases: rows, values: {}, summary: ['Retail sells through stores.'], foundations: [], language: 'English', date: '2026-11-27' };
 const decode = (s) => s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');

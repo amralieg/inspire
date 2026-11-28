@@ -7,12 +7,9 @@ const REPO = path.resolve(__dirname, '..', '..', '..');
 const SKIPPED = new Set(['node_modules', '.git']);
 const BINARY = new Set(['.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.woff', '.woff2', '.ttf', '.zip', '.dbc']);
 const OLD_NAMES = new RegExp([['installer', 'workspace'].join('_'), ['installer', 'Workspace'].join(''), ['Installer', 'Workspace'].join('')].join('|'));
-const EMBEDDED = new Set(['notebook_bundle.js', 'demo_notebook_bundle.js']);
 
 function textsOf(file) {
-  const text = fs.readFileSync(file, 'utf8');
-  const encoded = EMBEDDED.has(path.basename(file)) && /module\.exports = "([A-Za-z0-9+/=]+)"/.exec(text);
-  return [['', text]].concat(encoded ? [[' embedded', Buffer.from(encoded[1], 'base64').toString('utf8')]] : []);
+  return [['', fs.readFileSync(file, 'utf8')]];
 }
 
 function walk(dir) {
@@ -67,8 +64,7 @@ test('the old-name scan finds the old name in a file name, a line of text and a 
   fs.writeFileSync(path.join(dir, 'notes.md'), `run\n${old}.py once\n`);
   fs.writeFileSync(path.join(dir, 'index-x.js'), `const a="${['installer', 'Workspace'].join('')}";`);
   fs.writeFileSync(path.join(dir, 'logo.png'), old);
-  fs.writeFileSync(path.join(dir, 'demo_notebook_bundle.js'), `module.exports = ${JSON.stringify(Buffer.from(`# x\nrun ${old}.py\n`).toString('base64'))};\n`);
   const sites = oldNameSites(walk(dir)).map((site) => site.replace(path.relative(REPO, dir) + path.sep, ''));
-  assert.deepEqual(sites.sort(), ['demo_notebook_bundle.js embedded:2', 'index-x.js:1', `${old}.py: file name`, 'notes.md:2']);
+  assert.deepEqual(sites.sort(), ['index-x.js:1', `${old}.py: file name`, 'notes.md:2']);
   fs.rmSync(dir, { recursive: true, force: true });
 });

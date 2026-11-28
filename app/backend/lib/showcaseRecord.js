@@ -410,15 +410,17 @@ function installTagReplace(inspireUrl) {
 }
 
 function showcaseFile(bundle) {
-  return zlib.gzipSync(Buffer.from(showcaseText(bundle), 'utf8'), { level: 9 });
+  const text = Buffer.from(showcaseText(bundle), 'utf8');
+  // Brotli with a 16 MB window sees the repeats between the use cases, results and MVP answers that gzip's 32 KB window misses.
+  return zlib.brotliCompressSync(text, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11, [zlib.constants.BROTLI_PARAM_LGWIN]: 24, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: text.length } });
 }
 
 function showcaseSizes(bundle) {
-  return { json: Buffer.byteLength(showcaseText(bundle)), gzip: showcaseFile(bundle).length };
+  return { json: Buffer.byteLength(showcaseText(bundle)), packed: showcaseFile(bundle).length };
 }
 
 function showcaseSizeProblem(bundle, max = SHOWCASE_MAX_BYTES) {
-  const { json, gzip: size } = showcaseSizes(bundle);
+  const { json, packed: size } = showcaseSizes(bundle);
   if (size <= max) return '';
   const answers = [
     ...Object.entries(bundle.inspire || {}),
