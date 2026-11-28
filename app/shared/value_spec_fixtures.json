@@ -1,0 +1,1895 @@
+{
+ "version": 1,
+ "about": "R12 U7a shared fixtures: one value spec, one calculator. Python runner app/agent/tests/unit/a04_value_spec_test.py; the App runner must match the same file.",
+ "compare": {
+  "abs": 0.01,
+  "rel": 1e-09,
+  "rule": "every key in expected must match the calculator output; null means null; flags and problems compare as sorted lists; numbers within abs or rel"
+ },
+ "cases": [
+  {
+   "id": "revenue_at_margin",
+   "why": "Revenue counts at contribution margin; joint low/base/high; L tier goes negative and is shown",
+   "spec": {
+    "mechanism": "revenue",
+    "currency": "USD",
+    "flow_or_stock": "flow",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 12000000,
+     "period_days": 365,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": null
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.01,
+      "base": 0.02,
+      "high": 0.04,
+      "source": "exploratory"
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     },
+     "margin": {
+      "low": 0.3,
+      "base": 0.3,
+      "high": 0.3,
+      "source": "owner"
+     }
+    },
+    "cost": {
+     "source": "exploratory",
+     "tiers": {
+      "S": {
+       "implementation": 20000,
+       "recurring_per_year": 5000
+      },
+      "M": {
+       "implementation": 60000,
+       "recurring_per_year": 15000
+      },
+      "L": {
+       "implementation": 150000,
+       "recurring_per_year": 40000
+      }
+     }
+    }
+   },
+   "expected": {
+    "ok": true,
+    "problems": [],
+    "flags": [
+     "net_negative"
+    ],
+    "bucket": "cash",
+    "unit": "USD",
+    "period": "year",
+    "annual_exposure": 12000000.0,
+    "balance": null,
+    "one_percent": {
+     "value": 120000.0,
+     "unit": "USD",
+     "per": "year"
+    },
+    "scenarios": {
+     "low": {
+      "change": 48000.0,
+      "gross_annual": 14400.0,
+      "gross_horizon": 43200.0,
+      "one_off_release": null,
+      "net": {
+       "S": 8200.0,
+       "M": -61800.0,
+       "L": -226800.0
+      }
+     },
+     "base": {
+      "change": 129600.0,
+      "gross_annual": 38880.0,
+      "gross_horizon": 116640.0,
+      "one_off_release": null,
+      "net": {
+       "S": 81640.0,
+       "M": 11640.0,
+       "L": -153360.0
+      }
+     },
+     "high": {
+      "change": 335999.99999999994,
+      "gross_annual": 100799.99999999999,
+      "gross_horizon": 302399.99999999994,
+      "one_off_release": null,
+      "net": {
+       "S": 267399.99999999994,
+       "M": 197399.99999999994,
+       "L": 32399.99999999994
+      }
+     }
+    },
+    "break_even_effect": {
+     "S": 0.006001371742112483,
+     "M": 0.01800411522633745,
+     "L": 0.046296296296296294
+    }
+   }
+  },
+  {
+   "id": "revenue_quarter_annualised",
+   "why": "A 90-day flow is annualised by 365/90 before any lever",
+   "spec": {
+    "mechanism": "revenue",
+    "currency": "USD",
+    "flow_or_stock": "flow",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 3000000,
+     "period_days": 90,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": null
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.01,
+      "base": 0.02,
+      "high": 0.04,
+      "source": "exploratory"
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     },
+     "margin": {
+      "low": 0.25,
+      "base": 0.3,
+      "high": 0.35,
+      "source": "measured"
+     }
+    },
+    "cost": {
+     "source": "exploratory",
+     "tiers": {
+      "S": {
+       "implementation": 20000,
+       "recurring_per_year": 5000
+      },
+      "M": {
+       "implementation": 60000,
+       "recurring_per_year": 15000
+      },
+      "L": {
+       "implementation": 150000,
+       "recurring_per_year": 40000
+      }
+     }
+    }
+   },
+   "expected": {
+    "ok": true,
+    "problems": [],
+    "flags": [
+     "net_negative"
+    ],
+    "bucket": "cash",
+    "unit": "USD",
+    "period": "year",
+    "annual_exposure": 12166666.666666666,
+    "balance": null,
+    "one_percent": {
+     "value": 121666.66666666666,
+     "unit": "USD",
+     "per": "year"
+    },
+    "scenarios": {
+     "low": {
+      "change": 48666.666666666664,
+      "gross_annual": 12166.666666666666,
+      "gross_horizon": 36500.0,
+      "one_off_release": null,
+      "net": {
+       "S": 1500.0,
+       "M": -68500.0,
+       "L": -233500.0
+      }
+     },
+     "base": {
+      "change": 131400.0,
+      "gross_annual": 39420.0,
+      "gross_horizon": 118260.0,
+      "one_off_release": null,
+      "net": {
+       "S": 83260.0,
+       "M": 13260.0,
+       "L": -151740.0
+      }
+     },
+     "high": {
+      "change": 340666.6666666666,
+      "gross_annual": 119233.33333333331,
+      "gross_horizon": 357699.99999999994,
+      "one_off_release": null,
+      "net": {
+       "S": 322699.99999999994,
+       "M": 252699.99999999994,
+       "L": 87699.99999999994
+      }
+     }
+    },
+    "break_even_effect": {
+     "S": 0.005919161170302725,
+     "M": 0.017757483510908174,
+     "L": 0.045662100456621016
+    }
+   }
+  },
+  {
+   "id": "cost_saving",
+   "why": "Cost: the change is the cash saving (no margin)",
+   "spec": {
+    "mechanism": "cost",
+    "currency": "EUR",
+    "flow_or_stock": "flow",
+    "horizon_years": 2,
+    "measured": {
+     "exposure": 5000000,
+     "period_days": 365,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": null
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.01,
+      "base": 0.02,
+      "high": 0.04,
+      "source": "exploratory"
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     }
+    },
+    "cost": {
+     "source": "exploratory",
+     "tiers": {
+      "S": {
+       "implementation": 20000,
+       "recurring_per_year": 5000
+      },
+      "M": {
+       "implementation": 60000,
+       "recurring_per_year": 15000
+      },
+      "L": {
+       "implementation": 150000,
+       "recurring_per_year": 40000
+      }
+     }
+    }
+   },
+   "expected": {
+    "ok": true,
+    "problems": [],
+    "flags": [
+     "net_negative"
+    ],
+    "bucket": "cash",
+    "unit": "EUR",
+    "period": "year",
+    "annual_exposure": 5000000.0,
+    "balance": null,
+    "one_percent": {
+     "value": 50000.0,
+     "unit": "EUR",
+     "per": "year"
+    },
+    "scenarios": {
+     "low": {
+      "change": 20000.0,
+      "gross_annual": 20000.0,
+      "gross_horizon": 40000.0,
+      "one_off_release": null,
+      "net": {
+       "S": 10000.0,
+       "M": -50000.0,
+       "L": -190000.0
+      }
+     },
+     "base": {
+      "change": 54000.0,
+      "gross_annual": 54000.0,
+      "gross_horizon": 108000.0,
+      "one_off_release": null,
+      "net": {
+       "S": 78000.0,
+       "M": 18000.0,
+       "L": -122000.0
+      }
+     },
+     "high": {
+      "change": 140000.0,
+      "gross_annual": 140000.0,
+      "gross_horizon": 280000.0,
+      "one_off_release": null,
+      "net": {
+       "S": 250000.0,
+       "M": 190000.0,
+       "L": 50000.0
+      }
+     }
+    },
+    "break_even_effect": {
+     "S": 0.005555555555555556,
+     "M": 0.016666666666666666,
+     "L": 0.04259259259259259
+    }
+   }
+  },
+  {
+   "id": "risk_expected_loss",
+   "why": "Risk: exposure is the annual expected loss; avoided loss is cash",
+   "spec": {
+    "mechanism": "risk",
+    "currency": "USD",
+    "flow_or_stock": "flow",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 800000,
+     "period_days": 365,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": null
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.05,
+      "base": 0.1,
+      "high": 0.2,
+      "source": "library"
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     }
+    },
+    "cost": {
+     "source": "exploratory",
+     "tiers": {
+      "S": {
+       "implementation": 20000,
+       "recurring_per_year": 5000
+      },
+      "M": {
+       "implementation": 60000,
+       "recurring_per_year": 15000
+      },
+      "L": {
+       "implementation": 150000,
+       "recurring_per_year": 40000
+      }
+     }
+    }
+   },
+   "expected": {
+    "ok": true,
+    "problems": [],
+    "flags": [
+     "net_negative"
+    ],
+    "bucket": "cash",
+    "unit": "USD",
+    "period": "year",
+    "annual_exposure": 800000.0,
+    "balance": null,
+    "one_percent": {
+     "value": 8000.0,
+     "unit": "USD",
+     "per": "year"
+    },
+    "scenarios": {
+     "low": {
+      "change": 16000.000000000004,
+      "gross_annual": 16000.000000000004,
+      "gross_horizon": 48000.000000000015,
+      "one_off_release": null,
+      "net": {
+       "S": 13000.000000000015,
+       "M": -56999.999999999985,
+       "L": -222000.0
+      }
+     },
+     "base": {
+      "change": 43200.0,
+      "gross_annual": 43200.0,
+      "gross_horizon": 129600.0,
+      "one_off_release": null,
+      "net": {
+       "S": 94600.0,
+       "M": 24600.0,
+       "L": -140400.0
+      }
+     },
+     "high": {
+      "change": 111999.99999999999,
+      "gross_annual": 111999.99999999999,
+      "gross_horizon": 335999.99999999994,
+      "one_off_release": null,
+      "net": {
+       "S": 300999.99999999994,
+       "M": 230999.99999999994,
+       "L": 65999.99999999994
+      }
+     }
+    },
+    "break_even_effect": {
+     "S": 0.02700617283950617,
+     "M": 0.08101851851851852,
+     "L": 0.20833333333333334
+    }
+   }
+  },
+  {
+   "id": "working_capital_stock",
+   "why": "Working capital: a balance releases cash once (one_off_release) and only its carrying cost is annual",
+   "spec": {
+    "mechanism": "working_capital",
+    "currency": "USD",
+    "flow_or_stock": "stock",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 2000000,
+     "period_days": null,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": null
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.05,
+      "base": 0.1,
+      "high": 0.15,
+      "source": "exploratory"
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     },
+     "carrying_cost_rate": {
+      "low": 0.06,
+      "base": 0.08,
+      "high": 0.1,
+      "source": "owner"
+     }
+    },
+    "cost": {
+     "source": "exploratory",
+     "tiers": {
+      "S": {
+       "implementation": 20000,
+       "recurring_per_year": 5000
+      },
+      "M": {
+       "implementation": 60000,
+       "recurring_per_year": 15000
+      },
+      "L": {
+       "implementation": 150000,
+       "recurring_per_year": 40000
+      }
+     }
+    }
+   },
+   "expected": {
+    "ok": true,
+    "problems": [],
+    "flags": [
+     "net_negative"
+    ],
+    "bucket": "cash",
+    "unit": "USD",
+    "period": "balance",
+    "annual_exposure": null,
+    "balance": 2000000.0,
+    "one_percent": {
+     "value": 20000.0,
+     "unit": "USD",
+     "per": "balance"
+    },
+    "scenarios": {
+     "low": {
+      "change": null,
+      "gross_annual": 2400.0000000000005,
+      "gross_horizon": 7200.000000000002,
+      "one_off_release": 40000.00000000001,
+      "net": {
+       "S": -27800.0,
+       "M": -97800.0,
+       "L": -262800.0
+      }
+     },
+     "base": {
+      "change": null,
+      "gross_annual": 8640.0,
+      "gross_horizon": 25920.0,
+      "one_off_release": 108000.0,
+      "net": {
+       "S": -9080.0,
+       "M": -79080.0,
+       "L": -244080.0
+      }
+     },
+     "high": {
+      "change": null,
+      "gross_annual": 21000.0,
+      "gross_horizon": 63000.0,
+      "one_off_release": 210000.0,
+      "net": {
+       "S": 28000.0,
+       "M": -42000.0,
+       "L": -207000.0
+      }
+     }
+    },
+    "break_even_effect": {
+     "S": 0.13503086419753085,
+     "M": 0.4050925925925926,
+     "L": 1.0416666666666667
+    }
+   }
+  },
+  {
+   "id": "working_capital_no_carrying_cost",
+   "why": "Working capital without a carrying cost rate: one-off release shown, no annual cash",
+   "spec": {
+    "mechanism": "working_capital",
+    "currency": "USD",
+    "flow_or_stock": "stock",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 2000000,
+     "period_days": null,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": null
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.05,
+      "base": 0.1,
+      "high": 0.15,
+      "source": "exploratory"
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     }
+    },
+    "cost": {
+     "source": "exploratory",
+     "tiers": {
+      "S": {
+       "implementation": 20000,
+       "recurring_per_year": 5000
+      },
+      "M": {
+       "implementation": 60000,
+       "recurring_per_year": 15000
+      },
+      "L": {
+       "implementation": 150000,
+       "recurring_per_year": 40000
+      }
+     }
+    }
+   },
+   "expected": {
+    "ok": true,
+    "problems": [],
+    "flags": [
+     "carrying_cost_missing"
+    ],
+    "bucket": "cash",
+    "unit": "USD",
+    "period": "balance",
+    "annual_exposure": null,
+    "balance": 2000000.0,
+    "one_percent": {
+     "value": 20000.0,
+     "unit": "USD",
+     "per": "balance"
+    },
+    "scenarios": {
+     "low": {
+      "change": null,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": 40000.00000000001,
+      "net": null
+     },
+     "base": {
+      "change": null,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": 108000.0,
+      "net": null
+     },
+     "high": {
+      "change": null,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": 210000.0,
+      "net": null
+     }
+    },
+    "break_even_effect": null
+   }
+  },
+  {
+   "id": "working_capital_as_flow_refused",
+   "why": "Working capital must be a stock balance",
+   "spec": {
+    "mechanism": "working_capital",
+    "currency": "USD",
+    "flow_or_stock": "flow",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 2000000,
+     "period_days": 365,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": null
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.01,
+      "base": 0.02,
+      "high": 0.04,
+      "source": "exploratory"
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     },
+     "carrying_cost_rate": {
+      "low": 0.06,
+      "base": 0.08,
+      "high": 0.1,
+      "source": "exploratory"
+     }
+    },
+    "cost": {
+     "source": "exploratory",
+     "tiers": {
+      "S": {
+       "implementation": 20000,
+       "recurring_per_year": 5000
+      },
+      "M": {
+       "implementation": 60000,
+       "recurring_per_year": 15000
+      },
+      "L": {
+       "implementation": 150000,
+       "recurring_per_year": 40000
+      }
+     }
+    }
+   },
+   "expected": {
+    "ok": false,
+    "problems": [
+     "working_capital_needs_stock"
+    ],
+    "flags": [],
+    "bucket": "cash",
+    "scenarios": null,
+    "one_percent": null,
+    "break_even_effect": null,
+    "annual_exposure": null,
+    "balance": null,
+    "period": null
+   }
+  },
+  {
+   "id": "revenue_stock_never_annual",
+   "why": "A stock balance never becomes an annual benefit: no change, no cash",
+   "spec": {
+    "mechanism": "revenue",
+    "currency": "USD",
+    "flow_or_stock": "stock",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 9000000,
+     "period_days": null,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": null
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.01,
+      "base": 0.02,
+      "high": 0.04,
+      "source": "exploratory"
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     },
+     "margin": {
+      "low": 0.3,
+      "base": 0.3,
+      "high": 0.3,
+      "source": "owner"
+     }
+    },
+    "cost": {
+     "source": "exploratory",
+     "tiers": {
+      "S": {
+       "implementation": 20000,
+       "recurring_per_year": 5000
+      },
+      "M": {
+       "implementation": 60000,
+       "recurring_per_year": 15000
+      },
+      "L": {
+       "implementation": 150000,
+       "recurring_per_year": 40000
+      }
+     }
+    }
+   },
+   "expected": {
+    "ok": true,
+    "problems": [],
+    "flags": [
+     "stock_not_annual"
+    ],
+    "bucket": "cash",
+    "unit": "USD",
+    "period": "balance",
+    "annual_exposure": null,
+    "balance": 9000000.0,
+    "one_percent": {
+     "value": 90000.0,
+     "unit": "USD",
+     "per": "balance"
+    },
+    "scenarios": {
+     "low": {
+      "change": null,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     },
+     "base": {
+      "change": null,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     },
+     "high": {
+      "change": null,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     }
+    },
+    "break_even_effect": null
+   }
+  },
+  {
+   "id": "capacity_only",
+   "why": "Capacity stays capacity (hours), never cash, even with a currency and cost tiers",
+   "spec": {
+    "mechanism": "capacity",
+    "currency": "USD",
+    "flow_or_stock": "flow",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 50000,
+     "period_days": 365,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": "hours"
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.1,
+      "base": 0.15,
+      "high": 0.2,
+      "source": "exploratory"
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     }
+    },
+    "cost": {
+     "source": "exploratory",
+     "tiers": {
+      "S": {
+       "implementation": 20000,
+       "recurring_per_year": 5000
+      },
+      "M": {
+       "implementation": 60000,
+       "recurring_per_year": 15000
+      },
+      "L": {
+       "implementation": 150000,
+       "recurring_per_year": 40000
+      }
+     }
+    }
+   },
+   "expected": {
+    "ok": true,
+    "problems": [],
+    "flags": [],
+    "bucket": "capacity",
+    "unit": "hours",
+    "period": "year",
+    "annual_exposure": 50000.0,
+    "balance": null,
+    "one_percent": {
+     "value": 500.0,
+     "unit": "hours",
+     "per": "year"
+    },
+    "scenarios": {
+     "low": {
+      "change": 2000.0000000000005,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     },
+     "base": {
+      "change": 4050.0,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     },
+     "high": {
+      "change": 6999.999999999999,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     }
+    },
+    "break_even_effect": null
+   }
+  },
+  {
+   "id": "non_financial",
+   "why": "Non-financial stays in its own bucket; no currency needed",
+   "spec": {
+    "mechanism": "non_financial",
+    "currency": null,
+    "flow_or_stock": "flow",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 1200,
+     "period_days": 365,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": "complaints"
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.1,
+      "base": 0.2,
+      "high": 0.3,
+      "source": "exploratory"
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     }
+    }
+   },
+   "expected": {
+    "ok": true,
+    "problems": [],
+    "flags": [
+     "cost_missing"
+    ],
+    "bucket": "non_financial",
+    "unit": "complaints",
+    "period": "year",
+    "annual_exposure": 1200.0,
+    "balance": null,
+    "one_percent": {
+     "value": 12.0,
+     "unit": "complaints",
+     "per": "year"
+    },
+    "scenarios": {
+     "low": {
+      "change": 48.00000000000001,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     },
+     "base": {
+      "change": 129.6,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     },
+     "high": {
+      "change": 252.0,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     }
+    },
+    "break_even_effect": null
+   }
+  },
+  {
+   "id": "missing_currency_no_cash",
+   "why": "Currency is never assumed: no cash number, a flag; the measured change stays",
+   "spec": {
+    "mechanism": "revenue",
+    "currency": null,
+    "flow_or_stock": "flow",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 12000000,
+     "period_days": 365,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": null
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.01,
+      "base": 0.02,
+      "high": 0.04,
+      "source": "exploratory"
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     },
+     "margin": {
+      "low": 0.3,
+      "base": 0.3,
+      "high": 0.3,
+      "source": "owner"
+     }
+    },
+    "cost": {
+     "source": "exploratory",
+     "tiers": {
+      "S": {
+       "implementation": 20000,
+       "recurring_per_year": 5000
+      },
+      "M": {
+       "implementation": 60000,
+       "recurring_per_year": 15000
+      },
+      "L": {
+       "implementation": 150000,
+       "recurring_per_year": 40000
+      }
+     }
+    }
+   },
+   "expected": {
+    "ok": true,
+    "problems": [],
+    "flags": [
+     "currency_missing"
+    ],
+    "bucket": "cash",
+    "unit": null,
+    "period": "year",
+    "annual_exposure": 12000000.0,
+    "balance": null,
+    "one_percent": null,
+    "scenarios": {
+     "low": {
+      "change": 48000.0,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     },
+     "base": {
+      "change": 129600.0,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     },
+     "high": {
+      "change": 335999.99999999994,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     }
+    },
+    "break_even_effect": null
+   }
+  },
+  {
+   "id": "lowercase_currency_not_guessed",
+   "why": "A currency that is not a 3-letter upper-case code is never guessed into one",
+   "spec": {
+    "mechanism": "cost",
+    "currency": "usd",
+    "flow_or_stock": "flow",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 5000000,
+     "period_days": 365,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": null
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.01,
+      "base": 0.02,
+      "high": 0.04,
+      "source": "exploratory"
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     }
+    },
+    "cost": {
+     "source": "exploratory",
+     "tiers": {
+      "S": {
+       "implementation": 20000,
+       "recurring_per_year": 5000
+      },
+      "M": {
+       "implementation": 60000,
+       "recurring_per_year": 15000
+      },
+      "L": {
+       "implementation": 150000,
+       "recurring_per_year": 40000
+      }
+     }
+    }
+   },
+   "expected": {
+    "ok": true,
+    "problems": [],
+    "flags": [
+     "currency_missing"
+    ],
+    "bucket": "cash",
+    "unit": null,
+    "period": "year",
+    "annual_exposure": 5000000.0,
+    "balance": null,
+    "one_percent": null,
+    "scenarios": {
+     "low": {
+      "change": 20000.0,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     },
+     "base": {
+      "change": 54000.0,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     },
+     "high": {
+      "change": 140000.0,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     }
+    },
+    "break_even_effect": null
+   }
+  },
+  {
+   "id": "negative_net_shown",
+   "why": "Costs above the benefit give a negative net, shown, never clamped",
+   "spec": {
+    "mechanism": "cost",
+    "currency": "USD",
+    "flow_or_stock": "flow",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 200000,
+     "period_days": 365,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": null
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.01,
+      "base": 0.02,
+      "high": 0.04,
+      "source": "exploratory"
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     }
+    },
+    "cost": {
+     "source": "exploratory",
+     "tiers": {
+      "S": {
+       "implementation": 20000,
+       "recurring_per_year": 5000
+      },
+      "M": {
+       "implementation": 60000,
+       "recurring_per_year": 15000
+      },
+      "L": {
+       "implementation": 150000,
+       "recurring_per_year": 40000
+      }
+     }
+    }
+   },
+   "expected": {
+    "ok": true,
+    "problems": [],
+    "flags": [
+     "net_negative"
+    ],
+    "bucket": "cash",
+    "unit": "USD",
+    "period": "year",
+    "annual_exposure": 200000.0,
+    "balance": null,
+    "one_percent": {
+     "value": 2000.0,
+     "unit": "USD",
+     "per": "year"
+    },
+    "scenarios": {
+     "low": {
+      "change": 800.0,
+      "gross_annual": 800.0,
+      "gross_horizon": 2400.0,
+      "one_off_release": null,
+      "net": {
+       "S": -32600.0,
+       "M": -102600.0,
+       "L": -267600.0
+      }
+     },
+     "base": {
+      "change": 2160.0,
+      "gross_annual": 2160.0,
+      "gross_horizon": 6480.0,
+      "one_off_release": null,
+      "net": {
+       "S": -28520.0,
+       "M": -98520.0,
+       "L": -263520.0
+      }
+     },
+     "high": {
+      "change": 5599.999999999999,
+      "gross_annual": 5599.999999999999,
+      "gross_horizon": 16799.999999999996,
+      "one_off_release": null,
+      "net": {
+       "S": -18200.000000000004,
+       "M": -88200.0,
+       "L": -253200.0
+      }
+     }
+    },
+    "break_even_effect": {
+     "S": 0.10802469135802469,
+     "M": 0.32407407407407407,
+     "L": 0.8333333333333334
+    }
+   }
+  },
+  {
+   "id": "margin_missing",
+   "why": "Revenue without a sourced margin: no cash, the revenue change stays",
+   "spec": {
+    "mechanism": "revenue",
+    "currency": "USD",
+    "flow_or_stock": "flow",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 12000000,
+     "period_days": 365,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": null
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.01,
+      "base": 0.02,
+      "high": 0.04,
+      "source": "exploratory"
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     }
+    },
+    "cost": {
+     "source": "exploratory",
+     "tiers": {
+      "S": {
+       "implementation": 20000,
+       "recurring_per_year": 5000
+      },
+      "M": {
+       "implementation": 60000,
+       "recurring_per_year": 15000
+      },
+      "L": {
+       "implementation": 150000,
+       "recurring_per_year": 40000
+      }
+     }
+    }
+   },
+   "expected": {
+    "ok": true,
+    "problems": [],
+    "flags": [
+     "margin_missing"
+    ],
+    "bucket": "cash",
+    "unit": "USD",
+    "period": "year",
+    "annual_exposure": 12000000.0,
+    "balance": null,
+    "one_percent": {
+     "value": 120000.0,
+     "unit": "USD",
+     "per": "year"
+    },
+    "scenarios": {
+     "low": {
+      "change": 48000.0,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     },
+     "base": {
+      "change": 129600.0,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     },
+     "high": {
+      "change": 335999.99999999994,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     }
+    },
+    "break_even_effect": null
+   }
+  },
+  {
+   "id": "cost_missing",
+   "why": "No cost tiers: gross only, no net and no break-even",
+   "spec": {
+    "mechanism": "cost",
+    "currency": "USD",
+    "flow_or_stock": "flow",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 5000000,
+     "period_days": 365,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": null
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.01,
+      "base": 0.02,
+      "high": 0.04,
+      "source": "exploratory"
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     }
+    }
+   },
+   "expected": {
+    "ok": true,
+    "problems": [],
+    "flags": [
+     "cost_missing"
+    ],
+    "bucket": "cash",
+    "unit": "USD",
+    "period": "year",
+    "annual_exposure": 5000000.0,
+    "balance": null,
+    "one_percent": {
+     "value": 50000.0,
+     "unit": "USD",
+     "per": "year"
+    },
+    "scenarios": {
+     "low": {
+      "change": 20000.0,
+      "gross_annual": 20000.0,
+      "gross_horizon": 60000.0,
+      "one_off_release": null,
+      "net": null
+     },
+     "base": {
+      "change": 54000.0,
+      "gross_annual": 54000.0,
+      "gross_horizon": 162000.0,
+      "one_off_release": null,
+      "net": null
+     },
+     "high": {
+      "change": 140000.0,
+      "gross_annual": 140000.0,
+      "gross_horizon": 420000.0,
+      "one_off_release": null,
+      "net": null
+     }
+    },
+    "break_even_effect": null
+   }
+  },
+  {
+   "id": "period_missing",
+   "why": "A flow with no period is not annualised: change over the data period, no cash",
+   "spec": {
+    "mechanism": "cost",
+    "currency": "USD",
+    "flow_or_stock": "flow",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 5000000,
+     "period_days": null,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": null
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.01,
+      "base": 0.02,
+      "high": 0.04,
+      "source": "exploratory"
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     }
+    },
+    "cost": {
+     "source": "exploratory",
+     "tiers": {
+      "S": {
+       "implementation": 20000,
+       "recurring_per_year": 5000
+      },
+      "M": {
+       "implementation": 60000,
+       "recurring_per_year": 15000
+      },
+      "L": {
+       "implementation": 150000,
+       "recurring_per_year": 40000
+      }
+     }
+    }
+   },
+   "expected": {
+    "ok": true,
+    "problems": [],
+    "flags": [
+     "period_missing"
+    ],
+    "bucket": "cash",
+    "unit": "USD",
+    "period": "data period",
+    "annual_exposure": null,
+    "balance": null,
+    "one_percent": {
+     "value": 50000.0,
+     "unit": "USD",
+     "per": "data period"
+    },
+    "scenarios": {
+     "low": {
+      "change": 20000.0,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     },
+     "base": {
+      "change": 54000.0,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     },
+     "high": {
+      "change": 140000.0,
+      "gross_annual": null,
+      "gross_horizon": null,
+      "one_off_release": null,
+      "net": null
+     }
+    },
+    "break_even_effect": null
+   }
+  },
+  {
+   "id": "adoption_realization_omitted",
+   "why": "Omitted adoption and realization count as 1 and are flagged",
+   "spec": {
+    "mechanism": "cost",
+    "currency": "USD",
+    "flow_or_stock": "flow",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 5000000,
+     "period_days": 365,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": null
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.01,
+      "base": 0.02,
+      "high": 0.04,
+      "source": "exploratory"
+     }
+    },
+    "cost": {
+     "source": "exploratory",
+     "tiers": {
+      "S": {
+       "implementation": 20000,
+       "recurring_per_year": 5000
+      },
+      "M": {
+       "implementation": 60000,
+       "recurring_per_year": 15000
+      },
+      "L": {
+       "implementation": 150000,
+       "recurring_per_year": 40000
+      }
+     }
+    }
+   },
+   "expected": {
+    "ok": true,
+    "problems": [],
+    "flags": [
+     "adoption_assumed_full",
+     "realization_assumed_full"
+    ],
+    "bucket": "cash",
+    "unit": "USD",
+    "period": "year",
+    "annual_exposure": 5000000.0,
+    "balance": null,
+    "one_percent": {
+     "value": 50000.0,
+     "unit": "USD",
+     "per": "year"
+    },
+    "scenarios": {
+     "low": {
+      "change": 50000.0,
+      "gross_annual": 50000.0,
+      "gross_horizon": 150000.0,
+      "one_off_release": null,
+      "net": {
+       "S": 115000.0,
+       "M": 45000.0,
+       "L": -120000.0
+      }
+     },
+     "base": {
+      "change": 100000.0,
+      "gross_annual": 100000.0,
+      "gross_horizon": 300000.0,
+      "one_off_release": null,
+      "net": {
+       "S": 265000.0,
+       "M": 195000.0,
+       "L": 30000.0
+      }
+     },
+     "high": {
+      "change": 200000.0,
+      "gross_annual": 200000.0,
+      "gross_horizon": 600000.0,
+      "one_off_release": null,
+      "net": {
+       "S": 565000.0,
+       "M": 495000.0,
+       "L": 330000.0
+      }
+     }
+    },
+    "break_even_effect": {
+     "S": 0.0023333333333333335,
+     "M": 0.007,
+     "L": 0.018
+    }
+   }
+  },
+  {
+   "id": "scenario_order_refused",
+   "why": "low <= base <= high or the spec is refused",
+   "spec": {
+    "mechanism": "cost",
+    "currency": "USD",
+    "flow_or_stock": "flow",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 5000000,
+     "period_days": 365,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": null
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.03,
+      "base": 0.02,
+      "high": 0.04,
+      "source": "exploratory"
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     }
+    },
+    "cost": {
+     "source": "exploratory",
+     "tiers": {
+      "S": {
+       "implementation": 20000,
+       "recurring_per_year": 5000
+      },
+      "M": {
+       "implementation": 60000,
+       "recurring_per_year": 15000
+      },
+      "L": {
+       "implementation": 150000,
+       "recurring_per_year": 40000
+      }
+     }
+    }
+   },
+   "expected": {
+    "ok": false,
+    "problems": [
+     "effect_order"
+    ],
+    "flags": [],
+    "bucket": "cash",
+    "scenarios": null,
+    "one_percent": null,
+    "break_even_effect": null,
+    "annual_exposure": null,
+    "balance": null,
+    "period": null
+   }
+  },
+  {
+   "id": "source_missing_refused",
+   "why": "Every sourced input names its source",
+   "spec": {
+    "mechanism": "cost",
+    "currency": "USD",
+    "flow_or_stock": "flow",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 5000000,
+     "period_days": 365,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": null
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.01,
+      "base": 0.02,
+      "high": 0.04
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     }
+    },
+    "cost": {
+     "source": "exploratory",
+     "tiers": {
+      "S": {
+       "implementation": 20000,
+       "recurring_per_year": 5000
+      },
+      "M": {
+       "implementation": 60000,
+       "recurring_per_year": 15000
+      },
+      "L": {
+       "implementation": 150000,
+       "recurring_per_year": 40000
+      }
+     }
+    }
+   },
+   "expected": {
+    "ok": false,
+    "problems": [
+     "effect_source_missing"
+    ],
+    "flags": [],
+    "bucket": "cash",
+    "scenarios": null,
+    "one_percent": null,
+    "break_even_effect": null,
+    "annual_exposure": null,
+    "balance": null,
+    "period": null
+   }
+  },
+  {
+   "id": "mechanism_unknown_refused",
+   "why": "Only the six mechanisms are accepted",
+   "spec": {
+    "mechanism": "growth",
+    "currency": "USD",
+    "flow_or_stock": "flow",
+    "horizon_years": 3,
+    "measured": {
+     "exposure": 5000000,
+     "period_days": 365,
+     "population": 5000,
+     "baseline": 0.12,
+     "unit": null
+    },
+    "sourced": {
+     "effect": {
+      "low": 0.01,
+      "base": 0.02,
+      "high": 0.04,
+      "source": "exploratory"
+     },
+     "adoption": {
+      "low": 0.5,
+      "base": 0.6,
+      "high": 0.7,
+      "source": "owner"
+     },
+     "realization": {
+      "low": 0.8,
+      "base": 0.9,
+      "high": 1.0,
+      "source": "exploratory"
+     }
+    },
+    "cost": {
+     "source": "exploratory",
+     "tiers": {
+      "S": {
+       "implementation": 20000,
+       "recurring_per_year": 5000
+      },
+      "M": {
+       "implementation": 60000,
+       "recurring_per_year": 15000
+      },
+      "L": {
+       "implementation": 150000,
+       "recurring_per_year": 40000
+      }
+     }
+    }
+   },
+   "expected": {
+    "ok": false,
+    "problems": [
+     "mechanism_unknown"
+    ],
+    "flags": [],
+    "bucket": null,
+    "scenarios": null,
+    "one_percent": null,
+    "break_even_effect": null,
+    "annual_exposure": null,
+    "balance": null,
+    "period": null
+   }
+  }
+ ]
+}
