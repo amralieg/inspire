@@ -21,7 +21,7 @@ ROLE_SPEC = {
     "technical": (7, "log", [("run_id", "STRING", "job run id"), ("step", "STRING", "step name"),
                              ("status", "STRING", "step status"), ("logged_at", "TIMESTAMP", "log time")]),
 }
-STEMS = ["orders", "items", "rates", "visits", "claims", "assets", "cases", "plans", "units", "tasks"]
+STEMS = ["orders", "items", "rates", "sessions", "tickets", "assets", "cases", "plans", "units", "tasks"]
 
 
 def _counts(tables):
@@ -67,7 +67,7 @@ def generate_sql(catalog_prefix, catalogs=20, schemas=10, tables=50, create_cata
         stmts.append(f"CREATE SCHEMA IF NOT EXISTS {cat}.{sch}")
         for name, role in spec:
             cols = ", ".join(f"{n} {t} COMMENT '{d}'" for n, t, d in ROLE_SPEC[role][2])
-            stmts.append(f"CREATE TABLE IF NOT EXISTS {cat}.{sch}.{name} ({cols}) COMMENT '{role} table'")
+            stmts.append(f"CREATE TABLE IF NOT EXISTS {cat}.{sch}.{name} ({cols}) COMMENT '{name.replace('_', ' ')}'")
     return stmts
 
 
