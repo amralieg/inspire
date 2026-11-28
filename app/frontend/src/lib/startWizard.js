@@ -105,6 +105,7 @@ export const matchStepName = (inputNo) => `Match ${inputNo}`;
 export const MATCH_PROGRESS = ['waiting', 'matching', 'matched', 'partly matched', 'not matched'];
 export const MATCH_PROGRESS_TEXT = { waiting: 'Waiting', matching: 'Matching', matched: 'Matched', 'partly matched': 'Partly matched', 'not matched': 'Not matched' };
 export const MATCH_REVIEW_TITLE = 'How your use cases match your data';
+export const MATCH_DROPPED_TITLE = 'Dropped from this use case';
 export const MATCH_ACCEPT = 'Accept and create use cases';
 
 export const ROUTES = {

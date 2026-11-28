@@ -1117,7 +1117,7 @@ paths:
         - { name: warehouse_id, in: query, required: true, schema: { type: string } }
         - { name: session_id, in: query, required: true, schema: { type: string } }
       responses:
-        '200': { description: The run state, one report per use case and the latest choice per piece }
+        '200': { description: The run state, one report per use case, the latest choice per piece and, after Accept, the final verdict, confidence and dropped pieces per use case (accepted) }
         '403': { description: Refused by the route policy }
   /api/inspire/candidates:
     get:

@@ -3,7 +3,7 @@
 // (POST match/decision); then Accept (POST match/accept, phase accept). Renders nothing when match/result is state none.
 // Props: { settings, sessionId, apiFetch }.
 import { useEffect, useRef, useState } from 'react';
-import { DECISION_TEXT, MATCH_ACCEPT, MATCH_DECISIONS, MATCH_REVIEW_TITLE, PIECE_STATUS_TEXT, VERDICT_TEXT } from '../../lib/startWizard';
+import { DECISION_TEXT, MATCH_ACCEPT, MATCH_DECISIONS, MATCH_DROPPED_TITLE, MATCH_REVIEW_TITLE, PIECE_STATUS_TEXT, VERDICT_TEXT } from '../../lib/startWizard';
 import { acceptMatch, postOf, readMatch, saveDecision } from '../../lib/matchClient';
 
 const POLL_MS = 15000;
@@ -75,6 +75,7 @@ export default function MatchResultsPanel({ settings, sessionId, apiFetch }) {
 
   if (!match || match.state === 'none') return null;
   const reports = match.reports || [];
+  const acceptedOf = (inputNo) => (match.accepted || []).find((a) => a.input_no === inputNo) || null;
 
   const choose = async (inputNo, pieceNo, decision) => {
     setSaving(true);
@@ -101,19 +102,35 @@ export default function MatchResultsPanel({ settings, sessionId, apiFetch }) {
     <section data-match-panel="" aria-label={MATCH_REVIEW_TITLE} className="mb-6 space-y-4 rounded-2xl border border-border bg-surface p-5">
       <h2 className="text-lg font-semibold text-text-primary">{MATCH_REVIEW_TITLE}</h2>
       {!reports.length && <p className="text-sm text-text-secondary">{match.state === 'failed' ? 'The match run ended before it matched your use cases.' : 'Inspire is still matching your use cases. This page fills in as each one finishes.'}</p>}
-      {reports.map((report) => (
-        <div key={report.input_no} data-match-report={report.input_no} data-match-verdict={report.verdict} className="space-y-2 rounded-xl border border-border p-4">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h3 className="text-base font-medium text-text-primary">{report.name}</h3>
-            <p className={`text-sm ${TONE[report.verdict] || ''}`}>{VERDICT_TEXT[report.verdict] || report.verdict} . {report.confidence}% sure</p>
+      {reports.map((report) => {
+        // After Accept the final verdict, confidence and dropped pieces come from the Accept step; a dropped piece is never listed as matched.
+        const final = acceptedOf(report.input_no);
+        const verdict = final ? final.verdict : report.verdict;
+        const confidence = final ? final.confidence : report.confidence;
+        const dropped = final ? final.dropped : [];
+        const droppedNos = new Set(dropped.map((d) => d.piece_no));
+        return (
+          <div key={report.input_no} data-match-report={report.input_no} data-match-verdict={verdict} className="space-y-2 rounded-xl border border-border p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="text-base font-medium text-text-primary">{report.name}</h3>
+              <p className={`text-sm ${TONE[verdict] || ''}`}>{VERDICT_TEXT[verdict] || verdict} . {confidence}% sure</p>
+            </div>
+            <ul className="space-y-2">
+              {(report.pieces || []).filter((piece) => !droppedNos.has(piece.piece_no)).map((piece) => (
+                <Piece key={piece.piece_no} report={report} piece={piece} chosen={chosen[decisionKey(report.input_no, piece.piece_no)]} saving={saving} onChoose={choose} />
+              ))}
+            </ul>
+            {dropped.length > 0 && (
+              <div data-match-dropped="" className="rounded-lg border border-border bg-surface p-3">
+                <h4 className="text-sm font-medium text-text-primary">{MATCH_DROPPED_TITLE}</h4>
+                <ul className="mt-1 list-disc pl-5 text-sm text-text-secondary">
+                  {dropped.map((d) => <li key={d.piece_no}>{d.requirement}</li>)}
+                </ul>
+              </div>
+            )}
           </div>
-          <ul className="space-y-2">
-            {(report.pieces || []).map((piece) => (
-              <Piece key={piece.piece_no} report={report} piece={piece} chosen={chosen[decisionKey(report.input_no, piece.piece_no)]} saving={saving} onChoose={choose} />
-            ))}
-          </ul>
-        </div>
-      ))}
+        );
+      })}
       {problem && <p role="alert" className="text-sm text-db-red-fg">{problem}</p>}
       {accepted && <p className="text-sm text-success-fg">{accepted}</p>}
       {reports.length > 0 && (
