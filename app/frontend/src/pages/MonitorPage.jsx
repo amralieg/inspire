@@ -36,6 +36,7 @@ import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
 import { qualityBarCountText } from '../lib/qualityBarWording';
 import { newSessionId, runResultText, runStateText } from '../lib/runState';
 import { liveUseCasesOf } from '../lib/liveUseCases';
+import { candidatesWanted, fetchCandidates } from '../lib/candidates';
 import MatchMonitorBoxes from '../components/match/MatchMonitorBoxes';
 import { useFollowEnd } from '../lib/followEnd';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
@@ -90,6 +91,9 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
 
   // Live use case preview (extracted from steps during the run)
   const [liveUseCases, setLiveUseCases] = useState([]);
+  const [candidates, setCandidates] = useState([]);
+  const stepsRef = useRef([]);
+  stepsRef.current = steps;
 
   const apiFetch = useCallback(
     async (url, opts = {}) => {
@@ -187,6 +191,11 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
                 lastPollRef.current = stepData.steps[stepData.steps.length - 1].last_updated;
               }
             } catch { /* steps table might not exist */ }
+
+            // REQ-581 U3: provisional cards for the candidates the run has made eligible; only while the run is live.
+            if (!showcase && !sessionFinished(sess) && candidatesWanted(stepsRef.current)) {
+              try { setCandidates(await fetchCandidates(apiFetch, { inspireDatabase, warehouseId, sessionId: sid })); } catch { /* no candidate table or route yet */ }
+            } else if (sessionFinished(sess)) setCandidates([]);
 
             if (sess.processing_status === 'ready' && !showcase) {
               try {
@@ -316,7 +325,7 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
   // Group steps by stage, applying filters
   const { stages, stageNames, filteredCount, totalCount, statusCounts } = useMemo(() => {
     const stageMap = {};
-    const counts = { all: 0, running: 0, success: 0, warning: 0, error: 0, open: 0 };
+    const counts = { all: 0, running: 0, success: 0, warning: 0, error: 0, skipped: 0, open: 0 };
     let filtered = 0;
 
     const visibleSteps = isStaleSession ? [] : steps;
@@ -593,7 +602,7 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
       {sessionId && <MatchMonitorBoxes settings={settings} sessionId={sessionId} runId={runId} apiFetch={apiFetch} steps={steps} />}
       {(totalCount > 0 || isRunning || isPending) && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <ArrivingNow useCases={liveUseCases} live={isRunning}
+          <ArrivingNow useCases={liveUseCases} live={isRunning} candidates={candidates}
             empty={<BusyNote inline text={isPending && sessionOnly ? 'No step yet. Use cases show here as Inspire writes them.' : isPending ? 'Waiting for the run to start. Use cases show here as Inspire writes them.' : 'Waiting for the first step. Use cases show here as Inspire writes them.'} />} />
           <aside className="min-w-0 space-y-4">
             <ActivityFeed steps={isStaleSession ? [] : steps} live={stepsLive} />

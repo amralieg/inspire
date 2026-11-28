@@ -9,6 +9,7 @@ import { UseCaseNameTitle, UseCaseRenameButton } from '../UseCaseNameEditor';
 import { useUseCaseRename, NAME_TEXT_CLASS } from '../../lib/useCaseRename';
 import { bestOfBestLabel } from '../../lib/v130UseCase';
 import { KIND_INFORMATIONAL_LABEL, kindChipStyle } from '../../lib/useCaseKind';
+import { PENDING_LABEL, PENDING_TEXT } from '../../lib/candidates';
 import { cardTitlesOfUseCase, fieldOf, inspireScoreFromUc } from '../../lib/useCaseFields';
 
 // REQ-511 / REQ-512 / REQ-516 (wireframe A7): the Review list row, a compact old card. One grid shared with the header in ResultsPage (ROW_GRID), so the columns line up:
@@ -34,7 +35,7 @@ export function buildCell(status, { onImplement, onOpenMvp }) {
 
 export default function UseCaseRow({
   uc, index, selection = null, isFavorite = false, onToggleFavorite, onRename, implementStatus = null, onImplement, onOpenMvp,
-  onGenerateDocs, docsMade = false, assetLinks = [], yearly = null, valueSummary = null, canCalculate = false, calculating = false, onCalculate, onEdit, onOpen, open = false, rowAttrs = {}, isArchived = false, onToggleArchive,
+  onGenerateDocs, docsMade = false, pendingKinds = [], assetLinks = [], yearly = null, valueSummary = null, canCalculate = false, calculating = false, onCalculate, onEdit, onOpen, open = false, rowAttrs = {}, isArchived = false, onToggleArchive,
 }) {
   const { title: titleProp, subtitle } = cardTitlesOfUseCase(uc, index);
   // The saved name shows at once; a refreshed use case takes over when its own name changes.
@@ -104,6 +105,13 @@ export default function UseCaseRow({
           {kind?.informational && <span data-kind-informational="" className={`${CHIP} border-border bg-bg-subtle text-text-secondary`}>{KIND_INFORMATIONAL_LABEL}</span>}
           {kind && technique && <span data-technique-chip={technique} dir="auto" className={`${CHIP} border-border text-text-secondary`} style={kindChipStyle(kind.color)}>{technique}</span>}
         </div>
+        {pendingKinds.length > 0 && (
+          <div className="mt-1 flex min-w-0 flex-wrap gap-1.5">
+            {pendingKinds.map((k) => (
+              <span key={k} data-pending-artifact={k} className={`${CHIP} border-border bg-bg-subtle text-text-secondary`}>{PENDING_LABEL[k]} {PENDING_TEXT}</span>
+            ))}
+          </div>
+        )}
         {domainParts.length > 0 && (
           <p data-row-domain="" className="mt-1 truncate text-xs leading-4 text-text-tertiary">
             {domainParts.map((part, i) => <span key={i}>{i > 0 && ' · '}<bdi>{part}</bdi></span>)}

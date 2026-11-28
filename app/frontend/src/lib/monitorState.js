@@ -5,6 +5,7 @@ export const SESSION_QUIET_AFTER_MS = 30 * 60 * 1000;
 
 const ENDED_CATEGORY = {
   ended_success: 'success', completed: 'success', ended_warning: 'warning', ended_error: 'error', failed: 'error', error: 'error',
+  skipped: 'skipped',
 };
 
 export function sessionFinished(session) {

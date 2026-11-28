@@ -63,6 +63,7 @@ const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase')
 const { registerMacroRoutes } = require('./macroRoutes');
 const { registerWizPlanRoutes } = require('./lib/wizPlanRoutes');
 const { registerMatchRoutes } = require('./lib/matchRoutes');
+const { registerCandidateRoutes } = require('./lib/candidateRoutes');
 const { loadSessionList, loadSessionOverviews, sessionListCap, SESSION_LIST_CAP } = require('./lib/reviewFigures');
 const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../frontend/src/lib/liveUseCases.js');
 const { isInspireOwnName, isInspireOwnSchema } = require('../frontend/src/lib/inspireOwnObjects.js');
@@ -3699,6 +3700,7 @@ async function wizReadRun(req, runId) {
 const wizDeps = { requireToken, executeSql, sqlResultToObjects, chatModel: wizChatModel, launchRun: wizLaunchRun, readRun: wizReadRun, now: () => new Date() };
 registerWizPlanRoutes(app, wizDeps);
 registerMatchRoutes(app, wizDeps);
+registerCandidateRoutes(app, wizDeps);
 
 /**
  * Sync Route 1 flags to Delta while selecting (debounced in UI). Same SQL as generate-genie minus the job.
@@ -3822,6 +3824,21 @@ app.get('/api/inspire/genie-progress', requireToken, async (req, res) => {
 });
 
 // Get results_json for completed session
+// REQ-581 U4: the artifacts a Discover run left for Implement, from the session row. Any failure (older database without the column,
+// bad JSON) answers [].
+const PENDING_KINDS = ['docs', 'genie_instructions', 'notebook', 'translation'];
+async function readPendingArtifacts(req, warehouseId, table, sessionId) {
+  try {
+    const id = String(sessionId == null ? '' : sessionId).replace(/\D/g, '');
+    if (!id) return [];
+    const got = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, `SELECT pending_artifacts FROM ${table} WHERE session_id = ${id} LIMIT 1`));
+    const raw = got[0] && got[0].pending_artifacts;
+    const list = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!Array.isArray(list)) return [];
+    return list.filter((e) => e && typeof e === 'object' && PENDING_KINDS.includes(e.kind))
+      .map((e) => ({ kind: e.kind, use_case_id: e.use_case_id == null || e.use_case_id === '' ? null : String(e.use_case_id) }));
+  } catch { return []; }
+}
 app.get('/api/inspire/results', requireToken, async (req, res) => {
   try {
     const { inspire_database, warehouse_id, session_id } = req.query;
@@ -3869,11 +3886,13 @@ app.get('/api/inspire/results', requireToken, async (req, res) => {
       results = { ...cleaned, executive_summary: executiveSummaryOf(cleaned) };
     }
 
+    const pending_artifacts = await readPendingArtifacts(req, warehouse_id, table, rows[0].session_id);
     res.json({
       results,
       found: true,
       session_id: rows[0].session_id,
       completed_on: rows[0].completed_on,
+      pending_artifacts,
     });
   } catch (err) {
     if (isMissingTableError(err)) {
