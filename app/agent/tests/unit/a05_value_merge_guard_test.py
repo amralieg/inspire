@@ -7,11 +7,14 @@ import json
 import pathlib
 import textwrap
 
+from _nbload import notebook_cells
+
 NOTEBOOK = pathlib.Path(__file__).resolve().parents[2] / "agent" / "dbx_inspire_ai_agent.ipynb"
 
 
 def _merge_run():
-    src = "".join("".join(c["source"]) for c in json.loads(NOTEBOOK.read_text())["cells"] if c["cell_type"] == "code")
+    # D-SIZE2 (REQ-298): inspire_merge_run lives in the pinned result_history asset; _nbload splices it back into cells[1].
+    src = "".join(s for kind, s in notebook_cells(str(NOTEBOOK)) if kind == "code")
     body = src[src.index("def inspire_merge_run("):src.index("def inspire_share_reads_sql(")]
     return ast.parse(textwrap.dedent(body)).body[0]
 
