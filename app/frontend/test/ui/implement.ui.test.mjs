@@ -2052,11 +2052,13 @@ test('with no Databricks AI route, the notebook skips the MVP settings, flags on
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
 
     assert.equal(made.jobs.length, 1);
-    assert.equal(made.jobs[0].jobType, 'genie_regen');
-    assert.equal(made.jobs[0].jobName, 'Inspire AI - Databricks AI - 42');
+    // REQ-578: the notebook is an Implement output, one Implement version of just this use case (backend contract: implementRoutes.test.js).
+    assert.equal(made.jobs[0].jobType, 'implement');
+    assert.match(made.jobs[0].jobName, /^Inspire AI - MVP - N01-U01\b/, 'the job is named after its use case and version');
     assert.equal(made.jobs[0].params['15_operation'], 'Implement Use Cases');
-    assert.deepEqual(made.flagged.map((f) => [f.sid, f.ids]), [['42', ['N01-U01']]]);
-    assert.equal(made.sqlCalls.some((c) => String(c.sql).includes('INSERT INTO')), false, 'I will build it myself writes no MVP version');
+    assert.equal(made.jobs[0].params['14_session_id'], '42');
+    assert.deepEqual(made.jobs[0].useCaseIds, ['N01-U01'], 'the job writes only this use case');
+    assert.deepEqual(made.flagged, [], 'no Genie flag is written');
 
     const nav = page.getByRole('navigation', { name: 'Use cases' });
     await nav.getByRole('region', { name: 'Building' }).getByText('Notebook running', { exact: true }).waitFor();
