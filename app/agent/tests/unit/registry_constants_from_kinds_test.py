@@ -11,6 +11,7 @@ KINDS = os.path.join(AGENT, "agent", "app_shell", "kinds.json")
 sys.path.insert(0, os.path.join(AGENT, "agent", "app_shell"))
 
 import embed  # noqa: E402
+from _nbload import notebook_cells  # noqa: E402
 
 
 def _cell():
@@ -84,7 +85,7 @@ def test_a_leave_out_filter_keeps_rows_whose_value_is_null_in_the_notebook():
         "inspire_sql_literal": lambda value: f"'{value}'",
         "_inspire_re": re,
     }
-    text = "".join(_cell())
+    text = notebook_cells(NOTEBOOK)[1][1]
     start = text.index("def inspire_segment_sql(item):")
     stop = text.index("\ndef ", start + 1)
     exec(text[start:stop], namespace)

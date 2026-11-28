@@ -12569,12 +12569,346 @@ def inspire_notebook_asset(name: str) -> str:
     return _INSPIRE_NOTEBOOK_ASSET_TEXT[name]
 
 
-INSPIRE_NOTEBOOK_ASSETS = {"app_shell": {"file": "notebook/app_shell.b64", "repo": "agent/app_shell/app_shell.b64", "sha256": "9514259d19ce4befbb44773e96a26507c199b1c6924103cf780033654b054e59", "size": 2040320}, "fx_averages": {"file": "notebook/fx_averages.json", "repo": "../backend/lib/fxAverages.json", "sha256": "bc026444b4621f6a7e15d1f52618e6eea0623388ed8e217fa5741b76cc311322", "size": 1251}, "kinds": {"file": "notebook/kinds.json", "repo": "agent/app_shell/kinds.json", "sha256": "4eab51e84ee17fbb511ac35ff16a2dd58a53b081b5691d664df017605d36a83a", "size": 299040}, "prompts": {"file": "notebook/prompts.json", "repo": "agent/app_shell/prompts.json", "sha256": "fe176e8f58702433fc4aab28731fccafa067239d8daac60099ccf3ed1f8a8213", "size": 262016}, "result_history": {"file": "notebook/result_history.txt", "repo": "agent/app_shell/result_history.txt", "sha256": "eb202ad38f04880058a167295a93bfb2bbce34357165f4217f49ff92358c7f8c", "size": 331178}, "translations": {"file": "notebook/translations.json", "repo": "agent/app_shell/translations.json", "sha256": "fb12911c7831dfa10f77c30686fd703b408be147c99b33129d3b364c3f03845d", "size": 510143}, "value_library": {"file": "notebook/value_library.json", "repo": "../shared/value_assumption_library.json", "sha256": "f74bc1bb47849c31765f79d78d7d05d0203f0bb02393417a2ceb3b24bd8dc470", "size": 4229}}
+INSPIRE_NOTEBOOK_ASSETS = {"app_shell": {"file": "notebook/app_shell.b64", "repo": "agent/app_shell/app_shell.b64", "sha256": "9514259d19ce4befbb44773e96a26507c199b1c6924103cf780033654b054e59", "size": 2040320}, "fx_averages": {"file": "notebook/fx_averages.json", "repo": "../backend/lib/fxAverages.json", "sha256": "bc026444b4621f6a7e15d1f52618e6eea0623388ed8e217fa5741b76cc311322", "size": 1251}, "kinds": {"file": "notebook/kinds.json", "repo": "agent/app_shell/kinds.json", "sha256": "4eab51e84ee17fbb511ac35ff16a2dd58a53b081b5691d664df017605d36a83a", "size": 299040}, "prompts": {"file": "notebook/prompts.json", "repo": "agent/app_shell/prompts.json", "sha256": "fe176e8f58702433fc4aab28731fccafa067239d8daac60099ccf3ed1f8a8213", "size": 262016}, "result_history": {"file": "notebook/result_history.txt", "repo": "agent/app_shell/result_history.txt", "sha256": "b34a548ea75122a67c719adb2b6d90f60dfcc32e2358dabef860660759cf8dca", "size": 309648}, "translations": {"file": "notebook/translations.json", "repo": "agent/app_shell/translations.json", "sha256": "fb12911c7831dfa10f77c30686fd703b408be147c99b33129d3b364c3f03845d", "size": 510143}, "value_library": {"file": "notebook/value_library.json", "repo": "../shared/value_assumption_library.json", "sha256": "f74bc1bb47849c31765f79d78d7d05d0203f0bb02393417a2ceb3b24bd8dc470", "size": 4229}}
 # D-SIZE2 (REQ-298): the run-side source, exec'd here and inlined into every generated notebook, is the pinned result_history asset
 # (agent/app_shell/result_history.txt), so the notebook keeps its headroom under the size cap. The name is bound to text first.
 IMPLEMENT_RESULT_HISTORY_SOURCE = ""
 IMPLEMENT_RESULT_HISTORY_SOURCE = inspire_notebook_asset("result_history")
 exec(compile(IMPLEMENT_RESULT_HISTORY_SOURCE, "<inspire_result_history>", "exec"), globals())
+
+
+# REQ-573 R13.1, R13.2: deep calculation on the shortlist. It names the agent (DeepEvidence, DatabricksInspire), so it lives here,
+# not in the result_history source that every generated notebook inlines.
+import statistics as _deep_statistics
+
+
+# REQ-573 R13.1, R13.2: deep calculation on the shortlist, one shared GROUPING SETS scan per pool table.
+_DEEP_SEGMENT_ROLES = ("region_code", "label_column", "action_target", "entity_name")
+_DEEP_CURRENCY_TOKENS = frozenset({"currency", "ccy", "curr"})
+_DEEP_SCAN_COLUMNS = ("grouping_set", "uc", "other_uc", "currency", "month", "segment_column", "segment_value", "decile", "rows",
+                      "outcome_rows", "measured_rows", "pool", "entities", "first_day", "last_day", "null_entity")
+_DEEP_SCAN_TYPES = {"decile": "INT", "rows": "BIGINT", "outcome_rows": "BIGINT", "measured_rows": "BIGINT", "pool": "DOUBLE",
+                    "entities": "BIGINT", "null_entity": "BIGINT"}
+
+
+def _deep_num(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return None if number != number else number
+
+
+def _deep_int(value):
+    number = _deep_num(value)
+    return 0 if number is None else int(number)
+
+
+def _deep_pool_kpi(uc: dict):
+    for kpi in (uc.get("KPIs") or []) if isinstance(uc, dict) else []:
+        if not isinstance(kpi, dict) or not (kpi.get("table") and kpi.get("column")) or kpi.get("metric_view") or kpi.get("denominator"):
+            continue
+        try:
+            aggregate = DeepEvidence.canonical_aggregate(kpi.get("aggregation"))
+        except ValueError:
+            continue
+        if aggregate in ("SUM", "COUNT"):
+            return kpi
+    return None
+
+
+def inspire_deep_scan_plan(use_cases, metadata) -> dict:
+    """One scan plan per pool table (a use case's pool KPI: SUM or COUNT of a column, no metric view, no ratio). Pure."""
+    plans, unplanned, by_table = [], [], {}
+    for uc in use_cases or []:
+        kpi = _deep_pool_kpi(uc)
+        if kpi is None:
+            unplanned.append({"No": uc.get("No"), "reason": "no_pool_kpi"})
+            continue
+        table = str(kpi["table"])
+        if table not in by_table:
+            by_table[table] = []
+            plans.append({"table": table, "use_cases": by_table[table]})
+        spec = (uc.get("Value Estimate") or {}).get("value_spec") if isinstance(uc.get("Value Estimate"), dict) else None
+        by_table[table].append({"No": uc.get("No"), "kpi": kpi, "direction": kpi.get("direction") or "decrease",
+                                "value_spec": spec if isinstance(spec, dict) else None})
+    out = []
+    for plan in plans:
+        items = plan["use_cases"]
+        entry = (metadata or {}).get(plan["table"].replace("`", "").lower()) or {}
+        columns = (entry.get("columns") or {}) if isinstance(entry, dict) else {}
+        types = {name: (info or {}).get("type") or "" for name, info in columns.items()}
+        comments = {name: (info or {}).get("comment") or "" for name, info in columns.items()}
+        kpis = [item["kpi"] for item in items]
+        time_column = next((kpi["time_column"] for kpi in kpis if kpi.get("time_column")), None) \
+            or next((name for name, kind in types.items() if _metadata_type_family(kind) == "temporal"), None)
+        currency_column = next((name for name, kind in types.items() if _metadata_type_family(kind) == "string"
+                                and set(DatabricksInspire._role_tokens(name)) & _DEEP_CURRENCY_TOKENS), None)
+        grains = {kpi.get("grain_key") for kpi in kpis if kpi.get("grain_key")}
+        first = next(iter(columns), None)
+        entity_column = next((kpi["entity_column"] for kpi in kpis if kpi.get("entity_column")), None) or next(
+            (name for name in columns if _is_key_like_column(name) and name not in grains and name != first
+             and name not in (time_column, currency_column)), None)
+        skip = {time_column, currency_column, entity_column, *(kpi.get("filter_column") for kpi in kpis)}
+        roles = DatabricksInspire._column_roles(types, comments)[0] if types else {}
+        strings = [name for name, kind in types.items() if _metadata_type_family(kind) == "string" and name not in skip
+                   and not _is_key_like_column(name) and name not in (roles.get("free_text") or [])]
+        by_role = [name for role in _DEEP_SEGMENT_ROLES for name in strings if name in (roles.get(role) or [])]
+        segments = list(dict.fromkeys(by_role + strings))[:3]
+        out.append({"table": plan["table"], "scan_id": "ds" + hashlib.sha256(plan["table"].encode("utf-8")).hexdigest()[:12],
+                    "time_column": time_column, "currency_column": currency_column, "entity_column": entity_column,
+                    "segment_columns": segments, "window_days": 730, "use_cases": items})
+    return {"plans": out, "unplanned": unplanned}
+
+
+def inspire_deep_scan_sql(plan: dict, scopes=None) -> str:
+    """ONE read-only statement for a pool table: its rows are read once into a CTE; the totals, months and segments of every
+    use case come from one GROUPING SETS aggregate, the deciles from NTILE(10) over per-entity pools, the pair overlaps from
+    one more aggregate. Never a LIMIT or a sample (R12.8)."""
+    quote, literal = inspire_quote_identifier, inspire_sql_literal
+    items = plan["use_cases"]
+    time_column, currency, entity = plan.get("time_column"), plan.get("currency_column"), plan.get("entity_column")
+    segments = list(plan.get("segment_columns") or [])[:3]
+    assert_scope_columns(plan["table"], [time_column, currency, entity, *segments,
+                                         *(name for item in items for name in (item["kpi"].get("column"), item["kpi"].get("filter_column")))], scopes)
+    source = inspire_scoped_read_source(plan["table"], scopes)
+    window = DeepEvidence._kpi_window_conditions({"time_column": time_column, "window_days": plan.get("window_days") or 730}, source) \
+        if time_column else []
+    base = [f"CAST({quote(currency)} AS STRING) AS ds_ccy" if currency else "CAST(NULL AS STRING) AS ds_ccy",
+            f"CAST({quote(time_column)} AS DATE) AS ds_day" if time_column else "CAST(NULL AS DATE) AS ds_day",
+            f"CAST(DATE_TRUNC('MONTH', {quote(time_column)}) AS DATE) AS ds_mo" if time_column else "CAST(NULL AS DATE) AS ds_mo",
+            f"CAST({quote(entity)} AS STRING) AS ds_ent" if entity else "CAST(NULL AS STRING) AS ds_ent"]
+    base += [f"CAST({quote(name)} AS STRING) AS ds_s{index}" for index, name in enumerate(segments)]
+    stack = []
+    for index, item in enumerate(items):
+        kpi = item["kpi"]
+        condition = kpi_filter_sql(kpi)
+        measure = quote(kpi["column"])
+        value = f"CAST({measure} AS DOUBLE)" if DeepEvidence.canonical_aggregate(kpi.get("aggregation")) == "SUM" \
+            else f"CASE WHEN {measure} IS NOT NULL THEN 1.0 END"
+        base += [f"COALESCE(({condition}), FALSE) AS ds_h{index}" if condition else f"TRUE AS ds_h{index}", f"{value} AS ds_m{index}"]
+        stack += [literal(item["No"]), f"ds_h{index}", f"ds_m{index}"]
+    where = f" WHERE {' AND '.join(window)}" if window else ""
+    keep = ", ".join(["ds_ccy", "ds_day", "ds_mo", "ds_ent", *(f"ds_s{index}" for index in range(len(segments)))])
+    ctes = [f"base AS (SELECT {', '.join(base)} FROM {source}{where})",
+            f"e AS (SELECT {keep}, x.ds_uc, x.ds_hit, x.ds_val FROM base LATERAL VIEW STACK({len(items)}, {', '.join(stack)}) x "
+            f"AS ds_uc, ds_hit, ds_val)"]
+
+    def select(overrides: dict, source_sql: str, tail: str = "") -> str:
+        cells = [f"{overrides.get(name) or 'CAST(NULL AS ' + _DEEP_SCAN_TYPES.get(name, 'STRING') + ')'} AS `{name}`"
+                 for name in _DEEP_SCAN_COLUMNS]
+        return f"SELECT {', '.join(cells)} FROM {source_sql}{tail}"
+
+    seg_group = [f"g{index} = 0" for index in range(len(segments))]
+    sets = ["(ds_uc, ds_ccy)", "(ds_uc, ds_ccy, ds_mo)"] + [f"(ds_uc, ds_ccy, ds_s{index})" for index in range(len(segments))]
+    grouping = ", ".join(["GROUPING(ds_mo) AS g_mo"] + [f"GROUPING(ds_s{index}) AS g{index}" for index in range(len(segments))])
+    ctes.append(
+        f"agg AS (SELECT ds_uc, ds_ccy, ds_mo, {', '.join(f'ds_s{index}' for index in range(len(segments)))}{', ' if segments else ''}{grouping}, "
+        "COUNT(*) AS n_rows, SUM(CASE WHEN ds_hit THEN 1 ELSE 0 END) AS n_hit, "
+        "SUM(CASE WHEN ds_hit AND ds_val IS NOT NULL THEN 1 ELSE 0 END) AS n_measured, SUM(CASE WHEN ds_hit THEN ds_val END) AS v_pool, "
+        "COUNT(DISTINCT CASE WHEN ds_hit THEN ds_ent END) AS n_ent, CAST(MIN(CASE WHEN ds_hit THEN ds_day END) AS STRING) AS d_first, "
+        "CAST(MAX(CASE WHEN ds_hit THEN ds_day END) AS STRING) AS d_last, "
+        "SUM(CASE WHEN ds_hit AND ds_ent IS NULL THEN 1 ELSE 0 END) AS n_null_ent "
+        f"FROM e GROUP BY GROUPING SETS ({', '.join(sets)}))")
+    segment_label = "CASE " + " ".join(f"WHEN g{index} = 0 THEN {literal(name)}" for index, name in enumerate(segments)) + " END" if segments else None
+    segment_value = "CASE " + " ".join(f"WHEN g{index} = 0 THEN ds_s{index}" for index in range(len(segments))) + " END" if segments else None
+    kind = ("CASE WHEN g_mo = 0 THEN 'month' " + (f"WHEN {' OR '.join(seg_group)} THEN 'segment' " if segments else "") + "ELSE 'total' END")
+    selects = [select({"grouping_set": kind, "uc": "ds_uc", "currency": "ds_ccy", "month": "CAST(ds_mo AS STRING)",
+                       "segment_column": segment_label, "segment_value": segment_value, "rows": "n_rows", "outcome_rows": "n_hit",
+                       "measured_rows": "n_measured", "pool": "CASE WHEN n_measured > 0 THEN v_pool END", "entities": "n_ent",
+                       "first_day": "d_first", "last_day": "d_last", "null_entity": "n_null_ent"}, "agg")]
+    if entity:
+        ctes.append("ep AS (SELECT ds_uc, ds_ccy, ds_ent, SUM(ds_val) AS v_pool FROM e WHERE ds_hit AND ds_ent IS NOT NULL "
+                    "GROUP BY ds_uc, ds_ccy, ds_ent)")
+        ctes.append("dc AS (SELECT ds_uc, ds_ccy, v_pool, NTILE(10) OVER (PARTITION BY ds_uc, ds_ccy ORDER BY v_pool DESC NULLS LAST) "
+                    "AS ds_dec FROM ep)")
+        selects.append(select({"grouping_set": "'decile'", "uc": "ds_uc", "currency": "ds_ccy", "decile": "ds_dec", "pool": "SUM(v_pool)",
+                               "entities": "COUNT(*)"}, "dc", " GROUP BY ds_uc, ds_ccy, ds_dec"))
+    if len(items) > 1:
+        pairs = [(a, b) for a in range(len(items)) for b in range(a + 1, len(items))]
+        ctes.append(f"ov AS (SELECT {', '.join(f'SUM(CASE WHEN ds_h{a} AND ds_h{b} THEN 1 ELSE 0 END) AS p{k}' for k, (a, b) in enumerate(pairs))} FROM base)")
+        flat = ", ".join(f"{literal(items[a]['No'])}, {literal(items[b]['No'])}, p{k}" for k, (a, b) in enumerate(pairs))
+        selects.append(select({"grouping_set": "'overlap'", "uc": "o.ds_a", "other_uc": "o.ds_b", "outcome_rows": "o.ds_n"},
+                              f"ov LATERAL VIEW STACK({len(pairs)}, {flat}) o AS ds_a, ds_b, ds_n"))
+    return "WITH " + ", ".join(ctes) + " " + " UNION ALL ".join(selects)
+
+
+def inspire_deep_sensitivity(value_spec):
+    """The sourced range that moves the value most, one at a time, through inspire_value_calculate (the one calculator)."""
+    if not isinstance(value_spec, dict) or not isinstance(value_spec.get("sourced"), dict):
+        return None
+    sourced = {name: rng for name, rng in value_spec["sourced"].items()
+               if isinstance(rng, dict) and all(_inspire_value_num(rng.get(key)) for key in INSPIRE_VALUE_SCENARIOS)}
+    if not sourced or not inspire_value_calculate(value_spec).get("ok"):
+        return None
+
+    def priced(name, pick):
+        flat = {key: {**rng, **dict.fromkeys(INSPIRE_VALUE_SCENARIOS, rng[pick] if key == name else rng["base"])}
+                for key, rng in sourced.items()}
+        out = inspire_value_calculate({**value_spec, "sourced": {**value_spec["sourced"], **flat}})
+        if not out.get("ok"):
+            return None, None
+        row = out["scenarios"]["base"]
+        return (row["change"] if row.get("gross_annual") is None else row["gross_annual"]), out.get("unit")
+
+    best = None
+    for name, rng in sourced.items():
+        (low, unit), (high, _unit) = priced(name, "low"), priced(name, "high")
+        if low is None or high is None:
+            continue
+        swing = abs(high - low)
+        if best is None or swing > best["swing"]:
+            best = {"assumption": name, "low": rng["low"], "high": rng["high"], "swing": swing, "unit": unit}
+    return best
+
+
+def _deep_month_ordinal(key):
+    return int(key[:4]) * 12 + int(key[5:7])
+
+
+def _deep_trend(points):
+    known = [(x, y) for x, y in points if y is not None]
+    if len(known) < 3:
+        return None
+    mean_x, mean_y = sum(x for x, _y in known) / len(known), sum(y for _x, y in known) / len(known)
+    spread = sum((x - mean_x) ** 2 for x, _y in known)
+    slope = sum((x - mean_x) * (y - mean_y) for x, y in known) / spread if spread else 0.0
+    flat = slope == 0 or abs(slope) < 0.01 * abs(mean_y)
+    return {"slope_per_month": slope, "direction": "flat" if flat else "rising" if slope > 0 else "falling"}
+
+
+def _deep_seasonality(months):
+    last = months[-24:]
+    if len(months) < 24 or any(item["pool"] is None for item in last) \
+            or _deep_month_ordinal(last[-1]["month"]) - _deep_month_ordinal(last[0]["month"]) != 23:
+        return None
+    averages = {}
+    for item in last:
+        averages.setdefault(item["month"][5:7], []).append(item["pool"])
+    means = [sum(values) / len(values) for values in averages.values()]
+    mean = sum(means) / len(means)
+    peaks = [max(year, key=lambda item: item["pool"])["month"][5:7] for year in (last[:12], last[12:])]
+    return bool(mean > 0 and (max(means) - min(means)) / mean >= 0.5 and peaks[0] == peaks[1])
+
+
+def _deep_benchmark(segments, direction):
+    values = [(item["value"], item["pool"] / item["rows"], item["rows"]) for item in segments
+              if item["value"] is not None and item["pool"] is not None and item["rows"]]
+    values.sort(key=lambda item: str(item[0]))
+    if len(values) < 3:
+        return {"label": "descriptive", "reason": "too_few_segments"}
+    metrics = [metric for _value, metric, _rows in values]
+    median = _deep_statistics.median(metrics)
+    quartiles = _deep_statistics.quantiles(metrics, n=4, method="inclusive")
+    down = not re.search(r"increase|up|higher|grow", str(direction or ""), re.IGNORECASE)
+    best = quartiles[0] if down else quartiles[2]
+    worse = lambda reference: [item for item in values if (item[1] > reference if down else item[1] < reference)]
+    gap = lambda reference: sum(rows * abs(metric - reference) for _value, metric, rows in worse(reference))
+    return {"label": "descriptive", "median": median, "best_quartile": best, "worse_segments": [item[0] for item in worse(median)],
+            "gap_to_median": gap(median), "gap_to_best_quartile": gap(best)}
+
+
+def _deep_block(plan, item, currency, slot, filtered):
+    total = slot["total"] or {}
+    rows, outcome, measured = (_deep_int(total.get(key)) for key in ("rows", "outcome_rows", "measured_rows"))
+    flags = []
+    pool = _deep_num(total.get("pool")) if measured else None
+    if not measured:
+        flags.append("measure_missing")
+    elif measured < outcome:
+        flags.append("measure_partly_missing")
+    rate = lambda hit, all_rows: (hit / all_rows if all_rows else None) if filtered else None
+    by_month = {}
+    for row in slot["month"]:
+        key = str(row.get("month"))[:7]
+        month_rows, month_hit = _deep_int(row.get("rows")), _deep_int(row.get("outcome_rows"))
+        by_month[key] = {"month": key, "pool": _deep_num(row.get("pool")) if _deep_int(row.get("measured_rows")) else None,
+                         "rows": month_rows, "outcome_rows": month_hit, "outcome_rate": rate(month_hit, month_rows)}
+    months = [by_month[key] for key in sorted(by_month)]
+    short = len(months) < 12
+    if short:
+        flags.append("short_history")
+    last = months[-12:]
+    annualised = sum(m["pool"] for m in last) if not short and all(m["pool"] is not None for m in last) \
+        and _deep_month_ordinal(last[-1]["month"]) - _deep_month_ordinal(last[0]["month"]) == 11 else None
+    population = deciles = top = None
+    if plan.get("entity_column"):
+        population = None if total.get("entities") is None else _deep_int(total.get("entities"))
+        parts = sorted((_deep_int(row.get("decile")), _deep_num(row.get("pool"))) for row in slot["decile"])
+        whole = sum(p for _d, p in parts if p is not None)
+        if parts and whole:
+            deciles = [(p or 0.0) / whole for _d, p in parts]
+            top = deciles[0] if parts[0][0] == 1 else None
+    else:
+        flags.append("no_entity_column")
+    by_segment, spread_segment = {}, {}
+    for row in slot["segment"]:
+        seg_rows, seg_hit = _deep_int(row.get("rows")), _deep_int(row.get("outcome_rows"))
+        by_segment.setdefault(row.get("segment_column"), []).append(
+            {"value": row.get("segment_value"), "pool": _deep_num(row.get("pool")) if _deep_int(row.get("measured_rows")) else None,
+             "rows": seg_rows, "outcome_rows": seg_hit, "outcome_rate": rate(seg_hit, seg_rows)})
+    for column, entries in by_segment.items():
+        entries.sort(key=lambda entry: (entry["value"] is None, str(entry["value"])))
+        rates = [entry["outcome_rate"] for entry in entries if entry["outcome_rate"] is not None]
+        if rates:
+            spread_segment[column] = max(rates) - min(rates)
+    month_rates = [m["outcome_rate"] for m in months if m["outcome_rate"] is not None]
+    return {"currency": currency, "pool": pool, "rows": rows, "outcome_rows": outcome, "measured_rows": measured, "flags": flags,
+            "by_month": months, "history_months": len(months), "short_history": short, "annualised": annualised,
+            "trend": _deep_trend([(_deep_month_ordinal(m["month"]), m["pool"]) for m in months]),
+            "seasonality": _deep_seasonality(months), "population": population, "deciles": deciles, "top10_share": top,
+            "by_segment": by_segment, "outcome_rate": rate(outcome, rows),
+            "outcome_rate_spread": {"segment": spread_segment, "month": (max(month_rates) - min(month_rates)) if month_rates else None},
+            "benchmark": {column: _deep_benchmark(entries, item.get("direction")) for column, entries in by_segment.items()}}
+
+
+def inspire_deep_scan_parse(plan: dict, rows, today) -> dict:
+    """The cards of one scan from its long-format rows. Unknown is None, never 0; blocks stay per currency, never added."""
+    rows = [dict(row) for row in rows or []]
+    pairs = {(str(row["uc"]), str(row["other_uc"])): _deep_int(row.get("outcome_rows")) for row in rows
+             if row.get("grouping_set") == "overlap" and row.get("uc") is not None and row.get("other_uc") is not None}
+    cards = {}
+    for item in plan["use_cases"]:
+        no = str(item["No"])
+        slots = {}
+        for row in rows:
+            kind = row.get("grouping_set")
+            if str(row.get("uc")) != no or kind not in ("total", "month", "segment", "decile"):
+                continue
+            slot = slots.setdefault(row.get("currency"), {"total": None, "month": [], "segment": [], "decile": []})
+            if kind == "total":
+                slot["total"] = row
+            else:
+                slot[kind].append(row)
+        filtered = bool(kpi_filter_sql(item["kpi"]))
+        blocks = [_deep_block(plan, item, currency, slots[currency], filtered)
+                  for currency in sorted(slots, key=lambda value: (value is not None, str(value)))]
+        outcome = sum(block["outcome_rows"] for block in blocks)
+        overlap = []
+        for other in plan["use_cases"]:
+            hit = pairs.get((no, str(other["No"])), pairs.get((str(other["No"]), no)))
+            if other is not item and hit is not None:
+                overlap.append({"No": other["No"], "rows": hit, "share": hit / outcome if outcome else None})
+        totals = [slot["total"] for slot in slots.values() if slot["total"]]
+        days = lambda key: [str(total[key])[:10] for total in totals if total.get(key)]
+        first, last = (min(days("first_day")) if days("first_day") else None), (max(days("last_day")) if days("last_day") else None)
+        nulls = {}
+        share = lambda count: (count / outcome if outcome else None)
+        nulls[str(item["kpi"]["column"])] = share(outcome - sum(block["measured_rows"] for block in blocks)) if outcome else None
+        if plan.get("entity_column"):
+            nulls[plan["entity_column"]] = share(sum(_deep_int(total.get("null_entity")) for total in totals))
+        for column in plan.get("segment_columns") or []:
+            nulls[column] = share(sum(_deep_int(row.get("outcome_rows")) for slot in slots.values() for row in slot["segment"]
+                                      if row.get("segment_column") == column and row.get("segment_value") is None))
+        cards[item["No"]] = {
+            "No": item["No"], "table": plan["table"], "scan_id": plan.get("scan_id"), "status": "ok", "currencies": blocks,
+            "overlap": overlap,
+            "readiness": {"history_months": len({m["month"] for block in blocks for m in block["by_month"]}), "first_day": first,
+                          "last_day": last,
+                          "freshness_days": (today - _inspire_datetime.date.fromisoformat(last)).days if last else None,
+                          "key_column_nulls": nulls},
+            "sensitivity": inspire_deep_sensitivity(item.get("value_spec")), "segment_columns": list(plan.get("segment_columns") or [])}
+    return cards
 INSPIRE_THRESHOLD_LABELS.update({name: label for name, label in GENIE_WIDGET_LABELS.items() if name.startswith(INSPIRE_THRESHOLD_PREFIXES)})
 _INSPIRE_ROW_CONCURRENCY_WARNED = set()
 
@@ -15663,7 +15997,7 @@ INSPIRE_VALUE_SPEC_SCHEMA = {
     "required": ["mechanism", "currency", "flow_or_stock", "horizon_years", "measured", "sourced"],
     "properties": {
         "mechanism": {"enum": list(INSPIRE_VALUE_MECHANISM_BUCKET)},
-        "currency": {"type": ["string", "null"], "pattern": "^[A-Z]{3}$"},
+        "currency": {"type": ["string", "null"]},
         "flow_or_stock": {"enum": ["flow", "stock"]},
         "horizon_years": {"type": "integer", "minimum": 1, "maximum": 10},
         "measured": {"type": "object", "required": ["exposure"],
@@ -15737,7 +16071,7 @@ def inspire_value_assumptions(picks: dict, mechanism: str, pattern: str, library
 def inspire_value_default_cost(library: dict, currency, per_usd=None):
     """The library's default S/M/L tiers (USD, exploratory, editable) in `currency`; none without a rate, never a USD number in another currency."""
     held = (library or {}).get("cost_tiers")
-    if not isinstance(held, dict) or not isinstance(currency, str) or re.fullmatch(r"[A-Z]{3}", currency) is None:
+    if not isinstance(held, dict) or not isinstance(currency, str) or not currency in INSPIRE_CURRENCY_CODES:
         return None
     tiers = held.get("tiers") or {}
     if currency == held.get("currency"):
@@ -15873,7 +16207,7 @@ def _inspire_value_measured(base: dict, spec: dict, value: float, baseline: dict
     if not cash:
         rate, conversion, currency, currency_source, measured_in = None, "", None, None, None
     exposure = value * (per_unit[1] if per_unit else 1) * (rate if rate is not None else 1)
-    held_currency = currency if isinstance(currency, str) and re.fullmatch(r"[A-Z]{3}", currency) else None
+    held_currency = currency if isinstance(currency, str) and currency in INSPIRE_CURRENCY_CODES else None
     kind_low, kind_high = (_inspire_uplift("", family)[:2] if uplift_source == "instructions" else (low, high))
     effect_pick = {"exploratory": {"low": kind_low, "base": (kind_low + kind_high) / 2, "high": kind_high}}
     if uplift_source == "instructions":
@@ -29361,7 +29695,7 @@ def inspire_value_basis(row):
     total = yearly.get("total") if isinstance(yearly.get("total"), dict) else {}
     amount = _value_number(total.get("amount"))
     currency = yearly.get("currency") or total.get("unit")
-    if amount is None or not isinstance(currency, str) or not (len(currency) == 3 and currency.isascii() and currency.isalpha() and currency.isupper()):
+    if amount is None or not isinstance(currency, str) or not currency in INSPIRE_CURRENCY_CODES:
         return None
     typed = []
     for part in yearly.get("parts") or []:
@@ -36888,6 +37222,13 @@ def inspire_table_domains(tables, edges, categories=None) -> dict:
             "unattached": unattached, "edges": edge_rows, "skip_domain_step": len(domains) <= 1}
 
 
+def budget_partial_text(partial) -> str:
+    if not partial:
+        return ""
+    return (f"the {partial['budget_minutes']}-minute time budget ran out, so {partial['skipped_batches']} of "
+            f"{partial['total_batches']} analysis steps were skipped and the use cases are partial")
+
+
 class DatabricksInspire:
 
     @staticmethod
@@ -38416,7 +38757,7 @@ class DatabricksInspire:
                 results["run_status"] = "warning" if exit_value else "success"
                 results["run_message"] = exit_value
             results.update(self._v130_results_keys())
-            partial = self._budget_partial_text()
+            partial = budget_partial_text(getattr(self, "budget_partial", None))
             if partial:
                 results["run_partial"] = True
                 results["run_partial_reason"] = partial
@@ -38712,11 +39053,7 @@ class DatabricksInspire:
         return partial
 
     def _budget_partial_text(self) -> str:
-        partial = getattr(self, "budget_partial", None)
-        if not partial:
-            return ""
-        return (f"the {partial['budget_minutes']}-minute time budget ran out, so {partial['skipped_batches']} of "
-                f"{partial['total_batches']} Pass 1 batches were skipped and the use cases are partial")
+        return budget_partial_text(getattr(self, "budget_partial", None))
 
     def _run_outcome_warnings(self) -> list:
         failed = list(getattr(self, "failed_steps", None) or [])
@@ -38726,7 +39063,7 @@ class DatabricksInspire:
         bar = self._quality_bar_warning()
         if bar:
             warnings.append(bar)
-        partial = self._budget_partial_text()
+        partial = budget_partial_text(getattr(self, "budget_partial", None))
         if partial:
             warnings.append(partial)
         coverage_ledger = getattr(self, "coverage_ledger", None)
@@ -42067,7 +42404,7 @@ Start your response with the CSV header line: use_case_id,domain
     def _load_pending_artifacts(self) -> tuple:
         """Return (pending, saved_use_cases): the session row's pending_artifacts and, when any are pending, the session's saved use cases."""
         writer = getattr(self, "atomic_writer", None)
-        if not writer or not writer.enabled or not writer.session_table or not self._tracking_table_name:
+        if not writer or not getattr(writer, "enabled", False) or not writer.session_table or not self._tracking_table_name:
             return [], []
         session_number = inspire_session_number(self.session_id)
         try:
@@ -56604,7 +56941,7 @@ Only include entries for subdomains that need renaming. Start your response with
         self.logger.info(f"[DOMAIN-GRAPH FIRED] {inspire_plural(len(result['domains']), 'domain')}, "
                          f"{inspire_plural(len(result['hubs']), 'hub')}, {inspire_plural(len(result['bridges']), 'bridge')}, "
                          f"{inspire_plural(len(result['challenger_pairs']), 'challenger pair')} kept, "
-                         f"{len(result['challenger_dropped'])} dropped (cap {INSPIRE_DOMAIN_MAX_CHALLENGERS}); "
+                         f"{implement_number_text(len(result['challenger_dropped']))} dropped (cap {INSPIRE_DOMAIN_MAX_CHALLENGERS}); "
                          f"{inspire_plural(len(result['edges']), 'edge')} (" + ", ".join(
                              f"{by_source.get(s, 0)} {s}" for s in INSPIRE_DOMAIN_EDGE_WEIGHTS) + f"); "
                          f"{inspire_plural(len(result['unattached']), 'table')} with no join; "
@@ -71610,8 +71947,8 @@ class JobLauncher:
         business_details = [d for d in db_details if f"{d[0]}.{d[1]}.{d[2]}" in business]
         technical_details = [d for d in db_details if f"{d[0]}.{d[1]}.{d[2]}" in technical]
         self.logger.info(f"Table Election [All Tables]: no classifier; {inspire_plural(len(business), 'table')} in scope "
-                         f"({len(transactional)} transactional, {len(master)} master, {len(reference)} reference by rules), "
-                         f"{len(technical)} left out by the user's ignore rules")
+                         f"({implement_number_text(len(transactional))} transactional, {implement_number_text(len(master))} master, {implement_number_text(len(reference))} reference by rules), "
+                         f"{implement_number_text(len(technical))} left out by the user's ignore rules")
         return (business_details, technical_details, business, technical, scores, categories, master, transactional, reference)
 
     def _resolve_table_scope(self, db_details: list, business_context: str = "", industry: str = "", exclusion_strategy=None) -> tuple:
