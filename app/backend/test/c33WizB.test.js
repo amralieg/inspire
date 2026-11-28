@@ -79,7 +79,7 @@ const PLAN = { runs: [
   { run_no: 1, name: 'Sales', why: 'w', tables: [{ table: T('sales', 'orders') }, { table: T('sales', 'items') }] },
   { run_no: 2, name: 'Operations', why: 'w', tables: [{ table: T('ops', 'shift') }] },
 ] };
-const PARAMS = { '00_business_name': 'Example Co', '01_uc_metadata': 'main', '04_table_election': 'Let Inspire AI decide', '05_discovery_type': 'Standard', '15_operation': 'Discover Use Cases' };
+const PARAMS = { '00_business_name': 'Example Co', '01_uc_metadata': 'main', '04_table_election': 'Let Inspire AI decide', '03_discovery_type': 'Standard', '15_operation': 'Discover Use Cases' };
 const START_BODY = { inspire_database: S.APP_DB, warehouse_id: S.APP_WAREHOUSE, business_name: 'Example Co', plan: PLAN, params: PARAMS, profile_id: '' };
 
 test('REQ-577 7: plan/start stores every run and launches run 1 only, with the plan tables (must-fail on the base)', async () => {
@@ -94,7 +94,7 @@ test('REQ-577 7: plan/start stores every run and launches run 1 only, with the p
   assert.equal(p['04_table_election'], 'All Tables', 'the plan already chose the tables');
   assert.equal(p['15_operation'], 'Discover Use Cases');
   assert.ok(p['14_session_id'], 'the run has a session id');
-  assert.equal(p['05_discovery_type'], 'Standard', 'the Settings step params pass through');
+  assert.equal(p['03_discovery_type'], 'Standard', 'the Settings step params pass through');
   assert.ok(statements().some((s) => /INSERT\s+INTO[\s\S]*__inspire_plan/i.test(s)), 'the plan is stored in __inspire_plan');
   assert.ok(got.data.plan_id);
   assert.deepEqual(got.data.runs.map((r) => [r.run_no, r.status]), [[1, 'running'], [2, 'waiting']]);
