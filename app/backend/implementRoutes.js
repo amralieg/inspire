@@ -578,7 +578,7 @@ function registerImplementRoutes(app, deps) {
 
   /**
    * Route 1: set generate_genie_code_instruction = 'Yes' for selected UC ids, then submit
-   * notebook job with 15_operation = Generate Use Cases and 14_session_id = session.
+   * notebook job with 15_operation = Match Use Cases and 14_session_id = session.
    */
 
   // REQ-409: the token of a control call. A build's run and an installed job are read or cancelled with the installed-run rule; any other
