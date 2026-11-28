@@ -336,11 +336,11 @@ def test_phase_1_sends_the_scanned_metadata_and_the_users_words_to_the_match_pro
     spark = _Spark({"__inspire_match_input": _inputs()})
     llm = _Llm(_answers())
     _inst(agent_ns, spark, "match", llm, _Loader(SCAN))._run_match_mode()
-    assert [path for path, _ in llm.calls] == ["MATCH_USE_CASE_PROMPT"] * 2
-    sent = {v["use_case_name"]: v for _, v in llm.calls}
+    assert [path for path, _ in llm.calls] == ["MATCH_BREAKDOWN_PROMPT", "MATCH_PIECES_PROMPT"] * 2
+    sent = {v["use_case_name"]: v for p, v in llm.calls if p == "MATCH_PIECES_PROMPT"}
     assert sent["Churn watch"]["use_case_description"] == "Find customers who stop buying"
     assert "main.sales.orders" in sent["Churn watch"]["schema_markdown"] and "region" in sent["Churn watch"]["schema_markdown"]
-    prompt = agent_ns["PROMPT_TEMPLATES"]["MATCH_USE_CASE_PROMPT"]
+    prompt = agent_ns["PROMPT_TEMPLATES"]["MATCH_PIECES_PROMPT"]
     assert {"use_case_name", "use_case_description", "schema_markdown"} <= set(re.findall(r"\{(\w+)\}", prompt))
 
 
@@ -356,7 +356,7 @@ def test_phase_1_uses_the_latest_row_of_each_input_number(agent_ns):
     spark = _Spark({"__inspire_match_input": [older] + _inputs()[:1] and [dict(older)] + [dict(_inputs()[0], event_at=_ts(7))]})
     llm = _Llm({"Churn watch": _answers()["Churn watch"]})
     _inst(agent_ns, spark, "match", llm, _Loader(SCAN))._run_match_mode()
-    assert [v["use_case_name"] for _, v in llm.calls] == ["Churn watch"]
+    assert {v["use_case_name"] for _, v in llm.calls} == {"Churn watch"}
 
 
 def _stored_report(input_no, name, *pieces, minute=1):

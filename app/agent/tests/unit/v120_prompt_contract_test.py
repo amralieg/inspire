@@ -66,8 +66,9 @@ STRATEGY_BLIND = {"strategic_goals", "business_priorities"}
 REMOVED_PLACEHOLDERS = {"SUMMARY_GEN_PROMPT": {"total_cases"}, "BASE_USE_CASE_GEN_PROMPT": STRATEGY_BLIND,
                         "COMBINED_VALUE_QUALITY_SCORE_PROMPT": STRATEGY_BLIND, "BEST_OF_BEST_SCORING_PROMPT": STRATEGY_BLIND}
 
-NEW_PROMPTS = {"MATCH_USE_CASE_PROMPT": {"use_case_name", "use_case_description", "business_name", "generation_instructions_section",
-                                         "schema_markdown"},
+NEW_PROMPTS = {"MATCH_BREAKDOWN_PROMPT": {"use_case_name", "use_case_description", "business_name", "generation_instructions_section"},
+               "MATCH_PIECES_PROMPT": {"use_case_name", "use_case_description", "business_name", "generation_instructions_section",
+                                       "pieces_json", "schema_markdown"},
                "ULTRA_HIGH_ELITE_JUDGE_PROMPT": {"allowed_value_tiers", "business_context",
                                                  "generation_instructions_section", "industry", "min_dimension_score",
                                                  "near_miss_band", "revenue_model", "schema_details",
