@@ -53,9 +53,9 @@ test('no text in the App, its backend or its scripts names a tab that no longer 
   assert.deepEqual(found, []);
 });
 
-test('the demo button reads See Demo, and the recorder clicks the label the App shows instead of a copy of it', async () => {
+test('the demo button reads Open the demo, and the recorder clicks the label the App shows instead of a copy of it', async () => {
   const { SHOWCASE_BUTTON } = await showcase();
-  assert.equal(SHOWCASE_BUTTON, 'See Demo');
+  assert.equal(SHOWCASE_BUTTON, 'Open the demo');
   const recorder = fs.readFileSync(path.join(APP, 'scripts', 'showcaseRecorder.mjs'), 'utf8');
   assert.match(recorder, /import \{ SHOWCASE_BUTTON \} from '\.\.\/frontend\/src\/lib\/showcase\.js'/);
   assert.match(recorder, /getByRole\('button', \{ name: SHOWCASE_BUTTON, exact: true \}\)/);

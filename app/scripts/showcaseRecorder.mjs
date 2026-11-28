@@ -377,7 +377,7 @@ async function walkStart(page, settle) {
     const row = rows.nth(i);
     const more = row.getByRole('button', { name: /^More for / });
     await more.click();
-    const open = row.getByRole('menuitem', { name: 'Quick view', exact: true });
+    const open = page.getByRole('menuitem', { name: 'Quick view', exact: true });
     if (!(await open.count()) || (await open.getAttribute('aria-disabled')) === 'true') {
       await page.keyboard.press('Escape');
       continue;
@@ -386,7 +386,7 @@ async function walkStart(page, settle) {
     await open.click();
     await settle();
     await more.click();
-    await row.getByRole('menuitem', { name: 'Hide quick view', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Hide quick view', exact: true }).click();
     await settle();
   }
   const loading = page.locator('main [data-portfolio] [data-card-value] [aria-label="Loading"]');

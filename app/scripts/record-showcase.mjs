@@ -16,7 +16,7 @@ const require = createRequire(import.meta.url);
 const { chromium } = require(path.join(root, 'frontend/node_modules/playwright'));
 const JSZip = require(path.join(root, 'frontend/node_modules/jszip'));
 const { showcaseStale } = require('../backend/lib/showcase.js');
-const { installReplace, makeRecorder, makeSanitizer, mvpUrlsFrom, showcaseFile, showcaseLeaks, showcaseSizeProblem, showcaseSizes, showcaseText } = require('../backend/lib/showcaseRecord.js');
+const { installReplace, installTagReplace, makeRecorder, makeSanitizer, mvpUrlsFrom, showcaseFile, showcaseLeaks, showcaseSizeProblem, showcaseSizes, showcaseText } = require('../backend/lib/showcaseRecord.js');
 
 const env = process.env;
 const need = (name) => {
@@ -104,7 +104,7 @@ try {
     if (app.service_principal_name) replace[app.service_principal_name] = 'the App service principal';
     if (app.service_principal_client_id) replace[app.service_principal_client_id] = 'the App service principal';
   }
-  Object.assign(replace, installReplace(inspireUrl)); // C33: the scratch App name in the Build notes
+  Object.assign(replace, installReplace(inspireUrl), installTagReplace(inspireUrl)); // C33: the scratch App name in the Build notes
   Object.assign(replace, env.SHOWCASE_REPLACE ? JSON.parse(env.SHOWCASE_REPLACE) : {});
 
   const titleOf = (m) => {

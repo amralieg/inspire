@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
-const { installReplace, makeSanitizer, showcaseLeaks } = require('../lib/showcaseRecord');
+const { installReplace, installTagReplace, makeSanitizer, showcaseLeaks } = require('../lib/showcaseRecord');
 
 const DIR = path.join(__dirname, '../showcase');
 const SCRATCH = /inspire-rc[\w-]*/i;
@@ -27,4 +27,14 @@ test('C33: the recorder replaces the App the demo was recorded from, in the buil
   assert.equal(out.feed[0].text, 'person@example.com can manage /Workspace/Shared/inspire/nyc/session_1/AI01-UC01');
   assert.deepEqual(showcaseLeaks({ inspire: { 'GET /x': { status: 200, body: out } } }, Object.keys(replace)), []);
   assert.deepEqual(installReplace('https://inspire-1234567890.11.azure.databricksapps.com'), {});
+});
+
+test('C33: a run named after the scratch install ("W11 rc2g AWS Walk") is scrubbed by the recorder replace map, in any case and with spaces for dashes', () => {
+  const url = 'https://inspire-rc2g-aws-1234567890.11.azure.databricksapps.com';
+  const replace = { ...installReplace(url), ...installTagReplace(url) };
+  assert.deepEqual(replace, { 'inspire-rc2g-aws': 'inspire', 'rc2g-aws': 'demo' });
+  const out = makeSanitizer({ replace }).value({ runs: [{ name: 'W11 rc2g AWS Walk' }, { name: 'W11 RC2G-AWS Walk' }], path: '/Workspace/Shared/inspire-rc2g-aws/x' });
+  assert.deepEqual(out.runs.map((r) => r.name), ['W11 demo Walk', 'W11 demo Walk']);
+  assert.equal(out.path, '/Workspace/Shared/inspire/x');
+  assert.deepEqual(installTagReplace('https://inspire-1234567890.11.azure.databricksapps.com'), {});
 });
