@@ -89,7 +89,8 @@ const reset = (session, completed, { pending = null, denied = '' } = {}) => {
   warehouse.state.denied = denied;
 };
 // SEC-02: the session check (the scope row and the LIMIT 0 probe of its table) is not part of the read being counted.
-const statements = () => warehouse.state.statements.map((s) => s.statement).filter((sql) => !/schemas_str, tables_str FROM|LIMIT 0\s*$/.test(sql));
+// c36 (REQ-581): nor is the separate pending_artifacts read (its own statement, so a table without that column still answers).
+const statements = () => warehouse.state.statements.map((s) => s.statement).filter((sql) => !/schemas_str, tables_str FROM|LIMIT 0\s*$|^\s*SELECT pending_artifacts FROM/.test(sql));
 
 test('GET /api/inspire/results answers the summary results_json holds, from that one read', async () => {
   reset(null, { domains: [], title: 'Acme Use Cases Catalog', ...FIXTURE.results_json });
