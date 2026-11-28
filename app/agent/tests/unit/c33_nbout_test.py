@@ -1,6 +1,6 @@
-"""c33_nbout (REQ-578): the Genie code notebook rewrite moved from Generate Use Cases to Implement Use Cases, output "notebook".
+"""c33_nbout (REQ-578): the Databricks AI notebook rewrite moved from Generate Use Cases to Implement Use Cases, output "notebook".
 
-An Implement build of one use case with outputs {"notebook": True} calls the same Genie code notebook writer Generate used
+An Implement build of one use case with outputs {"notebook": True} calls the same Databricks AI notebook writer Generate used
 (_regenerate_genie_for_flagged_rows, then the one MERGE), for that use case only, and builds no other output. The Generate
 orchestrator and its Route 1 / Route 2 flag scans no longer exist."""
 import json
