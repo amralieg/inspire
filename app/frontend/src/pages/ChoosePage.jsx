@@ -179,7 +179,7 @@ export default function ChoosePage({ settings, update, onNoData, onDemo, demo = 
   const [query, setQuery] = useState('');
   const [showValue, setShowValue] = useState(false);
   const apiFetch = useMemo(() => makeApiFetch({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
-  usePlanAdvance(apiFetch, { inspireDatabase, warehouseId });
+  usePlanAdvance(apiFetch, { inspireDatabase, warehouseId, showcase });
   const { portfolio, error: portfolioError } = usePortfolio(apiFetch, inspireDatabase, warehouseId);
   const valueReady = Boolean(inspireDatabase && warehouseId);
   // FX-34 (REQ-448, W16 D2/D3): one read, the run value of every run and of all runs; the panel, its bars and the run cards render it.

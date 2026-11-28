@@ -599,7 +599,7 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
       )}
 
       {/* c33 (REQ-579): a Match run shows its input use cases and their match status; lane C owns the component. */}
-      {sessionId && <MatchMonitorBoxes settings={settings} sessionId={sessionId} runId={runId} apiFetch={apiFetch} steps={steps} />}
+      {sessionId && !showcase && <MatchMonitorBoxes settings={settings} sessionId={sessionId} runId={runId} apiFetch={apiFetch} steps={steps} />}
       {(totalCount > 0 || isRunning || isPending) && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <ArrivingNow useCases={liveUseCases} live={isRunning} candidates={candidates}

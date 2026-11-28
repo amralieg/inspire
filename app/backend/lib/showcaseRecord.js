@@ -28,7 +28,7 @@ const HOSTED_URLS = ['app_url', 'dashboard_url', 'genie_space_url'];
 const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
 const isTime = (key, v) => TIME_KEY_RE.test(key) && TIME_VALUE_RE.test(String(v));
 
-const spellings = (s) => [...new Set([s, s.replace(/_/g, ' ')])];
+const spellings = (s) => [...new Set([s, s.replace(/[_-]/g, ' ')])];
 
 function wallClock(recordedAt) {
   if (!recordedAt) return (v) => v;
@@ -45,8 +45,8 @@ function wallClock(recordedAt) {
 function makeSanitizer({ replace = {}, sessionId = '', mvpUrls = {}, hostedPaths = {}, recordedAt = null } = {}) {
   const pinned = wallClock(recordedAt);
   const pairs = Object.entries(replace).filter(([from]) => from)
-    .flatMap(([from, to]) => spellings(from).map((f, i) => [f, i ? String(to).replace(/_/g, ' ') : to]))
-    .sort(([a], [b]) => b.length - a.length);
+    .flatMap(([from, to]) => spellings(from).map((f, i) => [new RegExp(escaped(f), 'gi'), i ? String(to).replace(/_/g, ' ') : to, f.length]))
+    .sort(([, , a], [, , b]) => b - a);
   const fakes = new Map();
   const counts = {};
   const fake = (kind, raw, make) => {
@@ -70,7 +70,7 @@ function makeSanitizer({ replace = {}, sessionId = '', mvpUrls = {}, hostedPaths
   const text = (input) => {
     let s = String(input);
     for (const [origin, to] of origins) s = s.split(`${origin}/`).join(to).split(origin).join(to);
-    for (const [from, to] of pairs) s = s.split(from).join(to);
+    for (const [from, to] of pairs) s = s.replace(from, () => to);
     return s.replace(PRIVATE_RE, (m, host, email, uuid, hex, long, app, warehouse) => {
       if (host) return DEMO_HOST;
       if (email) return email.toLowerCase().endsWith('@example.com') ? email : fake('e', email, (n) => `person${n}@example.com`);
@@ -402,6 +402,13 @@ function installReplace(inspireUrl) {
   return name && name !== DEMO_INSTALL ? { [name]: DEMO_INSTALL } : {};
 }
 
+// The tester also names runs after the install ("W11 rc2g AWS Walk"): its tag after "inspire-" goes too (the sanitizer matches any case, dashes as spaces).
+function installTagReplace(inspireUrl) {
+  const [name] = Object.keys(installReplace(inspireUrl));
+  const tag = name ? name.replace(/^inspire-/, '') : '';
+  return tag && tag !== name ? { [tag]: 'demo' } : {};
+}
+
 function showcaseFile(bundle) {
   return zlib.gzipSync(Buffer.from(showcaseText(bundle), 'utf8'), { level: 9 });
 }
@@ -422,5 +429,5 @@ function showcaseSizeProblem(bundle, max = SHOWCASE_MAX_BYTES) {
 
 module.exports = {
   DEMO_HOST, SHOWCASE_FILE_ROUTES, SHOWCASE_MAX_BYTES, UNREAD_USE_CASE_FIELDS, demoView, makeSanitizer, makeRecorder, monitorStep, mvpUrlsFrom, onlySession,
-  documentText, installReplace, showcaseFile, showcaseLeaks, showcaseSizeProblem, showcaseSizes, showcaseText,
+  documentText, installReplace, installTagReplace, showcaseFile, showcaseLeaks, showcaseSizeProblem, showcaseSizes, showcaseText,
 };

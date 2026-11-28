@@ -2,7 +2,7 @@ import { APP_TABS } from './tabs.js';
 
 export const SHOWCASE_SETTING = 'showcase';
 export const SHOWCASE_PAGES = APP_TABS.map((tab) => tab.id);
-export const SHOWCASE_BUTTON = 'See Demo';
+export const SHOWCASE_BUTTON = 'Open the demo';
 export const SHOWCASE_NOTE = 'Nothing in the demo changes. Choose Get Started to find use cases and build MVPs on your own data.';
 export const SHOWCASE_OPEN_APP = 'Open the MVP App';
 export const SHOWCASE_DASHBOARD_NOTE = 'In your workspace this opens the dashboard Inspire built. The demo shows the same numbers and charts in the MVP App.';

@@ -30,13 +30,13 @@ export async function startPlan(apiFetch, { inspireDatabase, warehouseId, busine
 
 // Mounted by the Start page (lane A): POST /api/inspire/plan/advance { inspire_database, warehouse_id } on mount and every few minutes,
 // so the next waiting run of a plan starts once the one before it ended. A failed call is ignored; the next tick asks again.
-export function usePlanAdvance(apiFetch, { inspireDatabase, warehouseId, token, databricksHost } = {}) {
+export function usePlanAdvance(apiFetch, { inspireDatabase, warehouseId, token, databricksHost, showcase = '' } = {}) {
   useEffect(() => {
-    if (!inspireDatabase || !warehouseId) return undefined;
+    if (!inspireDatabase || !warehouseId || showcase) return undefined; // the demo sends no write
     const send = post({ token, databricksHost });
     const tick = () => { send(ROUTES.planAdvance, { inspire_database: inspireDatabase, warehouse_id: warehouseId }, { raise: false }).catch(() => {}); };
     tick();
     const timer = setInterval(tick, PLAN_ADVANCE_MS);
     return () => clearInterval(timer);
-  }, [apiFetch, inspireDatabase, warehouseId, token, databricksHost]);
+  }, [apiFetch, inspireDatabase, warehouseId, token, databricksHost, showcase]);
 }

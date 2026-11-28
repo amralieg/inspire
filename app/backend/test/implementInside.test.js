@@ -490,5 +490,5 @@ test('a ?run=<id> query, which a sign-in keeps, becomes the #/run/<id> hash with
   assert.equal(R.pageHash({ page: R.RUN_TAB, id: null }), '#/run', 'the Run tab with no page open keeps a hash of its own');
   assert.equal(R.pageHash({ page: R.REVIEW_TAB }), '#/review', 'leaving the Run tab swaps its hash for the page shown');
   assert.equal(R.RUN_LEFT_DEMO, 'You left the demo to open this link, because it names a page in your workspace and the demo runs only its own '
-    + 'recorded MVP Apps. To see the demo again, choose See Demo on the Start page.');
+    + 'recorded MVP Apps. To see the demo again, choose Open the demo on the Start page.');
 });
