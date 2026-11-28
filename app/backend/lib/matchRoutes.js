@@ -17,6 +17,7 @@
 
 const { splitInspireDatabase, INSPIRE_DB_SHAPE } = require('./sqlInputs');
 const { isInt64Id } = require('./int64Id');
+const { parseExactJson } = require('./exactJson');
 
 const MATCH_INPUT_MAX = 50;
 const DECISIONS = ['keep', 'drop', 'use_known_data'];
@@ -124,7 +125,7 @@ function registerMatchRoutes(app, deps) {
         .sort((a, b) => a.input_no - b.input_no);
       const reportRows = (await read('__inspire_match', 'session_id, input_no, report_json, verdict, confidence, event_at')) || [];
       const reports = latestBy(reportRows, (r) => Number(r.input_no)).map((r) => {
-        try { const doc = JSON.parse(r.report_json); return doc && typeof doc === 'object' ? { ...doc, input_no: Number(r.input_no) } : null; } catch { return null; }
+        try { const doc = parseExactJson(r.report_json); return doc && typeof doc === 'object' ? { ...doc, input_no: Number(r.input_no) } : null; } catch { return null; }
       }).filter(Boolean).sort((a, b) => a.input_no - b.input_no);
       const decisionRows = (await read('__inspire_match_decision', 'session_id, input_no, piece_no, decision, event_at')) || [];
       const decisions = latestBy(decisionRows, (r) => `${Number(r.input_no)}:${Number(r.piece_no)}`)

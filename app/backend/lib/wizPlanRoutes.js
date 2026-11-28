@@ -16,6 +16,7 @@ const crypto = require('node:crypto');
 const { replyContent } = require('./appFeedback');
 const RP = require('./routePolicy');
 const { looksDev } = require('../../frontend/src/lib/devNames.js');
+const { parseExactJson } = require('./exactJson');
 
 const PLAN_RUN_MAX = 25;
 const PLAN_TABLE = '__inspire_plan';
@@ -98,7 +99,7 @@ function parseModelPlan(raw) {
   const end = body.lastIndexOf('}');
   let got = null;
   if (start >= 0 && end > start) {
-    try { got = JSON.parse(body.slice(start, end + 1)); } catch { got = null; }
+    try { got = parseExactJson(body.slice(start, end + 1)); } catch { got = null; }
   }
   if (!got || typeof got !== 'object' || !Array.isArray(got.runs)) throw fail(502, 'The model did not return a plan. Try again.');
   return got;
@@ -186,11 +187,7 @@ async function ensurePlanTable(deps, req, warehouseId, table) {
   await deps.executeSql(req.dbHost, req.dbToken, warehouseId,
     `CREATE TABLE IF NOT EXISTS ${table} (plan_id STRING, run_no INT, name STRING, tables STRING, params_json STRING, session_id STRING, run_id STRING, status STRING, event_at TIMESTAMP, owner STRING, launch_json STRING)`);
   if (migrated.has(table)) return;
-  try {
-    await deps.executeSql(req.dbHost, req.dbToken, warehouseId, `ALTER TABLE ${table} ADD COLUMNS (owner STRING, launch_json STRING)`);
-  } catch (err) {
-    if (!/already exists|FIELDS_ALREADY_EXISTS|COLUMN_ALREADY_EXISTS/i.test(String(err && err.message))) throw err;
-  }
+  await deps.ensureTableColumns(req.dbHost, req.dbToken, warehouseId, table, [['owner', 'STRING'], ['launch_json', 'STRING']]);
   migrated.add(table);
 }
 
@@ -303,10 +300,10 @@ async function advance(deps, req) {
       const next = list.find((r) => r.status === 'waiting');
       if (!next || !list.filter((r) => r.run_no < next.run_no).every((r) => r.status === 'done')) continue;
       let params = {};
-      try { params = JSON.parse(next.params_json || '{}'); } catch { params = {}; }
+      try { params = parseExactJson(next.params_json || '{}'); } catch { params = {}; }
       const tables = text(next.tables).split(',').map(text).filter(Boolean);
       let settings = {};
-      try { settings = JSON.parse(next.launch_json || '{}') || {}; } catch { settings = {}; }
+      try { settings = parseExactJson(next.launch_json || '{}') || {}; } catch { settings = {}; }
       const got = await launch(deps, req, { name: next.name, tables, params, profileId: text(settings.profile_id),
         notebookPath: text(settings.notebook_path), clusterId: text(settings.cluster_id) });
       if (!got.ok) {

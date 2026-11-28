@@ -5,7 +5,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Undo2, X } from 'lucide-react';
 import RelationshipsSection from '../RelationshipsSection';
 import { sameLink } from '../../lib/tableRelationships';
-import { makeApiPostJson } from '../../lib/apiClient';
+import { makeApiPostText } from '../../lib/apiClient';
+import { PlainMessage } from '../TechnicalDetails';
 
 const BUTTON = 'inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-surface px-3 text-xs font-semibold text-text-primary hover:bg-bg-subtle disabled:opacity-50';
 const short = (table) => String(table).split('.').pop();
@@ -33,8 +34,7 @@ export default function WizardJoins({ tables, groups, joins, setJoins, settings,
   // The wizard's apiFetch reads only; the joins route is a POST, sent as the plan routes are. RelationshipsSection gets the same call in its own shape.
   const warehouseId = settings?.warehouseId || '';
   const apiFetch = useMemo(() => {
-    const post = makeApiPostJson({ token: settings?.token, databricksHost: settings?.databricksHost });
-    return (url, init) => post(url, JSON.parse(init.body));
+    return makeApiPostText({ token: settings?.token, databricksHost: settings?.databricksHost });
   }, [settings?.token, settings?.databricksHost]);
   const [state, setState] = useState({ status: 'idle', error: '' });
   const [adding, setAdding] = useState(false);
@@ -87,9 +87,10 @@ export default function WizardJoins({ tables, groups, joins, setJoins, settings,
       </div>
       {state.status === 'loading' && <p data-wiz-joins-loading="" role="status" className="text-xs text-text-secondary">Looking for joins between your tables</p>}
       {state.status === 'error' && (
-        <p role="alert" className="text-xs text-error-fg">{state.error}{' '}
+        <div role="alert" className="text-xs text-error-fg">
+          <PlainMessage as="span" text={state.error} />{' '}
           <button type="button" className="font-semibold underline" onClick={() => setAttempt((n) => n + 1)}>Try again</button>
-        </p>
+        </div>
       )}
       {state.status === 'done' && kept.length === 0 && <p data-wiz-joins-none="" className="text-xs text-text-secondary">No joins suggested. Add one if your tables join.</p>}
       {removed.length > 0 && (

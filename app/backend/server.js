@@ -3760,7 +3760,7 @@ async function wizChatModel(req, messages, maxTokens) {
 async function wizReadRun(req, runId) {
   return jsonOf(dbFetch, req.dbHost, (await appOwnToken()) || req.dbToken, `/api/2.1/jobs/runs/get?run_id=${encodeURIComponent(String(runId))}`);
 }
-const wizDeps = { requireToken, executeSql, sqlResultToObjects, chatModel: wizChatModel, launchRun: wizLaunchRun, readRun: wizReadRun, now: () => new Date() };
+const wizDeps = { requireToken, executeSql, ensureTableColumns, sqlResultToObjects, chatModel: wizChatModel, launchRun: wizLaunchRun, readRun: wizReadRun, now: () => new Date() };
 registerWizPlanRoutes(app, wizDeps);
 registerMatchRoutes(app, wizDeps);
 registerCandidateRoutes(app, wizDeps);
@@ -3897,7 +3897,7 @@ async function readPendingArtifacts(req, warehouseId, table, sessionId) {
     if (!id) return [];
     const got = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, `SELECT pending_artifacts FROM ${table} WHERE session_id = ${id} LIMIT 1`));
     const raw = got[0] && got[0].pending_artifacts;
-    const list = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const list = typeof raw === 'string' ? parseExactJson(raw) : raw;
     if (!Array.isArray(list)) return [];
     return list.filter((e) => e && typeof e === 'object' && PENDING_KINDS.includes(e.kind))
       .map((e) => ({ kind: e.kind, use_case_id: e.use_case_id == null || e.use_case_id === '' ? null : String(e.use_case_id) }));

@@ -552,7 +552,7 @@ function validateImplementSpec(input, { shell = null, legacyAccess = '', impact 
   const chosen = {};
   for (const name of IMPLEMENT_OUTPUTS) chosen[name] = flagField(outputs[name], `outputs.${name}`, errors);
   if (!ownKey(spec, 'outputs')) chosen.dashboard = true;
-  // REQ-578: the Genie code notebook is an Implement output of its own; it builds nothing else, so it is never ticked beside another output.
+  // REQ-578: the Databricks AI notebook is an Implement output of its own; it builds nothing else, so it is never ticked beside another output.
   const notebookOnly = flagField(outputs[IMPLEMENT_NOTEBOOK], `outputs.${IMPLEMENT_NOTEBOOK}`, errors);
   if (notebookOnly && Object.values(chosen).some(Boolean)) errors.push(`the ${IMPLEMENT_OUTPUT_LABELS[IMPLEMENT_NOTEBOOK]} is written on its own: untick the other outputs or the ${IMPLEMENT_OUTPUT_LABELS[IMPLEMENT_NOTEBOOK]}`);
   // A rebuild keeps the experience the App already has (appExperience, read from its live build); a new build starts classic.
@@ -2238,11 +2238,11 @@ function implementSettingsOwnerRefusal(before, requester) {
   return { status: 403, message: IMPLEMENT_SETTINGS_OWNERS.replace('{live}', String(before.spec_version)) };
 }
 
-// REQ-578: a version whose only output is the Genie code notebook builds nothing else, so it is no built version to diff against.
+// REQ-578: a version whose only output is the Databricks AI notebook builds nothing else, so it is no built version to diff against.
 function implementNotebookOnlyRow(row) {
   let spec = row && row.spec_json;
   if (typeof spec === 'string') {
-    try { spec = JSON.parse(spec); } catch (e) { return false; }
+    try { spec = parseExactJson(spec); } catch (e) { return false; }
   }
   return Boolean(spec && isPlainObject(spec.outputs) && spec.outputs[IMPLEMENT_NOTEBOOK] === true);
 }

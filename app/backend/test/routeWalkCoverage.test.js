@@ -180,7 +180,7 @@ test('every person route takes its token through requireToken, so its declared i
     'GET /api/inspire/implement/table-lookup', 'GET /api/inspire/implement/values', 'GET /api/inspire/value/answers', 'GET /api/tables/:catalog/:schema',
     'GET /api/workspace/export', 'GET /api/workspace/list', 'GET /api/workspace/status', 'POST /api/access-request', 'POST /api/access-request/check',
     'POST /api/data-management/columns', 'POST /api/grouping/profile', 'POST /api/inspire/implement/create-schema', 'POST /api/inspire/implement/grant-access', 'POST /api/inspire/implement/group-counts',
-    'POST /api/inspire/implement/readiness', 'POST /api/inspire/implement/swaps', 'POST /api/inspire/value/case-plan', 'POST /api/inspire/value/estimate',
+    'POST /api/inspire/implement/readiness', 'POST /api/inspire/implement/swaps', 'POST /api/inspire/plan/sort', 'POST /api/inspire/value/case-plan', 'POST /api/inspire/value/estimate',
     'POST /api/inspire/value/filter', 'POST /api/inspire/value/scope', 'POST /api/money/currency-rates', 'POST /api/money/rate-sample',
     'POST /api/money/value-preview', 'POST /api/relationships', 'PUT /api/inspire/value/answers'], 'the person routes');
   assert.deepEqual(person.filter((key) => !/^\s*,\s*(rejectUnsafeQueryPath\s*,\s*)?requireToken\b/.test(tails.get(key))), []);

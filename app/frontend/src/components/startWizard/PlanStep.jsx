@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PLAN_STAGES, planFinding } from '../../lib/startWizard';
 import { sortTables } from '../../lib/wizPlanClient';
+import { PlainMessage } from '../TechnicalDetails';
 
 const STAGE_MS = 4000;
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -77,7 +78,7 @@ export default function PlanStep({ draft, setDraft, settings, apiFetch, onReady 
       {loading && <Progress business={business} />}
       {!loading && error && (
         <div role="alert" className="space-y-2">
-          <p className="text-sm text-red-600">{error}</p>
+          <PlainMessage text={error} className="text-sm text-error-fg" />
           <button type="button" onClick={sort} className="rounded-lg border border-border px-3 py-1.5 text-sm">Sort again</button>
         </div>
       )}

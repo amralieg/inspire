@@ -118,7 +118,7 @@ export default function MatchResultsPanel({ settings, sessionId, apiFetch }) {
       {accepted && <p className="text-sm text-success-fg">{accepted}</p>}
       {reports.length > 0 && (
         <button type="button" disabled={saving || match.state === 'running'} onClick={accept}
-          className="rounded-lg bg-db-red px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{MATCH_ACCEPT}</button>
+          className="rounded-lg bg-db-red-solid px-4 py-2 text-sm font-medium text-white hover:bg-db-red-solid-hover disabled:opacity-50">{MATCH_ACCEPT}</button>
       )}
     </section>
   );

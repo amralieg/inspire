@@ -654,7 +654,7 @@ function registerImplementRoutes(app, deps) {
       const refused = await U.runReadRefusal(dbFetch, req, { tables: await useCasesTables(req, warehouse_id, catalog, schema, sidStr, safeIds) });
       if (refused) return PM_ERROR.sendFailure(res, refused.status, refused.message, { unreadable: refused.unreadable });
 
-      // REQ-578: the Genie code notebook is the Implement output "notebook": one Implement version per use case, built by the Implement job.
+      // REQ-578: the Databricks AI notebook is the Implement output "notebook": one Implement version per use case, built by the Implement job.
       const person = await personOf(req);
       const started = [];
       for (const useCaseId of safeIds) {
