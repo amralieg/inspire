@@ -22,15 +22,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from v101_pull_ucs import _rows_to_dicts  # noqa: E402
-from v101_swarm_launch import BASE_WIDGETS, _mint_session_id  # noqa: E402
+from v101_swarm_launch import BASE_WIDGETS as _SWARM_WIDGETS, _mint_session_id  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[3]
 NOTEBOOK_REPO_PATH = "app/agent/agent/dbx_inspire_ai_agent.ipynb"
 TERMINAL = ("TERMINATED", "SKIPPED", "INTERNAL_ERROR")
 POLL_SEC = 60
+# The swarm base carries widgets the notebook no longer declares (09, 19_run_mode, 20) and swarm-era 04/05 defaults.
+BASE_WIDGETS = {**{k: v for k, v in _SWARM_WIDGETS.items() if k not in ("09_generation_options", "19_run_mode", "20_inject_adversarial")},
+                "04_table_election": "Let Inspire Decides", "05_use_cases_quality": "Good"}
 # manifest scope widget aliases -> notebook widget names (keys starting with a digit pass through)
 ALIASES = {
-    "business_context": "06_business_domains",
+    "business_context": "10_strategic_context",
     "priorities": "07_business_priorities",
     "generation_instructions": "08_generation_instructions",
     "quality_mode": "05_use_cases_quality",
