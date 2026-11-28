@@ -74,6 +74,20 @@ export function stepCategory(status, live) {
   return ENDED_CATEGORY[String(status || '')] || (live ? 'running' : 'open');
 }
 
+/** One stage of the Every step dialog. A skipped step is settled like success and warning; an all-skipped stage reads 'skipped'. */
+export function stageProgressOf(steps, live) {
+  const list = Array.isArray(steps) ? steps : [];
+  const cats = list.map((s) => stepCategory(s?.status, live));
+  const total = list.length;
+  const settled = cats.filter((c) => c === 'success' || c === 'warning' || c === 'skipped').length;
+  let state = 'waiting';
+  if (cats.includes('error')) state = 'error';
+  else if (cats.includes('running')) state = 'running';
+  else if (total > 0 && cats.every((c) => c === 'skipped')) state = 'skipped';
+  else if (total > 0 && settled === total) state = 'done';
+  return { state, settled, total, percent: total ? Math.round((settled / total) * 100) : 0 };
+}
+
 const stepEnded = (step) => Object.hasOwn(ENDED_CATEGORY, String(step?.status || ''));
 
 function eventAt(step) {

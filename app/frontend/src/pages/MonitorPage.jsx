@@ -36,7 +36,7 @@ import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
 import { qualityBarCountText } from '../lib/qualityBarWording';
 import { newSessionId, runResultText, runStateText } from '../lib/runState';
 import { liveUseCasesOf } from '../lib/liveUseCases';
-import { candidatesWanted, fetchCandidates } from '../lib/candidates';
+import { candidatesDropped, candidatesWanted, fetchCandidates } from '../lib/candidates';
 import MatchMonitorBoxes from '../components/match/MatchMonitorBoxes';
 import { useFollowEnd } from '../lib/followEnd';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
@@ -193,9 +193,10 @@ export default function MonitorPage({ settings, sessionId, runId, launchNotes = 
             } catch { /* steps table might not exist */ }
 
             // REQ-581 U3: provisional cards for the candidates the run has made eligible; only while the run is live.
-            if (!showcase && !sessionFinished(sess) && candidatesWanted(stepsRef.current)) {
+            const candidateState = { runFailed: runEndedBadly(currentRunInfo), finished: sessionFinished(sess) };
+            if (!showcase && !candidateState.finished && candidatesWanted(stepsRef.current, candidateState)) {
               try { setCandidates(await fetchCandidates(apiFetch, { inspireDatabase, warehouseId, sessionId: sid })); } catch { /* no candidate table or route yet */ }
-            } else if (sessionFinished(sess)) setCandidates([]);
+            } else if (candidatesDropped(stepsRef.current, candidateState)) setCandidates([]);
 
             if (sess.processing_status === 'ready' && !showcase) {
               try {
