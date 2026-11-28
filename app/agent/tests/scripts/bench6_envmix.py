@@ -142,6 +142,8 @@ def grade(key, labels):
         else:
             prod_total += 1
             got = (row or {}).get("label")
+            if schema_env.get(t["fqn"].rsplit(".", 1)[0]) == "dev" or (row or {}).get("env") == "dev":
+                got = "excluded as dev"
             if got == t["role"]:
                 prod_hit += 1
             else:
