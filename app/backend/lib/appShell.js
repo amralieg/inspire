@@ -3,13 +3,11 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const { parseExactJson } = require('./exactJson');
-const { APP_DIR, BACKEND_DIR } = require('./appPaths');
+const { APP_DIR } = require('./appPaths');
 
 const NOTEBOOK_FILE = 'inspire_lib.py';
-const NOTEBOOK_CANDIDATES = [
-  path.join(APP_DIR, NOTEBOOK_FILE),
-  path.join(BACKEND_DIR, NOTEBOOK_FILE),
-];
+// Only the App folder: it is the one place the App zip ships inspire_lib.py to.
+const NOTEBOOK_CANDIDATES = [path.join(APP_DIR, NOTEBOOK_FILE)];
 const APP_SHELL_CELL = 1;
 const ASSET_PINS_NAME = 'INSPIRE_NOTEBOOK_ASSETS';
 const ASSET_PINS_CONSTANT = `${ASSET_PINS_NAME} = `;

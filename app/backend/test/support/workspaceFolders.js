@@ -40,7 +40,7 @@ function folderAnswer(model, { method, pathname, searchParams, body, token }, wr
       if (model.folders[p].hidden) return [403, { error_code: 'PERMISSION_DENIED', message: 'denied' }];
       return [200, { object_type: model.folders[p].type || 'DIRECTORY', object_id: model.folders[p].id, path: p }];
     }
-    if (model.notebookPresent && p.includes('dbx_inspire_ai_agent')) return [200, { object_type: 'NOTEBOOK', path: p }];
+    if (model.notebookPresent && /dbx_inspire_ai_agent|inspire_discover|inspire_generate/.test(p)) return [200, { object_type: 'NOTEBOOK', path: p }];
     if (model.notebookPresent || Object.keys(model.folders).some((f) => p.startsWith(`${f}/`) || f.startsWith(`${p}/`) || p === '/')) {
       return p === '/' ? [200, { object_type: 'DIRECTORY', object_id: 0, path: '/' }] : [404, { error_code: 'RESOURCE_DOES_NOT_EXIST', message: `${p} does not exist` }];
     }

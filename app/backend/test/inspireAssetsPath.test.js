@@ -118,7 +118,7 @@ test('the agent notebook path comes from NOTEBOOK_PATH, which the installer writ
     const echo = async (host, token, path) => path;
     assert.equal(await resolveInspireNotebookPath('host', 'token', { resolveWorkspaceNotebookObjectPath: echo }), '/Users/someone@example.com/inspire-ai/inspire-ai/dbx_inspire_ai_agent');
     delete process.env.NOTEBOOK_PATH;
-    assert.equal(await resolveInspireNotebookPath('host', 'token', { resolveWorkspaceNotebookObjectPath: echo }), '/Shared/inspire-ai/dbx_inspire_ai_agent');
+    assert.equal(await resolveInspireNotebookPath('host', 'token', { resolveWorkspaceNotebookObjectPath: echo }), '/Shared/inspire-ai/inspire_discover');
   } finally {
     if (saved === undefined) delete process.env.NOTEBOOK_PATH;
     else process.env.NOTEBOOK_PATH = saved;

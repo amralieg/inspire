@@ -35,6 +35,7 @@ const {
   sanitizeInspireNotebookJobParams,
   normalizeV130UseCaseFields,
   agentNotebookFor,
+  isInspireDefaultNotebook,
 } = require('./lib/inspireJobParams');
 const JC = require('./lib/jobCurrency');
 const { notebookParamsFromSessionForGenerateRun } = require('./lib/inspireSessionParams');
@@ -198,7 +199,8 @@ const { NOTEBOOK_CANDIDATES } = require('./lib/appShell');
 const { publishAgent, agentFingerprint, agentFolderOf } = require('./lib/agentPublish');
 const { AGENT_NOTEBOOKS } = require('./lib/inspireJobParams');
 // The App ships the split agent itself (no embedded copy); the preview routes read the Discover notebook. When it is missing they answer "not found" and name the path.
-const BUNDLED_NOTEBOOK_PATH = path.join(APP_DIR, `${AGENT_NOTEBOOKS.discover}.ipynb`);
+const BUNDLED_NOTEBOOK_FILE = 'inspire_discover.ipynb';
+const BUNDLED_NOTEBOOK_PATH = path.join(APP_DIR, BUNDLED_NOTEBOOK_FILE);
 const IS_IPYNB = true;
 
 // ═══════════════════════════════════════════════════
@@ -1071,7 +1073,8 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
   }
 
   // One notebook per agent: keep the folder of the chosen notebook, swap its name for the one this job type runs.
-  resolvedPath = `${resolvedPath.split('/').slice(0, -1).join('/')}/${agentNotebookFor({ jobType, operation: params['15_operation'] })}`;
+  // A notebook the person or installer named explicitly (not an Inspire default name) is never rewritten.
+  if (isInspireDefaultNotebook(resolvedPath)) resolvedPath = `${resolvedPath.split('/').slice(0, -1).join('/')}/${agentNotebookFor({ jobType, operation: params['15_operation'] })}`;
   try {
     const verified = await resolveWorkspaceNotebookObjectPath(host, token, resolvedPath);
     if (verified) resolvedPath = verified;

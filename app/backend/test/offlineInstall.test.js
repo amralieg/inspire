@@ -127,18 +127,20 @@ test('start.sh runs the bundle with no node_modules and no internet, and every f
   }
 });
 
-test('without the .ipynb the App starts, says it has no agent notebook and writes none', async () => {
+test('without the agent files the App starts, says it has no agent notebook and writes none', async () => {
+  // REQ-586: the App ships three agent files; the behaviour holds with all three missing.
   const dir = extracted('fallback');
-  const original = fs.readFileSync(path.join(dir, 'dbx_inspire_ai_agent.ipynb'));
-  fs.rmSync(path.join(dir, 'dbx_inspire_ai_agent.ipynb'));
+  const agentFiles = ['inspire_discover.ipynb', 'inspire_generate.ipynb', 'inspire_lib.py'];
+  const originals = agentFiles.map((f) => fs.readFileSync(path.join(dir, f)));
+  for (const f of agentFiles) fs.rmSync(path.join(dir, f));
   const app = await startInspire(NO_INTERNET, { command: ['bash', 'start.sh'], cwd: dir });
   try {
     assert.equal(JSON.parse((await read(app.url, '/api/health', SIGNED_IN)).body).hasBundledDbc, false);
-    assert.equal(fs.existsSync(path.join(dir, 'backend', 'dbx_inspire_ai_agent.ipynb')), false, 'no notebook is written from a hidden copy');
+    for (const f of agentFiles) assert.equal(fs.existsSync(path.join(dir, 'backend', f)), false, `no ${f} is written from a hidden copy`);
   } finally {
     await app.stop();
   }
-  assert.ok(original.length > 1000000, 'the shipped notebook is the one real copy');
+  assert.ok(originals[2].length > 1000000, 'the shipped inspire_lib.py is the one real copy of the agent code');
 });
 
 test('start.sh stops with one plain message when the bundle is missing', () => {
