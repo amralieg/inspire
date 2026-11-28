@@ -1,6 +1,6 @@
 """c51 (REQ-586): the installer publishes the split agent (two thin notebooks plus inspire_lib.py) instead of one notebook.
 
-Fail-first acceptance tests T-NB2-04..T-NB2-06 (installer and release side). The real split files are not on the base, so every
+Fail-first acceptance tests T-NB2-04 (installer) and T-NB2-05 (release); T-NB2-06 (App publish) is backend/test/c51AgentPublish.test.js. The real split files are not on the base, so every
 test builds small stand-ins in a temp folder: inspire_discover.ipynb and inspire_generate.ipynb each bind
 INSPIRE_LIB_SHA256 = "<sha256 of inspire_lib.py>" in a code cell, and inspire_lib.py carries the agent constants
 (__AGENT_VERSION__, INSPIRE_NOTEBOOK_ASSETS with the result_history pin, IMPLEMENT_LAKEBASE_*). The builder never edits this file.
@@ -174,6 +174,7 @@ class InstallerPublishesTheSplitAgent(unittest.TestCase):
         lib = lib_source()
         imports, calls, ctx, error, printed = run_step(agent_files(lib=lib, pins=(sha(lib), "0" * 64)))
         self.assertIsNotNone(error, "the installer published notebooks that pin different libs")
+        self.assertRegex(str(error), r"INSPIRE_LIB_SHA256", "the refusal names the pin, not a missing file")
         self.assertEqual([p for p in imports if p.rsplit("/", 1)[-1] in NOTEBOOKS + (LIB,)], [])
 
     def test_the_installer_reads_the_agent_constants_from_the_split_files(self):
