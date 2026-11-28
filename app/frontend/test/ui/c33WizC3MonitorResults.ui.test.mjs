@@ -14,9 +14,13 @@ test.after(closeBrowser);
 const errors = (ui) => ui.pageErrors.filter((line) => !/status of 40[13]/.test(line));
 const SESSION = { session_id: '42', business_name: 'Example Co', processing_status: 'running', completed_percent: 40, create_at: '2026-11-28T09:00:00Z' };
 const RUNNING = { state: 'running', inputs: MATCH_PROGRESS_INPUTS, reports: [], decisions: [] };
+// The Monitor reads the run's job (GET /api/run/777); the harness answers it so a missing route is not a console 404.
+const RUN_READ = { status: 200, body: { run_id: 777, life_cycle_state: 'RUNNING', tasks: [] } };
+// The Stop control asks GET /api/run/777/cancel whether this person may stop the run; answer it the way the backend does.
+const MONITOR = { mount: (app) => app.get('/api/run/:runId/cancel', (_req, res) => res.json({ allowed: true })) };
 
 test('REQ-579: the Monitor of a Match run shows every input use case in a box with its match progress (must-fail on the base)', async () => {
-  const ui = await openUi('monitor', { inspireSession: SESSION, runSteps: MATCH_STEP_ROWS, matchResult: RUNNING });
+  const ui = await openUi('monitor', { runRead: RUN_READ, inspireSession: SESSION, runSteps: MATCH_STEP_ROWS, matchResult: RUNNING }, '', MONITOR);
   const { page } = ui;
   try {
     const boxes = page.locator('[data-match-box]');
@@ -34,14 +38,14 @@ test('REQ-579: the Monitor of a Match run shows every input use case in a box wi
 });
 
 test('REQ-579: before any step row every box is Waiting; a run that is not a Match run shows no boxes (must-fail on the base)', async () => {
-  const waiting = await openUi('monitor', { inspireSession: SESSION, runSteps: [], matchResult: RUNNING });
+  const waiting = await openUi('monitor', { runRead: RUN_READ, inspireSession: SESSION, runSteps: [], matchResult: RUNNING }, '', MONITOR);
   try {
     const boxes = waiting.page.locator('[data-match-box]');
     await boxes.first().waitFor({ timeout: 20000 });
     assert.deepEqual((await waiting.page.locator('[data-match-status]').allInnerTexts()).map((t) => t.trim()), Array(5).fill('Waiting'));
     assert.deepEqual(errors(waiting), []);
   } finally { await waiting.close(); }
-  const plain = await openUi('monitor', { inspireSession: SESSION, runSteps: [] });
+  const plain = await openUi('monitor', { runRead: RUN_READ, inspireSession: SESSION, runSteps: [] }, '', MONITOR);
   try {
     await plain.page.waitForTimeout(3000);
     assert.equal(await plain.page.locator('[data-match-box]').count(), 0, 'match/result state none: no boxes');
