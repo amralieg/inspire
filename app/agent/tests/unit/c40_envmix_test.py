@@ -101,3 +101,15 @@ def test_5_cli_gate_exits_1_below_the_minimum(tmp_path):
 def test_6_no_industry_words():
     text = SCRIPT.read_text().lower()
     assert not [w for w in BANNED if re.search(r"\b%s\b" % w, text)]
+
+
+def test_7_a_prod_table_excluded_as_dev_is_a_miss_even_with_the_right_role():
+    m = _mod()
+    key = m.build_key(CAT, PFX)
+    prod_schema = next(s["fqn"] for s in key["schemas"] if s["env"] == "prod")
+    victim = next(t for t in key["tables"] if t["env"] == "prod" and t["fqn"].startswith(prod_schema + "."))
+    wrong_schema = [dict(r, env="dev") if r["object_fqn"] == prod_schema else r for r in _perfect_labels(key)]
+    assert m.grade(key, wrong_schema)["role_accuracy"] < 1.0
+    wrong_table = [dict(r, env="dev") if r["object_fqn"] == victim["fqn"] else r for r in _perfect_labels(key)]
+    report = m.grade(key, wrong_table)
+    assert report["role_accuracy"] < 1.0 and victim["fqn"] in {miss["fqn"] for miss in report["misses"]}
