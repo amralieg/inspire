@@ -8,8 +8,18 @@ const NOT_PART = 'Not part of this demo.';
 const ALL = S.loadShowcases();
 const without = (answers, route) => Object.fromEntries(Object.entries(answers).filter(([key]) => key.replace(/\?.*$/, '').replace(/ \{.*$/, '') !== route));
 
-function demoBundle(id, mvpApi) {
-  return { version: 1, id, title: id, business: id, session_id: '1001', summary: '', inspire: ALL['kinds-retail'].inspire, mvps: { N01: { title: 'Lapse call list', api: mvpApi } } };
+const pageOf = (mvp) => mvp.toLowerCase().replace(/-/g, '_');
+const routesOf = (api) => new Set(Object.keys(api).map((key) => key.replace(/\?.*$/, '').replace(/ \{.*$/, '')));
+const FULL = ['POST /api/my_work', 'GET /api/impact', 'GET /api/runs'];
+// the first recorded kinds MVP that holds My work, Impact and Runs
+const KIND_MVP = Object.keys(ALL['kinds-retail'].mvps).find((id) => FULL.every((r) => routesOf(ALL['kinds-retail'].mvps[id].api).has(r)));
+const KIND_API = ALL['kinds-retail'].mvps[KIND_MVP].api;
+const firstMvp = (id) => Object.keys(ALL[id].mvps)[0];
+
+// a copy of a recorded demo whose first MVP answers `mvpApi` instead of what it recorded
+function demoBundle(id, mvpApi, mvp = firstMvp(id)) {
+  const real = ALL[id];
+  return { ...real, mvps: { [mvp]: { ...real.mvps[mvp], api: mvpApi } } };
 }
 
 async function serve(bundles) {
@@ -28,18 +38,18 @@ async function call(base, method, url, body) {
 }
 
 const app = (base, id, mvp) => call(base, 'GET', `/showcase/${id}/mvp/${mvp}/api/app`);
-const myWork = (base, id, mvp, window = 'week') => call(base, 'POST', `/showcase/${id}/mvp/${mvp}/api/my_work`, { page: 'n01_u01', window });
+const myWork = (base, id, mvp, window = 'week') => call(base, 'POST', `/showcase/${id}/mvp/${mvp}/api/my_work`, { page: pageOf(mvp), window });
 
 test('kinds-retail keeps every screen and its My work periods, answered from the recording', async () => {
   const { srv, close } = await serve([ALL['kinds-retail']]);
   try {
-    const shell = (await app(srv.url, 'kinds-retail', 'N01-U01')).data;
+    const shell = (await app(srv.url, 'kinds-retail', KIND_MVP)).data;
     assert.equal(shell.screens.performance, true);
     assert.equal(shell.screens.impact, true);
     assert.equal(shell.screens.runs, true);
     assert.equal(shell.screens.feedback, undefined);
     for (const window of ['today', 'week', 'month', 'all']) {
-      const work = await myWork(srv.url, 'kinds-retail', 'N01-U01', window);
+      const work = await myWork(srv.url, 'kinds-retail', KIND_MVP, window);
       assert.equal(work.status, 200, window);
       assert.ok(work.data.pages, window);
     }
@@ -50,11 +60,12 @@ test('kinds-retail keeps every screen and its My work periods, answered from the
 
 for (const id of ['nyctaxi', 'tpcds-retail']) {
   test(`${id}: a demo MVP without a recorded My work route hides My work and never answers it with a 404 page`, async () => {
-    const { srv, close } = await serve([demoBundle(id, without(ALL['kinds-retail'].mvps['N01-U01'].api, 'POST /api/my_work'))]);
+    const mvp = firstMvp(id);
+    const { srv, close } = await serve([demoBundle(id, without(ALL[id].mvps[mvp].api, 'POST /api/my_work'))]);
     try {
-      const shell = (await app(srv.url, id, 'N01')).data;
+      const shell = (await app(srv.url, id, mvp)).data;
       assert.equal(shell.screens.performance, false);
-      const work = await myWork(srv.url, id, 'N01');
+      const work = await myWork(srv.url, id, mvp);
       assert.equal(work.status, 404);
       assert.equal(work.data.error, NOT_PART);
       assert.equal(work.data.showcase, true);
@@ -65,11 +76,11 @@ for (const id of ['nyctaxi', 'tpcds-retail']) {
 }
 
 test('a demo MVP without recorded Impact, Runs, Feedback or Alerts hides those sections', async () => {
-  const api = without(without(without(without(ALL['kinds-retail'].mvps['N01-U01'].api, 'GET /api/impact'), 'GET /api/runs'), 'GET /api/feedback'), 'GET /api/alerts');
-  const bundle = demoBundle('bare', { ...api, 'GET /api/app': { status: 200, body: { ...api['GET /api/app'].body, alerting: { on: true } } } });
+  const api = without(without(without(without(ALL['kinds-retail'].mvps[KIND_MVP].api, 'GET /api/impact'), 'GET /api/runs'), 'GET /api/feedback'), 'GET /api/alerts');
+  const bundle = demoBundle('kinds-retail', { ...api, 'GET /api/app': { status: 200, body: { ...api['GET /api/app'].body, alerting: { on: true } } } }, KIND_MVP);
   const { srv, close } = await serve([bundle]);
   try {
-    const shell = (await app(srv.url, 'bare', 'N01')).data;
+    const shell = (await app(srv.url, 'kinds-retail', KIND_MVP)).data;
     assert.equal(shell.screens.impact, false);
     assert.equal(shell.screens.runs, false);
     assert.equal(shell.screens.feedback, false);
@@ -81,11 +92,28 @@ test('a demo MVP without recorded Impact, Runs, Feedback or Alerts hides those s
 });
 
 test('gatedApp leaves an app whose recording holds every route exactly as recorded', () => {
-  const body = ALL['kinds-retail'].mvps['N01-U01'].api['GET /api/app'].body;
-  assert.deepEqual(S.gatedApp(body, ALL['kinds-retail'].mvps['N01-U01'].api), body);
+  const body = ALL['kinds-retail'].mvps[KIND_MVP].api['GET /api/app'].body;
+  assert.deepEqual(S.gatedApp(body, ALL['kinds-retail'].mvps[KIND_MVP].api), body);
 });
 
-test('the real recordings: nyctaxi and tpcds carry no MVP, so no My work is offered from them', () => {
-  assert.deepEqual(ALL.nyctaxi.mvps, {});
-  assert.deepEqual(ALL['tpcds-retail'].mvps, {});
-});
+for (const id of ['nyctaxi', 'tpcds-retail']) {
+  test(`${id}: its MVPs offer My work only when the recording has it, and every My work screen they offer answers from the recording`, async () => {
+    const { srv, close } = await serve([ALL[id]]);
+    try {
+      assert.ok(Object.keys(ALL[id].mvps).length > 0, `${id} carries an MVP App`);
+      for (const [mvp, { api }] of Object.entries(ALL[id].mvps)) {
+        const recorded = routesOf(api).has('POST /api/my_work');
+        const shell = (await app(srv.url, id, mvp)).data;
+        assert.equal(shell.screens.performance, recorded, `${id}/${mvp} offers My work exactly when it is recorded`);
+        if (!recorded) continue;
+        for (const window of ['today', 'week', 'month', 'all']) {
+          const work = await myWork(srv.url, id, mvp, window);
+          assert.equal(work.status, 200, `${id}/${mvp} ${window}: ${JSON.stringify(work.data).slice(0, 120)}`);
+          assert.ok(work.data.pages, `${id}/${mvp} ${window}`);
+        }
+      }
+    } finally {
+      await close();
+    }
+  });
+}
