@@ -515,6 +515,7 @@ def test_g2_duplicate_tie_break_uses_the_inspire_score_once_scored(ns):
     assert [u["No"] for u in kept] == ["A"]
 
 
+# REQ-569 (77ff9abfd): generated use case ids are AIxx-UCxx; the expected ids below follow that format, the orderings are unchanged.
 def test_provisional_ids_follow_the_generation_ids_without_any_score(ns):
     obj = make_inspire(ns)
 
@@ -525,7 +526,7 @@ def test_provisional_ids_follow_the_generation_ids_without_any_score(ns):
 
     out = obj._assign_provisional_ids(generated())
     assert [(u["No"], u["Business Domain"], u["Priority"]) for u in out] == [
-        ("N01-U01", "Ops", 0.0), ("N01-U02", "Ops", 9.9), ("N02-U01", "Sales", 9.5)]
+        ("AI01-UC01", "Ops", 0.0), ("AI01-UC02", "Ops", 9.9), ("AI02-UC01", "Sales", 9.5)]
     shuffled = obj._assign_provisional_ids(list(reversed(generated())))
     assert [(u["No"], u["Priority"]) for u in shuffled] == [(u["No"], u["Priority"]) for u in out], \
         "parallel batch completion order never changes the provisional ids"
@@ -535,7 +536,7 @@ def test_number_by_domain_keeps_the_given_order_within_each_domain(ns):
     obj = make_inspire(ns)
     ucs = [{"No": "x", "Business Domain": "Ops"}, {"No": "y", "Business Domain": ""}, {"No": "z", "Business Domain": "Ops"}]
     assert [(u["No"], u["Business Domain"]) for u in obj._number_by_domain(ucs)] == [
-        ("N01-U01", "Ops"), ("N01-U02", "Ops"), ("N02-U01", "")]
+        ("AI01-UC01", "Ops"), ("AI01-UC02", "Ops"), ("AI02-UC01", "")]
 
 
 # ---------------------------------------------------------------- 5. final rank renumber in every mode
@@ -544,7 +545,7 @@ def test_number_by_domain_keeps_the_given_order_within_each_domain(ns):
 @pytest.mark.parametrize("mode, acceptable", [("Good", GOOD), ("High", {"High", "Very High", "Ultra High"})])
 def test_good_and_high_final_list_is_renumbered_in_final_rank_order(agent_ns, tmp_path, quiet_root_logger,
                                                                     mode, acceptable):
-    priorities = {"N01-U01": 5.0, "N01-U02": 9.0, "N02-U01": 6.0, "N02-U02": 8.0}
+    priorities = {"AI01-UC01": 5.0, "AI01-UC02": 9.0, "AI02-UC01": 6.0, "AI02-UC02": 8.0}
 
     def scorer(uc_id):
         return dict(_scored(uc_id), priority_score=priorities[uc_id])
@@ -552,12 +553,12 @@ def test_good_and_high_final_list_is_renumbered_in_final_rank_order(agent_ns, tm
     obj = _build(agent_ns, tmp_path, mode, acceptable, scorer)
     obj.run()
     final = obj.recorded["tracking"][-1]
-    assert [u["No"] for u in final] == ["N01-U01", "N01-U02", "N02-U01", "N02-U02"]
+    assert [u["No"] for u in final] == ["AI01-UC01", "AI01-UC02", "AI02-UC01", "AI02-UC02"]
     scores = [u["Inspire Score"] for u in final]
-    assert scores[0] == max(scores), "N01-U01 is the best-ranked use case"
+    assert scores[0] == max(scores), "AI01-UC01 is the best-ranked use case"
     assert [u["Priority"] for u in final] == [9.0, 5.0, 8.0, 6.0]
-    domain_of = {u["No"][:3]: u["Business Domain"] for u in final}
-    assert domain_of["N01"] != domain_of["N02"]
+    domain_of = {u["No"][:4]: u["Business Domain"] for u in final}
+    assert domain_of["AI01"] != domain_of["AI02"]
     for uc in final:
         assert uc["No"].lower().replace("-", "_") in uc["result_table"], "result_table is named after the final id"
 

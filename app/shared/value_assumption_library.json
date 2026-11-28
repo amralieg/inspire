@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "about": "Cited, versioned ranges for value assumptions, keyed by lever x pattern x parameter (never by industry). Each range is the one the cited source reports; bounds are a plausibility cap for owner-provided values. A library value is a labelled assumption, never a measurement.",
+  "entries": [
+    {
+      "id": "LIB-REV-DECIDE-OPTIMIZE-EFFECT",
+      "version": 1,
+      "lever": "revenue",
+      "pattern": "decide_optimize",
+      "parameter": "effect",
+      "unit": "share",
+      "low": 0.05,
+      "base": 0.055,
+      "high": 0.06,
+      "bounds": {
+        "min": 0.0,
+        "max": 0.2
+      },
+      "citation": {
+        "title": "Strength in Numbers: How Does Data-Driven Decisionmaking Affect Firm Performance?",
+        "publisher": "SSRN (Brynjolfsson, Hitt and Kim)",
+        "year": 2011,
+        "url": "https://doi.org/10.2139/ssrn.1819486"
+      }
+    },
+    {
+      "id": "LIB-CAP-TEXT-AGENTS-EFFECT-SUPPORT",
+      "version": 1,
+      "lever": "capacity",
+      "pattern": "text_agents",
+      "parameter": "effect",
+      "unit": "share",
+      "low": 0.14,
+      "base": 0.14,
+      "high": 0.34,
+      "bounds": {
+        "min": 0.0,
+        "max": 0.5
+      },
+      "citation": {
+        "title": "Generative AI at Work",
+        "publisher": "NBER Working Paper 31161 (Brynjolfsson, Li and Raymond)",
+        "year": 2023,
+        "url": "https://www.nber.org/papers/w31161"
+      }
+    },
+    {
+      "id": "LIB-CAP-TEXT-AGENTS-EFFECT-WRITING",
+      "version": 1,
+      "lever": "capacity",
+      "pattern": "text_agents",
+      "parameter": "effect",
+      "unit": "share",
+      "low": 0.4,
+      "base": 0.4,
+      "high": 0.4,
+      "bounds": {
+        "min": 0.0,
+        "max": 0.6
+      },
+      "citation": {
+        "title": "Experimental evidence on the productivity effects of generative artificial intelligence",
+        "publisher": "Science (Noy and Zhang)",
+        "year": 2023,
+        "url": "https://doi.org/10.1126/science.adh2586"
+      }
+    },
+    {
+      "id": "LIB-CAP-TEXT-AGENTS-EFFECT-KNOWLEDGE",
+      "version": 1,
+      "lever": "capacity",
+      "pattern": "text_agents",
+      "parameter": "effect",
+      "unit": "share",
+      "low": 0.251,
+      "base": 0.251,
+      "high": 0.251,
+      "bounds": {
+        "min": 0.0,
+        "max": 0.5
+      },
+      "citation": {
+        "title": "Navigating the Jagged Technological Frontier: Field Experimental Evidence of the Effects of AI on Knowledge Worker Productivity and Quality",
+        "publisher": "Harvard Business School and BCG, via SSRN (Dell'Acqua et al.)",
+        "year": 2023,
+        "url": "https://doi.org/10.2139/ssrn.4573321"
+      }
+    },
+    {
+      "id": "LIB-CAP-RUN-PROCESSES-EFFECT",
+      "version": 1,
+      "lever": "capacity",
+      "pattern": "run_processes",
+      "parameter": "effect",
+      "unit": "share",
+      "low": 0.558,
+      "base": 0.558,
+      "high": 0.558,
+      "bounds": {
+        "min": 0.0,
+        "max": 0.8
+      },
+      "citation": {
+        "title": "The Impact of AI on Developer Productivity: Evidence from GitHub Copilot",
+        "publisher": "arXiv (Peng et al.)",
+        "year": 2023,
+        "url": "https://arxiv.org/abs/2302.06590"
+      }
+    },
+    {
+      "id": "LIB-NF-MEASURE-EXPLAIN-ADOPTION",
+      "version": 1,
+      "lever": "non_financial",
+      "pattern": "measure_explain",
+      "parameter": "adoption",
+      "unit": "share",
+      "low": 0.11,
+      "base": 0.3,
+      "high": 0.3,
+      "bounds": {
+        "min": 0.0,
+        "max": 1.0
+      },
+      "citation": {
+        "title": "The Rapid Adoption of Data-Driven Decision-Making",
+        "publisher": "American Economic Review: Papers and Proceedings (Brynjolfsson and McElheran)",
+        "year": 2016,
+        "url": "https://doi.org/10.1257/aer.p20161016"
+      }
+    }
+  ],
+  "cost_tiers": {
+    "currency": "USD",
+    "source": "exploratory",
+    "tiers": {
+      "S": {
+        "implementation": 25000,
+        "recurring_per_year": 5000
+      },
+      "M": {
+        "implementation": 80000,
+        "recurring_per_year": 20000
+      },
+      "L": {
+        "implementation": 250000,
+        "recurring_per_year": 60000
+      }
+    }
+  }
+}

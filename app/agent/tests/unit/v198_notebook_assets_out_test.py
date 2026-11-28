@@ -88,7 +88,9 @@ def test_no_notebook_copy_holds_the_app_shell_or_the_kind_registry_and_each_stay
 def test_every_notebook_copy_pins_the_repo_build_of_each_asset(agent_ns):
     embed = _embed()
     pins = agent_ns["INSPIRE_NOTEBOOK_ASSETS"]
-    assert set(pins) == {"app_shell", "fx_averages", "kinds", "prompts", "translations"}
+    # REQ-573 R12.5 added the cited value-assumption library; D-SIZE2 (REQ-298) moved the run-side result-history source out of the
+    # notebook into its own pinned asset, so the notebook keeps its headroom under the cap.
+    assert set(pins) == {"app_shell", "fx_averages", "kinds", "prompts", "result_history", "translations", "value_library"}
     assert pins == embed.pins()
     for label, text in _texts().items():
         line = next(item for item in json.loads(text)["cells"][1]["source"] if item.startswith("INSPIRE_NOTEBOOK_ASSETS = "))

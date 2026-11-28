@@ -253,6 +253,7 @@ def notebook_cells(path=None):
     for cell in nb.get("cells", []):
         src = cell.get("source", [])
         out.append((cell.get("cell_type"), "".join(src) if isinstance(src, list) else str(src)))
+    out = _with_result_history(out, nb, path)
     # The prompt templates left the notebook for the pinned prompts asset (notebook/prompts.json). They are appended as one
     # non-code cell after the notebook's own cells, so index-addressed readers keep their positions and text scanners still see them.
     if _pinned_assets_line(nb) is not None:
@@ -286,6 +287,31 @@ def asset_path(name, path=None):
     if line is None:
         raise AssertionError(f"{path or AGENT_NB} pins no notebook assets, so it has no {name!r} asset")
     return os.path.join(ROOT, json.loads(line[len("INSPIRE_NOTEBOOK_ASSETS = "):])[name]["repo"])
+
+
+RESULT_HISTORY_PLACEHOLDER = 'IMPLEMENT_RESULT_HISTORY_SOURCE = ""\n'
+RESULT_HISTORY_READ = 'IMPLEMENT_RESULT_HISTORY_SOURCE = inspire_notebook_asset("result_history")\n'
+
+
+def _with_result_history(cells, nb, path):
+    """D-SIZE2 (REQ-298): the run-side result-history source left the notebook for the pinned result_history asset.
+
+    Every reader of the implementation cell sees it as before: the placeholder line becomes the `IMPLEMENT_RESULT_HISTORY_SOURCE =
+    r'''<asset text>'''` literal and the asset read becomes a blank line, so the cell holds the source once, right before its exec.
+    A notebook that pins no result_history asset (one from before the move) is returned as it is.
+    """
+    line = _pinned_assets_line(nb)
+    if line is None or "result_history" not in json.loads(line[len("INSPIRE_NOTEBOOK_ASSETS = "):]):
+        return cells
+    with open(asset_path("result_history", path), encoding="utf-8", newline="") as fh:
+        text = fh.read()
+    out = list(cells)
+    kind, src = out[1]
+    if src.count(RESULT_HISTORY_PLACEHOLDER) != 1 or src.count(RESULT_HISTORY_READ) != 1:
+        raise AssertionError("cells[1] must bind IMPLEMENT_RESULT_HISTORY_SOURCE once to \"\" and once to the result_history asset")
+    out[1] = (kind, src.replace(RESULT_HISTORY_PLACEHOLDER, "IMPLEMENT_RESULT_HISTORY_SOURCE = r'''" + text + "'''\n")
+              .replace(RESULT_HISTORY_READ, "\n"))
+    return out
 
 
 def prompt_templates(path=None) -> dict:
