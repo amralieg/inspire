@@ -98,7 +98,7 @@ test('a run the App launches passes the assets path the installer wrote to app.y
   const run = await launchRun();
   assert.equal(run.status, 200, run.text);
   const [task] = run.created[0].body.tasks;
-  assert.equal(task.notebook_task.notebook_path, NOTEBOOK);
+  assert.equal(task.notebook_task.notebook_path, NOTEBOOK.replace('dbx_inspire_ai_agent', 'inspire_discover'));
   assert.equal(task.notebook_task.base_parameters.inspire_assets_path, ASSETS);
 });
 

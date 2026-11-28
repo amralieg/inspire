@@ -43,11 +43,28 @@ def agent_notebook(version=VERSION, pins=None):
     return json.dumps({"cells": cells, "metadata": {}, "nbformat": 4, "nbformat_minor": 5}).encode("utf-8")
 
 
+def agent_lib(version=VERSION, pins=None):
+    pin = f"INSPIRE_NOTEBOOK_ASSETS = {json.dumps(notebook_pins() if pins is None else pins)}\n"
+    return f'__AGENT_VERSION__ = "{version}"\n{pin}print(1)\n'.encode("utf-8")
+
+
+def agent_split(version=VERSION, pins=None, lib=None):
+    """The split agent: the two thin notebooks pin the sha256 of inspire_lib.py."""
+    lib = agent_lib(version, pins) if lib is None else lib
+    out = {"inspire_lib.py": lib}
+    for name in ("inspire_discover", "inspire_generate"):
+        cells = [{"cell_type": "markdown", "metadata": {}, "source": [f"# {name}"]},
+                 {"cell_type": "code", "metadata": {}, "source": [f'INSPIRE_LIB_SHA256 = "{sha(lib)}"\n', "print(1)"],
+                  "outputs": [], "execution_count": None}]
+        out[f"{name}.ipynb"] = json.dumps({"cells": cells, "metadata": {}, "nbformat": 4, "nbformat_minor": 5}).encode("utf-8")
+    return out
+
+
 def make_app_zip(path, version=VERSION, module=FAKE_MODULE, extra=None):
     files = {
         "app.yaml": b"command:\n  - \"bash\"\n",
         "backend/server.js": b"console.log('inspire')\n",
-        "dbx_inspire_ai_agent.ipynb": agent_notebook(version),
+        **agent_split(version),
         "dbx_generate_demo_data.py": b"# Databricks notebook source\nprint('demo')\n",
         "installer/inspire_setup.py": module.encode("utf-8"),
     }

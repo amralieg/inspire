@@ -19,7 +19,10 @@ APP_ZIP = "inspire-app.zip"
 ASSETS_TAR = "inspire-assets.tar"
 ASSETS_MANIFEST = "manifest.json"
 MODULE = "installer/inspire_setup.py"
-AGENT = "dbx_inspire_ai_agent.ipynb"
+AGENT_NOTEBOOKS = ("inspire_discover.ipynb", "inspire_generate.ipynb")
+AGENT_LIB = "inspire_lib.py"
+AGENT = AGENT_LIB
+LEGACY_AGENT = "dbx_inspire_" + "ai_agent"  # the retired single notebook, spelled in two parts so no shipped path names it
 UNZIP_FOLDER = "inspire-app"
 DEV_ONLY = ("installer/test/", "installer/release.py")
 STARTER_MIN_VERSION = 1
@@ -55,12 +58,30 @@ def tag_version(tag):
     return re.sub(r"-rc\.[0-9]+$", "", tag)
 
 
-def agent_source(archive):
-    names = [name for name in archive.namelist() if name.rsplit("/", 1)[-1] == AGENT]
+def agent_member(archive, file):
+    names = [name for name in archive.namelist() if name.rsplit("/", 1)[-1] == file]
     if len(names) != 1:
-        raise ReleaseFailure(f"{APP_ZIP} must hold one {AGENT}, it holds {len(names)}")
-    cells = json.loads(archive.read(names[0]).decode("utf-8")).get("cells") or []
-    return "\n".join("".join(c.get("source") or []) if isinstance(c.get("source"), list) else str(c.get("source") or "") for c in cells)
+        raise ReleaseFailure(f"{APP_ZIP} must hold one {file}, it holds {len(names)}")
+    return names[0]
+
+
+def agent_source(archive):
+    return archive.read(agent_member(archive, AGENT_LIB)).decode("utf-8")
+
+
+def agent_lib_pin(archive):
+    """sha256 of inspire_lib.py, which must be the INSPIRE_LIB_SHA256 both notebooks bind."""
+    if any(name.rsplit("/", 1)[-1].startswith(LEGACY_AGENT) for name in archive.namelist()):
+        raise ReleaseFailure(f"{APP_ZIP} still holds {LEGACY_AGENT}; the agent ships as {', '.join(AGENT_NOTEBOOKS)} and {AGENT_LIB}")
+    lib = hashlib.sha256(archive.read(agent_member(archive, AGENT_LIB))).hexdigest()
+    for notebook in AGENT_NOTEBOOKS:
+        cells = json.loads(archive.read(agent_member(archive, notebook)).decode("utf-8")).get("cells") or []
+        code = "\n".join("".join(c.get("source") or []) if isinstance(c.get("source"), list) else str(c.get("source") or "")
+                         for c in cells if c.get("cell_type") == "code")
+        pins = re.findall(r'^INSPIRE_LIB_SHA256 = "([0-9a-f]{64})"$', code, re.M)
+        if pins != [lib]:
+            raise ReleaseFailure(f"{notebook} in {APP_ZIP} pins INSPIRE_LIB_SHA256 {', '.join(pins) or 'nothing'}, {AGENT_LIB} is {lib}")
+    return lib
 
 
 def agent_version(archive):
@@ -196,6 +217,7 @@ def build(app_zip, assets, out, tag, starter_path=STARTER):
                            env={**os.environ, "ARTIFACT_ZIP": str(packed)})
         without_dev_files(packed, zip_path)
     with zipfile.ZipFile(zip_path) as archive:
+        agent_lib_pin(archive)
         version = agent_version(archive)
         pinned = notebook_assets(archive)
         module = module_member(archive)

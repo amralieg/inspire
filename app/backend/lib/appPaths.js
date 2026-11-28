@@ -6,7 +6,9 @@ const BUNDLE_FILE = path.join(BACKEND_DIR, 'build', 'server.js');
 const APP_FILES = [
   'app.yaml',
   'start.sh',
-  'dbx_inspire_ai_agent.ipynb',
+  'inspire_discover.ipynb',
+  'inspire_generate.ipynb',
+  'inspire_lib.py',
   'dbx_generate_demo_data.py',
   'dbx_inspire_after_demo.py',
   'backend/build',

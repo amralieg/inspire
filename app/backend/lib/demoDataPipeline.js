@@ -9,6 +9,7 @@ const {
   inspireJobEnvironments,
   inspireJobTags,
   inspireTaskCompute,
+  AGENT_NOTEBOOKS,
 } = require('./inspireJobParams');
 
 const { DEMO_GENERATED_TABLES, DEMO_KIND_SIGNAL_TABLES, demoSchemaError, demoTablesPlanned } = require('../../frontend/src/lib/demoData.js');
@@ -129,7 +130,7 @@ async function ensureDemoPipelineNotebookPublished(
 }
 
 async function resolveInspireNotebookPath(host, token, { ensureInspireNotebookPublished, resolveWorkspaceNotebookObjectPath }) {
-  let notebookPath = (process.env.NOTEBOOK_PATH || '/Shared/inspire-ai/dbx_inspire_ai_agent').trim();
+  let notebookPath = (process.env.NOTEBOOK_PATH || `/Shared/inspire-ai/${AGENT_NOTEBOOKS.discover}`).trim();
   if (ensureInspireNotebookPublished) {
     const pub = await ensureInspireNotebookPublished(host, token);
     if (pub?.path) notebookPath = pub.path;

@@ -654,8 +654,17 @@ class CatalogAccessTest(unittest.TestCase):
                 setup._new_apps_setting(bad)
 
 
-AGENT_NOTEBOOK = pathlib.Path(__file__).resolve().parents[2] / "dbx_inspire_ai_agent.ipynb"
-LAKEBASE = setup.agent_lakebase(AGENT_NOTEBOOK.read_text(encoding="utf-8"))
+def agent_lib_text():
+    """inspire_lib.py once the agent ships it; until then the constants cell of the single notebook stands in for it."""
+    folder = pathlib.Path(__file__).resolve().parents[2] / "agent" / "agent"
+    if (folder / "inspire_lib.py").exists():
+        return (folder / "inspire_lib.py").read_text(encoding="utf-8")
+    cells = json.loads((folder / "dbx_inspire_ai_agent.ipynb").read_text(encoding="utf-8"))["cells"]
+    return "".join(cells[1]["source"])
+
+
+AGENT_TEXT = agent_lib_text()
+LAKEBASE = setup.agent_lakebase(AGENT_TEXT)
 PROJECT_PATH = f"/api/2.0/postgres/projects/{LAKEBASE['project']}"
 CATALOG_PATH = f"/api/2.0/postgres/catalogs/{LAKEBASE['catalog']}"
 ENDPOINT_PATH = f"/api/2.0/postgres/{LAKEBASE['endpoint']}"
@@ -995,7 +1004,7 @@ class LakebaseSetupTest(unittest.TestCase):
         return setup._lakebase_setup(ctx, sleep=sleep or (lambda s: None))
 
     def test_the_installer_reads_the_lakebase_definition_the_agent_builds_with_from_the_bundled_notebook(self):
-        found = setup.agent_constants(AGENT_NOTEBOOK.read_text(encoding="utf-8"), setup.LAKEBASE_CONSTANTS)
+        found = setup.agent_constants(AGENT_TEXT, setup.LAKEBASE_CONSTANTS)
         self.assertEqual(LAKEBASE, {"project": found["IMPLEMENT_LAKEBASE_PROJECT"], "project_spec": found["IMPLEMENT_LAKEBASE_PROJECT_SPEC"],
                                     "branch": found["IMPLEMENT_LAKEBASE_BRANCH"], "endpoint": found["IMPLEMENT_LAKEBASE_ENDPOINT"],
                                     "database": found["IMPLEMENT_LAKEBASE_DATABASE"], "catalog": found["IMPLEMENT_LAKEBASE_CATALOG"]})
@@ -1008,13 +1017,15 @@ class LakebaseSetupTest(unittest.TestCase):
 
     def test_publishing_the_notebook_keeps_its_lakebase_definition_or_names_why_none_is_set_up(self):
         import base64
-        for text, wanted in ((AGENT_NOTEBOOK.read_text(encoding="utf-8"), LAKEBASE), (json.dumps({"cells": [{"source": ""}, {"source": ""}]}), None)):
+        for text, wanted in ((AGENT_TEXT, LAKEBASE), (json.dumps({"cells": [{"source": ""}, {"source": ""}]}), None)):
             api = lambda method, path, body=None: Resp(200, {"object_type": "NOTEBOOK"})
             ctx = {"w": Workspace(), "WAREHOUSE_ID": "wh", "CATALOG": "main", "SCHEMA": "_inspire", "SOURCE_FOLDER": "/b", "APP_NAME": "inspire-ai", "APP_FOLDER": "/Shared/inspire-ai", "ASSETS_PARENT": "/Workspace/Shared/inspire-ai/assets", "SCHEMA_MODE": False,
                    "api": api}
+            split = support.agent_split(lib=text.encode())
+            exported = lambda ctx, path, export_formats: base64.b64encode(split.get(os.path.basename(path) + (".ipynb" if "." not in os.path.basename(path) else ""), b"# demo")).decode()
             with contextlib.redirect_stdout(io.StringIO()) as out, \
-                    mock.patch.object(setup, "export_workspace_b64", lambda ctx, path, export_formats: base64.b64encode(text.encode()).decode()), \
-                    mock.patch.object(setup.os.path, "exists", lambda path: path == "/b/dbx_inspire_ai_agent"):
+                    mock.patch.object(setup, "export_workspace_b64", exported), \
+                    mock.patch.object(setup.os.path, "exists", lambda path: path.startswith("/b/")):
                 setup.step_schema_and_notebooks(ctx)
             self.assertEqual(ctx["LAKEBASE"], wanted)
             if wanted is None:
@@ -1752,7 +1763,7 @@ class RuntimeContextTest(unittest.TestCase):
 
 
 class GenieCodeInstallCheckTest(unittest.TestCase):
-    TEXT = AGENT_NOTEBOOK.read_text(encoding="utf-8")
+    TEXT = AGENT_TEXT
     K = setup.agent_constants(TEXT, setup.GENIE_CODE_CONSTANTS)
 
     def gateway(self, codex=(200, ""), claude_models=(), claude=(200, ""), raises=None, codex_models=(), codex_by_model=None):

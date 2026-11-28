@@ -16,7 +16,7 @@ test('a person who is not an App manager cannot make the App run a notebook they
   S.reset({ notebookPresent: true });
   const got = await S.request('POST', '/api/run', { body: body({ notebook_path: PLANTED, cluster_id: '0101-planted' }) });
   assert.equal(got.status, 200, got.text);
-  assert.equal(task().notebook_task.notebook_path, OWN, 'the job runs the App notebook, never the planted one (must-exclude)');
+  assert.equal(task().notebook_task.notebook_path, OWN.replace('dbx_inspire_ai_agent', 'inspire_discover'), 'the job runs the App notebook, never the planted one (must-exclude)');
   assert.equal(task().existing_cluster_id, undefined, 'the job never runs on the cluster the person picked (must-exclude)');
   assert.ok(task().environment_key, 'the job runs on serverless');
   assert.ok(got.data.warnings.some((w) => w.includes(`not ${PLANTED}`) && w.includes('only an App manager')), got.text);
@@ -28,7 +28,7 @@ test('the App notebook, under either path form, and the configured cluster run a
     S.reset({ notebookPresent: true });
     const got = await S.request('POST', '/api/run', { body: body({ notebook_path: asked }) });
     assert.equal(got.status, 200, got.text);
-    assert.equal(task().notebook_task.notebook_path.replace(/^\/Workspace/, ''), OWN, asked);
+    assert.equal(task().notebook_task.notebook_path.replace(/^\/Workspace/, ''), OWN.replace('dbx_inspire_ai_agent', 'inspire_discover'), asked);
     assert.equal((got.data.warnings || []).filter((w) => w.includes('only an App manager')).length, 0, asked);
   }
 });
@@ -37,7 +37,7 @@ test('an App manager may run another notebook and pick a cluster', async () => {
   S.reset({ notebookPresent: true, managers: [BOSS] });
   const got = await S.request('POST', '/api/run', { person: BOSS, body: body({ notebook_path: PLANTED, cluster_id: '0101-chosen' }) });
   assert.equal(got.status, 200, got.text);
-  assert.equal(task().notebook_task.notebook_path, PLANTED);
+  assert.equal(task().notebook_task.notebook_path, PLANTED.replace('dbx_inspire_ai_agent', 'inspire_discover'));
   assert.equal(task().existing_cluster_id, '0101-chosen');
 });
 
