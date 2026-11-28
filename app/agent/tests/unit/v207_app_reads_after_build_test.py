@@ -5,6 +5,7 @@ import symtable
 import types
 
 import pytest
+from _nbload import notebook_cells
 
 NOTEBOOK = pathlib.Path(__file__).resolve().parents[2] / "agent" / "dbx_inspire_ai_agent.ipynb"
 RESULT = "main.inspire.churn_out"
@@ -83,7 +84,8 @@ def test_a_refused_grant_is_said_plainly_and_the_run_goes_on(agent_ns):
 
 
 def test_both_merge_branches_share_the_outputs_before_the_run_ends():
-    src = "".join(json.loads(NOTEBOOK.read_text())["cells"][1]["source"])
+    # D-SIZE2 (REQ-298): inspire_merge_run lives in the pinned result_history asset; _nbload splices it back into cells[1].
+    src = notebook_cells(str(NOTEBOOK))[1][1]
     body = src[src.index("def inspire_merge_run("):src.index("def inspire_share_reads_sql(")]
     assert body.count("inspire_share_outputs(spark, table, out)\n") == 2
     assert body.count("inspire_share_outputs(spark, table, out)\n        inspire_cluster_run(") == 1

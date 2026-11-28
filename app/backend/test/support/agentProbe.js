@@ -1,7 +1,10 @@
 const { spawnSync } = require('node:child_process');
+const path = require('node:path');
+
+const AGENT_ROOT = path.resolve(__dirname, '..', '..', '..', 'agent');
 
 const LOADER = String.raw`
-import ast, json, re, sys
+import ast, json, os, re, sys
 nb = json.load(open(sys.argv[1], encoding="utf-8"))
 tree = [node for cell in nb["cells"] if cell.get("cell_type") == "code" for node in ast.parse("".join(cell.get("source") or [])).body]
 def executed_source(node):
@@ -16,10 +19,20 @@ def executed_source(node):
         source = source.args[0]
     return source.id if isinstance(source, ast.Name) else None
 executed = {executed_source(node) for node in tree} - {None}
+pins = next((ast.literal_eval(node.value) for node in tree if isinstance(node, ast.Assign) and len(node.targets) == 1
+             and getattr(node.targets[0], "id", "") == "INSPIRE_NOTEBOOK_ASSETS"), {})
+def source_text(value):
+    # D-SIZE2 (REQ-298): a source the agent reads from a pinned notebook asset (inspire_notebook_asset("result_history")) is that file.
+    if isinstance(value, ast.Constant) and isinstance(value.value, str):
+        return value.value
+    if (isinstance(value, ast.Call) and isinstance(value.func, ast.Name) and value.func.id == "inspire_notebook_asset" and value.args
+            and isinstance(value.args[0], ast.Constant) and value.args[0].value in pins):
+        return open(os.path.join(sys.argv[3], pins[value.args[0].value]["repo"]), encoding="utf-8").read()
+    return None
 for node in list(tree):
     if (isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)
-            and node.targets[0].id in executed and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)):
-        inner = ast.parse(node.value.value)
+            and node.targets[0].id in executed and source_text(node.value) is not None):
+        inner = ast.parse(source_text(node.value))
         ast.increment_lineno(inner, node.lineno - 1)
         tree.extend(inner.body)
 top = {}
@@ -64,7 +77,7 @@ function pythonReady() {
 }
 
 function agentProbe(notebook, cases, body) {
-  const run = spawnSync('python3', ['-c', `${LOADER}${body}`, notebook, JSON.stringify(cases)], { encoding: 'utf8', maxBuffer: 1 << 24 });
+  const run = spawnSync('python3', ['-c', `${LOADER}${body}`, notebook, JSON.stringify(cases), AGENT_ROOT], { encoding: 'utf8', maxBuffer: 1 << 24 });
   if (run.status !== 0) throw new Error(run.stderr || run.stdout);
   return JSON.parse(run.stdout.trim().split('\n').pop());
 }
