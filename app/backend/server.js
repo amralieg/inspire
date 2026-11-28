@@ -195,7 +195,7 @@ function hasDatabricksPlatformAuth() {
 // Path to the bundled notebook file — try several candidate locations
 // v47: switched from DBC archive to direct JUPYTER (.ipynb) format
 const { NOTEBOOK_CANDIDATES } = require('./lib/appShell');
-const { publishAgent, agentFingerprint } = require('./lib/agentPublish');
+const { publishAgent, agentFingerprint, agentFolderOf } = require('./lib/agentPublish');
 const { AGENT_NOTEBOOKS } = require('./lib/inspireJobParams');
 // The App ships the split agent itself (no embedded copy); the preview routes read the Discover notebook. When it is missing they answer "not found" and name the path.
 const BUNDLED_NOTEBOOK_PATH = path.join(APP_DIR, `${AGENT_NOTEBOOKS.discover}.ipynb`);
@@ -2043,7 +2043,7 @@ app.post('/api/publish', requireToken, async (req, res) => {
     // destination_path is the folder the split agent is published into (both notebooks and inspire_lib.py)
     let notebookPath;
     try {
-      ({ path: notebookPath } = await publishAgent({ dbFetch, host: req.dbHost, token: req.dbToken, folder: destination_path, dir: APP_DIR }));
+      ({ path: notebookPath } = await publishAgent({ dbFetch, host: req.dbHost, token: req.dbToken, folder: agentFolderOf(destination_path), dir: APP_DIR }));
     } catch (e) {
       if (e.code === 'ENOENT') return res.status(404).json({ error: 'Bundled notebook file not found on server.' });
       const action = 'publish the notebook';
@@ -2052,7 +2052,7 @@ app.post('/api/publish', requireToken, async (req, res) => {
     }
 
     console.log(`✅ Published notebook to: ${destination_path}, notebook: ${notebookPath}`);
-    res.json({ success: true, path: notebookPath, folder_path: destination_path });
+    res.json({ success: true, path: notebookPath, folder_path: agentFolderOf(destination_path) });
   } catch (err) {
     PM_ERROR.sendFailure(res, 500, err.message);
   }

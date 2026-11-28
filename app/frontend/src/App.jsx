@@ -54,7 +54,7 @@ function PageSpinner({ text }) {
 }
 
 /** Legacy Configure default pointed at a user folder that often does not exist; use shared publish path. */
-const WORKSPACE_NOTEBOOK_SHARED = '/Shared/inspire-ai/dbx_inspire_ai_agent';
+const WORKSPACE_NOTEBOOK_SHARED = '/Shared/inspire-ai/inspire_discover';
 function migrateLegacyUserHomeInspirePath(nb) {
   const s = String(nb || '').trim();
   if (!s) return '';

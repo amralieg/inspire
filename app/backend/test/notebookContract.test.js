@@ -60,13 +60,18 @@ test('the notebook has no generation widget: no 09_generation_options widget, no
   assert.equal(INSPIRE_NOTEBOOK_WIDGET_KEYS.includes('09_generation_options'), false);
 });
 
-test('the notebook the App launches is the agent notebook, byte for byte', () => {
+const AGENT_APP_FILES = ['inspire_discover.ipynb', 'inspire_generate.ipynb', 'inspire_lib.py'];
+
+test('the notebooks and lib the App launches are the agent files, byte for byte', () => {
   const sha = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
-  const agentBytes = fs.readFileSync(path.join(appRoot, 'agent', 'agent', 'dbx_inspire_ai_agent.ipynb'));
-  assert.equal(sha(notebookBytes), sha(agentBytes), 'app/dbx_inspire_ai_agent.ipynb is not app/agent/agent/dbx_inspire_ai_agent.ipynb; run npm run bundle:agent-notebook in app/');
+  for (const name of AGENT_APP_FILES) {
+    const appBytes = fs.readFileSync(path.join(appRoot, name));
+    const agentBytes = fs.readFileSync(path.join(appRoot, 'agent', 'agent', name));
+    assert.equal(sha(appBytes), sha(agentBytes), `app/${name} is not app/agent/agent/${name}; run npm run bundle:agent-notebook in app/`);
+  }
 });
 
-test('bundle:agent-notebook copies the agent notebook over a drifted App copy, and refuses without the agent notebook', () => {
+test('bundle:agent-notebook copies the agent files over drifted App copies, and refuses without the agent files', () => {
   const os = require('node:os');
   const { execFileSync } = require('node:child_process');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nbsync-'));
@@ -74,17 +79,17 @@ test('bundle:agent-notebook copies the agent notebook over a drifted App copy, a
     fs.mkdirSync(path.join(tmp, 'scripts'));
     fs.copyFileSync(path.join(appRoot, 'scripts', 'bundle-agent-notebook.mjs'), path.join(tmp, 'scripts', 'bundle-agent-notebook.mjs'));
     const run = () => execFileSync(process.execPath, [path.join(tmp, 'scripts', 'bundle-agent-notebook.mjs')], { stdio: 'pipe' });
-    const copy = path.join(tmp, 'dbx_inspire_ai_agent.ipynb');
-    fs.writeFileSync(copy, '{"cells": []}');
-    assert.throws(run, 'with no agent notebook nothing is copied');
-    assert.equal(fs.readFileSync(copy, 'utf8'), '{"cells": []}');
+    const copies = AGENT_APP_FILES.map((name) => path.join(tmp, name));
+    for (const copy of copies) fs.writeFileSync(copy, '{"cells": []}');
+    assert.throws(run, 'with no agent files nothing is copied');
+    for (const copy of copies) assert.equal(fs.readFileSync(copy, 'utf8'), '{"cells": []}');
     const latest = Buffer.from('{"cells": ["__AGENT_VERSION__ = \\"9.9.9\\""]}\n');
     fs.mkdirSync(path.join(tmp, 'agent', 'agent'), { recursive: true });
-    fs.writeFileSync(path.join(tmp, 'agent', 'agent', 'dbx_inspire_ai_agent.ipynb'), latest);
+    for (const name of AGENT_APP_FILES) fs.writeFileSync(path.join(tmp, 'agent', 'agent', name), latest);
     for (const start of ['a drifted copy', 'no copy', 'a current copy']) {
-      if (start === 'no copy') fs.rmSync(copy);
+      if (start === 'no copy') for (const copy of copies) fs.rmSync(copy);
       run();
-      assert.ok(fs.readFileSync(copy).equals(latest), `${start}: the App copy is the agent notebook`);
+      for (const copy of copies) assert.ok(fs.readFileSync(copy).equals(latest), `${start}: the App copy of ${path.basename(copy)} is the agent file`);
     }
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -127,9 +132,9 @@ test(`deployment and API surfaces advertise ${INSPIRE_AGENT_VERSION} consistentl
 });
 
 test('all app launch defaults use the installer notebook destination', () => {
-  const canonicalPath = '/Shared/inspire-ai/dbx_inspire_ai_agent';
+  const canonicalPath = '/Shared/inspire-ai/inspire_discover';
   const installer = fs.readFileSync(path.join(appRoot, 'installer', 'inspire_setup.py'), 'utf8');
-  assert.match(installer, /notebook_dest = f"\{ctx\['APP_FOLDER'\]\}\/dbx_inspire_ai_agent"/);
+  assert.match(installer, /notebook_dest = f"\{ctx\['APP_FOLDER'\]\}\/inspire_discover"/);
   assert.match(installer, /"APP_FOLDER": f"\/Shared\/\{app_name\}"/, 'the default install folder is /Shared/<app>');
   const files = [
     'backend/lib/demoDataPipeline.js',
@@ -142,10 +147,10 @@ test('all app launch defaults use the installer notebook destination', () => {
 
   for (const relativePath of files) {
     const contents = fs.readFileSync(path.join(appRoot, relativePath), 'utf8');
-    assert.ok(contents.includes(canonicalPath), `${relativePath} must use ${canonicalPath}`);
+    assert.ok(contents.includes(canonicalPath) || contents.includes('/Shared/inspire-ai/${AGENT_NOTEBOOKS.discover}'), `${relativePath} must use ${canonicalPath}`);
   }
   const server = fs.readFileSync(path.join(appRoot, 'backend', 'server.js'), 'utf8');
-  assert.match(server, /\/Shared\/inspire-ai\/dbx_inspire_ai_agent/);
+  assert.match(server, /\/Shared\/inspire-ai\/\$\{AGENT_NOTEBOOKS\.discover\}/);
 });
 
 test('OpenAPI documents v1.2.0 operation and artifact values', () => {

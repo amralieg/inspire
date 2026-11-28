@@ -59,4 +59,11 @@ async function publishAgent({ dbFetch, host, token, folder, dir = APP_DIR }) {
   return { path: `${folder}/${AGENT_NOTEBOOKS.discover}` };
 }
 
-module.exports = { publishAgent, agentFingerprint, AGENT_FILES, AGENT_LIB };
+/** destination_path may be the notebook path (…/inspire_discover) or its folder; return the folder. */
+function agentFolderOf(p) {
+  const t = String(p).replace(/\/+$/, '');
+  const base = path.posix.basename(t);
+  return base === AGENT_NOTEBOOKS.discover || base === AGENT_NOTEBOOKS.generate ? path.posix.dirname(t) : t;
+}
+
+module.exports = { agentFolderOf, publishAgent, agentFingerprint, AGENT_FILES, AGENT_LIB };

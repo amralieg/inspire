@@ -203,7 +203,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
                 Inspire finds use cases in them with {lastResult.pipeline?.discovery_type || discoveryType}
               </li>
             </ol>
-            <TechnicalDetails className="mt-2" items={`Notebook: ${lastResult.pipeline?.inspire_agent_notebook || '/Shared/inspire-ai/dbx_inspire_ai_agent'}`} />
+            <TechnicalDetails className="mt-2" items={`Notebook: ${lastResult.pipeline?.inspire_agent_notebook || '/Shared/inspire-ai/inspire_discover'}`} />
             {(lastResult.warnings || []).map((w) => <p key={w} className="text-xs mt-1">{w}</p>)}
             {lastResult.job_run_url && (
               <a
