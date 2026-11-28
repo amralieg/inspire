@@ -118,6 +118,24 @@ def _load(path: str) -> dict:
         return json.load(handle)
 
 
+def _source(path: str) -> list:
+    """The agent code as lines: cells[1] of a notebook, or the whole of a .py library (agent/inspire_lib.py, the one hand-edited copy)."""
+    if path.endswith(".py"):
+        with open(path, encoding="utf-8", newline="") as handle:
+            return handle.read().splitlines(True)
+    return _load(path)["cells"][CELL]["source"]
+
+
+def _save(path: str, lines: list, nb: dict = None) -> None:
+    if path.endswith(".py"):
+        with open(path, "w", encoding="utf-8", newline="") as handle:
+            handle.write("".join(lines))
+        return
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(nb, handle, indent=2, ensure_ascii=False)
+        handle.write("\n")
+
+
 def _line_index(lines: list, constant: str = CONSTANT) -> int:
     hits = [i for i, line in enumerate(lines) if line.startswith(constant)]
     if len(hits) != 1:
@@ -160,25 +178,23 @@ def pin_line(found: dict) -> str:
 
 
 def notebook_pins(path: str = NOTEBOOK) -> dict:
-    lines = _load(path)["cells"][CELL]["source"]
+    lines = _source(path)
     return json.loads(lines[_line_index(lines)][len(CONSTANT):])
 
 
 def legacy_lines(path: str = NOTEBOOK) -> list:
-    return [line.split(" = ", 1)[0] for line in _load(path)["cells"][CELL]["source"] if line.startswith(LEGACY_CONSTANTS)]
+    return [line.split(" = ", 1)[0] for line in _source(path) if line.startswith(LEGACY_CONSTANTS)]
 
 
 def write_pins(path: str = NOTEBOOK, assets: dict = None) -> bool:
-    nb = _load(path)
-    lines = nb["cells"][CELL]["source"]
+    nb = None if path.endswith(".py") else _load(path)
+    lines = _source(path) if nb is None else nb["cells"][CELL]["source"]
     index = _line_index(lines)
     line = pin_line(pins(assets))
     if lines[index] == line:
         return False
     lines[index] = line
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(nb, handle, indent=2, ensure_ascii=False)
-        handle.write("\n")
+    _save(path, lines, nb)
     return True
 
 
@@ -209,16 +225,14 @@ def registry_differences(lines: list, registry: dict) -> list:
 
 def write_registry_constants(path: str = NOTEBOOK, registry: dict = None) -> bool:
     registry = kinds() if registry is None else registry
-    nb = _load(path)
-    lines = nb["cells"][CELL]["source"]
+    nb = None if path.endswith(".py") else _load(path)
+    lines = _source(path) if nb is None else nb["cells"][CELL]["source"]
     if not registry_differences(lines, registry):
         return False
     for name, key in REGISTRY_CONSTANTS:
         start, stop = _registry_block(lines, name)
         lines[start:stop] = _constant_lines(name, registry[key])
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(nb, handle, indent=2, ensure_ascii=False)
-        handle.write("\n")
+    _save(path, lines, nb)
     return True
 
 
@@ -271,7 +285,7 @@ def main(argv=None) -> int:
         return 0
     problems = differences(data, embedded())
     problems += [f"{name} is still embedded in the notebook" for name in legacy_lines(args.notebook)]
-    problems += registry_differences(_load(args.notebook)["cells"][CELL]["source"], kinds())
+    problems += registry_differences(_source(args.notebook), kinds())
     held = notebook_pins(args.notebook)
     problems += [f"the notebook pins {name} at another build than {spec['repo']}" for name, spec in pins().items() if held.get(name) != spec]
     for problem in problems:

@@ -1,0 +1,146 @@
+[
+ {
+  "name": "15_operation",
+  "type": "dropdown",
+  "default": "Discover Use Cases",
+  "label": "00. Operation"
+ },
+ {
+  "name": "00_business_name",
+  "type": "text",
+  "default": "",
+  "label": "01. Business Name"
+ },
+ {
+  "name": "01_uc_metadata",
+  "type": "text",
+  "default": "",
+  "label": "02. UC Metadata"
+ },
+ {
+  "name": "02_inspire_database",
+  "type": "text",
+  "default": "",
+  "label": "03. Inspire Database"
+ },
+ {
+  "name": "03_discovery_type",
+  "type": "dropdown",
+  "default": "Standard Discovery",
+  "label": "04. Discovery Type"
+ },
+ {
+  "name": "04_table_election",
+  "type": "dropdown",
+  "default": "Let Inspire Decides",
+  "label": "05. Table Election"
+ },
+ {
+  "name": "05_use_cases_quality",
+  "type": "dropdown",
+  "default": "Good",
+  "label": "06. Use Cases Quality"
+ },
+ {
+  "name": "06_business_domains",
+  "type": "text",
+  "default": "",
+  "label": "07. Business Domains"
+ },
+ {
+  "name": "07_business_priorities",
+  "type": "multiselect",
+  "default": "Increase Revenue",
+  "label": "08. Business Priorities"
+ },
+ {
+  "name": "08_generation_instructions",
+  "type": "text",
+  "default": "",
+  "label": "09. Generation Instructions"
+ },
+ {
+  "name": "10_strategic_context",
+  "type": "text",
+  "default": "",
+  "label": "11. Strategic Context"
+ },
+ {
+  "name": "11_generation_path",
+  "type": "text",
+  "default": "./../demos/",
+  "label": "12. Generation Path"
+ },
+ {
+  "name": "12_documents_languages",
+  "type": "multiselect",
+  "default": "English",
+  "label": "13. Documents Languages"
+ },
+ {
+  "name": "14_session_id",
+  "type": "text",
+  "default": "",
+  "label": "14. Inspire Session ID"
+ },
+ {
+  "name": "13_generate_genie_code_for",
+  "type": "text",
+  "default": "0",
+  "label": "15. Generate Databricks AI Instruction For"
+ },
+ {
+  "name": "17_table_scope",
+  "type": "text",
+  "default": "",
+  "label": "18. Table Scope"
+ },
+ {
+  "name": "18_table_relationships",
+  "type": "text",
+  "default": "",
+  "label": "19. Table Relationships"
+ },
+ {
+  "name": "19_match_phase",
+  "type": "dropdown",
+  "default": "match",
+  "label": "20. Match Phase"
+ },
+ {
+  "name": "currency",
+  "type": "text",
+  "default": "",
+  "label": "Reporting currency (ISO code)"
+ },
+ {
+  "name": "currency_rates",
+  "type": "text",
+  "default": "",
+  "label": "Reporting currency rates (JSON)"
+ },
+ {
+  "name": "currency_default",
+  "type": "text",
+  "default": "",
+  "label": "Reporting currency is the default (true/false)"
+ },
+ {
+  "name": "16_best_of_best_count",
+  "type": "text",
+  "default": "",
+  "label": "16. Best of Best Count"
+ },
+ {
+  "name": "inspire_implement_use_case",
+  "type": "text",
+  "default": "",
+  "label": "Implement use case id"
+ },
+ {
+  "name": "inspire_implement_spec_version",
+  "type": "text",
+  "default": "",
+  "label": "Implement spec version"
+ }
+]
