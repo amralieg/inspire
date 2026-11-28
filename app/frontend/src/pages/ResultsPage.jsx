@@ -1277,6 +1277,11 @@ export default function ResultsPage({
       onUpdateLiveApp: inspireDb && warehouseId && selectedSessionId ? () => (showcase ? setDemoRefusal(readOnlyReason(true)) : updateLiveApp(uc)) : undefined,
       v130: uc._v130,
       feedbackCurrent: feedbackCurrentFor(uc),
+      pendingKinds: pendingKindsFor(pendingArtifacts, tid, {
+        docs: Boolean(uc.docs_generated_at) || docsMadeIds.has(tid),
+        notebook: Boolean(uc.notebook_path),
+        genie_instructions: Boolean(String(uc.genie_instruction || '').trim()),
+      }),
       useCaseValue: runValue?.use_cases?.[tid] ?? null,
       estimate: estimates?.use_cases?.[tid] ?? null,
       yearly: calculated.byId[tid]?.yearly || measuredYearly?.use_cases?.[tid] || null,
@@ -2248,7 +2253,6 @@ export default function ResultsPage({
                         selection={bulkOn && tid ? { checked: bulkPicked.has(tid), onChange: (on) => setBulkPick(tid, on) } : null}
                         onGenerateDocs={tid ? () => setDocsUcs([uc]) : undefined}
                         docsMade={Boolean(uc.docs_generated_at) || docsMadeIds.has(tid)}
-                        pendingKinds={pendingKindsFor(pendingArtifacts, tid)}
                         {...cardProps}
                       />
                       );
