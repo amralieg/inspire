@@ -177,3 +177,19 @@ def test_11_flag_must_be_a_boolean(agent_ns):
     runtime["app_table_labels"] = "yes"
     with pytest.raises(TypeError, match="app_table_labels"):
         agent_ns["_validate_runtime_config"]()
+
+
+def test_12_user_named_prod_scope_is_never_excluded_by_a_dev_label(agent_ns):
+    """U8 v2 addendum: catalog/schema the person named in 01_uc_metadata get env=prod source='user' rows; the user wins over any
+    App classifier row for the same object, whatever the order and whatever the name looks like."""
+    def user(level, fqn):
+        return SimpleNamespace(session_id=SESSION, level=level, object_fqn=fqn, env="prod", label=None, confidence=None, source="user",
+                               labelled_at=None)
+    for rows in ([row("catalog", "main", env="dev"), user("catalog", "main"), row("schema", "main.ops", env="dev"), user("schema", "main.ops")],
+                 [user("catalog", "main"), row("catalog", "main", env="dev"), user("schema", "main.ops"), row("schema", "main.ops", env="dev")]):
+        rows = rows + [row("table", ORDERS, label="transactional"), row("table", CUSTOMERS, label="master")]
+        obj, _ = build(agent_ns, rows, responder=classifier({LOGS: ("TECHNICAL", "TECHNICAL")}))
+        out = unpack(obj._filter_business_tables(FILTER_DETAILS))
+        assert out["business"] == {ORDERS, CUSTOMERS}, out["business"]
+        assert prompted(obj) == {LOGS, TMP}
+        assert (obj.table_classification_status[LOGS], obj.table_classification_status[TMP]) == ("llm", "llm")
