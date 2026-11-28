@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { NO_DATA_ROWS_NOTE, PRODUCTION_CATALOG_ADVICE } from '../../lib/startWizard';
 import DevWarnings from './DevWarnings';
+import { PlainMessage } from '../TechnicalDetails';
 
 export default function FindDataStep({ draft, setDraft, settings, apiFetch, onReady }) {
   const [catalogs, setCatalogs] = useState(null);
@@ -34,10 +35,10 @@ export default function FindDataStep({ draft, setDraft, settings, apiFetch, onRe
       <DevWarnings picks={picked.map((name) => ({ kind: 'catalog', name }))} />
       {catalogs === null && <p className="text-sm text-text-secondary">Loading your catalogs</p>}
       {error && (
-        <p role="alert" className="text-sm text-red-600">
-          {error}{' '}
+        <div role="alert" className="text-sm text-error-fg">
+          <PlainMessage as="span" text={error} />{' '}
           <button type="button" className="underline" onClick={() => { setCatalogs(null); setAttempt((n) => n + 1); }}>Try again</button>
-        </p>
+        </div>
       )}
       {catalogs && catalogs.length === 0 && !error && <p className="text-sm text-text-secondary">No catalogs found. Check that the App can read your catalogs.</p>}
       {catalogs && catalogs.length > 0 && (

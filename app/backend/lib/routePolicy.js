@@ -185,7 +185,7 @@ const ROUTE_POLICY = {
   'POST /api/inspire/macro/series': tracked('read a public economic series, from the 7-day cache in the Inspire database or fetched from an allowed host, with its citation and optional factor',
     'fetches from a fixed host allowlist and caches in the Inspire database with the signed-in person\'s token'),
   // c33 (REQ-577): Find suitable data for me. sort reads catalog metadata only; start and advance launch runs like POST /api/run.
-  'POST /api/inspire/plan/sort': reads('sort the tables of the picked catalogs into runs, from their names, columns and comments only'),
+  'POST /api/inspire/plan/sort': personReads('sort the tables of the picked catalogs into runs, from their names, columns and comments only', ['sql']),
   'POST /api/inspire/plan/start': tracked('save a plan of runs and launch its first run', 'launches the run as the App, which owns the job and its tracking tables, like POST /api/run'),
   'POST /api/inspire/plan/advance': tracked('launch the next waiting run of a plan once the run before it ended', 'launches only runs a saved plan already lists, as the App, like POST /api/run'),
   // c39 (REQ-585): the labelling progress n of N of a launch; the route answers only the person who launched.

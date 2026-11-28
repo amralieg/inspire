@@ -79,17 +79,22 @@ export function makeApiFetch({ token, databricksHost, showcase = '' } = {}) {
   });
 }
 
-const makeApiSendJson = (method) => ({ token, databricksHost, showcase = '' } = {}) => (url, body, { signal, raise = true } = {}) => trackAi(url, async () => {
+// One send for every JSON write; `text` is the body already as JSON text.
+const sendText = ({ token, databricksHost, showcase = '' }, method, url, text, { signal, raise = true } = {}) => trackAi(url, async () => {
   const resp = await send(url, {
     method,
     headers: requestHeaders(token, databricksHost, { 'Content-Type': 'application/json' }, showcase),
-    body: JSON.stringify(body),
+    body: text,
     signal,
   });
   if (!resp.ok) throw await responseError(resp, { raise });
   return resp.json();
 });
 
+const makeApiSendJson = (method) => (auth = {}) => (url, body, opts) => sendText(auth || {}, method, url, JSON.stringify(body), opts);
+
 export const makeApiPostJson = makeApiSendJson('POST');
+// A POST whose body is already JSON text, in the shape of a fetch init ({ body, signal }); the text is sent as it is, never read back.
+export const makeApiPostText = (auth = {}) => (url, { body, signal, raise } = {}) => sendText(auth || {}, 'POST', url, body, { signal, raise });
 // REQ-435: the same call with PUT, for the saved Value at stake answers.
 export const makeApiPutJson = makeApiSendJson('PUT');

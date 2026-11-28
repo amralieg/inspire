@@ -27,7 +27,7 @@ export function provisionalCardsOf(candidates, liveUseCases) {
 }
 
 // REQ-581 U4: what the Discover run left for Implement, as GET /api/inspire/results answers it (pending_artifacts).
-export const PENDING_LABEL = { docs: 'Documents', genie_instructions: 'Genie instructions', notebook: 'Notebook', translation: 'Translation' };
+export const PENDING_LABEL = { docs: 'Documents', genie_instructions: 'Databricks AI instructions', notebook: 'Notebook', translation: 'Translation' };
 export const PENDING_TEXT = 'pending, produced at Implement';
 
 /** The pending kinds that apply to one use case: entries naming it, plus those naming no use case (the whole session). Each kind once. */

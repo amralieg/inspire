@@ -2,6 +2,7 @@
 //   GET /api/inspire/labels/progress?session_id=  ->  { session_id, done, total, state: 'labelling' | 'done' | 'none' }
 // Only the person who launched reads it; anyone else, or an unknown session, gets 0 of 0 'none'. A finished entry is dropped KEEP_MS later.
 const RP = require('./routePolicy');
+const { isInt64Id } = require('./int64Id');
 
 const KEEP_MS = 10 * 60 * 1000;
 
@@ -29,7 +30,7 @@ function createLabelProgress(now = () => Date.now()) {
 function registerLabelProgressRoute(app, { requireToken, progress }) {
   app.get('/api/inspire/labels/progress', requireToken, (req, res) => {
     const sessionId = String((req.query && req.query.session_id) || '').trim();
-    if (!/^\d+$/.test(sessionId)) return res.status(400).json({ error: 'session_id is required.' });
+    if (!isInt64Id(sessionId)) return res.status(400).json({ error: 'session_id is required.' });
     return res.json({ session_id: sessionId, ...progress.read(sessionId, RP.forwardedPerson(req.headers || {})) });
   });
 }

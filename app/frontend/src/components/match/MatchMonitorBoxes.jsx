@@ -12,8 +12,8 @@ const VERDICT_PROGRESS = { full: 'matched', partial: 'partly matched', none: 'no
 
 const resultOf = (row) => {
   const raw = row && row.result_json;
-  if (raw && typeof raw === 'object') return raw;
-  try { return raw ? JSON.parse(raw) : {}; } catch { return {}; }
+  // The status route sends result_json already read (exact ids); text here is not JSON the App can read, so it shows no result.
+  return raw && typeof raw === 'object' ? raw : {};
 };
 const atOf = (row, result) => { const t = Date.parse(result.event_at || row.last_updated || ''); return Number.isFinite(t) ? t : 0; };
 

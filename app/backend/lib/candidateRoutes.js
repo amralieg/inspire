@@ -5,6 +5,7 @@
 
 const { splitInspireDatabase, INSPIRE_DB_SHAPE } = require('./sqlInputs');
 const { isInt64Id } = require('./int64Id');
+const { parseExactJson } = require('./exactJson');
 
 const MISSING_TABLE = /\b(?:TABLE_OR_VIEW_NOT_FOUND|SCHEMA_NOT_FOUND|CATALOG_NOT_FOUND)\b|cannot be found|does not exist/i;
 
@@ -14,7 +15,7 @@ const atOf = (row) => { const t = Date.parse(str(row.event_at)); return Number.i
 const rankOf = (row) => { const n = row.provisional_rank == null || str(row.provisional_rank) === '' ? NaN : Number(row.provisional_rank); return Number.isFinite(n) ? n : null; };
 
 function historyOf(raw) {
-  try { const doc = JSON.parse(str(raw)); return Array.isArray(doc) ? doc : []; } catch { return []; }
+  try { const doc = parseExactJson(str(raw)); return Array.isArray(doc) ? doc : []; } catch { return []; }
 }
 function nameOf(history, id) {
   for (let i = history.length - 1; i >= 0; i -= 1) {

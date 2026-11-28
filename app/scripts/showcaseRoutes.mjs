@@ -42,6 +42,7 @@ export function demoReads(withMvps, walk = null) {
 
 export const NOT_IN_DEMO = {
   'GET /api/inspire/candidates': 'Monitor reads the provisional use case cards only while a run of this workspace is live, and never in the demo (REQ-581)',
+  'GET /api/inspire/labels/progress': 'Start follows the labelling of a launch it just made; a demo launches nothing, so there is no labelling to show (REQ-585)',
   'GET /api/inspire/match/result': 'Monitor and Review read the per-use-case match of a Match run only outside the demo; a demo run is a Discover run, and the Review tab already shows no match panel in it',
   'GET /api/inspire/macro/sources': 'the Calculate value dialog lists public economic data sources only outside the demo; the demo is read only, has no ledger to save a calculation to, and reaches no outside host (REQ-507)',
   'GET /api/inspire/value/answers': 'the Review cards read the saved Calculate answers of a workspace run from its answers table; the demo has no such table, so the pages send no answers read while the demo is open (REQ-435)',

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MATCH_INPUT_MAX } from '../../lib/startWizard';
 import { numberUseCases, parseUseCaseText, useCaseLines, useCasesOfFile } from '../../lib/matchReport';
 import { formatWhen } from '../../lib/formatWhen';
+import { PlainMessage } from '../TechnicalDetails';
 
 const BUSINESS_HINT = 'e.g. Contoso, Acme Corp, Retail Division';
 const field = 'w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary';
@@ -106,7 +107,7 @@ export default function MatchUseCasesStep({ draft, setDraft, settings, apiFetch,
       {runsOpen && (
         <div className="max-h-60 space-y-1 overflow-auto rounded-lg border border-border p-2" data-match-runs="">
           {runs === null && <p className="text-sm text-text-secondary">Reading your runs...</p>}
-          {runsError && <p className="text-sm text-db-red-fg">{runsError}</p>}
+          {runsError && <PlainMessage text={runsError} className="text-sm text-db-red-fg" />}
           {runs && !runs.length && !runsError && <p className="text-sm text-text-secondary">No runs yet.</p>}
           {(runs || []).map((run) => (
             <button key={run.session_id} type="button" disabled={busy} onClick={() => pickRun(run)}

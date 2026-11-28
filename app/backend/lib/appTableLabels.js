@@ -1,6 +1,7 @@
 // c37 (REQ-582, REQ-583 U8 v2): the App labels the scope top-down before a Let Inspire Decides run (catalogs, then schemas of prod
 // catalogs, then tables of prod schemas) with the cheapest gateway Claude model, and writes <inspire_db>.__inspire_table_labels.
 // Nothing here ever throws into a launch: a failed call leaves its objects unlabelled and the agent classifies them.
+const { isInt64Id } = require('./int64Id');
 const TABLE_BATCH = 300;
 const MAX_CALLS = 16;
 const MAX_COLUMNS = 40;
@@ -8,6 +9,7 @@ const INSERT_ROWS = 200;
 const LISTS_AT_ONCE = 8;
 const FAMILIES = ['claude-haiku', 'claude-sonnet', 'claude-opus'];
 const PREFIX = 'system.ai.';
+const LABELS_TABLE = '__inspire_table_labels';
 
 const DESCR = {
   transactional: 'Each row records one discrete business event that happened at a point in time (a sale, payment, booking, shipment, return, measurement, review). Insert-heavy, grows with business activity.',
@@ -173,8 +175,8 @@ const DB_RE = /^[A-Za-z0-9_]+\.[A-Za-z0-9_]+$/;
 function labelsTableStatements(inspireDb, sessionId, rows) {
   const db = String(inspireDb || '').replace(/`/g, '').trim();
   if (!DB_RE.test(db)) throw new Error('the Inspire database must be catalog.schema');
-  if (!/^\d+$/.test(String(sessionId))) throw new Error('the labels need a numeric Inspire session id');
-  const table = `${db}.__inspire_table_labels`;
+  if (!isInt64Id(sessionId)) throw new Error('the labels need a numeric Inspire session id');
+  const table = `${db}.${LABELS_TABLE}`;
   const stmts = [{ sql: `CREATE TABLE IF NOT EXISTS ${table} (\n  session_id BIGINT,\n  level STRING,\n  object_fqn STRING,\n  env STRING,\n  label STRING,\n  confidence DOUBLE,\n  source STRING,\n  labelled_at TIMESTAMP\n)`, parameters: null }];
   for (let i = 0; i < rows.length; i += INSERT_ROWS) {
     const parameters = [{ name: 'session_id', value: String(sessionId), type: 'STRING' }];

@@ -17,6 +17,7 @@ import { launchRelationshipsText } from '../../lib/tableRelationships';
 import {
   DATA_CHOOSE, DATA_FIND, DATA_TEXT, PATH_DISCOVER, PATH_MATCH, PATH_TEXT, STEP, WIZ_TITLE, WIZ_TITLE_MATCH, stepsOf,
 } from '../../lib/startWizard';
+import { PlainMessage } from '../TechnicalDetails';
 
 const EMPTY_DRAFT = { path: '', businessName: '', profileId: '', dataChoice: DATA_FIND, catalogs: [], plan: null, joins: [], useCases: [], useCaseSource: 'paste' };
 const FORM_STEPS = ['business', 'goals', 'settings'];
@@ -241,7 +242,7 @@ export default function StartWizard({ settings, update, apiFetch, onClose, onNoD
 
   const footer = (
     <>
-      {error && <p role="alert" data-wiz-error="" className="me-auto text-xs text-error-fg">{error}</p>}
+      {error && <PlainMessage text={error} role="alert" data-wiz-error="" className="me-auto text-xs text-error-fg" />}
       {busy && lp.labelProgress?.total > 0 && (
         <span data-wiz-label-progress="" role="status" className="text-xs text-text-secondary">Labelling tables: {lp.labelProgress.done} of {lp.labelProgress.total} tables</span>
       )}
