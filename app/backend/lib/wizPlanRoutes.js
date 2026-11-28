@@ -29,9 +29,19 @@ const LEFT_OUT_REASONS = {
 };
 const NAME_PART = /^[A-Za-z0-9_-]+$/;
 const advancing = new Set();
+const migrated = new Set();
 
 const fail = (status, message) => Object.assign(new Error(message), { statusCode: status });
 const text = (v) => String(v == null ? '' : v).trim();
+// The signed-in person, from the same forwarded headers requestPerson reads (email, then preferred username, then user), lower-cased.
+function ownerOf(req) {
+  const h = (req && req.headers) || {};
+  for (const name of ['x-forwarded-email', 'x-forwarded-preferred-username', 'x-forwarded-user']) {
+    const v = text(Array.isArray(h[name]) ? h[name][0] : h[name]).toLowerCase();
+    if (v) return v;
+  }
+  return '';
+}
 const bt = (name) => `\`${name}\``;
 
 function planTable(inspireDatabase) {
@@ -150,18 +160,36 @@ async function sort(deps, req) {
     throw fail(502, 'Inspire could not read the table names of these catalogs. Check that the App can read them and try again.');
   }
   if (!all.length) throw fail(400, 'These catalogs hold no tables Inspire can read.');
-  const shown = all.slice(0, PROMPT_TABLE_MAX);
-  const answer = await deps.chatModel(req, sortMessages(business, shown), MODEL_TOKENS);
-  if (!answer || !answer.got || answer.got.ok === false) throw fail(502, 'The model did not answer. Try again.');
-  const plan = buildPlan(parseModelPlan(replyContent(answer.got.data)), all, catalogs, all.length);
-  return plan;
+  const ordered = [...all].sort((a, b) => (a.table < b.table ? -1 : a.table > b.table ? 1 : 0));
+  const merged = { runs: [], left_out: [] };
+  const byName = new Map();
+  for (let i = 0; i < ordered.length; i += PROMPT_TABLE_MAX) {
+    const answer = await deps.chatModel(req, sortMessages(business, ordered.slice(i, i + PROMPT_TABLE_MAX)), MODEL_TOKENS);
+    if (!answer || !answer.got || answer.got.ok === false) throw fail(502, 'The model did not answer. Try again.');
+    const part = parseModelPlan(replyContent(answer.got.data));
+    for (const run of part.runs) {
+      const name = text(run && run.name) || 'Tables';
+      const tables = Array.isArray(run && run.tables) ? run.tables : [];
+      if (byName.has(name)) byName.get(name).tables.push(...tables);
+      else { const joined = { ...run, name, tables: [...tables] }; byName.set(name, joined); merged.runs.push(joined); }
+    }
+    if (Array.isArray(part.left_out)) merged.left_out.push(...part.left_out);
+  }
+  return buildPlan(merged, all, catalogs, all.length);
 }
 
 // ---- store -----------------------------------------------------------------------------------------------------------------------
 
 async function ensurePlanTable(deps, req, warehouseId, table) {
   await deps.executeSql(req.dbHost, req.dbToken, warehouseId,
-    `CREATE TABLE IF NOT EXISTS ${table} (plan_id STRING, run_no INT, name STRING, tables STRING, params_json STRING, session_id STRING, run_id STRING, status STRING, event_at TIMESTAMP)`);
+    `CREATE TABLE IF NOT EXISTS ${table} (plan_id STRING, run_no INT, name STRING, tables STRING, params_json STRING, session_id STRING, run_id STRING, status STRING, event_at TIMESTAMP, owner STRING, launch_json STRING)`);
+  if (migrated.has(table)) return;
+  try {
+    await deps.executeSql(req.dbHost, req.dbToken, warehouseId, `ALTER TABLE ${table} ADD COLUMNS (owner STRING, launch_json STRING)`);
+  } catch (err) {
+    if (!/already exists|FIELDS_ALREADY_EXISTS|COLUMN_ALREADY_EXISTS/i.test(String(err && err.message))) throw err;
+  }
+  migrated.add(table);
 }
 
 async function appendRows(deps, req, warehouseId, table, rows) {
@@ -169,20 +197,20 @@ async function appendRows(deps, req, warehouseId, table, rows) {
   const parameters = [];
   const values = rows.map((r, i) => {
     const add = (key, value, type = 'STRING') => { parameters.push({ name: `${key}${i}`, value: value == null ? null : String(value), type }); return `:${key}${i}`; };
-    return `(${add('plan_id', r.plan_id)}, ${add('run_no', r.run_no, 'INT')}, ${add('name', r.name)}, ${add('tables', r.tables)}, ${add('params_json', r.params_json)}, ${add('session_id', r.session_id)}, ${add('run_id', r.run_id)}, ${add('status', r.status)}, CAST(${add('event_at', deps.now().toISOString())} AS TIMESTAMP))`;
+    return `(${add('plan_id', r.plan_id)}, ${add('run_no', r.run_no, 'INT')}, ${add('name', r.name)}, ${add('tables', r.tables)}, ${add('params_json', r.params_json)}, ${add('session_id', r.session_id)}, ${add('run_id', r.run_id)}, ${add('status', r.status)}, CAST(${add('event_at', deps.now().toISOString())} AS TIMESTAMP), ${add('owner', r.owner)}, ${add('launch_json', r.launch_json)})`;
   });
   await deps.executeSql(req.dbHost, req.dbToken, warehouseId,
-    `INSERT INTO ${table} (plan_id, run_no, name, tables, params_json, session_id, run_id, status, event_at) VALUES ${values.join(', ')}`, parameters);
+    `INSERT INTO ${table} (plan_id, run_no, name, tables, params_json, session_id, run_id, status, event_at, owner, launch_json) VALUES ${values.join(', ')}`, parameters);
 }
 
 const newSessionId = () => String(Date.now()) + String(Math.floor(Math.random() * 1e6));
 
 // One launch of a plan run: the run's tables, the plan's other params. Answers { ok, session_id, run_id } or { ok: false, status, body }.
-async function launch(deps, req, { name, tables, params, profileId }) {
+async function launch(deps, req, { name, tables, params, profileId, notebookPath, clusterId }) {
   const sessionId = newSessionId();
   const sent = { ...params, '00_business_name': name, '01_uc_metadata': tables.join(','), '04_table_election': 'All Tables',
     '15_operation': 'Discover Use Cases', '14_session_id': sessionId };
-  const got = await deps.launchRun(req, { params: sent, notebook_path: req.body && req.body.notebook_path, cluster_id: req.body && req.body.cluster_id, profile_id: profileId });
+  const got = await deps.launchRun(req, { params: sent, notebook_path: notebookPath, cluster_id: clusterId, profile_id: profileId });
   if (got.status >= 400 || !got.body || got.body.run_id == null) return { ok: false, status: got.status >= 400 ? got.status : 502, body: got.body, session_id: sessionId };
   return { ok: true, session_id: sessionId, run_id: String(got.body.run_id) };
 }
@@ -204,12 +232,15 @@ async function start(deps, req) {
   const params = { ...(body.params && typeof body.params === 'object' ? body.params : {}) };
   delete params['14_session_id'];
   const paramsJson = JSON.stringify(params);
+  const owner = ownerOf(req) || null;
+  const settings = { profile_id: text(body.profile_id), notebook_path: text(body.notebook_path), cluster_id: text(body.cluster_id) };
+  const launchJson = JSON.stringify(settings);
   const planId = crypto.randomUUID();
   const rows = sorted.map((r, i) => ({ plan_id: planId, run_no: i + 1, name: `${business}: ${r.name}`, tables: r.tables.join(','), params_json: paramsJson,
-    session_id: null, run_id: null, status: 'waiting' }));
+    session_id: null, run_id: null, status: 'waiting', owner, launch_json: launchJson }));
   await ensurePlanTable(deps, req, warehouseId, table);
   await appendRows(deps, req, warehouseId, table, rows);
-  const first = await launch(deps, req, { name: rows[0].name, tables: sorted[0].tables, params, profileId: text(body.profile_id) });
+  const first = await launch(deps, req, { name: rows[0].name, tables: sorted[0].tables, params, profileId: settings.profile_id, notebookPath: settings.notebook_path, clusterId: settings.cluster_id });
   if (!first.ok) {
     await appendRows(deps, req, warehouseId, table, [{ ...rows[0], session_id: first.session_id, status: 'failed' }]);
     return { status: first.status, body: first.body || { error: 'The first run did not start.' } };
@@ -229,12 +260,17 @@ async function advance(deps, req) {
   const warehouseId = text(body.warehouse_id);
   if (!warehouseId) throw fail(400, 'warehouse_id is required.');
   const table = planTable(body.inspire_database);
+  const owner = ownerOf(req);
+  if (!owner) return { started: [] };
   let rows;
   try {
     rows = deps.sqlResultToObjects(await deps.executeSql(req.dbHost, req.dbToken, warehouseId,
-      `SELECT plan_id, run_no, name, tables, params_json, session_id, run_id, status, event_at FROM ${table}`));
+      `SELECT plan_id, run_no, name, tables, params_json, session_id, run_id, status, event_at, owner, launch_json FROM ${table} WHERE lower(owner) = :owner`,
+      [{ name: 'owner', value: owner, type: 'STRING' }]));
+    // Rows with no owner (older plans) never match the SELECT above; the test hook answers every row, so JS drops only rows that name someone else.
+    rows = rows.filter((r) => !text(r.owner) || text(r.owner).toLowerCase() === owner);
   } catch (err) {
-    if (/TABLE_OR_VIEW_NOT_FOUND|does not exist/i.test(String(err && err.message))) return { started: [] };
+    if (/TABLE_OR_VIEW_NOT_FOUND|does not exist|UNRESOLVED_COLUMN/i.test(String(err && err.message))) return { started: [] };
     throw err;
   }
   const latest = new Map();
@@ -267,7 +303,10 @@ async function advance(deps, req) {
       let params = {};
       try { params = JSON.parse(next.params_json || '{}'); } catch { params = {}; }
       const tables = text(next.tables).split(',').map(text).filter(Boolean);
-      const got = await launch(deps, req, { name: next.name, tables, params, profileId: '' });
+      let settings = {};
+      try { settings = JSON.parse(next.launch_json || '{}') || {}; } catch { settings = {}; }
+      const got = await launch(deps, req, { name: next.name, tables, params, profileId: text(settings.profile_id),
+        notebookPath: text(settings.notebook_path), clusterId: text(settings.cluster_id) });
       if (!got.ok) {
         await appendRows(deps, req, warehouseId, table, [{ ...next, session_id: got.session_id, status: 'failed' }]);
         continue;
