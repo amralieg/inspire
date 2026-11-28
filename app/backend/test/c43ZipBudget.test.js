@@ -46,7 +46,9 @@ function zipEstimate(files) {
 
 test('c43: the zip ships the agent notebook once, as the .ipynb (no base64 copy)', () => {
   const all = [...APP_FILES, ...APP_FILES_WHEN_PRESENT];
-  assert.ok(all.includes('dbx_inspire_ai_agent.ipynb'), 'the physical agent notebook must stay in the zip');
+  assert.ok(all.includes('inspire_discover.ipynb'), 'the zip ships inspire_discover.ipynb');
+  assert.ok(all.includes('inspire_generate.ipynb'), 'the zip ships inspire_generate.ipynb');
+  assert.ok(all.includes('inspire_lib.py'), 'the zip ships inspire_lib.py');
   assert.ok(!all.includes('backend/notebook_bundle.js'), 'backend/notebook_bundle.js duplicates the .ipynb in the zip');
   const appShell = require('../lib/appShell');
   assert.strictEqual(appShell.NOTEBOOK_BUNDLE_FILE, undefined, 'appShell must not offer a base64 notebook fallback');

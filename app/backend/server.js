@@ -195,9 +195,11 @@ function hasDatabricksPlatformAuth() {
 // Path to the bundled notebook file — try several candidate locations
 // v47: switched from DBC archive to direct JUPYTER (.ipynb) format
 const { NOTEBOOK_CANDIDATES } = require('./lib/appShell');
-// The App ships the .ipynb itself (no embedded copy); when it is missing the routes below answer "not found" and name the path.
-const BUNDLED_NOTEBOOK_PATH = NOTEBOOK_CANDIDATES.find(p => fs.existsSync(p)) || NOTEBOOK_CANDIDATES[0];
-const IS_IPYNB = BUNDLED_NOTEBOOK_PATH.endsWith('.ipynb');
+const { publishAgent, agentFingerprint } = require('./lib/agentPublish');
+const { AGENT_NOTEBOOKS } = require('./lib/inspireJobParams');
+// The App ships the split agent itself (no embedded copy); the preview routes read the Discover notebook. When it is missing they answer "not found" and name the path.
+const BUNDLED_NOTEBOOK_PATH = path.join(APP_DIR, `${AGENT_NOTEBOOKS.discover}.ipynb`);
+const IS_IPYNB = true;
 
 // ═══════════════════════════════════════════════════
 //  Middleware
@@ -1203,17 +1205,16 @@ async function attachSessionUsecaseOverviews(host, token, warehouseId, catalog, 
 //  Auto-publish — seamless notebook deployment
 // ═══════════════════════════════════════════════════
 
-const NOTEBOOK_DEST = (process.env.NOTEBOOK_PATH || '/Shared/inspire-ai/dbx_inspire_ai_agent').trim();
+const NOTEBOOK_DEST = (process.env.NOTEBOOK_PATH || `/Shared/inspire-ai/${AGENT_NOTEBOOKS.discover}`).trim();
+/** The folder the split agent (both notebooks and inspire_lib.py) is published into. */
+const NOTEBOOK_FOLDER = path.posix.dirname(NOTEBOOK_DEST);
 /** SHA-256 of last successfully imported bundled notebook — triggers re-import when the file on disk changes. */
 const NOTEBOOK_PUBLISH_SIG_FILE = path.join(BACKEND_DIR, '.notebook_publish_sig');
 let cachedNotebookPath = DEFAULT_NOTEBOOK_PATH || '';
 
 function getBundledNotebookFingerprint() {
   try {
-    if (!BUNDLED_NOTEBOOK_PATH || !fs.existsSync(BUNDLED_NOTEBOOK_PATH)) return '';
-    const h = crypto.createHash('sha256');
-    h.update(fs.readFileSync(BUNDLED_NOTEBOOK_PATH));
-    return h.digest('hex');
+    return agentFingerprint(APP_DIR);
   } catch {
     return '';
   }
@@ -1259,7 +1260,7 @@ async function findPublishedNotebook(host, token) {
 
 /**
  * Ensure the workspace has the bundled notebook. Re-imports automatically when the local
- * `dbx_inspire_ai_agent.ipynb` bytes change (signature in `.notebook_publish_sig`).
+ * agent files (two notebooks and inspire_lib.py) change (signature in `.notebook_publish_sig`).
  * @returns {{ path: string, republished: boolean }}
  */
 async function ensureNotebookPublished(host, token, force = false) {
@@ -1288,57 +1289,10 @@ async function ensureNotebookPublished(host, token, force = false) {
     console.log('🔄 Re-publishing notebook, overwriting workspace path...');
   }
 
-  // 3. Publish the bundled notebook
-  if (!BUNDLED_NOTEBOOK_PATH || !fs.existsSync(BUNDLED_NOTEBOOK_PATH)) {
-    throw new Error('No bundled notebook file available to publish.');
-  }
-
-  const isIpynb = BUNDLED_NOTEBOOK_PATH.endsWith('.ipynb');
-  const importFormat = isIpynb ? 'JUPYTER' : 'DBC';
-  console.log(`📦 Auto-publishing notebook (${importFormat}) to ${NOTEBOOK_DEST}...`);
-  const fileBuffer = fs.readFileSync(BUNDLED_NOTEBOOK_PATH);
-  const base64Content = fileBuffer.toString('base64');
-
-  // Delete old if exists
-  try {
-    await dbFetch(host, token, '/api/2.0/workspace/delete', {
-      method: 'POST',
-      body: JSON.stringify({ path: NOTEBOOK_DEST, recursive: true }),
-    });
-  } catch (_) {}
-
-  const importPath = isIpynb ? NOTEBOOK_DEST : NOTEBOOK_DEST;
-  const resp = await dbFetch(host, token, '/api/2.0/workspace/import', {
-    method: 'POST',
-    body: JSON.stringify({
-      path: importPath,
-      format: importFormat,
-      content: base64Content,
-      language: isIpynb ? 'PYTHON' : undefined,
-      overwrite: true,
-    }),
-  });
-
-  if (!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`Publish failed: ${err}`);
-  }
-
-  if (isIpynb) {
-    // JUPYTER import creates the notebook directly at the path
-    cachedNotebookPath = NOTEBOOK_DEST;
-  } else {
-    // DBC imports as a folder — find the actual notebook inside
-    cachedNotebookPath = NOTEBOOK_DEST;
-    try {
-      const listResp = await dbFetch(host, token, `/api/2.0/workspace/list?path=${encodeURIComponent(NOTEBOOK_DEST)}`);
-      if (listResp.ok) {
-        const listData = await listResp.json();
-        const nb = (listData.objects || []).find(o => o.object_type === 'NOTEBOOK');
-        if (nb) cachedNotebookPath = nb.path;
-      }
-    } catch (_) {}
-  }
+  // 3. Publish the split agent (checks the lib against the pin both notebooks carry)
+  console.log(`📦 Auto-publishing the agent to ${NOTEBOOK_FOLDER}...`);
+  const published = await publishAgent({ dbFetch, host, token, folder: NOTEBOOK_FOLDER, dir: APP_DIR });
+  cachedNotebookPath = published.path;
 
   const newFp = getBundledNotebookFingerprint();
   if (newFp) {
@@ -2086,52 +2040,15 @@ app.post('/api/publish', requireToken, async (req, res) => {
     const problem = workspacePathProblem('destination_path', destination_path);
     if (problem) return res.status(400).json({ error: problem });
 
-    if (!fs.existsSync(BUNDLED_NOTEBOOK_PATH)) {
-      return res.status(404).json({ error: 'Bundled notebook file not found on server.' });
-    }
-
-    const fileBuffer = fs.readFileSync(BUNDLED_NOTEBOOK_PATH);
-    const base64Content = fileBuffer.toString('base64');
-    const isIpynb = BUNDLED_NOTEBOOK_PATH.endsWith('.ipynb');
-    const importFormat = isIpynb ? 'JUPYTER' : 'DBC';
-
-    // Delete old if exists
+    // destination_path is the folder the split agent is published into (both notebooks and inspire_lib.py)
+    let notebookPath;
     try {
-      await dbFetch(req.dbHost, req.dbToken, '/api/2.0/workspace/delete', {
-        method: 'POST',
-        body: JSON.stringify({ path: destination_path, recursive: true }),
-      });
-    } catch (_) {}
-
-    const response = await dbFetch(req.dbHost, req.dbToken, '/api/2.0/workspace/import', {
-      method: 'POST',
-      body: JSON.stringify({
-        path: destination_path,
-        format: importFormat,
-        content: base64Content,
-        language: isIpynb ? 'PYTHON' : undefined,
-        overwrite: true,
-      }),
-    });
-
-    if (!response.ok) {
+      ({ path: notebookPath } = await publishAgent({ dbFetch, host: req.dbHost, token: req.dbToken, folder: destination_path, dir: APP_DIR }));
+    } catch (e) {
+      if (e.code === 'ENOENT') return res.status(404).json({ error: 'Bundled notebook file not found on server.' });
       const action = 'publish the notebook';
-      const refusalBody = await response.text();
-      logApiBody(action, response.status, refusalBody);
-      return PM_ERROR.sendFailure(res, response.status, apiRefusalText(action, response.status, refusalBody));
-    }
-
-    let notebookPath = destination_path;
-    if (!isIpynb) {
-      // DBC imports as a folder — find the actual notebook inside
-      try {
-        const listResp = await dbFetch(req.dbHost, req.dbToken, `/api/2.0/workspace/list?path=${encodeURIComponent(destination_path)}`);
-        if (listResp.ok) {
-          const listData = await listResp.json();
-          const notebook = (listData.objects || []).find(o => o.object_type === 'NOTEBOOK');
-          if (notebook) notebookPath = notebook.path;
-        }
-      } catch (_) {}
+      logApiBody(action, 500, e.message);
+      return PM_ERROR.sendFailure(res, 500, apiRefusalText(action, 500, e.message));
     }
 
     console.log(`✅ Published notebook to: ${destination_path}, notebook: ${notebookPath}`);
