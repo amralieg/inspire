@@ -16,12 +16,13 @@ function sideOf(value) {
   return { table: parts.join('.'), column };
 }
 
-/** One relationship as the run reads it, or null when either side is not a table and column. */
+/** One relationship as the run reads it, or null when either side is not a table and column. A removed one keeps `removed: true`. */
 export function normalizeRelationship(entry) {
   if (!entry || typeof entry !== 'object') return null;
   const from = sideOf(entry.from);
   const to = sideOf(entry.to);
-  return from && to ? { from, to } : null;
+  // REQ-584: a suggestion the person removed travels as `removed: true`; no flag (or removed:false) is a plain join, as before.
+  return from && to ? { from, to, ...(entry.removed === true ? { removed: true } : {}) } : null;
 }
 
 const relationKey = (r) => scopeKeyOf(`${r.from.table}.${r.from.column}>${r.to.table}.${r.to.column}`);

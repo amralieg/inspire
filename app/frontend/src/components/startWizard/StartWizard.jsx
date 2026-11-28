@@ -10,13 +10,15 @@ import DataStep from './DataStep';
 import PlanStep from './PlanStep';
 import MatchUseCasesStep from './MatchUseCasesStep';
 import MatchReviewStep from './MatchReviewStep';
+import WizardJoins, { joinText, keptJoins, joinsInScope } from './WizardJoins';
 import { startPlan } from '../../lib/wizPlanClient';
 import { parseApiErrorMessage } from '../../lib/ucPermissionErrors';
+import { launchRelationshipsText } from '../../lib/tableRelationships';
 import {
   DATA_CHOOSE, DATA_FIND, DATA_TEXT, PATH_DISCOVER, PATH_MATCH, PATH_TEXT, STEP, WIZ_TITLE, WIZ_TITLE_MATCH, stepsOf,
 } from '../../lib/startWizard';
 
-const EMPTY_DRAFT = { path: '', businessName: '', profileId: '', dataChoice: DATA_FIND, catalogs: [], plan: null, useCases: [], useCaseSource: 'paste' };
+const EMPTY_DRAFT = { path: '', businessName: '', profileId: '', dataChoice: DATA_FIND, catalogs: [], plan: null, joins: [], useCases: [], useCaseSource: 'paste' };
 const FORM_STEPS = ['business', 'goals', 'settings'];
 
 function Pills({ steps, index }) {
@@ -73,10 +75,19 @@ const findText = (plan) => {
   return n ? `${DATA_TEXT[DATA_FIND]}: plan of ${n} run${n === 1 ? '' : 's'}` : DATA_TEXT[DATA_FIND];
 };
 
-function ReviewStep({ draft, lp, onEditStep }) {
+// REQ-584: the joins kept, named, and how many were taken out.
+const joinsText = (joins, tables) => {
+  const kept = keptJoins(joins, tables);
+  const out = joinsInScope(joins, tables).length - kept.length;
+  if (!kept.length && !out) return 'No joins';
+  return `${kept.length ? kept.map(joinText).join(', ') : 'No joins kept'}${out ? ` (${out} removed)` : ''}`;
+};
+
+function ReviewStep({ draft, lp, tables, findPath, onEditStep }) {
   const rows = [
     ['business', 'Business', draft.businessName || lp.business || 'Not set'],
     ['data', 'Data', draft.dataChoice === DATA_FIND ? findText(draft.plan) : (lp.summary.scope || 'Not set')],
+    ...(tables.length > 1 ? [['joins', 'Joins', joinsText(draft.joins, tables)]] : []),
     ['goals', 'Goals', 'Instructions, priorities and domains'],
     ['settings', 'Settings', [lp.summary.discovery, lp.summary.quality].filter(Boolean).join(', ') || 'Default settings'],
   ];
@@ -88,7 +99,7 @@ function ReviewStep({ draft, lp, onEditStep }) {
           <div key={id} className="flex items-start gap-3 px-4 py-3">
             <dt className="w-24 shrink-0 text-xs font-semibold text-text-secondary">{label}</dt>
             <dd className="min-w-0 flex-1 break-words text-sm text-text-primary">{value}</dd>
-            <button type="button" data-wiz-edit={id} onClick={() => onEditStep(id)} className="shrink-0 text-xs font-semibold text-primary-fg hover:underline">Edit</button>
+            <button type="button" data-wiz-edit={id} onClick={() => onEditStep(id === 'joins' ? (findPath ? 'plan' : 'data') : id)} className="shrink-0 text-xs font-semibold text-primary-fg hover:underline">Edit</button>
           </div>
         ))}
       </dl>
@@ -123,6 +134,11 @@ export default function StartWizard({ settings, update, apiFetch, onClose, onNoD
   const steps = stepsOf(draft.path, draft.dataChoice);
   const step = steps[Math.min(index, steps.length - 1)];
   const findPath = draft.path === PATH_DISCOVER && draft.dataChoice === DATA_FIND;
+
+  // REQ-584: the tables the joins are about. The find path reads them from the plan (a join counts inside one run), the choose path from the picker.
+  const planGroups = useMemo(() => (draft.plan && Array.isArray(draft.plan.runs) ? draft.plan.runs.map((r) => (r.tables || []).map((t) => t.table)) : []), [draft.plan]);
+  const joinTables = useMemo(() => (draft.path !== PATH_DISCOVER ? [] : findPath ? [...new Set(planGroups.flat())] : (lp.tables || [])), [draft.path, findPath, planGroups, lp.tables]);
+  useEffect(() => { if (!findPath) api.current.setRelationships?.(draft.joins || []); }, [draft.joins, findPath, lp.tables]);
 
   const readyFor = useCallback((id) => {
     if (!readyFns.current[id]) {
@@ -176,6 +192,8 @@ export default function StartWizard({ settings, update, apiFetch, onClose, onNoD
         onLaunched?.(r.sessionId, r.runId, r.warnings || [], []);
       } else if (findPath) {
         const p = launchParams();
+        const joinsText = launchRelationshipsText(joinsInScope(draft.joins, joinTables), joinTables);
+        if (joinsText) p['18_table_relationships'] = joinsText;
         const r = await startPlan(apiFetch, {
           inspireDatabase: p['02_inspire_database'], warehouseId: settings.warehouseId, businessName: draft.businessName, plan: draft.plan, params: p, profileId: api.current.profileId || draft.profileId,
         });
@@ -197,11 +215,21 @@ export default function StartWizard({ settings, update, apiFetch, onClose, onNoD
     switch (step.id) {
       case 'start': return <StartStep draft={draft} setDraft={setDraft} onNoData={onNoData} />;
       case 'business': return <SlotStep id="business" title="Which business is this for?" hint="Name the company or business unit. Load a saved profile to reuse earlier settings." setSlot={setSlot} />;
-      case 'data': return <DataStep {...stepProps} onReady={readyFor('find')} setSlot={setSlot} />;
-      case 'plan': return <PlanStep {...stepProps} onReady={readyFor('plan')} />;
+      case 'data': return (
+        <>
+          <DataStep {...stepProps} onReady={readyFor('find')} setSlot={setSlot} />
+          {draft.path === PATH_DISCOVER && !findPath && <div className="mt-5"><WizardJoins tables={joinTables} joins={draft.joins} setJoins={setDraft} settings={settings} inspireDatabase={launchParams()['02_inspire_database']} /></div>}
+        </>
+      );
+      case 'plan': return (
+        <>
+          <PlanStep {...stepProps} onReady={readyFor('plan')} />
+          {draft.plan && <div className="mt-5"><WizardJoins tables={joinTables} groups={planGroups} joins={draft.joins} setJoins={setDraft} settings={settings} inspireDatabase={launchParams()['02_inspire_database']} /></div>}
+        </>
+      );
       case 'goals': return <SlotStep id="goals" title="What should the use cases aim for?" setSlot={setSlot} />;
       case 'settings': return <SlotStep id="settings" title="How should Inspire run?" setSlot={setSlot} />;
-      case 'review': return <ReviewStep draft={draft} lp={lp} onEditStep={onEditStep} />;
+      case 'review': return <ReviewStep draft={draft} lp={lp} tables={joinTables} findPath={findPath} onEditStep={onEditStep} />;
       case 'usecases': return <MatchUseCasesStep {...stepProps} onReady={readyFor('usecases')} />;
       case 'matchReview': return <MatchReviewStep {...stepProps} onReady={readyFor('matchReview')} />;
       default: return null;
