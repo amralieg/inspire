@@ -1,0 +1,1 @@
+{"domain": {"words": 1, "singular": true}, "subdomain": {"words": 2}, "domain_count": {"min": 3, "max": 25}, "subdomains_per_domain": {"max": 10}, "use_cases_per_subdomain": {"min": 2}}
