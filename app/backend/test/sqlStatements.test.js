@@ -260,7 +260,7 @@ function columnAddSites(source) {
 
 test('the backend adds a column to a table only in ensureTableColumns, which keeps a column another writer added', () => {
   const root = path.join(__dirname, '..');
-  const files = ['server.js', 'implementRoutes.js', 'stripAiDisclaimer.js', 'dbx_generate_demo_data.py',
+  const files = ['server.js', 'implementRoutes.js', 'stripAiDisclaimer.js', path.join('..', 'dbx_generate_demo_data.py'),
     ...fileNames(path.join(root, 'lib')).filter((f) => f.endsWith('.js')).map((f) => path.join('lib', f))];
   const found = Object.fromEntries(files.map((f) => [f, columnAddSites(fs.readFileSync(path.join(root, f), 'utf8'))]).filter(([, s]) => s.length));
   assert.deepEqual(found, { 'server.js': ['ensureTableColumns', 'ensureTableColumns'] });

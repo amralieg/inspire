@@ -8,7 +8,7 @@ export const WEB = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const WEB_INPUTS = ['index.html', 'package.json', 'package-lock.json', 'vite.config.js', 'src'];
 // Files outside web/ that the build inlines. Mirrors SHARED_INPUTS in embed.py.
 export const SHARED_DIR = resolve(WEB, '..', '..', '..', '..', 'shared');
-export const SHARED_INPUTS = ['bootGuard.js', 'bootGuardPlugin.mjs'];
+export const SHARED_INPUTS = ['bootGuard.js', 'bootGuardPlugin.mjs', 'useCaseId.mjs', 'value_assumption_library.json', 'value_spec.schema.json', 'value_spec_fixtures.json'];
 export const DIST_OUTPUTS = ['index.html', join('assets', 'app.js')];
 const LOCK_POLL_MS = 250;
 const LOCK_WAIT_MS = 600000;

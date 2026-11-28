@@ -2,6 +2,7 @@
 // Props (lib/startWizard.js): draft, setDraft, settings, apiFetch, onReady, registerStart, launchParams, onEditStep.
 import { useEffect, useState } from 'react';
 import { NO_DATA_ROWS_NOTE, PRODUCTION_CATALOG_ADVICE } from '../../lib/startWizard';
+import BusyNote from '../BusyNote';
 import DevWarnings from './DevWarnings';
 import { PlainMessage } from '../TechnicalDetails';
 
@@ -33,7 +34,7 @@ export default function FindDataStep({ draft, setDraft, settings, apiFetch, onRe
         <p className="mt-1 text-sm text-text-secondary">{NO_DATA_ROWS_NOTE}</p>
       </div>
       <DevWarnings picks={picked.map((name) => ({ kind: 'catalog', name }))} />
-      {catalogs === null && <p className="text-sm text-text-secondary">Loading your catalogs</p>}
+      {catalogs === null && <BusyNote text="Loading your catalogs" className="text-sm text-text-secondary" />}
       {error && (
         <div role="alert" className="text-sm text-error-fg">
           <PlainMessage as="span" text={error} />{' '}

@@ -101,7 +101,7 @@ export default function WizardJoins({ tables, groups, joins, setJoins, settings,
               <li key={joinText(j)} data-wiz-join-removed={joinText(j)} className="flex min-w-0 items-center gap-2 rounded-md border border-dashed border-border px-2 py-1 text-xs">
                 <span className="min-w-0 truncate font-mono text-text-secondary line-through" title={joinText(j)}>{joinText(j)}</span>
                 <button type="button" aria-label={`Restore join ${joinText(j)}`} onClick={() => restore(j)} className="ms-auto inline-flex items-center gap-1 font-semibold text-primary-fg hover:underline">
-                  <Undo2 size={12} aria-hidden /> Restore
+                  <Undo2 size={14} aria-hidden /> Restore
                 </button>
               </li>
             ))}

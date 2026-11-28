@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "inspire/value_spec.schema.json",
+  "title": "Inspire value spec",
+  "description": "The one value spec read by inspire_value_calculate (agent) and valueFormula.js (App). Built only by inspire_value_spec_from_proposal. Shape only: the calculator still checks meaning (low <= base <= high, working_capital needs stock, unit for capacity and non_financial, currency code) and flags or refuses. Fixtures: value_spec_fixtures.json.",
+  "type": "object",
+  "required": ["mechanism", "currency", "flow_or_stock", "horizon_years", "measured", "sourced"],
+  "additionalProperties": false,
+  "properties": {
+    "mechanism": {"enum": ["revenue", "cost", "working_capital", "risk", "capacity", "non_financial"]},
+    "currency": {
+      "description": "ISO code as given. A value that is not three upper-case letters is not guessed: the calculator flags currency_missing.",
+      "type": ["string", "null"]
+    },
+    "flow_or_stock": {"enum": ["flow", "stock"]},
+    "horizon_years": {"type": "integer", "minimum": 1, "maximum": 10},
+    "measured": {
+      "type": "object",
+      "required": ["exposure"],
+      "properties": {
+        "exposure": {"type": "number", "minimum": 0},
+        "period_days": {"type": ["number", "null"]},
+        "population": {"type": ["number", "null"]},
+        "baseline": {"type": ["number", "null"]},
+        "unit": {"type": ["string", "null"]},
+        "confidence": {"enum": ["low", "medium", "high"]}
+      }
+    },
+    "sourced": {
+      "type": "object",
+      "required": ["effect"],
+      "properties": {
+        "effect": {"$ref": "#/$defs/range"},
+        "adoption": {"$ref": "#/$defs/range"},
+        "realization": {"$ref": "#/$defs/range"},
+        "margin": {"$ref": "#/$defs/range"},
+        "carrying_cost_rate": {"$ref": "#/$defs/range"}
+      }
+    },
+    "cost": {
+      "type": "object",
+      "required": ["source", "tiers"],
+      "properties": {
+        "source": {"$ref": "#/$defs/source"},
+        "tiers": {
+          "type": "object",
+          "required": ["S", "M", "L"],
+          "properties": {
+            "S": {"$ref": "#/$defs/tier"},
+            "M": {"$ref": "#/$defs/tier"},
+            "L": {"$ref": "#/$defs/tier"}
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "source": {"enum": ["measured", "owner", "library", "exploratory"]},
+    "range": {
+      "type": "object",
+      "required": ["low", "base", "high", "source"],
+      "properties": {
+        "low": {"type": "number", "minimum": 0, "maximum": 1},
+        "base": {"type": "number", "minimum": 0, "maximum": 1},
+        "high": {"type": "number", "minimum": 0, "maximum": 1},
+        "source": {"$ref": "#/$defs/source"}
+      }
+    },
+    "tier": {
+      "type": "object",
+      "required": ["implementation", "recurring_per_year"],
+      "properties": {
+        "implementation": {"type": "number", "minimum": 0},
+        "recurring_per_year": {"type": "number", "minimum": 0}
+      }
+    }
+  }
+}

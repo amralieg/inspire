@@ -19,6 +19,8 @@ PALETTES = os.path.join(WEB, "src", "palettes.json")
 KINDS = os.path.join(HERE, "kinds.json")
 TRANSLATIONS = os.path.join(HERE, "translations.json")
 PROMPTS = os.path.join(HERE, "prompts.json")
+# D-SIZE2 (REQ-298): the run-side result-history source the notebook execs and inlines into every generated notebook.
+RESULT_HISTORY = os.path.join(HERE, "result_history.txt")
 SHELL = os.path.join(HERE, "app_shell.b64")
 CELL = 1
 VERSION = 1
@@ -30,14 +32,16 @@ WEB_INPUTS = ("index.html", "package.json", "package-lock.json", "vite.config.js
 # Files outside web/ that the build inlines (the boot guard and its Vite plugin, shared with the frontend). Listed here and in
 # web/test/freshDist.mjs; web/test/sharedInputs.test.mjs fails when a file in app/shared is missing from either list.
 SHARED = os.path.normpath(os.path.join(ROOT, "..", "shared"))
-SHARED_INPUTS = ("bootGuard.js", "bootGuardPlugin.mjs")
+SHARED_INPUTS = ("bootGuard.js", "bootGuardPlugin.mjs", "useCaseId.mjs", "value_assumption_library.json", "value_spec.schema.json", "value_spec_fixtures.json")
 BINARY_SUFFIXES = (".woff2",)
 CONSTANT = "INSPIRE_NOTEBOOK_ASSETS = "
 LEGACY_CONSTANTS = ("_INSPIRE_APP_SHELL = ", "_INSPIRE_KINDS = ")
+VALUE_LIBRARY = os.path.normpath(os.path.join(ROOT, "..", "shared", "value_assumption_library.json"))
 FX_AVERAGES = os.path.normpath(os.path.join(ROOT, "..", "backend", "lib", "fxAverages.json"))
 ASSETS = {"app_shell": ("notebook/app_shell.b64", SHELL), "kinds": ("notebook/kinds.json", KINDS),
           "translations": ("notebook/translations.json", TRANSLATIONS), "prompts": ("notebook/prompts.json", PROMPTS),
-          "fx_averages": ("notebook/fx_averages.json", FX_AVERAGES)}
+          "fx_averages": ("notebook/fx_averages.json", FX_AVERAGES), "result_history": ("notebook/result_history.txt", RESULT_HISTORY),
+          "value_library": ("notebook/value_library.json", VALUE_LIBRARY)}
 
 
 def _walk(base: str, relative: str) -> list:

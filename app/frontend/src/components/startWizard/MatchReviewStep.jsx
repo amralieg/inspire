@@ -38,7 +38,7 @@ export default function MatchReviewStep({ draft, settings, onReady, registerStar
           <p className="text-sm font-medium text-text-primary">{cases.length === 1 ? '1 use case' : `${cases.length} use cases`}</p>
           <button type="button" data-wiz-edit="usecases" className={link} onClick={() => onEditStep?.('usecases')}>Change use cases</button>
         </div>
-        <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-text-primary">
+        <ol className="mt-2 list-decimal space-y-1 ps-5 text-sm text-text-primary">
           {cases.map((u) => <li key={u.input_no}>{u.name}{u.description ? <span className="text-text-secondary">: {u.description}</span> : null}</li>)}
         </ol>
       </div>
@@ -51,7 +51,7 @@ export default function MatchReviewStep({ draft, settings, onReady, registerStar
           <ul className="mt-2 space-y-0.5 text-sm text-text-primary">{tables.map((t) => <li key={t} className="font-mono">{t}</li>)}</ul>
         ) : <p className="mt-2 text-sm text-text-secondary">No data picked yet.</p>}
       </div>
-      <p className="text-sm text-text-secondary">Starting this opens a run. Each use case shows on the Monitor with its match status, and the review is on the run's Review tab.</p>
+      <p className="text-sm text-text-secondary">Once you start, a run opens. Each use case shows on the Monitor with its match status, and the review is on the run's Review tab.</p>
     </section>
   );
 }
