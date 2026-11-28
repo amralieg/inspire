@@ -333,13 +333,13 @@ test('on every demo page the headline figures equal the chart data they summariz
   }
   assert.ok(checked > 20, `${checked} filtered views checked`);
   assert.deepEqual(gaps, []);
-  const margin = USE_CASES.find((u) => u.no === 'N12-U01');
+  const margin = USE_CASES.find((u) => u.no === 'AI12-UC01');
   const page = mvpApi(margin, { pages: [mvpPage(margin)] }).routes['POST page']({});
   const off = structuredClone(page);
   off.charts.trend.rows.at(-1).y0 += 200000;
   off.charts.by_region.rows[0].y1 -= 1;
   assert.deepEqual(headlineGaps('dashboard', off), ['revenue.now 4200000 but trend last 4400000', 'prior.now 4600000 but by_region sum 4599999']);
-  const forecast = USE_CASES.find((u) => u.no === 'N03-U01');
+  const forecast = USE_CASES.find((u) => u.no === 'AI03-UC01');
   const risk = structuredClone(mvpApi(forecast, { pages: [mvpPage(forecast)] }).routes['POST page']({}));
   risk.tables.at_risk.rows.pop();
   assert.deepEqual(headlineGaps('forecast_cockpit', risk), ['at_risk_n.now 5 but at_risk count 4']);
@@ -415,20 +415,20 @@ const BASE_CHANCE = evaluated({}, 'prob_target');
 const DOWNSIDE = { unit_cost: 5, volume: -3 };
 
 const PROSE_FIGURES = {
-  'N01-U01': {
+  'AI01-UC01': {
     story: { '1,240': kpi('items'), '$3.1M': kpi('total_loss'), ...out('200', '41%') },
     hint: { 8: (d) => d.rows.length, '1,240': kpi('items') },
     'genie 1': { 3: reason('Buyer 10432', /(\d+)x usual/), '40%': reason('Buyer 10432', /down (\d+)%/), ...out('78%') },
     'genie 2': { '$340K': (d) => ((52 - 41) / 100) * d.kpis.total_loss.now, ...out('300', '52%', '41%', '200', '100') },
     'genie 3': out('34%', '22%', '50'),
   },
-  'N01-U04': {
+  'AI01-UC04': {
     story: { 860: kpi('items'), '$1.9M': kpi('total_loss'), ...out('90', '40', '58%') },
     'genie 1': { 4: reason('INV-20931', /late (\d+) of/), 5: reason('INV-20931', /of the last (\d+)/), 3: reason('INV-20931', /(\d+)x usual/), ...out('90', '7%') },
     'genie 2': { '$1.35M': (d) => 0.71 * d.kpis.total_loss.now, ...out('60', '71%', '58%', '40') },
     'genie 3': out('3', '$410K'),
   },
-  'N02-U02': {
+  'AI02-UC02': {
     story: { 37: kpi('open_n'), '$412K': kpi('exposure'), 9: (d) => d.chart('by_age')[0].y0, 4: [kpi('old_n'), (d) => d.chart('by_age').at(-1).y0], ...out('2', '30') },
     'genie 1': {
       '$6,980': (d) => reason('INV-8812', /against a \$([\d,]+) contract/)(d) + d.row('INV-8812').value,
@@ -439,7 +439,7 @@ const PROSE_FIGURES = {
     'genie 2': out('14', '$231K', '5', '$48K', '2', '1'),
     'genie 3': out('6'),
   },
-  'N03-U01': {
+  'AI03-UC01': {
     story: {
       '6%': (d) => {
         const fan = d.chart('fan');
@@ -451,7 +451,7 @@ const PROSE_FIGURES = {
     'genie 2': out('80%', '9,100', '10,400', '7%', '13', '6%', '9%'),
     'genie 3': out('210', '340'),
   },
-  'N04-U02': {
+  'AI04-UC02': {
     story: { '$4.20M': [kpi('base_p50'), BASE], '82%': [kpi('base_chance'), BASE_CHANCE], '$4.0M': (d) => d.page.scenario.outcome.target },
     hint: { '10%': (d) => d.evaluate({ price: 99 }).levers[0].value },
     'genie 1': { '95%': evaluated({ price: 2 }, 'prob_target'), '$40K': (d) => evaluated({ volume: 1 }, 'p50')(d) - BASE(d), ...out('2,400', '2%', '1%') },
@@ -461,7 +461,7 @@ const PROSE_FIGURES = {
       '$4.20M': [kpi('base_p50'), BASE], '82%': [kpi('base_chance'), BASE_CHANCE], ...out('5%', '3%'),
     },
   },
-  'N05-U01': {
+  'AI05-UC01': {
     story: {
       '1,260': (d) => sumOf(d.rows, (r) => r.recommended_value), 6: (d) => new Set(d.rows.flatMap((r) => r.entity_label.split(' to '))).size,
       '$310K': [(d) => sumOf(d.rows, (r) => r.value), kpi('objective')],
@@ -470,13 +470,13 @@ const PROSE_FIGURES = {
     'genie 2': { '$12': limit('W5 capacity'), ...out('$26K') },
     'genie 3': out('31', '34', '$268K', '$290K', '3', '$4K'),
   },
-  'N05-U03': {
+  'AI05-UC03': {
     story: { 410: (d) => sumOf(d.rows, (r) => r.current_value - r.recommended_value), ...out('5', '96%') },
     'genie 1': { 3: staffOn('Store 12, Sat 10 to 14', 'current_value'), 5: staffOn('Store 12, Sat 10 to 14', 'recommended_value'), ...out('1,180', '10', '14', '9', '4.2') },
     'genie 2': { '$1.10': limit('Labor budget') },
     'genie 3': out('4%'),
   },
-  'N06-U01': {
+  'AI06-UC01': {
     story: {
       '12%': (d) => pct(worthOf(d, 'Costly returners').y0, sumOf(d.chart('worth'), (r) => r.y0)),
       '3%': (d) => -pct(worthOf(d, 'Costly returners').y0 * worthOf(d, 'Costly returners').y1, d.kpis.value.now),
@@ -486,14 +486,14 @@ const PROSE_FIGURES = {
     'genie 2': { 312: (d) => d.chart('moves').find((r) => r.x === 'Loyal high value' && r.s === 'Occasional').y0, ...out('5', '41%') },
     'genie 3': out('$1.31', '$0.57'),
   },
-  'N06-U04': {
+  'AI06-UC04': {
     story: { 1.8: (d) => sumOf(d.chart('lift'), (r) => r.x * r.y0) / sumOf(d.chart('lift'), (r) => r.x), ...out('14%') },
     hint: { 3: (d) => Math.max(...d.rows.map((r) => r.rank)) },
     'genie 1': { '41%': reason('Trail jacket', /(\d+)% of such buyers/), ...out('6', '2') },
     'genie 2': out('14%', '610'),
     'genie 3': out('6,400', '2,100'),
   },
-  'N07-U01': {
+  'AI07-UC01': {
     story: {
       '$400K': (d) => -d.kpis.variance.now, '8.7%': (d) => pct(-d.kpis.variance.now, d.kpis.plan.now),
       half: (d) => pct(sumOf(d.rows.filter((r) => r.region === 'North' && r.channel === 'Volume'), (r) => r.variance), d.kpis.variance.now),
@@ -503,7 +503,7 @@ const PROSE_FIGURES = {
     'genie 2': { 6: kpi('outside_n'), '3%': tolerance, ...out('24', '2', '4') },
     'genie 3': out('31%', '22%', '14%'),
   },
-  'N07-U03': {
+  'AI07-UC03': {
     story: { 9: kpi('outside_n'), '$2.1M': [(d) => -d.kpis.variance.now, (d) => -sumOf(d.rows, (r) => r.variance)], '$1.05M': (d) => -d.kpis.variance.now / 2, ...out('2') },
     hint: { '3%': tolerance },
     'genie 1': { '22.9%': reason('Store 61', /Margin ([\d.]+)%/), '29.8%': reason('Store 61', /median of ([\d.]+)%/), ...out('3') },
@@ -514,7 +514,7 @@ const PROSE_FIGURES = {
       '$2.1M': (d) => -d.kpis.variance.now,
     },
   },
-  'N08-U01': {
+  'AI08-UC01': {
     story: { '$212K': netLift('Spring 2-for-1'), '$35K': (d) => -netLift('Clearance week')(d), ...out('$2.8M') },
     'genie 1': {
       '19%': (d) => d.tables.effect.rows.find((r) => r.intervention === 'Spring 2-for-1').effect,
@@ -527,20 +527,20 @@ const PROSE_FIGURES = {
     },
     'genie 3': out('15%', '20'),
   },
-  'N09-U01': {
+  'AI09-UC01': {
     story: { 14.6: [(d) => Math.max(...d.chart('map').map((r) => r.y1)), (d) => d.chart('map').find((r) => r.x === 'Packed' && r.s === 'Label printed').y1], 412: kpi('at_risk') },
     hint: out('1', '10'),
     'genie 1': { 14.6: (d) => d.chart('map').find((r) => r.x === 'Packed' && r.s === 'Label printed').y1, ...out('2.3', '2') },
     'genie 2': { 55: pathMedian('Split shipment'), 31: pathMedian('Happy path'), ...out('62%') },
     'genie 3': { 31: pathMedian('Happy path'), 46: pathMedian('With repack') },
   },
-  'N10-U01': {
+  'AI10-UC01': {
     story: { 5: (d) => shortlisted(d).length, '$7.9M': (d) => sumOf(shortlisted(d), (r) => r.metric), '22%': reason('S3 Bristol East', /Takes (\d+)%/) },
     'genie 1': { '22%': reason('S3 Bristol East', /Takes (\d+)%/), '$1.9M': siteDemand('S3'), '$2.1M': siteDemand('S1'), '4%': reason('S1 Leeds North', /Takes (\d+)%/) },
     'genie 2': out('310,000', '20', '2.1'),
     'genie 3': { '$5.0M': siteDemand('S1', 'S2', 'S4'), ...out('3') },
   },
-  'N10-U03': {
+  'AI10-UC03': {
     story: { 11: kpi('rings'), 74: kpi('accounts'), '$186K': atLeast((d) => sumOf(d.rows, (r) => r.metric)), ...out('2') },
     'genie 1': {
       4: reason('C-1042', /Same card x(\d+)/), 3: reason('C-1042', /Same address x(\d+)/),
@@ -549,7 +549,7 @@ const PROSE_FIGURES = {
     'genie 2': out('2'),
     'genie 3': out('14', '11', '3'),
   },
-  'N11-U01': {
+  'AI11-UC01': {
     story: out('312', '18', '20'),
     'genie 1': out('$41K', '$28K', '$22K', '$19K', '$12K', '5', '30%'),
     'genie 2': out('$3.4M', '11%', '38%'),
@@ -557,7 +557,7 @@ const PROSE_FIGURES = {
     'genie 4': out('31', '24', '19', '3'),
     'genie 5': out('27%', '22%', '41%'),
   },
-  'N12-U01': {
+  'AI12-UC01': {
     story: {
       '$0.40M': (d) => d.kpis.prior.now - d.kpis.revenue.now, '$0.21M': atLeast((d) => -lineChange((r) => r.channel === 'Volume')(d)),
       '$0.12M': atLeast((d) => -lineChange((r) => r.channel === 'Price')(d)), '$0.04M': atLeast(lineChange((r) => r.channel === 'Mix')),
@@ -649,13 +649,13 @@ test('the prose figure check fails on a wrong figure, a figure nobody classified
     assert.notEqual(changed.story, u.story, `${no} states ${from}`);
     return proseGaps(changed, proseData(changed, mvpApi, mvpPage, scenarioEvaluate), { ...PROSE_FIGURES[no], story });
   };
-  assert.deepEqual(restated('N03-U01', '6%', '18%'), ['story says 18% but the data gives 5.799']);
-  assert.deepEqual(restated('N03-U01', '6%', '5%'), ['story says 5% but the data gives 5.799']);
-  assert.deepEqual(restated('N03-U01', '2', '3'), ['story says 3 but the data gives 2']);
-  assert.deepEqual(restated('N10-U03', '$186K', '$86K'), ['story says $86K but the data gives at least 110000']);
-  assert.deepEqual(restated('N07-U03', '$1.05M', '$1.0M'), ['story says $1.0M but the data gives 1050000']);
-  assert.deepEqual(restated('N07-U03', '$1.05M', '$1.1M'), ['story says $1.1M but the data gives 1050000']);
-  const forecast = USE_CASES.find((u) => u.no === 'N03-U01');
+  assert.deepEqual(restated('AI03-UC01', '6%', '18%'), ['story says 18% but the data gives 5.799']);
+  assert.deepEqual(restated('AI03-UC01', '6%', '5%'), ['story says 5% but the data gives 5.799']);
+  assert.deepEqual(restated('AI03-UC01', '2', '3'), ['story says 3 but the data gives 2']);
+  assert.deepEqual(restated('AI10-UC03', '$186K', '$86K'), ['story says $86K but the data gives at least 110000']);
+  assert.deepEqual(restated('AI07-UC03', '$1.05M', '$1.0M'), ['story says $1.0M but the data gives 1050000']);
+  assert.deepEqual(restated('AI07-UC03', '$1.05M', '$1.1M'), ['story says $1.1M but the data gives 1050000']);
+  const forecast = USE_CASES.find((u) => u.no === 'AI03-UC01');
   const extra = { ...forecast, story: `${forecast.story} 9 more store-items are late.` };
   assert.deepEqual(proseGaps(extra, proseData(extra, mvpApi, mvpPage, scenarioEvaluate)), ['story states 9, which is neither checked nor listed as not derivable']);
   const dropped = { ...forecast, story: forecast.story.replace('6%', 'a little') };

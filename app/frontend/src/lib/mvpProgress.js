@@ -778,7 +778,7 @@ function rawFeedLine(item, text) {
 }
 
 export function feedKey(item) {
-  return `${item?.at || ''}|${item?.kind || ''}|${String(item?.text || item?.run_id || '').slice(0, 60)}`;
+  return `${item?.at || ''}|${item?.kind || ''}|${String(item?.text || item?.run_id || '')}`; // C33: the whole text, so two lines of one second never share a key
 }
 
 export const FEED_WORDS_PER_SECOND = 12;

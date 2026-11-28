@@ -318,17 +318,31 @@ function inflated(buf) {
   try { return zlib.inflateSync(buf).toString('latin1'); } catch { return ''; }
 }
 
+// C33 (REQ-560): an image is pixels, not text a viewer shows, so a PDF image stream (/Subtype /Image) and the colour table of an indexed image
+// (/Indexed /DeviceRGB n <hex>) are left out of the scanned text. Read as text they matched the 12-digit, object id and warehouse id patterns by
+// chance and kept every raster PDF out of the demo. The dictionaries and every other stream (page text, metadata) are still read.
+const INDEXED_PALETTE = /(\/Indexed\s*\/\w+\s+\d+\s*)<[0-9A-Fa-f\s]*>/g;
+
 function documentText(bytes) {
-  const out = [bytes.toString('latin1')];
+  const out = [];
   if (bytes.subarray(0, 4).toString('latin1') === '%PDF') {
     const text = bytes.toString('latin1');
+    const kept = [];
+    let last = 0;
     for (let at = text.indexOf('stream'); at >= 0; at = text.indexOf('stream', at + 6)) {
       const start = text.startsWith('\r\n', at + 6) ? at + 8 : at + 7;
       const end = text.indexOf('endstream', start);
       if (end < 0) break;
-      out.push(inflated(bytes.subarray(start, end)));
+      const image = /\/Subtype\s*\/Image\b/.test(text.slice(text.lastIndexOf(' obj', at), at));
+      kept.push(text.slice(last, start));
+      last = end;
+      if (!image) out.push(text.slice(start, end), inflated(bytes.subarray(start, end)));
+      at = end + 3;
     }
+    kept.push(text.slice(last));
+    out.unshift(kept.join('').replace(INDEXED_PALETTE, '$1<>'));
   } else if (bytes.subarray(0, 2).toString('latin1') === 'PK') {
+    out.push(bytes.toString('latin1'));
     for (let at = bytes.indexOf('PK\x03\x04', 0, 'latin1'); at >= 0 && at + 30 <= bytes.length; at = bytes.indexOf('PK\x03\x04', at + 4, 'latin1')) {
       const method = bytes.readUInt16LE(at + 8);
       const size = bytes.readUInt32LE(at + 18);
@@ -336,6 +350,8 @@ function documentText(bytes) {
       if (!size || method !== 8) continue;
       try { out.push(zlib.inflateRawSync(bytes.subarray(start, start + size)).toString('utf8')); } catch { /* a stored or spanned entry: the raw text above covers it */ }
     }
+  } else {
+    out.push(bytes.toString('latin1'));
   }
   return out.join('\n');
 }
@@ -378,6 +394,14 @@ function showcaseText(bundle) {
   return `${JSON.stringify(bundle, null, 1)}\n`;
 }
 
+// C33 (REQ-560): the App a demo was recorded from is a scratch or test install (its name is in the Build notes, notebook paths and failure
+// text: "/Workspace/Shared/<app name>/..."). The recorder replaces it with the neutral folder every install shows.
+const DEMO_INSTALL = 'inspire';
+function installReplace(inspireUrl) {
+  const name = new URL(inspireUrl).hostname.split('.')[0].replace(/-\d+$/, '');
+  return name && name !== DEMO_INSTALL ? { [name]: DEMO_INSTALL } : {};
+}
+
 function showcaseFile(bundle) {
   return zlib.gzipSync(Buffer.from(showcaseText(bundle), 'utf8'), { level: 9 });
 }
@@ -398,5 +422,5 @@ function showcaseSizeProblem(bundle, max = SHOWCASE_MAX_BYTES) {
 
 module.exports = {
   DEMO_HOST, SHOWCASE_FILE_ROUTES, SHOWCASE_MAX_BYTES, UNREAD_USE_CASE_FIELDS, demoView, makeSanitizer, makeRecorder, monitorStep, mvpUrlsFrom, onlySession,
-  documentText, showcaseFile, showcaseLeaks, showcaseSizeProblem, showcaseSizes, showcaseText,
+  documentText, installReplace, showcaseFile, showcaseLeaks, showcaseSizeProblem, showcaseSizes, showcaseText,
 };

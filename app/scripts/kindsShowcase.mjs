@@ -25,8 +25,8 @@ const TIERS = ['Act now', 'Review', 'Monitor'];
 const g = (q, a, sql = '') => ({ q, a, sql });
 
 const DOMAINS = {
-  N01: 'Customers and credit', N02: 'Procurement', N03: 'Replenishment', N04: 'Finance', N05: 'Supply chain', N06: 'Marketing',
-  N07: 'Store performance', N08: 'Promotions', N09: 'Fulfillment', N10: 'Network and risk', N11: 'Analytics', N12: 'Finance reporting',
+  AI01: 'Customers and credit', AI02: 'Procurement', AI03: 'Replenishment', AI04: 'Finance', AI05: 'Supply chain', AI06: 'Marketing',
+  AI07: 'Store performance', AI08: 'Promotions', AI09: 'Fulfillment', AI10: 'Network and risk', AI11: 'Analytics', AI12: 'Finance reporting',
 };
 
 const curve = (start, step, wiggle = 0) => MONTHS.map((m, i) => [m, Math.round(start + i * step + (i % 3 === 1 ? wiggle : 0))]);
@@ -40,7 +40,7 @@ const band = (expected, spikes) => DAYS.map((x, i) => {
 
 const DRAFTS = [
   {
-    no: 'N01-U01', kind_num: 6, technique: 'Classification', name: 'Call Repeat Buyers Likely to Lapse',
+    no: 'AI01-UC01', kind_num: 6, technique: 'Classification', name: 'Call Repeat Buyers Likely to Lapse',
     headline: 'Win Back Lapsing Repeat Buyers to Protect Margin', subdomain: 'Retention', sponsor: 'Head of CRM', beneficiary: 'CRM Team', cadence: 'Weekly', bob: 8.3,
     serve: 'A call list for the Head of CRM: every week, the repeat buyers most likely to stop buying, with the reasons and the value each one carries.',
     how: 'Classification: a model learns from past buyers who lapsed which patterns come first (longer gaps, smaller baskets, more returns) and scores every active buyer.',
@@ -74,7 +74,7 @@ const DRAFTS = [
     },
   },
   {
-    no: 'N01-U04', kind_num: 36, technique: 'Survival Analysis', name: 'Call Overdue Invoices Likely to Slip',
+    no: 'AI01-UC04', kind_num: 36, technique: 'Survival Analysis', name: 'Call Overdue Invoices Likely to Slip',
     headline: 'Collect Overdue Invoices to Recover Cash Before 90 Days', subdomain: 'Collections', sponsor: 'Credit Manager', beneficiary: 'Collectors', cadence: 'Daily', bob: 7.9,
     serve: 'A daily call list for collectors: the overdue invoices most likely to slip past 90 days, with the cash each one holds.',
     how: 'Survival analysis: a time-to-pay model learns from paid invoices how payment speed depends on the customer\'s history, the invoice size and the terms, and gives each open invoice its chance of paying within 90 days.',
@@ -106,7 +106,7 @@ const DRAFTS = [
     },
   },
   {
-    no: 'N02-U02', kind_num: 24, technique: 'Controls Testing', name: 'Catch Overbilled Freight Invoices',
+    no: 'AI02-UC02', kind_num: 24, technique: 'Controls Testing', name: 'Catch Overbilled Freight Invoices',
     headline: 'Recover Freight Overbilling to Stop Bad Invoices Being Paid', subdomain: 'Freight audit', sponsor: 'Accounts Payable Manager', beneficiary: 'Accounts Payable', cadence: 'Daily', bob: 8.1,
     serve: 'A daily exceptions queue for Accounts Payable: freight invoices billed above the contract rate, duplicated, or charged for more weight than was shipped, before they are paid.',
     how: 'Reconciliation and control tests: every invoice line is matched to its shipment and its contract rate. A line is flagged when the amount falls outside what the contract and the shipped weight allow, or when it repeats another invoice.',
@@ -137,7 +137,7 @@ const DRAFTS = [
     },
   },
   {
-    no: 'N03-U01', kind_num: 5, technique: 'Forecasting', name: 'Set Store Orders from Forecast Demand',
+    no: 'AI03-UC01', kind_num: 5, technique: 'Forecasting', name: 'Set Store Orders from Forecast Demand',
     headline: 'Order to Forecast Demand to Cut Stockouts and Overstock', subdomain: 'Store ordering', sponsor: 'Head of Replenishment', beneficiary: 'Replenishment Planners', cadence: 'Weekly', bob: 8.4,
     serve: 'A forecast cockpit for replenishment: the coming weeks\' demand per item and store with its range, and the order to place, which planners accept or override.',
     how: 'Forecasting: one exponential smoothing model per series learns trend, weekly seasonality and holiday effects from 2 years of sales, and must beat a seasonal naive forecast before it is used.',
@@ -161,7 +161,7 @@ const DRAFTS = [
     },
   },
   {
-    no: 'N04-U02', kind_num: 16, technique: 'Simulation', name: 'Test Price and Cost Moves',
+    no: 'AI04-UC02', kind_num: 16, technique: 'Simulation', name: 'Test Price and Cost Moves',
     headline: 'Plan Next Quarter Margin to Absorb Price and Cost Moves', subdomain: 'Margin planning', sponsor: 'CFO', beneficiary: 'Finance Team', cadence: 'Monthly', bob: 7.6,
     serve: 'A scenario lab for the CFO: move price, cost and volume levers and see next quarter\'s margin with its range and the chance of hitting target, then save a plan of record.',
     how: 'Simulation: a driver model fitted on 3 years of sales links margin to each lever. 2,400 Monte Carlo scenarios give every lever combination a range instead of one number.',
@@ -187,7 +187,7 @@ const DRAFTS = [
     },
   },
   {
-    no: 'N05-U01', kind_num: 11, technique: 'Optimization', name: 'Rebalance Stock Across Warehouses',
+    no: 'AI05-UC01', kind_num: 11, technique: 'Optimization', name: 'Rebalance Stock Across Warehouses',
     headline: 'Rebalance Warehouse Stock to Cut Freight and Holding Cost', subdomain: 'Stock balancing', sponsor: 'Head of Supply', beneficiary: 'Supply Planners', cadence: 'Weekly', bob: 8.6,
     serve: 'A planner for the Head of Supply: each week it proposes which units to move between warehouses, and each line is accepted or overridden.',
     how: 'Optimization: a solver picks the moves that cover forecast demand at the lowest freight and holding cost, within warehouse capacity, truck slots and the weekly budget.',
@@ -208,7 +208,7 @@ const DRAFTS = [
     },
   },
   {
-    no: 'N05-U03', kind_num: 12, technique: 'Queueing', name: 'Staff Checkouts to Forecast Footfall',
+    no: 'AI05-UC03', kind_num: 12, technique: 'Queueing', name: 'Staff Checkouts to Forecast Footfall',
     headline: 'Match Checkout Staffing to Footfall to Cut Labor Cost', subdomain: 'Store labor', sponsor: 'Store Operations Director', beneficiary: 'Store Managers', cadence: 'Weekly', bob: 7.8,
     serve: 'A staffing planner for store operations: next week\'s checkout shifts per store and hour, so the 90th-percentile wait stays under 5 minutes at the lowest labor cost.',
     how: 'Queueing and optimization: an Erlang C model turns forecast footfall into the staff needed per hour, and a solver builds shifts that meet it within the labor budget and the shift rules.',
@@ -229,7 +229,7 @@ const DRAFTS = [
     },
   },
   {
-    no: 'N06-U01', kind_num: 30, technique: 'Segmentation', name: 'Serve Customer Groups Affordably',
+    no: 'AI06-UC01', kind_num: 30, technique: 'Segmentation', name: 'Serve Customer Groups Affordably',
     headline: 'Align Service Cost to the Margin Each Segment Earns', subdomain: 'Customer value', sponsor: 'Head of Customer', beneficiary: 'Customer Team', cadence: 'Quarterly', bob: 8.0,
     serve: 'A segment explorer for the Head of Customer: buyers grouped by how they buy and what they cost to serve, with one treatment chosen per segment.',
     how: 'Clustering: k-means groups buyers on order frequency, basket size, returns, discount share and service contacts. Cost to serve is allocated per buyer from returns, shipping and contacts.',
@@ -252,7 +252,7 @@ const DRAFTS = [
     },
   },
   {
-    no: 'N06-U04', kind_num: 31, technique: 'Recommendation', name: 'Pick Next Offer for Loyal Buyers',
+    no: 'AI06-UC04', kind_num: 31, technique: 'Recommendation', name: 'Pick Next Offer for Loyal Buyers',
     headline: 'Raise Repeat Orders to Sell the Next Best Product Offer', subdomain: 'Personalization', sponsor: 'Head of E-commerce', beneficiary: 'Campaign Team', cadence: 'Weekly', bob: 7.7,
     serve: 'An offer desk for e-commerce: the next 3 products to offer each loyal buyer, with the reason, sent to the weekly campaign.',
     how: 'Recommendation: item-to-item similarity learned from what buyers bought together and in sequence, checked against offering the most popular items to everyone.',
@@ -273,7 +273,7 @@ const DRAFTS = [
     },
   },
   {
-    no: 'N07-U01', kind_num: 1, technique: 'Decomposition', name: 'Explain the Margin Gap to Plan',
+    no: 'AI07-UC01', kind_num: 1, technique: 'Decomposition', name: 'Explain the Margin Gap to Plan',
     headline: 'Close the Margin Gap to Plan by Fixing Its Drivers', subdomain: 'Variance to plan', sponsor: 'FP&A Lead', beneficiary: 'Regional Managers', cadence: 'Monthly', bob: 7.8,
     serve: 'A variance explainer for FP&A: why margin missed plan, split into price, volume, mix and cost, with an owner for every unit outside tolerance.',
     how: 'Decomposition: a price-volume-mix bridge splits the gap between plan and actual per region and category, and flags the units whose gap is outside the 3% tolerance.',
@@ -310,7 +310,7 @@ const DRAFTS = [
     },
   },
   {
-    no: 'N07-U03', kind_num: 3, technique: 'Peer Benchmarking', name: 'Bring Weak Stores Up to Peers',
+    no: 'AI07-UC03', kind_num: 3, technique: 'Peer Benchmarking', name: 'Bring Weak Stores Up to Peers',
     headline: 'Lift Store Margin to the Peer Group Median', subdomain: 'Benchmarking', sponsor: 'Regional Director', beneficiary: 'Store Managers', cadence: 'Monthly', bob: 7.4,
     serve: 'A peer benchmark for regional directors: each store\'s margin against stores of the same size, format and catchment, with the gap in dollars and a practice to copy.',
     how: 'Peer benchmarking: a regression adjusts margin for store size, format and local income, so each store is compared with what its peers achieve, not with the average.',
@@ -350,7 +350,7 @@ const DRAFTS = [
     },
   },
   {
-    no: 'N08-U01', kind_num: 19, technique: 'Causal Impact', name: 'Keep or Stop Each Promotion',
+    no: 'AI08-UC01', kind_num: 19, technique: 'Causal Impact', name: 'Keep or Stop Each Promotion',
     headline: 'Move Promotion Spend to Promotions With Real Lift', subdomain: 'Promotion review', sponsor: 'Head of Promotions', beneficiary: 'Promotion Planners', cadence: 'After each promotion', bob: 8.2,
     serve: 'A lift readout for promotions: what each promotion really added after cannibalization and pull-forward, with a keep, change or stop call.',
     how: 'Causal impact: difference-in-differences compares stores with the promotion against matched stores without it, with the 12 weeks before as the baseline.',
@@ -369,7 +369,7 @@ const DRAFTS = [
     },
   },
   {
-    no: 'N09-U01', kind_num: 34, technique: 'Process Mining', name: 'Cut Slow Warehouse Shipping Delays',
+    no: 'AI09-UC01', kind_num: 34, technique: 'Process Mining', name: 'Cut Slow Warehouse Shipping Delays',
     headline: 'Ship Orders on Time to Remove Fulfillment Bottlenecks', subdomain: 'Order flow', sponsor: 'Head of Fulfillment', beneficiary: 'Warehouse Leads', cadence: 'Weekly', bob: 7.9,
     serve: 'A process view for fulfillment: how orders really flow from placed to shipped, where they wait, and which open orders will miss the promised date.',
     how: 'Process mining: the order status timestamps form an event log. Inspire rebuilds each order\'s path, measures the wait between steps and scores open orders for the risk of missing their date.',
@@ -399,7 +399,7 @@ const DRAFTS = [
     },
   },
   {
-    no: 'N10-U01', kind_num: 13, technique: 'Geospatial Analysis', name: 'Choose Store Sites by Unmet Demand',
+    no: 'AI10-UC01', kind_num: 13, technique: 'Geospatial Analysis', name: 'Choose Store Sites by Unmet Demand',
     headline: 'Grow Sales to Pick the Right Next Store Sites', subdomain: 'Expansion', sponsor: 'Head of Expansion', beneficiary: 'Real Estate Team', cadence: 'Quarterly', bob: 7.7,
     serve: 'A site map for expansion: candidate locations ranked by unmet demand nearby, net of the sales they would take from current stores.',
     how: 'Geospatial analysis and optimization: demand is estimated around each candidate from buyers\' home locations, and a solver picks the 5 sites that add the most net demand together.',
@@ -425,7 +425,7 @@ const DRAFTS = [
     },
   },
   {
-    no: 'N10-U03', kind_num: 27, technique: 'Network Analysis', name: 'Break Up Return Abuse Rings',
+    no: 'AI10-UC03', kind_num: 27, technique: 'Network Analysis', name: 'Break Up Return Abuse Rings',
     headline: 'Stop Refund Abuse to Break Up Coordinated Account Rings', subdomain: 'Loss prevention', sponsor: 'Head of Loss Prevention', beneficiary: 'Loss Prevention Analysts', cadence: 'Weekly', bob: 8.0,
     serve: 'A network view for loss prevention: groups of accounts linked by shared cards, addresses or devices that return far more than normal.',
     how: 'Network analysis: accounts become nodes, shared attributes become links, and community detection finds tight groups whose return pattern stands out.',
@@ -457,7 +457,7 @@ const DRAFTS = [
     },
   },
   {
-    no: 'N11-U01', kind_num: 40, technique: 'Data Agent', name: 'Answer Sales and Stock Questions',
+    no: 'AI11-UC01', kind_num: 40, technique: 'Data Agent', name: 'Answer Sales and Stock Questions',
     headline: 'Answer Commercial Data Questions to Get Plain Answers', subdomain: 'Self-service', sponsor: 'Head of Commercial', beneficiary: 'Commercial Teams', cadence: 'On demand', bob: 7.2,
     serve: 'A data agent for commercial teams: ask the sales and stock data anything in plain words and get the answer with the SQL it ran.',
     how: 'Genie answers from a room built on the sales and stock tables, with checked example questions. ai_query writes the short summaries.',
@@ -478,7 +478,7 @@ const DRAFTS = [
     },
   },
   {
-    no: 'N12-U01', kind_num: 2, technique: 'Decomposition', name: 'Split Margin Change by Driver',
+    no: 'AI12-UC01', kind_num: 2, technique: 'Decomposition', name: 'Split Margin Change by Driver',
     headline: 'Explain Monthly Margin Movement to Act on Price, Volume and Mix', subdomain: 'Monthly margin', sponsor: 'Finance Business Partner', beneficiary: 'Finance Team', cadence: 'Monthly', bob: 7.6,
     serve: 'A monthly dashboard for finance: how much of the change in margin came from price, volume, mix and cost, by region and category.',
     how: 'A price-volume-mix bridge: the change in margin is split into what price, units sold, the mix of items and unit cost each contributed, line by line.',
@@ -520,7 +520,7 @@ const priorityOf = (bob) => (bob >= 8 ? 'Very High' : 'High');
 export function inspireUseCase(u, rank) {
   return {
     No: u.no, Name: u.name, usecase: u.headline, 'Analytics Technique': u.technique, use_case_kind: u.kind,
-    'Business Domain': DOMAINS[u.no.slice(0, 3)], Subdomain: u.subdomain, Beneficiary: u.beneficiary, Sponsor: u.sponsor,
+    'Business Domain': DOMAINS[u.no.slice(0, 4)], Subdomain: u.subdomain, Beneficiary: u.beneficiary, Sponsor: u.sponsor,
     Priority: priorityOf(u.bob), Quality: priorityOf(u.bob), 'Priority Score': u.bob, 'Quality Score': Number((u.bob / 2).toFixed(2)), 'Inspire Score': u.bob,
     bob_score: u.bob, best_of_best: 'Y', best_of_best_rank: String(rank), selection_basis: 'earned', 'Decision Cadence': u.cadence,
     Statement: u.story, Solution: `${u.serve} ${u.how}`, 'Business Value': `${u.value} At stake: ${u.stake}.`,
@@ -552,7 +552,7 @@ function filterText(spec, labels) {
 function base(u, spec) {
   return {
     id: pageIdOf(u), use_case_id: u.no, title: u.title, question: u.name,
-    sponsor: u.sponsor, domain: DOMAINS[u.no.slice(0, 3)], subdomain: u.subdomain, questions: u.genie.map((x) => x.q),
+    sponsor: u.sponsor, domain: DOMAINS[u.no.slice(0, 4)], subdomain: u.subdomain, questions: u.genie.map((x) => x.q),
     result_table: `${DEMO_CATALOG}.${u.result}`,
   };
 }
@@ -1162,7 +1162,7 @@ export const exampleName = (u) => path.relative(SHELL_DIR, exampleFile(u.mvp.lay
 
 export function mvpSettings(u) {
   return {
-    title: u.title, subtitle: DOMAINS[u.no.slice(0, 3)], genie: { space_id: `01f0d${u.no.replace('-', '').toLowerCase()}`, title: u.title },
+    title: u.title, subtitle: DOMAINS[u.no.slice(0, 4)], genie: { space_id: `01f0d${u.no.replace('-', '').toLowerCase()}`, title: u.title },
     admin: DEMO_OWNER, built_at: '2026-11-02T06:00:00Z',
     ...(LAYOUTS[u.mvp.layout]?.plan ? { options: { modify: false, replace_edits: false, decisions: true } } : {}),
   };

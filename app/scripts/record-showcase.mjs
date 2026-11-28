@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { apiWatch, keepToOrigins, recordMvpApp, routeInspireDemo, walkInspireDemo } from './showcaseRecorder.mjs';
 import { DEMO_READS_WHEN, demoReads, unrecorded } from './showcaseRoutes.mjs';
+import { addShowcasePdfs, pageLayout, pageRasterize } from './showcasePdfs.mjs';
 import redact from '../backend/lib/redact.js';
 
 redact.redactOutput();
@@ -13,8 +14,9 @@ redact.redactOutput();
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
 const { chromium } = require(path.join(root, 'frontend/node_modules/playwright'));
+const JSZip = require(path.join(root, 'frontend/node_modules/jszip'));
 const { showcaseStale } = require('../backend/lib/showcase.js');
-const { makeRecorder, mvpUrlsFrom, showcaseFile, showcaseLeaks, showcaseSizeProblem, showcaseSizes, showcaseText } = require('../backend/lib/showcaseRecord.js');
+const { installReplace, makeRecorder, makeSanitizer, mvpUrlsFrom, showcaseFile, showcaseLeaks, showcaseSizeProblem, showcaseSizes, showcaseText } = require('../backend/lib/showcaseRecord.js');
 
 const env = process.env;
 const need = (name) => {
@@ -102,6 +104,7 @@ try {
     if (app.service_principal_name) replace[app.service_principal_name] = 'the App service principal';
     if (app.service_principal_client_id) replace[app.service_principal_client_id] = 'the App service principal';
   }
+  Object.assign(replace, installReplace(inspireUrl)); // C33: the scratch App name in the Build notes
   Object.assign(replace, env.SHOWCASE_REPLACE ? JSON.parse(env.SHOWCASE_REPLACE) : {});
 
   const titleOf = (m) => {
@@ -113,9 +116,36 @@ try {
     build: env.SHOWCASE_BUILD || require('../backend/lib/inspireJobParams.js').INSPIRE_AGENT_VERSION,
     mvps: mvpIds.map((m) => ({ id: m, title: titleOf(m), url: urls[m] })),
   });
-  for (const x of inspire) recorder.addInspire(x);
+  // REQ-560: a generated document names the real workspace, run, catalog and person. The recorder keeps document bytes as they are, so each
+  // PPTX/DOCX/XLSX is cleaned here with the same sanitizer as the answers. A PDF is drawn pages, so its pixels cannot be cleaned: C33 draws each listed
+  // PDF again from the cleaned answers (showcasePdfs.mjs) after the bundle is made.
+  const clean = makeSanitizer({ replace, sessionId, mvpUrls: Object.fromEntries(mvpIds.filter((m) => urls[m]).map((m) => [m, urls[m]])), hostedPaths: {} });
+  // A chart in a PPTX carries its data as an embedded XLSX, which is cleaned the same way.
+  const cleanZip = async (bytes) => {
+    const zip = await JSZip.loadAsync(bytes);
+    for (const [name, entry] of Object.entries(zip.files)) {
+      if (entry.dir) continue;
+      if (/\.(xml|rels)$/i.test(name)) zip.file(name, clean.text(await entry.async('string')).replace(/\s+panose="[0-9A-Fa-f]*"/g, ''));
+      else if (/\.(xlsx|docx|pptx)$/i.test(name)) zip.file(name, await cleanZip(await entry.async('nodebuffer')));
+    }
+    return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+  };
+  const cleanDocument = async (x) => {
+    const bytes = Buffer.from(x.body, 'base64');
+    if (bytes.subarray(0, 2).toString('latin1') !== 'PK') return null;
+    return { ...x, body: (await cleanZip(bytes)).toString('base64') };
+  };
+  for (const x of inspire) {
+    if (!x.base64) { recorder.addInspire(x); continue; }
+    const cleaned = await cleanDocument(x);
+    if (cleaned) recorder.addInspire(cleaned);
+    else log(`drawing ${new URL(x.url).searchParams.get('path')} again from the cleaned answers: a live PDF shows the real names in its pixels`);
+  }
   for (const m of mvpIds) for (const x of mvpExchanges[m]) recorder.addMvp(m, x);
   const bundle = recorder.bundle();
+  const pdfPage = await browser.newPage();
+  await addShowcasePdfs(bundle, pageRasterize(pdfPage), { layout: await pageLayout(await browser.newPage()), banned: [...Object.keys(replace), sessionId, new URL(inspireUrl).hostname], log });
+  await pdfPage.close();
   const stale = showcaseStale(bundle);
   if (stale.length) throw new Error(`the recording is stale, so nothing was written: ${stale.join(', ')}`);
   const leaks = showcaseLeaks(bundle, [...Object.keys(replace), sessionId, new URL(inspireUrl).hostname]);
