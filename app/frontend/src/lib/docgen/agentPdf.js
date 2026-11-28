@@ -1087,9 +1087,30 @@ export const agentPdfSvgs = (args) => agentPdfPages(args).map((p) => p.svg);
 // C28 (REQ-566): a page is 794 CSS px = 595.5 pt wide, so 200 DPI needs 2.78 raster px per pt = a scale of 2.084; pdfFromImages places each page at its
 // natural size (raster / scale), so the DPI is real and not the 96 the raster size alone gave.
 export const PDF_RASTER = { scale: 2.1, type: 'image/jpeg', quality: 0.5 };
-export async function buildAgentPdf(args, rasterize) {
-  const images = [];
-  for (const svg of agentPdfSvgs(args)) images.push(await rasterPage(rasterize, svg, PDF_RASTER.scale, PDF_RASTER));
+// C33 (REQ-560): /api/inspire/docs/save takes at most 8 MiB (backend/lib/docFiles.js DOC_MAX_BYTES). A 200 DPI page is about 85 KB, so the PDF of
+// 20 or more use cases was refused ("The file is over 8 MB", 40 use cases of a 168 use case run). A PDF over the cap is drawn again at the
+// resolution that fits, never below PDF_MIN_SCALE (96 DPI, the page as the screen shows it at 100%); one that cannot fit says so before any save.
+export const PDF_MAX_BYTES = 8 * 1024 * 1024;
+export const PDF_MIN_SCALE = 1;
+// minScale: a recorded demo (scripts/showcasePdfs.mjs) shares a smaller byte budget and may go below the App's lowest print quality.
+export async function buildAgentPdf(args, rasterize, { maxBytes = PDF_MAX_BYTES, minScale = PDF_MIN_SCALE } = {}) {
+  const svgs = agentPdfSvgs(args);
   const { pdfFromImages } = await import('./pdfDoc.js');
-  return pdfFromImages(images, PDF_RASTER.scale);
+  const draw = async (scale) => {
+    const images = [];
+    for (const svg of svgs) images.push(await rasterPage(rasterize, svg, scale, PDF_RASTER));
+    return pdfFromImages(images, scale);
+  };
+  let scale = PDF_RASTER.scale;
+  let bytes = await draw(scale);
+  for (let tries = 0; bytes.length > maxBytes && scale > minScale && tries < 4; tries += 1) {
+    scale = Math.max(minScale, Math.floor(scale * Math.sqrt(maxBytes / bytes.length) * 0.95 * 100) / 100);
+    bytes = await draw(scale);
+  }
+  if (bytes.length > maxBytes) {
+    const n = (args.useCases || []).length;
+    const mb = (b) => (b / (1024 * 1024)).toFixed(1);
+    throw new Error(`The PDF of ${n} use case${n === 1 ? '' : 's'} is ${mb(bytes.length)} MB even at the lowest print quality, over the ${mb(maxBytes)} MB that can be saved. Pick fewer use cases.`);
+  }
+  return bytes;
 }

@@ -267,6 +267,16 @@ const browser = await chromium.launch();
 try {
   const settle = apiWatch(ui.page);
   const walk = await walkInspireDemo(ui.page, { settle, log, mvps: true });
+  // REQ-560 (c33): the walked pages only ask for ?all=1; the plain sessions list (Launch and a demo replay without the flag) is read once through the
+  // demo route, so the bundle answers both keys from the same made-up run.
+  await ui.page.evaluate(async ([header, demo, db, wh]) => {
+    const res = await fetch(`/api/inspire/sessions?${new URLSearchParams({ inspire_database: db, warehouse_id: wh })}`, { headers: { [header]: demo } });
+    if (!res.ok) throw new Error(`the plain sessions list answered ${res.status}`);
+  }, ['X-Inspire-Showcase', KINDS_DEMO.id, INSPIRE_DATABASE, WAREHOUSE]);
+  await settle();
+  if (!inspire.some((x) => x.status < 300 && String(x.method).toUpperCase() === 'GET' && /\/api\/inspire\/sessions\?(?![^#]*\ball=)/.test(x.url))) {
+    throw new Error('the walk did not record the plain GET /api/inspire/sessions');
+  }
   const missed = unrecorded(inspire, demoReads(true, walk));
   if (missed.length) throw new Error(`the walk did not record ${missed.join(', ')}`);
   const writes = ui.made.fetches.filter((f) => String(f.opts.method || 'GET').toUpperCase() !== 'GET').map((f) => f.path);

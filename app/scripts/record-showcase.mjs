@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { apiWatch, keepToOrigins, recordMvpApp, routeInspireDemo, walkInspireDemo } from './showcaseRecorder.mjs';
 import { DEMO_READS_WHEN, demoReads, unrecorded } from './showcaseRoutes.mjs';
+import { addShowcasePdfs, pageRasterize } from './showcasePdfs.mjs';
 import redact from '../backend/lib/redact.js';
 
 redact.redactOutput();
@@ -115,7 +116,8 @@ try {
     mvps: mvpIds.map((m) => ({ id: m, title: titleOf(m), url: urls[m] })),
   });
   // REQ-560: a generated document names the real workspace, run, catalog and person. The recorder keeps document bytes as they are, so each
-  // PPTX/DOCX/XLSX is cleaned here with the same sanitizer as the answers; a PDF has compressed text and 100+ pages, so it is not kept.
+  // PPTX/DOCX/XLSX is cleaned here with the same sanitizer as the answers. A PDF is drawn pages, so its pixels cannot be cleaned: C33 draws each listed
+  // PDF again from the cleaned answers (showcasePdfs.mjs) after the bundle is made.
   const clean = makeSanitizer({ replace, sessionId, mvpUrls: Object.fromEntries(mvpIds.filter((m) => urls[m]).map((m) => [m, urls[m]])), hostedPaths: {} });
   // A chart in a PPTX carries its data as an embedded XLSX, which is cleaned the same way.
   const cleanZip = async (bytes) => {
@@ -136,10 +138,13 @@ try {
     if (!x.base64) { recorder.addInspire(x); continue; }
     const cleaned = await cleanDocument(x);
     if (cleaned) recorder.addInspire(cleaned);
-    else log(`left out ${new URL(x.url).searchParams.get('path')}: a PDF is not kept in a demo`);
+    else log(`drawing ${new URL(x.url).searchParams.get('path')} again from the cleaned answers: a live PDF shows the real names in its pixels`);
   }
   for (const m of mvpIds) for (const x of mvpExchanges[m]) recorder.addMvp(m, x);
   const bundle = recorder.bundle();
+  const pdfPage = await browser.newPage();
+  await addShowcasePdfs(bundle, pageRasterize(pdfPage), { banned: [...Object.keys(replace), sessionId, new URL(inspireUrl).hostname], log });
+  await pdfPage.close();
   const stale = showcaseStale(bundle);
   if (stale.length) throw new Error(`the recording is stale, so nothing was written: ${stale.join(', ')}`);
   const leaks = showcaseLeaks(bundle, [...Object.keys(replace), sessionId, new URL(inspireUrl).hostname]);

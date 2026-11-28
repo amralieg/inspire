@@ -112,14 +112,19 @@ const backToRun = async (page, settle) => {
   await settle();
 };
 
-test('the App carries the recorded demos: the kinds demo first with an MVP App for each use case, then NYC Taxi and TPC-DS Retail, results-only', () => {
+test('the App carries the recorded demos: the kinds demo first with an MVP App for each use case, then NYC Taxi and TPC-DS Retail, each with at least one MVP App of its own use cases', () => {
   assert.deepEqual(FILES, [KINDS_FILE, 'nyctaxi.json.gz', 'tpcds-retail.json.gz']);
   assert.deepEqual(Object.keys(COMMITTED), [KINDS_DEMO.id, 'nyctaxi', 'tpcds-retail']);
   for (const bundle of Object.values(COMMITTED)) {
     assert.ok(useCasesOf(bundle).length > 0, `${bundle.id} has use cases`);
     assert.ok(useCasesOf(bundle).every((u) => String(u.session_id) === bundle.session_id), `${bundle.id} has the use cases of its own run alone`);
     if (bundle.id === KINDS_DEMO.id) assert.deepEqual(Object.keys(bundle.mvps).sort(), useCasesOf(bundle).map((u) => u.id).sort(), 'every use case of the kinds demo has its MVP App');
-    else assert.deepEqual(bundle.mvps, {}, `${bundle.id} is a results-only demo`);
+    else {
+      // D1 (c33): a results demo carries at least one MVP App, not one for every use case, and each MVP App is one of its own use cases.
+      assert.ok(Object.keys(bundle.mvps).length >= 1, `${bundle.id} has at least one MVP App`);
+      const ids = new Set(useCasesOf(bundle).map((u) => u.id));
+      assert.deepEqual(Object.keys(bundle.mvps).filter((id) => !ids.has(id)), [], `every MVP App of ${bundle.id} is a use case of its run`);
+    }
   }
 });
 
@@ -230,23 +235,29 @@ function demoWalks(name) {
   const bundle = Object.values(loadShowcases(dir))[0];
   fs.rmSync(dir, { recursive: true, force: true });
   const n = useCasesOf(bundle).length;
-  const mvps = Object.keys(bundle.mvps).length > 0;
+  const built = Object.keys(bundle.mvps).length;
+  const mvps = built > 0;
   const walks = [{ label: 'Run', parts: ['run'] }, { label: 'Start and Monitor', parts: ['start', 'monitor'] }];
-  const groups = (part, label, per) => {
-    for (let from = 0; from < n; from += per) {
-      const to = Math.min(n, from + per);
+  // D1 (c33): a use case costs MVP_VIEW_COUNT views when it has an MVP App, one view otherwise. The Build rail lists the built use cases first.
+  const groups = (part, label, cost) => {
+    for (let from = 0; from < n;) {
+      let to = from; let views = 0;
+      while (to < n && (to === from || views + cost(to) <= VIEWS_PER_TEST)) { views += cost(to); to += 1; }
       walks.push({ label: `${label} use cases ${from + 1} to ${to} of ${n}`, parts: [part], useCases: [from, to] });
+      from = to;
     }
   };
-  groups('review', 'Review', VIEWS_PER_TEST);
-  groups('build', 'Build', Math.max(1, Math.floor(VIEWS_PER_TEST / (mvps ? MVP_VIEW_COUNT : 1))));
-  return { bundle, n, mvps, walks };
+  groups('review', 'Review', () => 1);
+  groups('build', 'Build', (i) => (i < built ? MVP_VIEW_COUNT : 1));
+  return { bundle, n, mvps, built, walks };
 }
 
 const MVP_VIEW_COUNT = 7;
 
 for (const name of FILES) {
-  const { bundle, n, mvps, walks } = demoWalks(name);
+  const { bundle, n, mvps, built, walks } = demoWalks(name);
+  const mvpIds = new Set(Object.keys(bundle.mvps));
+  const mvpNames = new Set(useCasesOf(bundle).filter((u) => mvpIds.has(u.id)).flatMap((u) => [u.Name, u.name, u.use_case, u.name_with_technique, u.short_name].filter(Boolean).map(String)));
   test(`the See Demo walks of ${name} cover every part of the App and every use case on Review and Build exactly once`, () => {
     assert.deepEqual([...new Set(walks.flatMap((w) => w.parts))].sort(), [...WALK_PARTS].sort());
     for (const part of ['review', 'build']) {
@@ -273,15 +284,16 @@ for (const name of FILES) {
           assert.equal(walk.listed, n, 'Build lists every use case of the run');
           assert.equal(walk.build.length, to - from, `Build opened use cases ${from + 1} to ${to}`);
           assert.equal(new Set(walk.build.map((b) => b.name)).size, to - from, 'each use case opened is a different one');
-          if (mvps) assert.deepEqual(walk.build.filter((b) => !b.tabs.length), [], 'every use case of a demo with MVP Apps is built');
-          else assert.deepEqual(walk.build.filter((b) => b.tabs.length), [], 'no use case of a results-only demo opens an MVP');
+          // D1 (c33): the use cases with an MVP App in bundle.mvps open their MVP; the rest show the not-built state the real App shows.
+          assert.deepEqual(walk.build.filter((b) => mvpNames.has(b.name) && !b.tabs.length).map((b) => b.name), [], 'every use case with an MVP App is built');
+          assert.deepEqual(walk.build.filter((b) => !mvpNames.has(b.name) && b.tabs.length).map((b) => b.name), [], 'no use case without an MVP App opens an MVP');
         }
         if (walkOf.parts.includes('review')) {
           assert.equal(walk.runs, 1, 'Review lists the demo run alone');
           assert.equal(walk.results, n, 'Review shows every use case of the run');
           assert.equal(walk.reviewed, walkOf.useCases[1] - walkOf.useCases[0], `Review opened use cases ${walkOf.useCases[0] + 1} to ${walkOf.useCases[1]}`);
         }
-        if (walkOf.parts.includes('run')) assert.equal(walk.run, mvps ? n : 0, 'Run lists an MVP App for each use case of a demo with MVP Apps');
+        if (walkOf.parts.includes('run')) assert.equal(walk.run, built, 'Run lists exactly the MVP Apps the demo carries');
         if (walkOf.parts.includes('start')) assert.equal(walk.start.runs, 1, 'Start lists the demo run alone');
         if (walkOf.parts.includes('monitor')) assert.deepEqual(walk.monitor, { steps: true }, 'Monitor shows the steps of the run');
         assert.deepEqual(ui.missing, [], 'every view the walk opened has a saved answer');
