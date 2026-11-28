@@ -37,11 +37,13 @@ BINARY_SUFFIXES = (".woff2",)
 CONSTANT = "INSPIRE_NOTEBOOK_ASSETS = "
 LEGACY_CONSTANTS = ("_INSPIRE_APP_SHELL = ", "_INSPIRE_KINDS = ")
 VALUE_LIBRARY = os.path.normpath(os.path.join(ROOT, "..", "shared", "value_assumption_library.json"))
+DOMAIN_RULES = os.path.normpath(os.path.join(ROOT, "..", "shared", "domain_rules.json"))
 FX_AVERAGES = os.path.normpath(os.path.join(ROOT, "..", "backend", "lib", "fxAverages.json"))
 ASSETS = {"app_shell": ("notebook/app_shell.b64", SHELL), "kinds": ("notebook/kinds.json", KINDS),
           "translations": ("notebook/translations.json", TRANSLATIONS), "prompts": ("notebook/prompts.json", PROMPTS),
           "fx_averages": ("notebook/fx_averages.json", FX_AVERAGES), "result_history": ("notebook/result_history.txt", RESULT_HISTORY),
-          "value_library": ("notebook/value_library.json", VALUE_LIBRARY)}
+          "value_library": ("notebook/value_library.json", VALUE_LIBRARY),
+          "domain_rules": ("notebook/domain_rules.json", DOMAIN_RULES)}
 
 
 def _walk(base: str, relative: str) -> list:
