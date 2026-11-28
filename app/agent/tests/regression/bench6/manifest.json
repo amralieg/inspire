@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "notes": "01_uc_metadata of adversarial scopes uses ${BENCH6_CATALOG}: create it with bench6_planted.py --scope adv_a|adv_b. tpch is the holdout: never used to tune prompts; c35_abgrade reports it separately.",
+  "scopes": [
+    {
+      "id": "bakehouse",
+      "role": "standard",
+      "widgets": {
+        "01_uc_metadata": "samples.bakehouse",
+        "business_context": "",
+        "priorities": "",
+        "generation_instructions": "",
+        "04_table_election": "All Tables",
+        "quality_mode": "Balanced"
+      },
+      "answer_key": "bench6/keys/bakehouse.json",
+      "planted": []
+    },
+    {
+      "id": "nyctaxi",
+      "role": "standard",
+      "widgets": {
+        "01_uc_metadata": "samples.nyctaxi",
+        "business_context": "",
+        "priorities": "",
+        "generation_instructions": "",
+        "04_table_election": "All Tables",
+        "quality_mode": "Balanced"
+      },
+      "answer_key": "bench6/keys/nyctaxi.json",
+      "planted": []
+    },
+    {
+      "id": "tpcds_sf1",
+      "role": "standard",
+      "widgets": {
+        "01_uc_metadata": "samples.tpcds_sf1",
+        "business_context": "",
+        "priorities": "",
+        "generation_instructions": "",
+        "04_table_election": "All Tables",
+        "quality_mode": "Balanced"
+      },
+      "answer_key": "bench6/keys/tpcds_sf1.json",
+      "planted": []
+    },
+    {
+      "id": "tpch",
+      "role": "holdout",
+      "widgets": {
+        "01_uc_metadata": "samples.tpch",
+        "business_context": "",
+        "priorities": "",
+        "generation_instructions": "",
+        "04_table_election": "All Tables",
+        "quality_mode": "Balanced"
+      },
+      "answer_key": "bench6/keys/tpch.json",
+      "planted": []
+    },
+    {
+      "id": "bench6_adv_a",
+      "role": "adversarial",
+      "widgets": {
+        "01_uc_metadata": "${BENCH6_CATALOG}.bench6_adv_a",
+        "business_context": "",
+        "priorities": "",
+        "generation_instructions": "",
+        "04_table_election": "All Tables",
+        "quality_mode": "Balanced"
+      },
+      "answer_key": "bench6/keys/bench6_adv_a.json",
+      "planted": [
+        "priced_by_reference",
+        "tiny_master",
+        "no_money_unit_cost",
+        "cross_domain",
+        "high_value_table"
+      ]
+    },
+    {
+      "id": "bench6_adv_b",
+      "role": "adversarial",
+      "widgets": {
+        "01_uc_metadata": "${BENCH6_CATALOG}.bench6_adv_b",
+        "business_context": "",
+        "priorities": "",
+        "generation_instructions": "",
+        "04_table_election": "All Tables",
+        "quality_mode": "Balanced"
+      },
+      "answer_key": "bench6/keys/bench6_adv_b.json",
+      "planted": [
+        "mixed_currency",
+        "wrong_grain",
+        "refunds_negative",
+        "stock_vs_flow",
+        "overlapping_pools",
+        "dev_data"
+      ]
+    }
+  ]
+}

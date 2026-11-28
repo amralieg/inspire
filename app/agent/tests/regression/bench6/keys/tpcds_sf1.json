@@ -1,0 +1,305 @@
+{
+  "scope": "tpcds_sf1",
+  "source": "existing_gold",
+  "items": [
+    {
+      "id": "G01",
+      "name": "Weekly store-item demand forecast",
+      "statement": "Set next week's replenishment quantity for each item in each store. Fewer stock-outs and less excess stock on the highest-volume channel.",
+      "tables": [
+        "store_sales",
+        "date_dim"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G02",
+      "name": "Warehouse reorder points from on-hand stock",
+      "statement": "Set the reorder point and order quantity per item and warehouse. Avoids stock-outs and cuts the cash tied up in slow stock.",
+      "tables": [
+        "inventory"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G03",
+      "name": "Return rate by item and reason",
+      "statement": "Fix, delist or relabel the items with the highest return rates and their main return reasons. Returns erase margin; the top reasons point to quality or description fixes.",
+      "tables": [
+        "reason",
+        "store_returns",
+        "web_returns",
+        "catalog_returns"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G04",
+      "name": "Suspicious return behavior per customer",
+      "statement": "Flag customers or tickets whose return pattern looks abusive for review before refunding. Return abuse is a direct and recurring loss.",
+      "tables": [
+        "store_returns",
+        "store_sales"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G05",
+      "name": "Customer lapse risk from purchase recency and frequency",
+      "statement": "Choose which customers get a win-back offer this week. Retaining existing customers costs less than acquiring new ones.",
+      "tables": [
+        "customer",
+        "store_sales",
+        "web_sales",
+        "catalog_sales"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G06",
+      "name": "Customer lifetime value across channels",
+      "statement": "Set the service level and marketing budget per customer tier. Spending follows value; channel-blind value hides the best customers.",
+      "tables": [
+        "customer",
+        "store_sales",
+        "web_sales",
+        "catalog_sales"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G07",
+      "name": "Customer segments from demographics and spend",
+      "statement": "Pick the segments to target with each campaign. Targeted campaigns convert better than broadcast ones.",
+      "tables": [
+        "customer_demographics",
+        "store_sales",
+        "web_sales",
+        "catalog_sales"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G08",
+      "name": "Promotion effectiveness by channel",
+      "statement": "Keep, change or stop each promotion based on incremental sales against its cost. Promotion spend that does not lift sales is pure margin loss.",
+      "tables": [
+        "promotion",
+        "store_sales",
+        "web_sales",
+        "catalog_sales"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G09",
+      "name": "Price elasticity and markdown depth",
+      "statement": "Set the markdown depth per item category. Too-deep markdowns give away margin; too-shallow ones leave stock unsold.",
+      "tables": [
+        "item",
+        "store_sales",
+        "web_sales",
+        "catalog_sales"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G10",
+      "name": "Cross-channel cannibalization",
+      "statement": "Decide channel-specific assortment and pricing where one channel takes sales from another. Channel conflict can grow costs without growing total sales.",
+      "tables": [
+        "store_sales",
+        "web_sales"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G11",
+      "name": "Market basket affinity for cross-sell",
+      "statement": "Choose product pairs for placement and bundles. Bundles and adjacency lift basket size.",
+      "tables": [
+        "item",
+        "store_sales",
+        "web_sales",
+        "catalog_sales"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G12",
+      "name": "Store productivity benchmarking",
+      "statement": "Target the stores below their peers on sales per square foot and per employee. Peer benchmarks expose fixable underperformance.",
+      "tables": [
+        "store_sales",
+        "store"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G13",
+      "name": "Shipping cost by ship mode and carrier",
+      "statement": "Renegotiate or switch carriers and ship modes with the worst cost per order. Shipping is a large and negotiable cost line.",
+      "tables": [
+        "ship_mode",
+        "web_sales",
+        "catalog_sales"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G14",
+      "name": "Order-to-ship lag by warehouse",
+      "statement": "Fix the warehouses and ship modes with the longest order-to-ship lag. Slow fulfillment drives cancellations and returns.",
+      "tables": [
+        "warehouse",
+        "catalog_sales",
+        "web_sales"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G15",
+      "name": "Call center return handling",
+      "statement": "Coach or staff the call centers with the highest return amounts. Return handling quality varies by center and costs money.",
+      "tables": [
+        "catalog_returns",
+        "call_center"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G16",
+      "name": "Catalog page effectiveness",
+      "statement": "Drop or redesign the catalog pages that sell least for their department. Print pages have a fixed cost each and should earn it.",
+      "tables": [
+        "catalog_sales",
+        "catalog_page"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G17",
+      "name": "Web page content and sales",
+      "statement": "Change the page types and content that underperform on sales. Page content changes are cheap and testable.",
+      "tables": [
+        "web_sales",
+        "web_page"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G18",
+      "name": "Margin by brand and category",
+      "statement": "Rationalize the assortment: drop or reprice low-margin brands. Shelf space should go to the products that earn margin.",
+      "tables": [
+        "item",
+        "store_sales",
+        "web_sales",
+        "catalog_sales"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G19",
+      "name": "Staffing by hour from sales by time of day",
+      "statement": "Set store staffing per shift from expected traffic. Labor is the largest controllable store cost.",
+      "tables": [
+        "store_sales",
+        "time_dim"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G20",
+      "name": "Holiday and seasonal demand planning",
+      "statement": "Set holiday-period orders and staffing per category. Peak periods carry a large share of yearly sales.",
+      "tables": [
+        "date_dim",
+        "store_sales",
+        "web_sales",
+        "catalog_sales"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G21",
+      "name": "Store site selection from customer geography",
+      "statement": "Choose the regions for the next store openings. Opening near demand that is underserved today grows sales.",
+      "tables": [
+        "customer_address",
+        "store"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G22",
+      "name": "Purchasing power by income band",
+      "statement": "Set the price tiers and assortment per income band. Matching price tiers to buying power lifts conversion.",
+      "tables": [
+        "household_demographics",
+        "income_band",
+        "store_sales",
+        "web_sales",
+        "catalog_sales"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G23",
+      "name": "Coupon and discount leakage",
+      "statement": "Tighten coupon rules where discounts exceed their intended share of sales. Discount leakage erodes margin quietly.",
+      "tables": [
+        "store_sales",
+        "web_sales",
+        "catalog_sales"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G24",
+      "name": "Inventory balancing across warehouses",
+      "statement": "Move stock between warehouses to match demand. Rebalancing cuts both stock-outs and overstock.",
+      "tables": [
+        "inventory",
+        "warehouse"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "G25",
+      "name": "Refund method cost on returns",
+      "statement": "Steer refunds toward store credit where it cuts net loss. Store credit keeps revenue that a cash refund loses.",
+      "tables": [
+        "store_returns",
+        "web_returns",
+        "catalog_returns"
+      ],
+      "critical": false,
+      "high_value": false
+    }
+  ]
+}
