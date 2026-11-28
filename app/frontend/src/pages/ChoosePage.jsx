@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useCallback, useMemo, useId } from 'react';
+import { Fragment, useState, useEffect, useCallback, useMemo } from 'react';
 import { Rocket, BarChart3, Loader2, AlertCircle, Clock, CheckCircle2, ArrowRight, ChevronRight, ChevronDown, ChevronUp, Eye, Target, FileText, Sparkles, X, Search } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import MoreMenu from '../components/ui/MoreMenu';
@@ -18,11 +18,13 @@ import { saveBlob } from '../lib/download';
 import { profileFileName, profileFileText } from '../lib/businessProfiles';
 import { buildFilterOf, portfolioCard, runAverageScore, runCounts, runLabel, runFilterText, runSearchHit, runsOfCard } from '../lib/reviewFigures';
 import { sessionCountsLine, sessionStatus } from '../lib/monitorState';
-import { SHOWCASE_BUTTON } from '../lib/showcase';
 import { compareUseCaseRank, computeHighPriorityCount, nameOfUseCase, qualityBarCountsOf } from '../lib/useCaseFields';
 import { PlainMessage } from '../components/TechnicalDetails';
 import InspireScoreBadge from '../components/InspireScoreBadge';
 import RunCountChips from '../components/RunCountChips';
+import StartWizard from '../components/startWizard/StartWizard';
+import { usePlanAdvance } from '../lib/wizPlanClient';
+import { START_NEW_DISCOVERY } from '../lib/startWizard';
 
 const RUNS_ERROR_TEXT = 'Inspire could not load your runs, and you can still start a new one';
 
@@ -83,40 +85,19 @@ function getSessionSummary(session) {
   return { total: useCases.length, high: computeHighPriorityCount(useCases), meets, below, domains: domains.size, domainNames: [...domains], useCases };
 }
 
-const CHOICE = 'group flex w-full items-start gap-4 rounded-2xl border px-5 py-4 text-start transition-colors';
-
-function StartChoice({ choice, icon: Icon, title, text, onClick, strong = false }) {
-  const textId = useId();
+function DemoRow({ demo, onDemo }) {
+  const name = demo.title || demo.business || 'Demo';
   return (
-    <button type="button" data-start-choice={choice} data-variant={strong ? 'primary' : undefined} onClick={onClick} aria-label={title} aria-describedby={textId}
-      className={`${CHOICE} ${strong ? 'border-db-red/30 bg-linear-to-r from-db-red/[0.06] to-transparent hover:from-db-red/[0.12]' : 'border-border bg-surface hover:border-border-strong'}`}>
-      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${strong ? 'bg-db-red/10' : 'bg-bg-subtle'}`}>
-        <Icon size={20} aria-hidden className="text-db-red-fg" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-text-primary">{title}</span>
-        <span id={textId} className="mt-1 block text-[12px] leading-snug text-text-secondary">{text}</span>
-      </span>
-      <ArrowRight size={16} aria-hidden className="mt-2.5 shrink-0 text-text-tertiary group-hover:text-db-red-fg" />
-    </button>
-  );
-}
-
-function StartChoices({ onNewExperiment, onNoData, onDemo }) {
-  return (
-    <section aria-label="How do you want to start?" data-start-choices="" className="space-y-3">
-      <h2 className="text-center text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary">How do you want to start?</h2>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <StartChoice choice="data" icon={Rocket} strong onClick={onNewExperiment} title="I have data in Unity Catalog"
-          text="Pick the catalogs, schemas or tables Inspire reads. Inspire finds use cases in your own data." />
-        <StartChoice choice="no-data" icon={Sparkles} onClick={onNoData} title="No data yet"
-          text="Describe your business. Inspire creates sample tables for it and simulates a full run on them, so you see what Inspire does without your own data." />
+    <div data-run="demo" className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-dashed border-border bg-bg-subtle/40 px-5 py-4">
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span data-run-demo-badge="" className="rounded-full border border-border bg-surface px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Demo</span>
+          <span className="truncate text-sm font-semibold text-text-primary">{name}</span>
+        </div>
+        {demo.summary && <p className="text-xs text-text-secondary">{demo.summary}</p>}
       </div>
-      {onDemo && (
-        <StartChoice choice="demo" icon={Eye} onClick={onDemo} title={SHOWCASE_BUTTON}
-          text="Open a finished run: its use cases and the MVPs built for them. Nothing in your workspace changes." />
-      )}
-    </section>
+      {onDemo && <Button variant="secondary" size="sm" onClick={onDemo}><Eye size={14} aria-hidden /> Open the demo</Button>}
+    </div>
   );
 }
 
@@ -185,7 +166,8 @@ function getListRowOverview(session) {
   return null;
 }
 
-export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo, onViewResults, onOpenBuild }) {
+export default function ChoosePage({ settings, update, onNoData, onDemo, demo = null, onLaunched, onViewResults, onOpenBuild }) {
+  const [wizardOpen, setWizardOpen] = useState(false);
   const { token, databricksHost, warehouseId, inspireDatabase, showcase = '' } = settings;
   const [loading, setLoading] = useState(true);
   const [sessions, setSessions] = useState([]);
@@ -197,6 +179,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   const [query, setQuery] = useState('');
   const [showValue, setShowValue] = useState(false);
   const apiFetch = useMemo(() => makeApiFetch({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
+  usePlanAdvance(apiFetch, { inspireDatabase, warehouseId });
   const { portfolio, error: portfolioError } = usePortfolio(apiFetch, inspireDatabase, warehouseId);
   const valueReady = Boolean(inspireDatabase && warehouseId);
   // FX-34 (REQ-448, W16 D2/D3): one read, the run value of every run and of all runs; the panel, its bars and the run cards render it.
@@ -343,21 +326,45 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
     );
   }
 
+  const startButton = (
+    <Button data-start-new="" data-variant="primary" onClick={() => setWizardOpen(true)}>
+      <Rocket size={16} aria-hidden /> {START_NEW_DISCOVERY}
+    </Button>
+  );
+  const wizard = wizardOpen && (
+    <StartWizard settings={settings} apiFetch={apiFetch} onClose={() => setWizardOpen(false)}
+      onNoData={onNoData ? () => { setWizardOpen(false); onNoData(); } : undefined}
+      onLaunched={(...args) => { setWizardOpen(false); onLaunched?.(...args); }} update={update} />
+  );
+
   if (sessions.length === 0 && !error) {
     return (
+      <>
       <div className="min-h-[calc(100vh-64px)] flex items-start justify-center pt-12 pb-16 px-6">
         <div className="mx-auto w-full max-w-[1440px] space-y-6">
-          <PageHeader icon={Rocket} title="Get started with Inspire AI" subtitle="No runs yet. Start your first run to see your use cases here." />
+          <PageHeader icon={Rocket} title="Get started with Inspire AI" subtitle="Start your first discovery to see your use cases here." actions={startButton} />
           <div className="w-full space-y-6">
             <p className="max-w-[75ch] text-sm text-text-secondary">
-              Start from your own Unity Catalog data, or let Inspire make sample data for you.
+              Start from your own Unity Catalog data, or look at the demo first.
             </p>
-            <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
+            {demo && (
+              <div className="space-y-3">
+                <h2 className="px-1 text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary">Previous runs</h2>
+                <DemoRow demo={demo} onDemo={onDemo} />
+              </div>
+            )}
+            <div data-runs-none="" className="rounded-xl border border-dashed border-border px-5 py-6 text-center">
+              <p className="text-sm font-semibold text-text-primary">No runs of your own yet</p>
+              <p className="mt-1 text-xs text-text-secondary">Start a discovery on your data. Your runs show up here.</p>
+              <div className="mt-4 flex justify-center">{startButton}</div>
+            </div>
           </div>
         </div>
       </div>
-    );
-  }
+      {wizard}
+    </>
+  );
+}
 
   const openCard = (key) => {
     if (portfolioCard(key)?.opens === 'build') {
@@ -369,6 +376,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   };
 
   return (
+    <>
     <div className="min-h-[calc(100vh-64px)] flex items-start justify-center pt-12 pb-16 px-6 relative overflow-hidden">
       {/* Ambient background glows */}
       <div className="absolute top-[-15%] start-[-5%] w-[40%] h-[40%] rounded-full bg-db-red/[0.03] blur-[120px] pointer-events-none" />
@@ -382,7 +390,6 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
             actions={<MoreMenu items={[
               { label: 'View all runs', onSelect: () => onViewResults(null) },
               ...(allTotals?.all ? [{ label: 'Value across all runs', onSelect: () => setShowValue(true) }] : []),
-              ...(onDemo ? [{ label: 'Open the demo', onSelect: onDemo }] : []),
             ]} />} />
           {!error && <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-bg-subtle border border-border rounded-full">
             <BarChart3 size={14} className="text-db-red-fg" />
@@ -392,7 +399,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
           </div>}
         </div>
 
-        <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
+        <div className="flex justify-start">{startButton}</div>
 
         {anyRunValue(allTotals) && <ValueDisclaimer />}
         {allTotals?.all && showValue && <AllRunsValuePanel reply={allTotals} />}
@@ -435,6 +442,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
           )}
 
           <div className="space-y-2">
+            {demo && !query.trim() && !runFilter && <DemoRow demo={demo} onDemo={onDemo} />}
             {listed.map((session) => {
               const status = sessionStatus(session, loadedAt);
               const cfg = session.starting && status === 'running' ? STATUS_CONFIG.starting : STATUS_CONFIG[status];
@@ -745,5 +753,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
         )}
       </div>
     </div>
+    {wizard}
+    </>
   );
 }

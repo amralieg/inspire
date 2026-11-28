@@ -572,8 +572,10 @@ export default function App() {
           <ChoosePage
             key={demoScope || 'workspace'}
             settings={pageSettings}
-            onNewExperiment={() => nav('launch')}
+            update={update}
+            onLaunched={onLaunched}
             onNoData={() => nav('generate-data')}
+            demo={showcases.length && !inDemo ? showcases[0] : null}
             onDemo={showcases.length && !inDemo ? () => openDemo(showcases[0]) : undefined}
             onViewResults={(sid, rid) => {
               if (sid && !inDemo) setSessionId(sid);
