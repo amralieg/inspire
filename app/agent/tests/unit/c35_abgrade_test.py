@@ -57,7 +57,7 @@ def build(out, scopes=("s1",), found=range(8), disposed=(9,), high_value=(), new
     manifest = {"agents": {}, "runs": []}
     for scope in scopes:
         old = [uc(i) for i in range(20)]
-        verdicts = ["full"] * 10 + ["none"] * 10
+        verdicts = ["full"] * 20 if aa else ["full"] * 10 + ["none"] * 10
         new_found = [uc(i, "Rewritten statement") for i in found]
         fillers = [uc(100 + k) for k in range(20 - len(new_found))]
         new_short = (new_found + fillers)[:20]
@@ -135,7 +135,7 @@ def test_recall_90_percent_passes_80_fails_and_high_value_is_absolute(tmp_path):
     no_disp = full(tmp_path / "b", disposed=())
     assert no_disp["scopes"]["s1"]["recall"]["pct"] == 80.0
     assert no_disp["scopes"]["s1"]["gates"]["recall"]["status"] == "FAIL"
-    hv = full(tmp_path / "c", high_value=(9,), disposed=(), found=range(9))
+    hv = full(tmp_path / "c", high_value=(3,), disposed=(), found=range(9))
     assert hv["scopes"]["s1"]["gates"]["recall"]["status"] == "PASS"
     assert hv["scopes"]["s1"]["gates"]["recall_high_value"]["status"] == "PASS"
     miss = full(tmp_path / "d", high_value=(9,))
