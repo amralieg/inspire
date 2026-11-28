@@ -1,6 +1,8 @@
 const RP = require('./routePolicy');
 
-const LAUNCH_OPERATIONS = ['Discover Use Cases', 'Generate Use Cases'];
+const LAUNCH_OPERATIONS = ['Discover Use Cases', 'Match Use Cases'];
+// REQ-578: Generate Use Cases is retired as a launch operation. launchParamsProblem lets it through so the job parameter check refuses it with a 400 that names it.
+const RETIRED_OPERATIONS = ['Generate Use Cases'];
 const IMPLEMENT_ONLY_PARAMS = ['inspire_implement_use_case', 'inspire_implement_spec_version', 'inspire_implement_run_id'];
 const str = (v) => (v == null ? '' : String(v).trim());
 
@@ -24,7 +26,7 @@ function ownLaunch({ notebookPath, clusterId }, { notebooks = [], clusters = [],
 function launchParamsProblem(params) {
   const values = params && typeof params === 'object' ? params : {};
   const operation = str(values['15_operation']);
-  if (operation && !LAUNCH_OPERATIONS.includes(operation)) {
+  if (operation && !LAUNCH_OPERATIONS.includes(operation) && !RETIRED_OPERATIONS.includes(operation)) {
     return `Launch starts ${LAUNCH_OPERATIONS.join(' or ')} only; ${operation} starts from the Build page, which checks who owns the use case`;
   }
   const named = IMPLEMENT_ONLY_PARAMS.filter((key) => str(values[key]));

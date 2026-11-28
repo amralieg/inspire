@@ -277,7 +277,7 @@ components:
             operation_mode:
               type: string
               description: Notebook operation (`15_operation`)
-              enum: [Discover Use Cases, Generate Use Cases]
+              enum: [Discover Use Cases, Match Use Cases]
               default: Discover Use Cases
             table_election_mode:
               type: string

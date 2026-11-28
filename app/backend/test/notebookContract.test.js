@@ -165,7 +165,7 @@ test('all app launch defaults use the installer notebook destination', () => {
 
 test('OpenAPI documents v1.2.0 operation and artifact values', () => {
   const openapi = fs.readFileSync(path.join(appRoot, 'backend', 'openapi.yaml'), 'utf8');
-  assert.match(openapi, /enum: \[Discover Use Cases, Generate Use Cases\]/);
+  assert.match(openapi, /enum: \[Discover Use Cases, Match Use Cases\]/);
   assert.match(openapi, /enum: \[Good, High, Ultra High\]/);
   assert.doesNotMatch(openapi, /operation_mode:\s*full/);
   assert.doesNotMatch(openapi, /generate_choices:\s*genie,pdf/);

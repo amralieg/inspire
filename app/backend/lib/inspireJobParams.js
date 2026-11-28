@@ -31,6 +31,7 @@ const INSPIRE_NOTEBOOK_WIDGET_KEYS = [
   '12_documents_languages',
   '13_generate_genie_code_for',
   '14_session_id',
+  '19_match_phase',
   '17_table_scope',
   '18_table_relationships',
   'currency',
@@ -239,7 +240,23 @@ function tableIsPicked(table, metadata) {
 
 const DEFAULT_GENERATION_PATH = './../demos/';
 
+const MATCH_PHASE_VALID = ['match', 'accept'];
+
+// REQ-578: Generate Use Cases is no longer a launch operation; Match Use Cases takes 19_match_phase match (default) or accept.
+function validateOperationParams(params) {
+  const operation = String(params['15_operation'] ?? '').trim();
+  if (operation === 'Generate Use Cases') throw paramError('Generate Use Cases is no longer a launch operation. Use Discover Use Cases or Match Use Cases.');
+  const phase = String(params['19_match_phase'] ?? '').trim();
+  if (operation === 'Match Use Cases') {
+    if (phase && !MATCH_PHASE_VALID.includes(phase)) throw paramError(`19_match_phase must be one of: ${MATCH_PHASE_VALID.join(', ')}.`);
+    params['19_match_phase'] = phase || 'match';
+  } else if (phase) {
+    throw paramError('19_match_phase applies to Match Use Cases only.');
+  }
+}
+
 function sanitizeInspireNotebookJobParams(params, { scopePicks } = {}) {
+  validateOperationParams(params);
   normalizeUseCasesQualityParams(params);
   normalizeDiscoveryTypeParams(params);
   validateStrategicContextParams(params);
