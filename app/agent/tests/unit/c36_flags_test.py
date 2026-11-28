@@ -305,7 +305,8 @@ def _names_item(ns, row, item, names):
 def test_4_skipped_steps_have_skipped_ledger_rows_and_flags_json_lists_every_off_flag(agent_ns, tmp_path):
     for flag in ALL_FLAGS:
         _assert_declared(agent_ns, flag)
-    run = offline_run(agent_ns, tmp_path, flags=OFF_ALL)
+    # Ultra High so every switched-off step is one the run reaches (a04_flags_reached: no skipped row for an unreached step)
+    run = offline_run(agent_ns, tmp_path, mode="Ultra High", flags=OFF_ALL)
     assert run.rows, "the step ledger wrote no rows"
     skipped = [r for r in run.rows if r.get("status") == "skipped"]
     missing = [item for item, names in SKIPPED_ITEMS.items() if not any(_names_item(agent_ns, r, item, names) for r in skipped)]
