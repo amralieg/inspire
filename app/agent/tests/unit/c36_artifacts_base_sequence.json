@@ -1,0 +1,19 @@
+{
+ "artifact_calls": {
+  "_generate_genie_instruction_for_use_case|use_case_id=AI01-UC01": 1,
+  "_generate_genie_instruction_for_use_case|use_case_id=AI01-UC02": 1,
+  "_generate_language_catalogs|languages=['English', 'French']": 1,
+  "notebook_write|kind=genie,use_case_id=AI01-UC01": 1,
+  "notebook_write|kind=genie,use_case_id=AI01-UC02": 1,
+  "notebook_write|kind=skeleton,use_case_id=AI01-UC01": 1,
+  "notebook_write|kind=skeleton,use_case_id=AI01-UC02": 1,
+  "notebook_write|kind=skeleton,use_case_id=AI02-UC01": 1,
+  "notebook_write|kind=skeleton,use_case_id=AI02-UC02": 1
+ },
+ "prompts": [
+  "COMBINED_VALUE_QUALITY_SCORE_PROMPT",
+  "STRATEGY_ALIGNMENT_PROMPT",
+  "USE_CASE_GENIE_CODE_INSTRUCTION_GEN_PROMPT",
+  "USE_CASE_GENIE_CODE_INSTRUCTION_GEN_PROMPT"
+ ]
+}
