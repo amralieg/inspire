@@ -691,7 +691,7 @@ See [Discovery Type: Standard And Deep](#a-discovery-type-standard-and-deep) for
 | Value | Behavior |
 |-------|----------|
 | `Let Inspire Decides` | Automatically selects tables based on data category (prefers transactional tables when there are many tables; includes all when count is small) |
-| `All Tables` | Uses every business table discovered (excludes technical/metadata tables automatically) |
+| `All Tables` | Runs with no classification; every table in scope is used; labels from rules (only your ignore rules leave tables out) |
 | `Transactional Only` | Uses only transactional tables; falls back to all if none found |
 
 Inspire always filters out technical/metadata tables (audit logs, system tables, ETL tracking) regardless of this setting.

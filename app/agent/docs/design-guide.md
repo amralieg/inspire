@@ -160,7 +160,7 @@ The agent reads your Unity Catalog metadata and builds a deep understanding of y
 | Option                 | Behavior                                                                    |
 |:-----------------------|:----------------------------------------------------------------------------|
 | `Let Inspire Decides`  | AI classifies tables as transactional vs. dimensional, selects optimal set  |
-| `All Tables`           | Every business table (no filtering)                                         |
+| `All Tables`           | Runs with no classification; every table in scope is used; labels from rules |
 | `Transactional Only`   | Only tables classified as transactional (orders, events, logs)              |
 
 The AI uses a two-test classification:
