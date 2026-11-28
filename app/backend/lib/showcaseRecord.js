@@ -394,6 +394,14 @@ function showcaseText(bundle) {
   return `${JSON.stringify(bundle, null, 1)}\n`;
 }
 
+// C33 (REQ-560): the App a demo was recorded from is a scratch or test install (its name is in the Build notes, notebook paths and failure
+// text: "/Workspace/Shared/<app name>/..."). The recorder replaces it with the neutral folder every install shows.
+const DEMO_INSTALL = 'inspire';
+function installReplace(inspireUrl) {
+  const name = new URL(inspireUrl).hostname.split('.')[0].replace(/-\d+$/, '');
+  return name && name !== DEMO_INSTALL ? { [name]: DEMO_INSTALL } : {};
+}
+
 function showcaseFile(bundle) {
   return zlib.gzipSync(Buffer.from(showcaseText(bundle), 'utf8'), { level: 9 });
 }
@@ -414,5 +422,5 @@ function showcaseSizeProblem(bundle, max = SHOWCASE_MAX_BYTES) {
 
 module.exports = {
   DEMO_HOST, SHOWCASE_FILE_ROUTES, SHOWCASE_MAX_BYTES, UNREAD_USE_CASE_FIELDS, demoView, makeSanitizer, makeRecorder, monitorStep, mvpUrlsFrom, onlySession,
-  documentText, showcaseFile, showcaseLeaks, showcaseSizeProblem, showcaseSizes, showcaseText,
+  documentText, installReplace, showcaseFile, showcaseLeaks, showcaseSizeProblem, showcaseSizes, showcaseText,
 };

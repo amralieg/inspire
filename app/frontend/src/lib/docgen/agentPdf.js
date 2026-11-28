@@ -10,6 +10,7 @@ import { chartTypesFor, ucChartSvg, portfolioChartSvg } from './designs/ucCharts
 import { execSummaryParas, purposeParas, domainsListOf, storyPick } from './storyParts.js';
 import { withLabels } from './docLabels.js';
 import { rasterPage } from './pngIndexed.js';
+import { domLayout } from './pdfLayout.js';
 
 // The agent's _PDF_CSS (6a7361a39) without the @page rules, which the page box below replaces; html is the page root .ap.
 const AGENT_PDF_CSS = `
@@ -1088,29 +1089,32 @@ export const agentPdfSvgs = (args) => agentPdfPages(args).map((p) => p.svg);
 // natural size (raster / scale), so the DPI is real and not the 96 the raster size alone gave.
 export const PDF_RASTER = { scale: 2.1, type: 'image/jpeg', quality: 0.5 };
 // C33 (REQ-560): /api/inspire/docs/save takes at most 8 MiB (backend/lib/docFiles.js DOC_MAX_BYTES). A 200 DPI page is about 85 KB, so the PDF of
-// 20 or more use cases was refused ("The file is over 8 MB", 40 use cases of a 168 use case run). A PDF over the cap is drawn again at the
-// resolution that fits, never below PDF_MIN_SCALE (96 DPI, the page as the screen shows it at 100%); one that cannot fit says so before any save.
+// 20 or more use cases was refused ("The file is over 8 MB", 40 use cases of a 168 use case run).
+// D5: a PDF that would be over the cap is written as a vector PDF instead (pdfLayout.js reads each page's boxes and text lines from the browser,
+// pdfDoc.pdfFromVectorPages writes them as shapes and real text): it keeps full sharpness at a fraction of the bytes, and its text can be selected and searched.
+// A chart or logo is still drawn as a small picture. layout: async (svg) => page operations; the browser's by default, none outside a browser.
 export const PDF_MAX_BYTES = 8 * 1024 * 1024;
-export const PDF_MIN_SCALE = 1;
-// minScale: a recorded demo (scripts/showcasePdfs.mjs) shares a smaller byte budget and may go below the App's lowest print quality.
-export async function buildAgentPdf(args, rasterize, { maxBytes = PDF_MAX_BYTES, minScale = PDF_MIN_SCALE } = {}) {
-  const svgs = agentPdfSvgs(args);
-  const { pdfFromImages } = await import('./pdfDoc.js');
-  const draw = async (scale) => {
-    const images = [];
-    for (const svg of svgs) images.push(await rasterPage(rasterize, svg, scale, PDF_RASTER));
-    return pdfFromImages(images, scale);
-  };
-  let scale = PDF_RASTER.scale;
-  let bytes = await draw(scale);
-  for (let tries = 0; bytes.length > maxBytes && scale > minScale && tries < 4; tries += 1) {
-    scale = Math.max(minScale, Math.floor(scale * Math.sqrt(maxBytes / bytes.length) * 0.95 * 100) / 100);
-    bytes = await draw(scale);
+const VECTOR_IMAGE_SCALE = 2;
+export async function buildAgentPdf(args, rasterize, { maxBytes = PDF_MAX_BYTES, layout = typeof document === 'undefined' ? null : domLayout(document) } = {}) {
+  const m = args.model || buildAgentModel(args);
+  const svgs = pagesOf(m).map((p) => p.svg);
+  const { pdfFromImages, pdfFromVectorPages } = await import('./pdfDoc.js');
+  const images = [];
+  for (const svg of svgs) images.push(await rasterPage(rasterize, svg, PDF_RASTER.scale, PDF_RASTER));
+  const raster = await pdfFromImages(images, PDF_RASTER.scale);
+  if (raster.length <= maxBytes) return raster;
+  let vector = null;
+  if (layout && !m.rtl) {
+    const pages = [];
+    for (const svg of svgs) {
+      const page = await layout(svg);
+      for (const op of page.ops) if (op.t === 'image') op.image = await rasterPage(rasterize, op.svg, VECTOR_IMAGE_SCALE, PDF_RASTER);
+      pages.push(page);
+    }
+    vector = (await pdfFromVectorPages(pages)).bytes;
+    if (vector.length <= maxBytes) return vector;
   }
-  if (bytes.length > maxBytes) {
-    const n = (args.useCases || []).length;
-    const mb = (b) => (b / (1024 * 1024)).toFixed(1);
-    throw new Error(`The PDF of ${n} use case${n === 1 ? '' : 's'} is ${mb(bytes.length)} MB even at the lowest print quality, over the ${mb(maxBytes)} MB that can be saved. Pick fewer use cases.`);
-  }
-  return bytes;
+  const n = (args.useCases || []).length;
+  const mb = (b) => (b / (1024 * 1024)).toFixed(1);
+  throw new Error(`The PDF of ${n} use case${n === 1 ? '' : 's'} is ${mb((vector || raster).length)} MB, over the ${mb(maxBytes)} MB that can be saved. Pick fewer use cases.`);
 }

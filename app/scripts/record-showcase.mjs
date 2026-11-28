@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { apiWatch, keepToOrigins, recordMvpApp, routeInspireDemo, walkInspireDemo } from './showcaseRecorder.mjs';
 import { DEMO_READS_WHEN, demoReads, unrecorded } from './showcaseRoutes.mjs';
-import { addShowcasePdfs, pageRasterize } from './showcasePdfs.mjs';
+import { addShowcasePdfs, pageLayout, pageRasterize } from './showcasePdfs.mjs';
 import redact from '../backend/lib/redact.js';
 
 redact.redactOutput();
@@ -16,7 +16,7 @@ const require = createRequire(import.meta.url);
 const { chromium } = require(path.join(root, 'frontend/node_modules/playwright'));
 const JSZip = require(path.join(root, 'frontend/node_modules/jszip'));
 const { showcaseStale } = require('../backend/lib/showcase.js');
-const { makeRecorder, makeSanitizer, mvpUrlsFrom, showcaseFile, showcaseLeaks, showcaseSizeProblem, showcaseSizes, showcaseText } = require('../backend/lib/showcaseRecord.js');
+const { installReplace, makeRecorder, makeSanitizer, mvpUrlsFrom, showcaseFile, showcaseLeaks, showcaseSizeProblem, showcaseSizes, showcaseText } = require('../backend/lib/showcaseRecord.js');
 
 const env = process.env;
 const need = (name) => {
@@ -104,6 +104,7 @@ try {
     if (app.service_principal_name) replace[app.service_principal_name] = 'the App service principal';
     if (app.service_principal_client_id) replace[app.service_principal_client_id] = 'the App service principal';
   }
+  Object.assign(replace, installReplace(inspireUrl)); // C33: the scratch App name in the Build notes
   Object.assign(replace, env.SHOWCASE_REPLACE ? JSON.parse(env.SHOWCASE_REPLACE) : {});
 
   const titleOf = (m) => {
@@ -143,7 +144,7 @@ try {
   for (const m of mvpIds) for (const x of mvpExchanges[m]) recorder.addMvp(m, x);
   const bundle = recorder.bundle();
   const pdfPage = await browser.newPage();
-  await addShowcasePdfs(bundle, pageRasterize(pdfPage), { banned: [...Object.keys(replace), sessionId, new URL(inspireUrl).hostname], log });
+  await addShowcasePdfs(bundle, pageRasterize(pdfPage), { layout: await pageLayout(await browser.newPage()), banned: [...Object.keys(replace), sessionId, new URL(inspireUrl).hostname], log });
   await pdfPage.close();
   const stale = showcaseStale(bundle);
   if (stale.length) throw new Error(`the recording is stale, so nothing was written: ${stale.join(', ')}`);

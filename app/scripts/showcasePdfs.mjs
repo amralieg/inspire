@@ -13,9 +13,6 @@ const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { showcaseLeaks, showcaseSizes, showcaseFile, SHOWCASE_MAX_BYTES } = require(path.join(APP, 'backend/lib/showcaseRecord.js'));
 const lib = (p) => import(pathToFileURL(path.join(APP, 'frontend/src/lib', p)).href);
 
-// The demo PDFs are read on screen, so they may be drawn at 70% of the screen resolution to fit the bundle (the App's own floor is 1).
-export const DEMO_MIN_SCALE = 0.7;
-
 // A PDF's bytes in the gzipped bundle: base64 text of compressed pages gzips back to about its own size, plus a few percent.
 const GZ_BASE64 = 1.04;
 
@@ -34,6 +31,14 @@ export const pageRasterize = (page) => async (svg, scale = 1, { type = 'image/pn
   }, [svg, scale, type, quality]);
   return { dataUrl, width: Math.round(w * scale), height: Math.round(h * scale), type };
 };
+
+// The page layout the App's vector PDF reads (pdfLayout.js, loaded into the page as plain text), run in a page of a headless browser.
+export async function pageLayout(page) {
+  const src = fs.readFileSync(path.join(APP, 'frontend/src/lib/docgen/pdfLayout.js'), 'utf8').replace(/^export /gm, '');
+  await page.setContent('<!doctype html><html><body></body></html>');
+  await page.addScriptTag({ content: `${src}\nwindow.__domLayout = domLayout(document);` });
+  return (svg) => page.evaluate((s) => window.__domLayout(s), svg);
+}
 
 // The PDFs the bundle's folder listings name and has no answer for: [{ key, file, strategy }].
 export function missingPdfs(bundle) {
@@ -67,8 +72,8 @@ export async function pdfArgs(bundle) {
 }
 
 // Adds an export answer for each listed PDF, drawn to fit `room` bytes of the bundle in total, and sets each listing's file_size to the bytes kept.
-// rasterize: (svg, scale, opts) => image, as svgToPng. Returns [{ name, bytes, use_cases }]. Throws when a page text names a banned word or a PDF does not fit.
-export async function addShowcasePdfs(bundle, rasterize, { banned = [], room = Math.floor(SHOWCASE_MAX_BYTES * 0.97) - showcaseSizes(bundle).gzip, log = () => {} } = {}) {
+// rasterize: (svg, scale, opts) => image, as svgToPng; layout: (svg) => page operations, as pageLayout. Returns [{ name, bytes, use_cases }]. Throws when a page text names a banned word or a PDF does not fit.
+export async function addShowcasePdfs(bundle, rasterize, { layout = null, banned = [], room = Math.floor(SHOWCASE_MAX_BYTES * 0.97) - showcaseSizes(bundle).gzip, log = () => {} } = {}) {
   const todo = missingPdfs(bundle);
   if (!todo.length) return [];
   const { buildAgentPdf, agentPdfSvgs } = await lib('docgen/agentPdf.js');
@@ -83,7 +88,7 @@ export async function addShowcasePdfs(bundle, rasterize, { banned = [], room = M
     const leaks = showcaseLeaks({ inspire: { [key]: { status: 200, body: { text } } } }, banned);
     if (leaks.length) throw new Error(`${file.name}: the page text names private details: ${leaks.slice(0, 5).join('; ')}`);
     const share = Math.floor((room - made.reduce((n, m) => n + m.bytes, 0)) / (todo.length - i));
-    const bytes = Buffer.from(await buildAgentPdf(args, rasterize, { maxBytes: Math.min(Math.floor(share / GZ_BASE64), 8 * 1024 * 1024), minScale: DEMO_MIN_SCALE }));
+    const bytes = Buffer.from(await buildAgentPdf(args, rasterize, { maxBytes: Math.min(Math.floor(share / GZ_BASE64), 8 * 1024 * 1024), layout }));
     bundle.inspire[key] = { status: 200, body: bytes.toString('base64'), base64: true, type: 'application/pdf' };
     for (const v of Object.values(bundle.inspire)) for (const f of v.body?.files || []) if (f.path === file.path) f.file_size = bytes.length;
     made.push({ name: file.name, bytes: bytes.length, use_cases: args.useCases.length, ids: args.useCases.slice(0, 3).map(trackingIdOf) });
@@ -100,7 +105,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();
-    const made = await addShowcasePdfs(bundle, pageRasterize(page), { banned, log: console.log });
+    const made = await addShowcasePdfs(bundle, pageRasterize(page), { layout: await pageLayout(await browser.newPage()), banned, log: console.log });
     const leaks = showcaseLeaks(bundle, banned);
     if (leaks.length) throw new Error(`the bundle names private details, so nothing was written:\n${leaks.slice(0, 20).join('\n')}`);
     const { gzip } = showcaseSizes(bundle);
