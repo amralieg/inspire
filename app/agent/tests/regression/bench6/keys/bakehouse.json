@@ -1,0 +1,143 @@
+{
+  "scope": "bakehouse",
+  "source": "existing_gold",
+  "items": [
+    {
+      "id": "B01",
+      "name": "Next franchise sites from customer and franchise locations",
+      "statement": "Choose the areas for the next franchise openings. A site opened where customers already travel far to buy wins sales others cannot reach.",
+      "tables": [
+        "sales_franchises",
+        "sales_customers",
+        "sales_transactions"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "B02",
+      "name": "Sales by place and the areas that stand out",
+      "statement": "Show franchise sales by area and name the areas that need a regional plan. Regional plans built on the map put effort where sales are thin.",
+      "tables": [
+        "sales_franchises",
+        "sales_transactions"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "B03",
+      "name": "Recurring complaint reasons from reviews",
+      "statement": "Fix the top growing complaint reasons in reviews, each with an owner. A growing complaint caught early costs a recipe change; caught late it costs customers.",
+      "tables": [
+        "media_customer_reviews",
+        "media_gold_reviews_chunked"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "B04",
+      "name": "Franchises below the network on review sentiment",
+      "statement": "Coach the franchises whose review sentiment runs below their peers. Sentiment below peers predicts lost repeat customers at that franchise.",
+      "tables": [
+        "media_customer_reviews",
+        "media_gold_reviews_chunked"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "B05",
+      "name": "Daily demand forecast per franchise and product",
+      "statement": "Set each franchise's daily bake quantity per product. Over-baking is waste and under-baking is lost sales, every day.",
+      "tables": [
+        "sales_transactions"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "B06",
+      "name": "Franchises that depend on one supplier",
+      "statement": "Qualify a second supplier for the franchises and ingredients that depend on one supplier. One supplier failing stops every franchise that depends on it.",
+      "tables": [
+        "sales_franchises",
+        "sales_suppliers"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "B07",
+      "name": "Customer lapse risk from purchase history",
+      "statement": "Choose which customers get a win-back offer this week. Winning back a lapsing customer costs less than finding a new one.",
+      "tables": [
+        "sales_transactions"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "B08",
+      "name": "Customer segments from purchase behavior",
+      "statement": "Pick the customer segments for each loyalty offer. Offers tuned per segment earn more than one offer for all.",
+      "tables": [
+        "sales_transactions"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "B09",
+      "name": "Next product to offer each customer",
+      "statement": "Choose the next product to offer each customer. A relevant next offer lifts basket size; an irrelevant one trains customers to ignore offers.",
+      "tables": [
+        "sales_transactions"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "B10",
+      "name": "Staffing per franchise by hour",
+      "statement": "Set staff per franchise and hour from expected traffic. Queues at peak hours lose sales; idle staff off-peak lose margin.",
+      "tables": [
+        "sales_transactions"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "B11",
+      "name": "Payment cards shared across customers",
+      "statement": "Review the card numbers used by many customers or franchises before the next payout. Cards shared across many customers point to fraud or data errors, and both need a person to look.",
+      "tables": [
+        "sales_transactions"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "B12",
+      "name": "Customer lifetime value",
+      "statement": "Set the loyalty investment per customer value tier. Loyalty spend on low-value customers is taken from the ones worth keeping.",
+      "tables": [
+        "sales_transactions",
+        "sales_customers"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "B13",
+      "name": "Revenue change by price, volume and product mix",
+      "statement": "Explain each month's revenue change by price, volume and mix per franchise. Without the split, a mix shift looks like a demand problem.",
+      "tables": [
+        "sales_transactions"
+      ],
+      "critical": false,
+      "high_value": false
+    }
+  ]
+}

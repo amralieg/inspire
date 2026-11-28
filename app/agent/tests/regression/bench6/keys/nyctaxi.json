@@ -1,0 +1,96 @@
+{
+  "scope": "nyctaxi",
+  "source": "existing_gold",
+  "items": [
+    {
+      "id": "N01",
+      "name": "Hourly pickup demand forecast per zip",
+      "statement": "Set next hours' expected pickups per zip so supply is placed ahead of demand. Cars placed where the demand is next hour earn more per shift.",
+      "tables": [
+        "trips"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "N02",
+      "name": "Drivers per zone and hour",
+      "statement": "Set the number of drivers per zone and hour to meet the pickup wait target. Too few drivers lose rides; too many lose driver income.",
+      "tables": [
+        "trips"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "N03",
+      "name": "Fares that break their expected range",
+      "statement": "Review the trips whose fare is far from what distance and duration predict. Mis-metered fares cost revenue or customer trust.",
+      "tables": [
+        "trips"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "N04",
+      "name": "Fare and trips by zip and the hot areas",
+      "statement": "Name the zip areas that stand out on trips and fare per mile for the zone plan. Zone plans built on the map put cars where trips pay.",
+      "tables": [
+        "trips"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "N05",
+      "name": "Pickup to drop-off flows between zones",
+      "statement": "Find the hub zones most trips pass through and plan cover when they jam. A jam at a hub zone delays trips across the network.",
+      "tables": [
+        "trips"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "N06",
+      "name": "Fare change by distance, duration and time of day",
+      "statement": "Explain each week's fare per trip change by distance, duration and time of day. A fare drop from shorter trips needs a different response than one from slower traffic.",
+      "tables": [
+        "trips"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "N07",
+      "name": "Trip duration prediction",
+      "statement": "Quote each trip's expected duration at pickup and flag the ones likely to run long. Accurate arrival times cut complaints and cancellations.",
+      "tables": [
+        "trips"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "N08",
+      "name": "Fare levels by zone and hour",
+      "statement": "Set the fare adjustment per zone and hour within the allowed range. Fares matched to demand fill idle hours and ration peak hours.",
+      "tables": [
+        "trips"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "N09",
+      "name": "Trip segments by distance, fare and time",
+      "statement": "Pick the trip segments for each service offer such as airport or short hops. Offers built per trip segment fit the riders who take them.",
+      "tables": [
+        "trips"
+      ],
+      "critical": false,
+      "high_value": false
+    }
+  ]
+}
