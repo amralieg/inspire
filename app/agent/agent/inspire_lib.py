@@ -16263,13 +16263,175 @@ def _inspire_value_measured(base: dict, spec: dict, value: float, baseline: dict
         text += "; the range in the instructions was not used because it is outside the allowed bounds"
     net = calculated["scenarios"]["base"]["net"]
     return {**base, **guard["fields"], "status": "measured", "value_low": round(value_low, 2), "value_high": round(value_high, 2),
-            "net": dict(net) if net else None, "net_negative": "net_negative" in calculated["flags"], "cost": calculated["cost"],
+            "net": dict(net) if net else None, "net_low": dict(calculated["scenarios"]["low"]["net"] or {}) or None, "net_negative": "net_negative" in calculated["flags"], "cost": calculated["cost"],
             "assumption_flags": list(resolved["flags"]), "benefit_status": inspire_value_benefit_status(built),
             **({"value_proposal_problems": proposal_problems} if proposal_problems else {}),
             "confidence": calculated["confidence"], "gate": calculated["gate"],
             "currency": currency, "currency_source": currency_source, "period": "year" if window > 0 else "data period",
             "kpi": name, "assumption": assumption, "short": shown, "text": text, "measured_from": measured_from,
             "value_spec": built}
+
+
+INSPIRE_SELECTION_CAP = 20
+INSPIRE_SELECTION_STOP_SHARE = 0.02
+INSPIRE_SELECTION_REASONS = ("merged", "overlapping", "lacking_evidence", "lower_marginal_value")
+INSPIRE_SELECTION_SECTIONS = ("must_have", "selected", "strategic", "left_out")
+
+
+def _inspire_selection_card(uc: dict) -> dict:
+    card = (uc or {}).get("Value Estimate")
+    return card if isinstance(card, dict) and card.get("status") == "measured" else {}
+
+
+def inspire_selection_fingerprints(uc: dict) -> list:
+    """(entity, outcome, period) per measured table and column of the card, plus the per-unit one."""
+    card = _inspire_selection_card(uc)
+    source = card.get("measured_from")
+    if not isinstance(source, dict):
+        return []
+    period = str(card.get("period") or "")
+    entity = lambda value: str(value or "").replace("`", "").replace(" ", "").lower()
+    out = [(entity(source.get("table")), str(source.get("column") or "").lower(), period)]
+    unit = source.get("per_unit")
+    if isinstance(unit, dict):
+        out.append((entity(unit.get("table")), str(unit.get("column") or "").lower(), period))
+    return out
+
+
+def inspire_value_selection(use_cases, cap=INSPIRE_SELECTION_CAP, stop_share=INSPIRE_SELECTION_STOP_SHARE) -> dict:
+    """R14.1-R14.3: deterministic greedy pick by conservative marginal net value. Pure, JSON-safe, never mutates its input."""
+    def number(value):
+        return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) and value == value and abs(value) != float("inf") else None
+
+    def conservative_of(card):
+        net_low = card.get("net_low")
+        values = [number(v) for v in net_low.values()] if isinstance(net_low, dict) else []
+        return min(values) if values and None not in values else None
+
+    items = []
+    for uc in use_cases or []:
+        card = _inspire_selection_card(uc)
+        currency = card.get("currency")
+        items.append({"uc": uc, "card": card, "key": str(uc.get("use_case_key") or use_case_key(uc)), "no": str(uc.get("No", "")),
+                      "currency": currency if isinstance(currency, str) and re.fullmatch(r"[A-Za-z]{3}", currency) else None,
+                      "must": bool(uc.get("user_named")) or uc.get("owner_must_have") is True})
+    for item in items:
+        item["sort"] = (item["key"], item["no"])
+        item["fps"] = [list(fp) for fp in inspire_selection_fingerprints(item["uc"])]
+        item["conservative"] = conservative_of(item["card"]) if item["card"] else None
+    held = Counter(item["currency"] for item in items
+                   if item["card"] and item["currency"] and isinstance(item["card"].get("net_low"), dict))
+    currency = sorted(held.items(), key=lambda pair: (-pair[1], pair[0]))[0][0] if held else None
+    cap = int(cap)
+
+    def row(item, section, **fields):
+        base = {"No": item["no"], "Name": str(item["uc"].get("Name", "")), "use_case_key": item["key"], "section": section,
+                "rank": None, "label": None, "conservative": None, "marginal": None, "currency": None, "gate": None,
+                "fingerprints": [], "reason": None, "merged_into": None, "overlaps_with": [], "note": None}
+        base.update(fields)
+        return base
+
+    musts = [i for i in items if i["must"]]
+    rest = [i for i in items if not i["must"]]
+    candidates, strategic_items, lacking = [], [], []
+    for item in rest:
+        card = item["card"]
+        if not card or not item["currency"]:
+            item["note"] = "currency_unknown" if card else None
+            strategic_items.append(item)
+        elif item["currency"] != currency:
+            item["note"] = "currency_not_comparable"
+            strategic_items.append(item)
+        elif item["conservative"] is None or (card.get("confidence") or {}).get("baseline") == "low":
+            lacking.append(item)
+        else:
+            candidates.append(item)
+    musts.sort(key=lambda i: ((0, -i["conservative"]) if i["conservative"] is not None and i["currency"] == currency else (1, 0), i["sort"]))
+    money = lambda item: item["conservative"] is not None and item["currency"] == currency and bool(item["card"])
+    claims, picks, rows_by_id = {}, [], {}
+
+    def unclaimed_share(item):
+        fps = [tuple(fp) for fp in item["fps"]]
+        return 1.0 if not fps else sum(1 for fp in fps if fp not in claims) / len(fps)
+
+    def pick(item, section, marginal, label=None):
+        picks.append(item)
+        for fp in item["fps"]:
+            claims.setdefault(tuple(fp), item)
+        gate = item["card"].get("gate") if money(item) else None
+        rows_by_id[id(item)] = row(item, section, rank=len(picks), label=label,
+                                   conservative=item["conservative"] if money(item) else None,
+                                   marginal=marginal if money(item) else None, currency=currency if money(item) else None,
+                                   gate=dict(gate) if isinstance(gate, dict) else None, fingerprints=item["fps"])
+
+    for item in musts:
+        pick(item, "must_have", item["conservative"], "Owner must-have" if item["uc"].get("owner_must_have") is True
+             else "Named in the instructions")
+    first_value = floor = None
+    stop = None
+    remaining = list(candidates)
+    while True:
+        if len(picks) >= cap:
+            stop = "cap"
+            break
+        if not remaining:
+            stop = "exhausted"
+            break
+        scored = sorted(((item["conservative"] * unclaimed_share(item), item) for item in remaining),
+                        key=lambda pair: (-pair[0], pair[1]["sort"]))
+        value, best = scored[0]
+        if value <= 0 or (floor is not None and value < floor):
+            stop = "marginal_floor"
+            break
+        if first_value is None:
+            first_value, floor = value, stop_share * value
+        remaining.remove(best)
+        pick(best, "selected", value)
+    for position, item in enumerate(picks):
+        rows_by_id[id(item)]["rank"] = position + 1
+    holder_order = {id(item): position for position, item in enumerate(picks)}
+    left_rows, overlaps = [], []
+    picked = {id(item) for item in picks}
+    as_set = lambda item: {tuple(fp) for fp in item["fps"]}
+    for item in sorted(candidates, key=lambda i: i["sort"]):
+        fps = [tuple(fp) for fp in item["fps"]]
+        for other in picks:
+            if other is item or (id(item) in picked and holder_order[id(other)] > holder_order[id(item)]):
+                continue
+            shared = [list(fp) for fp in fps if fp in as_set(other)]
+            if shared:
+                overlaps.append({"use_case": item["no"], "with": other["no"], "fingerprints": shared, "share": len(shared) / len(fps)})
+        if id(item) in picked:
+            continue
+        holders = [claims[fp] for fp in fps if fp in claims]
+        marginal = item["conservative"] * unclaimed_share(item)
+        gate = item["card"].get("gate")
+        fields = {"conservative": item["conservative"], "currency": currency, "fingerprints": item["fps"],
+                  "gate": dict(gate) if isinstance(gate, dict) else None}
+        if holders and len(holders) == len(fps):
+            left_rows.append(row(item, "left_out", reason="merged", marginal=0.0, **fields,
+                                 merged_into=min(holders, key=lambda h: holder_order[id(h)])["no"]))
+        elif holders:
+            unique = sorted({id(h): h for h in holders}.values(), key=lambda h: holder_order[id(h)])
+            left_rows.append(row(item, "left_out", reason="overlapping", marginal=marginal, overlaps_with=[h["no"] for h in unique], **fields))
+        else:
+            left_rows.append(row(item, "left_out", reason="lower_marginal_value", marginal=marginal, **fields))
+    gaps = []
+    for item in sorted(lacking, key=lambda i: i["sort"]):
+        card = item["card"]
+        why = ("no low-scenario net: the value could not be priced conservatively" if item["conservative"] is None
+               else "the baseline behind the money figure has low confidence")
+        left_rows.append(row(item, "left_out", reason="lacking_evidence", note=why))
+        gaps.append({"No": item["no"], "Name": str(item["uc"].get("Name", "")), "reason": why,
+                     "measure": str(card.get("kpi") or card.get("measure") or "")})
+    strategic_items.sort(key=lambda i: (-(number(i["uc"].get("Inspire Score")) or 0.0), i["key"], i["no"]))
+    strategic_rows = [row(item, "strategic", note=item.get("note")) for item in strategic_items]
+    selected_rows = [rows_by_id[id(item)] for item in picks]
+    left_rows.sort(key=lambda r: (-(r["marginal"] if r["marginal"] is not None else float("-inf")), r["use_case_key"], r["No"]))
+    overlaps.sort(key=lambda o: (o["use_case"], o["with"]))
+    return {"selected": selected_rows, "strategic": strategic_rows, "left_out": left_rows,
+            "long_list": selected_rows + strategic_rows + left_rows, "overlaps": overlaps, "gaps": gaps,
+            "stop": {"reason": stop, "cap": cap, "floor": floor, "first_value": first_value}, "currency": currency}
 
 
 def _inspire_uc_tables(uc: dict) -> set:
@@ -38823,6 +38985,8 @@ class DatabricksInspire:
             out["excluded_by_feedback"] = list(self.excluded_by_feedback)
         if getattr(self, "value_tracking", None) is not None:
             out["value_tracking"] = list(self.value_tracking)
+        if getattr(self, "value_selection", None) is not None:
+            out["value_selection"] = self.value_selection
         if getattr(self, "ailogs_check", None) is not None:
             out["ailogs_check"] = dict(self.ailogs_check)
         if getattr(self, "best_of_best_outcome", None) is not None:
@@ -38839,7 +39003,7 @@ class DatabricksInspire:
         return out
 
     _V130_CATALOG_KEYS = ("discovery_type", "data_access", "usage_signals", "strategic_context", "strategy_coverage",
-                          "foundations", "delivery_order", "best_of_best", "quality_bar", "coverage_ledger")
+                          "foundations", "delivery_order", "best_of_best", "quality_bar", "coverage_ledger", "value_selection")
 
     def _doc_data_access(self) -> tuple:
         """(discovery type of the run, tables read). The type is "" for a catalog written before v1.3.0."""
@@ -40739,6 +40903,29 @@ class DatabricksInspire:
         remaining = [uc for uc in use_cases if id(uc) not in dropped]
         self.logger.info(text + (f"; the final selection holds {inspire_plural(len(remaining), 'use case')}" if dropped else ""))
         return remaining
+
+    def _apply_value_selection(self, use_cases: list) -> list:
+        """R14: keep the must-haves and the greedy picks (pick order), then the strategic use cases; left-out ones leave the catalog."""
+        try:
+            result = inspire_value_selection(use_cases)
+            index = {(str(uc.get("use_case_key") or use_case_key(uc)), str(uc.get("No", ""))): uc for uc in use_cases}
+            for row in result["selected"] + result["strategic"] + result["left_out"]:
+                uc = index.get((row["use_case_key"], row["No"]))
+                if uc is not None:
+                    uc.update({"selection_section": row["section"], "selection_rank": row["rank"],
+                               "selection_label": row["label"], "selection_reason": row["reason"]})
+            kept = [index[(row["use_case_key"], row["No"])] for row in result["selected"] + result["strategic"]]
+            self.value_selection = result
+            reasons = Counter(row["reason"] for row in result["left_out"])
+            self.logger.info(f"[VALUE-SELECTION FIRED] must_have={sum(1 for r in result['selected'] if r['section'] == 'must_have')}, "
+                             f"selected={sum(1 for r in result['selected'] if r['section'] == 'selected')}, "
+                             f"strategic={len(result['strategic'])}, left_out={len(result['left_out'])}, "
+                             f"reasons={dict(reasons)}, stop={result['stop']['reason']}")
+            return kept
+        except Exception as selection_err:
+            self.logger.warning(f"Value selection unavailable: {redact_error(selection_err)}")
+            self.value_selection = None
+            return use_cases
 
     def _apply_value_estimates(self, use_cases: list) -> None:
         user_text = " ".join((str(getattr(self, "user_generation_instructions", "") or ""),
@@ -46831,7 +47018,14 @@ Start your response with the CSV header line: use_case_id,domain
             final_consolidated_use_cases = self._drop_unmeasurable_use_cases(final_consolidated_use_cases)
             self._apply_measure_swap_text(final_consolidated_use_cases)
             self._pin_user_named_use_cases(final_consolidated_use_cases)
+            self._apply_value_estimates(final_consolidated_use_cases)
+            final_consolidated_use_cases = self._apply_value_selection(final_consolidated_use_cases)
             final_consolidated_use_cases = self._finalize_portfolio_order(final_consolidated_use_cases)
+            if getattr(self, "value_selection", None):
+                _final_no = {use_case_key(uc): uc.get("No") for uc in final_consolidated_use_cases}
+                for _row in self.value_selection["long_list"]:
+                    if _row["use_case_key"] in _final_no and _row["section"] != "left_out":
+                        _row["No"] = _final_no[_row["use_case_key"]]
             self._plan_progress_use_cases(final_consolidated_use_cases)
             for uc in final_consolidated_use_cases:
                 uc.setdefault("use_case_key", use_case_key(uc))
@@ -46870,7 +47064,6 @@ Start your response with the CSV header line: use_case_id,domain
                         tables_involved, inspire_database=self.inspire_database, session_id=self.session_id
                     )
             self.logger.info(f"✅ Pre-computed Primary Table and Result Database for {inspire_plural(len(final_consolidated_use_cases), 'use case')}")
-            self._apply_value_estimates(final_consolidated_use_cases)
             kinded = [uc for uc in final_consolidated_use_cases if inspire_apply_use_case_kind(uc)]
             self.logger.info(f"[KIND-LINES FIRED] a kind and its 3 lines set on {implement_number_text(len(kinded))} of {inspire_plural(len(final_consolidated_use_cases), 'use case')}; "
                              f"kinds={dict(Counter(uc['use_case_kind'] for uc in kinded).most_common(10))}, "
