@@ -654,8 +654,11 @@ def app_description(version):
 def agent_constants(notebook_text, names, statement_lines=20):
     import ast
     import json as _json
-    cells = _json.loads(notebook_text).get("cells") or []
-    source = cells[1].get("source") if len(cells) > 1 else ""
+    try:
+        cells = _json.loads(notebook_text).get("cells") or []
+        source = cells[1].get("source") if len(cells) > 1 else ""
+    except ValueError:
+        source = notebook_text  # inspire_lib.py is plain Python text, not a notebook
     lines = source if isinstance(source, list) else str(source or "").splitlines(keepends=True)
     starts = {}
     for index, line in enumerate(lines):
@@ -709,6 +712,20 @@ def agent_constants(notebook_text, names, statement_lines=20):
         return found[name]
 
     return {name: value(name) for name in names}
+
+
+AGENT_NOTEBOOKS = ("inspire_discover.ipynb", "inspire_generate.ipynb")
+AGENT_LIB = "inspire_lib.py"
+AGENT_FILES = AGENT_NOTEBOOKS + (AGENT_LIB,)
+
+
+def _lib_pins(notebook_bytes):
+    """Every INSPIRE_LIB_SHA256 a notebook binds in a code cell."""
+    import json as _json
+    cells = _json.loads(notebook_bytes.decode("utf-8")).get("cells") or []
+    code = "\n".join("".join(c.get("source")) if isinstance(c.get("source"), list) else str(c.get("source") or "")
+                     for c in cells if c.get("cell_type") == "code")
+    return re.findall(r'^INSPIRE_LIB_SHA256 = "([0-9a-f]{64})"$', code, re.M)
 
 
 def app_user_scopes(notebook_text):
@@ -1110,26 +1127,31 @@ def step_schema_and_notebooks(ctx):
         )
         print(f"Schema: {'✅' if stmt.status and stmt.status.state == StatementState.SUCCEEDED else '⚠️ ' + str(stmt.status)}")
 
-    notebook_dest = f"{ctx['APP_FOLDER']}/dbx_inspire_ai_agent"
+    notebook_dest = f"{ctx['APP_FOLDER']}/inspire_discover"
     notebook_path = None
 
-    notebook_source = None
-    for candidate in [f"{source_folder}/dbx_inspire_ai_agent", f"{source_folder}/dbx_inspire_ai_agent.ipynb"]:
-        if os.path.exists(candidate):
-            notebook_source = candidate
-            break
-
-    if not notebook_source:
-        print(f"⚠️ Notebook not found in: {os.listdir(source_folder)[:20]}")
-        raise FileNotFoundError("dbx_inspire_ai_agent not found in source folder")
-
-    print(f"Notebook source: {notebook_source}")
-
-    b64 = export_workspace_b64(ctx, notebook_source, export_formats=("JUPYTER",))
-    if not b64:
-        raise FileNotFoundError(f"Could not export or read notebook: {notebook_source}")
+    agent = {}
+    for name in AGENT_FILES:
+        stem = name.rsplit(".", 1)[0]
+        candidates = [f"{source_folder}/{name}"] + ([f"{source_folder}/{stem}"] if name.endswith(".ipynb") else [])
+        source = next((c for c in candidates if os.path.exists(c)), None)
+        if not source:
+            print(f"⚠️ {name} not found in: {os.listdir(source_folder)[:20]}")
+            raise FileNotFoundError(f"{name} not found in source folder")
+        print(f"Agent source: {source}")
+        b64_part = export_workspace_b64(ctx, source, export_formats=("JUPYTER",) if name.endswith(".ipynb") else ("AUTO", "RAW"))
+        if not b64_part:
+            raise FileNotFoundError(f"Could not export or read agent file: {source}")
+        agent[name] = base64.b64decode(b64_part)
+    lib_bytes = agent[AGENT_LIB]
+    lib_pin = hashlib.sha256(lib_bytes).hexdigest()
+    pins = {name: _lib_pins(agent[name]) for name in AGENT_NOTEBOOKS}
+    bad = [f"{name} pins {', '.join(found) or 'no INSPIRE_LIB_SHA256'}" for name, found in pins.items() if found != [lib_pin]]
+    if bad:
+        raise RuntimeError(f"❌ {AGENT_LIB} does not match INSPIRE_LIB_SHA256 (sha256 {lib_pin}): {'; '.join(bad)}. Nothing was published.")
+    lib_text = lib_bytes.decode("utf-8")
     try:
-        ctx["APP_USER_SCOPES"] = inspire_app_scopes(base64.b64decode(b64).decode("utf-8"))
+        ctx["APP_USER_SCOPES"] = inspire_app_scopes(lib_text)
         print(f"App user scopes: {', '.join(ctx['APP_USER_SCOPES'])}")
     except Exception as exc:
         ctx["APP_USER_SCOPES"] = list(INSPIRE_APP_OWN_SCOPES)
@@ -1137,11 +1159,11 @@ def step_schema_and_notebooks(ctx):
                                    "its own scopes: the Run tab cannot show pages Inside Inspire, and an App it builds may refuse a settings "
                                    "change sent from Inspire")
         print(f"  ⚠️ {ctx['USER_SCOPES_NOTE']}")
-    ctx["AGENT_NOTEBOOK_TEXT"] = base64.b64decode(b64).decode("utf-8")
+    ctx["AGENT_NOTEBOOK_TEXT"] = lib_text
     ctx["GENIE_CODE_SUMMARY"] = genie_code_install_check(api, ctx["AGENT_NOTEBOOK_TEXT"], ctx.get("USER_EMAIL") or "you")
     print(f"Databricks AI: {ctx['GENIE_CODE_SUMMARY']}")
     try:
-        ctx["LAKEBASE"] = agent_lakebase(base64.b64decode(b64).decode("utf-8"))
+        ctx["LAKEBASE"] = agent_lakebase(lib_text)
     except Exception as exc:
         ctx["LAKEBASE"] = None
         ctx["LAKEBASE_NOTE"] = (f"Inspire could not read the Lakebase project and catalog from the bundled agent notebook ({_error_words(exc, None)}), "
@@ -1152,21 +1174,19 @@ def step_schema_and_notebooks(ctx):
         api("POST", "/api/2.0/workspace/mkdirs", {"path": ctx["APP_FOLDER"]})
     except Exception:
         pass
-    try:
-        api("POST", "/api/2.0/workspace/delete", {"path": notebook_dest})
-    except Exception:
-        pass
-
-    resp = api(
-        "POST",
-        "/api/2.0/workspace/import",
-        {"path": notebook_dest, "format": "JUPYTER", "content": b64, "language": "PYTHON", "overwrite": True},
-    )
-    if resp.status_code in (200, 201):
-        notebook_path = notebook_dest
-        print(f"Published to: ✅ {notebook_path}")
-    else:
-        print(f"Publish failed: ⚠️ {resp.status_code} {resp.text[:300]}")
+    for name in AGENT_FILES:
+        dest = f"{ctx['APP_FOLDER']}/{name.rsplit('.', 1)[0] if name.endswith('.ipynb') else name}"
+        try:
+            api("POST", "/api/2.0/workspace/delete", {"path": dest})
+        except Exception:
+            pass
+        body = {"path": dest, "content": base64.b64encode(agent[name]).decode("utf-8"), "overwrite": True}
+        body.update({"format": "JUPYTER", "language": "PYTHON"} if name.endswith(".ipynb") else {"format": "AUTO"})
+        resp = api("POST", "/api/2.0/workspace/import", body)
+        if resp.status_code not in (200, 201):
+            raise RuntimeError(f"❌ Agent publish failed for {dest}: {resp.status_code} {resp.text[:300]}")
+        print(f"Published to: ✅ {dest}")
+    notebook_path = notebook_dest
 
     try:
         verify = api("GET", f"/api/2.0/workspace/get-status?path={requests.utils.quote(notebook_dest)}")
@@ -2011,8 +2031,11 @@ def agent_model_matching(notebook_text):
     import ast
     import json as _json
     import re as _re
-    cells = _json.loads(notebook_text).get("cells") or []
-    source = cells[1].get("source") if len(cells) > 1 else ""
+    try:
+        cells = _json.loads(notebook_text).get("cells") or []
+        source = cells[1].get("source") if len(cells) > 1 else ""
+    except ValueError:
+        source = notebook_text  # inspire_lib.py is plain Python text, not a notebook
     source = "".join(source) if isinstance(source, list) else str(source or "")
     wanted = set(MODEL_ACCESS_CONSTANTS) | set(MODEL_ACCESS_FUNCTIONS)
     body = [node for node in ast.parse(source).body

@@ -5,7 +5,7 @@ const zlib = require('zlib');
 const { parseExactJson } = require('./exactJson');
 const { APP_DIR, BACKEND_DIR } = require('./appPaths');
 
-const NOTEBOOK_FILE = 'dbx_inspire_ai_agent.ipynb';
+const NOTEBOOK_FILE = 'inspire_lib.py';
 const NOTEBOOK_CANDIDATES = [
   path.join(APP_DIR, NOTEBOOK_FILE),
   path.join(BACKEND_DIR, NOTEBOOK_FILE),
@@ -26,18 +26,20 @@ const UPDATE_HINT = 'update the Inspire App so it carries an agent notebook with
 
 function bundledNotebookText() {
   const found = NOTEBOOK_CANDIDATES.find((p) => fs.existsSync(p));
-  if (!found) throw new Error(`the agent notebook ${NOTEBOOK_FILE} is missing from the App; ${UPDATE_HINT}`);
+  if (!found) throw new Error(`the agent library ${NOTEBOOK_FILE} is missing from the App; ${UPDATE_HINT}`);
   return fs.readFileSync(found, 'utf8');
 }
 
 // The Lakebase catalog the build writes to is named once, in the agent notebook (IMPLEMENT_LAKEBASE_CATALOG); the offer reads it from there.
 function lakebaseCatalogOf(notebookText = bundledNotebookText()) {
-  const hits = [...String(notebookText).matchAll(/IMPLEMENT_LAKEBASE_CATALOG = \\"([A-Za-z0-9_]+)\\"/g)];
+  const hits = [...String(notebookText).matchAll(/IMPLEMENT_LAKEBASE_CATALOG = \\?"([A-Za-z0-9_]+)\\?"/g)];
   if (!hits.length) throw new Error(`the bundled agent notebook names no Lakebase catalog; ${UPDATE_HINT}`);
   return hits[0][1];
 }
 
 function notebookCodeLines(notebookText) {
+  // inspire_lib.py is plain Python text; a notebook (JSON) still reads from its constants cell.
+  if (!String(notebookText).trimStart().startsWith('{')) return String(notebookText).split('\n');
   let cells;
   try {
     cells = parseExactJson(notebookText).cells;

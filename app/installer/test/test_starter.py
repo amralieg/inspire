@@ -423,10 +423,10 @@ class LocalTest(StarterCase):
     def unzip(self, out, into):
         with zipfile.ZipFile(out / "inspire-app.zip") as archive:
             archive.extractall(into)
-            notebooks = {"dbx_inspire_ai_agent": archive.read("dbx_inspire_ai_agent.ipynb"),
+            notebooks = {"inspire_discover": archive.read("inspire_discover.ipynb"), "inspire_generate": archive.read("inspire_generate.ipynb"),
                          "dbx_generate_demo_data": archive.read("dbx_generate_demo_data.py")}
-            plain = {name: archive.read(name) for name in archive.namelist() if not name.startswith("dbx_")}
-        for name in ("dbx_inspire_ai_agent.ipynb", "dbx_generate_demo_data.py"):
+            plain = {name: archive.read(name) for name in archive.namelist() if not name.startswith(("dbx_", "inspire_discover", "inspire_generate"))}
+        for name in ("inspire_discover.ipynb", "inspire_generate.ipynb", "dbx_generate_demo_data.py"):
             (into / name).unlink()
         return notebooks, plain
 
@@ -443,7 +443,7 @@ class LocalTest(StarterCase):
             self.assertTrue(repacked.endswith("/unzipped/inspire-app.zip"), into)
             with zipfile.ZipFile(repacked) as archive:
                 self.assertEqual({name: archive.read(name) for name in plain}, plain, into)
-                self.assertEqual(archive.read("dbx_inspire_ai_agent.ipynb"), notebooks["dbx_inspire_ai_agent"], into)
+                self.assertEqual(archive.read("inspire_discover.ipynb"), notebooks["inspire_discover"], into)
             self.assertEqual(got["files"]["inspire-assets.tar"], str(self.folder / "inspire-assets.tar"))
             self.assertEqual(self.ns["load_entry"](got)({"displayHTML": lambda h: None, "files": got["files"], "source": "local",
                                                          "manifest": got["manifest"], "settings": {}})["source"], "local")
@@ -466,7 +466,7 @@ class LocalTest(StarterCase):
         unzipped.mkdir()
         with self.assertRaises(self.ns["InspireNotInstalled"]):
             self.ns["acquire"](str(self.folder), "/n", {}, opener=self.unreachable(), exporter=lambda stem, kind: None)
-        self.assertIn("kept 0 of 5 files", self.ns["shown"][-1])
+        self.assertIn("kept 0 of 7 files", self.ns["shown"][-1])
         self.assertIn(f"databricks workspace import &quot;{self.folder}/inspire-app.zip&quot; --file inspire-app.zip --format RAW --overwrite",
                       self.ns["shown"][-1])
         self.assertNotIn("import-dir", self.ns["shown"][-1])

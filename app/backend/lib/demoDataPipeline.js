@@ -129,7 +129,7 @@ async function ensureDemoPipelineNotebookPublished(
 }
 
 async function resolveInspireNotebookPath(host, token, { ensureInspireNotebookPublished, resolveWorkspaceNotebookObjectPath }) {
-  let notebookPath = (process.env.NOTEBOOK_PATH || '/Shared/inspire-ai/dbx_inspire_ai_agent').trim();
+  let notebookPath = (process.env.NOTEBOOK_PATH || '/Shared/inspire-ai/inspire_discover').trim();
   if (ensureInspireNotebookPublished) {
     const pub = await ensureInspireNotebookPublished(host, token);
     if (pub?.path) notebookPath = pub.path;

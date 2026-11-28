@@ -10,7 +10,7 @@ variables:
     default: "main.inspire"
   notebook_path:
     description: "Workspace path for the Inspire notebook"
-    default: "/Shared/inspire-ai/dbx_inspire_ai_agent"
+    default: "/Shared/inspire-ai/inspire_discover"
   inspire_root:
     description: "Workspace folder the Inspire bundle deploys to (schema mode: your own folder)"
     default: "/Shared/inspire-ai"
@@ -68,4 +68,4 @@ artifacts:
   # ── Notebook to deploy ──
   inspire_notebook:
     type: notebook
-    path: ./dbx_inspire_ai_agent.ipynb
+    path: ./inspire_discover.ipynb

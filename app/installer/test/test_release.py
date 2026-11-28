@@ -56,7 +56,7 @@ class BuildTest(unittest.TestCase):
             self.assertNotIn("parts", entry)
         self.assertNotIn("SHA256SUMS", (out / "manifest.json").read_text())
         contents = {item["path"]: item for item in manifest["files"][0]["contents"]}
-        self.assertEqual(contents["dbx_inspire_ai_agent.ipynb"]["notebook"], "jupyter")
+        self.assertEqual(contents["inspire_discover.ipynb"]["notebook"], "jupyter")
         self.assertEqual(contents["dbx_generate_demo_data.py"]["notebook"], "source")
         self.assertIsNone(contents["installer/inspire_setup.py"]["notebook"])
         self.assertEqual(manifest["files"][0]["unzip_folder"], "inspire-app")
@@ -143,15 +143,14 @@ class BuildTest(unittest.TestCase):
         foreign = support.notebook_pins(("notebook/other.b64", support.NOTEBOOK_ASSET[1]))
         for number, pins in enumerate((stale, foreign)):
             app = self.tmp / f"pinned{number}.zip"
-            support.make_app_zip(app, extra={"dbx_inspire_ai_agent.ipynb": support.agent_notebook(pins=pins)})
+            support.make_app_zip(app, extra=support.agent_split(pins=pins))
             with self.assertRaises(SystemExit) as caught:
                 release.build(str(app), str(assets), str(self.tmp / f"pinned-out{number}"), support.VERSION)
             self.assertIn("the assets do not carry the build of app_shell", str(caught.exception))
             self.assertIn("run app/agent/release/build_assets.py again", str(caught.exception))
-        bare = json.loads(support.agent_notebook())
-        bare["cells"][1]["source"] = [line for line in bare["cells"][1]["source"] if not line.startswith("INSPIRE_NOTEBOOK_ASSETS")]
+        bare = b"".join(line for line in support.agent_lib().splitlines(keepends=True) if not line.startswith(b"INSPIRE_NOTEBOOK_ASSETS"))
         app = self.tmp / "bare.zip"
-        support.make_app_zip(app, extra={"dbx_inspire_ai_agent.ipynb": json.dumps(bare).encode("utf-8")})
+        support.make_app_zip(app, extra=support.agent_split(lib=bare))
         with self.assertRaises(SystemExit) as caught:
             release.build(str(app), str(assets), str(self.tmp / "bare-out"), support.VERSION)
         self.assertIn("must pin its assets on one INSPIRE_NOTEBOOK_ASSETS line, it has 0", str(caught.exception))
