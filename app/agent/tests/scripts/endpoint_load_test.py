@@ -20,6 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 MAX_RATE_LIMIT_PCT = 2.0
 MAX_P95_RATIO = 1.5
 PROMPT = "Reply with the single word: ok"
+GATEWAY_MESSAGES_PATH = "/ai-gateway/anthropic/v1/messages"
 
 
 def nearest_rank(values, pct):
@@ -49,7 +50,8 @@ def choose_level(stats):
 def _is_rate_limited(e):
     from databricks.sdk.errors import TooManyRequests
 
-    return isinstance(e, TooManyRequests) or "429" in str(e) or "rate limit" in str(e).lower()
+    return isinstance(e, TooManyRequests) or "429" in str(e) or "rate limit" in str(e).lower() \
+        or "REQUEST_LIMIT_EXCEEDED" in str(e)
 
 
 def run_level(call, level, duration_s, max_calls=None, single_p50_ms=None, sink=None):
@@ -96,13 +98,25 @@ def run_level(call, level, duration_s, max_calls=None, single_p50_ms=None, sink=
     }
 
 
-def run_load(ws, endpoint, levels, minutes, out, single_calls=5):
-    from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
+def make_call(ws, endpoint, route="gateway"):
+    """Return a zero-arg callable that issues one tiny completion over `route` (gateway or serving)."""
+    if route == "serving":
+        from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
 
+        def call():
+            ws.serving_endpoints.query(name=endpoint, messages=[ChatMessage(role=ChatMessageRole.USER, content=PROMPT)], max_tokens=8)
+    elif route == "gateway":
+        def call():
+            ws.api_client.do("POST", GATEWAY_MESSAGES_PATH, body={
+                "model": endpoint, "max_tokens": 8, "messages": [{"role": "user", "content": PROMPT}]})
+    else:
+        raise ValueError(f"unknown route {route!r}")
+    return call
+
+
+def run_load(ws, endpoint, levels, minutes, out, single_calls=5, route="gateway"):
     os.makedirs(out, exist_ok=True)
-
-    def call():
-        ws.serving_endpoints.query(name=endpoint, messages=[ChatMessage(role=ChatMessageRole.USER, content=PROMPT)], max_tokens=8)
+    call = make_call(ws, endpoint, route)
 
     singles = []
     for _ in range(single_calls):
@@ -121,7 +135,7 @@ def run_load(ws, endpoint, levels, minutes, out, single_calls=5):
         for level in levels:
             stats[level] = run_level(call, level, minutes * 60, single_p50_ms=p50, sink=sink)
     chosen, reason = choose_level(stats)
-    summary = {"endpoint": endpoint, "single_call_p50_ms": p50, "levels": stats, "chosen_level": chosen, "reason": reason}
+    summary = {"endpoint": endpoint, "route": route, "single_call_p50_ms": p50, "levels": stats, "chosen_level": chosen, "reason": reason}
     with open(os.path.join(out, "load_summary.json"), "w") as f:
         json.dump(summary, f, indent=2)
     return summary
@@ -133,12 +147,13 @@ def main(argv=None):
     p.add_argument("--endpoint", required=True)
     p.add_argument("--levels", default="4,8,16")
     p.add_argument("--minutes", type=float, default=15)
+    p.add_argument("--route", choices=("serving", "gateway"), default="gateway")
     p.add_argument("--out", required=True)
     a = p.parse_args(argv)
     from databricks.sdk import WorkspaceClient
 
     levels = [int(x) for x in a.levels.split(",") if x.strip()]
-    print(json.dumps(run_load(WorkspaceClient(profile=a.profile), a.endpoint, levels, a.minutes, a.out)))
+    print(json.dumps(run_load(WorkspaceClient(profile=a.profile), a.endpoint, levels, a.minutes, a.out, route=a.route)))
     return 0
 
 
