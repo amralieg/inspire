@@ -8,6 +8,11 @@ import ShowcaseBar from '../../src/components/ShowcaseBar';
 import LandingPage from '../../src/pages/LandingPage';
 import RunPage from '../../src/pages/RunPage';
 import ChoosePage from '../../src/pages/ChoosePage';
+import FindDataStep from '../../src/components/startWizard/FindDataStep';
+import PlanStep from '../../src/components/startWizard/PlanStep';
+import MatchUseCasesStep from '../../src/components/startWizard/MatchUseCasesStep';
+import MatchReviewStep from '../../src/components/startWizard/MatchReviewStep';
+import { usePlanAdvance } from '../../src/lib/wizPlanClient';
 import LaunchPage from '../../src/pages/LaunchPage';
 import SetupWizard from '../../src/pages/SetupWizard';
 import ConfigPage from '../../src/pages/ConfigPage';
@@ -101,6 +106,7 @@ function HarnessContent({ open, discoveryType, step, run }) {
   if (open === 'results') return <ResultsHarness />;
   if (open === 'landing') return <LandingHarness />;
   if (open === 'choose') return <ChooseHarness />;
+  if (open === 'wizStep') return <WizStepHarness step={step} />;
   if (open === 'setup') return <SetupHarness blank={step === 'blank'} />;
   if (open === 'monitor') return <MonitorHarness run={run} />;
   if (open === 'config') return <ConfigHarness />;
@@ -212,12 +218,70 @@ function BidiGridHarness() {
   );
 }
 
+// c33 (REQ-577): ?demo=1 gives the page the demo showcase, so the pinned Demo row shows; the wizard launches report through onLaunched.
+const HARNESS_DEMO = { id: 'demo', title: 'Demo run', business: 'Demo business', summary: 'A sample run on sample tables.', session_id: '1',
+  mvps: ['m1', 'm2', 'm3', 'm4', 'm5', 'm6'].map((id) => ({ id, title: `MVP ${id}` })) };
+
 function ChooseHarness() {
   const [opened, setOpened] = useState([]);
+  const [clicks, setClicks] = useState([]);
+  const [launched, setLaunched] = useState([]);
+  const demo = new URLSearchParams(window.location.search).get('demo') === '1' ? HARNESS_DEMO : null;
+  const push = (what) => setClicks((list) => [...list, what]);
   return (
     <ThemeProvider>
-      <ChoosePage settings={SETTINGS} onNewExperiment={() => {}} onNoData={() => {}} onViewResults={(sid) => setOpened((list) => [...list, String(sid)])} />
+      <ChoosePage settings={SETTINGS} onNewExperiment={() => push('new')} onNoData={() => push('no-data')} demo={demo}
+        onDemo={demo ? () => push('demo') : undefined}
+        onLaunched={(sid, runId) => setLaunched((list) => [...list, `${sid}:${runId}`])}
+        onViewResults={(sid) => setOpened((list) => [...list, String(sid)])} />
       <output aria-label="Opened runs">{opened.join(',')}</output>
+      <output aria-label="Start clicks" className="sr-only">{clicks.join(',')}</output>
+      <output aria-label="Launched" className="sr-only">{launched.join(',')}</output>
+    </ThemeProvider>
+  );
+}
+
+// c33 (REQ-577, REQ-578, REQ-579): one lane B or C wizard step alone. The draft starts from window.__WIZ_DRAFT__ (a test init script);
+// "Wizard draft" shows it as JSON, "Step ready" shows the last onReady value, "Harness start" runs the registered start.
+const WIZ_STEPS = { find: FindDataStep, plan: PlanStep, usecases: MatchUseCasesStep, matchReview: MatchReviewStep };
+export const WIZ_HARNESS_PARAMS = { '00_business_name': 'Example Co', '01_uc_metadata': 'main', '04_table_election': 'All Tables', '02_operation_hint': '', '05_discovery_type': 'Standard', '06_use_cases_quality': 'Standard',
+  '14_session_id': '', '15_operation': 'Discover Use Cases' };
+
+function PlanAdvanceProbe() {
+  const apiFetch = useMemo(() => makeApiFetch(AUTH), []);
+  usePlanAdvance(apiFetch, { inspireDatabase: SETTINGS.inspireDatabase, warehouseId: SETTINGS.warehouseId });
+  return <p>Plan advance mounted</p>;
+}
+
+function WizStepHarness({ step }) {
+  const apiFetch = useMemo(() => makeApiFetch(AUTH), []);
+  const [draft, setDraftState] = useState(() => ({ path: 'discover', businessName: 'Example Co', profileId: '', dataChoice: 'find', catalogs: [], plan: null,
+    useCases: [], useCaseSource: 'paste', match: null, ...(window.__WIZ_DRAFT__ || {}) }));
+  const [ready, setReady] = useState('no');
+  const [start, setStart] = useState(null);
+  const [launched, setLaunched] = useState('');
+  const [edits, setEdits] = useState([]);
+  const [failed, setFailed] = useState('');
+  if (step === 'planAdvance') return <ThemeProvider><PlanAdvanceProbe /></ThemeProvider>;
+  const Step = WIZ_STEPS[step];
+  if (!Step) return <p>Unknown wizard step {step}</p>;
+  const setDraft = (patch) => setDraftState((prev) => ({ ...prev, ...(typeof patch === 'function' ? patch(prev) : patch) }));
+  const runStart = async () => {
+    try {
+      const got = await start();
+      setLaunched(`${got.sessionId}:${got.runId}`);
+    } catch (err) { setFailed(String(err && err.message || err)); }
+  };
+  return (
+    <ThemeProvider>
+      <Step draft={draft} setDraft={setDraft} settings={SETTINGS} apiFetch={apiFetch} onReady={(on) => setReady(on ? 'yes' : 'no')}
+        registerStart={(fn) => setStart(() => fn)} launchParams={() => ({ ...WIZ_HARNESS_PARAMS })} onEditStep={(id) => setEdits((list) => [...list, id])} />
+      {start && <button type="button" onClick={runStart}>Harness start</button>}
+      <output aria-label="Wizard draft" className="sr-only">{JSON.stringify(draft)}</output>
+      <output aria-label="Step ready" className="sr-only">{ready}</output>
+      <output aria-label="Launched" className="sr-only">{launched}</output>
+      <output aria-label="Start failed" className="sr-only">{failed}</output>
+      <output aria-label="Edit step" className="sr-only">{edits.join(',')}</output>
     </ThemeProvider>
   );
 }

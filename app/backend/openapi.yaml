@@ -1044,6 +1044,95 @@ paths:
   #  Launch
   # ════════════════════════════════════════════════════
 
+  /api/inspire/plan/sort:
+    post:
+      tags: [Launch]
+      summary: Sort catalog tables into runs (REQ-577)
+      description: Reads the table names, columns and comments of the picked catalogs (no data rows) and asks the model to group them into ordered runs of at most 25 tables.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: OK }
+        '403': { description: Refused by the route policy }
+  /api/inspire/plan/start:
+    post:
+      tags: [Launch]
+      summary: Save a plan and launch its first run (REQ-577)
+      description: Stores every run of the plan and launches run 1 only; the next runs start one at a time.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: OK }
+        '403': { description: Refused by the route policy }
+  /api/inspire/plan/advance:
+    post:
+      tags: [Launch]
+      summary: Launch the next waiting run of a plan (REQ-577)
+      description: Starts the next waiting run once the run before it ended. Safe to call again.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: OK }
+        '403': { description: Refused by the route policy }
+  /api/inspire/match/start:
+    post:
+      tags: [Launch]
+      summary: Launch a match of your use cases to data (REQ-578)
+      description: Saves the use cases to the match input table and launches the Match Use Cases operation, phase match.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: OK }
+        '403': { description: Refused by the route policy }
+  /api/inspire/match/result:
+    get:
+      tags: [Launch]
+      summary: Read how each use case matches the data (REQ-578)
+      parameters:
+        - { name: inspire_database, in: query, required: true, schema: { type: string } }
+        - { name: warehouse_id, in: query, required: true, schema: { type: string } }
+        - { name: session_id, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: The run state, one report per use case and the latest choice per piece }
+        '403': { description: Refused by the route policy }
+  /api/inspire/match/decision:
+    post:
+      tags: [Launch]
+      summary: Save a choice for one piece of a matched use case (REQ-578)
+      description: keep, drop or use_known_data; the latest choice per piece wins.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: OK }
+        '403': { description: Refused by the route policy }
+  /api/inspire/match/accept:
+    post:
+      tags: [Launch]
+      summary: Accept the match and launch the use case run (REQ-578)
+      description: Launches the Match Use Cases operation, phase accept, in the same session.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: OK }
+        '403': { description: Refused by the route policy }
   /api/run:
     post:
       tags: [Launch]

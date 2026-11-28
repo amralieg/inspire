@@ -124,6 +124,7 @@ import { readOnlyReason } from '../lib/showcase';
 import { ARCHIVE_VIEWS, archiveKeyOf, inArchiveView, loadArchiveMap, toggledArchive } from '../lib/useCaseArchive';
 import QualityGateDrops from '../components/QualityGateDrops';
 import { makeApiFetch, makeApiPostJson, makeApiPutJson, requestHeaders, responseError } from '../lib/apiClient';
+import MatchResultsPanel from '../components/match/MatchResultsPanel';
 import { INSPIRE_ENTRY, RESULTS_PENDING_TEXT, noResultsText, resultsReadFailure, reviewLinkText } from '../lib/runPages';
 import ResultsNav, { resultsPanel } from '../components/results/ResultsNav';
 import { DEFAULT_RESULTS_VIEW, searchWithView, viewOfSearch } from '../lib/resultsView';
@@ -1322,6 +1323,8 @@ export default function ResultsPage({
         </div>
       )}
       {(valueTotals?.run?.totals?.length > 0 || anyValued(valueTotals?.use_cases)) && <ValueDisclaimer className="mb-3" />}
+      {/* c33 (REQ-578, REQ-579): the per-piece review and Accept of a Match session; lane C owns the component. */}
+      {!embedded && !showcase && selectedSessionId && <MatchResultsPanel settings={settings} sessionId={String(selectedSessionId)} apiFetch={apiFetch} />}
       {!embedded && results && (
         <section aria-label="This run" data-run-box="" className="mb-3 mt-4 flex flex-wrap items-center gap-x-7 gap-y-3 rounded-2xl border border-db-red/20 bg-linear-to-r from-db-red-50 to-surface px-5 py-3.5">
           <div data-run-heading="" className="min-w-0">
