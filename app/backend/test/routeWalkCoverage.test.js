@@ -56,6 +56,14 @@ const NOT_WALKED = {
   'POST /api/inspire/docs/save': 'saves one document the Generate docs wizard made into the run\u2019s own Assets folder with the person\u2019s own sign-in; no non-owner harness row walks it yet, and fx115DocRoutes.test.js proves the folder, name, type and size refusals',
   'POST /api/inspire/docs/translate': 'translates the selected use case texts (REQ-503) for a document language through the App\u2019s model and changes nothing; no non-owner harness row walks it yet, and fx115DocRoutes.test.js proves the refusals',
   'POST /api/inspire/docs/infographic-pick': 'asks the App\u2019s model for the infographic scenario and text of one use case (REQ-571) and changes nothing; no non-owner harness row walks it yet, and c28InfogRoute.test.js proves the refusals',
+  'GET /api/inspire/candidates': 'reads the provisional candidates of one session with the App\u2019s service principal under the any rule, and changes nothing; no non-owner harness row walks it yet, and c36Candidates.test.js:78 proves the missing or non-numeric session id and bad database refusals',
+  'GET /api/inspire/match/result': 'reads the inputs, reports and decisions of one Match session with the App\u2019s service principal under the any rule, and changes nothing; no non-owner harness row walks it yet, and c33WizC.test.js:93 proves the session with no match input answers state none',
+  'POST /api/inspire/match/start': 'any person who can use the App starts their own new Match run, which the launch records under their name; no non-owner harness row walks it yet, and c33WizC.test.js:38 proves the refusals (no use cases, over 50, a use case with no name) and that nothing is written or launched',
+  'POST /api/inspire/match/decision': 'saves one choice of a Match session for its launcher or an App manager only; no non-owner harness row walks it yet, and routePolicy.test.js:20 proves a non-manager non-launcher gets a 403 with no Databricks call',
+  'POST /api/inspire/match/accept': 'launches phase two of a Match session for its launcher or an App manager only; no non-owner harness row walks it yet, and routePolicy.test.js:20 proves a non-manager non-launcher gets a 403 with no Databricks call',
+  'POST /api/inspire/plan/sort': 'reads table names, columns and comments only (never a data row) and changes nothing; no non-owner harness row walks it yet, and c33WizB.test.js:72 proves the no-catalog refusal',
+  'POST /api/inspire/plan/start': 'any person who can use the App saves their own plan, stamped with their name, and launches run 1 only; no non-owner harness row walks it yet, and c33WizB.test.js:105 proves the run over 25 tables is refused and launches nothing',
+  'POST /api/inspire/plan/advance': 'launches only the caller\u2019s own waiting runs, from the stored launch settings; no non-owner harness row walks it yet, and c33WizB2.test.js:109 proves another person\u2019s waiting run is never launched or touched',
 };
 const LITERAL = /\bapp\.(get|post|put|patch|delete|all)\(\s*(['"`])(.*?)\2([^\n]*)/g;
 const ANY = /\bapp\.(get|post|put|patch|delete|all)\(/g;
@@ -102,7 +110,7 @@ function missingFromWalk(routes, walked, excluded) {
 
 test('the route list comes from the source of server.js and every route file it mounts', () => {
   const files = mountedFiles(SERVER).map((f) => path.relative(BACKEND, f));
-  assert.deepEqual(files, ['server.js', 'implementRoutes.js', path.join('lib', 'showcase.js'), 'macroRoutes.js']);
+  assert.deepEqual(files, ['server.js', 'implementRoutes.js', path.join('lib', 'showcase.js'), 'macroRoutes.js', path.join('lib', 'wizPlanRoutes.js'), path.join('lib', 'matchRoutes.js'), path.join('lib', 'candidateRoutes.js')]);
   const routes = registeredRoutes(mountedFiles(SERVER));
   for (const key of ['GET /api/run/:runId/cancel', 'POST /api/inspire/implement/rerun', 'ALL /showcase/:id/mvp/:mvp/api/*rest', 'GET {*path}']) {
     assert.ok(routes.has(key), key);
