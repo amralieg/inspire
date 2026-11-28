@@ -91,7 +91,9 @@ def test_g29_sentinel_present_in_both_failure_paths(ns):
     body = _notebook_body()
     fired = re.findall(r'\[G29 FAILURE_LOG_UPLOAD FIRED\] path=(\w+)', body)
     assert "docs_only_mode" in fired, "docs-only failure path must fire G29 with tag=docs_only_mode"
-    assert "generate_mode" in fired, "generate-mode failure path must fire G29 with tag=generate_mode"
+    # REQ-578: the Generate Use Cases operation was replaced by Match / Implement; each keeps its own G29 failure path.
+    assert "match_mode" in fired, "match-mode failure path must fire G29 with tag=match_mode"
+    assert "implement_mode" in fired, "implement-mode failure path must fire G29 with tag=implement_mode"
 
 
 def test_upload_log_file_has_finally_clause(ns):
@@ -162,7 +164,8 @@ def test_failure_paths_include_upload_log_file(ns):
     body = _notebook_body()
     for banner in [
         "Failed to process in docs-only mode:",
-        "Generate Use Cases mode failed:",
+        "Match Use Cases failed:",
+        "Implement Use Cases failed:",
     ]:
         pos = body.find(banner)
         assert pos != -1, f"missing banner: {banner}"

@@ -659,17 +659,18 @@ def _own_returns(fn):
 
 
 def test_r13_h1_every_table_filter_exit_returns_the_nine_tuple_run_unpacks():
-    for method in ("_filter_business_tables", "_filter_business_tables_with_batching"):
+    # REQ-580: Discover's run() reaches the filter through _resolve_table_scope (and _all_tables_scope for "All Tables").
+    for method in ("_filter_business_tables", "_filter_business_tables_with_batching", "_resolve_table_scope", "_all_tables_scope"):
         returns = _own_returns(method_node("DatabricksInspire", method))
         assert returns, method
         for ret in returns:
             value = ret.value
             assert (isinstance(value, ast.Tuple) and len(value.elts) == 9) or (
-                isinstance(value, ast.Call) and _callee(value) == "_filter_business_tables_with_batching"), \
+                isinstance(value, ast.Call) and _callee(value) in ("_filter_business_tables_with_batching", "_filter_business_tables", "_all_tables_scope")), \
                 (method, ast.unparse(ret))
     run = method_node("DatabricksInspire", "run")
     unpacks = [n for n in ast.walk(run) if isinstance(n, ast.Assign) and isinstance(n.value, ast.Call)
-               and _callee(n.value) == "_filter_business_tables"]
+               and _callee(n.value) == "_resolve_table_scope"]
     assert unpacks and all(isinstance(n.targets[0], ast.Tuple) and len(n.targets[0].elts) == 9 for n in unpacks)
 
 

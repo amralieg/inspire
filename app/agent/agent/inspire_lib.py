@@ -8033,10 +8033,10 @@ class DeepEvidence:
                 except Exception as error:
                     self.logger.warning(f"[DEEP-CALC] delivering the card of {card['No']} failed: {redact_error(error, max_chars=200)}")
 
-        with ThreadPoolExecutor(max_workers=workers) as pool:
+        with _SafeExecutorContext(max_workers=workers, thread_name_prefix="DeepScan", logger=self.logger, name="DeepCalculate") as pool:
             futures = {pool.submit(scan, plan): plan for plan in plans}
             try:
-                for future in concurrent.futures.as_completed(futures):
+                for future in pool.completed(futures):
                     status, found = future.result()
                     deliver(futures[future], status, found)
             except BaseException:
