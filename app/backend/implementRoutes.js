@@ -6,6 +6,7 @@ const RL = require('./lib/relationships');
 const { createGenieJobGuard } = require('./lib/genieJobGuard');
 const { invokeChatModel, appChatModels } = require('./lib/modelAccess');
 const { mapLimit } = require('./lib/mapLimit');
+const { calculateValue } = require('../frontend/src/lib/valueFormula.js');
 
 // REQ-323: how many history rows are enriched at once.
 const HISTORY_ROW_CONCURRENCY = 50;
@@ -2969,6 +2970,9 @@ function registerImplementRoutes(app, deps) {
 
   app.post('/api/inspire/value/preview', requireToken, (req, res) => {
     try {
+      // REQ-586a: a value spec is priced by the one engine (valueFormula.js calculateValue), refused specs included; no SQL.
+      const spec = req.body?.spec;
+      if (spec && typeof spec === 'object' && !Array.isArray(spec)) return res.json({ value: calculateValue(spec) });
       return res.json({ yearly: shape2Yearly(req.body?.plan, req.body?.answers) });
     } catch (err) {
       return sendShape2Error(res, err);

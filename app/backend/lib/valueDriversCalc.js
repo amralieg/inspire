@@ -1,24 +1,18 @@
 // REQ-435: value that is not in the data. Validates the typed driver answers, prices each driver per year and adds them to the data part.
 // The driver list, labels and inputs live in valueDrivers.json (shared with the Calculate dialog); only the arithmetic is here.
 const DEF = require('./valueDrivers.json');
+// REQ-586a: one value engine. The driver amounts are priced by calculateValue over driverSpec (app/frontend/src/lib/valueFormula.js).
+const { calculateValue, driverSpec } = require('../../frontend/src/lib/valueFormula.js');
 
 const DRIVERS = new Map(DEF.drivers.map((d) => [d.id, d]));
-// REQ-476: one input, hours_saved. Saved answers with hours_before / hours_after still compute (before - after; a negative result is 0).
-const hoursSaved = (i) => (i.hours_saved !== undefined && i.hours_saved !== null ? i.hours_saved : Math.max(0, i.hours_before - i.hours_after));
-const AMOUNTS = {
-  time_saved: (i) => i.events_per_year * i.people * hoursSaved(i) * i.cost_per_hour,
-  productivity: (i) => (i.headcount * i.cost_per_person_year * i.gain_pct) / 100,
-  revenue_uplift: (i) => (i.base_revenue_per_year * i.uplift_pct) / 100,
-  cost_cut: (i) => (i.spend_per_year * i.cut_pct) / 100,
-  risk_avoided: (i) => (i.incidents_per_year * i.cost_per_incident * i.reduction_pct) / 100,
-};
-
 const filled = (v) => v !== null && v !== undefined;
 const numberOf = (v) => (typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN);
 const round2 = (n) => Math.round(n * 100) / 100;
 
+// REQ-476: time_saved takes hours_saved; saved answers with hours_before / hours_after still price (driverSpec).
 function amountOf(id, inputs) {
-  return AMOUNTS[id](inputs);
+  const gross = calculateValue(driverSpec(id, inputs)).scenarios?.base.gross_annual;
+  return gross === null || gross === undefined ? NaN : gross;
 }
 
 // Null when no driver is filled. Otherwise { drivers, currency, attribution_pct } with every number checked, or a 400 with one plain line.
