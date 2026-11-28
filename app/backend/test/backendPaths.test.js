@@ -42,7 +42,7 @@ test('backend runtime code finds files only through lib/appPaths.js and reads th
   assert.equal(BUNDLE_FILE, path.join(BACKEND_DIR, 'build', 'server.js'));
   const DIRNAME = /\b__(dirname|filename)\b/;
   const INLINED = /require\(\s*['"`][^'"`]*bundle['"`]\s*\)/;
-  assert.ok(DIRNAME.test("path.resolve(__dirname, '..', 'showcase')") && INLINED.test("require('../notebook_bundle')"), 'the probes catch the old forms');
+  assert.ok(DIRNAME.test("path.resolve(__dirname, '..', 'showcase')") && INLINED.test("require('../some_bundle')"), 'the probes catch the old forms');
   const hits = RUNTIME_FILES.filter((f) => f !== 'lib/appPaths.js').flatMap((f) => fs.readFileSync(path.join(BACKEND_DIR, f), 'utf8').split('\n')
     .map((line, i) => (DIRNAME.test(line) || INLINED.test(line) ? `${f}:${i + 1}: ${line.trim()}` : null)).filter(Boolean));
   assert.deepEqual(hits, []);
@@ -75,7 +75,7 @@ test('every file the backend reads from the App folder ships in the App zip, fro
   ]);
   const files = RUNTIME_FILES.filter((f) => f !== 'lib/appPaths.js').map((f) => [f, fs.readFileSync(path.join(BACKEND_DIR, f), 'utf8')]);
   const reads = files.flatMap(([, text]) => [...text.matchAll(APP_DIR_JOIN)]).length;
-  assert.ok(reads >= 15, `${reads} reads found`);
+  assert.ok(reads >= 14, `${reads} reads found`);
   assert.deepEqual(unshippedReads(files, shipped), []);
   const script = fs.readFileSync(path.join(APP_DIR, 'scripts', 'package-for-workspace.sh'), 'utf8');
   assert.match(script, /require\('\$APP_ROOT\/backend\/lib\/appPaths\.js'\)\.\$1/);

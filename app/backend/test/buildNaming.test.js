@@ -51,7 +51,7 @@ test('the PoC pattern catches the old wording and code names, and passes the MVP
 
 test('no PoC is left in the App or its API, in words or in code names, and the Implement page reads Build', () => {
   const app = files(SRC, /\.(js|jsx)$/);
-  const api = files(BACKEND, /\.js$/).filter((file) => path.basename(file) !== 'notebook_bundle.js');
+  const api = files(BACKEND, /\.js$/);
   assert.deepEqual(hits([...app, ...api], ANY_POC), []);
   assert.deepEqual(hits([...app, ...api], OLD_PAGE), []);
   assert.match(fs.readFileSync(path.join(SRC, 'lib', 'tabs.js'), 'utf8'), /\{ id: 'implement', label: 'Build', blurb: /);

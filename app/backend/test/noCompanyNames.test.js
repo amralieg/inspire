@@ -266,11 +266,6 @@ test('the example rule catches a branded example and passes a neutral one', () =
   }
 });
 
-test('the bundled demo notebook is read as the text it embeds', () => {
-  const bundle = readText('app/backend/demo_notebook_bundle.js');
-  assert.equal(bundle, fs.readFileSync(path.join(REPO, 'app', 'dbx_generate_demo_data.py'), 'utf8'));
-});
-
 test('the scan lists only real files: an untracked symlinked node_modules folder, a symlink to a file and a listed path that is gone are left out', () => {
   const os = require('node:os');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'inspire-names-'));

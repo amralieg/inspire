@@ -13,7 +13,6 @@
     "verify:databricks": "node scripts/verify-local-databricks.mjs",
     "bundle:agent-notebook": "node scripts/bundle-agent-notebook.mjs",
     "start": "NODE_ENV=production node backend/server.js",
-    "bundle:demo-notebook": "node scripts/bundle-demo-notebook.mjs",
     "package:workspace": "bash scripts/package-for-workspace.sh",
     "deploy:inspire": "bash scripts/deploy-inspire-full.sh",
     "deploy": "npm run deploy:inspire"

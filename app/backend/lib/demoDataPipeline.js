@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { APP_DIR, BACKEND_DIR } = require('./appPaths');
+const { APP_DIR } = require('./appPaths');
 const { buildDemoSchemaName } = require('./demoDataService');
 const { grantJobViewer, rememberViewer } = require('./jobViewer');
 const { apiRefusalText, logApiBody } = require('./apiRefusal');
@@ -27,9 +27,7 @@ function demoNotebookLocalCandidates() {
   const cwd = process.cwd();
   return [
     path.join(APP_DIR, 'dbx_generate_demo_data.py'),
-    path.join(BACKEND_DIR, 'dbx_generate_demo_data.py'),
     path.join(cwd, 'dbx_generate_demo_data.py'),
-    path.join(cwd, 'backend', 'dbx_generate_demo_data.py'),
   ];
 }
 
@@ -42,18 +40,8 @@ function readDemoNotebookBase64FromDisk() {
   return null;
 }
 
-function readDemoNotebookBase64FromBundle() {
-  try {
-    const b64 = require(path.join(BACKEND_DIR, 'demo_notebook_bundle.js'));
-    if (b64 && typeof b64 === 'string') return { base64: b64, source: 'demo_notebook_bundle.js' };
-  } catch (_) {
-    /* optional until package/build */
-  }
-  return null;
-}
-
 function loadDemoNotebookBase64() {
-  return readDemoNotebookBase64FromDisk() || readDemoNotebookBase64FromBundle();
+  return readDemoNotebookBase64FromDisk();
 }
 
 async function publishPipelineNotebookContent(dbFetch, host, token, base64Content, destPath) {

@@ -30,7 +30,7 @@ const { appShellFiles, appShellPayload, bundledAppShellText } = require('../back
 const { assetType } = require('../backend/lib/assetTypes.js');
 const JSZip = require(path.join(root, 'frontend/node_modules/jszip'));
 
-const out = path.resolve(process.env.OUT || path.join(root, 'backend/showcase', `${KINDS_DEMO.id}.json.gz`));
+const out = path.resolve(process.env.OUT || path.join(root, 'backend/showcase', `${KINDS_DEMO.id}.json.br`));
 const log = (line) => console.log(`[kinds demo] ${line}`);
 const sid = KINDS_DEMO.sessionId;
 const INSPIRE_DATABASE = 'main.inspire';
@@ -318,7 +318,7 @@ try {
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, showcaseFile(bundle));
   const sizes = showcaseSizes(bundle);
-  log(`wrote ${out}: ${Object.keys(bundle.inspire).length} Inspire answers, ${USE_CASES.length} MVP Apps with ${USE_CASES.map((u) => Object.keys(bundle.mvps[u.no].api).length).join(', ')} answers, ${sizes.gzip} bytes compressed from ${sizes.json}`);
+  log(`wrote ${out}: ${Object.keys(bundle.inspire).length} Inspire answers, ${USE_CASES.length} MVP Apps with ${USE_CASES.map((u) => Object.keys(bundle.mvps[u.no].api).length).join(', ')} answers, ${sizes.packed} bytes compressed from ${sizes.json}`);
   if (blocked.length) log(`refused ${blocked.length} writes during the walk: ${[...new Set(blocked)].join(', ')}`);
 } finally {
   await browser.close();

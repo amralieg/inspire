@@ -11,8 +11,8 @@ const DIR = path.join(__dirname, '../showcase');
 const SCRATCH = /inspire-rc[\w-]*/i;
 
 test('C33 (must-fail before): no committed demo names a scratch App in its Build notes, failure text or notebook paths', () => {
-  for (const file of fs.readdirSync(DIR).filter((f) => f.endsWith('.json.gz'))) {
-    const text = zlib.gunzipSync(fs.readFileSync(path.join(DIR, file))).toString('utf8');
+  for (const file of fs.readdirSync(DIR).filter((f) => f.endsWith('.json.br'))) {
+    const text = zlib.brotliDecompressSync(fs.readFileSync(path.join(DIR, file))).toString('utf8');
     const hits = [...new Set(text.match(new RegExp(SCRATCH.source, 'gi')) || [])];
     assert.deepEqual(hits, [], `${file} names the scratch App ${hits.join(', ')}`);
   }

@@ -21,7 +21,6 @@ const SOURCES = [
 ];
 const SOURCE_FILES = ['app/dbx_generate_demo_data.py', 'app/dbx_inspire_after_demo.py', 'app/start.sh', 'inspire_installer.py'];
 const SKIPPED_DIRS = new Set(['node_modules', 'dist', 'build', 'test', 'public']);
-const GENERATED = new Set(['notebook_bundle.js', 'demo_notebook_bundle.js']);
 const JS_TEXT_TOKENS = new Set(['String', 'Template', 'JSXText']);
 const PY_TOKEN = /#[^\n]*|[rRbBuUfF]{0,2}("""[\s\S]*?"""|'''[\s\S]*?'''|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*')/g;
 
@@ -29,7 +28,7 @@ function walk(dir, extensions) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) return SKIPPED_DIRS.has(entry.name) ? [] : walk(full, extensions);
-    return entry.isFile() && extensions.includes(path.extname(entry.name)) && !GENERATED.has(entry.name) ? [full] : [];
+    return entry.isFile() && extensions.includes(path.extname(entry.name)) ? [full] : [];
   });
 }
 
@@ -87,7 +86,7 @@ test('no App source text hedges a plural with (s), but for a text the App parses
   assert.ok(count(['.js', '.jsx', '.mjs']) >= 100, `scanned ${count(['.js', '.jsx', '.mjs'])} JavaScript files`);
   assert.ok(count(['.py']) >= 4 && count(['.sh']) >= 3 && count(['.html']) >= 1, files.join('\n'));
   assert.ok(files.includes(path.join(REPO, 'inspire_installer.py')) && files.some((f) => f.endsWith(path.join('frontend', 'src', 'pages', 'ImplementWizard.jsx'))));
-  assert.ok(!files.some((f) => /[/\\](node_modules|dist|test)[/\\]/.test(f) || GENERATED.has(path.basename(f))), 'no dependency, build, test or generated bundle');
+  assert.ok(!files.some((f) => /[/\\](node_modules|dist|test)[/\\]/.test(f)), 'no dependency, build or test file');
   const found = files.flatMap((file) => hedgesIn(file));
   assert.deepEqual(unexplained(found, PARSED_RELEASED_TEXTS).map((h) => `${h.at}: ${h.hedge} in ${h.text.slice(0, 120)}`), [],
     'every count names its noun through plural() from lib/plural.js, or the sentence needs no count');

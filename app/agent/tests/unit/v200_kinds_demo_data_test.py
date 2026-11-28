@@ -395,9 +395,6 @@ def test_the_app_names_the_table_counts_the_notebook_writes(bundle):
     assert counts == {"DEMO_GENERATED_TABLES": notebook, "DEMO_KIND_SIGNAL_TABLES": len(bundle["tables"])}
 
 
-def test_the_backend_copy_and_the_bundle_match_the_app_notebook():
-    import base64
-    assert (APP / "backend" / "dbx_generate_demo_data.py").read_text() == DEMO.read_text()
-    bundle_js = (APP / "backend" / "demo_notebook_bundle.js").read_text()
-    payload = json.loads(bundle_js.removeprefix("module.exports = ").rstrip().rstrip(";"))
-    assert base64.b64decode(payload).decode() == DEMO.read_text()
+def test_the_app_ships_one_copy_of_the_demo_notebook():
+    assert (APP / "dbx_generate_demo_data.py").is_file()
+    assert not (APP / "backend" / "dbx_generate_demo_data.py").exists()

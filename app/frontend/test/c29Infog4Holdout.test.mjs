@@ -13,7 +13,7 @@ import { infographicFor } from '../src/lib/docgen/designs/infographic.js';
 import { fallbackPick } from '../src/lib/docgen/designs/infographicPick.js';
 import { plainBusiness } from '../src/lib/docgen/docText.js';
 
-const load = (name) => { const d = JSON.parse(zlib.gunzipSync(fs.readFileSync(new URL(`../../backend/showcase/${name}.json.gz`, import.meta.url)))); const k = Object.keys(d.inspire).find((x) => x.includes('/api/inspire/results?'));
+const load = (name) => { const d = JSON.parse(zlib.brotliDecompressSync(fs.readFileSync(new URL(`../../backend/showcase/${name}.json.br`, import.meta.url)))); const k = Object.keys(d.inspire).find((x) => x.includes('/api/inspire/results?'));
   return d.inspire[k].body.results.domains.flatMap((dm) => dm.use_cases); };
 const A = []; for (const f of ['kinds-retail', 'nyctaxi', 'tpcds-retail']) { const seen = new Set(); for (const r of load(f)) { const id = String(r.No); if (!seen.has(id)) { seen.add(id); A.push({ ...r, __src: `${f}:${id}` }); } } }
 const SOURCE = sourcesOf(A);

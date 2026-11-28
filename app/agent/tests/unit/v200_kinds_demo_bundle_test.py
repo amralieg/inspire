@@ -1,22 +1,31 @@
 """v1.4.0 kinds demo: every use case the App's kinds demo shows takes its kind and its title from the agent itself."""
 import copy
-import gzip
 import json
 import os
+import subprocess
 
 import pytest
 
 from v120_gate_recalibration_test import make
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-BUNDLE = os.path.join(os.path.dirname(ROOT), "backend", "showcase", "kinds-retail.json.gz")
+BUNDLE = os.path.join(os.path.dirname(ROOT), "backend", "showcase", "kinds-retail.json.br")
+def _unbrotli(path):
+    try:
+        import brotli
+        with open(path, "rb") as handle:
+            return brotli.decompress(handle.read()).decode("utf-8")
+    except ImportError:
+        script = "process.stdout.write(require('zlib').brotliDecompressSync(require('fs').readFileSync(process.argv[1])))"
+        return subprocess.run(["node", "-e", script, path], check=True, capture_output=True).stdout.decode("utf-8")
+
+
 KIND_FIELDS = ("use_case_kind", "kind_family", "app_layout", "serving_summary", "method_summary", "value_source", "name_with_technique")
 
 
 @pytest.fixture(scope="module")
 def demo():
-    with gzip.open(BUNDLE, "rt", encoding="utf-8") as handle:
-        bundle = json.load(handle)
+    bundle = json.loads(_unbrotli(BUNDLE))
     return bundle["inspire"][f"GET /api/inspire/usecases?session_id={bundle['session_id']}"]["body"]["usecases"]
 
 

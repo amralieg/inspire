@@ -12,7 +12,7 @@ const { startInspire } = require('./support/serverProcess');
 const { loadShowcases } = require('../lib/showcase');
 
 const PACKAGE = path.join(APP_DIR, 'scripts', 'package-for-workspace.sh');
-const TRACKED_OUTPUTS = ['backend/notebook_bundle.js', 'backend/demo_notebook_bundle.js', 'backend/dbx_generate_demo_data.py'];
+const TRACKED_OUTPUTS = ['dbx_inspire_ai_agent.ipynb', 'dbx_generate_demo_data.py'];
 const SHOWCASE_DIR = path.join(APP_DIR, 'backend', 'showcase');
 const RECORDINGS = spawnSync('git', ['ls-files', '--', 'backend/showcase'], { cwd: APP_DIR, encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'inspire_offline_'));
@@ -127,20 +127,18 @@ test('start.sh runs the bundle with no node_modules and no internet, and every f
   }
 });
 
-test('the bundle writes the agent notebook from notebook_bundle.js on disk when the .ipynb is missing', async () => {
+test('without the .ipynb the App starts, says it has no agent notebook and writes none', async () => {
   const dir = extracted('fallback');
   const original = fs.readFileSync(path.join(dir, 'dbx_inspire_ai_agent.ipynb'));
   fs.rmSync(path.join(dir, 'dbx_inspire_ai_agent.ipynb'));
   const app = await startInspire(NO_INTERNET, { command: ['bash', 'start.sh'], cwd: dir });
   try {
-    assert.equal(JSON.parse((await read(app.url, '/api/health', SIGNED_IN)).body).hasBundledDbc, true);
-    assert.ok(fs.readFileSync(path.join(dir, 'backend', 'dbx_inspire_ai_agent.ipynb')).equals(original));
+    assert.equal(JSON.parse((await read(app.url, '/api/health', SIGNED_IN)).body).hasBundledDbc, false);
+    assert.equal(fs.existsSync(path.join(dir, 'backend', 'dbx_inspire_ai_agent.ipynb')), false, 'no notebook is written from a hidden copy');
   } finally {
     await app.stop();
   }
-  const bundle = fs.readFileSync(path.join(dir, G.BUNDLE), 'utf8');
-  const embedded = fs.readFileSync(path.join(dir, 'backend', 'notebook_bundle.js'), 'utf8');
-  assert.equal(bundle.includes(embedded.slice(20, 220)), false, 'the notebook data stays out of the bundle');
+  assert.ok(original.length > 1000000, 'the shipped notebook is the one real copy');
 });
 
 test('start.sh stops with one plain message when the bundle is missing', () => {

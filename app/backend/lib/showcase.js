@@ -12,7 +12,7 @@ const SHOWCASE_VERSION = 1;
 const SHOWCASE_HEADER = 'x-inspire-showcase';
 const SHOWCASE_DIR = path.join(BACKEND_DIR, 'showcase');
 const SHOWCASE_ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
-const SHOWCASE_FILE_RE = /\.json(\.gz)?$/;
+const SHOWCASE_FILE_RE = /\.json(\.gz|\.br)?$/;
 const SHOWCASE_IGNORED = new Set(['inspire_database', 'warehouse_id', 'conversation_id', 'time_zone']);
 const SHOWCASE_READ_ONLY = 'This is the demo, so nothing in it changes. Choose Get Started to find use cases and build MVPs on your own data.';
 const SHOWCASE_MISSING = 'Not part of this demo.';
@@ -97,7 +97,7 @@ function showcaseProblem(bundle, file) {
   if (!isObject(bundle)) return `${file} is not a JSON object`;
   if (bundle.version !== SHOWCASE_VERSION) return `${file} is not version ${SHOWCASE_VERSION}`;
   if (!SHOWCASE_ID_RE.test(String(bundle.id || ''))) return `${file} has no valid id`;
-  if (![`${bundle.id}.json`, `${bundle.id}.json.gz`].includes(path.basename(file))) return `${file} must be named ${bundle.id}.json or ${bundle.id}.json.gz`;
+  if (![`${bundle.id}.json`, `${bundle.id}.json.gz`, `${bundle.id}.json.br`].includes(path.basename(file))) return `${file} must be named ${bundle.id}.json, ${bundle.id}.json.gz or ${bundle.id}.json.br`;
   for (const field of ['title', 'business', 'session_id']) {
     if (typeof bundle[field] !== 'string' || !bundle[field].trim()) return `${file} has no ${field}`;
   }
@@ -116,19 +116,22 @@ function showcaseProblem(bundle, file) {
 
 function loadShowcases(dir = SHOWCASE_DIR) {
   const found = {};
+  const names = {};
   if (!fs.existsSync(dir)) return found;
   for (const name of fs.readdirSync(dir).filter((n) => SHOWCASE_FILE_RE.test(n)).sort()) {
     const file = path.join(dir, name);
     let bundle;
     try {
       const bytes = fs.readFileSync(file);
-      bundle = parseExactJson((name.endsWith('.gz') ? zlib.gunzipSync(bytes) : bytes).toString('utf8'));
+      const plain = name.endsWith('.br') ? zlib.brotliDecompressSync(bytes) : name.endsWith('.gz') ? zlib.gunzipSync(bytes) : bytes;
+      bundle = parseExactJson(plain.toString('utf8'));
     } catch (e) {
-      throw new Error(`the demo ${name} is not ${name.endsWith('.gz') ? 'gzip-compressed JSON' : 'valid JSON'}: ${e.message}`);
+      throw new Error(`the demo ${name} is not ${name.endsWith('.br') ? 'brotli-compressed JSON' : name.endsWith('.gz') ? 'gzip-compressed JSON' : 'valid JSON'}: ${e.message}`);
     }
     const problem = showcaseProblem(bundle, file);
     if (problem) throw new Error(`the demo ${problem}`);
-    if (found[bundle.id]) throw new Error(`the demo ${bundle.id} is saved twice, as ${bundle.id}.json and ${bundle.id}.json.gz; keep one`);
+    if (found[bundle.id]) throw new Error(`the demo ${bundle.id} is saved twice, as ${names[bundle.id]} and ${name}; keep one`);
+    names[bundle.id] = name;
     found[bundle.id] = bundle;
   }
   return found;

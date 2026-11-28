@@ -18,7 +18,7 @@ import { defaultDocOptions } from '../src/lib/docgen/docOptions.js';
 import { trackingIdOf } from '../src/lib/useCaseFields.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const show = JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(ROOT, 'app/backend/showcase/kinds-retail.json.gz'))));
+const show = JSON.parse(zlib.brotliDecompressSync(fs.readFileSync(path.join(ROOT, 'app/backend/showcase/kinds-retail.json.br'))));
 const rows = show.inspire['GET /api/inspire/results?session_id=2001'].body.results.domains.flatMap((d) => d.use_cases);
 const values = {};
 rows.slice(0, 13).forEach((r, i) => {

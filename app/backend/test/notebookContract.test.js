@@ -60,36 +60,24 @@ test('the notebook has no generation widget: no 09_generation_options widget, no
   assert.equal(INSPIRE_NOTEBOOK_WIDGET_KEYS.includes('09_generation_options'), false);
 });
 
-test('embedded backend fallback is byte-identical to the physical notebook', () => {
-  const embedded = Buffer.from(require('../notebook_bundle'), 'base64');
-  const sha = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
-  assert.equal(sha(embedded), sha(notebookBytes), 'notebook_bundle.js is not the bundled notebook; run npm run bundle:agent-notebook');
-  assert.equal(embedded.length, notebookBytes.length);
-});
-
-test('the notebook the App launches and its embedded fallback are the agent notebook, byte for byte', () => {
+test('the notebook the App launches is the agent notebook, byte for byte', () => {
   const sha = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
   const agentBytes = fs.readFileSync(path.join(appRoot, 'agent', 'agent', 'dbx_inspire_ai_agent.ipynb'));
-  const embedded = Buffer.from(require('../notebook_bundle'), 'base64');
-  const fix = 'run npm run bundle:agent-notebook in app/';
-  assert.equal(sha(notebookBytes), sha(agentBytes), `app/dbx_inspire_ai_agent.ipynb is not app/agent/agent/dbx_inspire_ai_agent.ipynb; ${fix}`);
-  assert.equal(sha(embedded), sha(agentBytes), `backend/notebook_bundle.js is not app/agent/agent/dbx_inspire_ai_agent.ipynb; ${fix}`);
+  assert.equal(sha(notebookBytes), sha(agentBytes), 'app/dbx_inspire_ai_agent.ipynb is not app/agent/agent/dbx_inspire_ai_agent.ipynb; run npm run bundle:agent-notebook in app/');
 });
 
-test('bundle:agent-notebook copies the agent notebook over a drifted App copy and embeds it, and refuses without the agent notebook', () => {
+test('bundle:agent-notebook copies the agent notebook over a drifted App copy, and refuses without the agent notebook', () => {
   const os = require('node:os');
   const { execFileSync } = require('node:child_process');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nbsync-'));
   try {
     fs.mkdirSync(path.join(tmp, 'scripts'));
-    fs.mkdirSync(path.join(tmp, 'backend'));
     fs.copyFileSync(path.join(appRoot, 'scripts', 'bundle-agent-notebook.mjs'), path.join(tmp, 'scripts', 'bundle-agent-notebook.mjs'));
     const run = () => execFileSync(process.execPath, [path.join(tmp, 'scripts', 'bundle-agent-notebook.mjs')], { stdio: 'pipe' });
     const copy = path.join(tmp, 'dbx_inspire_ai_agent.ipynb');
-    const bundle = path.join(tmp, 'backend', 'notebook_bundle.js');
     fs.writeFileSync(copy, '{"cells": []}');
-    assert.throws(run, 'with no agent notebook nothing is bundled');
-    assert.equal(fs.existsSync(bundle), false);
+    assert.throws(run, 'with no agent notebook nothing is copied');
+    assert.equal(fs.readFileSync(copy, 'utf8'), '{"cells": []}');
     const latest = Buffer.from('{"cells": ["__AGENT_VERSION__ = \\"9.9.9\\""]}\n');
     fs.mkdirSync(path.join(tmp, 'agent', 'agent'), { recursive: true });
     fs.writeFileSync(path.join(tmp, 'agent', 'agent', 'dbx_inspire_ai_agent.ipynb'), latest);
@@ -97,9 +85,6 @@ test('bundle:agent-notebook copies the agent notebook over a drifted App copy an
       if (start === 'no copy') fs.rmSync(copy);
       run();
       assert.ok(fs.readFileSync(copy).equals(latest), `${start}: the App copy is the agent notebook`);
-      const embedded = Buffer.from(require(bundle), 'base64');
-      delete require.cache[require.resolve(bundle)];
-      assert.ok(embedded.equals(latest), `${start}: the embedded fallback is the agent notebook`);
     }
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
