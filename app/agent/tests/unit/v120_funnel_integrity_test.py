@@ -680,9 +680,17 @@ def test_K2_no_shadowed_or_emptied_context_in_run():
         assigned = [n for n in ast.walk(run) if isinstance(n, ast.Assign)
                     and any(isinstance(t, ast.Name) and t.id == name for t in n.targets)]
         assert not assigned, f"run() must not shadow '{name}' with a local"
-    flt = _call_nodes(run, "_filter_business_tables")[0]
-    kw = {k.arg: ast.unparse(k.value) for k in flt.keywords}
+    # REQ-580: run() splits its scope through _resolve_table_scope, which forwards the context to the filter.
+    scope_calls = _call_nodes(run, "_resolve_table_scope")
+    assert len(scope_calls) == 1, "run() must split its scope through _resolve_table_scope exactly once"
+    kw = {k.arg: ast.unparse(k.value) for k in scope_calls[0].keywords}
     assert kw["business_context"] == "ctx_business_context" and kw["industry"] == "ctx_industry"
+    assert not _call_nodes(run, "_filter_business_tables"), "run() must not bypass _resolve_table_scope"
+    resolver = method_node("DatabricksInspire", "_resolve_table_scope")
+    flt_calls = _call_nodes(resolver, "_filter_business_tables")
+    assert len(flt_calls) == 1
+    kw = {k.arg: ast.unparse(k.value) for k in flt_calls[0].keywords}
+    assert kw["business_context"] == "business_context" and kw["industry"] == "industry"
     gen_calls = _call_nodes(run, "_process_batch_with_retry")
     assert len(gen_calls) == 2
     for call in gen_calls:
