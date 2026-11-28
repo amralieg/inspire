@@ -51,7 +51,7 @@ export default function MatchReviewStep({ draft, settings, onReady, registerStar
           <ul className="mt-2 space-y-0.5 text-sm text-text-primary">{tables.map((t) => <li key={t} className="font-mono">{t}</li>)}</ul>
         ) : <p className="mt-2 text-sm text-text-secondary">No data picked yet.</p>}
       </div>
-      <p className="text-sm text-text-secondary">Starting this opens a run. Each use case shows on the Monitor with its match status, and the review is on the run's Results page.</p>
+      <p className="text-sm text-text-secondary">Starting this opens a run. Each use case shows on the Monitor with its match status, and the review is on the run's Review tab.</p>
     </section>
   );
 }

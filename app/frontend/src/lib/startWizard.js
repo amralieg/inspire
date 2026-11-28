@@ -11,13 +11,13 @@
 //   useCases        [{ input_no, name, description }]          (lane C, Your use cases; input_no starts at 1)
 //   useCaseSource   'paste' | 'upload' | 'run'                 (lane C)
 //   (REQ-579: the match itself is a run. The wizard's Match path ends at Review and start, which launches it; the Monitor shows each use case's
-//    match progress (components/match/MatchMonitorBoxes.jsx) and the Results page holds the per-piece review and Accept (MatchResultsPanel.jsx).)
+//    match progress (components/match/MatchMonitorBoxes.jsx) and the Review tab holds the per-piece review and Accept (MatchResultsPanel.jsx).)
 //
 // Plan (lane B, POST /api/inspire/plan/sort answer):
 //   { catalogs: string[], read_tables: number,
 //     runs: [{ run_no, name, why, tables: [{ table, why }] }],              at most PLAN_RUN_MAX tables in each run, run_no in run order
 //     left_out: [{ reason, label, count, example, tables: string[] }] }
-// Report (lane C, report_json of <inspire_db>.__inspire_match, written by the agent; read on the Monitor and Results pages):
+// Report (lane C, report_json of <inspire_db>.__inspire_match, written by the agent; read on the Monitor and Review tabs):
 //   { input_no, name, verdict: 'full'|'partial'|'none', confidence: 0-100,
 //     pieces: [{ piece_no, requirement, status: 'matched'|'partial'|'missing', confidence,
 //                evidence: [{ table, columns: string[], why }], gap, known_data_option: { table, columns, why } | null }] }

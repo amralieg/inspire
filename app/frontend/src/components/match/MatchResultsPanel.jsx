@@ -1,4 +1,4 @@
-// REQ-578, REQ-579: the per-piece match review on the Results page of a Match session. For each use case: verdict and confidence; for each
+// REQ-578, REQ-579: the per-piece match review on the Review tab of a Match session. For each use case: verdict and confidence; for each
 // piece the requirement, status, confidence, evidence (table, columns, why), the gap and the choice keep / drop / use known data
 // (POST match/decision); then Accept (POST match/accept, phase accept). Renders nothing when match/result is state none.
 // Props: { settings, sessionId, apiFetch }.
