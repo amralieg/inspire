@@ -79,7 +79,8 @@ NEW_PROMPTS = {"MATCH_BREAKDOWN_PROMPT": {"use_case_name", "use_case_description
                "THEME_ASSIGNMENT_PROMPT": {"use_cases_listing", "existing_themes_section", "method_families",
                                            "generation_instructions_section", "theme_budget"},
                "SIGNAL_CHECK_PROMPT": {"schema_details", "use_cases_listing", "generation_instructions_section"},
-               "DATA_FILTER_LABEL_RENAME_PROMPT": {"label_intro", "label_rule", "strategy_name_rule", "names_json", "retry_note"}}
+               "DATA_FILTER_LABEL_RENAME_PROMPT": {"label_intro", "label_rule", "strategy_name_rule", "names_json", "retry_note"},
+               "LOSS_POOL_CANDIDATE_PROMPT": {"business_name", "generation_instructions_section", "pools_json", "techniques"}}
 
 
 @pytest.fixture(scope="module")

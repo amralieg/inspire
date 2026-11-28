@@ -178,8 +178,20 @@ def test_the_value_estimate_takes_its_numbers_from_the_one_calculator(agent_ns, 
     assert seen and seen[0]["mechanism"] == "cost", seen
 
 
-def test_the_annualisation_lives_only_in_the_calculator():
+def _agent_and_run_side_tree():
+    """The agent notebook plus IMPLEMENT_RESULT_HISTORY_SOURCE, the run-side source it execs and inlines into every generated
+    notebook (U7b moved the one calculator there): a function defined in that string is agent code too."""
     tree = agent_ast()
+    held = [n.value.value for n in ast.walk(tree) if isinstance(n, ast.Assign) and isinstance(n.value, ast.Constant)
+            and isinstance(n.value.value, str) and any(getattr(t, "id", "") == "IMPLEMENT_RESULT_HISTORY_SOURCE" for t in n.targets)]
+    assert len(held) <= 1, "the notebook defines IMPLEMENT_RESULT_HISTORY_SOURCE at most once"
+    for source in held:
+        tree.body.extend(ast.parse(source).body)
+    return tree
+
+
+def test_the_annualisation_lives_only_in_the_calculator():
+    tree = _agent_and_run_side_tree()
     holders = sorted({node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
                       and node.name.lstrip("_").startswith("inspire_value")
                       and any(isinstance(inner, ast.Constant) and inner.value == 365 for inner in ast.walk(node))})

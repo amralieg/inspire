@@ -14,10 +14,12 @@
    "SUBDOMAIN_DETECTOR_PROMPT": 6,
    "THEME_ASSIGNMENT_PROMPT": 2,
    "ULTRA_HIGH_ELITE_JUDGE_PROMPT": 28,
-   "label_column_roles": 1
+   "label_column_roles": 1,
+   "name_table_domains": 1
   },
   "sequence": [
    "label_column_roles",
+   "name_table_domains",
    "GOAL_ALIGNMENT_FILTER_PROMPT",
    "DOMAIN_FINDER_PROMPT",
    "DOMAINS_MERGER_PROMPT",
@@ -45,10 +47,12 @@
    "SUBDOMAIN_DETECTOR_PROMPT": 2,
    "THEME_ASSIGNMENT_PROMPT": 2,
    "ULTRA_HIGH_ELITE_JUDGE_PROMPT": 28,
-   "label_column_roles": 1
+   "label_column_roles": 1,
+   "name_table_domains": 1
   },
   "sequence": [
    "label_column_roles",
+   "name_table_domains",
    "GOAL_ALIGNMENT_FILTER_PROMPT",
    "Assign_User_Domains",
    "SUBDOMAIN_DETECTOR_PROMPT",
