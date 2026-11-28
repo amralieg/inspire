@@ -116,7 +116,7 @@ test('REQ-577: the Start page runs the plan advance, so the next run of a plan s
   const choose = fs.readFileSync(path.join(SRC, 'pages', 'ChoosePage.jsx'), 'utf8');
   assert.match(choose, /import \{[^}]*\busePlanAdvance\b[^}]*\} from '\.\.\/lib\/wizPlanClient'/);
   assert.match(choose, /\busePlanAdvance\(/);
-  assert.match(choose, /from '\.\.\/components\/startWizard\/StartWizard'/, 'ChoosePage opens the lane A wizard');
+  assert.match(choose, /(?:from |import\()'\.\.\/components\/startWizard\/StartWizard'/, 'ChoosePage opens the lane A wizard (static or lazy import, c54)');
 });
 
 test('REQ-578: no Arabic text in the Start page or wizard shell sources (the RTL screens are dropped)', () => {
