@@ -35,7 +35,7 @@ function notebookParamsFromSessionForGenerateRun(session, targetSessionIdStr) {
   const tableScope = String(session.table_scope || '').trim();
   return {
     ...(tableScope ? { '17_table_scope': tableScope } : {}),
-    '15_operation': 'Generate Use Cases',
+    '15_operation': 'Implement Use Cases',
     '00_business_name': String(session.business_name || '').trim(),
     '01_uc_metadata': ucMeta,
     '02_inspire_database': String(session.inspire_database_name || '').trim(),

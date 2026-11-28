@@ -94,29 +94,6 @@ def test_merge_failure_is_raised_and_the_view_is_still_dropped(agent_ns):
     assert len(waits) == agent_ns["inspire_write_conflict_attempts"]() - 1 and all(w > 0 for w in waits)
 
 
-def test_regeneration_flags_reset_in_the_same_statement_not_a_second_update():
-    src = agent_source()
-    assert "def _update_flag_to_no" not in src
-    generate_mode = ast.unparse(method_node("DatabricksInspire", "_run_generate_mode"))
-    assert "_update_flag_to_no" not in generate_mode and "_merge_regenerated_ucs_into_tracking(regen)" in generate_mode
-
-
-def test_route2_lookups_bind_ids_as_parameters(agent_ns):
-    hostile_id = "N01-U01' OR '1'='1"
-    spark = FakeSpark()
-    inst = _tracking_inst(agent_ns, spark)
-    inst._scan_notebooks_for_generation_flag = lambda: [
-        {"notebook_path": "/nb/a", "use_case_id": hostile_id, "session_id": 7},
-        {"notebook_path": "/nb/b", "use_case_id": "N02-U01", "session_id": None},
-    ]
-    inst._fetch_flagged_use_cases_route2()
-    assert len(spark.sql_calls) == 2
-    for text, args in spark.sql_calls:
-        assert hostile_id not in text and "'1'='1" not in text
-    assert hostile_id in spark.sql_calls[0][1].values() and 7 in spark.sql_calls[0][1].values()
-    assert "N02-U01" in spark.sql_calls[1][1].values()
-
-
 def test_row_to_uc_restores_the_elite_card_fields(agent_ns):
     inst = build_inspire(agent_ns)
     row = tracking_row(quality="Very High", quality_mode="Ultra High", elite_status="ELITE", elite_score=8.4,

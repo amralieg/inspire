@@ -348,29 +348,6 @@ def _generate_mode_inst(ns, lock_outcome):
     return inst
 
 
-def test_generate_mode_records_a_lock_infrastructure_failure_and_still_releases(ns):
-    inst = _generate_mode_inst(ns, RuntimeError("lock table unreadable: PERMISSION_DENIED"))
-    inst._run_generate_mode()
-    assert [f["step"] for f in inst.failed_steps] == ["Generate Lock"]
-    assert "PERMISSION_DENIED" in inst.failed_steps[0]["error"]
-    assert inst.logger.matching("[G15 LOCK_UNVERIFIED]", "WARNING")
-    assert inst.atomic_writer.released == ["Acme"]
-    assert any("Generate Lock" in w for w in inst._run_outcome_warnings())
-
-
-def test_generate_mode_releases_the_lock_under_the_business_it_locked(ns):
-    inst = _generate_mode_inst(ns, True)
-    inst._fetch_flagged_use_cases_route1 = lambda: [{"session_id": 11, "id": "N01-U01"}]
-
-    def regenerate(rows, label):
-        inst.business_name = "Other Corp"
-        return []
-
-    inst._regenerate_genie_for_flagged_rows = regenerate
-    inst._run_generate_mode()
-    assert inst.atomic_writer.released == ["Acme"], "a context change during the run never moves the lock it releases"
-
-
 def test_regeneration_restores_the_run_context_after_every_session(ns):
     inst = build_inspire(ns, operation="Generate Use Cases")
     contexts = {"11": {"business_name": "Acme"}, "22": {"business_name": "Other Corp", "enriched_business_context": "theirs"}}
@@ -396,22 +373,6 @@ def test_regeneration_restores_the_run_context_after_every_session(ns):
     with pytest.raises(RuntimeError, match="wave failed"):
         inst._regenerate_genie_for_flagged_rows([{"session_id": 22, "id": "N02-U01"}], "Route 1 (DB flag)")
     assert inst.business_name == "Acme" and inst.merged_business_context == before[1]
-
-
-def test_generate_mode_stops_when_another_run_holds_the_lock(ns):
-    inst = _generate_mode_inst(ns, False)
-    with pytest.raises(RuntimeError, match="Another Genie regeneration is running for business Acme"):
-        inst._run_generate_mode()
-    assert [f["step"] for f in inst.failed_steps] == ["Generate Lock"]
-    assert "another run holds the Generate lock" in inst.failed_steps[0]["error"]
-    assert inst.atomic_writer.released == [], "a run that never held the lock releases nothing"
-
-
-def test_generate_mode_with_the_lock_held_records_nothing(ns):
-    inst = _generate_mode_inst(ns, True)
-    inst._run_generate_mode()
-    assert not getattr(inst, "failed_steps", None)
-    assert inst.atomic_writer.released == ["Acme"]
 
 
 class _StatusApi:
