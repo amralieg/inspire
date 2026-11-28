@@ -111,3 +111,15 @@ def test_8_the_run_passes_the_removed_joins_to_the_loader(agent_ns):
     calls = [line for line in source.splitlines() if "set_person_relationships(" in line and "def " not in line]
     assert calls, "the run must hand the person's joins to the DataLoader"
     assert all("parse_person_removed_relationships(" in line for line in calls), calls
+
+
+def test_9_graph_joins_spelled_in_mixed_case_are_still_removed(agent_ns):
+    """Declared keys and name-inferred joins keep the case information_schema returns; the removed joins are stored lower-cased."""
+    mixed = ("Main", "Sales", "Orders", "Customer_ID", "Main", "Sales", "Customers", "CUSTOMER_ID")
+    dl = _loader(agent_ns, [_join(CHILD, "customer_id", PARENT, "customer_id", removed=True)])
+    dl._infer_foreign_keys = lambda details: {mixed[:3]: [(mixed, 0.9)]}
+    assert dl.merge_inferred_foreign_keys([]) == 0
+    assert mixed not in dl.foreign_key_graph[mixed[:3]]
+    dl.foreign_key_graph[mixed[:3]] = [mixed, KEPT]
+    dl._apply_person_relationships()
+    assert dl.foreign_key_graph[mixed[:3]] == [KEPT]
