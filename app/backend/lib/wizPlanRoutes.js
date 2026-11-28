@@ -14,6 +14,7 @@
 //         launchRun(req, body) -> { status, body, params }, readRun(req, runId) -> { ok, data }, now() }
 const crypto = require('node:crypto');
 const { replyContent } = require('./appFeedback');
+const RP = require('./routePolicy');
 
 const PLAN_RUN_MAX = 25;
 const PLAN_TABLE = '__inspire_plan';
@@ -33,15 +34,8 @@ const migrated = new Set();
 
 const fail = (status, message) => Object.assign(new Error(message), { statusCode: status });
 const text = (v) => String(v == null ? '' : v).trim();
-// The signed-in person, from the same forwarded headers requestPerson reads (email, then preferred username, then user), lower-cased.
-function ownerOf(req) {
-  const h = (req && req.headers) || {};
-  for (const name of ['x-forwarded-email', 'x-forwarded-preferred-username', 'x-forwarded-user']) {
-    const v = text(Array.isArray(h[name]) ? h[name][0] : h[name]).toLowerCase();
-    if (v) return v;
-  }
-  return '';
-}
+// The signed-in person, lower-cased: the same helper server.js uses to match a run's launcher.
+const ownerOf = (req) => RP.forwardedPerson((req && req.headers) || {});
 const bt = (name) => `\`${name}\``;
 
 function planTable(inspireDatabase) {
