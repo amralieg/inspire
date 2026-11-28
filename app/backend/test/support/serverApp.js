@@ -37,7 +37,7 @@ const state = {
 function reset(overrides = {}) {
   Object.assign(state, {
     managers: [], managerGroups: [], personGroups: [], aclStatus: 200, personAppsScope: true, launchers: {}, sessionLaunchers: {}, history: [], calls: [],
-    launches: [], profiles: [], profileLinks: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, holdFetch: null, createFailure: '', sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null, ucSchemas: null, ucTables: null,
+    launches: [], profiles: [], profileLinks: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, holdFetch: null, createFailure: '', sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null, ucSchemas: null, ucTables: null, gatewayModelIds: null, gatewayChat: null,
     createdJob: null, sqlHook: null, modelReply: null, modelRateLimited: false, profileTablesMissing: false, presentPaths: [], notebookObjects: [], statusErrors: {}, catalogPaths: {}, catalogReasons: {}, catalogColumnMissing: false, catalogQueryError: '', runJobs: {}, runStates: null, runViewDenied: null, exportDenied: false, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, tableColumns: {}, files: {}, sessionBusiness: {},
     ...folderModel({ folders: { '/Shared/demos': { id: 7, writers: '*' } } }),
   }, overrides);
@@ -320,8 +320,11 @@ async function stubFetch(url, opts = {}) {
   if (state.ucSchemas && u.pathname === '/api/2.1/unity-catalog/schemas') return json({ schemas: (state.ucSchemas[u.searchParams.get('catalog_name')] || []).map((name) => ({ name })) });
   if (state.ucTables && u.pathname === '/api/2.1/unity-catalog/tables') {
     const names = state.ucTables[`${u.searchParams.get('catalog_name')}.${u.searchParams.get('schema_name')}`] || [];
-    return json({ tables: names.map((name) => ({ name })) });
+    return json({ tables: names.map((name) => (typeof name === 'string' ? { name } : name)) });
   }
+  // c37: gatewayModelIds lists the system.ai models the gateway names; gatewayChat(body) -> { status, data } answers a gateway chat call.
+  if (state.gatewayModelIds && u.pathname === '/ai-gateway/anthropic/v1/models') return json({ data: state.gatewayModelIds.map((id) => ({ id })) });
+  if (state.gatewayChat && u.pathname === '/ai-gateway/mlflow/v1/chat/completions') { const got = state.gatewayChat(body); return json(got.data, got.status || 200); }
   if (u.pathname === '/api/2.0/sql/statements') return json(answerSql(body));
   // REQ-405: the launch check probes a chat model the App can query; state.modelDenied refuses every probe, as a workspace does when the App lacks CAN_QUERY.
   if (state.modelRateLimited && (u.pathname === '/api/2.0/serving-endpoints' || /^\/serving-endpoints\/[^/]+\/invocations$/.test(u.pathname))) return json({ error_code: 'REQUEST_LIMIT_EXCEEDED', message: 'rate limit exceeded' }, 429);
