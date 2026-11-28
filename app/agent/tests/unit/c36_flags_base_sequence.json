@@ -14,10 +14,13 @@
    "SUBDOMAIN_DETECTOR_PROMPT": 6,
    "THEME_ASSIGNMENT_PROMPT": 2,
    "ULTRA_HIGH_ELITE_JUDGE_PROMPT": 28,
-   "label_column_roles": 1
+   "USE_CASE_FULL_TEXT_PROMPT": 9,
+   "label_column_roles": 1,
+   "name_table_domains": 1
   },
   "sequence": [
    "label_column_roles",
+   "name_table_domains",
    "GOAL_ALIGNMENT_FILTER_PROMPT",
    "DOMAIN_FINDER_PROMPT",
    "DOMAINS_MERGER_PROMPT",
@@ -30,7 +33,8 @@
    "BEST_OF_BEST_SCORING_PROMPT",
    "THEME_ASSIGNMENT_PROMPT",
    "ULTRA_HIGH_ELITE_JUDGE_PROMPT",
-   "STRATEGY_ALIGNMENT_PROMPT"
+   "STRATEGY_ALIGNMENT_PROMPT",
+   "USE_CASE_FULL_TEXT_PROMPT"
   ]
  },
  "user_domains": {
@@ -45,10 +49,13 @@
    "SUBDOMAIN_DETECTOR_PROMPT": 2,
    "THEME_ASSIGNMENT_PROMPT": 2,
    "ULTRA_HIGH_ELITE_JUDGE_PROMPT": 28,
-   "label_column_roles": 1
+   "USE_CASE_FULL_TEXT_PROMPT": 9,
+   "label_column_roles": 1,
+   "name_table_domains": 1
   },
   "sequence": [
    "label_column_roles",
+   "name_table_domains",
    "GOAL_ALIGNMENT_FILTER_PROMPT",
    "Assign_User_Domains",
    "SUBDOMAIN_DETECTOR_PROMPT",
@@ -58,7 +65,8 @@
    "BEST_OF_BEST_SCORING_PROMPT",
    "THEME_ASSIGNMENT_PROMPT",
    "ULTRA_HIGH_ELITE_JUDGE_PROMPT",
-   "STRATEGY_ALIGNMENT_PROMPT"
+   "STRATEGY_ALIGNMENT_PROMPT",
+   "USE_CASE_FULL_TEXT_PROMPT"
   ]
  }
 }

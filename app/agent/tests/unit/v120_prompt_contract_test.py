@@ -51,7 +51,7 @@ V113_PLACEHOLDERS = {
 ALLOWED_ADDITIONS = {"BUSINESS_CONTEXT_WORKER_PROMPT": {"data_scope"},
                      "SUMMARY_GEN_PROMPT": {"quality_bar_section"},
                      "BEST_OF_BEST_SCORING_PROMPT": {"schema_details", "strategic_initiative", "value_chain", "revenue_model"},
-                     "BASE_USE_CASE_GEN_PROMPT": {"industry", "kinds_checklist_section"},
+                     "BASE_USE_CASE_GEN_PROMPT": {"industry", "kinds_checklist_section", "text_detail"},
                      "GENERAL_INSTRUCTION_INTERPRETER_PROMPT": {"kind_ids"},
                      "USE_CASE_GENIE_CODE_INSTRUCTION_GEN_PROMPT": {"beneficiary", "sponsor", "decision", "decision_owner", "cadence", "kpi",
                                                                     "kpi_direction", "value_tier", "outcome_definition", "time_column",
@@ -66,7 +66,8 @@ STRATEGY_BLIND = {"strategic_goals", "business_priorities"}
 REMOVED_PLACEHOLDERS = {"SUMMARY_GEN_PROMPT": {"total_cases"}, "BASE_USE_CASE_GEN_PROMPT": STRATEGY_BLIND,
                         "COMBINED_VALUE_QUALITY_SCORE_PROMPT": STRATEGY_BLIND, "BEST_OF_BEST_SCORING_PROMPT": STRATEGY_BLIND}
 
-NEW_PROMPTS = {"MATCH_BREAKDOWN_PROMPT": {"use_case_name", "use_case_description", "business_name", "generation_instructions_section"},
+NEW_PROMPTS = {"USE_CASE_FULL_TEXT_PROMPT": {"business_name", "business_context", "generation_instructions_section", "use_cases_json"},
+               "MATCH_BREAKDOWN_PROMPT": {"use_case_name", "use_case_description", "business_name", "generation_instructions_section"},
                "MATCH_PIECES_PROMPT": {"use_case_name", "use_case_description", "business_name", "generation_instructions_section",
                                        "pieces_json", "schema_markdown"},
                "ULTRA_HIGH_ELITE_JUDGE_PROMPT": {"allowed_value_tiers", "business_context",
@@ -79,7 +80,8 @@ NEW_PROMPTS = {"MATCH_BREAKDOWN_PROMPT": {"use_case_name", "use_case_description
                "THEME_ASSIGNMENT_PROMPT": {"use_cases_listing", "existing_themes_section", "method_families",
                                            "generation_instructions_section", "theme_budget"},
                "SIGNAL_CHECK_PROMPT": {"schema_details", "use_cases_listing", "generation_instructions_section"},
-               "DATA_FILTER_LABEL_RENAME_PROMPT": {"label_intro", "label_rule", "strategy_name_rule", "names_json", "retry_note"}}
+               "DATA_FILTER_LABEL_RENAME_PROMPT": {"label_intro", "label_rule", "strategy_name_rule", "names_json", "retry_note"},
+               "LOSS_POOL_CANDIDATE_PROMPT": {"business_name", "generation_instructions_section", "pools_json", "techniques"}}
 
 
 @pytest.fixture(scope="module")
