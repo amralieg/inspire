@@ -34,6 +34,7 @@ const {
   normalizeUseCasesQualityParams,
   sanitizeInspireNotebookJobParams,
   normalizeV130UseCaseFields,
+  agentNotebookFor,
 } = require('./lib/inspireJobParams');
 const JC = require('./lib/jobCurrency');
 const { notebookParamsFromSessionForGenerateRun } = require('./lib/inspireSessionParams');
@@ -1067,6 +1068,8 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
     }
   }
 
+  // One notebook per agent: keep the folder of the chosen notebook, swap its name for the one this job type runs.
+  resolvedPath = `${resolvedPath.split('/').slice(0, -1).join('/')}/${agentNotebookFor({ jobType, operation: params['15_operation'] })}`;
   try {
     const verified = await resolveWorkspaceNotebookObjectPath(host, token, resolvedPath);
     if (verified) resolvedPath = verified;
