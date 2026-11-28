@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "inspire/run_plan.schema.json",
+  "title": "Inspire run plan (REQ-587 G2, agreed with UI 07 28 Nov)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "plan_version",
+    "plan_id",
+    "session_id",
+    "run_type",
+    "domain",
+    "core_tables",
+    "planned_at"
+  ],
+  "properties": {
+    "plan_version": {
+      "const": 1
+    },
+    "plan_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_type": {
+      "enum": [
+        "Discover",
+        "Match"
+      ]
+    },
+    "order": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "domain": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9&]*$"
+    },
+    "subdomains": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z][A-Za-z0-9&]* [A-Za-z][A-Za-z0-9&]*$"
+      },
+      "uniqueItems": true
+    },
+    "core_tables": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/fqn"
+      },
+      "uniqueItems": true
+    },
+    "context_tables": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/fqn"
+      },
+      "uniqueItems": true
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/link"
+      }
+    },
+    "removed_links": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/link"
+      }
+    },
+    "user_use_cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "ref": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/fqn"
+            }
+          }
+        }
+      }
+    },
+    "exclusions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "node",
+          "reason"
+        ],
+        "properties": {
+          "node": {
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "catalog",
+              "schema",
+              "table"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "overridden_by_user": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "advanced": {
+      "type": "object",
+      "description": "W8 values, same keys and meanings as today's widgets; absent = widget default"
+    },
+    "planned_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "$defs": {
+    "fqn": {
+      "type": "string",
+      "pattern": "^[^.\\s]+\\.[^.\\s]+\\.[^.\\s]+$"
+    },
+    "link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to",
+        "source"
+      ],
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/col"
+        },
+        "to": {
+          "$ref": "#/$defs/col"
+        },
+        "source": {
+          "enum": [
+            "declared",
+            "name",
+            "user"
+          ]
+        }
+      }
+    },
+    "col": {
+      "type": "string",
+      "pattern": "^[^.\\s]+\\.[^.\\s]+\\.[^.\\s]+\\.[^.\\s]+$"
+    }
+  }
+}
