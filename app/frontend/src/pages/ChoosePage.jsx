@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useCallback, useMemo } from 'react';
+import { Fragment, Suspense, lazy, useState, useEffect, useCallback, useMemo } from 'react';
 import { Rocket, BarChart3, Loader2, AlertCircle, Clock, CheckCircle2, ArrowRight, ChevronRight, ChevronDown, ChevronUp, Eye, Target, FileText, Sparkles, X, Search } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import MoreMenu from '../components/ui/MoreMenu';
@@ -22,9 +22,11 @@ import { compareUseCaseRank, computeHighPriorityCount, nameOfUseCase, qualityBar
 import { PlainMessage } from '../components/TechnicalDetails';
 import InspireScoreBadge from '../components/InspireScoreBadge';
 import RunCountChips from '../components/RunCountChips';
-import StartWizard from '../components/startWizard/StartWizard';
 import { usePlanAdvance } from '../lib/wizPlanClient';
 import { START_NEW_DISCOVERY } from '../lib/startWizard';
+
+// The wizard (and LaunchPage under it) loads when the person opens it, not with the main App file.
+const StartWizard = lazy(() => import('../components/startWizard/StartWizard'));
 
 const RUNS_ERROR_TEXT = 'Inspire could not load your runs, and you can still start a new one';
 
@@ -332,9 +334,11 @@ export default function ChoosePage({ settings, update, onNoData, onDemo, demo = 
     </Button>
   );
   const wizard = wizardOpen && (
-    <StartWizard settings={settings} apiFetch={apiFetch} onClose={() => setWizardOpen(false)}
-      onNoData={onNoData ? () => { setWizardOpen(false); onNoData(); } : undefined}
-      onLaunched={(...args) => { setWizardOpen(false); onLaunched?.(...args); }} update={update} />
+    <Suspense fallback={null}>
+      <StartWizard settings={settings} apiFetch={apiFetch} onClose={() => setWizardOpen(false)}
+        onNoData={onNoData ? () => { setWizardOpen(false); onNoData(); } : undefined}
+        onLaunched={(...args) => { setWizardOpen(false); onLaunched?.(...args); }} update={update} />
+    </Suspense>
   );
 
   if (sessions.length === 0 && !error) {

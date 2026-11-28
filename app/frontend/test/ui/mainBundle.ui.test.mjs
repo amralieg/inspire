@@ -67,11 +67,11 @@ test('the built App opens the home page, fetches the later pages in the backgrou
     const page = await browser.newPage();
     await page.goto(`${site.base}/`);
     await page.getByRole('button', { name: 'Get Started' }).first().click();
-    await page.getByText('No data yet').waitFor();
+    await page.locator('[data-start-new]').first().waitFor();
     for (const name of LATER) {
       await page.waitForFunction((n) => performance.getEntriesByType('resource').some((e) => e.name.includes(`/assets/${n}-`)), name);
     }
-    await page.getByText('I have data in Unity Catalog').click();
+    await page.evaluate(() => { window.location.hash = '#/launch'; }); // REQ-577: Start has one Start New Discovery button; the full form stays at #/launch
     await page.getByText('Discovery Type').first().waitFor();
     assert.equal(site.loads.filter((p) => p === '/').length, 1, 'the page loaded once');
   } finally {
@@ -96,7 +96,7 @@ test('when a later page file is gone after a new deploy, the App reloads once to
     assert.equal(site.loads.filter((p) => p === '/').length, 2, 'one reload, never a reload loop');
     assert.ok(site.loads.filter((p) => p === `/assets/${gone}`).length >= 2, 'the reload asked for the file again');
     await page.getByRole('button', { name: 'Get Started' }).first().click();
-    await page.getByText('No data yet').waitFor();
+    await page.locator('[data-start-new]').first().waitFor();
   } finally {
     await browser.close();
     await site.close();
