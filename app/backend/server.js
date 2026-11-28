@@ -64,6 +64,7 @@ const { registerMacroRoutes } = require('./macroRoutes');
 const { registerWizPlanRoutes } = require('./lib/wizPlanRoutes');
 const { registerMatchRoutes } = require('./lib/matchRoutes');
 const { registerCandidateRoutes } = require('./lib/candidateRoutes');
+const { createLabelProgress, registerLabelProgressRoute } = require('./lib/labelProgress');
 const { loadSessionList, loadSessionOverviews, sessionListCap, SESSION_LIST_CAP } = require('./lib/reviewFigures');
 const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../frontend/src/lib/liveUseCases.js');
 const { isInspireOwnName, isInspireOwnSchema } = require('../frontend/src/lib/inspireOwnObjects.js');
@@ -2821,7 +2822,15 @@ function answeredWithin(work, ms, late) {
 
 // c37 (REQ-582 REQ-583): before a Let Inspire Decides run is submitted, the App labels the scope (dev|prod, then the table role) with the cheapest
 // gateway Claude model and writes <inspire_db>.__inspire_table_labels. It never blocks a launch (see appTableLabels.labelBeforeLaunch).
+const labelProgress = createLabelProgress();
 async function labelTablesBeforeLaunch(req, params) {
+  const sessionId = String(params['14_session_id'] || '');
+  labelProgress.begin(sessionId, RP.forwardedPerson(req.headers));
+  try {
+    return await labelTablesNow(req, params, (p) => labelProgress.update(sessionId, p));
+  } finally { labelProgress.finish(sessionId); }
+}
+async function labelTablesNow(req, params, onProgress) {
   const token = (await appOwnToken()) || req.dbToken;
   const call = (method, apiPath, body) => jsonOf(dbFetch, req.dbHost, token, apiPath, { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
   const tableOf = (cat, sch) => (t) => ({ fqn: String(t.full_name || `${cat}.${sch}.${t.name}`), comment: String(t.comment || ''),
@@ -2867,7 +2876,7 @@ async function labelTablesBeforeLaunch(req, params) {
         },
       };
     },
-  });
+  }, { onProgress });
 }
 
 async function launchDiscover(req, res, { params, notebook_path, cluster_id, profileId = '' }) {
@@ -3755,6 +3764,7 @@ const wizDeps = { requireToken, executeSql, sqlResultToObjects, chatModel: wizCh
 registerWizPlanRoutes(app, wizDeps);
 registerMatchRoutes(app, wizDeps);
 registerCandidateRoutes(app, wizDeps);
+registerLabelProgressRoute(app, { requireToken, progress: labelProgress });
 
 /**
  * Sync Route 1 flags to Delta while selecting (debounced in UI). Same SQL as generate-genie minus the job.

@@ -213,6 +213,8 @@ export async function openUi(open, overrides = {}, query = '', { mount, init, bu
     app.post('/api/setup/create-database', (_req, res) => res.json({ ok: true }));
     app.get('/api/notebook', (_req, res) => res.json({ path: '' }));
     app.get('/api/dbc/info', (_req, res) => res.json({}));
+    // REQ-585 9: a launch polls the labelling progress; a test that does not mount it gets none.
+    app.get('/api/inspire/labels/progress', (_req, res) => res.json({ done: 0, total: 0, state: 'none' }));
     app.get('/api/inspire/value/answers', (_req, res) => res.json({ answers: {} }));
     app.get('/api/inspire/value/answers/history', (_req, res) => res.json({ history: [] }));
     // REQ-436/438: the harness warehouse has no dated table, so a test that does not mount them gets the server's fallback case plan over

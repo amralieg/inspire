@@ -94,17 +94,26 @@ async function pool(limit, items, run) {
 const why = (err) => String((err && err.message) || err).slice(0, 200);
 
 // scope: { catalogs: [{name, comment}], schemasOf(cat), tablesOf(cat, schema) }, userNamed: { catalogs: [], schemas: ['cat.schema'] }.
-// Returns { rows, errors }. deadlineAt (ms epoch) stops new calls; what is already labelled is kept.
-async function labelScope({ catalogs, schemasOf, tablesOf, userNamed = {}, model, callModel, deadlineAt = Infinity }) {
+// Returns { rows, errors }. deadlineAt (ms epoch) stops new calls and stops waiting on calls in flight; what is already labelled is kept.
+// onProgress({ done, total }) reports the tables labelled so far out of the tables sent to the classifier.
+async function labelScope({ catalogs, schemasOf, tablesOf, userNamed = {}, model, callModel, deadlineAt = Infinity, onProgress = () => {} }) {
   const rows = [];
   const errors = [];
   const source = `app:${model}`;
   const namedCats = new Set(userNamed.catalogs || []);
   const namedSchemas = new Set(userNamed.schemas || []);
   const late = () => Date.now() >= deadlineAt;
+  let timer;
+  const expired = new Promise((_resolve, reject) => {
+    if (Number.isFinite(deadlineAt)) {
+      timer = setTimeout(() => reject(new Error('the labelling deadline passed')), Math.max(0, deadlineAt - Date.now()));
+      timer.unref();
+    }
+  });
+  expired.catch(() => {});
   const ask = async (prompt) => {
     if (late()) throw new Error('the labelling deadline passed');
-    return callModel({ model, prompt });
+    return Promise.race([callModel({ model, prompt }), expired]);
   };
   const decide = async (kind, items, named, fqnOf) => {
     const env = {};
@@ -142,12 +151,20 @@ async function labelScope({ catalogs, schemasOf, tablesOf, userNamed = {}, model
   const tables = tableLists.flat();
   const batches = [];
   for (let i = 0; i < tables.length; i += TABLE_BATCH) batches.push(tables.slice(i, i + TABLE_BATCH));
+  onProgress({ done: 0, total: tables.length });
+  let labelled = 0;
   const parsed = await pool(MAX_CALLS, batches, async (batch) => {
-    try { return parseTables(await ask(tablePrompt(batch)), batch); } catch (err) { errors.push(`tables: ${why(err)}`); return {}; }
+    try {
+      const got = parseTables(await ask(tablePrompt(batch)), batch);
+      labelled += Object.keys(got).length;
+      onProgress({ done: labelled, total: tables.length });
+      return got;
+    } catch (err) { errors.push(`tables: ${why(err)}`); return {}; }
   });
   for (const got of parsed) {
     for (const [fqn, v] of Object.entries(got)) rows.push({ level: 'table', object_fqn: fqn, env: v.env, label: v.label, confidence: null, source });
   }
+  clearTimeout(timer);
   return { rows, errors };
 }
 
@@ -174,7 +191,7 @@ function labelsTableStatements(inspireDb, sessionId, rows) {
 
 // The launch step. deps: { listScope() -> { catalogs, schemasOf, tablesOf, userNamed }, modelNames() -> [id], callModel, run(sql, parameters), log }.
 // Only for Let Inspire Decides. Never throws and never waits past budgetMs: every failure logs one line and the launch goes on.
-async function labelBeforeLaunch(params, deps, { budgetMs = 60000 } = {}) {
+async function labelBeforeLaunch(params, deps, { budgetMs = 60000, onProgress } = {}) {
   if (String((params || {})['04_table_election'] || '').trim() !== 'Let Inspire Decides') return { skipped: 'election' };
   const log = deps.log || (() => {});
   const startedAt = Date.now();
@@ -184,7 +201,7 @@ async function labelBeforeLaunch(params, deps, { budgetMs = 60000 } = {}) {
     if (!model) return { skipped: 'no Claude model' };
     const scope = await deps.listScope();
     if (!scope || !scope.catalogs || !scope.catalogs.length) return { skipped: 'no scope' };
-    const out = await labelScope({ ...scope, model, callModel: deps.callModel, deadlineAt: startedAt + budgetMs - 5000 });
+    const out = await labelScope({ ...scope, model, callModel: deps.callModel, deadlineAt: startedAt + budgetMs - 5000, onProgress: onProgress || undefined });
     out.errors.forEach((e) => log(`table labels: ${e}`));
     if (!out.rows.length) return { skipped: 'no rows', errors: out.errors };
     for (const s of labelsTableStatements(params['02_inspire_database'], params['14_session_id'], out.rows)) await deps.run(s.sql, s.parameters);
