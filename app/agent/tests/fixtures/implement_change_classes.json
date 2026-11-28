@@ -9782,7 +9782,8 @@
       "dashboard": "Dashboard",
       "genie_space": "Genie Agent",
       "app": "App",
-      "alert": "Alert"
+      "alert": "Alert",
+      "notebook": "Notebook"
     },
     "IMPLEMENT_NOTEBOOK": "notebook",
     "IMPLEMENT_RETRY_TARGETS": [

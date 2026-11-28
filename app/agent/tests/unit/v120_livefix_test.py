@@ -1030,7 +1030,7 @@ def _runtime_text_constants(node):
 
 
 def test_customer_visible_runtime_text_has_no_em_dash():
-    for name in ("_assemble_skeleton_notebook", "finalize_atomic_writer", "_run_generate_mode"):
+    for name in ("_assemble_skeleton_notebook", "finalize_atomic_writer"):
         offenders = [c for c in _runtime_text_constants(method_node("DatabricksInspire", name)) if EM in c]
         assert offenders == [], (name, offenders)
 

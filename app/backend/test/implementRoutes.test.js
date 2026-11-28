@@ -1461,66 +1461,53 @@ const notebookJobs = (life, result = '') => ({
   runsByJob: { 31: { runs: [{ run_id: 310, state: { life_cycle_state: life, result_state: result }, run_page_url: 'https://w/#job/31/run/310' }] } },
 });
 
-test('a notebook-only request flags just its use case and starts the session notebook job', async () => {
+test('a notebook-only request starts an Implement version of just its use case (REQ-578)', async () => {
   const { app, jobs, flagged } = makeApp();
   const srv = await listen(app);
   try {
     const got = await call(srv.url, '/api/inspire/generate-genie', { method: 'POST', body: GENERATE });
     assert.equal(got.status, 200);
     assert.deepEqual(got.data.flagged_use_case_ids, ['N01-U01']);
-    assert.deepEqual(flagged, [{ warehouseId: 'wh1', catalog: 'main', schema: 'inspire', sid: '42', ids: ['N01-U01'] }]);
+    assert.deepEqual(flagged, [], 'no genie flag is written');
     assert.equal(jobs.length, 1);
-    assert.equal(jobs[0].jobName, NOTEBOOK_JOB);
-    assert.equal(jobs[0].jobType, 'genie_regen');
-    assert.equal(jobs[0].params['15_operation'], 'Generate Use Cases');
+    assert.equal(jobs[0].jobType, 'implement');
+    assert.equal(jobs[0].params['15_operation'], 'Implement Use Cases');
     assert.equal(jobs[0].params['14_session_id'], '42');
-    assert.deepEqual(jobs[0].useCaseIds, ['N01-U01'], 'the notebook job is tagged with the use cases it writes');
+    assert.deepEqual(jobs[0].useCaseIds, ['N01-U01'], 'the job is tagged with the use case it writes');
   } finally {
     await srv.close();
   }
 });
 
-test('a notebook run still running blocks a second request even after the App restarted', async () => {
-  const { app, jobs, flagged } = makeApp(notebookJobs('RUNNING'));
+test('a notebook version still running blocks a second request for the same use case (REQ-578)', async () => {
+  const history = [{ spec_version: 3, status: 'filling', spec_json: { use_case_id: 'N01-U01', outputs: { notebook: true } }, use_case_id: 'N01-U01',
+    updated_at: new Date().toISOString() }];
+  const { app, jobs } = makeApp({ history });
   const srv = await listen(app);
   try {
-    const got = await call(srv.url, '/api/inspire/generate-genie', { method: 'POST', body: { ...GENERATE, use_case_ids: ['N02-U01'] } });
+    const got = await call(srv.url, '/api/inspire/generate-genie', { method: 'POST', body: GENERATE });
     assert.equal(got.status, 409);
-    assert.match(got.data.error, /already being written/);
-    assert.equal(got.data.run_id, 310);
-    assert.equal(got.data.job_run_url, 'https://w/#job/31/run/310');
-    assert.deepEqual(flagged, []);
+    assert.match(got.data.error, /spec v3 is still filling/);
     assert.equal(jobs.length, 0);
   } finally {
     await srv.close();
   }
 });
 
-test('a finished notebook run lets the next request start', async () => {
-  for (const [life, result] of [['TERMINATED', 'SUCCESS'], ['TERMINATED', 'FAILED'], ['INTERNAL_ERROR', '']]) {
-    const { app, jobs } = makeApp(notebookJobs(life, result));
+test('a finished notebook version lets the next request start as the next version (REQ-578)', async () => {
+  for (const status of ['ready', 'ready_with_warnings', 'failed']) {
+    const history = [{ spec_version: 3, status, spec_json: { use_case_id: 'N01-U01', outputs: { notebook: true } }, use_case_id: 'N01-U01',
+      updated_at: new Date().toISOString() }];
+    const { app, jobs } = makeApp({ history });
     const srv = await listen(app);
     try {
       const got = await call(srv.url, '/api/inspire/generate-genie', { method: 'POST', body: GENERATE });
-      assert.equal(got.status, 200, `${life}/${result}`);
+      assert.equal(got.status, 200, `${status}: ${JSON.stringify(got.data)}`);
+      assert.equal(got.data.spec_version, 4);
       assert.equal(jobs.length, 1);
     } finally {
       await srv.close();
     }
-  }
-});
-
-test('a notebook request is refused when the jobs list cannot be read, so a running notebook is never doubled', async () => {
-  const { app, jobs, flagged } = makeApp({ jobsListStatus: 403, jobsList: { message: 'no access to jobs' } });
-  const srv = await listen(app);
-  try {
-    const got = await call(srv.url, '/api/inspire/generate-genie', { method: 'POST', body: GENERATE });
-    assert.equal(got.status, 502);
-    assert.match(got.data.error, /Listing the Databricks AI notebook jobs failed \(403\)/);
-    assert.deepEqual(flagged, []);
-    assert.equal(jobs.length, 0);
-  } finally {
-    await srv.close();
   }
 });
 
@@ -1620,7 +1607,7 @@ test('a Genie start runs as the App: its job is started with the App token and t
     const got = await call(url, '/api/inspire/generate-genie', { method: 'POST', body: { inspire_database: 'main.inspire', warehouse_id: 'wh1', session_id: '42', use_case_ids: ['N01-U01'] } });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(made.jobs.length, 1, 'the Genie job is started');
-    assert.equal(made.flagged.length, 1, 'the use case is flagged for Databricks AI');
+    assert.equal(made.flagged.length, 0, 'no flag is written: the notebook is an Implement output');
     // The only person-token call is the identity read that records who asked (who-did-what); no job, table or SQL call uses it.
     assert.deepEqual(made.fetches.filter((f) => f.token === 'person-token').map((f) => f.path), ['/api/2.0/preview/scim/v2/Me']);
     assert.equal(made.sqlCalls.some((c) => c.token === 'person-token'), false, 'no SQL runs with the person token');

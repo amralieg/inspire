@@ -62,7 +62,7 @@ def test_skeleton_how_to_matches_a_notebook_without_an_instruction(agent_ns):
     cell0 = _cell_text(writes[0]["obj"]["cells"][0])
     assert "print(genie_instruction)" not in cell0
     assert "Next step: generate the Databricks AI instruction" in cell0 and "this one does not have it yet" in cell0
-    assert "Operation = Generate Use Cases" in cell0
+    assert "Operation = Implement Use Cases" in cell0
     all_text = "".join(_cell_text(c) for c in writes[0]["obj"]["cells"])
     assert "genie_instruction = " not in all_text
 

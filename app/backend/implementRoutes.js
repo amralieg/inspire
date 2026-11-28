@@ -171,7 +171,6 @@ function registerImplementRoutes(app, deps) {
     splitInspireDatabase,
     databricksJobRunUrl,
     ensureTableColumns,
-    runRoute1GenieFlagUpdates,
     hostedRun = null,
     buildStamp = bundledBuildStamp,
     runDefaults = () => ({}),
@@ -582,9 +581,8 @@ function registerImplementRoutes(app, deps) {
 
   /**
    * Route 1: set generate_genie_code_instruction = 'Yes' for selected UC ids, then submit
-   * notebook job with 15_operation = Generate Use Cases and 14_session_id = session.
+   * notebook job with 15_operation = Match Use Cases and 14_session_id = session.
    */
-  const genieJobGuard = createGenieJobGuard();
 
   // REQ-409: the token of a control call. A build's run and an installed job are read or cancelled with the installed-run rule; any other
   // asset keeps the person's token.
@@ -597,12 +595,6 @@ function registerImplementRoutes(app, deps) {
   // The session's Genie notebook run: the job named for the session, read with the App's service principal (REQ-418).
   async function latestGenieRunOf(req, sessionId) {
     return latestGenieNotebookRun((path) => jsonOf(dbFetch, req.dbHost, req.dbToken, path), sessionId);
-  }
-
-  async function genieRunState(host, token, runId) {
-    if (!runId) return null;
-    const got = await jsonOf(dbFetch, host, token, `/api/2.1/jobs/runs/get?run_id=${encodeURIComponent(runId)}`);
-    return got.ok ? got.data?.state?.life_cycle_state || null : null;
   }
 
   async function handleInspireGenerateGenie(req, res) {
@@ -659,69 +651,30 @@ function registerImplementRoutes(app, deps) {
         return res.status(404).json({ error: noSessionText(sidStr) });
       }
 
-      const params = notebookParamsFromSessionForGenerateRun(session, sidStr);
-      if (!params['02_inspire_database']) {
-        params['02_inspire_database'] = inspire_database.trim();
-      }
-      if (!params['01_uc_metadata']) {
-        return res.status(400).json({
-          error:
-            'This run has no saved data sources, so Inspire cannot rebuild it. Start a new run from Start to get them.',
-        });
-      }
       const refused = await U.runReadRefusal(dbFetch, req, { tables: await useCasesTables(req, warehouse_id, catalog, schema, sidStr, safeIds) });
       if (refused) return PM_ERROR.sendFailure(res, refused.status, refused.message, { unreadable: refused.unreadable });
 
-      const lastRun = await latestGenieRunOf(req, sidStr);
-      if (lastRun?.state === 'running') {
-        return res.status(409).json({
-          error: 'A Databricks AI notebook for this session is already being written. Wait for that run to finish, then try again.',
-          run_id: lastRun.run_id,
-          job_run_url: lastRun.url || databricksJobRunUrl(req.dbHost, lastRun.job_id, lastRun.run_id),
-        });
+      // REQ-578: the Genie code notebook is the Implement output "notebook": one Implement version per use case, built by the Implement job.
+      const person = await personOf(req);
+      const started = [];
+      for (const useCaseId of safeIds) {
+        const history = await loadHistory(req.dbHost, req.dbToken, warehouse_id, catalog, schema, sidStr, useCaseId);
+        const plan = I.planNotebookOnly(history, await stalledOf(req, history[0]));
+        const spec = I.validateImplementSpec({
+          use_case_id: useCaseId,
+          use_case_name: await regenUseCaseName(req, warehouse_id, catalog, schema, sidStr, useCaseId),
+          outputs: { [I.IMPLEMENT_NOTEBOOK]: true },
+        }).spec;
+        started.push(await startVersion(req, {
+          sid: sidStr, warehouseId: warehouse_id, inspire_database, catalog, schema, spec, useCaseId, session, plan, person, rebuildAsIs: true,
+        }));
       }
-      const claim = await genieJobGuard.claim(sidStr, (runId) => genieRunState(req.dbHost, req.dbToken, runId));
-      if (!claim.ok) {
-        return res.status(409).json({
-          error: 'Genie instructions for this session are already being generated. Wait for that run to finish, then try again.',
-          run_id: claim.entry?.run_id || null,
-          job_run_url: claim.entry?.job_run_url || null,
-        });
-      }
-      let out;
-      try {
-        await runRoute1GenieFlagUpdates(
-          req.dbHost,
-          req.dbToken,
-          warehouse_id,
-          catalog,
-          schema,
-          sidStr,
-          safeIds,
-        );
-
-        out = await triggerInspireNotebookJob(req.dbHost, req.dbToken, {
-          params,
-          notebook_path,
-          cluster_id,
-          jobType: 'genie_regen',
-          asker: req,
-          jobName: genieNotebookJobName(sidStr),
-          useCaseIds: safeIds,
-          useCaseName: safeIds.length === 1 ? await regenUseCaseName(req, warehouse_id, catalog, schema, sidStr, safeIds[0]) : '',
-          launchedBy: (await personOf(req)).username,
-        });
-      } catch (launchErr) {
-        genieJobGuard.failed(sidStr);
-        throw launchErr;
-      }
-      genieJobGuard.launched(sidStr, out);
-
-      console.log(`   🧞 Generate Genie: session=${sidStr}, flagged=${safeIds.length}, run_id=${out.run_id}`);
+      console.log(`   Genie notebook: session=${sidStr}, use cases=${safeIds.length}, run_id=${started[0].run_id}`);
       res.json({
-        ...out,
+        ...started[0],
         session_id: sidStr,
         flagged_use_case_ids: safeIds,
+        runs: started.map((one) => ({ use_case_id: one.use_case_id, spec_version: one.spec_version, run_id: one.run_id })),
       });
     } catch (err) {
       const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;

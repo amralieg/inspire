@@ -122,7 +122,7 @@ def _build(ns, tmp_path, mode, acceptable, scorer, user_domains=None):
     obj.scan_parallelism = 4
     obj.output_languages = ["English"]
     obj.technical_exclusion_strategy = "Aggressive"
-    obj.table_election_mode = "All Tables"
+    obj.table_election_mode = "Let Inspire Decides"
     obj.use_cases_quality = mode
     obj.quality_filter_acceptable = acceptable
     obj.user_business_domains = list(user_domains or [])
@@ -233,7 +233,7 @@ def quiet_root_logger():
 
 def test_run_balanced_end_to_end(agent_ns, tmp_path, quiet_root_logger):
     def scorer(uc_id):
-        if uc_id == "N01-U02":
+        if uc_id == "AI01-UC02":
             return None
         return {"use_case_id": uc_id, "quality_label": "High", "quality_score": 4.0, "priority_score": 7.0,
                 "quality_summary": "Columns `id` and `amount` aggregated by store give the KPI that drives the outcome."}
@@ -289,7 +289,7 @@ def test_run_zero_at_high_bar_falls_back_to_medium_tier(agent_ns, tmp_path, quie
 
 def test_run_user_domain_gets_coverage_pick_in_strict(agent_ns, tmp_path, quiet_root_logger):
     def scorer(uc_id):
-        label = "High" if uc_id.startswith("N01-") else "Low"
+        label = "High" if uc_id.startswith("AI01-") else "Low"
         return {"use_case_id": uc_id, "quality_label": label, "quality_score": 4.0 if label == "High" else 2.0,
                 "priority_score": 6.0, "quality_summary": "Columns `id` and `amount` give the KPI that drives the outcome."}
 

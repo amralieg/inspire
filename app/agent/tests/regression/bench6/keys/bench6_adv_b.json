@@ -1,0 +1,69 @@
+{
+  "scope": "bench6_adv_b",
+  "source": "planted",
+  "items": [
+    {
+      "id": "mixed_currency",
+      "name": "Amounts in mixed currencies",
+      "statement": "One amount column holds several currencies; sums are wrong unless converted.",
+      "tables": [
+        "payments"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "wrong_grain",
+      "name": "Daily snapshot next to events",
+      "statement": "Snapshot rows and event rows have different grain; they must not be summed together.",
+      "tables": [
+        "daily_snapshot",
+        "entity_events"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "refunds_negative",
+      "name": "Refunds stored as negative amounts",
+      "statement": "Negative lines are refunds; totals must net or separate them.",
+      "tables": [
+        "sales_lines"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "stock_vs_flow",
+      "name": "Stock balance versus flow",
+      "statement": "On-hand quantity is a point-in-time stock; moves are flow. Summing stock over time is wrong.",
+      "tables": [
+        "stock_balance",
+        "stock_moves"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "overlapping_pools",
+      "name": "Two overlapping pools",
+      "statement": "The same members sit in both pools; adding the pools double counts.",
+      "tables": [
+        "pool_one",
+        "pool_two"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "dev_data",
+      "name": "Dev data table",
+      "statement": "Tiny, stale, synthetic-looking rows are not business data and must be excluded.",
+      "tables": [
+        "scratch_dev_data"
+      ],
+      "critical": false,
+      "high_value": false
+    }
+  ]
+}

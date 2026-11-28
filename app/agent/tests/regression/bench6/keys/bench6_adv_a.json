@@ -1,0 +1,63 @@
+{
+  "scope": "bench6_adv_a",
+  "source": "planted",
+  "items": [
+    {
+      "id": "priced_by_reference",
+      "name": "Priced from a rate reference with history",
+      "statement": "Event quantities carry no price; value needs the reference rate valid on each event date.",
+      "tables": [
+        "item_events",
+        "unit_rate_ref"
+      ],
+      "critical": true,
+      "high_value": false
+    },
+    {
+      "id": "tiny_master",
+      "name": "Tiny master with many inbound links",
+      "statement": "A master of 20 rows or fewer that many tables point at is a business master, not noise.",
+      "tables": [
+        "code_master",
+        "item_events",
+        "usage_events",
+        "asset_log"
+      ],
+      "critical": true,
+      "high_value": false
+    },
+    {
+      "id": "no_money_unit_cost",
+      "name": "Usage without money, costed per unit",
+      "statement": "Usage rows have no money column; cost needs the per-unit cost reference.",
+      "tables": [
+        "usage_events",
+        "cost_per_unit_ref"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "cross_domain",
+      "name": "Two groups joined through a shared hub",
+      "statement": "Records of two groups only combine through the shared hub table.",
+      "tables": [
+        "group_x_records",
+        "group_y_records",
+        "shared_hub"
+      ],
+      "critical": false,
+      "high_value": false
+    },
+    {
+      "id": "high_value_table",
+      "name": "One high-value table",
+      "statement": "A small table whose values dominate the portfolio value must rank as high value.",
+      "tables": [
+        "contract_values"
+      ],
+      "critical": false,
+      "high_value": true
+    }
+  ]
+}

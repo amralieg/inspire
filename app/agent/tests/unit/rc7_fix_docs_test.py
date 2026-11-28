@@ -12,7 +12,7 @@ from v211_strategy_directives_test import four_level_tree, portfolio
 
 CATALOG = "/Workspace/out/acme/docs/Acme-dbx_inspire.json"
 NEVER_IN_A_DOCUMENTS_RUN = ("assemble_use_case_notebooks", "_run_discover_skeleton_phase", "_generate_genie_instructions_and_notebooks",
-                            "_record_executive_summary", "_run_generate_mode")
+                            "_record_executive_summary")
 
 
 def documents_only_run(ns, monkeypatch):

@@ -348,29 +348,6 @@ def _generate_mode_inst(ns, lock_outcome):
     return inst
 
 
-def test_generate_mode_records_a_lock_infrastructure_failure_and_still_releases(ns):
-    inst = _generate_mode_inst(ns, RuntimeError("lock table unreadable: PERMISSION_DENIED"))
-    inst._run_generate_mode()
-    assert [f["step"] for f in inst.failed_steps] == ["Generate Lock"]
-    assert "PERMISSION_DENIED" in inst.failed_steps[0]["error"]
-    assert inst.logger.matching("[G15 LOCK_UNVERIFIED]", "WARNING")
-    assert inst.atomic_writer.released == ["Acme"]
-    assert any("Generate Lock" in w for w in inst._run_outcome_warnings())
-
-
-def test_generate_mode_releases_the_lock_under_the_business_it_locked(ns):
-    inst = _generate_mode_inst(ns, True)
-    inst._fetch_flagged_use_cases_route1 = lambda: [{"session_id": 11, "id": "N01-U01"}]
-
-    def regenerate(rows, label):
-        inst.business_name = "Other Corp"
-        return []
-
-    inst._regenerate_genie_for_flagged_rows = regenerate
-    inst._run_generate_mode()
-    assert inst.atomic_writer.released == ["Acme"], "a context change during the run never moves the lock it releases"
-
-
 def test_regeneration_restores_the_run_context_after_every_session(ns):
     inst = build_inspire(ns, operation="Generate Use Cases")
     contexts = {"11": {"business_name": "Acme"}, "22": {"business_name": "Other Corp", "enriched_business_context": "theirs"}}
@@ -396,22 +373,6 @@ def test_regeneration_restores_the_run_context_after_every_session(ns):
     with pytest.raises(RuntimeError, match="wave failed"):
         inst._regenerate_genie_for_flagged_rows([{"session_id": 22, "id": "N02-U01"}], "Route 1 (DB flag)")
     assert inst.business_name == "Acme" and inst.merged_business_context == before[1]
-
-
-def test_generate_mode_stops_when_another_run_holds_the_lock(ns):
-    inst = _generate_mode_inst(ns, False)
-    with pytest.raises(RuntimeError, match="Another Genie regeneration is running for business Acme"):
-        inst._run_generate_mode()
-    assert [f["step"] for f in inst.failed_steps] == ["Generate Lock"]
-    assert "another run holds the Generate lock" in inst.failed_steps[0]["error"]
-    assert inst.atomic_writer.released == [], "a run that never held the lock releases nothing"
-
-
-def test_generate_mode_with_the_lock_held_records_nothing(ns):
-    inst = _generate_mode_inst(ns, True)
-    inst._run_generate_mode()
-    assert not getattr(inst, "failed_steps", None)
-    assert inst.atomic_writer.released == ["Acme"]
 
 
 class _StatusApi:
@@ -463,13 +424,13 @@ def test_genie_prompt_carries_the_shared_assumed_context_rule_after_the_context_
     assert entry["ok"] and entry["error"] is None
 
 
-def _generate_run(ns, tmp_path, monkeypatch, failed=None):
+def _match_run(ns, tmp_path, monkeypatch, failed=None):
     obj = _build(ns, tmp_path, "Good", {"Medium", "High", "Very High", "Ultra High"}, lambda uc_id: None)
-    obj.operation = "Generate Use Cases"
-    obj.operation_mode = "Generate Use Cases"
+    obj.operation = "Match Use Cases"
+    obj.operation_mode = "Match Use Cases"
     uploads = []
     obj._upload_log_file = lambda: uploads.append(True)
-    obj._run_generate_mode = lambda: obj._record_failed_step("Generate Lock", "", failed) if failed else None
+    obj._run_match_mode = lambda: obj._record_failed_step("Match Lock", "", failed) if failed else None
     printed = []
     monkeypatch.setitem(ns["DatabricksInspire"].run.__globals__, "log_print",
                         lambda message, level="INFO", flush=True: printed.append((level, str(message))))
@@ -477,17 +438,17 @@ def _generate_run(ns, tmp_path, monkeypatch, failed=None):
     return obj, printed, uploads
 
 
-def test_generate_mode_ends_with_the_shared_completion_banner_and_uploads_the_log(fresh_ns, tmp_path, monkeypatch):
-    _obj, printed, uploads = _generate_run(fresh_ns, tmp_path, monkeypatch)
-    banners = [m for level, m in printed if "Databricks AI regeneration" in m]
+def test_match_mode_ends_with_the_shared_completion_banner_and_uploads_the_log(fresh_ns, tmp_path, monkeypatch):
+    _obj, printed, uploads = _match_run(fresh_ns, tmp_path, monkeypatch)
+    banners = [m for level, m in printed if "Match Use Cases for" in m]
     assert banners and banners[-1].startswith("✅ SUCCESS") and uploads == [True]
 
 
-def test_generate_mode_banner_reports_warnings(fresh_ns, tmp_path, monkeypatch):
-    obj, printed, uploads = _generate_run(fresh_ns, tmp_path, monkeypatch, failed=RuntimeError("lock unreadable"))
+def test_match_mode_banner_reports_warnings(fresh_ns, tmp_path, monkeypatch):
+    obj, printed, uploads = _match_run(fresh_ns, tmp_path, monkeypatch, failed=RuntimeError("lock unreadable"))
     warnings = [m for level, m in printed if level == "WARNING" and "COMPLETED WITH WARNINGS" in m]
-    assert len(warnings) == 1 and "Generate Lock" in warnings[0]
-    assert obj.final_inspire_results_json["failed_steps"][0]["step"] == "Generate Lock"
+    assert len(warnings) == 1 and "Match Lock" in warnings[0]
+    assert obj.final_inspire_results_json["failed_steps"][0]["step"] == "Match Lock"
     assert not [m for _, m in printed if m.startswith("✅ SUCCESS")] and uploads == [True]
 
 
